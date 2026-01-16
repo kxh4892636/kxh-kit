@@ -1,29 +1,26 @@
 {
 	"name": "kxh-awesome",
-	"private": false,
+	"module": "index.ts",
 	"type": "module",
-	"scripts": {
-		"build": "turbo run build",
-		"clean": "turbo run clean",
-		"dev": "turbo run dev",
-		"lint": "biome check --write",
-		"test": "turbo run test",
-		"check-types": "turbo run check-types",
-		"prepare": "husky"
-	},
+	"private": true,
+	"workspaces": [
+		"apps/**",
+		"packages/**",
+		"libs/**"
+	],
 	"devDependencies": {
-		"@biomejs/biome": "^2.3.5",
-		"@commitlint/cli": "^20.1.0",
-		"@commitlint/config-conventional": "^20.0.0",
-		"@types/node": "^24.10.1",
+		"@biomejs/biome": "^2.3.11",
+		"@commitlint/cli": "^20.3.1",
+		"@commitlint/config-conventional": "^20.3.1",
+		"@types/bun": "latest",
 		"husky": "^9.1.7",
-		"lint-staged": "^16.2.6",
-		"tsx": "^4.20.6",
-		"turbo": "^2.6.1",
-		"typescript": "^5.9.3"
+		"lint-staged": "^16.2.7"
 	},
-	"packageManager": "pnpm@10.13.1",
-	"engines": {
-		"node": ">=22"
+	"peerDependencies": {
+		"typescript": "^5"
+	},
+	"scripts": {
+		"prepare": "husky",
+		"lint": "biome check --write"
 	}
 }
