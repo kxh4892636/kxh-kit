@@ -6,7 +6,8 @@
 	"workspaces": [
 		"apps/**",
 		"packages/**",
-		"libs/**"
+		"libs/**",
+		"templates/**"
 	],
 	"devDependencies": {
 		"@biomejs/biome": "^2.3.11",
