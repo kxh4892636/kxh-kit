@@ -113,13 +113,14 @@ export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps)
 
 ### 规则
 
-- 如果项目已配置 IDL（Proto）→ Go 后端 → ConnectRPC 生成客户端代码，**优先使用 ConnectRPC**：从 `api/gen/<project>/` 导入生成的 method descriptor，搭配 `@connectrpc/connect-query` 的 hooks 调用，编译时保证类型安全；
-- 其次优先使用 BAM 调用接口, 只有在缺少对应 API 或临时接入时才使用 `request(...)/fetch` 调用 HTTP 接口;
+- 优先用 ConnectRPC 生成的调用接口；
+- 其次优先使用 BAM 调用接口；
+- 只有在缺少对应 API 或临时接入时才使用 `request(...)/fetch` 调用 HTTP 接口;
 - 搜索同一项目中的网络请求函数, 仿照其实现方式;
 
 ### 请求流程
 
-1. 使用 BAM 或者 request(...)/fetch() 封装 HTTP 接口请求函数;
+1. 使用 ConnectRPC 或者 BAM 或者 request(...)/fetch() 封装 HTTP 接口请求函数;
 2. 基于封装后的请求函数, 使用 `ahook` 或者 `react-query` 生成对应的 hook;
 3. 在组件中使用 hook 来调用接口;
 
