@@ -1,6 +1,6 @@
 ---
 name: connectrpc-full-flow
-description: ConnectRPC 全栈开发流程。Go 后端 + TypeScript 前端 + Proto IDL，从代码生成到接口实现、前端调用的完整工具链。当用户提到 ConnectRPC、proto、IDL、前后端类型安全、RPC、buf generate、connectrpc-gen、跨语言接口生成 时触发。
+description: ConnectRPC 全栈开发流程。涵盖 Go 后端 + TypeScript 前端 + Proto IDL 的完整工具链：环境配置、安装、项目结构、代码生成、接口实现、前端调用、开发工作流。当用户提到 ConnectRPC、proto、IDL、前后端类型安全、RPC、buf generate、connectrpc-gen、跨语言接口生成时触发。
 ---
 
 # ConnectRPC 全栈开发流程
@@ -27,9 +27,33 @@ description: ConnectRPC 全栈开发流程。Go 后端 + TypeScript 前端 + Pro
   - `buf` (`github.com/bufbuild/buf/cmd/buf`)
 
 **TypeScript 前端：**
-- Node.js 22+、pnpm（或其他包管理器）
-- `@connectrpc/connect-query`、`@connectrpc/connect-web`、`@bufbuild/protobuf`（运行时依赖）
-- 代码生成依赖（`@bufbuild/buf`、`@bufbuild/protoc-gen-es`、`@connectrpc/protoc-gen-connect-query`）应封装在生成 CLI 中，前端无需直接安装
+- Node.js 22+，包管理器按锁文件检测
+- 运行时依赖（必须安装）：
+  - `@connectrpc/connect-query`、`@connectrpc/connect-web`、`@connectrpc/connect`、`@bufbuild/protobuf`
+- 代码生成 CLI（`connectrpc-gen`），封装了生成所需依赖，前端只需安装这一个包
+
+**前端安装 CLI：**
+
+CLI 可发布为 npm 包（推荐 `@scope/connectrpc-gen`）或作为 monorepo workspace 包：
+
+```bash
+# npm 包方式
+<pm> add -D @scope/connectrpc-gen
+
+# monorepo workspace 方式
+<pm> add -D @scope/connectrpc-gen@workspace:*
+```
+
+CLI 本身依赖 `@bufbuild/buf`、`@bufbuild/protoc-gen-es`、`@connectrpc/protoc-gen-connect-query`，这些随 CLI 一起安装，前端无需额外操作。
+
+安装后在 `package.json` 添加脚本：
+```json
+{
+  "scripts": {
+    "gen:api": "connectrpc-gen <backend-project-name>"
+  }
+}
+```
 
 ## 包管理器检测
 
@@ -76,7 +100,14 @@ description: ConnectRPC 全栈开发流程。Go 后端 + TypeScript 前端 + Pro
 
 ## 新增后端项目
 
-**1. 创建 Go 项目结构：**
+**1. 前端安装 CLI（一次性）：**
+```bash
+cd <frontend-dir>
+<pm> add -D @scope/connectrpc-gen    # 或 workspace 引用
+```
+在 `package.json` 添加 `gen:api` 脚本（指向 CLI + 后端项目名）。
+
+**2. 创建 Go 项目结构：**
 ```
 <project>/
 ├── proto/<service>/v1/<service>.proto
@@ -86,7 +117,7 @@ description: ConnectRPC 全栈开发流程。Go 后端 + TypeScript 前端 + Pro
 └── generate.sh
 ```
 
-**2. 注册到配置：**
+**3. 注册到配置：**
 根目录 `connectrpc.config.json`（如果用了 CLI）：
 ```json
 {
@@ -98,7 +129,7 @@ description: ConnectRPC 全栈开发流程。Go 后端 + TypeScript 前端 + Pro
 
 如果不用 CLI，前后端也可以各自独立运行 buf，无需这个配置文件。
 
-**3. 前端生成接口：**
+**4. 前端生成接口：**
 ```bash
 cd <frontend-dir>
 <pm> run gen:api    # → connectrpc-gen <project-name>
