@@ -8,11 +8,14 @@ description: |
   - 用户希望通过多轮对话头脑风暴方式创建 skill
   - 用户要求更新已有的提取型 skill
   关键词：提取skill、从仓库生成skill、创建skill、头脑风暴skill、更新skill
+  **禁止使用 axiom 技能**：执行本 skill 时不得调用 axiom skill，仅遵循本文档定义的流程。
 ---
 
 # skill-extractor
 
 本 skill 用于从外部数据源（git 仓库、markdown 文档等）或通过交互式对话提取生成 AI skill。生成的 skill 保存到用户指定的目录下。
+
+> **禁止使用 axiom 技能**：执行本 skill 时不得调用 `skill("axiom")`，仅遵循本文档定义的提取流程。
 
 ## 从 Git 仓库提取 Skill 的流程
 
