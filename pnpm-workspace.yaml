@@ -4,18 +4,18 @@ packages:
   - tools/*
 
 catalog:
-  '@tailwindcss/vite': ^4.2.4
-  '@tanstack/react-query': ^5.100.8
-  '@tanstack/react-router': ^1.169.1
+  "@tailwindcss/vite": ^4.2.4
+  "@tanstack/react-query": ^5.100.8
+  "@tanstack/react-router": ^1.169.1
   "@types/node": ^24
-  '@types/react': ^19.2.14
-  '@types/react-dom': ^19.2.3
+  "@types/react": ^19.2.14
+  "@types/react-dom": ^19.2.3
   antd: ^6.3.7
   es-toolkit: ^1.46.1
   react: ^19.2.5
   react-dom: ^19.2.5
   tailwindcss: ^4.2.4
-  typescript: ^5
+  typescript: ~6.0.2
   vite: npm:@voidzero-dev/vite-plus-core@latest
   vite-plus: latest
   vitest: npm:@voidzero-dev/vite-plus-test@latest
