@@ -1,14 +1,6 @@
 ---
 name: skill-extractor
-description: |
-  从外部数据源（git 仓库、markdown 文档等）或通过交互式对话提取生成 AI skill。
-  触发场景：
-  - 用户要求从 git 仓库提取文档生成 skill
-  - 用户提供 markdown 文档链接要求转化为 skill
-  - 用户希望通过多轮对话头脑风暴方式创建 skill
-  - 用户要求更新已有的提取型 skill
-  关键词：提取skill、从仓库生成skill、创建skill、头脑风暴skill、更新skill
-  **禁止使用 axiom 技能**：执行本 skill 时不得调用 axiom skill，仅遵循本文档定义的流程。
+description: 从 git 仓库、markdown 文档或交互对话中提取生成 AI skill。
 ---
 
 # skill-extractor

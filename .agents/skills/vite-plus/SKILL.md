@@ -1,6 +1,6 @@
 ---
 name: vite-plus
-description: Vite+ 统一前端工具链使用指南。Vite+ 集成了 Vite、Vitest、Oxlint、Oxfmt、Rolldown、tsdown、Vite Task，并管理 git hook（.vite-hooks/ + vp config + vp staged）。当用户询问 vp 命令、配置、迁移、故障排查或 git hook 相关问题时触发该 skill。关键词：vp、vite-plus、viteplus、vp dev、vp build、vp test、vp check、vp lint、vp fmt、vp run、vp pack、vp create、vp migrate、vp install、vp add、vp remove、vp config、vp staged
+description: Vite+ 统一前端工具链使用指南。集成 Vite、Vitest、Oxlint、Oxfmt、Rolldown、tsdown、Vite Task，管理 git hook。vp 命令、配置、迁移或故障排查时触发。关键词：vp、vite-plus、viteplus
 ---
 
 # Vite+ Skill
