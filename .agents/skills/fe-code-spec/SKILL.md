@@ -1,11 +1,31 @@
 ---
-name: code-spec
-description: |
-  前端编码规范, 用于命名规范、代码规范、组件规范、HTTP 接口请求规范相关问题. 在执行 html/css/js/ts/react/vue 等前端开发任务时使用该 skill.
-  关键词：前端、规范、前端任务、代码、组件、函数、接口请求、HTTP、BAM、网络请求
+name: fe-code-spec
+description: 前端编码规范与外部依赖使用说明，涵盖项目结构、命名、代码、组件、接口请求等规范及外部库/框架用法。执行 html/css/js/ts/react/vue 等前端开发任务时触发。关键词：前端、规范、项目结构、代码、组件、接口请求、外部依赖、第三方库。
 ---
 
-# code-spec
+# fe-code-spec
+
+## 项目结构
+
+```
+src/
+├── main.tsx          # React DOM 入口，挂载 <App />
+├── app.tsx           # 应用外壳：全局 Provider（QueryClient、Router 等）
+├── index.css         # 全局样式（如 @import "tailwindcss"）
+├── assets/           # 静态资源（图片、SVG、字体等）
+├── common/           # 共享常量、类型、枚举、配置等
+├── components/       # 可复用 UI 组件
+├── hooks/            # 自定义 Hook（数据请求、业务逻辑封装）
+├── pages/            # 页面级组件
+│   └── [page-name]/  # 页面组件，每个页面对应一个路由
+│       ├── index.tsx  # 页面组件文件
+│       ├── components/ # 页面内部私有组件目录
+│       └── ...        # 与 src 目录结构一致
+├── routes/           # 路由定义（每个路由文件导出对应页面组件）
+├── stores/           # 状态管理（Zustand store 等）
+├── api/              # 外部网络请求（如 fetch、axios 等）
+└── utils/            # 纯工具函数
+```
 
 ## 命名规范
 
@@ -107,7 +127,6 @@ export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps)
 #### 规则
 
 - 使用 try-catch 包裹请求函数, 并在 catch 中使用 console.error 记录异常, 并返回与返回值类型相同的空值;
-- 至少返回 `data`, `loading`, `error` 三个属性;
 - 明确 hook 的参数和返回值类型;
 
 #### react-query
@@ -158,6 +177,3 @@ export const useGetItemList = (params: GetItemListReq) => {
 ## 检查与修复
 
 - 代码开发任务执行完成后, 必须执行代码检查和修复;
-- 使用 pnpm lint:change 进行增量代码检查;
-- 使用 pnpm format 或者 pnpm format:changed 进行修复;
-- 使用 pnpm biome check <path> 和 pnpm biome check --write <path> 进行特定代码检查和修复;
