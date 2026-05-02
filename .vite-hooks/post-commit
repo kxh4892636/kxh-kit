@@ -5,11 +5,12 @@ DEST="/mnt/d/kxh/10-wiki/"
 
 echo "[post-commit] Syncing $SRC -> $DEST"
 
-rsync -a --delete "$SRC" "$DEST"
+rm -rf "${DEST:?}"*
+cp -rf "${SRC:?}"* "$DEST"
 rc=$?
 
 if [ $rc -ne 0 ]; then
-  echo "[post-commit] Sync failed (code $rc), push aborted."
+  echo "[post-commit] Sync failed (code $rc)."
   exit $rc
 fi
 
