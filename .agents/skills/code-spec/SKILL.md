@@ -114,7 +114,7 @@ export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps)
 
 ```tsx
 export const useGetCaseList = (params: CaseItemEnumReq) => {
-  const { data, loading, error } = useQuery({
+  const caseQueryClient = useQuery({
     queryKey: ["case", params],
     queryFn: async () => {
       try {
@@ -128,9 +128,7 @@ export const useGetCaseList = (params: CaseItemEnumReq) => {
   });
 
   return {
-    data,
-    loading,
-    error,
+    ...caseQueryClient,
   };
 };
 ```
@@ -142,7 +140,7 @@ import { GetItemList } from "@govern-public/api-ippro";
 import { useRequest } from "ahooks";
 
 export const useGetItemList = (params: GetItemListReq) => {
-  const { data, loading, error } = useRequest(() => {
+  const requestClient = useRequest(() => {
     try {
       return GetItemList(params) || [];
     } catch (error) {
@@ -152,9 +150,7 @@ export const useGetItemList = (params: GetItemListReq) => {
   });
 
   return {
-    data,
-    loading,
-    error,
+    ...requestClient,
   };
 };
 ```
