@@ -1,3 +1,12 @@
+# personal file
+# docs
+*/*记录*
+*/*中转*
+*/*工作*
+# root
+.obsidian
+code
+
 # Dependencies
 /node_modules
 
