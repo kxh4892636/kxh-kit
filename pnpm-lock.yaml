@@ -109,12 +109,9 @@ importers:
         specifier: 'catalog:'
         version: 5.0.12(@types/react@19.2.14)(react@19.2.5)(use-sync-external-store@1.6.0(react@19.2.5))
     devDependencies:
-      '@bufbuild/protoc-gen-es':
-        specifier: ^2.2.5
-        version: 2.12.0(@bufbuild/protobuf@2.12.0)
-      '@connectrpc/protoc-gen-connect-query':
-        specifier: ^2.0.2
-        version: 2.2.0(@bufbuild/protoc-gen-es@2.12.0(@bufbuild/protobuf@2.12.0))
+      '@kxh-awesome/connectrpc-gen':
+        specifier: workspace:*
+        version: link:../../packages/connectrpc-gen
       '@types/react':
         specifier: 'catalog:'
         version: 19.2.14
@@ -182,6 +179,25 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+
+  packages/connectrpc-gen:
+    dependencies:
+      '@bufbuild/protoc-gen-es':
+        specifier: ^2.2.5
+        version: 2.12.0(@bufbuild/protobuf@2.12.0)
+      '@connectrpc/protoc-gen-connect-query':
+        specifier: ^2.0.2
+        version: 2.2.0(@bufbuild/protoc-gen-es@2.12.0(@bufbuild/protobuf@2.12.0))
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.12.2
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vite-plus:
+        specifier: 'catalog:'
+        version: 0.1.20(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.2)(typescript@6.0.3)(vite@8.0.10(@types/node@24.12.2)(jiti@2.6.1)(terser@5.46.2)(yaml@2.8.4))(yaml@2.8.4)
 
   packages/utils:
     devDependencies:

@@ -50,6 +50,6 @@ vp 涵盖了本仓库的全部操作，包括：
 - **一切用 vp**，不要直接调用 pnpm / npm / yarn
 - **添加依赖时优先使用 `catalog:` 引用 `pnpm-workspace.yaml` 中的共享版本**，例如 `"react": "catalog:"`。若用户未明确要求，**禁止新增 catalog 条目**，但可提醒用户可将依赖加入共享版本
 - **修改 catalog 后执行 `vp install`** 使变更生效
-- **提交前通过 `vp check`**（只检查本次改动的代码，不对其他代码进行检查和修复），或依赖 pre-commit hook
+- **提交前通过 `vp check`**（只检查 git change 中的代码，禁止检查其他代码），或依赖 pre-commit hook
 - **遵守 `.node-version` 和 `engines` 的 Node 版本约束**
 - **`vp build` 始终执行内置 Vite 构建**，执行 package.json 脚本用 `vp run build`
