@@ -174,6 +174,29 @@ export const useGetItemList = (params: GetItemListReq) => {
 };
 ```
 
+## 外部依赖官方文档
+
+遇到以下依赖的使用问题或 API 查询时，优先查阅对应的官方文档：
+
+| 依赖 | 官方文档 |
+|------|----------|
+| React | https://react.dev/ |
+| TypeScript | https://www.typescriptlang.org/docs/ |
+| Tailwind CSS | https://tailwindcss.com/docs |
+| Zustand | https://zustand.docs.pmnd.rs/ |
+| @tanstack/react-query | https://tanstack.com/query/latest/docs |
+| @tanstack/react-router | https://tanstack.com/router/latest/docs |
+| antd | https://ant.design/ |
+| es-toolkit | https://es-toolkit.slash.page/ |
+| ahooks | https://ahooks.js.org/ |
+| @arco-design/mobile-react | https://arco.design/mobile/react |
+| Vite | https://vite.dev/ |
+| Vitest | https://vitest.dev/ |
+| Vite+ (vp) | node_modules/vite-plus/docs 或 https://viteplus.dev/guide/ |
+| Docusaurus | https://docusaurus.io/docs |
+
+> **内部依赖**（无公开文档）：@ecom/auxo、@ecom/auxo-mobile、@ecom/auxo-pro-table、@ecom/auxo-pro-form、BAM。遇到这些库的问题时，搜索项目内现有用法作为参考。
+
 ## 检查与修复
 
 - 代码开发任务执行完成后, 必须执行代码检查和修复;
