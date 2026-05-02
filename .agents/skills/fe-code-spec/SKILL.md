@@ -187,6 +187,7 @@ export const useGetItemList = (params: GetItemListReq) => {
 | @tanstack/react-query | https://tanstack.com/query/latest/docs |
 | @tanstack/react-router | https://tanstack.com/router/latest/docs |
 | antd | https://ant.design/ |
+| dayjs | https://day.js.org/ |
 | es-toolkit | https://es-toolkit.slash.page/ |
 | ahooks | https://ahooks.js.org/ |
 | @arco-design/mobile-react | https://arco.design/mobile/react |
@@ -200,3 +201,4 @@ export const useGetItemList = (params: GetItemListReq) => {
 ## 检查与修复
 
 - 代码开发任务执行完成后, 必须执行代码检查和修复;
+- 只对本次任务相关的代码进行检查和修复, 不对其他代码进行检查和修复;

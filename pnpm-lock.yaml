@@ -27,6 +27,9 @@ catalogs:
     antd:
       specifier: ^6.3.7
       version: 6.3.7
+    dayjs:
+      specifier: ^1.11.13
+      version: 1.11.20
     es-toolkit:
       specifier: ^1.46.1
       version: 1.46.1
@@ -75,6 +78,9 @@ importers:
       antd:
         specifier: 'catalog:'
         version: 6.3.7(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
+      dayjs:
+        specifier: 'catalog:'
+        version: 1.11.20
       es-toolkit:
         specifier: 'catalog:'
         version: 1.46.1
