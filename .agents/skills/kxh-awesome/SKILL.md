@@ -1,6 +1,6 @@
 ---
 name: kxh-awesome
-description: kxh-awesome 仓库操作规范。在本仓库中做任何操作（依赖管理、Node.js 版本管理、开发构建测试、格式化检查、workspace 子包操作）都必须触发该 skill。本仓库是 pnpm workspaces + Vite+ monorepo，一切通过 vp 管理。关键词：pnpm、node、依赖、workspace、monorepo、vp、vite-plus、kxh、install、build、dev、test、lint、fmt、check
+description: kxh-awesome 仓库操作规范。在本仓库中做任何操作（依赖管理、Node.js 版本管理、开发构建测试、格式化检查、workspace 子包操作、git hook 管理）都必须触发该 skill。本仓库是 pnpm workspaces + Vite+ monorepo，一切通过 vp 管理。关键词：pnpm、node、依赖、workspace、monorepo、vp、vite-plus、kxh、install、build、dev、test、lint、fmt、check、git hook、pre-commit、commit-msg
 ---
 
 # kxh-awesome
