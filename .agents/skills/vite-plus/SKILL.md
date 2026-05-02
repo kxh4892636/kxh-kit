@@ -8,7 +8,6 @@ description: Guide for using Vite+, the unified toolchain for web development. U
 Vite+ is the unified toolchain and entry point for web development. It manages runtime, package manager, and frontend toolchain in one place by combining Vite, Vitest, Oxlint, Oxfmt, Rolldown, tsdown, and Vite Task.
 
 **Source repo:** https://github.com/voidzero-dev/vite-plus
-**Local docs:** `/tmp/opencode/vite-plus/docs/`
 
 ## Two Parts
 

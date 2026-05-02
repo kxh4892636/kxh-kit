@@ -37,7 +37,7 @@ description: |
 
 4. **使用 skill-creator 编写 skill**
 
-   调用 `skill-creator` skill 完成 skill 的编写、测试和迭代优化。`SKILL.md` 中包含该 skill 使用的 git 仓库的 URL 和本地路径。
+   调用 `skill-creator` skill 完成 skill 的编写、测试和迭代优化。`SKILL.md` 中包含该 skill 使用的 git 仓库的 URL。（**禁止**在 SKILL.md 中包含本地文件路径，所有内容必须完整写入 skill 的 references/ 等目录中）
 
 5. **渐进式披露**
 
