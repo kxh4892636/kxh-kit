@@ -9,16 +9,16 @@ id: 17695f0c-e935-4927-ad06-a2abb3262a31
 ##### html 注释
 
 ```html
-{/*  commentary  */}
+<!-- commentary -->
 ```
 
 ##### 引号中表示引号
 
 ```html
-{/*  不同种类引号嵌套使用  */}
+<!-- 不同种类引号嵌套使用 -->
 <p id="''">test</p>
 <p id='""'>test</p>
-{/*  使用转义字符  */}
+<!-- 使用转义字符 -->
 &quot; `&apos;`
 ```
 
@@ -40,14 +40,6 @@ id: 17695f0c-e935-4927-ad06-a2abb3262a31
 ## html 标签&属性
 
 ### html 标签
-
-##### html element 组成
-
-- opening tag;
-- closing tag;
-- content;
-
-![html element 组成](./images/2022-05-18-10-46-17.png)
 
 ##### 块级标签
 
@@ -85,6 +77,14 @@ id: 17695f0c-e935-4927-ad06-a2abb3262a31
 <p id="exciting">The most exciting paragraph on the page. One of a kind!</p>
 ```
 
+##### 自定义属性
+
+- data-xxx 属性;
+
+```html
+<div data-xxx="xxx"></div>
+```
+
 ## 响应式设计
 
 ### 基础
@@ -115,16 +115,3 @@ id: 17695f0c-e935-4927-ad06-a2abb3262a31
 ### 响应式多媒体
 
 - 基于 source 标签或 srcset 属性实现响应式多媒体;
-
-## html5 新特性
-
-- 语义化标签;
-- 视频和音频标签;
-- 表单元素;
-- canvas 标签;
-- svg 标签;
-- web 存储;
-- worker;
-- WebSocket;
-- 拖动 API;
-- history API;

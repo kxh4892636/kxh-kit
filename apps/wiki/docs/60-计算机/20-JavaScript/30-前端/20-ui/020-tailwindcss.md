@@ -69,7 +69,7 @@ export default {
 ```typescript
 <ul role="list" class="p-6 divide-y divide-slate-200">
   {#each people as person}
-    {/*  Remove top/bottom padding when first/last child  */}
+    <!-- Remove top/bottom padding when first/last child -->
     <li class="flex py-4 first:pt-0 last:pb-0">
       <img class="h-10 w-10 rounded-full" src="{person.imageUrl}" alt="" />
       <div class="ml-3 overflow-hidden">
@@ -89,7 +89,7 @@ export default {
 <form>
   <label class="block">
     <span class="block text-sm font-medium text-slate-700">Username</span>
-    {/*  Using form state modifiers, the classes can be identical for every input  */}
+    <!-- Using form state modifiers, the classes can be identical for every input -->
     <input type="text" value="tbone" disabled class="mt-1 block w-full px-3 py-2 bg-white border border-slate-300 rounded-md text-sm shadow-sm placeholder-slate-400
       focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500
       disabled:bg-slate-50 disabled:text-slate-500 disabled:border-slate-200 disabled:shadow-none
@@ -97,7 +97,7 @@ export default {
       focus:invalid:border-pink-500 focus:invalid:ring-pink-500
     "/>
   </label>
-  {/*  ...  */}
+  <!-- ... -->
 </form>
 ```
 
@@ -112,7 +112,7 @@ export default {
 ```typescript
 <a href="#" class="group block max-w-xs mx-auto rounded-lg p-6 bg-white ring-1 ring-slate-900/5 shadow-lg space-y-3 hover:bg-sky-500 hover:ring-sky-500">
   <div class="flex items-center space-x-3">
-    <svg class="h-6 w-6 stroke-sky-500 group-hover:stroke-white" fill="none" viewBox="0 0 24 24">{/*  ...  */}</svg>
+    <svg class="h-6 w-6 stroke-sky-500 group-hover:stroke-white" fill="none" viewBox="0 0 24 24"><!-- ... --></svg>
     <h3 class="text-slate-900 group-hover:text-white text-sm font-semibold">New project</h3>
   </div>
   <p class="text-slate-500 group-hover:text-white text-sm">Create a new project from a variety of starting templates.</p>
@@ -136,7 +136,7 @@ export default {
       <a class="group/edit invisible hover:bg-slate-200 group-hover/item:visible ..." href="tel:{person.phone}">
         <span class="group-hover/edit:text-gray-700 ...">Call</span>
         <svg class="group-hover/edit:translate-x-0.5 group-hover/edit:text-slate-500 ...">
-          {/*  ...  */}
+          <!-- ... -->
         </svg>
       </a>
     </li>
@@ -163,7 +163,7 @@ export default {
   <label for="email">Email:</label>
   <input id="email" name="email" type="email" class="is-dirty peer" required />
   <div class="peer-[.is-dirty]:peer-required:block hidden">This field is required.</div>
-  {/*  ...  */}
+  <!-- ... -->
 </form>
 ```
 
@@ -174,7 +174,7 @@ export default {
 ```typescript
 <label class="has-[:checked]:bg-indigo-50 has-[:checked]:text-indigo-900 has-[:checked]:ring-indigo-200 ..">
   <svg fill="currentColor">
-    {/*  ...  */}
+    <!-- ... -->
   </svg>
   Google Pay
   <input type="radio" class="checked:border-indigo-500 ..." />
@@ -193,7 +193,7 @@ export default {
     <li>Sales</li>
     <li>Marketing</li>
     <li>SEO</li>
-    {/*  ...  */}
+    <!-- ... -->
   </ul>
 </div>
 ```
@@ -231,7 +231,7 @@ export default {
 <label class="relative block">
   <span class="sr-only">Search</span>
   <span class="absolute inset-y-0 left-0 flex items-center pl-2">
-    <svg class="h-5 w-5 fill-slate-300" viewBox="0 0 20 20">{/*  ...  */}</svg>
+    <svg class="h-5 w-5 fill-slate-300" viewBox="0 0 20 20"><!-- ... --></svg>
   </span>
   <input class="placeholder:italic placeholder:text-slate-400 block bg-white w-full border border-slate-300 rounded-md py-2 pl-9 pr-3 shadow-sm focus:outline-none focus:border-sky-500 focus:ring-sky-500 focus:ring-1 sm:text-sm" placeholder="Search for anything..." type="text" name="search"/>
 </label>
@@ -336,7 +336,7 @@ export default {
 ```typescript
 <div>
   <div class="portrait:hidden">
-    {/*  ...  */}
+    <!-- ... -->
   </div>
   <div class="landscape:hidden">
     <p>
@@ -357,7 +357,7 @@ export default {
   <article class="print:hidden">
     <h1>My Secret Pizza Recipe</h1>
     <p>This recipe is a secret, and must not be shared with anyone</p>
-    {/*  ...  */}
+    <!-- ... -->
   </article>
   <div class="hidden print:block">
     Are you seriously trying to print this? It's secret!
@@ -372,7 +372,7 @@ export default {
 
 ```typescript
 <div class="flex supports-[display:grid]:grid ...">
-  {/*  ...  */}
+  <!-- ... -->
 </div>
 ```
 
@@ -399,14 +399,14 @@ export default {
 - 使用 `data-*` 修饰符;
 
 ```typescript
-{/*  Will apply  */}
+<!-- Will apply -->
 <div data-size="large" class="data-[size=large]:p-8">
-  {/*  ...  */}
+  <!-- ... -->
 </div>
 
-{/*  Will not apply  */}
+<!-- Will not apply -->
 <div data-size="medium" class="data-[size=large]:p-8">
-  {/*  ...  */}
+  <!-- ... -->
 </div>
 ```
 
@@ -499,7 +499,7 @@ export default {
 
 ```typescript
 <div class="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-  {/*  ...  */}
+  <!-- ... -->
 </div>
 ```
 
@@ -508,7 +508,7 @@ export default {
 - 默认使用移动布局设计;
 - 单独设置 sm/md/lg...;
 
-```typ{/*  This will center text on mobile, and left align it on screens 640px and wider  */}
+```typ<!-- This will center text on mobile, and left align it on screens 640px and wider -->
 <div class="text-center sm:text-left"></div>escript
 ```
 
@@ -526,7 +526,7 @@ export default {
 
 ```typescript
 <div class="md:max-lg:flex">
-  {/*  ...  */}
+  <!-- ... -->
 </div>
 ```
 
@@ -567,22 +567,22 @@ module.exports = {
 ```
 
 ```html
-{/*  Dark mode not enabled  */}
+<!-- Dark mode not enabled -->
 <html>
   <body>
-    {/*  Will be white  */}
+    <!-- Will be white -->
     <div class="bg-white dark:bg-black">
-      {/*  ...  */}
+      <!-- ... -->
     </div>
   </body>
 </html>
 
-{/*  Dark mode enabled  */}
+<!-- Dark mode enabled -->
 <html class="dark">
   <body>
-    {/*  Will be black  */}
+    <!-- Will be black -->
     <div class="bg-white dark:bg-black">
-      {/*  ...  */}
+      <!-- ... -->
     </div>
   </body>
 </html>
@@ -642,7 +642,7 @@ module.exports = {
 
 ```typescript
 <div class="top-[117px]">
-  {/*  ...  */}
+  <!-- ... -->
 </div>
 ```
 
@@ -652,7 +652,7 @@ module.exports = {
 
 ```typescript
 <div class="[mask-type:luminance] hover:[mask-type:alpha]">
-  {/*  ...  */}
+  <!-- ... -->
 </div>
 ```
 
@@ -663,7 +663,7 @@ module.exports = {
 
 ```typescript
 <div class="grid grid-cols-[1fr_500px_2fr]">
-  {/*  ...  */}
+  <!-- ... -->
 </div>
 ```
 
@@ -707,7 +707,7 @@ module.exports = {
 
 ```typescript
 <div class="lg:dark:content-auto">
-  {/*  ...  */}
+  <!-- ... -->
 </div>
 ```
 

@@ -9,16 +9,16 @@ id: 9914830d-cea8-4feb-b8be-07057754d709
 ### 基本结构
 
 ```html
-{/*  表明 html5  */}
+<!-- 表明 html5 -->
 <!DOCTYPE html>
-{/*  网页  */}
+<!-- 网页 -->
 <html>
-  {/*  网页头部  */}
+  <!-- 网页头部 -->
   <head>
     <meta charset="utf-8" />
     <title>My test page</title>
   </head>
-  {/*  网页内容  */}
+  <!-- 网页内容 -->
   <body>
     <p>This is my page</p>
   </body>
@@ -57,11 +57,11 @@ id: 9914830d-cea8-4feb-b8be-07057754d709
 - 网页元数据;
 
 ```html
-{/*  确定文档编码  */}
+<!-- 确定文档编码 -->
 <meta charset="utf-8" />
-{/*  添加作者信息  */}
+<!-- 添加作者信息 -->
 <meta name="author" content="Chris Mills" />
-{/*  添加网页描述  */}
+<!-- 添加网页描述 -->
 <meta
   name="description"
   content="The MDN Web Docs Learning Area aims to provide
@@ -75,11 +75,11 @@ started with developing web sites and applications."
 - 外部资源;
 
 ```html
-{/*  添加网页图标  */}
+<!-- 添加网页图标 -->
 <link rel="icon" href="favicon.ico" type="image/x-icon" />
-{/*  添加 css  */}
+<!-- 添加 css -->
 <link rel="stylesheet" href="my-css-file.css" />
-{/*  添加 js  */}
+<!-- 添加 js -->
 <script src="my-js-file.js" defer></script>
 ```
 

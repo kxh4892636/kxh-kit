@@ -192,8 +192,8 @@ id: 884beb00-75f1-4251-a6ad-f47173c1d6da
 - title 显示缩写全称;
 
 ```html
-{/*  表示缩写  */}
-{/*  title 属性显示缩写全称  */}
+<!-- 表示缩写 -->
+<!-- title 属性显示缩写全称 -->
 <p>Using <abbr title="html">HTML</abbr> is fun and easy!</p>
 ```
 

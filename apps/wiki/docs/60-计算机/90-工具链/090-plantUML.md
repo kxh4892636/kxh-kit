@@ -45,7 +45,7 @@ struct  struct
 @startuml
 类01 "1" *-- "many" 类02 : 包含
 类03 o-- 类04 : 聚合
-类05  */} "1" 类06
+类05 --> "1" 类06
 @enduml
 ```
 
@@ -109,9 +109,9 @@ class Dummy {
 ```
 @startuml
 class Dummy
-Dummy  */} Foo : A link
+Dummy --> Foo : A link
 note on link #red: note that is red
-Dummy  */} Foo2 : Another link
+Dummy --> Foo2 : Another link
 @enduml
 ```
 
