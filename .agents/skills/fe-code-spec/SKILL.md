@@ -113,7 +113,8 @@ export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps)
 
 ### 规则
 
-- 优先使用 BAM 调用接口, 只有在缺少对应 API 或临时接入时才使用 `request(...)/fetch` 调用 HTTP 接口;
+- 如果项目已配置 IDL（Proto）→ Go 后端 → ConnectRPC 生成客户端代码，**优先使用 ConnectRPC**：从 `api/gen/<project>/` 导入生成的 method descriptor，搭配 `@connectrpc/connect-query` 的 hooks 调用，编译时保证类型安全；
+- 其次优先使用 BAM 调用接口, 只有在缺少对应 API 或临时接入时才使用 `request(...)/fetch` 调用 HTTP 接口;
 - 搜索同一项目中的网络请求函数, 仿照其实现方式;
 
 ### 请求流程
@@ -174,6 +175,21 @@ export const useGetItemList = (params: GetItemListReq) => {
 };
 ```
 
+#### ConnectRPC
+
+```tsx
+import { useQuery } from "@connectrpc/connect-query";
+import { getPosts } from "../api/gen/go-template/posts/v1/posts-PostsService_connectquery.js";
+import type { Post } from "../api/gen/go-template/posts/v1/posts_pb.js";
+
+export const usePosts = () => {
+  const { data, ...rest } = useQuery(getPosts);
+  return { ...rest, data: data?.posts };
+};
+```
+
+ConnectRPC 的 `useQuery` 返回标准 TanStack Query 的 `UseQueryResult`，无需手动 try-catch（错误通过 `isError` / `error` 获取）。mutation 使用 `useMutation`。
+
 ## 外部依赖官方文档
 
 遇到以下依赖的使用问题或 API 查询时，优先查阅对应的官方文档：
@@ -195,6 +211,9 @@ export const useGetItemList = (params: GetItemListReq) => {
 | Vitest | https://vitest.dev/ |
 | Vite+ (vp) | node_modules/vite-plus/docs 或 https://viteplus.dev/guide/ |
 | Docusaurus | https://docusaurus.io/docs |
+| ConnectRPC | https://connectrpc.com/docs/web/getting-started |
+| @connectrpc/connect-query | https://www.npmjs.com/package/@connectrpc/connect-query |
+| @bufbuild/protobuf | https://buf.build/docs/protobuf-es |
 
 > **内部依赖**（无公开文档）：@ecom/auxo、@ecom/auxo-mobile、@ecom/auxo-pro-table、@ecom/auxo-pro-form、BAM。遇到这些库的问题时，搜索项目内现有用法作为参考。
 
