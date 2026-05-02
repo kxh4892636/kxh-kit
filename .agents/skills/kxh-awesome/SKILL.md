@@ -39,6 +39,12 @@ vp 涵盖了本仓库的全部操作，包括：
 | `.node-version` | Node 版本固定 |
 | `pnpm-lock.yaml` | 锁定依赖版本（自动生成，勿手动编辑） |
 
+## 命名规范
+
+- **所有子包的 `package.json` 中 `name` 字段必须为 `@kxh-awesome/xxx` 格式**，其中 `xxx` 为项目名称，一般与项目文件夹名称相同
+  - 示例：`apps/react-template` → `"name": "@kxh-awesome/react-template"`
+  - 示例：`packages/utils` → `"name": "@kxh-awesome/utils"`
+
 ## 核心原则
 
 - **一切用 vp**，不要直接调用 pnpm / npm / yarn

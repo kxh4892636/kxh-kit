@@ -1,5 +1,5 @@
 {
-  "name": "apps-wiki",
+  "name": "@kxh-awesome/wiki",
   "version": "0.0.0",
   "private": true,
   "scripts": {
