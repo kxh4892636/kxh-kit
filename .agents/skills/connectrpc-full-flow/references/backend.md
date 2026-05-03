@@ -26,21 +26,32 @@ message <Method>Response {
 - `package`：决定 URL 路径 `/<package>.<Service>/<Method>`
 - `go_package`：格式为 `<module-path>;<go-package-name>`，`;<name>` 是 Go 代码中的包别名
 
-### 字段注释
+### 注释携带
 
-proto 字段的行尾注释会携带到前后端生成的代码中：
+proto 中的注释会携带到前后端生成的代码中，支持两种形式：
 
+**1. 行尾注释**
 ```protobuf
 message User {
   int32 id = 1;       // 用户ID
   string name = 2;    // 用户名
-  string email = 3;   // 邮箱地址
 }
 ```
 
-- **Go 后端**：生成的代码在对应字段上显示 `// 用户ID` 等注释
-- **TypeScript 前端**：生成的代码在对应字段上显示 JSDoc 注释
-- 注释会作为字段文档同步到前后端，无需额外维护
+**2. 前置注释**（message 和 field 均支持）
+```protobuf
+/**
+ * This is a leading comment for a message.
+ */
+message SomeMessage {
+  // this is a leading comment
+  string value = 1;
+}
+```
+
+- **Go 后端**：生成的代码在对应元素上显示注释
+- **TypeScript 前端**：生成的代码在对应元素上显示 JSDoc 注释
+- 注释作为字段/消息的文档同步到前后端，无需额外维护
 
 ## 服务实现
 
