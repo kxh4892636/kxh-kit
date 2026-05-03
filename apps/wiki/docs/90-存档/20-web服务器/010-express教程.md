@@ -328,9 +328,7 @@ const upload = multer({
     },
     filename: (req, file, cb) => {
       // 解决中文名乱码
-      const filename = Buffer.from(file.originalname, "latin1").toString(
-        "utf8"
-      );
+      const filename = Buffer.from(file.originalname, "latin1").toString("utf8");
       // 设置文件名
       cb(null, filename);
     },

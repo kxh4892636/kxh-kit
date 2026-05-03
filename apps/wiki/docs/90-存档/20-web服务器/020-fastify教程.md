@@ -321,7 +321,7 @@ fastify.get(
     const error = new Error("This endpoint has not been implemented");
     error.time = "it will be implemented in two weeks";
     reply.code(501).send(error);
-  }
+  },
 );
 ```
 
@@ -370,7 +370,7 @@ export function registerRoutes(fastify: FastifyTypebox): void {
     },
     (request, reply) => {
       const { foo, bar } = request.query; // type safe!
-    }
+    },
   );
 }
 ```

@@ -95,8 +95,8 @@ export const useBearStore = create(
       // 默认为 localStorage
       // 可选 sessionStorage, AsyncStorage, IndexedDB
       storage: createJSONStorage(() => sessionStorage),
-    }
-  )
+    },
+  ),
 );
 ```
 

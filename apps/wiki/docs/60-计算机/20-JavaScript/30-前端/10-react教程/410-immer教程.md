@@ -48,7 +48,7 @@ removeModelStatus: (key) => {
   set(
     produce((draft: ModelStatusStore) => {
       model = draft.modelStatus.filter((ms) => ms.value === key)[0];
-    })
+    }),
   );
   return model;
 };
@@ -62,7 +62,7 @@ setTodos(
   produce((draft) => {
     const todo = draft.find((todo) => todo.id === id);
     todo.done = !todo.done;
-  })
+  }),
 );
 // state 添加操作
 setTodos(
@@ -72,7 +72,7 @@ setTodos(
       title: "A new todo",
       done: false,
     });
-  })
+  }),
 );
 ```
 
@@ -89,7 +89,7 @@ export const useStore = create((set) => ({
     set(
       produce((draft) => {
         draft.kdramas.push(value);
-      })
+      }),
     ),
   // ...
 }));

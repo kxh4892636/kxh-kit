@@ -1,6 +1,7 @@
 ---
 id: 9f01c968-22c2-4271-995e-904f8a274111
 ---
+
 # event 模块
 
 ## EventEmitter

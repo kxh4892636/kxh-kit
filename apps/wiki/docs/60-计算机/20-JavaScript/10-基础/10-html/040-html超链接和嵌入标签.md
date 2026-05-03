@@ -69,12 +69,7 @@ id: 613a18ac-7117-4a9f-a769-d63f22431753
 - type: 必须, MIME 类型;
 
 ```html
-<object
-  type="application/pdf"
-  data="/media/examples/In-CC0.pdf"
-  width="250"
-  height="200"
-></object>
+<object type="application/pdf" data="/media/examples/In-CC0.pdf" width="250" height="200"></object>
 ```
 
 ### embed element
@@ -84,13 +79,7 @@ id: 613a18ac-7117-4a9f-a769-d63f22431753
 - type: 必须, MIME 类型;
 
 ```html
-<embed
-  type="video/quicktime"
-  src="movie.mov"
-  width="640"
-  height="480"
-  title="Title of my video"
-/>
+<embed type="video/quicktime" src="movie.mov" width="640" height="480" title="Title of my video" />
 ```
 
 ### object element 和 embed element 的区别

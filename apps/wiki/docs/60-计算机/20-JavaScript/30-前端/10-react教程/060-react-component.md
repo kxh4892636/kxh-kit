@@ -37,14 +37,7 @@ id: 970ad259-d439-41f5-ab1e-3ecf17abef22
 - 监听组件每重新渲染, 调用 onRender 回调;
 
 ```typescript
-function onRender(
-  id,
-  phase,
-  actualDuration,
-  baseDuration,
-  startTime,
-  commitTime
-) {
+function onRender(id, phase, actualDuration, baseDuration, startTime, commitTime) {
   // Aggregate or log render timings...
 }
 ```

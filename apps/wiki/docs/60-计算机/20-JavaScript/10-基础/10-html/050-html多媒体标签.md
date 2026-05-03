@@ -15,12 +15,7 @@ id: adea75ae-854b-4e1c-ba5d-8387cbe0f7cb
 
 ```html
 <a href="https://developer.mozilla.org">
-  <img
-    src="favicon144.png"
-    alt="Visit the MDN site"
-    width="100px"
-    height="100px"
-  />
+  <img src="favicon144.png" alt="Visit the MDN site" width="100px" height="100px" />
 </a>
 ```
 

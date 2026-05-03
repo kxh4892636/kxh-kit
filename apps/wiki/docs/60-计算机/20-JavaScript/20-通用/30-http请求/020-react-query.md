@@ -88,7 +88,7 @@ const {
     subscribed,
     throwOnError,
   },
-  queryClient
+  queryClient,
 );
 ```
 
@@ -246,7 +246,7 @@ const {
     scope,
     throwOnError,
   },
-  queryClient
+  queryClient,
 );
 
 mutate(variables, {
@@ -335,8 +335,7 @@ const todoListQuery = useQuery({
 
 ```jsx
 queryClient.invalidateQueries({
-  predicate: (query) =>
-    query.queryKey[0] === "todos" && query.queryKey[1]?.version >= 10,
+  predicate: (query) => query.queryKey[0] === "todos" && query.queryKey[1]?.version >= 10,
 });
 
 // The query below will be invalidated
@@ -419,7 +418,7 @@ queryClient.setQueryData(
           ...oldData,
           title: "my new post title",
         }
-      : oldData
+      : oldData,
 );
 ```
 

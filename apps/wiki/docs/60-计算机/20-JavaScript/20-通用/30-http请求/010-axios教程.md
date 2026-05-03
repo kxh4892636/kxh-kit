@@ -53,8 +53,7 @@ axios.request({
 // 全局默认配置
 axios.defaults.baseURL = "https://api.example.com";
 axios.defaults.headers.common["Authorization"] = AUTH_TOKEN;
-axios.defaults.headers.post["Content-Type"] =
-  "application/x-www-form-urlencoded";
+axios.defaults.headers.post["Content-Type"] = "application/x-www-form-urlencoded";
 
 // 实例默认配置
 const instance = axios.create({
@@ -145,7 +144,7 @@ axios.interceptors.request.use(
   function (error) {
     // Do something with request error
     return Promise.reject(error);
-  }
+  },
 );
 ```
 
@@ -165,7 +164,7 @@ axios.interceptors.response.use(
     // Any status codes that falls outside the range of 2xx cause this function to trigger
     // Do something with response error
     return Promise.reject(error);
-  }
+  },
 );
 ```
 
@@ -241,11 +240,7 @@ const { data } = await axios.post({
   url: url,
   data: data,
   onUploadProgress: ({ progress, rate }) => {
-    console.log(
-      `Upload [${(progress * 100).toFixed(2)}%]: ${(rate / 1024).toFixed(
-        2
-      )}KB/s`
-    );
+    console.log(`Upload [${(progress * 100).toFixed(2)}%]: ${(rate / 1024).toFixed(2)}KB/s`);
   },
 
   maxRate: [100 * 1024], // 100KB/s limit

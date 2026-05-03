@@ -439,13 +439,9 @@ const MyInput = forwardRef(function MyInput(props, ref) {
 ```typescript
 import { useEffect } from "react";
 const App = () => {
-  useImperativeHandle(
-    ref,
-    () => {
-      // ...
-    },
-    [dependencies]
-  );
+  useImperativeHandle(ref, () => {
+    // ...
+  }, [dependencies]);
   // ...
 };
 ```
@@ -732,10 +728,7 @@ export default function Page({ productId, referrer }) {
 - 组件重新渲染时, 只有当 [] 中的属性发生变化时, 执行回调函数, 更新其函数地址;
 
 ```typescript
-const visibleTodos = useCallback(getFilteredTodos(todos, filter), [
-  todos,
-  filter,
-]);
+const visibleTodos = useCallback(getFilteredTodos(todos, filter), [todos, filter]);
 ```
 
 ##### 依赖项
@@ -928,10 +921,7 @@ import { todosStore } from "./todoStore.js";
 // subscribe 返回一个取消订阅的函数
 // getSnapshot, 返回外部存储数据快照, 返回值不同, react 重新渲染
 function TodosApp() {
-  const todos = useSyncExternalStore(
-    todosStore.subscribe,
-    todosStore.getSnapshot
-  );
+  const todos = useSyncExternalStore(todosStore.subscribe, todosStore.getSnapshot);
   // ...
 }
 

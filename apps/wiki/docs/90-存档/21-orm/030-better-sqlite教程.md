@@ -33,9 +33,7 @@ const createIndex = `
 db.exec(createIndex);
 
 // 拼接 sql 并直接执行
-const insertRecord = db.prepare(
-  "INSERT INTO tiles (zoom, col,row,data) VALUES (?, ?,?,?)"
-);
+const insertRecord = db.prepare("INSERT INTO tiles (zoom, col,row,data) VALUES (?, ?,?,?)");
 insertRecord.run(tileMatrix, col, row, data);
 
 // 拼接 sql 并返回第一个结果

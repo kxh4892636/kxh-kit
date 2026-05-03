@@ -32,10 +32,7 @@ import { execa } from "execa";
 // failed 是否运行失败
 // timedOut 是否超时
 // killed 是否被杀死
-const { stdout, stderr, exitCode, failed, timedOut, killed } = await execa(
-  "echo",
-  ["unicorns"]
-);
+const { stdout, stderr, exitCode, failed, timedOut, killed } = await execa("echo", ["unicorns"]);
 ```
 
 ### 命令行
@@ -75,7 +72,7 @@ import fetch from "node-fetch";
 
 const streamPipeline = promisify(pipeline);
 const response = await fetch(
-  "https://github.githubassets.com/images/modules/logos_page/Octocat.png"
+  "https://github.githubassets.com/images/modules/logos_page/Octocat.png",
 );
 await streamPipeline(response.body, createWriteStream("./octocat.png"));
 ```
@@ -85,14 +82,7 @@ await streamPipeline(response.body, createWriteStream("./octocat.png"));
 ##### Blob
 
 ```typescript
-import fetch, {
-  Blob,
-  blobFrom,
-  blobFromSync,
-  File,
-  fileFrom,
-  fileFromSync,
-} from "node-fetch";
+import fetch, { Blob, blobFrom, blobFromSync, File, fileFrom, fileFromSync } from "node-fetch";
 
 const mimetype = "text/plain";
 const blob = fileFromSync("./input.txt", mimetype);
@@ -142,11 +132,7 @@ cfork({
   exec: "/your/app/worker.js",
 })
   .on("fork", (worker) => {
-    console.warn(
-      "[%s] [worker:%d] new worker start",
-      Date(),
-      worker.process.pid
-    );
+    console.warn("[%s] [worker:%d] new worker start", Date(), worker.process.pid);
   })
   .on("disconnect", (worker) => {
     console.warn(
@@ -155,7 +141,7 @@ cfork({
       process.pid,
       worker.process.pid,
       worker.exitedAfterDisconnect,
-      worker.state
+      worker.state,
     );
   })
   .on("exit", (worker, code, signal) => {
@@ -167,16 +153,11 @@ cfork({
         exitCode,
         signal,
         worker.exitedAfterDisconnect,
-        worker.state
-      )
+        worker.state,
+      ),
     );
     err.name = "WorkerDiedError";
-    console.error(
-      "[%s] [master:%s] wroker exit: %s",
-      Date(),
-      process.pid,
-      err.stack
-    );
+    console.error("[%s] [master:%s] wroker exit: %s", Date(), process.pid, err.stack);
   })
   // if you do not listen to this event
   // cfork will output this message to stderr

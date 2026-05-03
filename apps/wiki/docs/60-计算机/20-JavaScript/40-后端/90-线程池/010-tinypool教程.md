@@ -88,11 +88,7 @@ const pool = new Tinypool({
   // The URL must be a file:// URL
   filename: new URL("./worker.ts", import.meta.url).href,
   // ESM config
-  execArgv: [
-    "--loader",
-    "ts-node/esm",
-    "--experimental-specifier-resolution=node",
-  ],
+  execArgv: ["--loader", "ts-node/esm", "--experimental-specifier-resolution=node"],
 });
 
 const result = await pool.run({ a: 4, b: 6 }, { name: "add" });
@@ -127,19 +123,13 @@ export const createPool = (filePath: string) => {
     // Transform to file format
     return new Tinypool({
       filename: new URL("file://" + filePath).href,
-      execArgv: [
-        "--loader",
-        "ts-node/esm",
-        "--experimental-specifier-resolution=node",
-      ],
+      execArgv: ["--loader", "ts-node/esm", "--experimental-specifier-resolution=node"],
     });
   }
 
   // Modify the file path and transform to file format
   const fileName = path.basename(filePath, ".ts");
-  const dirName = path
-    .dirname(filePath)
-    .replace(process.cwd() + "/src", process.cwd() + "/dist");
+  const dirName = path.dirname(filePath).replace(process.cwd() + "/src", process.cwd() + "/dist");
   const jsFilePath = path.join(dirName, fileName) + ".js";
   return new Tinypool({
     filename: new URL("file://" + jsFilePath).href,

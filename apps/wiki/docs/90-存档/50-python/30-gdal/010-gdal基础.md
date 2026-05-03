@@ -379,7 +379,6 @@ gdal.Warp('/vsimem/simplify_tif.tif',
   - "PNG";
 - outputType: 设置栅格文件编码格式
 - scaleParams: 设置栅格文件栅格值转换的比例缩放参数
-
   - \[[src_min, src_max, [dst_min, dst_max]]]
 
 ##### gdal.Grid() 函数

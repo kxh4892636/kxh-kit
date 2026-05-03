@@ -64,8 +64,8 @@ id: 884beb00-75f1-4251-a6ad-f47173c1d6da
 <dl>
   <dt>Firefox</dt>
   <dd>
-    A free, open source, cross-platform, graphical web browser developed by the
-    Mozilla Corporation and hundreds of volunteers.
+    A free, open source, cross-platform, graphical web browser developed by the Mozilla Corporation
+    and hundreds of volunteers.
   </dd>
 </dl>
 ```
@@ -82,9 +82,7 @@ id: 884beb00-75f1-4251-a6ad-f47173c1d6da
   <li>
     Process all the ingredients into a paste.
     <ul>
-      <li>
-        If you want a coarse "chunky" hummus, process it for a short time.
-      </li>
+      <li>If you want a coarse "chunky" hummus, process it for a short time.</li>
       <li>If you want a smooth hummus, process it for a longer time.</li>
     </ul>
   </li>
@@ -99,9 +97,7 @@ id: 884beb00-75f1-4251-a6ad-f47173c1d6da
 - b: 形式加粗;
 
 ```html
-<p>
-  Before proceeding, <strong>make sure you put on your safety goggles</strong>.
-</p>
+<p>Before proceeding, <strong>make sure you put on your safety goggles</strong>.</p>
 <p>Before proceeding, <b>make sure you put on your safety goggles</b>.</p>
 ```
 
@@ -132,8 +128,8 @@ id: 884beb00-75f1-4251-a6ad-f47173c1d6da
 
 ```html
 <p>
-  One of the most common equations in all of physics is <var>E</var>=<var>m</var
-  ><var>c</var><sup>2</sup>.
+  One of the most common equations in all of physics is <var>E</var>=<var>m</var><var>c</var
+  ><sup>2</sup>.
 </p>
 ```
 
@@ -144,8 +140,7 @@ id: 884beb00-75f1-4251-a6ad-f47173c1d6da
 ```html
 <p>
   Almost every developer's favorite molecule is
-  C<sub>8</sub>H<sub>10</sub>N<sub>4</sub>O<sub>2</sub>, also known as
-  "caffeine."
+  C<sub>8</sub>H<sub>10</sub>N<sub>4</sub>O<sub>2</sub>, also known as "caffeine."
 </p>
 ```
 
@@ -230,8 +225,8 @@ id: 884beb00-75f1-4251-a6ad-f47173c1d6da
 
 ```html
 <p>
-  The function <code>selectAll()</code> highlights all the text in the input
-  field so the user can, for example, copy or delete the text.
+  The function <code>selectAll()</code> highlights all the text in the input field so the user can,
+  for example, copy or delete the text.
 </p>
 ```
 
@@ -266,9 +261,8 @@ id: 884beb00-75f1-4251-a6ad-f47173c1d6da
 
 ```html
 <p>
-  The volume of a box is <var>l</var> × <var>w</var> × <var>h</var>, where
-  <var>l</var> represents the length, <var>w</var> the width and
-  <var>h</var> the height of the box.
+  The volume of a box is <var>l</var> × <var>w</var> × <var>h</var>, where <var>l</var> represents
+  the length, <var>w</var> the width and <var>h</var> the height of the box.
 </p>
 ```
 
@@ -277,10 +271,7 @@ id: 884beb00-75f1-4251-a6ad-f47173c1d6da
 - 键盘按键形式;
 
 ```html
-<p>
-  Please press <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd> to re-render an
-  MDN page.
-</p>
+<p>Please press <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>R</kbd> to re-render an MDN page.</p>
 ```
 
 ##### samp element

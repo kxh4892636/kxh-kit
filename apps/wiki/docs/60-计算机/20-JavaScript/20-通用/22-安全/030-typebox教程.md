@@ -533,7 +533,7 @@ const Node = Type.Recursive((This) =>
   Type.Object({
     id: Type.String(),
     nodes: Type.Array(This),
-  })
+  }),
 );
 ```
 

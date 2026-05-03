@@ -407,7 +407,7 @@ try {
     createReadStream("archive.tar"),
     createGzip(),
     createWriteStream("archive.tar.gz"),
-    { signal }
+    { signal },
   );
 } catch (err) {
   console.error(err); // AbortError
@@ -466,7 +466,7 @@ pipeline(
     } else {
       console.log("Pipeline succeeded.");
     }
-  }
+  },
 );
 ```
 
@@ -491,10 +491,7 @@ pipeline(
 // stream.addAbortSignal(signal, stream)
 // 添加 AbortController 实例
 const controller = new AbortController();
-const read = addAbortSignal(
-  controller.signal,
-  fs.createReadStream("object.json")
-);
+const read = addAbortSignal(controller.signal, fs.createReadStream("object.json"));
 // Later, abort the operation closing the stream
 controller.abort();
 ```

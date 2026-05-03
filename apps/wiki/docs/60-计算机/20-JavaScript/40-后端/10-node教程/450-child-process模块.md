@@ -42,7 +42,7 @@ exec(
     }
     console.log(`stdout: ${stdout}`);
     console.error(`stderr: ${stderr}`);
-  }
+  },
 );
 
 controller.abort();
@@ -82,7 +82,7 @@ const child = execFile(
     }
     console.log(`stdout: ${stdout}`);
     console.error(`stderr: ${stderr}`);
-  }
+  },
 );
 
 controller.abort();

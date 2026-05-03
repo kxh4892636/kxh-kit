@@ -222,7 +222,7 @@ bench(
       return a - b;
     });
   },
-  { time: 1000 }
+  { time: 1000 },
 );
 ```
 
@@ -409,13 +409,7 @@ test("two plus two", () => {
 ### 数组
 
 ```typescript
-const shoppingList = [
-  "diapers",
-  "kleenex",
-  "trash bags",
-  "paper towels",
-  "milk",
-];
+const shoppingList = ["diapers", "kleenex", "trash bags", "paper towels", "milk"];
 
 test("the shopping list has milk on it", () => {
   expect(shoppingList).toContain("milk");
@@ -560,11 +554,7 @@ export default defineConfig({
     include: ["**/src/**/*.test.ts"],
     coverage: {
       include: ["**/src/**"],
-      exclude: [
-        ...configDefaults.coverage.exclude!,
-        "**/type/**",
-        "**/index.ts",
-      ],
+      exclude: [...configDefaults.coverage.exclude!, "**/type/**", "**/index.ts"],
     },
   },
 });

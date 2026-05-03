@@ -101,7 +101,7 @@ signal.addEventListener(
   () => {
     console.log("The food question timed out");
   },
-  { once: true }
+  { once: true },
 );
 setTimeout(() => ac.abort(), 10000);
 

@@ -1,9 +1,6 @@
-import Layout from '@theme/Layout';
-import React from 'react';
+import Layout from "@theme/Layout";
+import React from "react";
 
 export default function Home() {
-  return (
-    <Layout>
-    </Layout>
-  );
+  return <Layout></Layout>;
 }

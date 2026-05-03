@@ -106,9 +106,7 @@ started with developing web sites and applications."
   - ...;
 
 ```html
-<footer>
-  Some copyright info or perhaps some author info for an &lt;article&gt;?
-</footer>
+<footer>Some copyright info or perhaps some author info for an &lt;article&gt;?</footer>
 ```
 
 ### nav element
@@ -131,10 +129,7 @@ started with developing web sites and applications."
 
 ```html
 <article>
-  <p>
-    The Disney movie <cite>The Little Mermaid</cite> was first released to
-    theatres in 1989.
-  </p>
+  <p>The Disney movie <cite>The Little Mermaid</cite> was first released to theatres in 1989.</p>
   <aside>
     <p>The movie earned $87 million during its initial release.</p>
   </aside>
@@ -151,10 +146,7 @@ started with developing web sites and applications."
   <h1>Apples</h1>
   <p>The apple is the pomaceous fruit of the apple tree.</p>
   <article>
-    <p>
-      The Disney movie <cite>The Little Mermaid</cite> was first released to
-      theatres in 1989.
-    </p>
+    <p>The Disney movie <cite>The Little Mermaid</cite> was first released to theatres in 1989.</p>
     <aside>
       <p>The movie earned $87 million during its initial release.</p>
     </aside>

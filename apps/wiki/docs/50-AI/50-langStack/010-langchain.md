@@ -58,7 +58,7 @@ const getUserLocation = tool(
     name: "get_user_location",
     description: "Retrieve user information based on user ID",
     schema: z.object({}),
-  }
+  },
 );
 
 // 配置模型
@@ -93,14 +93,14 @@ const config = {
 
 const response = await agent.invoke(
   { messages: [{ role: "user", content: "what is the weather outside?" }] },
-  config
+  config,
 );
 console.log(response.structuredResponse);
 
 // 注意：我们可以使用相同的 `thread_id` 继续对话
 const thankYouResponse = await agent.invoke(
   { messages: [{ role: "user", content: "thank you!" }] },
-  config
+  config,
 );
 console.log(thankYouResponse.structuredResponse);
 ```
@@ -132,26 +132,24 @@ const agent = createAgent({
   ],
   contextSchema,
   middleware: [
-    dynamicSystemPromptMiddleware<z.infer<typeof contextSchema>>(
-      (state, runtime) => {
-        const userRole = runtime.context.userRole || "user";
-        const basePrompt = "You are a helpful assistant.";
+    dynamicSystemPromptMiddleware<z.infer<typeof contextSchema>>((state, runtime) => {
+      const userRole = runtime.context.userRole || "user";
+      const basePrompt = "You are a helpful assistant.";
 
-        if (userRole === "expert") {
-          return `${basePrompt} Provide detailed technical responses.`;
-        } else if (userRole === "beginner") {
-          return `${basePrompt} Explain concepts simply and avoid jargon.`;
-        }
-        return basePrompt;
+      if (userRole === "expert") {
+        return `${basePrompt} Provide detailed technical responses.`;
+      } else if (userRole === "beginner") {
+        return `${basePrompt} Explain concepts simply and avoid jargon.`;
       }
-    ),
+      return basePrompt;
+    }),
   ],
 });
 
 // 调用 Agent 时, 动态提示词会根据上下文中的 userRole 调整
 const result = await agent.invoke(
   { messages: [{ role: "user", content: "Explain machine learning" }] },
-  { context: { userRole: "expert" } }
+  { context: { userRole: "expert" } },
 );
 ```
 
@@ -227,9 +225,7 @@ for (const response of responses) {
 const model = new ChatOpenAI({ model: "gpt-4o" });
 const modelWithTools = model.bindTools([getWeather]);
 
-const response = await modelWithTools.invoke(
-  "What's the weather like in Boston?"
-);
+const response = await modelWithTools.invoke("What's the weather like in Boston?");
 const toolCalls = response.tool_calls || [];
 for (const tool_call of toolCalls) {
   // 调用工具属性
@@ -291,9 +287,7 @@ model.bind_tools([get_weather], (parallel_tool_calls = False));
 - 每个流式工具调用包含 name 和 args 属性;
 
 ```typescript
-const stream = await modelWithTools.stream(
-  "What's the weather in Boston and Tokyo?"
-);
+const stream = await modelWithTools.stream("What's the weather in Boston and Tokyo?");
 for await (const chunk of stream) {
   // 处理工具调用流式响应
   if (chunk.tool_call_chunks) {
@@ -323,9 +317,7 @@ const Movie = z.object({
 
 const modelWithStructure = model.withStructuredOutput(Movie);
 
-const response = await modelWithStructure.invoke(
-  "Provide details about the movie Inception"
-);
+const response = await modelWithStructure.invoke("Provide details about the movie Inception");
 console.log(response);
 // {
 //   title: "Inception",
@@ -738,7 +730,7 @@ const agent = createAgent({
 
 await agent.invoke(
   { messages: [{ role: "user", content: "hi! i am Bob" }] },
-  { configurable: { thread_id: "1" } }
+  { configurable: { thread_id: "1" } },
 );
 ```
 
@@ -759,7 +751,7 @@ const getUserInfo = tool(
     name: "get_user_info",
     description: "Get user info",
     schema: z.object({}),
-  }
+  },
 );
 ```
 
@@ -790,7 +782,7 @@ const updateUserInfo = tool(
     name: "update_user_info",
     description: "Look up and update user info.",
     schema: z.object({}),
-  }
+  },
 );
 ```
 
@@ -820,9 +812,7 @@ const deleteMessages = (state) => {
   if (messages.length > 2) {
     // remove the earliest two messages
     return {
-      messages: messages
-        .slice(0, 2)
-        .map((m) => new RemoveMessage({ id: m.id })),
+      messages: messages.slice(0, 2).map((m) => new RemoveMessage({ id: m.id })),
     };
   }
 };
@@ -870,7 +860,7 @@ const getWeather = tool(
     schema: z.object({
       city: z.string(),
     }),
-  }
+  },
 );
 
 const agent = createAgent({
@@ -880,7 +870,7 @@ const agent = createAgent({
 
 for await (const chunk of await agent.stream(
   { messages: [{ role: "user", content: "what is the weather in sf" }] },
-  { streamMode: "updates" }
+  { streamMode: "updates" },
 )) {
   const [step, content] = Object.entries(chunk)[0];
   console.log(`step: ${step}`);
@@ -947,7 +937,7 @@ const agent = createAgent({
 
 for await (const [token, metadata] of await agent.stream(
   { messages: [{ role: "user", content: "what is the weather in sf" }] },
-  { streamMode: "messages" }
+  { streamMode: "messages" },
 )) {
   console.log(`node: ${metadata.langgraph_node}`);
   console.log(`content: ${JSON.stringify(token.contentBlocks, null, 2)}`);
@@ -973,7 +963,7 @@ const getWeather = tool(
     schema: z.object({
       city: z.string().describe("The city to get weather for."),
     }),
-  }
+  },
 );
 
 const agent = createAgent({
@@ -983,7 +973,7 @@ const agent = createAgent({
 
 for await (const [streamMode, chunk] of await agent.stream(
   { messages: [{ role: "user", content: "what is the weather in sf" }] },
-  { streamMode: ["updates", "messages"] }
+  { streamMode: ["updates", "messages"] },
 )) {
   console.log(`${streamMode}: ${JSON.stringify(chunk, null, 2)}`);
 }
