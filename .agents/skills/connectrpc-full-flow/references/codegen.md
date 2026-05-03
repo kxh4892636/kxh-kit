@@ -42,9 +42,14 @@ install_if_missing() {
 install_if_missing protoc-gen-go google.golang.org/protobuf/cmd/protoc-gen-go
 install_if_missing protoc-gen-connect-go connectrpc.com/connect/cmd/protoc-gen-connect-go
 install_if_missing buf github.com/bufbuild/buf/cmd/buf
+install_if_missing protoc-gen-doc github.com/pseudomuto/protoc-gen-doc/cmd/protoc-gen-doc
 
 echo "Generating Go code..."
 buf generate
+
+echo "Generating documentation..."
+buf generate --template buf.gen.doc.yaml
+
 echo "Done."
 ```
 
@@ -94,3 +99,59 @@ plugins:
 1. 改 proto
 2. 重新运行 generate.sh / gen:api
 3. 如果编译报错，说明手写代码需要适配新接口——这正是类型安全的价值
+
+## API 文档生成
+
+proto 中的注释是文档的唯一来源，通过 `protoc-gen-doc` + `buf` 可生成静态 HTML 文档站点。
+
+### 配置文件
+
+创建 `buf.gen.doc.yaml`（与 `buf.gen.yaml` 同级）：
+
+```yaml
+version: v2
+plugins:
+  - local: protoc-gen-doc
+    out: docs
+    opt:
+      - html
+      - index.html
+```
+
+- `html` — 输出格式（也支持 `markdown`、`json`、`docbook`）
+- `index.html` — 输出文件名
+- 产物写入 `docs/` 目录，打开 `docs/index.html` 即可查看
+
+### 手动生成
+
+```bash
+cd <backend-dir>
+buf generate --template buf.gen.doc.yaml
+```
+
+前提：`protoc-gen-doc` 已在 PATH 中（通过 `go install` 安装）。
+
+### 集成到 generate.sh
+
+将文档生成步骤加入 `generate.sh`，每次改 proto 后自动产出最新文档：
+
+```bash
+install_if_missing protoc-gen-doc github.com/pseudomuto/protoc-gen-doc/cmd/protoc-gen-doc
+
+echo "Generating documentation..."
+buf generate --template buf.gen.doc.yaml
+```
+
+### proto 注释即文档
+
+生成的 HTML 会包含 proto 文件中所有注释（`//` 和 `/* */`），因此：
+- Message、Field、Service、Method 上方的注释会出现在文档对应条目中
+- 包级别的注释（`package` 声明上方）会成为包概述
+- 写好注释 = 写好文档，无需额外维护
+
+### 与 BSR 文档站点的区别
+
+| 方式 | 产物 | 适用场景 |
+|------|------|---------|
+| `protoc-gen-doc` (本地) | 静态 HTML，可自行部署 | 团队内部文档、离线查看 |
+| BSR Docs (云端) | buf.build 在线文档站 | 公开 API、跨团队共享 |
