@@ -180,8 +180,7 @@ export const useGetItemList = (params: GetItemListReq) => {
 
 ```tsx
 import { useQuery } from "@connectrpc/connect-query";
-import { getPosts } from "../api/gen/go-template/posts/v1/posts-PostsService_connectquery.js";
-import type { Post } from "../api/gen/go-template/posts/v1/posts_pb.js";
+import { getPosts } from "../api/gen/go-template/posts/v1/posts-PostsService_connectquery";
 
 export const usePosts = () => {
   const { data, ...rest } = useQuery(getPosts);
