@@ -35,7 +35,7 @@
 ### TypeScript 前端
 
 - Node.js 22+
-- 运行时依赖：`@connectrpc/connect`、`@connectrpc/connect-web`、`@connectrpc/connect-query`、`@bufbuild/protobuf`
+- 运行时依赖：`@connectrpc/connect-web`、`@connectrpc/connect-query`、`@bufbuild/protobuf`
 - 代码生成 CLI（`@scope/connectrpc-gen`）封装了生成工具，前端只需安装这一个包：
 
 ```bash

@@ -8,7 +8,7 @@
 import { createConnectTransport } from "@connectrpc/connect-web";
 
 export const transport = createConnectTransport({
-  baseUrl: "http://localhost:8080",   // 后端地址
+  baseUrl: "http://localhost:8080", // 后端地址
 });
 ```
 
@@ -66,11 +66,10 @@ RPC 方法返回一个 Response message（如 `GetPostsResponse { posts: Post[] 
 
 前端需要的 npm 包（都是运行时依赖）：
 
-| 包 | 用途 |
-|---|------|
-| `@connectrpc/connect` | 核心类型 |
-| `@connectrpc/connect-web` | HTTP/1.1 传输 |
+| 包                          | 用途                |
+| --------------------------- | ------------------- |
+| `@connectrpc/connect-web`   | HTTP/1.1 传输       |
 | `@connectrpc/connect-query` | TanStack Query 集成 |
-| `@bufbuild/protobuf` | Protobuf 序列化 |
+| `@bufbuild/protobuf`        | Protobuf 序列化     |
 
 代码生成工具（`@bufbuild/buf`、`@bufbuild/protoc-gen-es`、`@connectrpc/protoc-gen-connect-query`）封装在 `connectrpc-gen` CLI 中，前端无需单独安装。
