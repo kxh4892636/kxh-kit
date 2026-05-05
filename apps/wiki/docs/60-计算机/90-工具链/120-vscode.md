@@ -25,100 +25,68 @@
 
 ```json
 {
-  // UI 配置
-  "workbench.colorTheme": "Default Light+",
-  "editor.fontFamily": "'Ubuntu Mono', Consolas, 'Courier New', monospace",
-  "workbench.editor.wrapTabs": true,
+  // 主题与外观
+  "workbench.colorTheme": "Light+",
   "workbench.iconTheme": "vscode-icons",
-  "workbench.editor.splitInGroupLayout": "vertical",
-  "editor.rulers": [80, 120],
-
-  // 终端设置
-  "terminal.integrated.defaultProfile.windows": "Command Prompt",
+  // 编辑器字体与显示
+  "editor.fontFamily": "'Maple Mono NF CN', Consolas, 'Courier New', monospace",
+  "editor.wrappingStrategy": "advanced",
+  "editor.wordWrap": "on",
+  "editor.rulers": [80],
+  "workbench.editor.wrapTabs": true,
+  // 终端配置
+  "terminal.integrated.defaultProfile.windows": "Git Bash",
+  // 代码运行器 (Code Runner)
   "code-runner.runInTerminal": true,
-
-  // 操作配置
-  "editor.linkedEditing": true,
-  "editor.lineNumbers": "on",
-  "explorer.copyRelativePathSeparator": "/",
-
-  // 格式化配置
-  "editor.defaultFormatter": "esbenp.prettier-vscode",
-  "editor.formatOnSave": true,
-  "[python]": {
-    "editor.defaultFormatter": "charliermarsh.ruff"
-  },
-
-  // suggest/snippets 配置
-  "emmet.showExpandedAbbreviation": "never",
-  "editor.suggestSelection": "recentlyUsedByPrefix",
-  "files.associations": {
-    "*.css": "tailwindcss"
-  },
-  "editor.quickSuggestions": {
-    "strings": "on"
-  },
-
-  // python 配置
-  "python.languageServer": "Pylance",
-  "python.analysis.typeCheckingMode": "basic",
-
-  // markdown 配置
-  "markdown.updateLinksOnFileMove.enabled": "always",
-  "[markdown]": {
-    "editor.quickSuggestions": {
-      "comments": "on",
-      "strings": "on",
-      "other": "on"
-    }
-  },
-
-  // js/ts 配置
-  "javascript.updateImportsOnFileMove.enabled": "always",
-  "typescript.updateImportsOnFileMove.enabled": "always",
-  "javascript.suggest.paths": true,
-  "typescript.suggest.paths": true,
-
-  // JSON 配置
-  "json.schemaDownload.enable": false,
-
-  // 文本
-  "files.eol": "\n",
-
-  // 插件配置
-  // paste image 配置
-  "pasteImage.path": "${currentFileDir}/images",
-  "security.workspace.trust.untrustedFiles": "open",
-  "notebook.lineNumbers": "on",
-  // run coder
   "code-runner.executorMap": {
     "javascript": "node --experimental-specifier-resolution=node",
     "typescript": "tsx"
   },
-  // git 配置
-  "gitHistory.includeRemoteBranches": true,
-  "git.openRepositoryInParentFolders": "always",
-  // 远程
-  "explorer.confirmDelete": false,
+  // 编辑器智能编辑行为
+  "editor.linkedEditing": true,
+  // 代码格式化
+  "editor.formatOnSave": true,
+  "editor.formatOnSaveMode": "file",
+  "editor.defaultFormatter": "oxc.oxc-vscode",
+  "oxc.fmt.configPath": "./vite.config.ts",
+  "editor.codeActionsOnSave": {
+    "source.fixAll.oxc": "explicit"
+  },
+  "[javascript]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[javascriptreact]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[typescript]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "oxc.oxc-vscode"
+  },
+  "[markdown]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  // 文件管理
+  "files.autoSave": "afterDelay",
+  "explorer.copyRelativePathSeparator": "/",
+  // JavaScript / TypeScript 配置
+  "js/ts.updateImportsOnFileMove.enabled": "always",
+  // Markdown 配置
+  "markdown.updateLinksOnFileMove.enabled": "always",
+  // 图片粘贴
+  "pasteImage.path": "${currentFileDir}/images",
+  // vscode 内置 AI
+  "chat.agent.enabled": false,
+  "chat.disableAIFeatures": true,
+  // trae 配置
+  "trae.privacy.mode": true,
+  "trae.tab.enablePartialAccept": true,
+  "trae.tab.enableAutoImport": true,
+  "trae.tab.cue": true,
+  "remote.autoForwardPortsSource": "hybrid",
   "remote.SSH.remotePlatform": {
-    "aliyun": "linux"
-  },
-  // vim 配置
-  "vim.autoSwitchInputMethod.enable": true,
-  "extensions.experimental.affinity": {
-    "vscodevim.vim": 1
-  },
-  "vim.useCtrlKeys": false,
-  "vim.handleKeys": {
-    "<C-c>": false
-  },
-
-  // 通知相关
-  "extensions.ignoreRecommendations": true,
-  "diffEditor.codeLens": true,
-  "[xml]": {
-    "editor.defaultFormatter": "redhat.vscode-xml"
-  },
-  "editor.unicodeHighlight.ambiguousCharacters": false
+    "123.57.92.26": "linux"
+  }
 }
 ```
