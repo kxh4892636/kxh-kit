@@ -218,7 +218,7 @@ export const usePosts = (random = true) => {
 | Vite+ (vp) | node_modules/vite-plus/docs 或 https://viteplus.dev/guide/ |
 | Docusaurus | https://docusaurus.io/docs |
 | ConnectRPC | https://connectrpc.com/docs/web/getting-started |
-| @connectrpc/connect-query | https://www.npmjs.com/package/@connectrpc/connect-query |
+| @connectrpc/connect | https://www.npmjs.com/package/@connectrpc/connect |
 | @bufbuild/protobuf | https://buf.build/docs/protobuf-es |
 
 > **内部依赖**（无公开文档）：@ecom/auxo、@ecom/auxo-mobile、@ecom/auxo-pro-table、@ecom/auxo-pro-form、BAM。遇到这些库的问题时，搜索项目内现有用法作为参考。
