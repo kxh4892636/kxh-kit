@@ -179,16 +179,22 @@ export const useGetItemList = (params: GetItemListReq) => {
 #### ConnectRPC
 
 ```tsx
-import { useQuery } from "@connectrpc/connect-query";
-import { getPosts } from "../api/gen/go-template/posts/v1/posts-PostsService_connectquery";
+import { useQuery } from "@tanstack/react-query";
+import { postsClient } from "../api/client";
 
-export const usePosts = () => {
-  const { data, ...rest } = useQuery(getPosts);
-  return { ...rest, data: data?.posts };
+export const usePosts = (random = true) => {
+  const query = useQuery({
+    queryKey: ["posts", random],
+    queryFn: () => postsClient.getPosts({ random }),
+  });
+  const { data, ...rest } = query;
+
+  return {
+    ...rest,
+    data: data?.posts,
+  };
 };
 ```
-
-ConnectRPC 的 `useQuery` 返回标准 TanStack Query 的 `UseQueryResult`，无需手动 try-catch（错误通过 `isError` / `error` 获取）。mutation 使用 `useMutation`。
 
 ## 外部依赖官方文档
 
