@@ -1,6 +1,6 @@
 ---
 name: git-commit
-description: "根据当前仓库变更文件和历史 commit message 风格, 总结生成规范化的 commit message，并执行提交操作。当用户要求提交 git 变更时，生成 git message 消息时, 使用该 skill."
+description: "根据当前仓库变更文件, 总结生成规范化的 commit message，并执行提交操作。当用户要求提交 git 变更时，生成 git message 消息时, 使用该 skill."
 ---
 
 # git-commit

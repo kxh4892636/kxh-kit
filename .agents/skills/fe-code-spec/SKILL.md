@@ -104,7 +104,7 @@ export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps)
 
 ### 组件库规范
 
-- PC 应用使用 `@ecom/auxo`
+- PC 应用使用 `@ecom/auxo` 或者 `antd`;
 - H5 应用使用 `@ecom/auxo-mobile` 或者 `@arco-design/mobile-react`;
 - 高级组件：`@ecom/auxo-pro-table`、`@ecom/auxo-pro-form`;
 - 禁止在同一应用中混用不同的组件库;
@@ -143,7 +143,7 @@ export const useGetCaseList = (params: CaseItemEnumReq) => {
         return res?.case_list || [];
       } catch (error) {
         console.error("getCaseList error", error);
-        return [];
+        throw error;
       }
     },
   });
@@ -166,7 +166,7 @@ export const useGetItemList = (params: GetItemListReq) => {
       return GetItemList(params) || [];
     } catch (error) {
       console.error("getItemList error", error);
-      return [];
+      throw error;
     }
   });
 
@@ -185,7 +185,14 @@ import { postsClient } from "../api/client";
 export const usePosts = (random = true) => {
   const query = useQuery({
     queryKey: ["posts", random],
-    queryFn: () => postsClient.getPosts({ random }),
+    queryFn: () => {
+      try {
+        return postsClient.getPosts({ random });
+      } catch (error) {
+        console.error("getPosts error", error);
+        throw error;
+      }
+    },
   });
   const { data, ...rest } = query;
 
