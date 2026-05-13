@@ -29,7 +29,7 @@ description: 从 git 仓库、markdown 文档或交互对话中提取生成 AI s
 
 4. **使用 skill-creator 编写 skill**
 
-   调用 `skill-creator` skill 完成 skill 的编写、测试和迭代优化。`SKILL.md` 中包含该 skill 使用的 git 仓库的 URL。（**禁止**在 SKILL.md 中包含本地文件路径，所有内容必须完整写入 skill 的 references/ 等目录中）
+   调用 `skill-creator` skill 完成 skill 的编写、测试和迭代优化。`SKILL.md` 中包含该 skill 如何重新拉取 git 仓库，进行 skill 内容更新的步骤。
 
 5. **渐进式披露**
 
@@ -52,15 +52,6 @@ description: 从 git 仓库、markdown 文档或交互对话中提取生成 AI s
    这是必须遵守的硬性约束。尽管采用渐进式披露的分层结构，Skill 必须完整包含 git 仓库中文档里的**所有**内容——不得有任何一个段落、代码示例、配置项或说明的遗漏。
 
    渐进式披露只是"何时展示"的策略，而非"是否包含"的取舍。大文档按主题拆分到 references/ 下的多个文件，但原始文档中的每一项内容都必须在 skill 的某处可被找到。
-
-7. **维护更新**
-
-   当用户发送更新请求的指令时，执行以下命令更新数据源，同步更新 skill 内容：
-
-   ```bash
-   cd <repo-folder>
-   git pull --depth 1
-   ```
 
 ## 与用户交互式对话提取 Skill 的流程
 
