@@ -1,11 +1,20 @@
 ---
 name: kxh-awesome
-description: kxh-awesome 仓库操作规范。在本仓库中做任何操作（依赖管理、Node.js 版本管理、开发构建测试、格式化检查、workspace 子包操作、git hook 管理）都必须触发该 skill。本仓库是 pnpm workspaces + Vite+ monorepo，一切通过 vp 管理。关键词：pnpm、node、依赖、workspace、monorepo、vp、vite-plus、kxh、install、build、dev、test、lint、fmt、check、git hook、pre-commit、commit-msg
+description: kxh-awesome 仓库操作规范。在本仓库中做任何代码、文档、依赖、Node.js、workspace、构建、测试、格式化、RPC、生成代码、git hook 或提交相关操作时必须使用。本仓库是 pnpm workspaces + Vite+ monorepo，一切 Node/前端工具链操作通过 vp 管理；改动前先读最近的 AGENT.md、package.json、vite.config.ts、tsconfig.json 和协议/配置源头。关键词：pnpm、node、依赖、workspace、monorepo、vp、vite-plus、kxh、install、build、dev、test、lint、fmt、check、connectrpc、proto、codegen、git hook、pre-commit、commit-msg
 ---
 
 # kxh-awesome
 
-本仓库是 pnpm workspaces + Vite+ 的 monorepo，一切操作通过 `vp` 管理。
+本仓库是 pnpm workspaces + Vite+ 的 monorepo。Node、前端、依赖、检查、构建、测试、workspace 脚本等操作统一通过 `vp` 管理。
+
+## 工作原则
+
+- **源头优先**：改动前读取最近的 `AGENT.md`、`package.json`、`vite.config.ts`、`tsconfig.json`、协议文件和相关配置，不凭记忆猜项目结构。
+- **最小变更**：只修改用户请求需要的文件；保留无关变更、生成物、锁文件和用户已有改动。
+- **统一工具链**：Node/workspace 操作使用 `vp`，不要直接调用 `pnpm` / `npm` / `yarn` / `vite` / `vitest` / `oxlint` / `oxfmt`。
+- **生成物只读**：修改源定义后重新生成，不手写 `gen/`、`docs/index.html`、`src/api/gen/`、`dist/`、`pnpm-lock.yaml`。
+- **契约先于调用方**：RPC 变更先改 `proto/`，再生成后端代码和文档，最后生成前端客户端并调整调用方。
+- **验证贴近影响面**：先运行能证明本次改动的最小检查；共享行为变更再扩大到 `vp check`、`vp test` 或 `vp run ready`。
 
 ## 仓库元信息
 
@@ -39,6 +48,15 @@ vp 涵盖了本仓库的全部操作，包括：
 | `.node-version` | Node 版本固定 |
 | `pnpm-lock.yaml` | 锁定依赖版本（自动生成，勿手动编辑） |
 
+## 仓库地图
+
+- `apps/wiki`：Docusaurus 知识库和 Markdown 内容。
+- `apps/react-template`：React 19 SPA 模板，使用 TanStack Router/Query、Ant Design、Tailwind CSS、Zustand、ConnectRPC。
+- `apps/go-template`：Go ConnectRPC 后端；`proto/` 是 API 契约，`internal/` 写业务逻辑，`gen/` 和 `docs/` 是生成物。
+- `packages/connectrpc-gen`：从后端 proto 项目生成前端 ConnectRPC 客户端的 CLI。
+- `packages/utils`：通过 Vite+ 构建和测试的 TypeScript 工具包。
+- `scripts/`：仓库维护脚本，保持小而确定。
+
 ## 命名规范
 
 - **所有子包的 `package.json` 中 `name` 字段必须为 `@kxh-awesome/xxx` 格式**，其中 `xxx` 为项目名称，一般与项目文件夹名称相同
@@ -53,3 +71,11 @@ vp 涵盖了本仓库的全部操作，包括：
 - **提交前通过 `vp check --fix [path]`**（只检查 git change 中的代码，禁止检查其他代码），或依赖 pre-commit hook
 - **遵守 `.node-version` 和 `engines` 的 Node 版本约束**
 - **`vp build` 始终执行内置 Vite 构建**，执行 package.json 脚本用 `vp run build`
+
+## 常用流程
+
+- React 模板：在 `apps/react-template` 中使用 `vp dev`、`vp run build`、`vp run gen:api go-template`。
+- Wiki：在 `apps/wiki` 中通过 `vp run <script>` 执行 Docusaurus 脚本。
+- Go 后端：修改 `apps/go-template/proto/**` 后运行 `apps/go-template/generate.sh`，再补齐 `internal/` 实现。
+- 前端 RPC 客户端：后端 proto 变化后，在 `apps/react-template` 运行 `vp run gen:api go-template`。
+- TypeScript 包：通过 package 脚本或 workspace 过滤使用 `vp pack`、`vp test`、`vp check`。
