@@ -78,4 +78,4 @@ vp 涵盖了本仓库的全部操作，包括：
 - Wiki：在 `apps/wiki` 中通过 `vp run <script>` 执行 Docusaurus 脚本。
 - Go 后端：修改 `apps/go-template/proto/**` 后运行 `apps/go-template/generate.sh`，再补齐 `internal/` 实现。
 - 前端 RPC 客户端：后端 proto 变化后，在 `apps/react-template` 运行 `vp run gen:api go-template`。
-- TypeScript 包：通过 package 脚本或 workspace 过滤使用 `vp pack`、`vp test`、`vp check`。
+- TypeScript 包：通过 package 脚本或 workspace 过滤使用 `vp pack`、`vp test`、`vp check [path]`。
