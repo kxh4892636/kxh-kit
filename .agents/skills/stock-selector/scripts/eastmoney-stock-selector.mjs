@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const ENDPOINT =
@@ -124,54 +124,57 @@ function detectColumnKey(raw, titles) {
 function mergeRows(cond1, cond2) {
   const c1CodeKey = detectColumnKey(cond1.raw, ["代码"]);
   const c2CodeKey = detectColumnKey(cond2.raw, ["代码"]);
-  const c1NameKey = detectColumnKey(cond1.raw, ["名称"]);
-  const c2NameKey = detectColumnKey(cond2.raw, ["名称"]);
   const c1 = new Map(cond1.rows.map((row) => [row[c1CodeKey], row]));
   const c2 = new Map(cond2.rows.map((row) => [row[c2CodeKey], row]));
   const codes = [...new Set([...c1.keys(), ...c2.keys()])].sort();
   const intersection = codes.filter((code) => c1.has(code) && c2.has(code));
 
   const rows = codes.map((code) => {
-    const condition1 = c1.get(code) ?? null;
-    const condition2 = c2.get(code) ?? null;
-    return {
-      code,
-      name: condition1?.[c1NameKey] ?? condition2?.[c2NameKey] ?? "",
-      match: {
-        condition1: Boolean(condition1),
-        condition2: Boolean(condition2),
-        both: Boolean(condition1 && condition2),
-      },
-      condition1,
-      condition2,
-    };
+    const condition1 = c1.get(code);
+    const condition2 = c2.get(code);
+    if (!condition1) return condition2;
+    if (!condition2) return condition1;
+
+    const row = { ...condition1 };
+    for (const [key, value] of Object.entries(condition2)) {
+      if (!Object.hasOwn(row, key)) row[key] = value;
+    }
+    return row;
   });
 
   return { rows, intersectionCount: intersection.length };
 }
 
-function fieldDictionary(raw, label) {
-  return {
-    label,
-    query: raw.data?.requestParams?.keyWordNew ?? null,
-    latestDate: raw.data?.result?.latestDate ?? null,
-    total: raw.data?.result?.total ?? null,
-    columns: resultColumns(raw).map((column, index) => ({
-      ordinal: index,
-      ...column,
-    })),
-    responseConditionList: raw.data?.responseConditionList ?? [],
-  };
-}
-
-function rawColumnKeys(raw, rows) {
+function unionColumnKeys(cond1, cond2, rows) {
   const keys = [];
   const seen = new Set();
-  for (const column of resultColumns(raw)) {
+  const condition1Keys = new Set(
+    resultColumns(cond1.raw)
+      .map((column) => column.key)
+      .filter(Boolean),
+  );
+  const condition2Columns = resultColumns(cond2.raw);
+  const condition2UniqueColumns = condition2Columns.filter(
+    (column) => column.key && !condition1Keys.has(column.key),
+  );
+
+  for (const column of resultColumns(cond1.raw)) {
     if (column.key && !seen.has(column.key)) {
       keys.push(column.key);
       seen.add(column.key);
     }
+  }
+  for (const row of rows) {
+    for (const key of Object.keys(row)) {
+      if (!seen.has(key) && !condition2Columns.some((column) => column.key === key)) {
+        keys.push(key);
+        seen.add(key);
+      }
+    }
+  }
+  for (const column of condition2UniqueColumns) {
+    keys.push(column.key);
+    seen.add(column.key);
   }
   for (const row of rows) {
     for (const key of Object.keys(row)) {
@@ -190,47 +193,21 @@ function csvEscape(value) {
   return `"${text.replaceAll('"', '""')}"`;
 }
 
-function columnLabel(raw, key, prefix = "") {
-  const column = resultColumns(raw).find((item) => item.key === key);
-  const parts = [prefix, column?.title ?? "", key, column?.dateMsg ?? "", column?.unit ?? ""]
+function columnLabel(cond1, cond2, key) {
+  const column =
+    resultColumns(cond1.raw).find((item) => item.key === key) ??
+    resultColumns(cond2.raw).find((item) => item.key === key);
+  const parts = [column?.title ?? "", key, column?.dateMsg ?? "", column?.unit ?? ""]
     .filter(Boolean)
     .map((part) => String(part));
   return parts.length ? parts.join("|") : key;
 }
 
-function rowsToCsv(raw, rows) {
-  const keys = rawColumnKeys(raw, rows);
-  const lines = [keys.map((key) => csvEscape(columnLabel(raw, key))).join(",")];
+function unionToCsv(cond1, cond2, rows) {
+  const keys = unionColumnKeys(cond1, cond2, rows);
+  const lines = [keys.map((key) => csvEscape(columnLabel(cond1, cond2, key))).join(",")];
   for (const row of rows) {
     lines.push(keys.map((key) => csvEscape(row[key])).join(","));
-  }
-  return `${lines.join("\n")}\n`;
-}
-
-function unionToCsv(cond1, cond2, mergedRows) {
-  const c1Keys = rawColumnKeys(cond1.raw, cond1.rows);
-  const c2Keys = rawColumnKeys(cond2.raw, cond2.rows);
-  const headers = [
-    "代码",
-    "名称",
-    "命中条件1",
-    "命中条件2",
-    "两个条件均命中",
-    ...c1Keys.map((key) => columnLabel(cond1.raw, key, "condition1")),
-    ...c2Keys.map((key) => columnLabel(cond2.raw, key, "condition2")),
-  ];
-  const lines = [headers.map(csvEscape).join(",")];
-  for (const item of mergedRows) {
-    const values = [
-      item.code,
-      item.name,
-      item.match.condition1 ? "Y" : "",
-      item.match.condition2 ? "Y" : "",
-      item.match.both ? "Y" : "",
-      ...c1Keys.map((key) => item.condition1?.[key] ?? ""),
-      ...c2Keys.map((key) => item.condition2?.[key] ?? ""),
-    ];
-    lines.push(values.map(csvEscape).join(","));
   }
   return `${lines.join("\n")}\n`;
 }
@@ -281,13 +258,8 @@ ${dataDates}
 
 ## Output
 
-- ${join(outDir, "condition-1.json")}
-- ${join(outDir, "condition-2.json")}
-- ${join(outDir, "field-dictionary.json")}
-- ${join(outDir, "condition-1.rows.csv")}
-- ${join(outDir, "condition-2.rows.csv")}
 - ${join(outDir, "union.csv")}
-- ${join(outDir, "union.json")}
+- ${join(outDir, "summary.md")}
 `;
 }
 
@@ -313,6 +285,22 @@ function yyyymmdd(date = new Date()) {
   return `${yyyy}${mm}${dd}`;
 }
 
+async function removeStaleOutputs(outDir) {
+  const staleFiles = [
+    "condition-1.json",
+    "condition-2.json",
+    "condition-1.rows.csv",
+    "condition-2.rows.csv",
+    "field-dictionary.json",
+    "union.json",
+    "key-metrics.csv",
+    "key-metrics.json",
+  ];
+  await Promise.all(
+    staleFiles.map((file) => rm(join(outDir, file), { force: true })),
+  );
+}
+
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
@@ -321,22 +309,11 @@ async function main() {
   }
 
   await mkdir(args.out, { recursive: true });
+  await removeStaleOutputs(args.out);
   const cond1 = await fetchAll(CONDITION_1, { pageSize: args.pageSize });
   const cond2 = await fetchAll(CONDITION_2, { pageSize: args.pageSize });
   const merged = mergeRows(cond1, cond2);
-  const dictionary = {
-    generatedAt: new Date().toISOString(),
-    source: ENDPOINT,
-    condition1: fieldDictionary(cond1.raw, "condition-1"),
-    condition2: fieldDictionary(cond2.raw, "condition-2"),
-  };
 
-  await writeFile(join(args.out, "condition-1.json"), JSON.stringify(cond1.raw, null, 2));
-  await writeFile(join(args.out, "condition-2.json"), JSON.stringify(cond2.raw, null, 2));
-  await writeFile(join(args.out, "field-dictionary.json"), JSON.stringify(dictionary, null, 2));
-  await writeFile(join(args.out, "condition-1.rows.csv"), rowsToCsv(cond1.raw, cond1.rows), "utf8");
-  await writeFile(join(args.out, "condition-2.rows.csv"), rowsToCsv(cond2.raw, cond2.rows), "utf8");
-  await writeFile(join(args.out, "union.json"), JSON.stringify(merged.rows, null, 2));
   await writeFile(join(args.out, "union.csv"), unionToCsv(cond1, cond2, merged.rows), "utf8");
   await writeFile(join(args.out, "summary.md"), summaryMarkdown({ cond1, cond2, merged, outDir: args.out }), "utf8");
 

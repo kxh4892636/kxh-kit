@@ -8,9 +8,9 @@ description: Use this skill whenever the user wants to screen A-share stocks, ru
 This skill turns two fixed Eastmoney natural-language stock screens into a repeatable workflow:
 
 1. Fetch the two stock pools and key metrics from `https://xuangu.eastmoney.com/`.
-2. Merge by stock code and keep source tags for each condition.
-3. Use only the returned Eastmoney data for preliminary screening.
-4. After the preliminary shortlist is chosen, use `investment-analysis` for deeper reports and save them under `inbox/stock-selector/<day>/`.
+2. Merge by stock code; when duplicated, prefer condition 1 data and append condition 2-only fields at the end.
+3. Use `investment-analysis` for preliminary screening, but only with returned Eastmoney data.
+4. Use `investment-analysis` again for deeper reports after the preliminary shortlist is chosen, and save them under `inbox/stock-selector/<day>/`.
 
 This skill is for screening and research workflow automation. It does not produce personalized investment advice or buy/sell commands.
 
@@ -24,7 +24,9 @@ https://np-tjxg-b.eastmoney.com/api/smart-tag/stock/v3/pw/search-code
 
 The endpoint is a web product interface, not a stable public API. Always inspect `responseConditionList` before trusting a result. If Eastmoney changes parsing, blocks the request, or triggers captcha, stop and report the exact failure instead of substituting guessed data.
 
-Because this is a third-party interface, returned field keys, field names, date suffixes, and units can change at any time. Preserve every raw response and every returned row field. Do not hardcode provider field keys such as current PE/PB/ROE key names for data extraction. Use the `columns` array returned in the same response as the field dictionary: each column contains the provider key, display title, date, unit, sortability, userNeed flag, and other metadata needed to interpret row values.
+Because this is a third-party interface, returned field keys, field names, date suffixes, and units can change at any time. Do not hardcode provider field keys such as current PE/PB/ROE key names for screening. The generated `union.csv` header should preserve the current response field description as `title|key|date|unit` whenever Eastmoney provides column metadata. If Eastmoney returns row-only keys without column metadata, keep the raw key as the header instead of guessing a title.
+
+The fetch script only depends on the returned column title `代码` to merge the two stock pools by stock code. If Eastmoney changes even that title, fail with the provider response context instead of guessing a replacement key.
 
 ## Fixed Screening Texts
 
@@ -70,25 +72,27 @@ The script:
 
 - Calls the two fixed queries.
 - Fetches all pages with `pageSize=1000`.
-- Saves full raw JSON for each condition exactly as returned by Eastmoney.
-- Writes `field-dictionary.json`, copied from each response's `columns` and parser metadata.
-- Writes `condition-1.rows.csv` and `condition-2.rows.csv` as dynamic wide tables whose headers include title, key, date, and unit.
-- Writes `union.json` as a structured union where each stock keeps the full original `condition1` row and full original `condition2` row separately, so overlapping field keys are not overwritten.
-- Writes `union.csv` as a dynamic wide table with `condition1|...` and `condition2|...` prefixed columns.
-- Adds only source tags (`condition1`, `condition2`, `both`) around the raw provider rows.
+- Writes only `union.csv` and `summary.md`.
+- Builds the union by stock code.
+- When a stock appears in both conditions, starts from the condition 1 row, then appends fields that exist only in condition 2 to the end of `union.csv`.
+- If a field exists in both conditions, the condition 1 value wins for duplicate stocks.
+- Does not add `命中条件1`, `命中条件2`, or `两个条件均命中` columns.
+- Does not prefix columns with `condition1` or `condition2`.
+- Preserves field descriptions in `union.csv` headers as `title|key|date|unit` when current Eastmoney `columns` metadata exists; keeps raw keys for row-only fields without metadata.
 
 If the script cannot run, recreate its behavior with native Node or Python standard-library requests. Do not add npm or pip dependencies just for this workflow.
 
 ## Preliminary Screening Rules
 
-Use only the Eastmoney data returned by the xuangu queries during preliminary screening. Do not call `investment-analysis` data scripts, Eastmoney F10 APIs, Danjuan, AData-derived scripts, browser scraping, or other data sources until after the preliminary shortlist is selected.
+Use the `investment-analysis` skill for preliminary screening, but use only the Eastmoney data already returned in `union.csv`. This means applying the `investment-analysis` valuation-quality-timing-risk framework without invoking its data acquisition scripts or fetching supplemental data. Do not call `investment-analysis` data scripts, Eastmoney F10 APIs, Danjuan, AData-derived scripts, browser scraping, or other data sources until after the preliminary shortlist is selected.
 
-When reading preliminary fields, first inspect `raw/field-dictionary.json` or the `columns` arrays in `condition-1.json` and `condition-2.json`. Match metrics by returned column descriptions such as `title`, `dateMsg`, `unit`, and `key`, then cite the actual current key in notes if useful. Do not assume today's key names will exist in future responses.
+The preliminary screening goal is to quickly identify stocks that may have investment value and deserve deeper analysis. It is not a final investment conclusion.
+
+When reading preliminary fields, interpret metrics from the `union.csv` headers. Match metrics by returned display title, date, unit, and provider key embedded in the header. For headers that contain only a raw key, treat them as provider row-only fields and use them cautiously. Do not assume today's key names will exist in future responses.
 
 For the preliminary shortlist, make a concise table with:
 
 - Code and name
-- Match source: condition 1, condition 2, or both
 - Industry and main business
 - Market cap
 - PE TTM, PB, PE percentile, PB percentile
@@ -103,10 +107,10 @@ For the preliminary shortlist, make a concise table with:
 
 Suggested scoring lens:
 
-- Prefer stocks that match both conditions.
 - Prefer low or moderate PE/PB percentile, positive cash flow, stable high ROE, stable gross margin, and understandable business.
 - Penalize missing core metrics, negative or abnormal PE, very high leverage, weak cash flow, heavy cyclicality without a clear cycle explanation, and crowded expensive growth.
 - Treat the moving-average condition as timing context, not proof of value.
+- Use the `investment-analysis` hierarchy: valuation and quality carry more weight than timing, and risks can veto otherwise attractive metrics.
 - Keep the shortlist focused. If the union is large, pick the strongest 10-20 names unless the user asks for a different count.
 
 ## Deep Analysis Workflow
@@ -149,13 +153,7 @@ Use this structure:
 ```text
 inbox/stock-selector/<YYYYMMDD>/
 ├── raw/
-│   ├── condition-1.json
-│   ├── condition-2.json
-│   ├── field-dictionary.json
-│   ├── condition-1.rows.csv
-│   ├── condition-2.rows.csv
 │   ├── union.csv
-│   ├── union.json
 │   └── summary.md
 ├── shortlist.md
 └── <code>-<name>.md
@@ -169,6 +167,8 @@ Before presenting results:
 - Confirm condition 1 parser text contains both `毛利率大于29%` and `ROE(加权)大于14%`.
 - Confirm condition 2 parser text uses one grouped OR condition for MA13/MA21/MA34.
 - Confirm union count equals `condition1 + condition2 - intersection`.
-- Confirm `condition-1.json`, `condition-2.json`, and `field-dictionary.json` are present before doing any screening.
+- Confirm only `union.csv` and `summary.md` are generated in `raw/`.
+- Confirm `union.csv` has no `命中条件1`, `命中条件2`, or `两个条件均命中` columns.
+- Confirm condition 2-only columns appear after condition 1 columns in `union.csv`.
 - Confirm output files are saved under `inbox/stock-selector/<day>/`.
-- State the Eastmoney data dates shown by returned columns.
+- State the Eastmoney data dates shown by the `union.csv` headers and `summary.md`.
