@@ -1,6 +1,6 @@
 ---
 name: stock-selector
-description: Use this skill whenever the user wants to screen A-share stocks, run the fixed Eastmoney xuangu stock-selector workflow, fetch key stock metrics from https://xuangu.eastmoney.com/, merge the two stock pools, create a preliminary shortlist, or generate follow-up investment-analysis reports for selected stocks. This skill should trigger for A股选股, 东方财富条件选股, xuangu, stock screening, 初筛, 股票池, PE/PB百分位, ROE毛利率筛选, 季线均线筛选, or requests to save stock-selector reports.
+description: Use this skill whenever the user wants to screen A-share stocks, run the fixed Eastmoney xuangu stock-selector workflow, fetch key stock metrics from https://xuangu.eastmoney.com/, merge the two stock pools, create a preliminary shortlist, and then generate required investment-analysis reports for selected stocks. This skill should trigger for A股选股, 东方财富条件选股, xuangu, stock screening, 初筛, 股票池, PE/PB百分位, ROE毛利率筛选, 季线均线筛选, or requests to save stock-selector reports.
 ---
 
 # Stock Selector
@@ -9,8 +9,8 @@ This skill turns two fixed Eastmoney natural-language stock screens into a repea
 
 1. Fetch the two stock pools and key metrics from `https://xuangu.eastmoney.com/`.
 2. Merge by stock code; when duplicated, prefer condition 1 data and append condition 2-only fields at the end.
-3. Use `investment-analysis` for preliminary screening, but only with returned Eastmoney data.
-4. Use `investment-analysis` again for deeper reports after the preliminary shortlist is chosen, and save them under `inbox/stock-selector/<day>/`.
+3. Use `investment-analysis` for preliminary screening, but only with returned Eastmoney xuangu data.
+4. After the preliminary shortlist is chosen, immediately use `investment-analysis` again for required deeper reports. Deep reports may and should use the data acquisition scripts, references, and source-specific endpoints from `investment-analysis`, then save the reports under `inbox/stock-selector/<day>/`.
 
 This skill is for screening and research workflow automation. It does not produce personalized investment advice or buy/sell commands.
 
@@ -24,9 +24,9 @@ https://np-tjxg-b.eastmoney.com/api/smart-tag/stock/v3/pw/search-code
 
 The endpoint is a web product interface, not a stable public API. Always inspect `responseConditionList` before trusting a result. If Eastmoney changes parsing, blocks the request, or triggers captcha, stop and report the exact failure instead of substituting guessed data.
 
-Because this is a third-party interface, returned field keys, field names, date suffixes, and units can change at any time. Do not hardcode provider field keys such as current PE/PB/ROE key names for screening. The generated `union.csv` header should preserve the current response field description as `title|key|date|unit` whenever Eastmoney provides column metadata. If Eastmoney returns row-only keys without column metadata, keep the raw key as the header instead of guessing a title.
+Because this is a third-party interface, returned field keys, field names, date suffixes, and units can change at any time. Do not hardcode provider field keys such as current PE/PB/ROE key names for screening. The generated per-stock CSV headers should preserve the current response field description as `title|key|date|unit` whenever Eastmoney provides column metadata. If Eastmoney returns row-only keys without column metadata, keep the raw key as the header instead of guessing a title.
 
-The fetch script only depends on the returned column title `代码` to merge the two stock pools by stock code. If Eastmoney changes even that title, fail with the provider response context instead of guessing a replacement key.
+The fetch script depends on returned column title `代码` to merge the two stock pools by stock code, and returned column title `名称` to name per-stock CSV files. If Eastmoney changes either title, fail with the provider response context instead of guessing a replacement key.
 
 ## Fixed Screening Texts
 
@@ -72,25 +72,26 @@ The script:
 
 - Calls the two fixed queries.
 - Fetches all pages with `pageSize=1000`.
-- Writes only `union.csv` and `summary.md`.
+- Writes `summary.md` and one per-stock CSV under `stocks/`; it does not write `union.csv`.
 - Builds the union by stock code.
-- When a stock appears in both conditions, starts from the condition 1 row, then appends fields that exist only in condition 2 to the end of `union.csv`.
+- When a stock appears in both conditions, starts from the condition 1 row, then appends fields that exist only in condition 2 to the end of the per-stock CSV header and row.
 - If a field exists in both conditions, the condition 1 value wins for duplicate stocks.
 - Does not add `命中条件1`, `命中条件2`, or `两个条件均命中` columns.
 - Does not prefix columns with `condition1` or `condition2`.
-- Preserves field descriptions in `union.csv` headers as `title|key|date|unit` when current Eastmoney `columns` metadata exists; keeps raw keys for row-only fields without metadata.
+- Preserves field descriptions in per-stock CSV headers as `title|key|date|unit` when current Eastmoney `columns` metadata exists; keeps raw keys for row-only fields without metadata.
+- Rebuilds `stocks/` on each run. Each per-stock file is named `{name}-{code}.csv` and contains the merged header plus one stock row. Invalid filename characters are replaced with `_`; if sanitized filenames collide, append a numeric suffix.
 
 If the script cannot run, recreate its behavior with native Node or Python standard-library requests. Do not add npm or pip dependencies just for this workflow.
 
 ## Preliminary Screening Rules
 
-Use the `investment-analysis` skill for preliminary screening, but use only the Eastmoney data already returned in `union.csv`. This means applying the `investment-analysis` valuation-quality-timing-risk framework without invoking its data acquisition scripts or fetching supplemental data. Do not call `investment-analysis` data scripts, Eastmoney F10 APIs, Danjuan, AData-derived scripts, browser scraping, or other data sources until after the preliminary shortlist is selected.
+Use the `investment-analysis` skill for preliminary screening, but use only the Eastmoney data already returned in `raw/stocks/*.csv`. This means applying the `investment-analysis` valuation-quality-timing-risk framework without invoking its data acquisition scripts or fetching supplemental data during the preliminary phase. Do not call `investment-analysis` data scripts, Eastmoney F10 APIs, Danjuan, AData-derived scripts, browser scraping, or other data sources until after the preliminary shortlist is selected.
 
 The preliminary screening goal is to quickly identify stocks that may have investment value and deserve deeper analysis. It is not a final investment conclusion.
 
-When reading preliminary fields, interpret metrics from the `union.csv` headers. Match metrics by returned display title, date, unit, and provider key embedded in the header. For headers that contain only a raw key, treat them as provider row-only fields and use them cautiously. Do not assume today's key names will exist in future responses.
+When reading preliminary fields, interpret metrics from the per-stock CSV headers under `raw/stocks/`. Match metrics by returned display title, date, unit, and provider key embedded in the header. For headers that contain only a raw key, treat them as provider row-only fields and use them cautiously. Do not assume today's key names will exist in future responses.
 
-For the preliminary shortlist, make a concise table with:
+For the preliminary shortlist, save `shortlist.md` and include a concise table with:
 
 - Code and name
 - Industry and main business
@@ -115,12 +116,18 @@ Suggested scoring lens:
 
 ## Deep Analysis Workflow
 
-After preliminary screening succeeds, run deeper analysis only for the selected stocks.
+After preliminary screening succeeds, deeper analysis is mandatory for every stock in the shortlist. Do not stop after creating `shortlist.md` unless the user explicitly interrupts or asks to pause before deep analysis.
 
-Use `investment-analysis` for the deeper reports. At that stage, it is acceptable to fetch additional data required by that skill, but clearly distinguish:
+Use `investment-analysis` for the deeper reports. At this stage, the preliminary-data restriction no longer applies: use the current data acquisition scripts, references, and source-specific endpoints described by `investment-analysis` whenever they are relevant to the stock and available in the workspace. This can include scripts or endpoints for current price and valuation, financial statements, announcements, news, investor-relations records, research reports, peer/context data, and other sources required by the `investment-analysis` workflow.
+
+Keep provider boundaries explicit. Do not collapse Eastmoney xuangu fields, Eastmoney F10, CNInfo announcements, Danjuan, AData-derived datasets, research reports, or browser-scraped pages into one anonymous dataset. Preserve source, `asOf`, `fetchedAt`, field names, units, confidence, and failure/blocking notes for each dataset.
+
+Clearly distinguish:
 
 - `preliminaryScreenData`: Eastmoney xuangu fields used for initial selection.
-- `deepAnalysisData`: any later data fetched for the full report.
+- `deepAnalysisData`: any later data fetched with `investment-analysis` scripts, source-specific endpoints, browser workflows, or other explicitly cited sources for the full report.
+
+If a required `investment-analysis` data source is blocked, stale, unavailable, or inconsistent with another source, say so in the report and lower data confidence instead of silently falling back to the preliminary CSV.
 
 Save reports to:
 
@@ -132,15 +139,16 @@ Each report should include:
 
 1. Data date and source summary.
 2. Why it passed the preliminary screen.
-3. Valuation: PE/PB, percentile, dividend yield, and peer/context notes when available.
-4. Quality: business, margin, ROE, ROIC if available, cash flow, and debt.
-5. Timing: quarterly MA context, one-year performance, liquidity, and crowding.
-6. Risks: value trap, growth trap, cycle trap, leverage, accounting, governance, and missing-data risks.
-7. Decision view: `优先跟踪`, `观察`, or `暂不深入`, with conditions that would change the view.
+3. Valuation: PE/PB, percentile, dividend yield, normalized earnings, historical range, and peer/context notes from deep-analysis sources when available.
+4. Quality: business model, industry structure, margin, ROE/ROIC when available, cash conversion, capex, working capital, and debt.
+5. Disclosures and expectations: recent announcements, investor-relations records, news, research reports, and market expectations when the conclusion depends on new events or catalysts.
+6. Timing: quarterly MA context from the preliminary CSV, current price/valuation context from deep-analysis data, one-year performance, liquidity, sentiment, and crowding.
+7. Risks: value trap, growth trap, cycle trap, leverage, accounting, governance, reflexivity, and missing-data risks.
+8. Decision view: `优先跟踪`, `观察`, or `暂不深入`, with conditions that would change the view.
 
 ## Parallel Deep Reports
 
-When the runtime supports subagents and the user asks to generate deep reports, parallelize by stock, with at most 5 active subagents at a time.
+When the runtime supports subagents, parallelize deep reports by stock, with at most 5 active subagents at a time.
 
 Give each subagent a disjoint stock list and the output folder. Tell subagents they are not alone in the workspace, must not revert others' files, and must save only their assigned report files. Wait for each batch before launching the next batch if more than 5 stocks need reports.
 
@@ -153,8 +161,9 @@ Use this structure:
 ```text
 inbox/stock-selector/<YYYYMMDD>/
 ├── raw/
-│   ├── union.csv
-│   └── summary.md
+│   ├── summary.md
+│   └── stocks/
+│       └── <name>-<code>.csv
 ├── shortlist.md
 └── <code>-<name>.md
 ```
@@ -167,8 +176,9 @@ Before presenting results:
 - Confirm condition 1 parser text contains both `毛利率大于29%` and `ROE(加权)大于14%`.
 - Confirm condition 2 parser text uses one grouped OR condition for MA13/MA21/MA34.
 - Confirm union count equals `condition1 + condition2 - intersection`.
-- Confirm only `union.csv` and `summary.md` are generated in `raw/`.
-- Confirm `union.csv` has no `命中条件1`, `命中条件2`, or `两个条件均命中` columns.
-- Confirm condition 2-only columns appear after condition 1 columns in `union.csv`.
+- Confirm only `summary.md` and `stocks/` are generated in `raw/`; `union.csv` must not be generated.
+- Confirm per-stock CSVs have no `命中条件1`, `命中条件2`, or `两个条件均命中` columns.
+- Confirm condition 2-only columns appear after condition 1 columns in per-stock CSV headers.
+- Confirm `stocks/` contains one `{name}-{code}.csv` file per union row.
 - Confirm output files are saved under `inbox/stock-selector/<day>/`.
-- State the Eastmoney data dates shown by the `union.csv` headers and `summary.md`.
+- State the Eastmoney data dates shown by the per-stock CSV headers and `summary.md`.

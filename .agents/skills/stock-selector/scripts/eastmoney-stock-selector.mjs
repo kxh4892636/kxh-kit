@@ -59,25 +59,43 @@ function buildPayload(query, pageNo, pageSize) {
 export async function searchCode(query, options = {}) {
   const pageNo = options.pageNo ?? 1;
   const pageSize = options.pageSize ?? 1000;
+  const requestTimeoutMs = options.requestTimeoutMs ?? 20000;
   const fetchImpl = options.fetchImpl ?? globalThis.fetch;
   if (!fetchImpl) {
     throw new Error("global fetch is unavailable; use Node.js 18 or newer");
   }
 
-  const response = await fetchImpl(ENDPOINT, {
-    method: "POST",
-    headers: {
-      Accept: "application/json, text/plain, */*",
-      "Content-Type": "application/json",
-      Origin: "https://xuangu.eastmoney.com",
-      Referer: "https://xuangu.eastmoney.com/",
-      "User-Agent": "Mozilla/5.0",
-      actionMode: "edit_way",
-      curPage: "stockResult",
-      jumpSource: "edit_way",
-    },
-    body: JSON.stringify(buildPayload(query, pageNo, pageSize)),
-  });
+  const signal =
+    options.signal ??
+    (typeof AbortSignal !== "undefined" && AbortSignal.timeout
+      ? AbortSignal.timeout(requestTimeoutMs)
+      : undefined);
+
+  let response;
+  try {
+    response = await fetchImpl(ENDPOINT, {
+      method: "POST",
+      headers: {
+        Accept: "application/json, text/plain, */*",
+        "Content-Type": "application/json",
+        Origin: "https://xuangu.eastmoney.com",
+        Referer: "https://xuangu.eastmoney.com/",
+        "User-Agent": "Mozilla/5.0",
+        actionMode: "edit_way",
+        curPage: "stockResult",
+        jumpSource: "edit_way",
+      },
+      signal,
+      body: JSON.stringify(buildPayload(query, pageNo, pageSize)),
+    });
+  } catch (error) {
+    if (error.name === "AbortError" || error.name === "TimeoutError") {
+      throw new Error(
+        `Eastmoney request timed out after ${requestTimeoutMs}ms on page ${pageNo}`,
+      );
+    }
+    throw error;
+  }
 
   const text = await response.text();
   if (!response.ok) {
@@ -193,6 +211,14 @@ function csvEscape(value) {
   return `"${text.replaceAll('"', '""')}"`;
 }
 
+function sanitizeFilenamePart(value) {
+  const text = value == null ? "" : String(value);
+  return text
+    .replace(/[\\/:*?"<>|]/g, "_")
+    .replace(/\s+/g, " ")
+    .trim() || "unknown";
+}
+
 function columnLabel(cond1, cond2, key) {
   const column =
     resultColumns(cond1.raw).find((item) => item.key === key) ??
@@ -203,13 +229,35 @@ function columnLabel(cond1, cond2, key) {
   return parts.length ? parts.join("|") : key;
 }
 
-function unionToCsv(cond1, cond2, rows) {
+async function writePerStockCsvs(outDir, cond1, cond2, rows) {
+  const stockDir = join(outDir, "stocks");
+  await rm(stockDir, { recursive: true, force: true });
+  await mkdir(stockDir, { recursive: true });
+
   const keys = unionColumnKeys(cond1, cond2, rows);
-  const lines = [keys.map((key) => csvEscape(columnLabel(cond1, cond2, key))).join(",")];
+  const header = keys.map((key) => csvEscape(columnLabel(cond1, cond2, key))).join(",");
+  const codeKey = detectColumnKey(cond1.raw, ["代码"]);
+  const nameKey = detectColumnKey(cond1.raw, ["名称"]);
+  const fallbackCodeKey = detectColumnKey(cond2.raw, ["代码"]);
+  const fallbackNameKey = detectColumnKey(cond2.raw, ["名称"]);
+  const filenames = new Set();
+
   for (const row of rows) {
-    lines.push(keys.map((key) => csvEscape(row[key])).join(","));
+    const code = sanitizeFilenamePart(row[codeKey] ?? row[fallbackCodeKey]);
+    const name = sanitizeFilenamePart(row[nameKey] ?? row[fallbackNameKey]);
+    let filename = `${name}-${code}.csv`;
+    let suffix = 2;
+    while (filenames.has(filename)) {
+      filename = `${name}-${code}-${suffix}.csv`;
+      suffix += 1;
+    }
+    filenames.add(filename);
+
+    const line = keys.map((key) => csvEscape(row[key])).join(",");
+    await writeFile(join(stockDir, filename), `${header}\n${line}\n`, "utf8");
   }
-  return `${lines.join("\n")}\n`;
+
+  return filenames.size;
 }
 
 function conditions(raw) {
@@ -228,7 +276,7 @@ function dateMessages(...rawResponses) {
   return [...dates].sort();
 }
 
-function summaryMarkdown({ cond1, cond2, merged, outDir }) {
+function summaryMarkdown({ cond1, cond2, merged, outDir, stockFileCount }) {
   const dataDates = dateMessages(cond1.raw, cond2.raw)
     .map((line) => `- ${line}`)
     .join("\n");
@@ -243,6 +291,7 @@ Fetched at: ${new Date().toISOString()}
 - Condition 2: ${cond2.rows.length}
 - Intersection: ${merged.intersectionCount}
 - Union: ${merged.rows.length}
+- Per-stock CSV files: ${stockFileCount}
 
 ## Condition 1 Parser
 
@@ -258,8 +307,8 @@ ${dataDates}
 
 ## Output
 
-- ${join(outDir, "union.csv")}
 - ${join(outDir, "summary.md")}
+- ${join(outDir, "stocks/")}
 `;
 }
 
@@ -267,11 +316,13 @@ function parseArgs(argv) {
   const args = {
     out: join("inbox", "stock-selector", yyyymmdd(), "raw"),
     pageSize: 1000,
+    requestTimeoutMs: 20000,
   };
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === "--out") args.out = argv[++i];
     else if (arg === "--page-size") args.pageSize = Number(argv[++i]);
+    else if (arg === "--timeout-ms") args.requestTimeoutMs = Number(argv[++i]);
     else if (arg === "--help" || arg === "-h") args.help = true;
     else throw new Error(`Unknown argument: ${arg}`);
   }
@@ -292,6 +343,7 @@ async function removeStaleOutputs(outDir) {
     "condition-1.rows.csv",
     "condition-2.rows.csv",
     "field-dictionary.json",
+    "union.csv",
     "union.json",
     "key-metrics.csv",
     "key-metrics.json",
@@ -304,23 +356,34 @@ async function removeStaleOutputs(outDir) {
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
-    console.log("Usage: node eastmoney-stock-selector.mjs [--out DIR] [--page-size N]");
+    console.log(
+      "Usage: node eastmoney-stock-selector.mjs [--out DIR] [--page-size N] [--timeout-ms N]",
+    );
     return;
   }
 
   await mkdir(args.out, { recursive: true });
   await removeStaleOutputs(args.out);
-  const cond1 = await fetchAll(CONDITION_1, { pageSize: args.pageSize });
-  const cond2 = await fetchAll(CONDITION_2, { pageSize: args.pageSize });
+  const fetchOptions = {
+    pageSize: args.pageSize,
+    requestTimeoutMs: args.requestTimeoutMs,
+  };
+  const cond1 = await fetchAll(CONDITION_1, fetchOptions);
+  const cond2 = await fetchAll(CONDITION_2, fetchOptions);
   const merged = mergeRows(cond1, cond2);
 
-  await writeFile(join(args.out, "union.csv"), unionToCsv(cond1, cond2, merged.rows), "utf8");
-  await writeFile(join(args.out, "summary.md"), summaryMarkdown({ cond1, cond2, merged, outDir: args.out }), "utf8");
+  const stockFileCount = await writePerStockCsvs(args.out, cond1, cond2, merged.rows);
+  await writeFile(
+    join(args.out, "summary.md"),
+    summaryMarkdown({ cond1, cond2, merged, outDir: args.out, stockFileCount }),
+    "utf8",
+  );
 
   console.log(`condition1=${cond1.rows.length}`);
   console.log(`condition2=${cond2.rows.length}`);
   console.log(`intersection=${merged.intersectionCount}`);
   console.log(`union=${merged.rows.length}`);
+  console.log(`stockFiles=${stockFileCount}`);
   console.log(`out=${args.out}`);
 }
 
