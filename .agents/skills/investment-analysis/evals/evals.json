@@ -1,0 +1,41 @@
+{
+  "skill_name": "investment-analysis",
+  "evals": [
+    {
+      "id": 0,
+      "prompt": "请分析中证白酒指数和跟踪它的白酒 ETF/LOF，现在是否值得纳入观察。要求使用 PE、PB、ROE、估值分位、成分股质量、行业周期和风险框架，不要只给一句长期看好。",
+      "expected_output": "应产出 ETF/指数报告，包含数据日期、估值和质量、周期、风险、情景和观察条件，并明确区分事实、假设和缺失数据。",
+      "files": [],
+      "assertions": [
+        "Report states data date/source or explicitly marks live-data gaps.",
+        "Report covers PE, PB, ROE, valuation percentile, historical PE/PB/ROE windows when available, and index/ETF identity.",
+        "Report evaluates constituent quality, industry cycle, and concentration rather than only recent performance.",
+        "Report includes value/growth/cycle trap risks and margin-of-safety or watchpoint conditions."
+      ]
+    },
+    {
+      "id": 1,
+      "prompt": "我想比较沪深300ETF和中证500ETF，哪个更符合价值投资视角？请用统一的数据口径说明估值、ROE、股息率、成分结构、周期位置和安全边际。",
+      "expected_output": "应产出两个 ETF/指数的对比报告，说明每个来源的字段含义、数据来源和日期，比较估值/质量/风险，并避免根据近期涨跌直接下结论。",
+      "files": [],
+      "assertions": [
+        "Report compares both assets with clearly labeled source-specific fields rather than forcing one provider schema.",
+        "Report states data date/source or explicitly marks live-data gaps.",
+        "Report covers valuation, ROE, dividend yield, constituent structure, cycle position, and safety margin.",
+        "Report avoids deciding solely from recent performance and gives conditional conclusion/watchpoints."
+      ]
+    },
+    {
+      "id": 2,
+      "prompt": "按《投资中最简单的事》的框架分析一下 600519 贵州茅台：为什么便宜或贵，为什么好，为什么现在值得或不值得考虑？请特别检查增长陷阱、现金流、定价权和估值。",
+      "expected_output": "应产出股票个股报告，回答三个基本问题，覆盖商业模式、护城河、财务质量、估值、时机、风险陷阱和可证伪观察点。",
+      "files": [],
+      "assertions": [
+        "Report answers why cheap/expensive, why good/bad, and why now.",
+        "Report states data date/source or explicitly marks live-data gaps.",
+        "Report covers cash flow, pricing power, valuation, and financial quality.",
+        "Report checks growth trap/value trap/reflexivity risks and gives thesis invalidation watchpoints."
+      ]
+    }
+  ]
+}
