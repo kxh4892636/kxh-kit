@@ -1,6 +1,6 @@
 # Eastmoney Stock Selector Summary
 
-Fetched at: 2026-05-16T13:52:18.547Z
+Fetched at: 2026-05-16T15:02:21.096Z
 
 ## Counts
 
@@ -8,6 +8,7 @@ Fetched at: 2026-05-16T13:52:18.547Z
 - Condition 2: 99
 - Intersection: 14
 - Union: 125
+- Per-stock CSV files: 125
 
 ## Condition 1 Parser
 
@@ -170,5 +171,5 @@ Fetched at: 2026-05-16T13:52:18.547Z
 
 ## Output
 
-- inbox/stock-selector/20260516/raw/union.csv
 - inbox/stock-selector/20260516/raw/summary.md
+- inbox/stock-selector/20260516/raw/stocks/
