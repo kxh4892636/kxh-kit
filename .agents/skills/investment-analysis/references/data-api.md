@@ -253,6 +253,8 @@ Individual stock report:
 
 - Use `adata-public-data.mjs` for price history and financial core.
 - Add other approved native scripts only when the report needs industry, concept, capital flow, pledge, or governance data.
+- Current native scripts do not fully cover multi-year three-statement data, receivables and inventory detail, capex, free cash flow, pledge ratios, buybacks, insider holding changes, related-party transactions, audit opinions, or filing footnotes. When those fields matter, fetch an additional approved source, ask the user for filings, or mark the field as missing instead of inferring it from price or theme data.
+- Treat capital flow, hot-rank, north-flow, and margin data as timing or sentiment context only. They cannot prove quality, moat, or margin of safety.
 
 Data quality language:
 

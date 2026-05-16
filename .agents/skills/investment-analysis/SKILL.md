@@ -12,6 +12,7 @@ This is not personalized financial advice. Do not promise returns, do not give c
 ## Load What You Need
 
 - Read `references/framework.md` for the investing framework, red flags, and decision logic.
+- Read `references/historical-cases.md` when you need book-derived historical analogies for industry structure, traps, cycles, or behavioral mistakes.
 - Read `references/data-api.md` when data collection, source-specific scripts, provider mapping, or field interpretation matters.
 - Read `references/report-templates.md` when producing a final ETF/index or stock report.
 
@@ -31,13 +32,25 @@ This is not personalized financial advice. Do not promise returns, do not give c
    - Keep provider-specific field names and document their meaning, units, dates, and source URLs.
    - Treat provider data as fallible: cross-check key values across at least two sources when the conclusion depends on them.
 
-4. Analyze with the six-section frame.
+4. Analyze the book's three-part core before the six-section frame.
+   - Valuation: why the asset is cheap or expensive.
+   - Quality: whether it is a good industry, good company, or good index exposure.
+   - Timing: why consider it now, while accepting that timing is the least controllable part.
+   - Give a positive view only when the setup is understandable, quality is acceptable, price leaves margin of safety, and the main bad news is visible rather than hidden.
+
+5. Complete the six-section frame.
    - Valuation: current level, history, peer comparison, normalized earnings, dividend yield, valuation percentile.
    - Quality: business model, cash flow, ROE/ROIC quality, concentration, moat, pricing power, management or index methodology.
    - Timing: policy, liquidity, earnings cycle, sentiment, fund flows, crowding, catalysts.
    - Risk: value trap, growth trap, cycle trap, accounting risk, leverage, reflexivity, liquidity.
    - Margin of safety: downside scenario, base scenario, upside scenario, what must go right, what can go wrong.
    - Decision view: attractive, neutral, avoid, or watchlist, with evidence and conditions that would change the view.
+
+6. Add a scorecard when producing a final report.
+   - Use the score to expose the logic, not to automate buy/sell advice.
+   - Show category scores, total score, key deductions, and hard vetoes.
+   - If a hard veto is present, cap the final view at Watchlist or Avoid even when the numeric score is high.
+   - Use historical cases only as analogies and warning patterns; never treat them as proof that the current asset will repeat the past.
 
 ## ETF And Index Analysis
 

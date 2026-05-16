@@ -9,8 +9,9 @@
       "assertions": [
         "Report states data date/source or explicitly marks live-data gaps.",
         "Report covers PE, PB, ROE, valuation percentile, historical PE/PB/ROE windows when available, and index/ETF identity.",
+        "Report includes a scorecard with category scores, deductions, and any hard vetoes.",
         "Report evaluates constituent quality, industry cycle, and concentration rather than only recent performance.",
-        "Report includes value/growth/cycle trap risks and margin-of-safety or watchpoint conditions."
+        "Report includes value/growth/cycle trap risks, explicit decision preconditions, and margin-of-safety or watchpoint conditions."
       ]
     },
     {
@@ -21,8 +22,9 @@
       "assertions": [
         "Report compares both assets with clearly labeled source-specific fields rather than forcing one provider schema.",
         "Report states data date/source or explicitly marks live-data gaps.",
+        "Report scores both ETFs or indices with the same category weights and explains deductions.",
         "Report covers valuation, ROE, dividend yield, constituent structure, cycle position, and safety margin.",
-        "Report avoids deciding solely from recent performance and gives conditional conclusion/watchpoints."
+        "Report avoids deciding solely from recent performance and gives conditional conclusion, decision preconditions, and watchpoints."
       ]
     },
     {
@@ -33,8 +35,9 @@
       "assertions": [
         "Report answers why cheap/expensive, why good/bad, and why now.",
         "Report states data date/source or explicitly marks live-data gaps.",
+        "Report includes a stock scorecard with category scores, deductions, and any hard vetoes.",
         "Report covers cash flow, pricing power, valuation, and financial quality.",
-        "Report checks growth trap/value trap/reflexivity risks and gives thesis invalidation watchpoints."
+        "Report checks growth trap/value trap/reflexivity risks, decision preconditions, margin of safety, and thesis invalidation watchpoints."
       ]
     }
   ]
