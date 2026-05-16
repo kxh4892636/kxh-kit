@@ -1,0 +1,23 @@
+{
+  "skill_name": "stock-selector",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "用 stock-selector 跑一遍东方财富 A 股初筛，保存两组条件的原始结果、并集 CSV 和 summary，不要做深度报告。",
+      "expected_output": "Uses the bundled Eastmoney script, verifies both parser condition lists, saves raw JSON, field-dictionary.json, condition rows CSVs, union.csv/union.json/summary.md under inbox/stock-selector/<day>/raw, and reports condition counts, intersection, and union.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "基于 stock-selector 的并集结果做初步筛选，给我 10-20 只优先分析股票，只能使用 xuangu 返回的数据。",
+      "expected_output": "Creates a concise shortlist using only the xuangu union data, explains scoring with valuation, quality, cash flow, leverage, industry, and timing fields, and does not call investment-analysis data scripts.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "对 stock-selector 初筛后的股票生成深入分析报告，保存到 inbox/stock-selector/今天日期，最多 5 个子 agent 并行。",
+      "expected_output": "Uses investment-analysis only after preliminary selection, batches deep report work with no more than five active subagents, and saves one markdown report per stock under inbox/stock-selector/<YYYYMMDD>/.",
+      "files": []
+    }
+  ]
+}
