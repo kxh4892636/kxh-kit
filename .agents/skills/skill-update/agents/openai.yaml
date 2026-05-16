@@ -1,0 +1,7 @@
+interface:
+  display_name: "Skill Update"
+  short_description: "Track and update remote Git skills"
+  default_prompt: "Use $skill-update to update a remote Git-backed skill."
+
+policy:
+  allow_implicit_invocation: true

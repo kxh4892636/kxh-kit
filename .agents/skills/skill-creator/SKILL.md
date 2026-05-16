@@ -160,6 +160,10 @@ Save test cases to `evals/evals.json`. Don't write assertions yet — just the p
 
 See `references/schemas.md` for the full schema (including the `assertions` field, which you'll add later).
 
+### Remote Git skill follow-up
+
+After a new skill is created and validated, invoke `$skill-update` if it is available. Ask whether the new skill is backed by a remote Git repository and whether it should be added to the `skill-update` remote skill registry. If the user says yes, collect the skill name, Git repository URL, source subdirectory if any, update method, and local overlay notes, then update `skill-update` before considering the creation task complete.
+
 ## Running and evaluating test cases
 
 This section is one continuous sequence — don't stop partway through. Do NOT use `/skill-test` or any other testing skill.
