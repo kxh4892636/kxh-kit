@@ -1,6 +1,6 @@
 ---
 name: investment-analysis
-description: 用《投资中最简单的事》的价值投资框架分析 ETF、基金、跟踪指数和股票个股，并把估值、品质、时机、风险、安全边际与数据来源统一到可复核报告中。只要用户提到 ETF、指数基金、基金估值、跟踪指数、A 股个股、股票分析、PE/PB/ROE、估值分位、护城河、价值陷阱、成长陷阱、安全边际、邱国鹭或《投资中最简单的事》，都应优先使用本 skill，即使用户没有明确说“投资分析”。
+description: 用《投资中最简单的事》的价值投资框架分析 ETF、基金、跟踪指数和股票个股，并把估值、品质、时机、风险、安全边际、公告、资讯、调研和研报数据来源统一到可复核报告中。只要用户提到 ETF、指数基金、基金估值、跟踪指数、A 股个股、股票分析、公告、研报、热门资讯、PE/PB/ROE、估值分位、护城河、价值陷阱、成长陷阱、安全边际、邱国鹭或《投资中最简单的事》，都应优先使用本 skill，即使用户没有明确说“投资分析”。
 ---
 
 # Investment Analysis
@@ -24,7 +24,7 @@ This is not personalized financial advice. Do not promise returns, do not give c
    - Stock: stock code, exchange, industry, listing status, market cap, financial period, user horizon.
 
 2. Verify current data before numeric claims.
-   - For current prices, valuation, holdings, constituents, financials, or rules, fetch or ask for the latest data. If live fetch is blocked, state the block and continue with clearly marked stale or sample data.
+   - For current prices, valuation, holdings, constituents, financials, announcements, news, research reports, or rules, fetch or ask for the latest data. If live fetch is blocked, state the block and continue with clearly marked stale or sample data.
    - Preserve `asOf`, `fetchedAt`, `source`, and `confidence` for each dataset. Never mix data from different dates without saying so.
 
 3. Pick the source-specific script or endpoint that fits the question.
@@ -87,6 +87,7 @@ Minimum checks:
 
 - Business: revenue model, customers, suppliers, pricing power, substitutability, competitive boundary.
 - Industry: concentration, supply discipline, demand growth, regulation, technology route, winner status.
+- Disclosures and expectations: recent CNInfo announcements, investor-relation records, Eastmoney news, and Eastmoney research reports when the question depends on new events, catalysts, market attention, or sell-side forecast changes.
 - Financials: revenue and profit growth, gross/net margin, ROE structure, cash conversion, capex, working capital, debt, dilution.
 - Valuation: PE/PB/PS/EV multiples, dividend yield, normalized earnings, historical range, peer comparison, scenario valuation.
 - Management and governance: incentives, capital allocation, accounting quality, related-party or pledge risks when relevant.

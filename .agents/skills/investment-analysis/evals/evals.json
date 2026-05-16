@@ -39,6 +39,19 @@
         "Report covers cash flow, pricing power, valuation, and financial quality.",
         "Report checks growth trap/value trap/reflexivity risks, decision preconditions, margin of safety, and thesis invalidation watchpoints."
       ]
+    },
+    {
+      "id": 3,
+      "prompt": "请收集 000001 平安银行最近半年的公告、投资者关系记录、东方财富个股新闻和个股研报，并说明哪些信息能作为事实依据，哪些只能作为市场预期或情绪线索。",
+      "expected_output": "应调用或引用合并的数据脚本，区分巨潮公告/调研与东方财富资讯/研报，保留来源、日期、链接和缺失数据，并把公告事实、公司表述、新闻线索、卖方预期分开使用。",
+      "files": [],
+      "assertions": [
+        "Report uses or explicitly references the stock-disclosure-news-report-data script for CNInfo and Eastmoney event data.",
+        "Report separates official CNInfo announcements from investor-relation records, Eastmoney news, and Eastmoney research reports.",
+        "Report preserves source, date, title, and URL/PDF link fields or marks unavailable fields explicitly.",
+        "Report treats news and research reports as secondary evidence and requires official filing verification for material claims.",
+        "Report includes data gaps, source errors, or provider blocking notes instead of inferring missing facts."
+      ]
     }
   ]
 }

@@ -6,7 +6,7 @@ This reference records source-specific data interfaces for investment analysis. 
 
 - Data acquisition must use either native Node.js or Python standard-library APIs.
 - Do not add npm, pip, conda, browser automation, or SDK dependencies unless the user explicitly approves them.
-- Keep each data source in one source-specific script file. Do not split one provider across multiple data-fetching scripts.
+- Default to one source-specific script file per provider. If the user explicitly asks for a combined workflow script, keep provider-specific functions, metadata, and error sections separated inside that one file.
 - Export every source-specific data-fetching function so it can be tested with an injected native `fetchImpl`.
 - Cover every exported data-fetching function with `node:test` tests that mock the provider response and do not hit the network.
 - Preserve source-specific payload shape where useful. Add only lightweight audit metadata such as `source`, `fetchedAt`, endpoint URL, warnings, and parser notes.
@@ -241,6 +241,83 @@ Use the output this way:
 - `indexListEastmoney`, `indexConstituentsBaidu`, `indexKlineEastmoney`, `indexCurrentEastmoney`: index identification, constituent checks, and benchmark timing.
 - `errors`: source-specific failed sections. A missing section caused by provider failure must be stated explicitly in the report.
 
+## CNInfo And Eastmoney Disclosure / News / Research
+
+This single script intentionally combines the two planned source areas `cninfo-disclosure-data.mjs` and `eastmoney-news-report-data.mjs` into one workflow file, because event-driven stock analysis normally needs official disclosures and market narratives side by side. Keep the CNInfo and Eastmoney sections separate in output and interpretation.
+
+Source pages:
+
+- CNInfo disclosure search: `http://www.cninfo.com.cn/new/commonUrl/pageOfSearch?url=disclosure/list/search`
+- Eastmoney stock news search: `https://so.eastmoney.com/news/s?keyword={stockCode}`
+- Eastmoney stock research reports: `https://data.eastmoney.com/report/stock.jshtml`
+
+Source-specific endpoints implemented:
+
+- CNInfo stock code to orgId map:
+  - `http://www.cninfo.com.cn/new/data/szse_stock.json`
+  - `http://www.cninfo.com.cn/new/data/hke_stock.json`
+  - `http://www.cninfo.com.cn/new/data/gfzr_stock.json`
+  - `http://www.cninfo.com.cn/new/data/fund_stock.json`
+  - `http://www.cninfo.com.cn/new/data/bond_stock.json`
+- CNInfo disclosure and investor-relation rows:
+  - `http://www.cninfo.com.cn/new/hisAnnouncement/query`
+- Eastmoney stock news:
+  - `https://search-api-web.eastmoney.com/search/jsonp`
+- Eastmoney stock research reports:
+  - `https://reportapi.eastmoney.com/report/list`
+
+Raw shape and parser notes:
+
+- CNInfo stock list rows expose `code` and `orgId`; disclosure query needs `stock={code},{orgId}` for stock-specific search.
+- CNInfo disclosure query uses `tabName=fulltext`; investor-relation disclosure uses `tabName=relation`.
+- CNInfo disclosure rows expose `secCode`, `secName`, `announcementTitle`, `announcementTime`, `announcementId`, `orgId`, `announcementType`, and `adjunctUrl`. The script creates both a detail URL and a static PDF URL when `adjunctUrl` is present. Announcements are official disclosure records; investor-relation rows are company-disclosed communication records and should be treated as management statements.
+- CNInfo category names such as `年报`, `业绩预告`, `公司治理`, and `风险提示` are mapped to provider category IDs. Unknown category strings are passed through as raw provider category values.
+- Eastmoney stock news returns JSONP with `result.cmsArticleWebOld[]`; the script strips `<em>` highlight tags and builds article URLs from article codes when the provider does not return a URL.
+- Eastmoney research report rows expose `stockCode`, `stockName`, `title`, `orgSName`, `publishDate`, `infoCode`, `count`, rating fields, industry fields, and 3-year EPS/PE forecast fields. The script builds the public PDF URL from `infoCode` using Eastmoney's `H3_{infoCode}_1.pdf` pattern.
+
+Native script:
+
+- `scripts/stock-disclosure-news-report-data.mjs`
+  - Fetches CNInfo official announcements, CNInfo investor-relation disclosures, Eastmoney stock news, and Eastmoney stock research reports in one payload.
+  - Exports `fetchCninfoStockList`, `fetchCninfoDisclosureAnnouncements`, `fetchCninfoInvestorRelations`, `fetchEastmoneyStockNews`, `fetchEastmoneyResearchReports`, and `fetchStockDisclosureNewsReportData`.
+  - Uses only native Node `fetch`, URL-encoded POST bodies, JSONP parsing, simple HTML highlight cleanup, and source-specific URL construction.
+
+Example:
+
+```bash
+node .agents/skills/investment-analysis/scripts/stock-disclosure-news-report-data.mjs 000001 --category=风险提示 --start=2025-01-01 --end=2026-05-16 --max-pages=2 --out=/tmp/stock-events.json
+node .agents/skills/investment-analysis/scripts/stock-disclosure-news-report-data.mjs --stock=600519 --keyword=贵州茅台 --include-raw --out=/tmp/stock-events-raw.json
+```
+
+Programmatic usage:
+
+```js
+import {
+  fetchStockDisclosureNewsReportData,
+  fetchCninfoDisclosureAnnouncements,
+  fetchEastmoneyResearchReports,
+} from "./scripts/stock-disclosure-news-report-data.mjs";
+
+const events = await fetchStockDisclosureNewsReportData({
+  stock: "600519",
+  keyword: "贵州茅台",
+  category: "风险提示",
+  start: "2025-01-01",
+  end: "2026-05-16",
+  maxPages: 2,
+});
+const announcements = await fetchCninfoDisclosureAnnouncements("600519", { category: "年报" });
+const reports = await fetchEastmoneyResearchReports("600519", { maxPages: 1 });
+```
+
+Use the output this way:
+
+- `cninfoAnnouncements`: official disclosure records and filing links. This is the primary source for material events, risk warnings, earnings previews, buybacks, reductions, refinancing, litigation, and governance issues.
+- `cninfoInvestorRelations`: company-disclosed management explanations and investor Q&A records. Treat them as company statements, not independent proof.
+- `eastmoneyNews`: market attention and event-discovery context. Verify any claim that affects valuation or risk with official filings.
+- `eastmoneyResearchReports`: sell-side expectations, rating changes, and EPS/PE forecast assumptions. Use the forecast and assumption changes, not the conclusion alone.
+- `errors`: source-specific failed sections. If CNInfo or Eastmoney blocks a section, mark the gap instead of filling it with narrative.
+
 ## Choosing A Source
 
 ETF or index valuation:
@@ -252,6 +329,7 @@ ETF or index valuation:
 Individual stock report:
 
 - Use `adata-public-data.mjs` for price history and financial core.
+- Use `stock-disclosure-news-report-data.mjs` when the stock analysis depends on latest announcements, investor-relation records, hot news, research-report volume, rating changes, or sell-side forecast changes.
 - Add other approved native scripts only when the report needs industry, concept, capital flow, pledge, or governance data.
 - Current native scripts do not fully cover multi-year three-statement data, receivables and inventory detail, capex, free cash flow, pledge ratios, buybacks, insider holding changes, related-party transactions, audit opinions, or filing footnotes. When those fields matter, fetch an additional approved source, ask the user for filings, or mark the field as missing instead of inferring it from price or theme data.
 - Treat capital flow, hot-rank, north-flow, and margin data as timing or sentiment context only. They cannot prove quality, moat, or margin of safety.
@@ -270,6 +348,7 @@ Tests live next to the skill and use only Node built-ins:
 - `tests/danjuan-data.test.mjs`
 - `tests/fund-public-data.test.mjs`
 - `tests/adata-public-data.test.mjs`
+- `tests/stock-disclosure-news-report-data.test.mjs`
 
 Run them with:
 
