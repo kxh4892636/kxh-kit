@@ -1,6 +1,6 @@
 ---
 name: fe-code-spec
-description: 前端编码规范与外部依赖使用说明，涵盖项目结构、命名、代码、组件、接口请求等规范及外部库/框架用法。执行 html/css/js/ts/react/vue 等前端开发任务时触发。关键词：前端、规范、项目结构、代码、组件、接口请求、外部依赖、第三方库。
+description: 前端编码规范与外部依赖使用说明，涵盖项目结构、命名、代码、组件、React 性能优化、接口请求等规范及外部库/框架用法。执行 html/css/js/ts/react/vue 等前端开发任务时触发。关键词：前端、规范、项目结构、代码、组件、React、接口请求、外部依赖、第三方库。
 ---
 
 # fe-code-spec
@@ -108,6 +108,13 @@ export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps)
 - H5 应用使用 `@ecom/auxo-mobile` 或者 `@arco-design/mobile-react`;
 - 高级组件：`@ecom/auxo-pro-table`、`@ecom/auxo-pro-form`;
 - 禁止在同一应用中混用不同的组件库;
+
+### React 性能规范
+
+- 执行 React 组件、Hook、状态、数据请求、bundle 体积、首屏渲染、交互性能相关任务时，按需读取 `references/react/README.md`;
+- `references/react/` 是本 skill 的 React 子参考内容，不是独立 skill；其结构为 `README.md`、`rules/_sections.md`、`rules/_template.md`、一条规则一个 Markdown 文件;
+- `references/react/` 只包含通用 React / Vite 前端规则，源规则中只适用于特定框架的内容已删除;
+- 实现时先遵守本文件已有的项目结构、命名、组件和请求规范，再使用 `references/react/rules/*.md` 中的详细规则补充性能、重渲染和渲染细节;
 
 ## HTTP 请求规范
 
