@@ -52,6 +52,30 @@ This is not personalized financial advice. Do not promise returns, do not give c
    - If a hard veto is present, cap the final view at Watchlist or Avoid even when the numeric score is high.
    - Use historical cases only as analogies and warning patterns; never treat them as proof that the current asset will repeat the past.
 
+## Critical Thinking And Scoring Discipline
+
+Every deep report must be balanced and adversarial. Do not write reports that only list positives or use good metrics as confirmation of a bullish thesis.
+
+Requirements:
+
+- For every positive claim, check the strongest counterargument that could make it misleading.
+- Separate "good company" from "good investment at this price"; a strong business can still be overvalued or have poor forward returns.
+- Do not treat low PE, high ROE, high growth, high dividend yield, policy support, recent drawdown, or sell-side optimism as sufficient evidence by itself.
+- Explicitly search for value traps, growth traps, cycle traps, leverage/reflexivity, accounting quality, governance, policy/regulatory risk, customer/supplier concentration, technology disruption, and valuation already pricing in the good news.
+- Treat popular narratives and recent price strength as possible crowding signals, not proof.
+- Include a bear case: the most plausible way the thesis fails.
+- Include a balanced evidence table or equivalent concise structure that shows main positives, matching negatives, and what evidence would decide between them.
+- If the negative evidence is material or unresolved, it must reduce the score and cap the decision view even when headline metrics look strong.
+
+Score conservatively. Start from a neutral baseline, then add or subtract evidence. Do not start from an optimistic score and only look for confirmations:
+
+- Scores above 80 require strong valuation, quality, cash conversion, balance sheet, and risk evidence with no major unresolved veto.
+- Scores in the 70-79 range mean "promising but still conditional", not a default buy view.
+- Cap at 70 if the thesis depends on earnings recovery, policy support, sell-side forecasts, or unverified normalized profit.
+- Cap at 65 if there is material missing data, unresolved leverage/reflexivity, questionable cash conversion, or clear industry-cycle uncertainty.
+- Cap at 60 if the main attraction is only low valuation, high dividend yield, recent decline, or high historical ROE.
+- Apply hard vetoes before total score. A hard veto should cap the report at Watchlist/Avoid for the general framework, or at the closest equivalent cautious label in a specialized workflow.
+
 ## ETF And Index Analysis
 
 Use the ETF/index path when the user asks about an ETF, open-ended fund, LOF, index, sector, style index, or thematic basket.

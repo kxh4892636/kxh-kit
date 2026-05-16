@@ -1,3 +1,13 @@
+# kxh-awesome Agent Instructions
+
+This repository contains both engineering projects and non-code content work.
+
+## Task Scope
+
+- For code, dependency, Node.js, workspace, build, test, lint, format, RPC/proto, generated-code, git-hook, or package-script tasks, use the Vite+ guidance below and inspect only the relevant project configuration.
+- For notes, stock or fund analysis, weekly reports, research writeups, document polishing, and other non-code content tasks, do not inspect `package.json`, `vite.config.ts`, `tsconfig.json`, or Node/Vite+ configuration just because the files live in this repository.
+- Run Vite+ checks for non-code content only when the task changes a built site/app, navigation/config, executable examples, generated docs, package metadata, or when the user explicitly asks for engineering validation.
+
 <!--VITE PLUS START-->
 
 # Using Vite+, the Unified Toolchain for the Web
@@ -8,8 +18,8 @@ Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.de
 
 ## Review Checklist
 
-- [ ] Run `vp install` after pulling remote changes and before getting started.
-- [ ] Use `git status --short` to identify uncommitted files (staged, unstaged, and untracked), then run `vp check --fix <changed-paths>` / `vp check <changed-paths>` and the smallest relevant `vp test <changed-test-paths-or-pattern>` to format, lint, type check and test only those changes. Do not run whole-repo `vp check` / `vp test` unless explicitly requested or required by a shared behavior change that cannot be validated by path-scoped commands.
-- [ ] Check if there are `vite.config.ts` tasks or `package.json` scripts necessary for validation, run via `vp run <script>`.
+- [ ] For engineering tasks, run `vp install` after pulling remote changes and before getting started.
+- [ ] For code or engineering changes, use `git status --short` to identify changed files, then run path-scoped `vp check --fix <changed-paths>` / `vp check <changed-paths>` and the smallest relevant `vp test <changed-test-paths-or-pattern>`. Do not run whole-repo `vp check` / `vp test` unless explicitly requested or required by a shared behavior change.
+- [ ] For engineering tasks, check whether `vite.config.ts` tasks or `package.json` scripts are necessary for validation, then run them via `vp run <script>`.
 
 <!--VITE PLUS END-->
