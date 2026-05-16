@@ -1,6 +1,6 @@
 # Eastmoney Stock Selector Summary
 
-Fetched at: 2026-05-16T13:23:21.546Z
+Fetched at: 2026-05-16T13:52:18.547Z
 
 ## Counts
 
@@ -170,10 +170,5 @@ Fetched at: 2026-05-16T13:23:21.546Z
 
 ## Output
 
-- inbox/stock-selector/20260516/raw/condition-1.json
-- inbox/stock-selector/20260516/raw/condition-2.json
-- inbox/stock-selector/20260516/raw/field-dictionary.json
-- inbox/stock-selector/20260516/raw/condition-1.rows.csv
-- inbox/stock-selector/20260516/raw/condition-2.rows.csv
 - inbox/stock-selector/20260516/raw/union.csv
-- inbox/stock-selector/20260516/raw/union.json
+- inbox/stock-selector/20260516/raw/summary.md
