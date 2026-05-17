@@ -15,6 +15,7 @@ src/
 ├── assets/           # 静态资源（图片、SVG、字体等）
 ├── common/           # 共享常量、类型、枚举、配置等
 ├── components/       # 可复用 UI 组件
+│   └── ui/           # shadcn/ui 组件源码（通过 CLI 添加后可按需维护）
 ├── hooks/            # 自定义 Hook（数据请求、业务逻辑封装）
 ├── pages/            # 页面级组件
 │   └── [page-name]/  # 页面组件，每个页面对应一个路由
@@ -24,6 +25,7 @@ src/
 ├── routes/           # 路由定义（每个路由文件导出对应页面组件）
 ├── stores/           # 状态管理（Zustand store 等）
 ├── api/              # 外部网络请求（如 fetch、axios 等）
+├── lib/              # 第三方组件体系需要的共享工具（如 shadcn/ui 的 cn）
 └── utils/            # 纯工具函数
 ```
 
@@ -104,7 +106,10 @@ export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps)
 
 ### 组件库规范
 
-- PC 应用使用 `@ecom/auxo` 或者 `antd`;
+- React + Tailwind PC 应用默认使用 `shadcn/ui`；它不是传统 npm 组件库，而是通过 shadcn CLI 将组件源码添加到项目中;
+- 添加 shadcn/ui 组件使用 `vp dlx -- shadcn@latest add <component> --cwd <project-path>`，先查看项目的 `components.json`、`src/components/ui/` 和 `src/lib/utils.ts`;
+- shadcn/ui 生成的 `components/ui` 源码保持官方组件结构；业务组件和页面代码继续遵守本 skill 的命名、拆分、props 和请求规范;
+- 已经统一使用内部 PC 组件库的既有项目可继续使用 `@ecom/auxo`，但不要在同一应用中再引入另一套 PC 组件库;
 - H5 应用使用 `@ecom/auxo-mobile` 或者 `@arco-design/mobile-react`;
 - 高级组件：`@ecom/auxo-pro-table`、`@ecom/auxo-pro-form`;
 - 禁止在同一应用中混用不同的组件库;
@@ -219,10 +224,10 @@ export const usePosts = (random = true) => {
 | React | https://react.dev/ |
 | TypeScript | https://www.typescriptlang.org/docs/ |
 | Tailwind CSS | https://tailwindcss.com/docs |
+| shadcn/ui | https://ui.shadcn.com/docs |
 | Zustand | https://zustand.docs.pmnd.rs/ |
 | @tanstack/react-query | https://tanstack.com/query/latest/docs |
 | @tanstack/react-router | https://tanstack.com/router/latest/docs |
-| antd | https://ant.design/ |
 | dayjs | https://day.js.org/ |
 | es-toolkit | https://es-toolkit.slash.page/ |
 | ahooks | https://ahooks.js.org/ |

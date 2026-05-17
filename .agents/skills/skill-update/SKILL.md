@@ -40,6 +40,7 @@ If the user says yes, add an entry to the registry with:
 | skill-name | Git repository | Local path | Update method |
 | --- | --- | --- | --- |
 | `gpt-image` | `https://github.com/wuyoscar/gpt_image_2_skill` | `.agents/skills/gpt-image` | Clone the repository into a temporary directory, inspect the root skill contents, then sync the skill files into the local path after reviewing the diff. Keep generated outputs, API keys, and local-only environment files out of the sync. |
+| `shadcn` | `https://github.com/shadcn/ui/tree/main/skills/shadcn` | `.agents/skills/shadcn` | Clone `https://github.com/shadcn/ui` with sparse checkout for `skills/shadcn`, then copy that subdirectory into the local path after reviewing the diff. Preserve local Codex/Vite+ notes if added later. |
 | `skill-creator` | `https://github.com/anthropics/skills/tree/main/skills/skill-creator` | `.agents/skills/skill-creator` | Clone `https://github.com/anthropics/skills` with sparse checkout for `skills/skill-creator`, then sync that subdirectory into the local path after reviewing the diff. Preserve the local post-creation rule that invokes `skill-update` after creating a new skill. |
 | `vite-plus` | `https://github.com/voidzero-dev/vite-plus` | `.agents/skills/vite-plus` | Clone the repository into a temporary directory, then use `skill-extractor` to regenerate the skill from the Vite+ repository documentation. Do not update by direct file sync alone; the local skill is an extracted and condensed skill, not a direct copy of the source repository. |
 

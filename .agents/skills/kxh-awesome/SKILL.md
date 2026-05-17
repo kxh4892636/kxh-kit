@@ -59,7 +59,7 @@ vp 涵盖了本仓库的全部操作，包括：
 ## 仓库地图
 
 - `apps/wiki`：Docusaurus 知识库和 Markdown 内容。
-- `apps/react-template`：React 19 SPA 模板，使用 TanStack Router/Query、Ant Design、Tailwind CSS、Zustand、ConnectRPC。
+- `apps/react-template`：React 19 SPA 模板，使用 TanStack Router/Query、shadcn/ui、Tailwind CSS、Zustand、ConnectRPC。
 - `apps/go-template`：Go ConnectRPC 后端；`proto/` 是 API 契约，`internal/` 写业务逻辑，`gen/` 和 `docs/` 是生成物。
 - `packages/connectrpc-gen`：从后端 proto 项目生成前端 ConnectRPC 客户端的 CLI。
 - `packages/utils`：通过 Vite+ 构建和测试的 TypeScript 工具包。
@@ -83,7 +83,7 @@ vp 涵盖了本仓库的全部操作，包括：
 
 ## 常用流程
 
-- React 模板：在 `apps/react-template` 中使用 `vp dev`、`vp run build`、`vp run gen:api go-template`。
+- React 模板：在 `apps/react-template` 中使用 `vp dev`、`vp run build`、`vp run gen:api go-template`；添加 shadcn/ui 组件时使用 `vp dlx -- shadcn@latest add <component> --cwd apps/react-template`。
 - Wiki：在 `apps/wiki` 中通过 `vp run <script>` 执行 Docusaurus 脚本。
 - Go 后端：修改 `apps/go-template/proto/**` 后运行 `apps/go-template/generate.sh`，再补齐 `internal/` 实现。
 - 前端 RPC 客户端：后端 proto 变化后，在 `apps/react-template` 运行 `vp run gen:api go-template`。
