@@ -1,0 +1,1650 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>指数 K 线查看器</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f7f9;
+        --panel: #ffffff;
+        --panel-strong: #f0f3f7;
+        --text: #172033;
+        --muted: #697386;
+        --line: #d9dee8;
+        --line-soft: #edf0f5;
+        --primary: #235fd6;
+        --primary-soft: #e8efff;
+        --up: #d54949;
+        --down: #159261;
+        --warn: #a45d12;
+        --danger: #bb2d3b;
+        --shadow: 0 10px 30px rgba(23, 32, 51, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        min-height: 100%;
+        background: var(--bg);
+        color: var(--text);
+        font-family:
+          Inter,
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          BlinkMacSystemFont,
+          "Segoe UI",
+          "Microsoft YaHei",
+          sans-serif;
+        font-size: 14px;
+        letter-spacing: 0;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      button {
+        cursor: pointer;
+      }
+
+      .page {
+        width: min(1480px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 24px 0 44px;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 18px;
+      }
+
+      .brand {
+        min-width: 0;
+      }
+
+      .brand h1 {
+        margin: 0;
+        font-size: 24px;
+        line-height: 1.2;
+        font-weight: 760;
+      }
+
+      .brand p {
+        margin: 6px 0 0;
+        color: var(--muted);
+        line-height: 1.5;
+      }
+
+      .import-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        justify-content: flex-end;
+      }
+
+      .file-input {
+        position: absolute;
+        inline-size: 1px;
+        block-size: 1px;
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      .button,
+      .ghost-button,
+      .danger-button {
+        border: 1px solid transparent;
+        border-radius: 8px;
+        min-height: 38px;
+        padding: 8px 14px;
+        font-weight: 650;
+        background: var(--panel);
+        color: var(--text);
+      }
+
+      .button {
+        background: var(--primary);
+        color: #fff;
+        box-shadow: 0 8px 18px rgba(35, 95, 214, 0.2);
+      }
+
+      .ghost-button {
+        border-color: var(--line);
+      }
+
+      .danger-button {
+        color: var(--danger);
+        border-color: #f0c2c8;
+        background: #fff7f8;
+      }
+
+      .button:hover {
+        background: #1d52bd;
+      }
+
+      .ghost-button:hover,
+      .danger-button:hover {
+        border-color: #b9c3d4;
+      }
+
+      .drop-zone {
+        display: grid;
+        place-items: center;
+        min-height: 140px;
+        margin-bottom: 16px;
+        border: 1px dashed #aab6c9;
+        border-radius: 8px;
+        background: var(--panel);
+        box-shadow: var(--shadow);
+        transition:
+          border-color 160ms ease,
+          background 160ms ease;
+      }
+
+      .drop-zone.is-dragging {
+        border-color: var(--primary);
+        background: var(--primary-soft);
+      }
+
+      .drop-content {
+        padding: 22px;
+        text-align: center;
+      }
+
+      .drop-content strong {
+        display: block;
+        font-size: 17px;
+        margin-bottom: 6px;
+      }
+
+      .drop-content span {
+        display: block;
+        color: var(--muted);
+      }
+
+      .messages {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 14px;
+      }
+
+      .message {
+        border-radius: 8px;
+        padding: 10px 12px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--muted);
+      }
+
+      .message.error {
+        border-color: #f0c2c8;
+        background: #fff8f8;
+        color: var(--danger);
+      }
+
+      .message.success {
+        border-color: #c4ded3;
+        background: #f4fbf7;
+        color: #126a48;
+      }
+
+      .charts {
+        display: grid;
+        gap: 18px;
+      }
+
+      .empty-state {
+        border-radius: 8px;
+        background: var(--panel);
+        border: 1px solid var(--line-soft);
+        box-shadow: var(--shadow);
+        padding: 34px 24px;
+        text-align: center;
+        color: var(--muted);
+      }
+
+      .chart-card {
+        overflow: hidden;
+        border-radius: 8px;
+        border: 1px solid var(--line-soft);
+        background: var(--panel);
+        box-shadow: var(--shadow);
+      }
+
+      .chart-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        padding: 16px 18px 12px;
+        border-bottom: 1px solid var(--line-soft);
+      }
+
+      .chart-title {
+        min-width: 0;
+      }
+
+      .chart-title h2 {
+        margin: 0;
+        font-size: 18px;
+        line-height: 1.25;
+        font-weight: 760;
+        overflow-wrap: anywhere;
+      }
+
+      .chart-title p {
+        margin: 5px 0 0;
+        color: var(--muted);
+        line-height: 1.45;
+      }
+
+      .controls {
+        display: grid;
+        grid-template-columns: minmax(230px, auto) minmax(300px, auto) minmax(260px, 1fr);
+        gap: 12px;
+        padding: 12px 18px;
+        align-items: center;
+        background: #fbfcfe;
+        border-bottom: 1px solid var(--line-soft);
+      }
+
+      .control-group {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 0;
+      }
+
+      .control-label {
+        flex: 0 0 auto;
+        color: var(--muted);
+        font-weight: 650;
+      }
+
+      .segmented {
+        display: inline-flex;
+        align-items: center;
+        gap: 2px;
+        padding: 3px;
+        border-radius: 8px;
+        background: var(--panel-strong);
+        border: 1px solid var(--line-soft);
+      }
+
+      .segmented button {
+        border: 0;
+        border-radius: 6px;
+        min-width: 40px;
+        min-height: 30px;
+        padding: 5px 10px;
+        background: transparent;
+        color: var(--muted);
+        font-weight: 650;
+      }
+
+      .segmented button.is-active {
+        background: var(--panel);
+        color: var(--primary);
+        box-shadow: 0 2px 8px rgba(23, 32, 51, 0.08);
+      }
+
+      .ma-input {
+        width: 100%;
+        min-width: 170px;
+        min-height: 36px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        padding: 7px 10px;
+        color: var(--text);
+        background: var(--panel);
+      }
+
+      .ma-input:focus {
+        outline: 2px solid rgba(35, 95, 214, 0.18);
+        border-color: var(--primary);
+      }
+
+      .chart-body {
+        position: relative;
+        min-height: 560px;
+        padding: 0 0 10px;
+      }
+
+      .chart-canvas {
+        display: block;
+        width: 100%;
+        height: 560px;
+        cursor: grab;
+        touch-action: none;
+      }
+
+      .chart-card.is-dragging .chart-canvas {
+        cursor: grabbing;
+      }
+
+      .tooltip {
+        position: absolute;
+        z-index: 4;
+        min-width: 206px;
+        max-width: 280px;
+        pointer-events: none;
+        border-radius: 8px;
+        border: 1px solid rgba(23, 32, 51, 0.16);
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 12px 28px rgba(23, 32, 51, 0.16);
+        padding: 10px 11px;
+        opacity: 0;
+        transform: translateY(4px);
+        transition: opacity 80ms ease;
+      }
+
+      .tooltip.is-visible {
+        opacity: 1;
+      }
+
+      .tooltip-title {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        margin-bottom: 8px;
+        font-weight: 760;
+      }
+
+      .tooltip-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        line-height: 1.65;
+        color: var(--muted);
+      }
+
+      .tooltip-row b {
+        color: var(--text);
+        font-weight: 650;
+      }
+
+      .tooltip-ma {
+        margin-top: 7px;
+        padding-top: 7px;
+        border-top: 1px solid var(--line-soft);
+      }
+
+      .legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 14px;
+        padding: 0 18px 12px;
+        color: var(--muted);
+        min-height: 27px;
+      }
+
+      .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        border: 0;
+        padding: 0;
+        background: transparent;
+        color: inherit;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
+      .legend-item.is-hidden {
+        opacity: 0.36;
+        text-decoration: line-through;
+      }
+
+      .legend-swatch {
+        width: 18px;
+        height: 3px;
+        border-radius: 999px;
+      }
+
+      .chart-empty {
+        position: absolute;
+        inset: 0;
+        display: none;
+        place-items: center;
+        text-align: center;
+        color: var(--muted);
+        background: rgba(255, 255, 255, 0.72);
+        padding: 24px;
+      }
+
+      .chart-empty.is-visible {
+        display: grid;
+      }
+
+      .up {
+        color: var(--up);
+      }
+
+      .down {
+        color: var(--down);
+      }
+
+      @media (max-width: 980px) {
+        .page {
+          width: min(100vw - 20px, 1480px);
+          padding-top: 16px;
+        }
+
+        .topbar,
+        .chart-header {
+          align-items: stretch;
+          flex-direction: column;
+        }
+
+        .import-actions {
+          justify-content: flex-start;
+        }
+
+        .controls {
+          grid-template-columns: 1fr;
+        }
+
+        .control-group {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .segmented {
+          flex-wrap: wrap;
+        }
+
+        .chart-body {
+          min-height: 470px;
+        }
+
+        .chart-canvas {
+          height: 470px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="topbar">
+        <div class="brand">
+          <h1>指数 K 线查看器</h1>
+          <p>本地导入 JSON，单文件离线查看。</p>
+        </div>
+        <div class="import-actions">
+          <input
+            class="file-input"
+            id="fileInput"
+            type="file"
+            accept=".json,application/json"
+            multiple
+          />
+          <button class="button" id="selectButton" type="button">选择 JSON</button>
+          <button class="ghost-button" id="clearButton" type="button">清空图表</button>
+        </div>
+      </section>
+
+      <section class="drop-zone" id="dropZone" aria-label="JSON 文件导入区域">
+        <div class="drop-content">
+          <strong>拖拽 JSON 到这里</strong>
+          <span>支持一次选择多个文件</span>
+        </div>
+      </section>
+
+      <section class="messages" id="messages" aria-live="polite"></section>
+      <section class="charts" id="charts"></section>
+      <section class="empty-state" id="emptyState">暂无图表</section>
+    </main>
+
+    <script>
+      (() => {
+        const DEFAULT_MA_TEXT = "5 8 13 21 34 55";
+        const MIN_VISIBLE_CANDLES = 20;
+        const WHEEL_ZOOM_IN_RATE = 0.82;
+        const WHEEL_ZOOM_OUT_RATE = 1.22;
+        const PERIOD_OPTIONS = [
+          { value: "week", label: "周" },
+          { value: "month", label: "月" },
+          { value: "quarter", label: "季" },
+          { value: "year", label: "年" },
+        ];
+        const RANGE_OPTIONS = [
+          { value: "1y", label: "近一年", years: 1 },
+          { value: "3y", label: "近三年", years: 3 },
+          { value: "5y", label: "近五年", years: 5 },
+          { value: "10y", label: "近十年", years: 10 },
+          { value: "all", label: "全部", years: null },
+        ];
+        const MA_COLORS = [
+          "#235fd6",
+          "#d58a1f",
+          "#7b50b6",
+          "#00858a",
+          "#c94d8c",
+          "#56687a",
+          "#7a7d1c",
+          "#0d70a6",
+        ];
+
+        const state = {
+          charts: [],
+          nextId: 1,
+        };
+
+        const elements = {
+          fileInput: document.getElementById("fileInput"),
+          selectButton: document.getElementById("selectButton"),
+          clearButton: document.getElementById("clearButton"),
+          dropZone: document.getElementById("dropZone"),
+          messages: document.getElementById("messages"),
+          charts: document.getElementById("charts"),
+          emptyState: document.getElementById("emptyState"),
+        };
+
+        const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
+
+        const formatNumber = (value, digits = 2) => {
+          if (!Number.isFinite(value)) return "-";
+          return new Intl.NumberFormat("zh-CN", {
+            minimumFractionDigits: 0,
+            maximumFractionDigits: digits,
+          }).format(value);
+        };
+
+        const formatPercent = (value) => {
+          if (!Number.isFinite(value)) return "-";
+          return `${value >= 0 ? "+" : ""}${formatNumber(value, 2)}%`;
+        };
+
+        const formatLargeNumber = (value) => {
+          if (!Number.isFinite(value)) return "-";
+          const abs = Math.abs(value);
+          if (abs >= 100000000) return `${formatNumber(value / 100000000, 2)} 亿`;
+          if (abs >= 10000) return `${formatNumber(value / 10000, 2)} 万`;
+          return formatNumber(value, 2);
+        };
+
+        const parseDateParts = (dateText) => {
+          const match = String(dateText || "")
+            .trim()
+            .match(/^(\d{4})-(\d{2})-(\d{2})$/);
+          if (!match) return null;
+          const year = Number(match[1]);
+          const month = Number(match[2]);
+          const day = Number(match[3]);
+          const dateMs = Date.UTC(year, month - 1, day);
+          const date = new Date(dateMs);
+          if (
+            date.getUTCFullYear() !== year ||
+            date.getUTCMonth() + 1 !== month ||
+            date.getUTCDate() !== day
+          ) {
+            return null;
+          }
+          return { dateText: `${match[1]}-${match[2]}-${match[3]}`, dateMs, year, month, day };
+        };
+
+        const toFiniteNumber = (value, fieldName, rowNumber) => {
+          const number = Number(value);
+          if (!Number.isFinite(number)) {
+            throw new Error(`第 ${rowNumber} 行的 ${fieldName} 不是有效数字`);
+          }
+          return number;
+        };
+
+        const parseIndexJson = (text, fileName) => {
+          let payload;
+          try {
+            payload = JSON.parse(text);
+          } catch (error) {
+            throw new Error(`JSON 格式错误: ${error.message}`);
+          }
+
+          if (!payload || typeof payload !== "object") {
+            throw new Error("JSON 根节点必须是对象");
+          }
+
+          const indexPayload =
+            Object.prototype.hasOwnProperty.call(payload, "data") &&
+            payload.data &&
+            typeof payload.data === "object" &&
+            !Array.isArray(payload.data)
+              ? payload.data
+              : payload;
+
+          if (typeof indexPayload.columns !== "string" || typeof indexPayload.items !== "string") {
+            throw new Error("缺少 columns 或 items 字符串");
+          }
+
+          const columns = indexPayload.columns
+            .split(",")
+            .map((column) => column.trim())
+            .filter(Boolean);
+          const requiredFields = ["tradeDate", "open", "high", "low", "close"];
+          const missing = requiredFields.filter((field) => !columns.includes(field));
+          if (missing.length > 0) {
+            throw new Error(`缺少必要字段: ${missing.join(", ")}`);
+          }
+
+          const rows = indexPayload.items.split(";").filter((line) => line.trim().length > 0);
+          const data = rows
+            .map((line, index) => {
+              const rowNumber = index + 1;
+              const values = line.split(",");
+              if (values.length < columns.length) {
+                throw new Error(`第 ${rowNumber} 行字段数量不足`);
+              }
+              const record = {};
+              columns.forEach((column, columnIndex) => {
+                record[column] = values[columnIndex];
+              });
+
+              const dateParts = parseDateParts(record.tradeDate);
+              if (!dateParts) {
+                throw new Error(`第 ${rowNumber} 行的 tradeDate 不是 YYYY-MM-DD`);
+              }
+
+              const open = toFiniteNumber(record.open, "open", rowNumber);
+              const high = toFiniteNumber(record.high, "high", rowNumber);
+              const low = toFiniteNumber(record.low, "low", rowNumber);
+              const close = toFiniteNumber(record.close, "close", rowNumber);
+              const volume =
+                record.volume === undefined || record.volume === ""
+                  ? 0
+                  : toFiniteNumber(record.volume, "volume", rowNumber);
+              const amount =
+                record.amount === undefined || record.amount === ""
+                  ? 0
+                  : toFiniteNumber(record.amount, "amount", rowNumber);
+              const change =
+                record.change === undefined || record.change === ""
+                  ? close - open
+                  : toFiniteNumber(record.change, "change", rowNumber);
+              const changePercent =
+                record.changePercent === undefined || record.changePercent === ""
+                  ? open === 0
+                    ? 0
+                    : ((close - open) / open) * 100
+                  : toFiniteNumber(record.changePercent, "changePercent", rowNumber);
+
+              return {
+                date: dateParts.dateText,
+                dateMs: dateParts.dateMs,
+                year: dateParts.year,
+                month: dateParts.month,
+                day: dateParts.day,
+                open,
+                high,
+                low,
+                close,
+                volume,
+                amount,
+                change,
+                changePercent,
+                sourceWeek: record.week || "",
+              };
+            })
+            .sort((a, b) => a.dateMs - b.dateMs);
+
+          if (data.length === 0) {
+            throw new Error("items 中没有可用数据");
+          }
+
+          return {
+            fileName,
+            securityCode: indexPayload.securityCode || "",
+            data,
+          };
+        };
+
+        const getPeriodKey = (record, period) => {
+          if (period === "month") return `${record.year}-${String(record.month).padStart(2, "0")}`;
+          if (period === "quarter")
+            return `${record.year}-Q${Math.floor((record.month - 1) / 3) + 1}`;
+          if (period === "year") return `${record.year}`;
+          return record.date;
+        };
+
+        const aggregateData = (data, period) => {
+          if (period === "week")
+            return data.map((record) => ({
+              ...record,
+              startDate: record.date,
+              endDate: record.date,
+            }));
+
+          const groups = [];
+          let currentGroup = null;
+          data.forEach((record) => {
+            const key = getPeriodKey(record, period);
+            if (!currentGroup || currentGroup.key !== key) {
+              currentGroup = { key, records: [] };
+              groups.push(currentGroup);
+            }
+            currentGroup.records.push(record);
+          });
+
+          return groups.map((group, index) => {
+            const records = group.records;
+            const first = records[0];
+            const last = records[records.length - 1];
+            const high = Math.max(...records.map((record) => record.high));
+            const low = Math.min(...records.map((record) => record.low));
+            const volume = records.reduce((sum, record) => sum + record.volume, 0);
+            const amount = records.reduce((sum, record) => sum + record.amount, 0);
+            const prevClose =
+              index > 0
+                ? groups[index - 1].records[groups[index - 1].records.length - 1].close
+                : null;
+            const baseClose = prevClose ?? first.open;
+            const change = last.close - baseClose;
+            const changePercent = baseClose === 0 ? 0 : (change / baseClose) * 100;
+
+            return {
+              date: last.date,
+              dateMs: last.dateMs,
+              year: last.year,
+              month: last.month,
+              day: last.day,
+              startDate: first.date,
+              endDate: last.date,
+              label: group.key,
+              open: first.open,
+              high,
+              low,
+              close: last.close,
+              volume,
+              amount,
+              change,
+              changePercent,
+            };
+          });
+        };
+
+        const subtractYears = (dateMs, years) => {
+          const date = new Date(dateMs);
+          return Date.UTC(date.getUTCFullYear() - years, date.getUTCMonth(), date.getUTCDate());
+        };
+
+        const filterByRange = (data, rangeValue) => {
+          const option = RANGE_OPTIONS.find((item) => item.value === rangeValue);
+          if (!option || option.years === null || data.length === 0) return data;
+          const lastDateMs = data[data.length - 1].dateMs;
+          const startDateMs = subtractYears(lastDateMs, option.years);
+          return data.filter((record) => record.dateMs >= startDateMs);
+        };
+
+        const parseMaPeriods = (text) => {
+          const seen = new Set();
+          return String(text || "")
+            .split(/[,\s，、]+/)
+            .map((part) => Number.parseInt(part, 10))
+            .filter((value) => Number.isInteger(value) && value > 0 && value <= 999)
+            .filter((value) => {
+              if (seen.has(value)) return false;
+              seen.add(value);
+              return true;
+            });
+        };
+
+        const calculateMaSeries = (data, periods) => {
+          return periods.map((period, periodIndex) => {
+            const values = [];
+            let rollingSum = 0;
+            data.forEach((record, index) => {
+              rollingSum += record.close;
+              if (index >= period) {
+                rollingSum -= data[index - period].close;
+              }
+              values.push(index >= period - 1 ? rollingSum / period : null);
+            });
+            return {
+              period,
+              color: MA_COLORS[periodIndex % MA_COLORS.length],
+              values,
+            };
+          });
+        };
+
+        const resetZoom = (chart) => {
+          chart.zoomStartIndex = null;
+          chart.zoomEndIndex = null;
+          chart.hoverIndex = null;
+          chart.dragState = null;
+          chart.nodes.tooltip?.classList.remove("is-visible");
+          chart.nodes.card?.classList.remove("is-dragging");
+        };
+
+        const sanitizeHiddenMaPeriods = (chart, maPeriods) => {
+          const activePeriods = new Set(maPeriods);
+          Array.from(chart.hiddenMaPeriods).forEach((period) => {
+            if (!activePeriods.has(period)) {
+              chart.hiddenMaPeriods.delete(period);
+            }
+          });
+        };
+
+        const getNormalizedZoomWindow = (chart, dataLength) => {
+          if (dataLength <= 0) return { start: 0, end: 0 };
+          if (chart.zoomStartIndex === null || chart.zoomEndIndex === null) {
+            return { start: 0, end: dataLength };
+          }
+
+          const minVisibleCount = Math.min(MIN_VISIBLE_CANDLES, dataLength);
+          const currentCount = Math.max(minVisibleCount, chart.zoomEndIndex - chart.zoomStartIndex);
+          const visibleCount = Math.min(currentCount, dataLength);
+          const start = clamp(chart.zoomStartIndex, 0, Math.max(0, dataLength - visibleCount));
+          const end = Math.min(dataLength, start + visibleCount);
+          chart.zoomStartIndex = start;
+          chart.zoomEndIndex = end;
+          return { start, end };
+        };
+
+        const getRenderData = (chart) => {
+          const periodData = aggregateData(chart.originalData, chart.period);
+          const rangeData = filterByRange(periodData, chart.range);
+          const maPeriods = parseMaPeriods(chart.maText);
+          sanitizeHiddenMaPeriods(chart, maPeriods);
+          const fullMaSeries = calculateMaSeries(rangeData, maPeriods).map((series) => ({
+            ...series,
+            isHidden: chart.hiddenMaPeriods.has(series.period),
+          }));
+          const zoomWindow = getNormalizedZoomWindow(chart, rangeData.length);
+          const visibleData = rangeData.slice(zoomWindow.start, zoomWindow.end);
+          const visibleMaSeries = fullMaSeries
+            .filter((series) => !series.isHidden)
+            .map((series) => ({
+              ...series,
+              values: series.values.slice(zoomWindow.start, zoomWindow.end),
+            }));
+          return {
+            periodData,
+            rangeData,
+            visibleData,
+            maPeriods,
+            fullMaSeries,
+            visibleMaSeries,
+            zoomWindow,
+          };
+        };
+
+        const renderAll = () => {
+          elements.emptyState.style.display = state.charts.length === 0 ? "block" : "none";
+          state.charts.forEach((chart) => {
+            renderChart(chart);
+          });
+        };
+
+        const setMessage = (message, type = "success") => {
+          const node = document.createElement("div");
+          node.className = `message ${type}`;
+          node.textContent = message;
+          elements.messages.prepend(node);
+          while (elements.messages.children.length > 5) {
+            elements.messages.lastElementChild.remove();
+          }
+        };
+
+        const clearMessages = () => {
+          elements.messages.innerHTML = "";
+        };
+
+        const createSegmentedButtons = (options, currentValue, onChange) => {
+          const wrapper = document.createElement("div");
+          wrapper.className = "segmented";
+          options.forEach((option) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.textContent = option.label;
+            button.className = option.value === currentValue ? "is-active" : "";
+            button.addEventListener("click", () => {
+              onChange(option.value);
+            });
+            wrapper.appendChild(button);
+          });
+          return wrapper;
+        };
+
+        const updateSegmentedButtons = (wrapper, options, currentValue) => {
+          Array.from(wrapper.children).forEach((button, index) => {
+            button.classList.toggle("is-active", options[index].value === currentValue);
+          });
+        };
+
+        const createChartCard = (parsed) => {
+          const chart = {
+            id: state.nextId,
+            fileName: parsed.fileName,
+            securityCode: parsed.securityCode,
+            originalData: parsed.data,
+            period: "week",
+            range: "all",
+            maText: DEFAULT_MA_TEXT,
+            zoomStartIndex: null,
+            zoomEndIndex: null,
+            hiddenMaPeriods: new Set(),
+            hoverIndex: null,
+            dragState: null,
+            nodes: {},
+          };
+          state.nextId += 1;
+
+          const card = document.createElement("article");
+          card.className = "chart-card";
+
+          const header = document.createElement("header");
+          header.className = "chart-header";
+
+          const title = document.createElement("div");
+          title.className = "chart-title";
+          const titleText = document.createElement("h2");
+          titleText.textContent = parsed.fileName;
+          const meta = document.createElement("p");
+          const first = parsed.data[0];
+          const last = parsed.data[parsed.data.length - 1];
+          meta.textContent = [
+            parsed.securityCode ? `代码 ${parsed.securityCode}` : "",
+            `${parsed.data.length} 条周数据`,
+            `${first.date} 至 ${last.date}`,
+          ]
+            .filter(Boolean)
+            .join(" · ");
+          title.append(titleText, meta);
+
+          const removeButton = document.createElement("button");
+          removeButton.type = "button";
+          removeButton.className = "danger-button";
+          removeButton.textContent = "移除";
+          removeButton.addEventListener("click", () => {
+            state.charts = state.charts.filter((item) => item.id !== chart.id);
+            card.remove();
+            renderAll();
+          });
+          header.append(title, removeButton);
+
+          const controls = document.createElement("section");
+          controls.className = "controls";
+
+          const periodGroup = document.createElement("div");
+          periodGroup.className = "control-group";
+          periodGroup.appendChild(createLabel("周期"));
+          const periodButtons = createSegmentedButtons(PERIOD_OPTIONS, chart.period, (value) => {
+            chart.period = value;
+            resetZoom(chart);
+            updateSegmentedButtons(periodButtons, PERIOD_OPTIONS, chart.period);
+            renderChart(chart);
+          });
+          periodGroup.appendChild(periodButtons);
+
+          const rangeGroup = document.createElement("div");
+          rangeGroup.className = "control-group";
+          rangeGroup.appendChild(createLabel("范围"));
+          const rangeButtons = createSegmentedButtons(RANGE_OPTIONS, chart.range, (value) => {
+            chart.range = value;
+            resetZoom(chart);
+            updateSegmentedButtons(rangeButtons, RANGE_OPTIONS, chart.range);
+            renderChart(chart);
+          });
+          rangeGroup.appendChild(rangeButtons);
+
+          const maGroup = document.createElement("label");
+          maGroup.className = "control-group";
+          const maLabel = createLabel("均线");
+          const maInput = document.createElement("input");
+          maInput.className = "ma-input";
+          maInput.value = chart.maText;
+          maInput.type = "text";
+          maInput.inputMode = "numeric";
+          maInput.spellcheck = false;
+          maInput.addEventListener("input", () => {
+            chart.maText = maInput.value;
+            resetZoom(chart);
+            renderChart(chart);
+          });
+          maGroup.append(maLabel, maInput);
+
+          controls.append(periodGroup, rangeGroup, maGroup);
+
+          const body = document.createElement("section");
+          body.className = "chart-body";
+          const canvas = document.createElement("canvas");
+          canvas.className = "chart-canvas";
+          const tooltip = document.createElement("div");
+          tooltip.className = "tooltip";
+          const chartEmpty = document.createElement("div");
+          chartEmpty.className = "chart-empty";
+          chartEmpty.textContent = "当前筛选下没有可展示的数据";
+          body.append(canvas, tooltip, chartEmpty);
+
+          const legend = document.createElement("section");
+          legend.className = "legend";
+
+          card.append(header, controls, body, legend);
+          elements.charts.appendChild(card);
+
+          chart.nodes = {
+            card,
+            canvas,
+            tooltip,
+            legend,
+            chartEmpty,
+          };
+
+          canvas.addEventListener("mousemove", (event) => {
+            handleCanvasMove(chart, event);
+          });
+          canvas.addEventListener(
+            "wheel",
+            (event) => {
+              handleCanvasWheel(chart, event);
+            },
+            { passive: false },
+          );
+          canvas.addEventListener("mousedown", (event) => {
+            handleCanvasDragStart(chart, event);
+          });
+          window.addEventListener("mousemove", (event) => {
+            handleWindowDragMove(chart, event);
+          });
+          window.addEventListener("mouseup", () => {
+            handleWindowDragEnd(chart);
+          });
+          canvas.addEventListener("mouseleave", () => {
+            if (chart.dragState) return;
+            chart.hoverIndex = null;
+            chart.nodes.tooltip.classList.remove("is-visible");
+            renderChart(chart);
+          });
+
+          state.charts.push(chart);
+          renderChart(chart);
+          renderAll();
+        };
+
+        const createLabel = (text) => {
+          const label = document.createElement("span");
+          label.className = "control-label";
+          label.textContent = text;
+          return label;
+        };
+
+        const getCanvasSize = (canvas) => {
+          const rect = canvas.getBoundingClientRect();
+          const width = Math.max(320, rect.width);
+          const height = Math.max(360, rect.height);
+          const dpr = window.devicePixelRatio || 1;
+          if (
+            canvas.width !== Math.floor(width * dpr) ||
+            canvas.height !== Math.floor(height * dpr)
+          ) {
+            canvas.width = Math.floor(width * dpr);
+            canvas.height = Math.floor(height * dpr);
+          }
+          const context = canvas.getContext("2d");
+          context.setTransform(dpr, 0, 0, dpr, 0, 0);
+          return { width, height, context };
+        };
+
+        const renderLegend = (chart, renderData) => {
+          const legend = chart.nodes.legend;
+          legend.innerHTML = "";
+          renderData.fullMaSeries.forEach((series) => {
+            const item = document.createElement("button");
+            item.type = "button";
+            item.className = "legend-item";
+            item.classList.toggle("is-hidden", series.isHidden);
+            item.title = series.isHidden ? `显示 MA${series.period}` : `隐藏 MA${series.period}`;
+            item.addEventListener("click", () => {
+              if (chart.hiddenMaPeriods.has(series.period)) {
+                chart.hiddenMaPeriods.delete(series.period);
+              } else {
+                chart.hiddenMaPeriods.add(series.period);
+              }
+              chart.hoverIndex = null;
+              chart.nodes.tooltip.classList.remove("is-visible");
+              renderChart(chart);
+            });
+            const swatch = document.createElement("span");
+            swatch.className = "legend-swatch";
+            swatch.style.background = series.color;
+            const label = document.createElement("span");
+            label.textContent = `MA${series.period}`;
+            item.append(swatch, label);
+            legend.appendChild(item);
+          });
+        };
+
+        const renderChart = (chart) => {
+          const canvas = chart.nodes.canvas;
+          if (!canvas) return;
+
+          const { width, height, context } = getCanvasSize(canvas);
+          const ctx = context;
+          ctx.clearRect(0, 0, width, height);
+
+          const renderData = getRenderData(chart);
+          const data = renderData.visibleData;
+          renderLegend(chart, renderData);
+
+          if (data.length === 0) {
+            chart.nodes.chartEmpty.classList.add("is-visible");
+            chart.nodes.tooltip.classList.remove("is-visible");
+            return;
+          }
+          chart.nodes.chartEmpty.classList.remove("is-visible");
+
+          const layout = getChartLayout(width, height);
+          drawBackground(ctx, layout, width, height);
+
+          const maValues = renderData.visibleMaSeries.flatMap((series) =>
+            series.values.filter((value) => Number.isFinite(value)),
+          );
+          const priceMin = Math.min(...data.map((record) => record.low), ...maValues);
+          const priceMax = Math.max(...data.map((record) => record.high), ...maValues);
+          const paddedPriceRange = getPaddedRange(priceMin, priceMax);
+          const volumeMax = Math.max(...data.map((record) => record.volume), 1);
+          const geometry = {
+            ...layout,
+            priceMin: paddedPriceRange.min,
+            priceMax: paddedPriceRange.max,
+            volumeMax,
+            step: layout.plotWidth / Math.max(data.length, 1),
+          };
+
+          drawGrid(ctx, geometry, data);
+          drawCandles(ctx, geometry, data);
+          drawMaLines(ctx, geometry, renderData.visibleMaSeries);
+          drawAxes(ctx, geometry, data);
+
+          if (
+            chart.hoverIndex !== null &&
+            chart.hoverIndex >= 0 &&
+            chart.hoverIndex < data.length
+          ) {
+            drawHover(ctx, geometry, data, renderData, chart.hoverIndex);
+          } else {
+            chart.nodes.tooltip.classList.remove("is-visible");
+          }
+        };
+
+        const getChartLayout = (width, height) => {
+          const margin = {
+            top: 24,
+            right: 78,
+            bottom: 30,
+            left: 18,
+          };
+          const volumeHeight = Math.max(86, Math.min(122, height * 0.2));
+          const gap = 22;
+          const priceTop = margin.top;
+          const priceBottom = height - margin.bottom - volumeHeight - gap;
+          const volumeTop = priceBottom + gap;
+          const volumeBottom = height - margin.bottom;
+          const plotLeft = margin.left;
+          const plotRight = width - margin.right;
+          return {
+            margin,
+            priceTop,
+            priceBottom,
+            priceHeight: priceBottom - priceTop,
+            volumeTop,
+            volumeBottom,
+            volumeHeight,
+            plotLeft,
+            plotRight,
+            plotWidth: plotRight - plotLeft,
+          };
+        };
+
+        const getPaddedRange = (min, max) => {
+          if (!Number.isFinite(min) || !Number.isFinite(max)) {
+            return { min: 0, max: 1 };
+          }
+          if (min === max) {
+            const padding = Math.abs(min || 1) * 0.05;
+            return { min: min - padding, max: max + padding };
+          }
+          const padding = (max - min) * 0.06;
+          return { min: min - padding, max: max + padding };
+        };
+
+        const yForPrice = (geometry, value) => {
+          const rate = (value - geometry.priceMin) / (geometry.priceMax - geometry.priceMin || 1);
+          return geometry.priceBottom - rate * geometry.priceHeight;
+        };
+
+        const yForVolume = (geometry, value) => {
+          const rate = value / (geometry.volumeMax || 1);
+          return geometry.volumeBottom - rate * geometry.volumeHeight;
+        };
+
+        const xForIndex = (geometry, index) =>
+          geometry.plotLeft + geometry.step * index + geometry.step / 2;
+
+        const drawBackground = (ctx, layout, width, height) => {
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, width, height);
+          ctx.fillStyle = "#fbfcfe";
+          ctx.fillRect(0, layout.volumeTop - 8, width, height - layout.volumeTop + 8);
+        };
+
+        const drawGrid = (ctx, geometry) => {
+          ctx.save();
+          ctx.strokeStyle = "#edf0f5";
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 5]);
+
+          for (let index = 0; index <= 4; index += 1) {
+            const y = geometry.priceTop + (geometry.priceHeight / 4) * index;
+            ctx.beginPath();
+            ctx.moveTo(geometry.plotLeft, y);
+            ctx.lineTo(geometry.plotRight, y);
+            ctx.stroke();
+          }
+
+          for (let index = 0; index <= 2; index += 1) {
+            const y = geometry.volumeTop + (geometry.volumeHeight / 2) * index;
+            ctx.beginPath();
+            ctx.moveTo(geometry.plotLeft, y);
+            ctx.lineTo(geometry.plotRight, y);
+            ctx.stroke();
+          }
+
+          const verticalCount = 6;
+          for (let index = 0; index <= verticalCount; index += 1) {
+            const x = geometry.plotLeft + (geometry.plotWidth / verticalCount) * index;
+            ctx.beginPath();
+            ctx.moveTo(x, geometry.priceTop);
+            ctx.lineTo(x, geometry.volumeBottom);
+            ctx.stroke();
+          }
+          ctx.restore();
+        };
+
+        const drawCandles = (ctx, geometry, data) => {
+          const bodyWidth = clamp(geometry.step * 0.62, 1, 16);
+          const wickWidth = geometry.step < 3 ? 0.75 : 1;
+
+          data.forEach((record, index) => {
+            const x = xForIndex(geometry, index);
+            const isUp = record.close >= record.open;
+            const color = isUp ? "#d54949" : "#159261";
+            const openY = yForPrice(geometry, record.open);
+            const closeY = yForPrice(geometry, record.close);
+            const highY = yForPrice(geometry, record.high);
+            const lowY = yForPrice(geometry, record.low);
+            const top = Math.min(openY, closeY);
+            const bodyHeight = Math.max(1, Math.abs(closeY - openY));
+            const volumeY = yForVolume(geometry, record.volume);
+            const volumeHeight = Math.max(1, geometry.volumeBottom - volumeY);
+
+            ctx.strokeStyle = color;
+            ctx.fillStyle = color;
+            ctx.lineWidth = wickWidth;
+            ctx.globalAlpha = geometry.step < 1.5 ? 0.82 : 1;
+            ctx.beginPath();
+            ctx.moveTo(x, highY);
+            ctx.lineTo(x, lowY);
+            ctx.stroke();
+
+            ctx.fillRect(x - bodyWidth / 2, top, bodyWidth, bodyHeight);
+
+            ctx.globalAlpha = 0.25;
+            ctx.fillRect(x - bodyWidth / 2, volumeY, bodyWidth, volumeHeight);
+            ctx.globalAlpha = 1;
+          });
+        };
+
+        const drawMaLines = (ctx, geometry, maSeries) => {
+          ctx.save();
+          ctx.lineWidth = 1.5;
+          maSeries.forEach((series) => {
+            ctx.strokeStyle = series.color;
+            ctx.beginPath();
+            let hasPoint = false;
+            series.values.forEach((value, index) => {
+              if (!Number.isFinite(value)) return;
+              const x = xForIndex(geometry, index);
+              const y = yForPrice(geometry, value);
+              if (!hasPoint) {
+                ctx.moveTo(x, y);
+                hasPoint = true;
+              } else {
+                ctx.lineTo(x, y);
+              }
+            });
+            if (hasPoint) ctx.stroke();
+          });
+          ctx.restore();
+        };
+
+        const drawAxes = (ctx, geometry, data) => {
+          ctx.save();
+          ctx.fillStyle = "#697386";
+          ctx.strokeStyle = "#d9dee8";
+          ctx.lineWidth = 1;
+          ctx.font = "12px system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+          ctx.textBaseline = "middle";
+
+          ctx.beginPath();
+          ctx.moveTo(geometry.plotLeft, geometry.priceBottom);
+          ctx.lineTo(geometry.plotRight, geometry.priceBottom);
+          ctx.moveTo(geometry.plotLeft, geometry.volumeBottom);
+          ctx.lineTo(geometry.plotRight, geometry.volumeBottom);
+          ctx.stroke();
+
+          for (let index = 0; index <= 4; index += 1) {
+            const value = geometry.priceMax - ((geometry.priceMax - geometry.priceMin) / 4) * index;
+            const y = geometry.priceTop + (geometry.priceHeight / 4) * index;
+            ctx.fillText(formatNumber(value, 2), geometry.plotRight + 10, y);
+          }
+
+          ctx.fillText(
+            formatLargeNumber(geometry.volumeMax),
+            geometry.plotRight + 10,
+            geometry.volumeTop + 4,
+          );
+
+          const labelCount = Math.min(7, data.length);
+          if (labelCount > 0) {
+            ctx.textBaseline = "top";
+            for (let index = 0; index < labelCount; index += 1) {
+              const dataIndex =
+                labelCount === 1 ? 0 : Math.round((data.length - 1) * (index / (labelCount - 1)));
+              const record = data[dataIndex];
+              const x = xForIndex(geometry, dataIndex);
+              const label = record.label || record.date.slice(0, 7);
+              ctx.fillText(
+                label,
+                clamp(x - 24, geometry.plotLeft, geometry.plotRight - 48),
+                geometry.volumeBottom + 9,
+              );
+            }
+          }
+          ctx.restore();
+        };
+
+        const drawHover = (ctx, geometry, data, renderData, index) => {
+          const record = data[index];
+          const x = xForIndex(geometry, index);
+          const y = yForPrice(geometry, record.close);
+
+          ctx.save();
+          ctx.strokeStyle = "rgba(23, 32, 51, 0.45)";
+          ctx.lineWidth = 1;
+          ctx.setLineDash([4, 4]);
+          ctx.beginPath();
+          ctx.moveTo(x, geometry.priceTop);
+          ctx.lineTo(x, geometry.volumeBottom);
+          ctx.moveTo(geometry.plotLeft, y);
+          ctx.lineTo(geometry.plotRight, y);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          ctx.fillStyle = "rgba(23, 32, 51, 0.75)";
+          ctx.beginPath();
+          ctx.arc(x, y, 3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        };
+
+        const buildTooltipHtml = (record, renderData, index) => {
+          const trendClass = record.change >= 0 ? "up" : "down";
+          const periodText =
+            record.startDate && record.startDate !== record.endDate
+              ? `${record.startDate} 至 ${record.endDate}`
+              : record.date;
+          const maRows = renderData.visibleMaSeries
+            .map((series) => {
+              const value = series.values[index];
+              if (!Number.isFinite(value)) return "";
+              return `<div class="tooltip-row"><span>MA${series.period}</span><b style="color:${series.color}">${formatNumber(value, 2)}</b></div>`;
+            })
+            .join("");
+
+          return `
+            <div class="tooltip-title">
+              <span>${periodText}</span>
+              <span class="${trendClass}">${formatPercent(record.changePercent)}</span>
+            </div>
+            <div class="tooltip-row"><span>开盘</span><b>${formatNumber(record.open, 4)}</b></div>
+            <div class="tooltip-row"><span>最高</span><b>${formatNumber(record.high, 4)}</b></div>
+            <div class="tooltip-row"><span>最低</span><b>${formatNumber(record.low, 4)}</b></div>
+            <div class="tooltip-row"><span>收盘</span><b>${formatNumber(record.close, 4)}</b></div>
+            <div class="tooltip-row"><span>涨跌额</span><b class="${trendClass}">${record.change >= 0 ? "+" : ""}${formatNumber(record.change, 4)}</b></div>
+            <div class="tooltip-row"><span>成交量</span><b>${formatLargeNumber(record.volume)}</b></div>
+            <div class="tooltip-row"><span>成交额</span><b>${formatLargeNumber(record.amount)}</b></div>
+            ${maRows ? `<div class="tooltip-ma">${maRows}</div>` : ""}
+          `;
+        };
+
+        const positionTooltip = (chart, x, y) => {
+          const tooltip = chart.nodes.tooltip;
+          const bodyRect = chart.nodes.canvas.parentElement.getBoundingClientRect();
+          const tooltipWidth = tooltip.offsetWidth || 230;
+          const tooltipHeight = tooltip.offsetHeight || 220;
+          const gap = 12;
+          const left = x + tooltipWidth + gap > bodyRect.width ? x - tooltipWidth - gap : x + gap;
+          const top = y + tooltipHeight + gap > bodyRect.height ? y - tooltipHeight - gap : y + gap;
+          tooltip.style.left = `${clamp(left, 8, Math.max(8, bodyRect.width - tooltipWidth - 8))}px`;
+          tooltip.style.top = `${clamp(top, 8, Math.max(8, bodyRect.height - tooltipHeight - 8))}px`;
+        };
+
+        const getCanvasPoint = (chart, event) => {
+          const rect = chart.nodes.canvas.getBoundingClientRect();
+          return {
+            rect,
+            x: event.clientX - rect.left,
+            y: event.clientY - rect.top,
+          };
+        };
+
+        const isPointInPlot = (layout, x, y) => {
+          return (
+            x >= layout.plotLeft &&
+            x <= layout.plotRight &&
+            y >= layout.priceTop &&
+            y <= layout.volumeBottom
+          );
+        };
+
+        const getVisibleIndexFromX = (x, layout, visibleLength) => {
+          const step = layout.plotWidth / Math.max(visibleLength, 1);
+          return clamp(
+            Math.round((x - layout.plotLeft - step / 2) / step),
+            0,
+            Math.max(0, visibleLength - 1),
+          );
+        };
+
+        const setZoomWindow = (chart, start, visibleCount, totalCount) => {
+          const nextCount = Math.min(Math.max(visibleCount, 1), totalCount);
+          const nextStart = clamp(start, 0, Math.max(0, totalCount - nextCount));
+          chart.zoomStartIndex = nextStart;
+          chart.zoomEndIndex = nextStart + nextCount;
+        };
+
+        const handleCanvasWheel = (chart, event) => {
+          const renderData = getRenderData(chart);
+          const totalCount = renderData.rangeData.length;
+          const visibleCount = renderData.visibleData.length;
+          if (totalCount <= 0 || visibleCount <= 0) return;
+
+          const { rect, x, y } = getCanvasPoint(chart, event);
+          const layout = getChartLayout(rect.width, rect.height);
+          if (!isPointInPlot(layout, x, y)) return;
+
+          event.preventDefault();
+          if (totalCount <= MIN_VISIBLE_CANDLES && chart.zoomStartIndex === null) return;
+
+          const visibleIndex = getVisibleIndexFromX(x, layout, visibleCount);
+          const anchorIndex = renderData.zoomWindow.start + visibleIndex;
+          const anchorRatio =
+            visibleCount <= 1
+              ? 0
+              : (anchorIndex - renderData.zoomWindow.start) / (visibleCount - 1);
+          const zoomRate = event.deltaY < 0 ? WHEEL_ZOOM_IN_RATE : WHEEL_ZOOM_OUT_RATE;
+          const minVisibleCount = Math.min(MIN_VISIBLE_CANDLES, totalCount);
+          const nextVisibleCount = clamp(
+            Math.round(visibleCount * zoomRate),
+            minVisibleCount,
+            totalCount,
+          );
+          if (nextVisibleCount === totalCount) {
+            chart.zoomStartIndex = null;
+            chart.zoomEndIndex = null;
+          } else {
+            const nextStart = Math.round(anchorIndex - anchorRatio * (nextVisibleCount - 1));
+            setZoomWindow(chart, nextStart, nextVisibleCount, totalCount);
+          }
+
+          chart.hoverIndex = null;
+          chart.nodes.tooltip.classList.remove("is-visible");
+          renderChart(chart);
+        };
+
+        const handleCanvasDragStart = (chart, event) => {
+          if (event.button !== 0) return;
+          const renderData = getRenderData(chart);
+          const totalCount = renderData.rangeData.length;
+          const visibleCount = renderData.visibleData.length;
+          if (totalCount <= visibleCount) return;
+
+          const { rect, x, y } = getCanvasPoint(chart, event);
+          const layout = getChartLayout(rect.width, rect.height);
+          if (!isPointInPlot(layout, x, y)) return;
+
+          event.preventDefault();
+          chart.dragState = {
+            startX: event.clientX,
+            zoomStartIndex: renderData.zoomWindow.start,
+            visibleCount,
+            totalCount,
+            step: layout.plotWidth / Math.max(visibleCount, 1),
+          };
+          chart.hoverIndex = null;
+          chart.nodes.tooltip.classList.remove("is-visible");
+          chart.nodes.card.classList.add("is-dragging");
+        };
+
+        const handleWindowDragMove = (chart, event) => {
+          if (!chart.dragState) return;
+          event.preventDefault();
+          const deltaX = event.clientX - chart.dragState.startX;
+          const candleDelta = Math.round(deltaX / Math.max(chart.dragState.step, 1));
+          const nextStart = chart.dragState.zoomStartIndex - candleDelta;
+          setZoomWindow(chart, nextStart, chart.dragState.visibleCount, chart.dragState.totalCount);
+          renderChart(chart);
+        };
+
+        const handleWindowDragEnd = (chart) => {
+          if (!chart.dragState) return;
+          chart.dragState = null;
+          chart.nodes.card.classList.remove("is-dragging");
+        };
+
+        const handleCanvasMove = (chart, event) => {
+          if (chart.dragState) return;
+          const renderData = getRenderData(chart);
+          const data = renderData.visibleData;
+          if (data.length === 0) return;
+
+          const { rect, x, y } = getCanvasPoint(chart, event);
+          const layout = getChartLayout(rect.width, rect.height);
+          if (!isPointInPlot(layout, x, y)) {
+            chart.hoverIndex = null;
+            chart.nodes.tooltip.classList.remove("is-visible");
+            renderChart(chart);
+            return;
+          }
+
+          const index = getVisibleIndexFromX(x, layout, data.length);
+          chart.hoverIndex = index;
+          chart.nodes.tooltip.innerHTML = buildTooltipHtml(data[index], renderData, index);
+          chart.nodes.tooltip.classList.add("is-visible");
+          positionTooltip(chart, x, y);
+          renderChart(chart);
+        };
+
+        const readFiles = async (files) => {
+          const jsonFiles = Array.from(files || []).filter(
+            (file) => file.name.toLowerCase().endsWith(".json") || file.type === "application/json",
+          );
+          if (jsonFiles.length === 0) {
+            setMessage("没有选择 JSON 文件", "error");
+            return;
+          }
+
+          clearMessages();
+          let successCount = 0;
+          for (const file of jsonFiles) {
+            try {
+              const text = await file.text();
+              const parsed = parseIndexJson(text, file.name);
+              createChartCard(parsed);
+              successCount += 1;
+            } catch (error) {
+              setMessage(`${file.name}: ${error.message}`, "error");
+            }
+          }
+          if (successCount > 0) {
+            setMessage(`已导入 ${successCount} 个 JSON 文件`, "success");
+          }
+          elements.fileInput.value = "";
+          renderAll();
+        };
+
+        elements.selectButton.addEventListener("click", () => {
+          elements.fileInput.click();
+        });
+
+        elements.fileInput.addEventListener("change", (event) => {
+          readFiles(event.target.files);
+        });
+
+        elements.clearButton.addEventListener("click", () => {
+          state.charts = [];
+          elements.charts.innerHTML = "";
+          elements.messages.innerHTML = "";
+          renderAll();
+        });
+
+        ["dragenter", "dragover"].forEach((eventName) => {
+          elements.dropZone.addEventListener(eventName, (event) => {
+            event.preventDefault();
+            elements.dropZone.classList.add("is-dragging");
+          });
+        });
+
+        ["dragleave", "drop"].forEach((eventName) => {
+          elements.dropZone.addEventListener(eventName, (event) => {
+            event.preventDefault();
+            elements.dropZone.classList.remove("is-dragging");
+          });
+        });
+
+        elements.dropZone.addEventListener("drop", (event) => {
+          readFiles(event.dataTransfer.files);
+        });
+
+        window.addEventListener("resize", () => {
+          state.charts.forEach((chart) => {
+            renderChart(chart);
+          });
+        });
+
+        renderAll();
+      })();
+    </script>
+  </body>
+</html>
