@@ -61,6 +61,70 @@
         padding: 24px 0 44px;
       }
 
+      .chart-nav {
+        position: fixed;
+        top: 24px;
+        right: 18px;
+        z-index: 3;
+        display: none;
+        width: 230px;
+        max-height: calc(100vh - 48px);
+        overflow: auto;
+        border: 1px solid var(--line-soft);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: var(--shadow);
+        padding: 12px;
+      }
+
+      .chart-nav-title {
+        margin: 0 0 10px;
+        color: var(--muted);
+        font-size: 13px;
+        font-weight: 760;
+        line-height: 1.3;
+      }
+
+      .chart-nav-list {
+        display: grid;
+        gap: 6px;
+      }
+
+      .chart-nav-item {
+        width: 100%;
+        border: 1px solid transparent;
+        border-radius: 7px;
+        background: transparent;
+        color: var(--text);
+        padding: 8px 9px;
+        text-align: left;
+      }
+
+      .chart-nav-item:hover {
+        border-color: var(--line);
+        background: var(--primary-soft);
+      }
+
+      .chart-nav-name {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-weight: 650;
+        line-height: 1.35;
+      }
+
+      .chart-nav-meta {
+        display: block;
+        margin-top: 3px;
+        overflow: hidden;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.35;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
       .topbar {
         display: flex;
         align-items: center;
@@ -217,6 +281,7 @@
 
       .chart-card {
         overflow: hidden;
+        scroll-margin-top: 18px;
         border-radius: 8px;
         border: 1px solid var(--line-soft);
         background: var(--panel);
@@ -473,6 +538,18 @@
           height: 470px;
         }
       }
+
+      @media (min-width: 1180px) {
+        .page {
+          width: min(1240px, calc(100vw - 300px));
+          margin-left: max(16px, calc((100vw - 1480px) / 2));
+          margin-right: 284px;
+        }
+
+        .chart-nav.is-visible {
+          display: block;
+        }
+      }
     </style>
   </head>
   <body>
@@ -506,6 +583,10 @@
       <section class="charts" id="charts"></section>
       <section class="empty-state" id="emptyState">暂无图表</section>
     </main>
+    <aside class="chart-nav" id="chartNav" aria-label="K 线图导航">
+      <p class="chart-nav-title">图表导航</p>
+      <div class="chart-nav-list" id="chartNavList"></div>
+    </aside>
 
     <script>
       (() => {
@@ -550,6 +631,8 @@
           messages: document.getElementById("messages"),
           charts: document.getElementById("charts"),
           emptyState: document.getElementById("emptyState"),
+          chartNav: document.getElementById("chartNav"),
+          chartNavList: document.getElementById("chartNavList"),
         };
 
         const clamp = (value, min, max) => Math.min(Math.max(value, min), max);
@@ -777,12 +860,20 @@
           return Date.UTC(date.getUTCFullYear() - years, date.getUTCMonth(), date.getUTCDate());
         };
 
-        const filterByRange = (data, rangeValue) => {
+        const getRangeWindow = (data, rangeValue) => {
           const option = RANGE_OPTIONS.find((item) => item.value === rangeValue);
-          if (!option || option.years === null || data.length === 0) return data;
+          if (!option || option.years === null || data.length === 0) {
+            return { start: 0, end: data.length, data };
+          }
           const lastDateMs = data[data.length - 1].dateMs;
           const startDateMs = subtractYears(lastDateMs, option.years);
-          return data.filter((record) => record.dateMs >= startDateMs);
+          const start = data.findIndex((record) => record.dateMs >= startDateMs);
+          const normalizedStart = start === -1 ? data.length : start;
+          return {
+            start: normalizedStart,
+            end: data.length,
+            data: data.slice(normalizedStart),
+          };
         };
 
         const parseMaPeriods = (text) => {
@@ -853,10 +944,11 @@
 
         const getRenderData = (chart) => {
           const periodData = aggregateData(chart.originalData, chart.period);
-          const rangeData = filterByRange(periodData, chart.range);
+          const rangeWindow = getRangeWindow(periodData, chart.range);
+          const rangeData = rangeWindow.data;
           const maPeriods = parseMaPeriods(chart.maText);
           sanitizeHiddenMaPeriods(chart, maPeriods);
-          const fullMaSeries = calculateMaSeries(rangeData, maPeriods).map((series) => ({
+          const fullMaSeries = calculateMaSeries(periodData, maPeriods).map((series) => ({
             ...series,
             isHidden: chart.hiddenMaPeriods.has(series.period),
           }));
@@ -866,10 +958,14 @@
             .filter((series) => !series.isHidden)
             .map((series) => ({
               ...series,
-              values: series.values.slice(zoomWindow.start, zoomWindow.end),
+              values: series.values.slice(
+                rangeWindow.start + zoomWindow.start,
+                rangeWindow.start + zoomWindow.end,
+              ),
             }));
           return {
             periodData,
+            rangeWindow,
             rangeData,
             visibleData,
             maPeriods,
@@ -879,8 +975,42 @@
           };
         };
 
+        const renderChartNav = () => {
+          elements.chartNav.classList.toggle("is-visible", state.charts.length > 0);
+          elements.chartNavList.innerHTML = "";
+          state.charts.forEach((chart, index) => {
+            const item = document.createElement("button");
+            item.type = "button";
+            item.className = "chart-nav-item";
+            item.title = chart.fileName;
+            item.addEventListener("click", () => {
+              chart.nodes.card.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+              });
+            });
+
+            const name = document.createElement("span");
+            name.className = "chart-nav-name";
+            name.textContent = `${index + 1}. ${chart.fileName}`;
+
+            const meta = document.createElement("span");
+            meta.className = "chart-nav-meta";
+            meta.textContent = [
+              chart.securityCode ? `代码 ${chart.securityCode}` : "",
+              `${chart.originalData.length} 条`,
+            ]
+              .filter(Boolean)
+              .join(" · ");
+
+            item.append(name, meta);
+            elements.chartNavList.appendChild(item);
+          });
+        };
+
         const renderAll = () => {
           elements.emptyState.style.display = state.charts.length === 0 ? "block" : "none";
+          renderChartNav();
           state.charts.forEach((chart) => {
             renderChart(chart);
           });
