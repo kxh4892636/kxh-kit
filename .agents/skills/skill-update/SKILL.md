@@ -1,11 +1,11 @@
 ---
 name: skill-update
-description: Track, register, and update skills that were downloaded or generated from remote Git repositories. Use when a user asks to update a Git-backed skill, inspect a remote skill source, add or remove a remote skill registry entry, or immediately after creating any new skill to ask whether the new skill is backed by a remote Git repository and should be added to this registry.
+description: Track, register, and update skills that were downloaded or generated from remote Git repositories or remote skill packages. Use when a user asks to update a remote skill, inspect a remote skill source, add or remove a remote skill registry entry, or immediately after creating any new skill to ask whether the new skill is backed by a remote source and should be added to this registry.
 ---
 
 # skill-update
 
-Use this skill to keep remote Git-backed skills reproducible. It records each skill name, source repository, local path, and the expected update method.
+Use this skill to keep remote skills reproducible. It records each skill name, remote source, local path, and the expected update method.
 
 ## Operating Workflow
 
@@ -23,22 +23,23 @@ Use this skill to keep remote Git-backed skills reproducible. It records each sk
 After any new skill is created, ask the user:
 
 ```text
-新创建的 <skill-name> 是否来自远程 Git 仓库？如果是，请提供仓库地址和期望的更新方式。是否需要把它添加到 skill-update 的远程技能登记表？
+新创建的 <skill-name> 是否来自远程 Git 仓库或远程 skill 包？如果是，请提供来源地址和期望的更新方式。是否需要把它添加到 skill-update 的远程技能登记表？
 ```
 
 If the user says yes, add an entry to the registry with:
 
 - `skill-name`
 - local skill path
-- Git repository URL
+- Remote source URL or Git repository URL
 - source subdirectory, if any
 - update method
 - local overlays or post-update steps, if any
 
 ## Remote Skill Registry
 
-| skill-name | Git repository | Local path | Update method |
+| skill-name | Remote source | Local path | Update method |
 | --- | --- | --- | --- |
+| `design-lark-chart` | `skills.byted.org/iaasng/veai` | `.agents/skills/design-lark-chart` | Run `npm_config_registry="https://bnpm.byted.org" pnpx skills@latest add skills.byted.org/iaasng/veai --skill design-lark-chart --agent codex --yes` from the repository root, then review `.agents/skills/design-lark-chart` and `skills-lock.json` diffs. |
 | `gpt-image` | `https://github.com/wuyoscar/gpt_image_2_skill` | `.agents/skills/gpt-image` | Clone the repository into a temporary directory, inspect the root skill contents, then sync the skill files into the local path after reviewing the diff. Keep generated outputs, API keys, and local-only environment files out of the sync. |
 | `shadcn` | `https://github.com/shadcn/ui/tree/main/skills/shadcn` | `.agents/skills/shadcn` | Clone `https://github.com/shadcn/ui` with sparse checkout for `skills/shadcn`, then copy that subdirectory into the local path after reviewing the diff. Preserve local Codex/Vite+ notes if added later. |
 | `skill-creator` | `https://github.com/anthropics/skills/tree/main/skills/skill-creator` | `.agents/skills/skill-creator` | Clone `https://github.com/anthropics/skills` with sparse checkout for `skills/skill-creator`, then sync that subdirectory into the local path after reviewing the diff. Preserve the local post-creation rule that invokes `skill-update` after creating a new skill. |
