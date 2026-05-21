@@ -23,9 +23,9 @@ id: bfb37dca-6f19-4e0a-bb81-e4744630d33d
 
 ### 基础
 
-##### 作用
+#### 作用
 
-- 设置 flex main-axis 方向和换行方向;
+- flex-flow: 设置 main axis 方向和换行方式;
 
 ```css
 element {
@@ -50,24 +50,24 @@ element {
 
 ### flex-direction 属性
 
-- 设置 flex items main-axis 方向;
+- flex-direction: 设置 flex item 的 main axis 方向;
 
 ```css
 #col-rev {
-  /* 默认值, 从 block-start 到 block-end */
+  /* 默认值, 从 inline-start 到 inline-end */
   flex-direction: row;
-  /* 从 block-end 到 block-start */
-  flex-direction: row-reverse;
-  /* 从 inline-start 到 inline-end */
-  flex-direction: column;
   /* 从 inline-end 到 inline-start */
+  flex-direction: row-reverse;
+  /* 从 block-start 到 block-end */
+  flex-direction: column;
+  /* 从 block-end 到 block-start */
   flex-direction: column-reverse;
 }
 ```
 
 ### flex-wrap 属性
 
-- 设置 flex item 换行;
+- flex-wrap: 设置 flex item 换行方式;
 
 ```css
 .content {
@@ -85,9 +85,9 @@ element {
 
 ### 基础
 
-##### 作用
+#### 作用
 
-- 设置 flex item 拉伸参数;
+- flex: 设置 flex item 伸缩参数;
 
 ```css
 #flex-container > .flex-item {
@@ -97,9 +97,9 @@ element {
 
 ##### 成分属性
 
-- flex-grow 属性
-- flex-shrink 属性
-- flex-basis 属性
+- flex-grow 属性;
+- flex-shrink 属性;
+- flex-basis 属性;
 
 ##### 简写机制
 
@@ -118,10 +118,10 @@ element {
 
 ### flex-grow 属性
 
-##### 作用
+#### 作用
 
-- 设置 flex item 拉伸参数;
-- 默认为 1;
+- flex-grow: 设置 flex item 放大比例;
+- 默认为 0;
 
 ```css
 .box1 {
@@ -131,17 +131,16 @@ element {
 
 ##### 机制
 
-- 在 cross/main-axis 方向拉伸;
-- 若多个 flex item cross/main-axis 方向大小依次为 a_1, a_2, ...a_n
-- flex-grow 依次为 b_1, b_2, ...b_n 时;
+- main axis 方向分配剩余空间;
+- 若多个 flex item 的 flex-grow 依次为 b_1, b_2, ...b_n;
 - 当存在剩余空间, 且假设其大小为 x;
-- 对应 flex item 大小增加溢出空间 x 的 $\frac{a_i * b_i}{\sum^n_{i=1}{a_i * b_i}}$
+- 对应 flex item 大小增加剩余空间 x 的 $\frac{b_i}{\sum^n_{i=1}{b_i}}$;
 
 ### flex-shrink 属性
 
-##### 作用
+#### 作用
 
-- 设置 flex item 拉伸参数;
+- flex-shrink: 设置 flex item 收缩比例;
 - 默认为 1;
 
 ```css
@@ -152,15 +151,15 @@ element {
 
 ##### 机制
 
-- 在 cross/main-axis 方向收缩;
-- 若多个 flex item cross/main-axis 方向大小依次为 a_1, a_2, ...a_n
-- flex-grow 依次为 b_1, b_2, ...b_n 时;
+- main axis 方向分摊溢出空间;
+- 若多个 flex item flex base size 依次为 a_1, a_2, ...a_n;
+- flex-shrink 依次为 b_1, b_2, ...b_n 时;
 - 当 flex item 溢出容器, 且假设其溢出空间大小为 x;
-- 对应 flex item 大小缩小溢出空间 x 的 $\frac{a_i * b_i}{\sum^n_{i=1}{a_i * b_i}}$
+- 对应 flex item 大小缩小溢出空间 x 的 $\frac{a_i * b_i}{\sum^n_{i=1}{a_i * b_i}}$;
 
-### flex-basic 属性
+### flex-basis 属性
 
-- 设置 flex item 在 cross/main-axis 方向的基础尺寸;
+- flex-basis: 设置 flex item 在 main axis 方向的基础尺寸;
 
 ```css
 .box1 {
@@ -177,11 +176,11 @@ element {
 
 ## order 属性
 
-##### 作用
+### 作用
 
-- 更改 flex/grid item 顺序;
+- order: 更改 flex/grid item 排列顺序;
 
-##### 语法格式
+#### 语法格式
 
 ```css
 main > article {
@@ -206,8 +205,8 @@ main > article {
 
 #### 作用
 
-- 设置 flex/grid 所有 item 的网格对齐样式;
-- item 在 flex/gird 网格中的 cross/main axis 位置;
+- align/justify-items: 设置 flex/grid 所有 item 的对齐方式;
+- item 在 flex/grid 中的 cross/main axis 位置;
 - justify-items 在 flex 无效;
   - flex 为一维结构;
   - flex 在 main axis 无网格概念;
@@ -232,8 +231,8 @@ main > article {
 
 ### align/justify-self 属性
 
-- 设置单个 flex/grid item 对齐样式;
-- 属性值同 align-item 属性;
+- align/justify-self: 设置单个 flex/grid item 对齐方式;
+- 属性值同 align-items 属性;
 
 ```css
 .flex-items {
@@ -245,8 +244,8 @@ main > article {
 
 #### 作用
 
-- 设置 flex/grid 的 item 内部内容的对齐样式;
-- item 内容在 item 盒子模型的对齐位置;
+- align/justify-content: 设置 flex/grid 轨道或 item 组的整体分布;
+- 控制剩余空间在 main/cross axis 上的分配方式;
 
 ```css
 #container {
