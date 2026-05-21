@@ -145,40 +145,6 @@ func main() {
 }
 ```
 
-## 函数值
-
-### 匿名函数
-
-#### 语法格式
-
-```go
-func main() {
-	add := func(a, b int) int { // 匿名函数赋值给变量 add
-		return a + b
-	}
-	println(add(1, 2))
-}
-```
-
-### 闭包
-
-#### 概念
-
-- closure: 函数值引用其外层作用域变量;
-- 使用场景: 封装状态、生成函数;
-
-#### 语法格式
-
-```go
-func counter() func() int {
-	n := 0
-	return func() int {
-		n++      // 闭包引用外层变量 n
-		return n // n 在 counter 返回后仍可继续存在
-	}
-}
-```
-
 ## defer
 
 ### 基本概念
@@ -202,7 +168,13 @@ func main() {
 }
 ```
 
-### 参数求值
+### 限制
+
+#### 概念
+
+- defer 目标: 必须是函数或方法调用;
+- defer 参数: 注册 defer 时求值;
+- defer 返回值: 延迟调用的返回值会被丢弃;
 
 #### 语法格式
 
@@ -215,46 +187,6 @@ func main() {
 	n := 1
 	defer fmt.Println(n) // 注册 defer 时立即求值为 1
 	n = 2
-}
-```
-
-### 限制
-
-#### 概念
-
-- defer 目标: 必须是函数或方法调用;
-- defer 参数: 注册 defer 时求值;
-- defer 返回值: 延迟调用的返回值会被丢弃;
-
-#### 语法格式
-
-```go
-func main() {
-	defer println("done") // 合法; defer 后是函数调用
-}
-```
-
-### 资源释放
-
-#### 概念
-
-- 资源释放: 成功获取资源后立即注册 defer;
-- 常见资源: 文件、锁、网络连接;
-
-#### 语法格式
-
-```go
-package main
-
-import "os"
-
-func readFile(path string) error {
-	f, err := os.Open(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close() // 成功获取资源后立即注册释放逻辑
-	return nil
 }
 ```
 
@@ -280,33 +212,43 @@ func (u User) Greet() string {
 }
 ```
 
-### 值接收者
+### 接收者类型
 
-#### 概念
+#### 值接收者
+
+##### 概念
 
 - value receiver: 调用时复制 receiver 值;
-- 使用场景: 小值类型、不可变语义;
+- value receiver 使用场景: 小值类型、不可变语义;
 
-#### 语法格式
+##### 语法格式
 
 ```go
-func (u User) Rename(name string) {
-	u.Name = name // 修改 receiver 副本, 不改变原 User
+type User struct {
+	Name string
+}
+
+func (u User) RenameCopy(name string) {
+	u.Name = name // value receiver 修改 receiver 副本, 不改变原 User
 }
 ```
 
-### 指针接收者
+#### 指针接收者
 
-#### 概念
+##### 概念
 
 - pointer receiver: 接收指向原值的指针;
-- 使用场景: 需要修改 receiver、大对象避免复制、保持方法集合一致;
+- pointer receiver 使用场景: 需要修改 receiver、大对象避免复制、保持方法集合一致;
 
-#### 语法格式
+##### 语法格式
 
 ```go
+type User struct {
+	Name string
+}
+
 func (u *User) Rename(name string) {
-	u.Name = name // 通过指针修改原 User
+	u.Name = name // pointer receiver 通过指针修改原 User
 }
 ```
 
@@ -340,9 +282,11 @@ func (n N) Value() int  { return int(n) } // 属于 N 和 *N 方法集合
 func (n *N) Inc()       { *n = *n + 1 }   // 只属于 *N 方法集合
 ```
 
-### 方法表达式
+### 方法表达式和方法值
 
-#### 语法格式
+#### 方法表达式
+
+##### 语法格式
 
 ```go
 func main() {
@@ -351,9 +295,9 @@ func main() {
 }
 ```
 
-### 方法值
+#### 方法值
 
-#### 语法格式
+##### 语法格式
 
 ```go
 func main() {
@@ -370,3 +314,41 @@ func main() {
 - embedded type: struct 嵌入字段的方法可提升到外层类型;
 - 方法提升: 外层值可直接调用嵌入字段的方法;
 - 冲突处理: 同名方法或字段可能导致选择器歧义;
+
+#### 示例
+
+```go
+package main
+
+type Logger struct{}
+
+func (Logger) Log() {
+	println("log")
+}
+
+type Metrics struct{}
+
+func (Metrics) Log() {
+	println("metrics")
+}
+
+type Service struct {
+	Logger // 嵌入字段, 字段名默认是类型名 Logger
+}
+
+type App struct {
+	Logger  // App 嵌入 Logger, Logger 有 Log 方法
+	Metrics // App 嵌入 Metrics, Metrics 也有 Log 方法
+}
+
+func main() {
+	s := Service{}
+	s.Log()        // 方法提升, 等价于 s.Logger.Log()
+	s.Logger.Log() // 显式通过嵌入字段调用
+
+	a := App{}
+	// a.Log()        // 报错, Logger.Log 与 Metrics.Log 同名, 选择器歧义
+	a.Logger.Log()  // 可以, 明确选择 Logger 的 Log 方法
+	a.Metrics.Log() // 可以, 明确选择 Metrics 的 Log 方法
+}
+```
