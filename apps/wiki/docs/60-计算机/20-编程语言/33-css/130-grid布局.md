@@ -146,41 +146,6 @@ id: 4aa876ce-d550-4ae6-9c27-b10ef9dee445
 }
 ```
 
-## gap 属性
-
-### 作用
-
-- 设置 flex/gird/multiple column 布局 gutters 尺寸;
-
-```css
-#flexbox {
-  display: flex;
-  gap: 20px 5px;
-}
-```
-
-### 成分属性
-
-- row-gap;
-- column-gap;
-
-### 简写机制
-
-- 1 value;
-  - gap
-  - row-gap = column-gap = gap;
-- 2 value:
-  - row-gap column-gap;
-
-### column-gap 属性
-
-- 见 multiple columns;
-
-### row-gap 属性
-
-- 同 column-gap 属性;
-- 将列换做行即可;
-
 ## 基于网格线的放置
 
 ### grid-column 属性
