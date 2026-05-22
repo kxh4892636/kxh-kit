@@ -58,16 +58,24 @@ func div(a, b int) (int, bool) {
 #### 概念
 
 - named result: 返回值拥有名字;
+- named result 变量: 函数开始时创建, 并按类型零值初始化;
 - naked return: 无表达式 return;
+- 显式 return: 使用具名返回值时仍可显式返回表达式;
 - 使用建议: 短函数可用, 长函数慎用;
 
 #### 语法格式
 
 ```go
 func split(sum int) (x int, y int) {
+	// x 和 y 是具名返回值, 函数开始时已经存在, 初始值均为 0
 	x = sum / 2 // x 是具名返回值, 在函数体内作为局部变量使用
 	y = sum - x
 	return // naked return 返回 x 和 y 当前值
+}
+
+func splitExplicit(sum int) (x int, y int) {
+	// 使用具名返回值时, return 依旧可以显式返回表达式
+	return sum / 2, sum - sum/2
 }
 ```
 
