@@ -3,20 +3,26 @@
   "evals": [
     {
       "id": 1,
-      "prompt": "抓取 Cooperpress 除 Ruby Weekly 外最近 7 天的所有 RSS，每个源只取最新一个 issue，并进入 issue 内部获取所有文章，生成一份 Markdown，按内容类型划分，摘要翻译成中文，保存到 /tmp/cooperpress-weekly.md。",
-      "expected_output": "先用脚本通过 RSS 找到最近 7 天内每个源最新 1 个 issue，再用 --expand-issues 获取 issue 内部文章级条目，最后由模型根据本次内容动态生成分类并整理最终 Markdown；内容包含 JavaScript Weekly、Frontend Focus、Node Weekly、Golang Weekly、React Status、Postgres Weekly，不包含 Ruby Weekly，不使用固定分类清单，所有摘要为中文。",
+      "prompt": "抓取 Cooperpress 除 Ruby Weekly 外最近 7 天的所有 RSS，每个源只取最新一个 issue，并进入 issue 内部获取所有文章；同时读取 GitHub weekly trending 仓库和 README，生成一份 Markdown，按内容类型划分，摘要翻译成中文，保存到 /tmp/cooperpress-weekly.md。",
+      "expected_output": "先用脚本通过 RSS 找到最近 7 天内每个源最新 1 个 issue，再用 --expand-issues 获取 issue 内部文章级条目，并加上 --include-github-trending 获取 GitHub weekly trending 仓库和 README 摘录；脚本按规范化 URL 和标题合并不同 weekly 中重复出现的同一条文章，并保留合并来源；最后由模型根据本次内容动态生成分类并整理最终 Markdown。内容包含 JavaScript Weekly、Frontend Focus、Node Weekly、Golang Weekly、React Status、Postgres Weekly 和 GitHub Trending，不包含 Ruby Weekly，不使用固定分类清单，所有摘要为中文。",
       "files": []
     },
     {
       "id": 2,
-      "prompt": "只要最近 7 天的 Cooperpress 技术周刊内部文章，每个源只取最新一个 issue，输出 Markdown，摘要用中文。",
-      "expected_output": "调用脚本时使用 since-days 7、max-items-per-feed 1 和 expand-issues 获取文章级原始内容，再由模型根据当次内容动态分类；最终输出中包含时间范围、issue 状态和文章数，摘要为中文。",
+      "prompt": "只要最近 7 天的 Cooperpress 技术周刊内部文章，每个源只取最新一个 issue，再加上 GitHub Trending 周热门仓库，输出 Markdown，摘要用中文。",
+      "expected_output": "调用脚本时使用 since-days 7、max-items-per-feed 1、expand-issues 和 include-github-trending 获取文章级原始内容与 GitHub 仓库 README 摘录；不同 weekly 中相同条目需要合并为一条并显示合并来源，再由模型根据当次内容动态分类；最终输出中包含时间范围、issue 状态、合并后的文章数、GitHub Trending 仓库章节和抓取状态，摘要为中文。",
       "files": []
     },
     {
       "id": 3,
       "prompt": "我本地有几个 RSS XML 文件，想离线生成 Cooperpress 周刊 Markdown 摘要，仍然要按内容类型分类，摘要用中文；如果有网络，也要进入最新 issue 页面拿内部文章。",
-      "expected_output": "使用 --feed-file 和 --no-default-feeds 支持离线 XML 输入；默认过滤最近 7 天内容且每源只取最新 1 个 issue；有 issue URL 时配合 --expand-issues 获取文章级条目，模型再基于条目内容生成动态分类 Markdown，并输出中文摘要。",
+      "expected_output": "使用 --feed-file 和 --no-default-feeds 支持离线 XML 输入；默认过滤最近 7 天内容且每源只取最新 1 个 issue；有 issue URL 时配合 --expand-issues 获取文章级条目，并合并跨 weekly 重复条目，模型再基于条目内容生成动态分类 Markdown，并输出中文摘要。",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "只读取 https://github.com/trending?since=weekly 里的周热门仓库，查看每个仓库 README，仿照 weekly 的格式生成一个 GitHub Trending 章节。",
+      "expected_output": "调用脚本时使用 --no-default-feeds 和 --include-github-trending 获取 weekly trending 仓库、仓库事实字段和 README 摘录；脚本不做分类和翻译，模型基于 README 摘录生成 GitHub Trending 章节，每个仓库包含链接、语言、Stars/Forks、本周新增 Stars 和中文摘要。",
       "files": []
     }
   ]
