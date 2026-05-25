@@ -1,0 +1,655 @@
+# Cooperpress 技术周刊摘要
+
+## 元信息
+
+- 生成时间: 2026-05-25 07:36:21 UTC
+- 数据源: Cooperpress RSS feeds, GitHub Trending weekly, Ruby Weekly excluded
+- 生成依据: 本次 fresh raw 抓取结果 `/tmp/cooperpress-articles-raw-fresh.md`；未读取旧 inbox Markdown 内容
+- 内容层级: issue 内部文章级 + GitHub Trending 仓库 README
+- 摘要语言: 中文
+- 摘要生成方式: 模型翻译/改写
+- 去重状态: 已按规范化 URL 和标题合并跨 weekly 重复条目
+- 输出约束: 全部条目均位于内容分类
+- 时间范围: 最近 7 天
+- 收录文章: 152
+- 原始文章: 164; 合并重复条目: 12
+- GitHub Trending 仓库: 17
+
+## 内容分类
+
+### AI Agent、AI 工程与开发工作流
+
+- [a quick look at the last six months in LLMs.](https://javascriptweekly.com/link/185373/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 📢 Elsewhere in the ecosystem
+  - 摘要: 本条聚焦 a quick look at the last six months in LLMs.，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [Mini Shai-Hulud Hits: 300+ Malicious npm Packages Published](https://javascriptweekly.com/link/185309/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 主条目
+  - 作者/机构: SafeDep Team
+  - 摘要: 关注 Mini Shai-Hulud Hits: 300+ Malicious npm Packages Published 涉及的安全、发布治理或供应链风险，适合用于评估依赖和发布流程。
+- [taken his blog and JavaScript books off the Web](https://javascriptweekly.com/link/185312/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: In Brief
+  - 摘要: 这是一篇围绕 taken his blog and JavaScript books off the Web 的实践指南或技术解读，可帮助理解相关方案的背景和落地方式。
+- [playing down its significance](https://javascriptweekly.com/link/185314/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: In Brief
+  - 摘要: 本条聚焦 playing down its significance，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [Middleware, but for AI agents](https://javascriptweekly.com/link/185367/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: Classifieds
+  - 摘要: 本条聚焦 Middleware, but for AI agents，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [15 Updates from Google I/O 2026](https://developer.chrome.com/blog/chrome-at-io26)
+  - 来源: 2026-05-20; 来源: Frontend Focus; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 作者/机构: Tabriz, Kinlan, Gvak, Lee (Chrome for Developers)
+  - 摘要: 介绍 15 Updates from Google I/O 2026 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Cross-Document View Transitions: The Gotchas Nobody Mentions](https://css-tricks.com/cross-document-view-transitions-part-1/)
+  - 来源: 2026-05-20, 2026-05-19; 来源: Frontend Focus, JavaScript Weekly; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 作者/机构: Durgesh Rajubhai Pawar
+  - 合并来源: Frontend Focus / [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742) / 主条目; JavaScript Weekly / [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786) / 📖 Articles and Videos
+  - 摘要: 这是一篇围绕 Cross-Document View Transitions: The Gotchas Nobody Mentions 的实践指南或技术解读，可帮助理解相关方案的背景和落地方式。
+- [Rust-based rewrite of Bun has been merged](https://nodeweekly.com/link/185481/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: 📢 Elsewhere in the ecosystem
+  - 摘要: 本条聚焦 Rust-based rewrite of Bun has been merged，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [AI Engineering Fundamentals with Scott Moss of Netflix](https://nodeweekly.com/link/185442/web)
+  - 来源: 2026-05-21; 来源: Node Weekly sponsor; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: 主条目
+  - 作者/机构: Frontend Masters
+  - 摘要: 赞助内容，介绍 AI Engineering Fundamentals with Scott Moss of Netflix 相关能力或服务，适合作为本期商业工具动态参考。
+- [Shai Hulud struck again earlier this week](https://nodeweekly.com/link/185452/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: In Brief
+  - 摘要: 关注 Shai Hulud struck again earlier this week 涉及的安全、发布治理或供应链风险，适合用于评估依赖和发布流程。
+- [Build Durable AI Agents That Won’t Break in Production (Webinar)](https://nodeweekly.com/link/185459/web)
+  - 来源: 2026-05-21; 来源: Node Weekly sponsor; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: In Brief
+  - 作者/机构: Orkes
+  - 摘要: 赞助内容，介绍 Build Durable AI Agents That Won’t Break in Production (Webinar) 相关能力或服务，适合作为本期商业工具动态参考。
+- [Adonis MCP 1.0](https://nodeweekly.com/link/185474/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: In Brief
+  - 摘要: Adonis MCP 1.0 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [What's New in Go: The Google I/O 2026 Edition](https://io.google/2026/explore/pa-keynote-17)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 主条目
+  - 作者/机构: Balahan and Dougherty (Google)
+  - 摘要: 关注 What's New in Go: The Google I/O 2026 Edition 涉及的安全、发布治理或供应链风险，适合用于评估依赖和发布流程。
+- [The Maintainer's Dilemma](https://spf13.com/p/the-maintainers-dilemma/)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 主条目
+  - 作者/机构: Steve Francia
+  - 摘要: 这是一篇围绕 The Maintainer's Dilemma 的实践指南或技术解读，可帮助理解相关方案的背景和落地方式。
+- [Generating an MCP Server in Go](https://oblique.security/blog/mcp/)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 主条目
+  - 摘要: Generating an MCP Server in Go 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [Treat coding agents like services, not terminals](https://agentfield.ai/blog/harness-as-membrane/?utm_source=golang&utm_medium=newsletter&utm_campaign=golang-260522&utm_id=golang-260522-blog-h-as-m&utm_content=blog-h-as-m)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: Classifieds
+  - 摘要: 本条聚焦 Treat coding agents like services, not terminals，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [CodeRabbit](https://fandf.co/4n1brGW)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: Classifieds
+  - 摘要: 本条聚焦 CodeRabbit，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [From React Web to a Real iOS App in One Week](https://try.expo.dev/react-web-to-native)
+  - 来源: 2026-05-22; 来源: React Status sponsor; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: 🛠 Code, Tools & Libraries
+  - 作者/机构: Expo
+  - 摘要: 赞助内容，介绍 From React Web to a Real iOS App in One Week 相关能力或服务，适合作为本期商业工具动态参考。
+- [Modern Web Guidance](https://developer.chrome.com/docs/modern-web-guidance)
+  - 来源: 2026-05-22, 2026-05-20; 来源: React Status, Frontend Focus; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: 📢 Elsewhere in the ecosystem
+  - 作者/机构: Chrome for Developers
+  - 合并来源: React Status / [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475) / 📢 Elsewhere in the ecosystem; Frontend Focus / [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742) / 主条目
+  - 摘要: 这是一篇围绕 Modern Web Guidance 的实践指南或技术解读，可帮助理解相关方案的背景和落地方式。
+- [Still Writing Tests Manually? Meticulous AI Is Here](https://www.meticulous.ai/?utm_source=reactstatus&utm_medium=newsletter&utm_campaign=26q2&utm_content=primary)
+  - 来源: 2026-05-22; 来源: React Status sponsor; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: 主条目
+  - 作者/机构: Meticulous
+  - 摘要: 赞助内容，介绍 Still Writing Tests Manually? Meticulous AI Is Here 相关能力或服务，适合作为本期商业工具动态参考。
+- [Storybook 10.4](https://storybook.js.org/blog/storybook-10-4/)
+  - 来源: 2026-05-22; 来源: React Status; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: In Brief
+  - 摘要: Storybook 10.4 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [Migrating an Express App to Next.js Using Agents](https://javascript.plainenglish.io/migrating-express-to-next-js-using-ai-agents-antigravity-f48b4c206a8e)
+  - 来源: 2026-05-22; 来源: React Status; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: In Brief
+  - 作者/机构: James O'Reilly (Google)
+  - 摘要: 这是一篇围绕 Migrating an Express App to Next.js Using Agents 的实践指南或技术解读，可帮助理解相关方案的背景和落地方式。
+- [has deprecated Gemini CLI](https://developers.googleblog.com/an-important-update-transitioning-gemini-cli-to-antigravity-cli/)
+  - 来源: 2026-05-22; 来源: React Status; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: In Brief
+  - 摘要: 本条聚焦 has deprecated Gemini CLI，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [Mark Erikson's Agent Setup, Workflow, and Tools](https://blog.isquaredsoftware.com/2026/05/ai-thoughts-part-2-agent-workflow-tools/)
+  - 来源: 2026-05-22, 2026-05-19; 来源: React Status, JavaScript Weekly; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: In Brief
+  - 作者/机构: Mark Erikson
+  - 合并来源: React Status / [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475) / In Brief; JavaScript Weekly / [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786) / 📖 Articles and Videos
+  - 摘要: 这是一篇围绕 Mark Erikson's Agent Setup, Workflow, and Tools 的实践指南或技术解读，可帮助理解相关方案的背景和落地方式。
+- [Structural Sharing, selectAtom, and Why Your Jotai Atoms Re-Render Too Much](https://www.peterp.me/articles/jotai-structural-sharing-vs-selectatom/)
+  - 来源: 2026-05-22; 来源: React Status; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: In Brief
+  - 摘要: 本条聚焦 Structural Sharing, selectAtom, and Why Your Jotai Atoms Re-Render Too Much，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [Trigger.dev](https://fandf.co/4nsnQnt)
+  - 来源: 2026-05-22; 来源: React Status; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: Classifieds
+  - 摘要: 本条聚焦 Trigger.dev，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [Would Greptile Have Caught That Postgres Bug?](https://www.greptile.com/review?utm_source=postgresweekly&utm_medium=paid-community&utm_campaign=postgresweekly_primary_no_signup)
+  - 来源: 2026-05-20; 来源: Postgres Weekly sponsor; Issue: [Four features you'll actually feel in Postgres 19](https://postgresweekly.com/issues/649); 栏目: 主条目
+  - 作者/机构: Greptile
+  - 摘要: 赞助内容，介绍 Would Greptile Have Caught That Postgres Bug? 相关能力或服务，适合作为本期商业工具动态参考。
+- [Supabase is Now an Official ChatGPT App](https://supabase.com/blog/supabase-is-now-an-official-chatgpt-app)
+  - 来源: 2026-05-20; 来源: Postgres Weekly; Issue: [Four features you'll actually feel in Postgres 19](https://postgresweekly.com/issues/649); 栏目: In Brief
+  - 作者/机构: Greg Richardson (Supabase)
+  - 摘要: 本条聚焦 Supabase is Now an Official ChatGPT App，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [pg_statviz 1.0](https://vyruss.org/blog/pg_statviz-1-0-released-ai-analysis.html)
+  - 来源: 2026-05-20; 来源: Postgres Weekly; Issue: [Four features you'll actually feel in Postgres 19](https://postgresweekly.com/issues/649); 栏目: In Brief
+  - 摘要: pg_statviz 1.0 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+
+### 包管理、供应链安全与发布治理
+
+- [It’s Time for npm to Make Install Scripts Opt-In](https://javascriptweekly.com/link/185307/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 主条目
+  - 作者/机构: Jamie Magee
+  - 摘要: 关注 It’s Time for npm to Make Install Scripts Opt-In 涉及的安全、发布治理或供应链风险，适合用于评估依赖和发布流程。
+- [Introducing Staged Publishing for npm Packages](https://nodeweekly.com/link/185448/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: 主条目
+  - 作者/机构: The npm Project
+  - 摘要: Introducing Staged Publishing for npm Packages 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [prerelease of npm 12.0](https://nodeweekly.com/link/185450/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: 主条目
+  - 摘要: prerelease of npm 12.0 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [proposed that npm make install scripts opt-in only by default](https://nodeweekly.com/link/185451/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: In Brief
+  - 摘要: 关注 proposed that npm make install scripts opt-in only by default 涉及的安全、发布治理或供应链风险，适合用于评估依赖和发布流程。
+- [Hardening TanStack After the npm Compromise](https://nodeweekly.com/link/185460/web)
+  - 来源: 2026-05-21, 2026-05-19; 来源: Node Weekly, JavaScript Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: In Brief
+  - 合并来源: Node Weekly / [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625) / In Brief; JavaScript Weekly / [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786) / 📖 Articles and Videos
+  - 摘要: 关注 Hardening TanStack After the npm Compromise 涉及的安全、发布治理或供应链风险，适合用于评估依赖和发布流程。
+- [pnpm 11.2](https://nodeweekly.com/link/185472/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: In Brief
+  - 摘要: 本条聚焦 pnpm 11.2，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [moving security releases back to Tuesdays](https://github.com/golang/go/issues/79598)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 主条目
+  - 摘要: 关注 moving security releases back to Tuesdays 涉及的安全、发布治理或供应链风险，适合用于评估依赖和发布流程。
+- [Popular Go Decimal Library Targeted by Typosquatting Campaign](https://socket.dev/blog/popular-go-decimal-library-typosquat-dns-backdoor)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 主条目
+  - 摘要: 关注 Popular Go Decimal Library Targeted by Typosquatting Campaign 涉及的安全、发布治理或供应链风险，适合用于评估依赖和发布流程。
+- [npq](https://github.com/lirantal/npq)
+  - 来源: 2026-05-22, 2026-05-19; 来源: React Status, JavaScript Weekly; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: 📢 Elsewhere in the ecosystem
+  - 合并来源: React Status / [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475) / 📢 Elsewhere in the ecosystem; JavaScript Weekly / [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786) / 主条目
+  - 摘要: 关注 npq 涉及的安全、发布治理或供应链风险，适合用于评估依赖和发布流程。
+- [Postgres 18.4, 17.10, 16.14, 15.18, and 14.23 Released](https://www.postgresql.org/about/news/postgresql-184-1710-1614-1518-and-1423-released-3297/)
+  - 来源: 2026-05-20; 来源: Postgres Weekly; Issue: [Four features you'll actually feel in Postgres 19](https://postgresweekly.com/issues/649); 栏目: 主条目
+  - 作者/机构: PostgreSQL Global Development Group
+  - 摘要: 关注 Postgres 18.4, 17.10, 16.14, 15.18, and 14.23 Released 涉及的安全、发布治理或供应链风险，适合用于评估依赖和发布流程。
+- [Eleven CVEs Walk Into a Release](https://thebuild.com/blog/2026/05/14/eleven-cves-walk-into-a-release/)
+  - 来源: 2026-05-20; 来源: Postgres Weekly; Issue: [Four features you'll actually feel in Postgres 19](https://postgresweekly.com/issues/649); 栏目: 主条目
+  - 摘要: 关注 Eleven CVEs Walk Into a Release 涉及的安全、发布治理或供应链风险，适合用于评估依赖和发布流程。
+
+### JavaScript、Node.js 与运行时生态
+
+- [Shiki 4.1](https://javascriptweekly.com/link/185361/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 🛠 Code & Tools
+  - 摘要: 介绍 Shiki 4.1 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Vue.js Language Tools 3.3](https://javascriptweekly.com/link/185364/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 🛠 Code & Tools
+  - 摘要: 介绍 Vue.js Language Tools 3.3 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [proposes JSONRegistry](https://javascriptweekly.com/link/185368/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 📢 Elsewhere in the ecosystem
+  - 摘要: 本条聚焦 proposes JSONRegistry，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [Clerk API Keys Are Now Generally Available](https://javascriptweekly.com/link/185333/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly sponsor; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 📖 Articles and Videos
+  - 作者/机构: Clerk
+  - 摘要: 赞助内容，介绍 Clerk API Keys Are Now Generally Available 相关能力或服务，适合作为本期商业工具动态参考。
+- [NodeBook: An Advanced Guide to Node.js Internals](https://javascriptweekly.com/link/185334/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 📖 Articles and Videos
+  - 作者/机构: Ishtmeet Singh
+  - 摘要: 这是一篇围绕 NodeBook: An Advanced Guide to Node.js Internals 的实践指南或技术解读，可帮助理解相关方案的背景和落地方式。
+- [Soon We Can Finally Banish JavaScript to the ShadowRealm](https://javascriptweekly.com/link/185340/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 📖 Articles and Videos
+  - 作者/机构: Mat Marquis
+  - 摘要: 本条聚焦 Soon We Can Finally Banish JavaScript to the ShadowRealm，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [How Depot Built a CI Orchestrator on AWS Lambda](https://javascriptweekly.com/link/185306/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly sponsor; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 主条目
+  - 作者/机构: Depot
+  - 摘要: 赞助内容，介绍 How Depot Built a CI Orchestrator on AWS Lambda 相关能力或服务，适合作为本期商业工具动态参考。
+- [Angular 22 Release Candidate](https://javascriptweekly.com/link/185322/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: Releases
+  - 摘要: Angular 22 Release Candidate 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [Bun 1.3.14](https://javascriptweekly.com/link/185325/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: Releases
+  - 摘要: Bun 1.3.14 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [ESLint Config Inspector 3.0](https://javascriptweekly.com/link/185326/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: Releases
+  - 摘要: ESLint Config Inspector 3.0 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [The Deno team is teasing Deno 2.8](https://javascriptweekly.com/link/185318/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: In Brief
+  - 摘要: The Deno team is teasing Deno 2.8 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [an all new look](https://javascriptweekly.com/link/185320/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: In Brief
+  - 摘要: 本条聚焦 an all new look，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [HyperFormula](https://javascriptweekly.com/link/185365/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: Classifieds
+  - 摘要: 本条聚焦 HyperFormula，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [Meticulous](https://javascriptweekly.com/link/185366/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: Classifieds
+  - 摘要: 本条聚焦 Meticulous，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [Node v26.1](https://nodeweekly.com/link/185457/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: 📢 Elsewhere in the ecosystem
+  - 摘要: 本条聚焦 Node v26.1，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [A Fresh Chapter and New Look for Express](https://nodeweekly.com/link/185443/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: 主条目
+  - 作者/机构: Sebastian Beltran
+  - 摘要: 介绍 A Fresh Chapter and New Look for Express 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Deno 2.8 is being teased](https://nodeweekly.com/link/185454/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: In Brief
+  - 摘要: Deno 2.8 is being teased 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [Node.js 26.2.0 (Current) Released](https://nodeweekly.com/link/185455/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: In Brief
+  - 作者/机构: Antoine du Hamel
+  - 摘要: Node.js 26.2.0 (Current) Released 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [How Node.js and V8 Keep Each Other Working](https://nodeweekly.com/link/185458/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: In Brief
+  - 作者/机构: Joyee Cheung
+  - 摘要: 这是一篇围绕 How Node.js and V8 Keep Each Other Working 的实践指南或技术解读，可帮助理解相关方案的背景和落地方式。
+- [Optimizing Build Times by Migrating from Webpack to Rspack](https://nodeweekly.com/link/185462/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: In Brief
+  - 摘要: 本条聚焦 Optimizing Build Times by Migrating from Webpack to Rspack，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [An Official Codemod to Migrate from Axios to fetch](https://nodeweekly.com/link/185464/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: In Brief
+  - 作者/机构: Augustin Mauroy
+  - 摘要: 本条聚焦 An Official Codemod to Migrate from Axios to fetch，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [ESLint 10.4](https://nodeweekly.com/link/185471/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: In Brief
+  - 摘要: ESLint 10.4 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [Vavite 7.0](https://nodeweekly.com/link/185473/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: In Brief
+  - 摘要: 介绍 Vavite 7.0 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [MikroORM 7.1](https://nodeweekly.com/link/185478/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: In Brief
+  - 摘要: MikroORM 7.1 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [Try Judoscale](https://nodeweekly.com/link/185479/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: Classifieds
+  - 摘要: 本条聚焦 Try Judoscale，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [Clerk API Keys are now GA](https://nodeweekly.com/link/185537/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: Classifieds
+  - 摘要: 介绍 Clerk API Keys are now GA 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+
+### 前端平台、CSS、浏览器与 Web API
+
+- [Brownies: Browser Storage as a Plain Object, With Change Events](https://javascriptweekly.com/link/185347/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 🛠 Code & Tools
+  - 作者/机构: Francisco Presencia
+  - 摘要: 介绍 Brownies: Browser Storage as a Plain Object, With Change Events 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Critical 8.0](https://javascriptweekly.com/link/185358/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 🛠 Code & Tools
+  - 摘要: 介绍 Critical 8.0 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [a new <install> HTML element](https://javascriptweekly.com/link/185319/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: In Brief
+  - 摘要: 本条聚焦 a new <install> HTML element，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [This post explores](https://tympanus.net/codrops/2026/05/13/exploring-the-html-in-canvas-proposal/)
+  - 来源: 2026-05-20; 来源: Frontend Focus; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 摘要: 这是一篇围绕 This post explores 的实践指南或技术解读，可帮助理解相关方案的背景和落地方式。
+- [Firefox 151 Release Notes for Developers](https://developer.mozilla.org/en-US/docs/Mozilla/Firefox/Releases/151)
+  - 来源: 2026-05-20; 来源: Frontend Focus; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 作者/机构: Mozilla
+  - 摘要: Firefox 151 Release Notes for Developers 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [some browsers render certain sites 'differently'](https://denodell.com/blog/browsers-treat-big-sites-differently)
+  - 来源: 2026-05-20, 2026-05-19; 来源: Frontend Focus, JavaScript Weekly; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 合并来源: Frontend Focus / [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742) / 主条目; JavaScript Weekly / [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786) / 📢 Elsewhere in the ecosystem
+  - 摘要: 本条聚焦 some browsers render certain sites 'differently'，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [full schedule for next month's CSS Day](https://cssday.nl/schedule.html)
+  - 来源: 2026-05-20; 来源: Frontend Focus; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 摘要: 本条聚焦 full schedule for next month's CSS Day，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [16 years since Google Fonts launched](https://x.com/WebDesignMuseum/status/2056555438661926937)
+  - 来源: 2026-05-20; 来源: Frontend Focus; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 摘要: 介绍 16 years since Google Fonts launched 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- ['Accessibility for Everyone' book](https://accessibilityforeveryone.site)
+  - 来源: 2026-05-20; 来源: Frontend Focus; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 摘要: 这是一篇围绕 'Accessibility for Everyone' book 的实践指南或技术解读，可帮助理解相关方案的背景和落地方式。
+- [Better Fluid Sizing with round()](https://ishadeed.com/article/css-round/)
+  - 来源: 2026-05-20; 来源: Frontend Focus; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 作者/机构: Ahmad Shadeed
+  - 摘要: 这是一篇围绕 Better Fluid Sizing with round() 的实践指南或技术解读，可帮助理解相关方案的背景和落地方式。
+- [600+ Million People Write Right-to-Left: Two Fixes Your App Needs](https://evilmartians.com/chronicles/600-million-people-write-right-to-left-2-fixes-your-app-needs)
+  - 来源: 2026-05-20; 来源: Frontend Focus; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 作者/机构: Nina Torgunakova
+  - 摘要: 这是一篇围绕 600+ Million People Write Right-to-Left: Two Fixes Your App Needs 的实践指南或技术解读，可帮助理解相关方案的背景和落地方式。
+- [Gap Decorations: Now Available in Chromium](https://developer.chrome.com/blog/gap-decorations-stable?hl=en)
+  - 来源: 2026-05-20; 来源: Frontend Focus; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 作者/机构: Contreras & Omekara (Chrome for Developers)
+  - 摘要: 本条聚焦 Gap Decorations: Now Available in Chromium，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [Seven Ways of Specifying Per-Theme Colours in Only CSS](https://chrismorgan.info/css-themed-colours)
+  - 来源: 2026-05-20; 来源: Frontend Focus; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 作者/机构: Chris Morgan
+  - 摘要: 这是一篇围绕 Seven Ways of Specifying Per-Theme Colours in Only CSS 的实践指南或技术解读，可帮助理解相关方案的背景和落地方式。
+- [The Boring Internet](https://www.terrygodier.com/the-boring-internet/ascii)
+  - 来源: 2026-05-20; 来源: Frontend Focus; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 作者/机构: Terry Godier
+  - 摘要: 本条聚焦 The Boring Internet，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [SVG Studio: A Browser-Based Animation Tool](https://www.svgstudio.org/)
+  - 来源: 2026-05-20; 来源: Frontend Focus; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 作者/机构: SVG Studio
+  - 摘要: 介绍 SVG Studio: A Browser-Based Animation Tool 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Swup: A Flexible Page Transition Library for Server-Side Rendered Sites](https://swup.js.org/)
+  - 来源: 2026-05-20; 来源: Frontend Focus; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 作者/机构: Georgy Marchuk
+  - 摘要: 介绍 Swup: A Flexible Page Transition Library for Server-Side Rendered Sites 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Add User-Scoped API Keys to Your App with Clerk](https://go.clerk.com/CZr7GRE)
+  - 来源: 2026-05-20; 来源: Frontend Focus sponsor; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 作者/机构: Clerk
+  - 摘要: 赞助内容，介绍 Add User-Scoped API Keys to Your App with Clerk 相关能力或服务，适合作为本期商业工具动态参考。
+- [Critical 8.0: Extracts & Inlines Critical Path CSS from HTML](https://github.com/addyosmani/critical)
+  - 来源: 2026-05-20; 来源: Frontend Focus; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 作者/机构: Addy Osmani
+  - 摘要: 介绍 Critical 8.0: Extracts & Inlines Critical Path CSS from HTML 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [phantom-ui: A Web Component That Provides a Structure-Aware Skeleton Loader](https://github.com/Aejkatappaja/phantom-ui)
+  - 来源: 2026-05-20; 来源: Frontend Focus; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 作者/机构: Frank Aejkatappaja
+  - 摘要: 介绍 phantom-ui: A Web Component That Provides a Structure-Aware Skeleton Loader 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Pica 10.0: High Quality Image Resizing in the Browser](https://nodeca.github.io/pica/demo/)
+  - 来源: 2026-05-20, 2026-05-19; 来源: Frontend Focus, JavaScript Weekly; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 作者/机构: Vitaly Puzrin
+  - 合并来源: Frontend Focus / [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742) / 主条目; JavaScript Weekly / [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786) / 🛠 Code & Tools
+  - 摘要: 本条聚焦 Pica 10.0: High Quality Image Resizing in the Browser，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [webcompat.dev](https://webcompat.dev/)
+  - 来源: 2026-05-20; 来源: Frontend Focus; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 作者/机构: Niklas Merz
+  - 摘要: 介绍 webcompat.dev 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+
+### React、React Native 与 UI 框架
+
+- [Orval: Generate Type-Safe Clients from OpenAPI/Swagger Specs](https://javascriptweekly.com/link/185346/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 🛠 Code & Tools
+  - 作者/机构: Victor Bury
+  - 摘要: 介绍 Orval: Generate Type-Safe Clients from OpenAPI/Swagger Specs 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Fate 1.0: A Modern Data Framework for React](https://javascriptweekly.com/link/185356/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 🛠 Code & Tools
+  - 作者/机构: Christoph Nakazawa
+  - 摘要: Fate 1.0: A Modern Data Framework for React 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [Alien Signals: 'The Lightest Signal Library'](https://javascriptweekly.com/link/185357/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 🛠 Code & Tools
+  - 作者/机构: Johnson Chu
+  - 摘要: 介绍 Alien Signals: 'The Lightest Signal Library' 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Redux Toolkit 2.12.0](https://javascriptweekly.com/link/185362/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 🛠 Code & Tools
+  - 摘要: 介绍 Redux Toolkit 2.12.0 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [React Redux 9.3](https://javascriptweekly.com/link/185363/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 🛠 Code & Tools
+  - 摘要: 介绍 React Redux 9.3 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [The TanStack Start Story: Tanner Linsley on Competing with Next.js](https://javascriptweekly.com/link/185344/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 📖 Articles and Videos
+  - 摘要: 本条聚焦 The TanStack Start Story: Tanner Linsley on Competing with Next.js，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [TypeORM 1.0](https://javascriptweekly.com/link/185327/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: Releases
+  - 摘要: TypeORM 1.0 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [ESLint 10.4.0](https://javascriptweekly.com/link/185328/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: Releases
+  - 摘要: ESLint 10.4.0 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [Relay 21.0](https://javascriptweekly.com/link/185329/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: Releases
+  - 摘要: Relay 21.0 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [Rolldown 1.0.1](https://javascriptweekly.com/link/185330/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: Releases
+  - 摘要: Rolldown 1.0.1 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [Your React App Can Run Natively on iOS and Android](https://try.expo.dev/front-end-focus)
+  - 来源: 2026-05-20; 来源: Frontend Focus sponsor; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 作者/机构: Expo
+  - 摘要: 赞助内容，介绍 Your React App Can Run Natively on iOS and Android 相关能力或服务，适合作为本期商业工具动态参考。
+- [Qite.js: A Frontend Framework for People Who 'Hate React and Love HTML'](https://qitejs.qount25.dev/)
+  - 来源: 2026-05-20; 来源: Frontend Focus; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 作者/机构: Qite.js
+  - 摘要: 介绍 Qite.js: A Frontend Framework for People Who 'Hate React and Love HTML' 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Wasp](https://nodeweekly.com/link/185483/web)
+  - 来源: 2026-05-21, 2026-05-19; 来源: Node Weekly, JavaScript Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: 📢 Elsewhere in the ecosystem
+  - 合并来源: Node Weekly / [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625) / 📢 Elsewhere in the ecosystem; JavaScript Weekly / [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786) / 📢 Elsewhere in the ecosystem
+  - 摘要: 这是一篇围绕 Wasp 的实践指南或技术解读，可帮助理解相关方案的背景和落地方式。
+- [GL-React v6: Create WebGL Shaders from React](https://gre.github.io/gl-react/)
+  - 来源: 2026-05-22; 来源: React Status; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: 🛠 Code, Tools & Libraries
+  - 作者/机构: Gaëtan Renaudeau
+  - 摘要: 介绍 GL-React v6: Create WebGL Shaders from React 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Expo SDK 56](https://expo.dev/changelog/sdk-56)
+  - 来源: 2026-05-22; 来源: React Status; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: 🛠 Code, Tools & Libraries
+  - 摘要: Expo SDK 56 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [Hot Updater: Self-Hosted Over-the-Air Updates for React Native](https://hot-updater.dev/)
+  - 来源: 2026-05-22; 来源: React Status; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: 🛠 Code, Tools & Libraries
+  - 作者/机构: Sungyu Kang
+  - 摘要: 介绍 Hot Updater: Self-Hosted Over-the-Air Updates for React Native 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Relay 21.0: Meta’s Data-Fetching Framework for React](https://github.com/facebook/relay/releases/tag/v21.0.0)
+  - 来源: 2026-05-22; 来源: React Status; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: 🛠 Code, Tools & Libraries
+  - 作者/机构: Facebook / Meta
+  - 摘要: Relay 21.0: Meta’s Data-Fetching Framework for React 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [SVAR Calendar: A Calendar Component for React, Svelte and Vue](https://svar.dev/blog/svar-calendar-for-react-svelte-vue/)
+  - 来源: 2026-05-22, 2026-05-19; 来源: React Status, JavaScript Weekly; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: 🛠 Code, Tools & Libraries
+  - 作者/机构: XB Software Sp. z o.o., XB Software Sp.
+  - 合并来源: React Status / [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475) / 🛠 Code, Tools & Libraries; JavaScript Weekly / [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786) / 🛠 Code & Tools
+  - 摘要: 介绍 SVAR Calendar: A Calendar Component for React, Svelte and Vue 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Schedule-X](https://schedule-x.dev/)
+  - 来源: 2026-05-22, 2026-05-19; 来源: React Status, JavaScript Weekly; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: 🛠 Code, Tools & Libraries
+  - 合并来源: React Status / [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475) / 🛠 Code, Tools & Libraries; JavaScript Weekly / [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786) / 🛠 Code & Tools
+  - 摘要: Schedule-X 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [Rockpack 8.0.0](https://github.com/AlexSergey/rockpack)
+  - 来源: 2026-05-22; 来源: React Status; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: 🛠 Code, Tools & Libraries
+  - 摘要: Rockpack 8.0.0 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [React Native Zip Archive 8.0](https://github.com/mockingbot/react-native-zip-archive)
+  - 来源: 2026-05-22; 来源: React Status; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: 🛠 Code, Tools & Libraries
+  - 摘要: 介绍 React Native Zip Archive 8.0 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [codemod for migrating from Axios to fetch](https://app.codemod.com/registry/@nodejs/axios-to-whatwg-fetch)
+  - 来源: 2026-05-22; 来源: React Status; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: 📢 Elsewhere in the ecosystem
+  - 摘要: 本条聚焦 codemod for migrating from Axios to fetch，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [Component Party: A Rosetta Stone of UI Libraries](https://component-party.dev/?f=react-vue3)
+  - 来源: 2026-05-22; 来源: React Status; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: 主条目
+  - 作者/机构: Mathieu Schimmerling
+  - 摘要: 介绍 Component Party: A Rosetta Stone of UI Libraries 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [RSCs in TanStack: A Different (and Arguably Better) Take](https://frontendmasters.com/blog/react-server-components-in-tanstack/)
+  - 来源: 2026-05-22; 来源: React Status; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: 主条目
+  - 作者/机构: Adam Rackis
+  - 摘要: 本条聚焦 RSCs in TanStack: A Different (and Arguably Better) Take，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [why people are moving from Next.js to TanStack Start.](https://www.reddit.com/r/reactjs/comments/1this9u/why_are_people_moving_from_nextjs_to_tanstack/)
+  - 来源: 2026-05-22; 来源: React Status; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: In Brief
+  - 摘要: 本条聚焦 why people are moving from Next.js to TanStack Start.，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [Redux Toolkit v2.12.0](https://github.com/reduxjs/redux-toolkit/releases/tag/v2.12.0)
+  - 来源: 2026-05-22; 来源: React Status; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: In Brief
+  - 摘要: Redux Toolkit v2.12.0 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [Moving Away From Tailwind, and Learning to Structure My CSS](https://jvns.ca/blog/2026/05/15/moving-away-from-tailwind--and-learning-to-structure-my-css-/)
+  - 来源: 2026-05-22, 2026-05-20; 来源: React Status, Frontend Focus; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: In Brief
+  - 作者/机构: Julia Evans
+  - 合并来源: React Status / [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475) / In Brief; Frontend Focus / [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742) / 主条目
+  - 摘要: 这是一篇围绕 Moving Away From Tailwind, and Learning to Structure My CSS 的实践指南或技术解读，可帮助理解相关方案的背景和落地方式。
+- [Clerk API Keys are GA](https://go.clerk.com/8Nsr7gz)
+  - 来源: 2026-05-22; 来源: React Status; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: Classifieds
+  - 摘要: 介绍 Clerk API Keys are GA 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [ReactVision Studio](https://reactvision.xyz/studio/?utm_source=newsletter&utm_medium=email&utm_campaign=react_status)
+  - 来源: 2026-05-22; 来源: React Status; Issue: [RSCs in TanStack: better than Next.js?](https://react.statuscode.com/issues/475); 栏目: Classifieds
+  - 摘要: 介绍 ReactVision Studio 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+
+### Go 生态、性能剖析与系统工具
+
+- [Fiber 3.3: Express.js-Inspired Web Framework for Go](https://github.com/gofiber/fiber/releases/tag/v3.3.0)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 🛠 Code & Tools
+  - 作者/机构: Fenny and Contributors
+  - 摘要: Fiber 3.3: Express.js-Inspired Web Framework for Go 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [blogged about Fiber's CLI tool](https://docs.gofiber.io/blog/fiber-cli/)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 🛠 Code & Tools
+  - 摘要: 介绍 blogged about Fiber's CLI tool 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [errcheck 1.20: A Tool to Check That You Checked for Errors](https://github.com/kisielk/errcheck)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 🛠 Code & Tools
+  - 作者/机构: Kamil Kisiel
+  - 摘要: 介绍 errcheck 1.20: A Tool to Check That You Checked for Errors 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Gobee: Write Your BPF Programs in Go, Not C](https://github.com/boratanrikulu/gobee)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 🛠 Code & Tools
+  - 作者/机构: Bora Tanrikulu
+  - 摘要: 介绍 Gobee: Write Your BPF Programs in Go, Not C 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Jet 2.15: Type Safe SQL Builder with Code Generation](https://github.com/go-jet/jet)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 🛠 Code & Tools
+  - 作者/机构: Jet
+  - 摘要: Jet 2.15: Type Safe SQL Builder with Code Generation 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [Enmime 2.4](https://github.com/jhillyerd/enmime)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 🛠 Code & Tools
+  - 摘要: 介绍 Enmime 2.4 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Permify 1.7](https://github.com/Permify/permify)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 🛠 Code & Tools
+  - 摘要: 介绍 Permify 1.7 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Sarama 1.49](https://github.com/IBM/sarama)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 🛠 Code & Tools
+  - 摘要: 介绍 Sarama 1.49 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Live Workshop: Build a Sensor Analytics Pipeline](https://www.tigerdata.com/events/workshop-sensor-to-insight?utm_source=content-syndication&utm_medium=referral&utm_campaign=golang-weekly-newsletter)
+  - 来源: 2026-05-22; 来源: Golang Weekly sponsor; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 主条目
+  - 作者/机构: Tiger Data (creators of TimescaleDB)
+  - 摘要: 赞助内容，介绍 Live Workshop: Build a Sensor Analytics Pipeline 相关能力或服务，适合作为本期商业工具动态参考。
+- [Introducing the pkg.go.dev API](https://go.dev/blog/pkgsite-api)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 主条目
+  - 作者/机构: Lee, Kim and Amsterdam (The Go Team)
+  - 摘要: 这是一篇围绕 Introducing the pkg.go.dev API 的实践指南或技术解读，可帮助理解相关方案的背景和落地方式。
+- [changing the behavior of SSL_CERT_FILE / SSL_CERT_DIR](https://github.com/golang/go/issues/79496)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 主条目
+  - 摘要: 本条聚焦 changing the behavior of SSL_CERT_FILE / SSL_CERT_DIR，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [drop gccgo](https://github.com/golang/go/issues/79453)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 主条目
+  - 摘要: 本条聚焦 drop gccgo，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [A Practical Guide to Profiling in Go](https://blog.jetbrains.com/go/2026/05/20/golang-profiling-guide/)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 主条目
+  - 作者/机构: Dominika Stankiewicz (JetBrains)
+  - 摘要: 这是一篇围绕 A Practical Guide to Profiling in Go 的实践指南或技术解读，可帮助理解相关方案的背景和落地方式。
+- [How I Migrated My Go & SQLite App to Depot CI](https://fandf.co/4up6SZV)
+  - 来源: 2026-05-22; 来源: Golang Weekly sponsor; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 主条目
+  - 作者/机构: Depot
+  - 摘要: 赞助内容，介绍 How I Migrated My Go & SQLite App to Depot CI 相关能力或服务，适合作为本期商业工具动态参考。
+- [The 10 Go Error Handling Commandments](https://preslav.me/2026/05/19/10-golang-error-handling-commandments/)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 主条目
+  - 摘要: 本条聚焦 The 10 Go Error Handling Commandments，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [Configuring a Go HTTP Server for Unencrypted HTTP/2 (h2c)](https://www.clarityboss.com/blog/go-http2-cleartext-h2c-cloud-run)
+  - 来源: 2026-05-22; 来源: Golang Weekly; Issue: [pkg.go.dev gets an official API](https://golangweekly.com/issues/602); 栏目: 主条目
+  - 摘要: 介绍 Configuring a Go HTTP Server for Unencrypted HTTP/2 (h2c) 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+
+### Postgres、数据库与数据工程
+
+- [Querying a Billion Rows Shouldn't Freeze Your API](https://javascriptweekly.com/link/185348/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly sponsor; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 🛠 Code & Tools
+  - 作者/机构: Tiger Data (creators of TimescaleDB)
+  - 摘要: 赞助内容，介绍 Querying a Billion Rows Shouldn't Freeze Your API 相关能力或服务，适合作为本期商业工具动态参考。
+- [SQL Formatter 15.8](https://javascriptweekly.com/link/185359/web)
+  - 来源: 2026-05-19; 来源: JavaScript Weekly; Issue: [Dr. Axel's blog is gone (for now)](https://javascriptweekly.com/issues/786); 栏目: 🛠 Code & Tools
+  - 摘要: 介绍 SQL Formatter 15.8 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Stale Data Makes Your Fastest Components Feel Slow](https://www.tigerdata.com/go/trial?utm_source=content-syndication&utm_medium=referral&utm_campaign=frontend-focus-newsletter)
+  - 来源: 2026-05-20; 来源: Frontend Focus sponsor; Issue: [Google I/O and the 'era of the agentic web'.](https://frontendfoc.us/issues/742); 栏目: 主条目
+  - 作者/机构: Tiger Data (creators of TimescaleDB)
+  - 摘要: 赞助内容，介绍 Stale Data Makes Your Fastest Components Feel Slow 相关能力或服务，适合作为本期商业工具动态参考。
+- [Building Automatic, Contextual Clinical Trial Audit Logging in Postgres Without Triggers](https://nodeweekly.com/link/185463/web)
+  - 来源: 2026-05-21, 2026-05-20; 来源: Node Weekly, Postgres Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: In Brief
+  - 合并来源: Node Weekly / [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625) / In Brief; Postgres Weekly / [Four features you'll actually feel in Postgres 19](https://postgresweekly.com/issues/649) / In Brief
+  - 摘要: 本条聚焦 Building Automatic, Contextual Clinical Trial Audit Logging in Postgres Without Triggers，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [TypeORM 1.0: The DataMapper and ActiveRecord ORM](https://nodeweekly.com/link/185468/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: In Brief
+  - 作者/机构: TypeORM Team
+  - 摘要: TypeORM 1.0: The DataMapper and ActiveRecord ORM 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [Kanel 4.0: Generate TypeScript Types from Postgres](https://nodeweekly.com/link/185469/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: In Brief
+  - 作者/机构: Kristian Dupont
+  - 摘要: 本条聚焦 Kanel 4.0: Generate TypeScript Types from Postgres，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [Joist 2.2](https://nodeweekly.com/link/185477/web)
+  - 来源: 2026-05-21; 来源: Node Weekly; Issue: [Should we rewrite Node.js in Rust?](https://nodeweekly.com/issues/625); 栏目: In Brief
+  - 摘要: 本条聚焦 Joist 2.2，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [an official update on the pgBackRest project](https://pgbackrest.org/news.html)
+  - 来源: 2026-05-20; 来源: Postgres Weekly sponsor; Issue: [Four features you'll actually feel in Postgres 19](https://postgresweekly.com/issues/649); 栏目: In Brief
+  - 摘要: 赞助内容，介绍 an official update on the pgBackRest project 相关能力或服务，适合作为本期商业工具动态参考。
+- [Postgres Summit US](https://2026.postgressummit.us/registration/)
+  - 来源: 2026-05-20; 来源: Postgres Weekly; Issue: [Four features you'll actually feel in Postgres 19](https://postgresweekly.com/issues/649); 栏目: In Brief
+  - 摘要: 本条聚焦 Postgres Summit US，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [Heroku Postgres Advanced](https://devcenter.heroku.com/articles/heroku-postgres-advanced)
+  - 来源: 2026-05-20; 来源: Postgres Weekly; Issue: [Four features you'll actually feel in Postgres 19](https://postgresweekly.com/issues/649); 栏目: In Brief
+  - 摘要: 本条聚焦 Heroku Postgres Advanced，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [Four Features You'll Actually Feel in Postgres 19 Beta](https://thebuild.com/blog/2026/05/18/postgresql-19-beta-the-four-features-youll-actually-feel/)
+  - 来源: 2026-05-20; 来源: Postgres Weekly; Issue: [Four features you'll actually feel in Postgres 19](https://postgresweekly.com/issues/649); 栏目: In Brief
+  - 作者/机构: Christophe Pettus
+  - 摘要: Four Features You'll Actually Feel in Postgres 19 Beta 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [The ORDER BY Jungle: Why ORDER BY Aliases Behave Strangely](https://boringsql.com/posts/order-by-jungle/)
+  - 来源: 2026-05-20; 来源: Postgres Weekly; Issue: [Four features you'll actually feel in Postgres 19](https://postgresweekly.com/issues/649); 栏目: In Brief
+  - 作者/机构: Radim Marek
+  - 摘要: 本条聚焦 The ORDER BY Jungle: Why ORDER BY Aliases Behave Strangely，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [How We Saved 40GB of Space Wasted on Indexes](https://peerlist.io/raviojhax/articles/how-unused-indexes-ate-41gb-postgres)
+  - 来源: 2026-05-20; 来源: Postgres Weekly; Issue: [Four features you'll actually feel in Postgres 19](https://postgresweekly.com/issues/649); 栏目: In Brief
+  - 摘要: 这是一篇围绕 How We Saved 40GB of Space Wasted on Indexes 的实践指南或技术解读，可帮助理解相关方案的背景和落地方式。
+- [plpgsql_wrap 1.0: A Way to Obfuscate PL/pgSQL Code](https://www.postgresql.org/about/news/plpgsql_wrap-v10-released-3299/)
+  - 来源: 2026-05-20; 来源: Postgres Weekly; Issue: [Four features you'll actually feel in Postgres 19](https://postgresweekly.com/issues/649); 栏目: In Brief
+  - 作者/机构: Gilles Darold (HexaCluster)
+  - 摘要: plpgsql_wrap 1.0: A Way to Obfuscate PL/pgSQL Code 是本期值得关注的版本或发布动态，重点在新增能力、兼容性或迁移影响。
+- [pgsqlite: A Postgres Protocol Adapter for SQLite Databases](https://github.com/erans/pgsqlite)
+  - 来源: 2026-05-20; 来源: Postgres Weekly; Issue: [Four features you'll actually feel in Postgres 19](https://postgresweekly.com/issues/649); 栏目: In Brief
+  - 作者/机构: Eran Sandler
+  - 摘要: 介绍 pgsqlite: A Postgres Protocol Adapter for SQLite Databases 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [Postgres Language Server 0.25](https://github.com/supabase-community/postgres-language-server)
+  - 来源: 2026-05-20; 来源: Postgres Weekly; Issue: [Four features you'll actually feel in Postgres 19](https://postgresweekly.com/issues/649); 栏目: In Brief
+  - 摘要: 介绍 Postgres Language Server 0.25 这一工具、库或框架，可作为选型、试用或后续深入阅读的入口。
+- [SQLsmith 1.5](https://github.com/anse1/sqlsmith)
+  - 来源: 2026-05-20; 来源: Postgres Weekly; Issue: [Four features you'll actually feel in Postgres 19](https://postgresweekly.com/issues/649); 栏目: In Brief
+  - 摘要: 本条聚焦 SQLsmith 1.5，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [Open source](https://github.com/pgEdge/ai-dba-workbench)
+  - 来源: 2026-05-20; 来源: Postgres Weekly; Issue: [Four features you'll actually feel in Postgres 19](https://postgresweekly.com/issues/649); 栏目: Classifieds
+  - 摘要: 本条聚焦 Open source，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [Try out ParadeDB](https://paradedb.com)
+  - 来源: 2026-05-20; 来源: Postgres Weekly; Issue: [Four features you'll actually feel in Postgres 19](https://postgresweekly.com/issues/649); 栏目: Classifieds
+  - 摘要: 本条聚焦 Try out ParadeDB，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+- [Start building with Aiven’s dev tier for Apache Kafka](https://fandf.co/4uT91wS)
+  - 来源: 2026-05-20; 来源: Postgres Weekly; Issue: [Four features you'll actually feel in Postgres 19](https://postgresweekly.com/issues/649); 栏目: Classifieds
+  - 摘要: 本条聚焦 Start building with Aiven’s dev tier for Apache Kafka，是本期相关生态中的文章、工具或动态，适合按链接继续阅读。
+
+### GitHub Trending 仓库与项目
+
+- [colbymchenry/codegraph](https://github.com/colbymchenry/codegraph)
+  - 仓库信息: 语言: TypeScript; Stars: 23,386; Forks: 1,281; 本周新增 Stars: 18,136
+  - 项目描述: Pre-indexed code knowledge graph for Claude Code, Codex, Cursor, OpenCode, and Hermes Agent — fewer tokens, fewer tool calls, 100% local
+  - 摘要: 为 Claude Code、Codex、Cursor、OpenCode 等编码 agent 提供本地代码知识图谱，预先索引符号、调用关系和结构信息，以减少 token 与工具调用。
+- [tinyhumansai/openhuman](https://github.com/tinyhumansai/openhuman)
+  - 仓库信息: 语言: Rust; Stars: 27,429; Forks: 2,540; 本周新增 Stars: 15,194
+  - 项目描述: Your Personal AI super intelligence. Private, Simple and extremely powerful.
+  - 摘要: 个人 AI 助手桌面应用，强调本地记忆、Markdown vault、简洁 UI 和可选自带模型/搜索/集成凭据。
+- [Imbad0202/academic-research-skills](https://github.com/Imbad0202/academic-research-skills)
+  - 仓库信息: 语言: Python; Stars: 20,953; Forks: 1,782; 本周新增 Stars: 11,401
+  - 项目描述: Academic Research Skills for Claude Code: research → write → review → revise → finalize
+  - 摘要: 面向 Claude Code 的学术研究技能集，覆盖选题、检索、写作、引用、质量检查和修订，强调人类主导研究判断。
+- [rohitg00/ai-engineering-from-scratch](https://github.com/rohitg00/ai-engineering-from-scratch)
+  - 仓库信息: 语言: Python; Stars: 17,133; Forks: 2,969; 本周新增 Stars: 6,944
+  - 项目描述: Learn it. Build it. Ship it for others.
+  - 摘要: 系统化 AI 工程课程，从数学、模型、tokenizer、attention 到 agent 和生产系统，要求每课产出可复用 artifact。
+- [ruvnet/RuView](https://github.com/ruvnet/RuView)
+  - 仓库信息: 语言: Rust; Stars: 65,574; Forks: 8,667; 本周新增 Stars: 6,461
+  - 项目描述: π RuView turns commodity WiFi signals into real-time spatial intelligence, vital sign monitoring, and presence detection — all without a single pixel of video.
+  - 摘要: 用 WiFi 信号做空间感知、存在检测和生命体征监测，面向 Home Assistant、Matter 等智能家居集成。
+- [rohitg00/agentmemory](https://github.com/rohitg00/agentmemory)
+  - 仓库信息: 语言: TypeScript; Stars: 17,558; Forks: 1,435; 本周新增 Stars: 6,391
+  - 项目描述: #1 Persistent memory for AI coding agents based on real-world benchmarks
+  - 摘要: 为多种编码 agent 提供持久记忆服务，支持 hooks、MCP、REST、知识图谱、置信度和混合搜索。
+- [Lum1104/Understand-Anything](https://github.com/Lum1104/Understand-Anything)
+  - 仓库信息: 语言: TypeScript; Stars: 27,993; Forks: 2,366; 本周新增 Stars: 9,102
+  - 项目描述: Graphs that teach > graphs that impress. Turn any code into an interactive knowledge graph you can explore, search, and ask questions about. Works with Claude Code, Codex, Cursor, Copilot, Gemini CLI, and more.
+  - 摘要: 把代码库、知识库或文档转换成可搜索、可问答的交互式知识图谱，帮助理解大型代码结构和业务逻辑。
+- [CloakHQ/CloakBrowser](https://github.com/CloakHQ/CloakBrowser)
+  - 仓库信息: 语言: Python; Stars: 20,596; Forks: 1,629; 本周新增 Stars: 6,892
+  - 项目描述: Stealth Chromium that passes every bot detection test. Drop-in Playwright replacement with source-level fingerprint patches. 30/30 tests passed.
+  - 摘要: 源码级修改 Chromium 指纹，作为 Playwright/Puppeteer 替代运行，目标是通过常见反自动化检测。
+- [supertone-inc/supertonic](https://github.com/supertone-inc/supertonic)
+  - 仓库信息: 语言: Swift; Stars: 10,289; Forks: 1,054; 本周新增 Stars: 2,726
+  - 项目描述: Lightning-Fast, On-Device, Multilingual TTS — running natively via ONNX.
+  - 摘要: 基于 ONNX Runtime 的本地多语言 TTS，强调低延迟、开放权重、边缘设备可运行和高质量音频输出。
+- [can1357/oh-my-pi](https://github.com/can1357/oh-my-pi)
+  - 仓库信息: 语言: TypeScript; Stars: 7,145; Forks: 575; 本周新增 Stars: 2,361
+  - 项目描述: ⌥ AI Coding agent for the terminal — hash-anchored edits, optimized tool harness, LSP, Python, browser, subagents, and more
+  - 摘要: 增强版终端编码 agent，把 LSP、DAP、持久 Python/Bun 执行、优化编辑格式和工具 harness 集成在一起。
+- [datawhalechina/easy-vibe](https://github.com/datawhalechina/easy-vibe)
+  - 仓库信息: 语言: JavaScript; Stars: 14,591; Forks: 1,389; 本周新增 Stars: 2,406
+  - 项目描述: 💻 vibe coding 2026 | Your first modern Coding course for beginners to master step by step.
+  - 摘要: 面向初学者的 vibe coding 教程，用多语言、交互式教程和可视化演示帮助用户用 AI 从零构建应用。
+- [obra/superpowers](https://github.com/obra/superpowers)
+  - 仓库信息: 语言: Shell; Stars: 205,455; Forks: 18,309; 本周新增 Stars: 10,171
+  - 项目描述: An agentic skills framework & software development methodology that works.
+  - 摘要: 面向编码 agent 的技能框架和软件开发方法论，强调先澄清目标、确认设计、拆解计划，再执行实现。
+- [K-Dense-AI/scientific-agent-skills](https://github.com/K-Dense-AI/scientific-agent-skills)
+  - 仓库信息: 语言: Python; Stars: 25,730; Forks: 2,687; 本周新增 Stars: 2,001
+  - 项目描述: A set of ready to use Agent Skills for research, science, engineering, analysis, finance and writing.
+  - 摘要: 科学研究 agent 技能集合，覆盖生物、化学、医学、地理空间、时间序列和科研写作等流程。
+- [stablyai/orca](https://github.com/stablyai/orca)
+  - 仓库信息: 语言: TypeScript; Stars: 3,301; Forks: 221; 本周新增 Stars: 554
+  - 项目描述: Orca is the next-gen IDE for working with a fleet of parallel agents. Run any coding agent with your own subscription. Available on desktop and mobile.
+  - 摘要: 用于并行运行多个 CLI 编码 agent 的 IDE，每个任务独立 worktree，并集成终端、源码控制和通知。
+- [HKUDS/CLI-Anything](https://github.com/HKUDS/CLI-Anything)
+  - 仓库信息: 语言: Python; Stars: 40,186; Forks: 3,793; 本周新增 Stars: 4,759
+  - 项目描述: "CLI-Anything: Making ALL Software Agent-Native" -- CLI-Hub: https://clianything.cc/
+  - 摘要: 把软件能力封装为 agent 可操作的 CLI，并通过 CLI-Hub 管理社区工具，让 agent 能产出真实软件制品。
+- [yikart/AiToEarn](https://github.com/yikart/AiToEarn)
+  - 仓库信息: 语言: TypeScript; Stars: 16,390; Forks: 2,645; 本周新增 Stars: 1,765
+  - 项目描述: Let's use AI to Earn!
+  - 摘要: 面向一人公司、创作者和品牌的 AI 内容营销 agent，覆盖内容生成、发布、互动和变现。
+- [cursor/plugins](https://github.com/cursor/plugins)
+  - 仓库信息: 语言: TypeScript; Stars: 763; Forks: 85; 本周新增 Stars: 303
+  - 项目描述: Cursor plugin specification and official plugins
+  - 摘要: Cursor 官方插件规范与插件集合，覆盖持续学习、团队流程、插件脚手架、agent 兼容性和文档/PR Canvas。
+
+## 抓取状态
+
+- JavaScript Weekly: 成功, 1 个 issue, 44 篇文章
+- Frontend Focus: 成功, 1 个 issue, 25 篇文章
+- Node Weekly: 成功, 1 个 issue, 27 篇文章
+- Golang Weekly: 成功, 1 个 issue, 23 篇文章
+- React Status: 成功, 1 个 issue, 26 篇文章
+- Postgres Weekly: 成功, 1 个 issue, 19 篇文章
+- GitHub Trending: 成功, 17 个仓库, 17 个 README
