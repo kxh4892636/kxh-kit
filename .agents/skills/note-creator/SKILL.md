@@ -51,6 +51,7 @@ description: |
 - bullet 结尾统一为分号 `;`（非句号、非无标点）;
 - 关键词/术语前置，描述紧跟其后;
 - API 签名统一为 TypeScript 风格：`Type.method(param: Type): ReturnType: 描述;`;
+- 每个 Markdown 文件必须以 YAML frontmatter 开头，并包含 `id: <uuid>` 标识；优化已有文件时保留原 `id`，新建文件或缺失时生成 UUID;
 - 代码块添加语言标记;
 - 图片使用相对路径：`![alt](images/filename.png)`;
 - 数学公式使用 LaTeX：行间 `$$...$$`，行内 `$...$`;
@@ -153,6 +154,8 @@ project/
 ```
 
 ## 文件结构
+
+每个 Markdown 文件必须使用以下 frontmatter 格式开头，`id` 为 UUID：
 
 ```markdown
 ---
@@ -280,6 +283,16 @@ type ReadonlyPerson = Readonly<Person>;
 - Number.isInteger(number: number): boolean 静态方法: 判断 number 是否为 int 类型;
 - String.length: number 属性: 返回字符串 code unit 数量;
 ```
+
+### MDX 兼容
+
+当目标笔记会被 Docusaurus/MDX 渲染（如 `apps/wiki/docs`）时，正文中的代码样文本必须显式标记为 inline code 或代码块，避免 MDX 将其解析为 JSX 标签或 JS 表达式。此规则不限于 TypeScript，适用于任何编程语言、标记语言、配置格式和命令输出：
+
+- 泛型、模板参数、类型签名、函数/API 签名用反引号包裹，如 `Promise<T>`、`Map<K, V>`、`IterableIterator<[K, V]>`;
+- 对象字面量、结构体字段、配置片段、占位符表达式用反引号包裹，如 `{ left?: number; top?: number }`、`{name}`、`${value}`;
+- HTML/XML/JSX/Vue/Svelte 等标签或组件名用反引号包裹，如 `<head>`、`<Response>`、`<template>`;
+- 数据格式、转换链路、比较关系、重定向/管道等文本中出现 `<...>`、`{...}`、`=>`、`<=>`、`>`、`|` 时，用反引号或代码块包裹;
+- 不使用 HTML 注释 `<!-- ... -->` 注释正文，改用 MDX 注释 `{/* ... */}` 或直接删除;
 
 ### 图片
 

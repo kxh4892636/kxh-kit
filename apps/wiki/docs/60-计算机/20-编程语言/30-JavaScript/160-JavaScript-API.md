@@ -40,14 +40,14 @@ window.addEventListener("message", (event) => {
 
 - Blob(blobParts?: BlobPart[], options?: BlobPropertyBag): Blob 构造函数: 创建二进制大对象;
   - blobParts: 二进制数据数组, 可为 ArrayBuffer, ArrayBufferView, Blob, String...
-  - options: 二进制数据选项, 可为 { type: MIME 类型 };
+  - options: 二进制数据选项, 可为 `{ type: MIME 类型 }`;
 - Blob.prototype.size: number 实例属性: Blob 的字节大小;
 - Blob.prototype.type: string 实例属性: Blob 的 MIME 类型;
-- Blob.prototype.arrayBuffer(): Promise<ArrayBuffer> 实例方法: 返回 ArrayBuffer 格式的 Blob 内容;
-- Blob.prototype.bytes(): AsyncIterable<number> 实例方法: 返回字节迭代器;
+- `Blob.prototype.arrayBuffer(): Promise<ArrayBuffer>` 实例方法: 返回 ArrayBuffer 格式的 Blob 内容;
+- `Blob.prototype.bytes(): AsyncIterable<number>` 实例方法: 返回字节迭代器;
 - Blob.prototype.slice(start?: number, end?: number, contentType?: string): Blob 实例方法: 返回 Blob 的子集;
 - Blob.prototype.stream(): ReadableStream 实例方法: 返回 ReadableStream;
-- Blob.prototype.text(): Promise<string> 实例方法: 返回字符串格式的 Blob 内容;
+- `Blob.prototype.text(): Promise<string>` 实例方法: 返回字符串格式的 Blob 内容;
 
 ```typescript
 const obj = { hello: "world" };
@@ -68,7 +68,7 @@ const slice = blob.slice(0, 3);
 - new File(fileBits, fileName, options): File 构造函数: 创建文件对象;
   - fileBits: 文件内容数组, 可为 ArrayBuffer, ArrayBufferView, Blob, String...
   - fileName: 文件名;
-  - options: 文件选项, 可为 { type: MIME 类型, lastModified: 最后修改时间 };
+  - options: 文件选项, 可为 `{ type: MIME 类型, lastModified: 最后修改时间 }`;
 
 ```typescript
 var file = new File(["foo"], "foo.txt", {
@@ -92,10 +92,10 @@ var file = new File(["foo"], "foo.txt", {
 - FileReader.prototype.readAsDataURL(blob: Blob): void 实例方法: 将 Blob 读取为 Data URL;
 - FileReader.prototype.readAsText(blob: Blob, encoding?: string): void 实例方法: 将 Blob 读取为文本;
 - FileReader.prototype.onabort: ((this: FileReader, ev: Event) => void) | null 实例属性: 中止读取时触发;
-- FileReader.prototype.onerror: ((this: FileReader, ev: ProgressEvent<FileReader>) => void) | null 实例属性: 读取错误时触发;
-- FileReader.prototype.onload: ((this: FileReader, ev: ProgressEvent<FileReader>) => void) | null 实例属性: 读取成功时触发;
-- FileReader.prototype.onloadstart: ((this: FileReader, ev: ProgressEvent<FileReader>) => void) | null 实例属性: 开始读取时触发;
-- FileReader.prototype.onprogress: ((this: FileReader, ev: ProgressEvent<FileReader>) => void) | null 实例属性: 读取过程中触发 (每 50ms);
+- `FileReader.prototype.onerror: ((this: FileReader, ev: ProgressEvent<FileReader>) => void) | null` 实例属性: 读取错误时触发;
+- `FileReader.prototype.onload: ((this: FileReader, ev: ProgressEvent<FileReader>) => void) | null` 实例属性: 读取成功时触发;
+- `FileReader.prototype.onloadstart: ((this: FileReader, ev: ProgressEvent<FileReader>) => void) | null` 实例属性: 开始读取时触发;
+- `FileReader.prototype.onprogress: ((this: FileReader, ev: ProgressEvent<FileReader>) => void) | null` 实例属性: 读取过程中触发 (每 50ms);
 
 ```typescript
 const reader = new FileReader();
@@ -141,7 +141,7 @@ window.URL.revokeObjectURL(url);
 ### Data Url
 
 - 数据 URL 是一种特殊的 URL, 使用 Base64 编码表示数据;
-- 格式: data:[<mediatype>][;base64],<data>;
+- 格式: `data:[<mediatype>][;base64],<data>`;
 
 ##### Data Url API
 
@@ -238,7 +238,7 @@ n.onclose = () => console.log("Notification was closed!");
 - 只能在安全上下文触发;
 - 每个源必须得到用户允许;
 - 权限请求每个域只能触发一次;
-- Notification.requestPermission(): Promise<"granted" | "denied" | "default"> 实例方法: 返回当前源的通知权限;
+- `Notification.requestPermission(): Promise<"granted" | "denied" | "default">` 实例方法: 返回当前源的通知权限;
 
 ```typescript
 Notification.requestPermission().then((permission) => {
@@ -293,7 +293,7 @@ document.addEventListener("visibilitychange", () => {
 
 ### 随机数 API
 
-- Crypto.prototype.getRandomValues<T extends Uint8Array | Uint16Array | Uint32Array | Int8Array | Int16Array | Int32Array | Float32Array | Float64Array>(array: T): T 实例方法: 生成指定类型数组对应位数的随机数;
+- `Crypto.prototype.getRandomValues<T extends Uint8Array | Uint16Array | Uint32Array | Int8Array | Int16Array | Int32Array | Float32Array | Float64Array>(array: T): T` 实例方法: 生成指定类型数组对应位数的随机数;
 - Crypto.prototype.randomUUID(): string 实例方法: 生成 UUID;
 
 ```typescript
@@ -311,9 +311,9 @@ let uuid = crypto.randomUUID();
 
 ### 二进制数据的相互转换
 
-- Data URL <=> [atob/btoa] <=> base64 <=> Binary String <=> [自己拼] <=> TypeArray <=> ArrayBuffer <=> [TextDecoder/Encoder] <=> Text;
-- ArrayBuffer/Text <=> Blob => File => [FileReader] => Data URL/ArrayBuffer/Text;
-- TypeArray <=> ArrayBuffer <=> Blob/File => Object URL;
+- `Data URL <=> [atob/btoa] <=> base64 <=> Binary String <=> [自己拼] <=> TypeArray <=> ArrayBuffer <=> [TextDecoder/Encoder] <=> Text`;
+- `ArrayBuffer/Text <=> Blob => File => [FileReader] => Data URL/ArrayBuffer/Text`;
+- `TypeArray <=> ArrayBuffer <=> Blob/File => Object URL`;
 
 ### 大文件上传
 
