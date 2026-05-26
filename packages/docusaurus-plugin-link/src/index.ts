@@ -28,7 +28,9 @@ interface RouteConfig {
   component: string;
   exact?: boolean;
   priority?: number;
-  target?: string;
+  props?: {
+    target: string;
+  };
   metadata?: {
     sourceFilePath?: string;
   };
@@ -102,7 +104,9 @@ const pluginLink = async (
           path: route.path,
           component: `${pluginName}/redirect`,
           exact: true,
-          target: route.targetPermalink,
+          props: {
+            target: route.targetPermalink,
+          },
           priority: 100,
           metadata: {
             sourceFilePath: route.sourceFilePath,
