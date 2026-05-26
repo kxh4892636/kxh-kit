@@ -1,3 +1,7 @@
+---
+id: 3f8bdbcd-553c-4f9e-b566-1cfd796c8ba9
+---
+
 # shadcn
 
 ## 基础

@@ -1,3 +1,7 @@
+---
+id: 045c0c25-8e5d-42db-b3ac-42e1143aa8d4
+---
+
 # obsidian
 
 ## 同步

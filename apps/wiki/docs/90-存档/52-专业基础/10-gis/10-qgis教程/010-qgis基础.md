@@ -1,3 +1,7 @@
+---
+id: 7defc2bd-a175-4dbd-874c-9dfa89036613
+---
+
 # qgis 应用基础
 
 ## qgis 概述

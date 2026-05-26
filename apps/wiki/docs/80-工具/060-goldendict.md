@@ -1,3 +1,7 @@
+---
+id: 477a320b-5528-4ec1-a2c3-294d1a1f3ce6
+---
+
 # GoldenDict++OCR
 
 ## 下载

@@ -1,3 +1,7 @@
+---
+id: 6e3f9aa8-91a5-470a-bb6f-ab64e3b42f04
+---
+
 # opencv 基础
 
 ## opencv 入门

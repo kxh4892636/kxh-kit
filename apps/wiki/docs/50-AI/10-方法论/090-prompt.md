@@ -1,3 +1,7 @@
+---
+id: f9d1a0f6-242a-4d05-a127-82753da23a31
+---
+
 # prompt
 
 ## prompt 格式
