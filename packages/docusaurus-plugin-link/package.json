@@ -1,0 +1,44 @@
+{
+  "name": "@kxh-awesome/docusaurus-plugin-link",
+  "version": "0.0.0",
+  "description": "Docusaurus short-link routes for docs front matter ids.",
+  "license": "MIT",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.mjs",
+    "./redirect": "./dist/redirect.mjs",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vp pack",
+    "dev": "vp pack --watch",
+    "test": "vp test",
+    "check": "vp check",
+    "prepare": "vp pack",
+    "prepublishOnly": "vp run build"
+  },
+  "dependencies": {
+    "@docusaurus/utils": "3.10.1",
+    "@docusaurus/utils-common": "3.10.1",
+    "@docusaurus/utils-validation": "3.10.1"
+  },
+  "devDependencies": {
+    "@docusaurus/core": "3.10.1",
+    "@docusaurus/module-type-aliases": "3.10.1",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "peerDependencies": {
+    "@docusaurus/core": "^3.10.1",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  }
+}

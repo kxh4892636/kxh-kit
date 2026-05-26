@@ -51,6 +51,18 @@ const config: Config = {
     ],
   ],
 
+  plugins: [
+    [
+      "@kxh-awesome/docusaurus-plugin-link",
+      {
+        docsPath: "docs",
+        routeBasePath: "docs",
+        shortRouteBasePath: "/",
+        failOnDuplicateId: true,
+      },
+    ],
+  ],
+
   themes: [
     [
       "@easyops-cn/docusaurus-search-local",

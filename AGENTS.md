@@ -18,8 +18,8 @@ Docs are local at `node_modules/vite-plus/docs` or online at https://viteplus.de
 
 ## Review Checklist
 
-- [ ] For engineering tasks, run `vp install` after pulling remote changes and before getting started.
-- [ ] For code or engineering changes, use `git status --short` to identify changed files, then run path-scoped `vp check --fix <changed-paths>` / `vp check <changed-paths>` and the smallest relevant `vp test <changed-test-paths-or-pattern>`. Do not run whole-repo `vp check` / `vp test` unless explicitly requested or required by a shared behavior change.
-- [ ] For engineering tasks, check whether `vite.config.ts` tasks or `package.json` scripts are necessary for validation, then run them via `vp run <script>`.
+- [ ] Run `vp install` after pulling remote changes and before getting started.
+- [ ] Run `vp check` and `vp test` to format, lint, type check and test changes.
+- [ ] Check if there are `vite.config.ts` tasks or `package.json` scripts necessary for validation, run via `vp run <script>`.
 
 <!--VITE PLUS END-->

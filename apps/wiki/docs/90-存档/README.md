@@ -7,7 +7,6 @@
 - [025-webpack](./025-webpack.md)
 - [030-esbuild教程](./030-esbuild教程.md)
 - [030-shadcn](./030-shadcn.md)
-- [10-node教程](./10-node教程/README.md)
 - [11-next教程](./11-next教程/README.md)
 - [20-c](./20-c/README.md)
 - [20-web服务器](./20-web服务器/README.md)
