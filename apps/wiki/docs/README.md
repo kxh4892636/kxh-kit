@@ -1,5 +1,7 @@
-# 10-wiki
+# docs
 
+- [perf](./perf.md)
+- [.obsidian](./.obsidian/README.md)
 - [20-SOP](./20-SOP/README.md)
 - [30-生活](./30-生活/README.md)
 - [40-学习](./40-学习/README.md)
