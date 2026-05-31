@@ -1,6 +1,6 @@
 ---
 name: code-spec
-description: 全栈代码规范与专项开发指南。执行 html/css/js/ts/react/vue 前端开发、React 组件、接口请求、Vite+/vp、shadcn/ui、第三方依赖、Hono API/中间件/部署、Drizzle ORM/Drizzle Kit/schema/migration/query 等代码任务时触发；当前通用规范以前端为主，后端规范通过 Hono 和 Drizzle ORM 子 skill 承载。关键词：代码规范、前端、后端、React、Vue、TypeScript、接口请求、Vite+、vp、shadcn、Hono、Drizzle、ORM、migration。
+description: 全栈代码规范与专项开发指南。执行 html/css/js/ts/react/vue 前端开发、React 组件、接口请求、Vite+/vp、shadcn/ui、Ant Design/antd、第三方依赖、Hono API/中间件/部署、Drizzle ORM/Drizzle Kit/schema/migration/query 等代码任务时触发；当前通用规范以前端为主，后端规范通过 Hono 和 Drizzle ORM 子 skill 承载。关键词：代码规范、前端、后端、React、Vue、TypeScript、接口请求、Vite+、vp、shadcn、Ant Design、antd、Hono、Drizzle、ORM、migration。
 ---
 
 # code-spec
@@ -9,21 +9,22 @@ description: 全栈代码规范与专项开发指南。执行 html/css/js/ts/rea
 
 先判断“什么算完成”，再选择需要读取的规范层级：
 
-1. 所有代码开发任务先读本文件，确认本次任务属于前端通用规范、后端专项规范还是工具链规范。
+1. 所有代码开发任务先读本文件，确认本次任务属于前端通用规范、组件体系专项规范、后端专项规范还是工具链规范。
 2. 前端开发任务使用本文的项目结构、命名、组件、请求和检查规范；当前通用规范以前端 TypeScript 项目为主。
 3. 任务涉及 Vite+/vp 时，先看本文的 Vite+ 工具链规范；只有具体命令、配置或故障细节不确定时，再读 `vite-plus/` 子目录中的对应参考。
 4. 任务涉及 shadcn/ui 时，先看本文的 shadcn/ui 快速规则；只有具体组件 API、CLI 行为或样式规则不确定时，再读 `shadcn/` 子目录中的对应参考。
-5. 任务涉及 Hono API、路由、中间件、适配器、RPC、测试或部署时，读取 `hono/SKILL.md`，再按需读取 `hono/references/source-map.md` 和具体官方 docs 快照。
-6. 任务涉及 Drizzle ORM、Drizzle Kit、schema、relations、query、migration、seed 或数据库连接时，读取 `drizzle-orm/SKILL.md`，再按需读取 `drizzle-orm/references/doc-map.md` 和具体官方 docs 快照。
-7. 只有任务涉及 React 组件、Hook、状态、数据请求、bundle、首屏渲染、交互性能或代码评审时，读取 `references/react/README.md`，再按需读取单条 React 规则。
-8. 外部官方文档只在 API 不确定、版本差异可能影响实现、或用户明确要求查证时读取；内部依赖优先搜索项目内现有用法。
+5. 任务涉及 Ant Design/antd 组件、主题、Form/Table、语义化 DOM、`classNames` 或 `styles` 时，读取 `antd/SKILL.md`，再按需读取 `antd/references/component-map.md`、`antd/references/semantic-map.md` 和对应拆分文档。
+6. 任务涉及 Hono API、路由、中间件、适配器、RPC、测试或部署时，读取 `hono/SKILL.md`，再按需读取 `hono/references/source-map.md` 和具体官方 docs 快照。
+7. 任务涉及 Drizzle ORM、Drizzle Kit、schema、relations、query、migration、seed 或数据库连接时，读取 `drizzle-orm/SKILL.md`，再按需读取 `drizzle-orm/references/doc-map.md` 和具体官方 docs 快照。
+8. 只有任务涉及 React 组件、Hook、状态、数据请求、bundle、首屏渲染、交互性能或代码评审时，读取 `references/react/README.md`，再按需读取单条 React 规则。
+9. 外部官方文档只在 API 不确定、版本差异可能影响实现、或用户明确要求查证时读取；内部依赖优先搜索项目内现有用法。
 
 ## 规范分层
 
 - 本文件承载通用代码规范入口和前端规范主体；后续新增通用后端规范时直接补充在本 skill 中。
 - `hono/` 是 Hono 后端专项子 skill，保留官方 docs 快照和路由索引。
 - `drizzle-orm/` 是 Drizzle ORM / Drizzle Kit 后端专项子 skill，保留官方 docs 快照、路由索引和刷新脚本。
-- `vite-plus/` 和 `shadcn/` 是工具链与组件体系子 skill，父文件只保留常用规则。
+- `vite-plus/` 是工具链子 skill；`shadcn/` 和 `antd/` 是组件体系子 skill，父文件只保留常用规则和路由入口。
 
 以下项目结构提供前后端 TypeScript 项目的默认组织方式；命名、代码、React、HTTP 请求和检查规范仍以前端 TypeScript 项目为主，后端专项规则按需读取 Hono / Drizzle 子 skill。
 
@@ -159,6 +160,7 @@ export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps)
 - 添加、更新、修复或组合 shadcn/ui 组件时，先看本节快速规则；执行命令前查看项目现有 UI 组件目录和工具函数目录，避免重复添加或导入不存在的组件;
 - Vite+ 项目优先使用 `vp dlx -- shadcn@latest ... --cwd <project-path>`；非 Vite+ 项目按 `packageManager` 选择 `npx shadcn@latest`、`pnpm dlx shadcn@latest` 或 `bunx --bun shadcn@latest`;
 - shadcn/ui 生成的 `components/ui` 源码保持官方组件结构；业务组件和页面代码继续遵守本 skill 的命名、拆分、props 和请求规范;
+- 已经统一使用 Ant Design 的既有项目继续使用 `antd`；涉及组件 API、主题 token、Form/Table 复杂行为、`classNames`/`styles` 或语义化 DOM 时读取 `antd/SKILL.md` 和本地中文官方文档快照;
 - 已经统一使用内部 PC 组件库的既有项目可继续使用 `@ecom/auxo`，但不要在同一应用中再引入另一套 PC 组件库;
 - H5 应用使用 `@ecom/auxo-mobile` 或者 `@arco-design/mobile-react`;
 - 高级组件：`@ecom/auxo-pro-table`、`@ecom/auxo-pro-form`;
@@ -309,6 +311,7 @@ export const usePosts = (random = true) => {
 | TypeScript | https://www.typescriptlang.org/docs/ |
 | Tailwind CSS | https://tailwindcss.com/docs |
 | shadcn/ui | 先看本文的 shadcn/ui 快速规则，再查 https://ui.shadcn.com/docs |
+| Ant Design / antd | 先看 `antd/SKILL.md` 和本地中文官方文档快照，再查 https://ant.design/components/overview-cn/ |
 | Zustand | https://zustand.docs.pmnd.rs/ |
 | @tanstack/react-query | https://tanstack.com/query/latest/docs |
 | @tanstack/react-router | https://tanstack.com/router/latest/docs |
