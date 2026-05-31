@@ -184,6 +184,7 @@ vp run --cache build
 ```
 
 If inputs haven't changed, cached output is replayed instantly.
+By default this is terminal output only. Configure task `output` globs in `vite.config.ts` when produced files such as `dist/**` should be archived and restored on cache hits.
 
 ### Task Definitions (in vite.config.ts)
 
@@ -197,6 +198,7 @@ export default defineConfig({
         command: 'vp build',
         dependsOn: ['lint'],
         env: ['NODE_ENV'],
+        output: ['dist/**'],
       },
       deploy: {
         command: 'deploy-script --prod',
@@ -528,7 +530,7 @@ This replaces `lint-staged`. `vp create` and `vp migrate` prompt to set this up 
 2. Environment variables changed? (from `env` list)
 3. Input files changed?
 
-If all match, cached output replays instantly. Only terminal output is cached (not output files like `dist/`).
+If all match, cached output replays instantly. By default only terminal output is cached; task `output` globs archive produced files after a successful run and restore them on a cache hit.
 
 ### Cache Enabling
 

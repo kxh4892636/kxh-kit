@@ -68,6 +68,7 @@ Running `vp` alone opens an interactive command line.
 ## Creating a Project (`vp create`)
 
 `vp create` interactively scaffolds new projects, monorepos, and apps.
+It can also add a new app or library inside an existing workspace.
 
 ### Usage
 
@@ -96,6 +97,7 @@ vp create <template> -- <template-options>
 - `--directory <dir>` — target directory
 - `--agent <name>` — create agent instructions files
 - `--editor <name>` — write editor config files
+- `--git` / `--no-git` — initialize or skip git setup
 - `--hooks` / `--no-hooks` — pre-commit hook setup
 - `--no-interactive` — run without prompts
 - `--verbose` — detailed scaffolding output
@@ -124,6 +126,78 @@ vp create create-vite        # Full package name
 vp create create-next-app
 vp create github:user/repo   # Remote template
 ```
+
+### Organization Templates
+
+An organization can publish a curated template picker under a single npm scope by shipping an `@org/create` package with `createConfig.templates` in its `package.json`. Then:
+
+```bash
+vp create @your-org           # Opens the org picker
+vp create @your-org:web       # Runs a specific manifest entry
+vp create @your-org@1.2.3     # Pins the create package version
+vp create @your-org:web@next  # Pins a direct entry to a dist-tag
+```
+
+`vp create @org` maps to `@org/create`, following the existing npm `create-*` convention. If the package has no `createConfig.templates` field, Vite+ falls back to running the package normally. Private registries work through normal `.npmrc` scope mappings and auth tokens.
+
+There are two common package layouts:
+
+- **Bundled:** `@org/create` contains templates as subdirectories, and manifest entries use relative `./templates/web` paths.
+- **Manifest-only:** `@org/create` is a thin index pointing at independent packages such as `@org/template-web` or GitHub templates.
+
+Manifest entries live at `createConfig.templates`:
+
+```json
+{
+  "name": "@your-org/create",
+  "version": "1.0.0",
+  "createConfig": {
+    "templates": [
+      {
+        "name": "monorepo",
+        "description": "Monorepo",
+        "template": "@your-org/template-monorepo",
+        "monorepo": true
+      },
+      {
+        "name": "web",
+        "description": "Web app template (Vite + React)",
+        "template": "@your-org/template-web"
+      },
+      {
+        "name": "demo",
+        "description": "Bundled demo template",
+        "template": "./templates/demo"
+      }
+    ]
+  }
+}
+```
+
+Entry fields:
+
+| Field | Required | Notes |
+| --- | --- | --- |
+| `name` | yes | Kebab-case identifier used by `vp create @org:<name>`; must be unique. |
+| `description` | yes | One-line picker description. |
+| `template` | yes | npm specifier, GitHub URL, `vite:*` built-in, local workspace package, or relative `./templates/foo` path. |
+| `monorepo` | no | Marks a monorepo-creating template and hides it when `vp create` runs inside an existing monorepo. |
+
+Invalid manifests fail loudly with the offending field. Relative `./...` template paths resolve against the `@org/create` package root, not the user's cwd, and paths escaping the package root are rejected. Underscore scaffold files such as `_gitignore`, `_npmrc`, and `_yarnrc.yml` are renamed to dotfiles.
+
+Set an org as the default for a repository:
+
+```ts
+import { defineConfig } from 'vite-plus';
+
+export default defineConfig({
+  create: { defaultTemplate: '@your-org' },
+});
+```
+
+With that config, bare `vp create` opens the org picker. The picker includes a trailing Vite+ built-in templates entry, so `vite:monorepo`, `vite:application`, `vite:library`, and `vite:generator` remain reachable. Explicit commands such as `vp create vite:library` bypass the configured default.
+
+For non-interactive inspection, `vp create @org --no-interactive` prints the manifest table and exits with an error if no template name was supplied; use `vp create @org:web --no-interactive` to scaffold a specific entry.
 
 ## Migrating to Vite+ (`vp migrate`)
 

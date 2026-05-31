@@ -79,6 +79,8 @@ export default defineConfig({
 - **`vite-plus/test`:** Import test utilities from `vite-plus/test` (not `vitest`)
 - **`vp env`:** Manages Node.js versions globally and per project via `.node-version`
 - **`typeAware` + `typeCheck`:** Enable in `lint.options` for type-aware linting via tsgolint
+- **`create.defaultTemplate`:** Sets the default `vp create` template or organization picker for a repository
+- **Monorepos:** Use a root `vite.config.ts` for shared Vite+ tool config, with `lint.overrides` / `fmt.overrides` for package-specific settings
 
 ## Reference Files
 
@@ -89,6 +91,7 @@ For detailed information, read the appropriate reference file:
 | [references/getting-started.md](references/getting-started.md) | Installation, project creation, why Vite+, migration |
 | [references/commands-reference.md](references/commands-reference.md) | All command documentation: dev, build, check, lint, fmt, test, run, pack, install, env, vpx, commit-hooks, upgrade, implode, cache |
 | [references/config-reference.md](references/config-reference.md) | Full config reference: lint, fmt, test, run, pack, staged, build blocks |
+| [references/monorepo.md](references/monorepo.md) | Root monorepo config, lint/format overrides, composed config, app command patterns |
 | [references/troubleshooting.md](references/troubleshooting.md) | Common issues, workarounds, asking for help |
 | [references/ide-integration.md](references/ide-integration.md) | VS Code and Zed setup |
 | [references/ci.md](references/ci.md) | GitHub Actions CI setup with setup-vp |

@@ -5,6 +5,7 @@ All Vite+ configuration lives in `vite.config.ts` using `defineConfig` from `vit
 ## Table of Contents
 
 - [Overview](#overview)
+- [Create Config](#create-config)
 - [Build Config](#build-config)
 - [Lint Config](#lint-config)
 - [Format Config](#format-config)
@@ -25,6 +26,7 @@ export default defineConfig({
   preview: {},
 
   // Vite+-specific config
+  create: {},
   test: {},
   lint: {},
   fmt: {},
@@ -35,6 +37,37 @@ export default defineConfig({
 ```
 
 **Prefer static `defineConfig({...})` exports.** Functional/async configs (`defineConfig((env) => ({...}))`) may not be readable by `vp lint`/`vp fmt`/Oxc editor integrations.
+
+## Create Config
+
+`vp create` reads the `create` block in `vite.config.ts` to set per-repository defaults.
+
+### `create.defaultTemplate`
+
+When `vp create` is invoked with no template argument, Vite+ uses `create.defaultTemplate` as if the user had typed it. This is commonly set to an npm scope whose `@scope/create` package publishes a `createConfig.templates` manifest.
+
+```ts
+import { defineConfig } from 'vite-plus';
+
+export default defineConfig({
+  create: {
+    defaultTemplate: '@your-org',
+  },
+});
+```
+
+Any value accepted by `vp create` as the first argument works here, including an org picker (`@your-org`), direct manifest entry (`@your-org:web`), or built-in template (`vite:application`).
+
+Precedence: CLI argument > `create.defaultTemplate` > standard built-in picker.
+
+Explicit specifiers always win, so scripts and CI can bypass the configured default:
+
+```bash
+vp create               # Uses create.defaultTemplate
+vp create vite:library  # Explicitly ignores the default
+```
+
+The org picker appends a trailing "Vite+ built-in templates" entry, so built-ins remain reachable interactively even when a default is configured.
 
 ## Build Config
 
@@ -170,15 +203,26 @@ export default defineConfig({
 
 ### `run.tasks`
 
-- **Type:** `Record<string, TaskConfig>`
+- **Type:** `Record<string, Task | string | string[]>`
 
 Defines tasks runnable with `vp run <task>`.
 
+A task value can be a command string or an array of command strings directly:
+
+```ts
+tasks: {
+  build: 'vp build',
+  check: ['vp lint', 'vp build'],
+}
+```
+
+This is equivalent to setting only `command` on a task config. Use the object form when a task needs `cache`, `dependsOn`, `env`, `input`, `output`, or `cwd`.
+
 #### `command`
 
-- **Type:** `string`
+- **Type:** `string | string[]`
 
-Shell command to run. Each task MUST include its own `command`. Task names cannot overlap between `vite.config.ts` and `package.json`.
+Shell command to run. Each task must include its own `command` when using the object form. Task names cannot overlap between `vite.config.ts` and `package.json`.
 
 ```ts
 tasks: {
@@ -187,6 +231,10 @@ tasks: {
   },
 }
 ```
+
+An array runs each entry as its own command sequentially, equivalent to joining with `&&`. It does not split argv tokens, so `['vp', 'build']` is wrong for `vp build`.
+
+Commands joined with `&&`, or supplied as an array, are automatically split into independently cached sub-tasks.
 
 #### `dependsOn`
 
@@ -311,6 +359,36 @@ tasks: {
   greet: {
     command: 'node greet.mjs',
     input: [],
+  },
+}
+```
+
+#### `output`
+
+- **Type:** `Array<string | { pattern: string, base: "workspace" | "package" }>`
+- **Default:** `[]`
+
+Files the task produces. Outputs are archived after a successful run and restored on a cache hit. Leave this empty or omit it when nothing should be archived.
+
+```ts
+tasks: {
+  build: {
+    command: 'vp build',
+    output: ['dist/**', '!dist/cache/**'],
+  },
+}
+```
+
+If a task writes outside its own package, use the object form with `base: "workspace"`:
+
+```ts
+tasks: {
+  build: {
+    command: 'vp build',
+    output: [
+      'dist/**',
+      { pattern: 'shared-artifacts/**', base: 'workspace' },
+    ],
   },
 }
 ```
