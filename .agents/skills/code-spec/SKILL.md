@@ -1,6 +1,6 @@
 ---
 name: code-spec
-description: 全栈代码规范与专项开发指南。执行 html/css/js/ts/react/vue 前端开发、React 组件、接口请求、Vite+/vp、shadcn/ui、Ant Design/antd、第三方依赖、Hono API/中间件/部署、Drizzle ORM/Drizzle Kit/schema/migration/query 等代码任务时触发；当前通用规范以前端为主，后端规范通过 Hono 和 Drizzle ORM 子 skill 承载。关键词：代码规范、前端、后端、React、Vue、TypeScript、接口请求、Vite+、vp、shadcn、Ant Design、antd、Hono、Drizzle、ORM、migration。
+description: 全栈代码规范与专项开发指南。执行 html/css/js/ts/react/vue 前端开发、React 组件、接口请求、Zod 校验、TanStack Query/react-query、Vite+/vp、shadcn/ui、Ant Design/antd、第三方依赖、Hono API/中间件/部署、Drizzle ORM/Drizzle Kit/schema/migration/query 等代码任务时触发；当前通用规范以前端为主，后端规范通过 Hono 和 Drizzle ORM 子 skill 承载。关键词：代码规范、前端、后端、React、Vue、TypeScript、接口请求、Zod、zod、TanStack Query、react-query、useQuery、useMutation、Vite+、vp、shadcn、Ant Design、antd、Hono、Drizzle、ORM、migration。
 ---
 
 # code-spec
@@ -16,14 +16,18 @@ description: 全栈代码规范与专项开发指南。执行 html/css/js/ts/rea
 5. 任务涉及 Ant Design/antd 组件、主题、Form/Table、语义化 DOM、`classNames` 或 `styles` 时，读取 `antd/SKILL.md`，再按需读取 `antd/references/component-map.md`、`antd/references/semantic-map.md` 和对应拆分文档。
 6. 任务涉及 Hono API、路由、中间件、适配器、RPC、测试或部署时，读取 `hono/SKILL.md`，再按需读取 `hono/references/source-map.md` 和具体官方 docs 快照。
 7. 任务涉及 Drizzle ORM、Drizzle Kit、schema、relations、query、migration、seed 或数据库连接时，读取 `drizzle-orm/SKILL.md`，再按需读取 `drizzle-orm/references/doc-map.md` 和具体官方 docs 快照。
-8. 只有任务涉及 React 组件、Hook、状态、数据请求、bundle、首屏渲染、交互性能或代码评审时，读取 `references/react/README.md`，再按需读取单条 React 规则。
-9. 外部官方文档只在 API 不确定、版本差异可能影响实现、或用户明确要求查证时读取；内部依赖优先搜索项目内现有用法。
+8. 任务涉及 Zod schema、运行时校验、parse/safeParse、错误格式化、JSON Schema、codec、transform 或 Zod 迁移时，读取 `zod/SKILL.md`，再按需读取 `zod/references/doc-map.md` 和具体官方 docs 快照。
+9. 任务涉及 TanStack Query / React Query、QueryClient、useQuery、useMutation、queryKey、invalidateQueries、SSR/hydration、Suspense、乐观更新或服务端状态缓存时，读取 `react-query/SKILL.md`，再按需读取 `react-query/references/doc-map.md` 和具体官方 docs 快照。
+10. 只有任务涉及 React 组件、Hook、状态、数据请求、bundle、首屏渲染、交互性能或代码评审时，读取 `references/react/README.md`，再按需读取单条 React 规则。
+11. 外部官方文档只在 API 不确定、版本差异可能影响实现、或用户明确要求查证时读取；内部依赖优先搜索项目内现有用法。
 
 ## 规范分层
 
 - 本文件承载通用代码规范入口和前端规范主体；后续新增通用后端规范时直接补充在本 skill 中。
 - `hono/` 是 Hono 后端专项子 skill，保留官方 docs 快照和路由索引。
 - `drizzle-orm/` 是 Drizzle ORM / Drizzle Kit 后端专项子 skill，保留官方 docs 快照、路由索引和刷新脚本。
+- `zod/` 是 Zod 数据校验专项子 skill，保留官方 docs 快照、路由索引和刷新脚本。
+- `react-query/` 是 TanStack Query React 服务端状态专项子 skill，保留官方 docs 快照、路由索引和刷新脚本。
 - `vite-plus/` 是工具链子 skill；`shadcn/` 和 `antd/` 是组件体系子 skill，父文件只保留常用规则和路由入口。
 
 以下项目结构提供前后端 TypeScript 项目的默认组织方式；命名、代码、React、HTTP 请求和检查规范仍以前端 TypeScript 项目为主，后端专项规则按需读取 Hono / Drizzle 子 skill。
@@ -194,6 +198,18 @@ export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps)
 - `references/react/` 只包含通用 React / Vite 前端规则，源规则中只适用于特定框架的内容已删除;
 - 实现时先遵守本文件已有的项目结构、命名、组件和请求规范，再使用 `references/react/rules/*.md` 中的详细规则补充性能、重渲染和渲染细节;
 
+## 数据校验与服务端状态专项规范
+
+当前 Zod 与 TanStack Query 规范通过子 skill 渐进披露，父文件只保留常用分流入口。
+
+| 任务 | 先读 | 继续按需读取 |
+|------|------|--------------|
+| Zod schema、运行时校验、parse/safeParse、ZodError、refine/superRefine、transform、codec、JSON Schema 或 Zod 迁移 | `zod/SKILL.md` | `zod/references/doc-map.md` 和 `zod/references/source-docs/` 中的相关文件 |
+| TanStack Query / React Query、QueryClient、useQuery、useMutation、useInfiniteQuery、queryKey、invalidateQueries、SSR/hydration、Suspense、乐观更新或持久化 | `react-query/SKILL.md` | `react-query/references/doc-map.md` 和 `react-query/references/source-docs/` 中的相关文件 |
+
+- Zod 任务先确认校验发生在请求、表单、环境变量、外部 API 响应还是持久化 JSON 边界，再决定 schema 与错误形态。
+- React Query 任务先确认现有 `QueryClient`、query key 约定、请求封装、错误处理和 SSR 框架，再新增 hook 或缓存策略。
+
 ## 后端专项规范
 
 当前后端规范通过子 skill 渐进披露，避免把完整官方文档和框架细节堆进父文件。
@@ -221,6 +237,8 @@ export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps)
 1. 使用 ConnectRPC 或者 BAM 或者 request(...)/fetch() 封装 HTTP 接口请求函数;
 2. 基于封装后的请求函数, 使用 `ahook` 或者 `react-query` 生成对应的 hook;
 3. 在组件中使用 hook 来调用接口;
+
+涉及 React Query 具体 API、query key、mutation/invalidation、SSR/hydration、Suspense 或缓存策略时，先读取 `react-query/SKILL.md`，不要只凭示例扩展复杂行为。
 
 ### hook 示例
 
@@ -313,7 +331,8 @@ export const usePosts = (random = true) => {
 | shadcn/ui | 先看本文的 shadcn/ui 快速规则，再查 https://ui.shadcn.com/docs |
 | Ant Design / antd | 先看 `antd/SKILL.md` 和本地中文官方文档快照，再查 https://ant.design/components/overview-cn/ |
 | Zustand | https://zustand.docs.pmnd.rs/ |
-| @tanstack/react-query | https://tanstack.com/query/latest/docs |
+| Zod | 先看 `zod/SKILL.md` 和本地 docs 快照，再查 https://zod.dev/ |
+| @tanstack/react-query | 先看 `react-query/SKILL.md` 和本地 React docs 快照，再查 https://tanstack.com/query/latest/docs |
 | @tanstack/react-router | https://tanstack.com/router/latest/docs |
 | dayjs | https://day.js.org/ |
 | es-toolkit | https://es-toolkit.slash.page/ |

@@ -1,0 +1,14 @@
+{
+  "source_url": "https://github.com/colinhacks/zod/tree/main/packages/docs/content",
+  "download_url": "https://codeload.github.com/colinhacks/zod/zip/refs/heads/main",
+  "branch": "main",
+  "source_subdirectory": "packages/docs/content",
+  "snapshot_date": "2026-05-31",
+  "commit_sha": "bbc68f990c7e6a5e3f506c56fb04bd0279b9c9b5",
+  "file_count": 19,
+  "byte_count": 262918,
+  "notes": [
+    "Snapshot was downloaded from GitHub codeload for the main branch.",
+    "The complete docs content directory is mirrored under references/source-docs."
+  ]
+}

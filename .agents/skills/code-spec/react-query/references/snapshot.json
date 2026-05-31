@@ -1,0 +1,14 @@
+{
+  "source_url": "https://github.com/TanStack/query/tree/main/docs/framework/react",
+  "download_url": "https://codeload.github.com/TanStack/query/zip/refs/heads/main",
+  "branch": "main",
+  "source_subdirectory": "docs/framework/react",
+  "snapshot_date": "2026-05-31",
+  "commit_sha": "7fa2781a1b10a185091a50fd4d0d8ca168f4177b",
+  "file_count": 71,
+  "byte_count": 418528,
+  "notes": [
+    "Snapshot was downloaded from GitHub codeload for the main branch.",
+    "The complete React framework docs directory is mirrored under references/source-docs."
+  ]
+}
