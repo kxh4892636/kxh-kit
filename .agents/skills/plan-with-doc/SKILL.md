@@ -1,6 +1,6 @@
 ---
 name: plan-with-doc
-description: Use this skill when the user asks to create, refine, validate, or document a plan, roadmap, implementation approach, technical proposal, decision process, or handoff-ready project plan, especially when the output should be a Markdown file under the repository root nano/ directory.
+description: 创建、校准或沉淀计划、路线图、技术方案和实施文档；需要在仓库 nano/ 输出 Markdown 时优先使用。触发：plan、roadmap、implementation plan、technical proposal、handoff、决策记录、项目计划、方案文档。
 ---
 
 # Plan With Doc

@@ -1,6 +1,6 @@
 ---
 name: kxh-awesome
-description: kxh-awesome 仓库任务分流与工程操作规范。在本仓库中处理代码、依赖、Node.js、workspace、构建、测试、格式化、RPC、生成代码、git hook 或提交相关操作时必须使用；处理笔记撰写、股票/基金分析、周报、调研报告、文档润色等非代码内容任务时，也可用它判定仓库边界，但不要默认读取 package.json、vite.config.ts、tsconfig.json 或运行 vp，除非任务实际触碰构建、代码、配置或用户明确要求。关键词：pnpm、node、依赖、workspace、monorepo、vp、vite-plus、kxh、install、build、dev、test、lint、fmt、check、connectrpc、proto、codegen、git hook、pre-commit、commit-msg、笔记、股票分析、周报
+description: kxh-awesome 仓库任务分流与工程操作规范。触发：本仓库内代码、依赖、Node、workspace、构建、测试、格式化、RPC/proto、codegen、git hook 或提交任务；非代码内容仅用于判定仓库边界，除非触碰工程配置或用户要求，不主动运行 Node/Vite+ 检查。关键词：pnpm、vp、vite-plus、monorepo、connectrpc、pre-commit、commit-msg。
 ---
 
 # kxh-awesome

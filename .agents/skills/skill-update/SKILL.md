@@ -1,6 +1,6 @@
 ---
 name: skill-update
-description: Track, register, and update skills, child skill folders, or embedded skill guidance that was downloaded, extracted, or generated from remote Git repositories or remote skill packages. Use when a user asks to update a remote skill, inspect a remote skill source, add or remove a remote skill registry entry, update remote-derived child folders inside another skill such as fe-code-spec, or immediately after creating any new skill to ask whether the new skill is backed by a remote source and should be added to this registry.
+description: 维护远程来源 skill 的登记与更新流程。触发：更新或检查远程 skill、查看远程来源、添加/删除远程登记项、同步子 skill 或嵌入式 guidance，或新建 skill 后确认是否加入远程登记表。关键词：remote skill、Git source、skill registry、update skill。
 ---
 
 # skill-update

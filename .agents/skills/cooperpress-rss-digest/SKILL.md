@@ -1,6 +1,6 @@
 ---
 name: cooperpress-rss-digest
-description: 获取最近 7 天 Cooperpress 技术周刊 RSS，只筛选每个源最近 7 天内最新 1 个 issue，进入 issue 页面提取内部文章级条目，并合并不同 weekly 中重复出现的相同条目；同时读取 GitHub weekly trending 仓库及其 README 摘录，并由模型根据本次内容动态分类整理成 Markdown 文档，最终条目只输出标题链接和中文摘要，不输出来源、Issue、发布日期或仓库事实字段。凡是用户要求抓取 JavaScript Weekly、Frontend Focus、Node Weekly、Golang Weekly、React Status、Postgres Weekly、Cooperpress weekly feeds、RSS 周刊内容、技术周刊摘要、内部文章、issue 内所有文章、GitHub Trending 周热门仓库、或要求“排除 Ruby Weekly 后生成 Markdown/周报/摘要”时，都应使用本 skill。脚本只负责获取 RSS、issue 内文章条目、合并跨 weekly 重复条目、GitHub Trending 仓库和 README 摘录，不做分类、不翻译；分类和中文摘要由模型根据标题、摘要和 README 临场处理。默认使用 RSS 发现最近 7 天内每个源最新 1 个 issue，然后抓 issue 页面，不抓 Ruby Weekly。
+description: 汇总 Cooperpress 技术周刊和 GitHub Trending 周热门仓库：抓取最近 7 天各周刊最新 issue、issue 内文章级条目和仓库 README 摘录，去重后生成中文 Markdown 摘要。触发：JavaScript Weekly、Frontend Focus、Node Weekly、Golang Weekly、React Status、Postgres Weekly、Cooperpress RSS、技术周刊摘要、issue 内文章、GitHub Trending、排除 Ruby Weekly。
 ---
 
 # Cooperpress RSS Digest
