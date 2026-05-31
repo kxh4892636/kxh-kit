@@ -1,0 +1,24 @@
+{
+  "skill_name": "drizzle-orm",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "In a Node app using PostgreSQL, add a Drizzle schema for users and posts, configure drizzle-kit migrations, and show the generate/migrate commands. Use snake_case in the database but camelCase in TypeScript.",
+      "expected_output": "Uses pg-core imports, schema exports, drizzle.config.ts with dialect postgresql, snake_case casing guidance, and generate/migrate rather than unsafe direct push.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "I have a Cloudflare D1 database and want Drizzle Kit to work with it. Show the config shape and connection setup, and mention what docs you used.",
+      "expected_output": "Routes to D1 setup/connection docs, uses sqlite dialect with D1-specific driver/config guidance, and avoids PostgreSQL/MySQL imports.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "Write a typed Drizzle query that fetches users with posts, filters by optional search text and status, and supports cursor pagination. Prefer the current relational query API if appropriate.",
+      "expected_output": "Checks relational query builder v2, operators, dynamic query building, and pagination guide; states assumptions when schema details are omitted.",
+      "files": []
+    }
+  ]
+}
+

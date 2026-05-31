@@ -1,0 +1,15 @@
+{
+  "source_url": "https://github.com/drizzle-team/drizzle-orm-docs/tree/main/src/content/docs",
+  "download_url": "https://codeload.github.com/drizzle-team/drizzle-orm-docs/zip/refs/heads/main",
+  "branch": "main",
+  "source_subdirectory": "src/content/docs",
+  "snapshot_date": "2026-05-30",
+  "commit_sha": null,
+  "file_count": 255,
+  "byte_count": 1671200,
+  "notes": [
+    "Snapshot was downloaded from GitHub codeload for the main branch.",
+    "Commit SHA could not be resolved in this environment because GitHub API / git HTTPS credential lookup failed, but the source docs content is mirrored under references/source-docs."
+  ]
+}
+

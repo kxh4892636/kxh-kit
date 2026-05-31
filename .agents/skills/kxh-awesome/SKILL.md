@@ -41,7 +41,7 @@ vp 涵盖了本仓库的全部操作，包括：
 - **Git hooks**：安装 pre-commit hook，提交前自动检查
 - **升级维护**：升级 vp 自身、清除任务缓存、环境诊断
 
-具体命令参见 `fe-code-spec/vite-plus` 子目录。
+具体命令参见 `code-spec/vite-plus` 子目录。
 
 ## 工程配置文件
 
