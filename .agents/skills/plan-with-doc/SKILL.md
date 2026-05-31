@@ -18,6 +18,11 @@ The task is complete when:
 - The plan is split into executable steps with feedback points and key risks.
 - Any generated Markdown document is saved to `nano/yyyymmdd-<content-summary>.md` at the repository root.
 
+## Scope Boundary
+
+- Use this skill only to create, calibrate, or save a plan; do not execute the plan in the same task.
+- The only permitted file change is the generated Markdown plan under `nano/`.
+
 ## Workflow
 
 1. Define what "done" means before choosing an approach.
