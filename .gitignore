@@ -1,5 +1,7 @@
 # Data
 data
+!apps/etf-service/data/
+!apps/etf-service/data/*.json
 inbox/local
 
 # Logs
