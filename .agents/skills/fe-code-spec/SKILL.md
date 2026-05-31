@@ -1,9 +1,19 @@
 ---
 name: fe-code-spec
-description: 前端编码规范与外部依赖使用说明，涵盖项目结构、命名、代码、组件、React 性能优化、接口请求等规范及外部库/框架用法。执行 html/css/js/ts/react/vue 等前端开发任务时触发。关键词：前端、规范、项目结构、代码、组件、React、接口请求、外部依赖、第三方库。
+description: 前端编码规范、Vite+ 工具链、shadcn/ui 组件工作流与外部依赖使用说明。执行 html/css/js/ts/react/vue 等前端开发任务，或处理 React 组件、接口请求、Vite+/vp 命令配置、shadcn/ui、第三方库用法时触发。关键词：前端、规范、项目结构、代码、组件、React、接口请求、外部依赖、第三方库、Vite+、vp、shadcn。
 ---
 
 # fe-code-spec
+
+## 使用方式与渐进式披露
+
+先判断“什么算完成”，再选择需要读取的规范层级：
+
+1. 所有前端开发任务先读本文件，确认项目结构、命名、组件、请求和检查规范。
+2. 任务涉及 Vite+/vp 时，先看本文的 Vite+ 工具链规范；只有具体命令、配置或故障细节不确定时，再读 `vite-plus/` 子目录中的对应参考。
+3. 任务涉及 shadcn/ui 时，先看本文的 shadcn/ui 快速规则；只有具体组件 API、CLI 行为或样式规则不确定时，再读 `shadcn/` 子目录中的对应参考。
+4. 只有任务涉及 React 组件、Hook、状态、数据请求、bundle、首屏渲染、交互性能或代码评审时，读取 `references/react/README.md`，再按需读取单条 React 规则。
+5. 外部官方文档只在 API 不确定、版本差异可能影响实现、或用户明确要求查证时读取；内部依赖优先搜索项目内现有用法。
 
 ## 项目结构
 
@@ -107,12 +117,34 @@ export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps)
 ### 组件库规范
 
 - React + Tailwind PC 应用默认使用 `shadcn/ui`；它不是传统 npm 组件库，而是通过 shadcn CLI 将组件源码添加到项目中;
-- 添加 shadcn/ui 组件使用 `vp dlx -- shadcn@latest add <component> --cwd <project-path>`，先查看项目的 `components.json`、`src/components/ui/` 和 `src/lib/utils.ts`;
+- 添加、更新、修复或组合 shadcn/ui 组件时，先看本节快速规则；执行命令前查看项目现有 UI 组件目录和工具函数目录，避免重复添加或导入不存在的组件;
+- Vite+ 项目优先使用 `vp dlx -- shadcn@latest ... --cwd <project-path>`；非 Vite+ 项目按 `packageManager` 选择 `npx shadcn@latest`、`pnpm dlx shadcn@latest` 或 `bunx --bun shadcn@latest`;
 - shadcn/ui 生成的 `components/ui` 源码保持官方组件结构；业务组件和页面代码继续遵守本 skill 的命名、拆分、props 和请求规范;
 - 已经统一使用内部 PC 组件库的既有项目可继续使用 `@ecom/auxo`，但不要在同一应用中再引入另一套 PC 组件库;
 - H5 应用使用 `@ecom/auxo-mobile` 或者 `@arco-design/mobile-react`;
 - 高级组件：`@ecom/auxo-pro-table`、`@ecom/auxo-pro-form`;
 - 禁止在同一应用中混用不同的组件库;
+
+### shadcn/ui 快速规则
+
+- 先复用已添加的 shadcn/ui 组件，再写业务封装；不要用自定义 `div` 重做 Alert、Badge、Skeleton、Separator、Empty 等已有组件;
+- 新增组件用 shadcn CLI 添加源码，添加后要读生成文件，检查导入路径、缺失子组件、图标库和本地规范是否匹配;
+- 需要具体组件 API 时，运行 `shadcn@latest docs <component>` 获取官方文档和示例，再读取必要内容;
+- 表单优先使用 shadcn 的表单组合结构，校验态同时给容器和控件设置状态属性;
+- 弹窗、抽屉等 overlay 组件必须有标题；视觉隐藏时使用 `sr-only`;
+- 图标放在按钮等组件内时使用组件约定的图标位置属性，不手写图标尺寸类;
+- Tailwind 间距用 `gap-*`，等宽高用 `size-*`，颜色优先使用语义 token 或组件 variant;
+- 更新已有 shadcn 组件时先预览差异，保留本地修改；只有用户明确批准时才覆盖本地组件文件。
+
+## Vite+ 工具链规范
+
+- Vite+ 是前端项目的统一入口，`vp` 负责依赖、开发、构建、检查、测试和任务执行；不要把 Vite+ 项目当作普通 Vite 项目绕过;
+- 常规开发命令：`vp install` 安装依赖，`vp dev` 启动开发，`vp check` 格式化/lint/type check，`vp test` 跑测试，`vp build` 构建产物;
+- Vite+ 配置统一放在 `vite.config.ts` 的 `defineConfig` 中，优先使用静态对象配置；不要新增 `vitest.config.ts`、`oxlintrc.json`、`oxfmtrc.json` 或 `tsdown.config.ts` 来分散配置;
+- 内置命令不能覆盖；需要运行项目脚本或自定义任务时使用 `vp run <script>` 或 `vpr <script>`;
+- 测试工具从 `vite-plus/test` 导入，不直接从 `vitest` 导入，除非当前项目明确不是 Vite+ 项目;
+- 代码任务完成后按项目上下文执行 `vp check` 和 `vp test`，并检查是否需要通过 `vp run <script>` 运行 `package.json` 或 `vite.config.ts` 中的任务;
+- 需要命令细节时读 `vite-plus/references/commands-reference.md`；需要配置细节时读 `vite-plus/references/config-reference.md`；排障时读 `vite-plus/references/troubleshooting.md`。
 
 ### React 性能规范
 
@@ -224,7 +256,7 @@ export const usePosts = (random = true) => {
 | React | https://react.dev/ |
 | TypeScript | https://www.typescriptlang.org/docs/ |
 | Tailwind CSS | https://tailwindcss.com/docs |
-| shadcn/ui | https://ui.shadcn.com/docs |
+| shadcn/ui | 先看本文的 shadcn/ui 快速规则，再查 https://ui.shadcn.com/docs |
 | Zustand | https://zustand.docs.pmnd.rs/ |
 | @tanstack/react-query | https://tanstack.com/query/latest/docs |
 | @tanstack/react-router | https://tanstack.com/router/latest/docs |
@@ -234,7 +266,7 @@ export const usePosts = (random = true) => {
 | @arco-design/mobile-react | https://arco.design/mobile/react |
 | Vite | https://vite.dev/ |
 | Vitest | https://vitest.dev/ |
-| Vite+ (vp) | node_modules/vite-plus/docs 或 https://viteplus.dev/guide/ |
+| Vite+ (vp) | 先看本文的 Vite+ 工具链规范，再查 `node_modules/vite-plus/docs` 或 https://viteplus.dev/guide/ |
 | Docusaurus | https://docusaurus.io/docs |
 | ConnectRPC | https://connectrpc.com/docs/web/getting-started |
 | @connectrpc/connect | https://www.npmjs.com/package/@connectrpc/connect |

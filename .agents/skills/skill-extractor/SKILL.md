@@ -223,4 +223,4 @@ description: 从 git 仓库、markdown 文档、交互对话或历史对话复�
 
 ## 示例
 
-参考 `vite-plus/` 目录，该 skill 从 Vite+ 官方文档提取，使用 `skill-creator` 编写，遵循渐进式披露原则组织内容。
+参考 `fe-code-spec/vite-plus/` 目录，该 skill 从 Vite+ 官方文档提取，使用 `skill-creator` 编写，遵循渐进式披露原则组织内容。

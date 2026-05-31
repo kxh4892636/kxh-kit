@@ -1,6 +1,6 @@
 # 业务需求前端技术文档模板
 
-当用户要求基于 PRD、Meego、设计稿、后端文档、代码仓库或零散需求创建/改写“前端技术文档”时，使用本模板。模板来源：飞书文档 `https://bytedance.larkoffice.com/docx/GhSHd63nKoOUJ2xKKdGcpc9pnnb`，并吸收 `fe-tech-doc` 的“生成技术文档”规则。生成文档时保留其富文本组织方式：标题自动编号、版本记录表、基本信息表、需求与依赖表、功能模块方案表、埋点表、监控表和发布 checklist。
+当用户要求基于 PRD、Meego、设计稿、后端文档、代码仓库或零散需求创建/改写“前端技术文档”时，使用本模板。模板来源：飞书文档 `https://bytedance.larkoffice.com/docx/GhSHd63nKoOUJ2xKKdGcpc9pnnb`，并吸收 `to-tech` 的“生成技术文档”规则。生成文档时保留其富文本组织方式：标题自动编号、版本记录表、基本信息表、需求与依赖表、功能模块方案表、埋点表和发布 checklist。
 
 ## 命名规则
 
