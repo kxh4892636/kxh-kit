@@ -1,109 +1,114 @@
 ---
 name: skill-update
-description: 维护远程来源 skill 的登记与更新流程。触发：更新或检查远程 skill、查看远程来源、添加/删除远程登记项、同步子 skill 或嵌入式 guidance，或新建 skill 后确认是否加入远程登记表。关键词：remote skill、Git source、skill registry、update skill。
+description: 维护远程来源 skill 的登记与更新流程。触发场景：更新或检查远程 skill、查看远程来源、添加/删除远程登记项、同步子 skill 或嵌入式 guidance，或新建 skill 后确认是否加入远程登记表。关键词：remote skill、Git source、skill registry、update skill。
 ---
 
 # skill-update
 
-Use this skill to keep remote skills reproducible. It records each skill name, remote source, local path, child skill folder or embedded guidance location when applicable, and the expected update method.
+使用本 skill 让远程来源的 skills 保持可复现。它记录每个 skill 的名称、远程来源、本地路径、适用时的子 skill 文件夹或嵌入式 guidance 位置，以及预期更新方式。
 
-## Operating Workflow
+## 操作流程
 
-1. Identify the target skill and read its registry entry below.
-2. Inspect the current local skill directory before changing it.
-3. Fetch the remote source into a temporary directory. Prefer shallow clones, sparse checkout for subdirectories, and delete the temporary directory after the update.
-4. Compare the fetched remote skill content with the local skill before updating. If there is no meaningful diff, stop and report that the local skill is already up to date.
-5. Apply the recorded update method only when the comparison shows differences. Do not blindly overwrite local changes; compare the source and destination first.
-6. Preserve local overlays called out in the registry entry.
-7. Validate the updated skill with the available `skill-creator` validator when the runtime has a compatible Python environment. If not, at least check `SKILL.md` frontmatter, required files, and changed-file diffs.
-8. Summarize changed files, skipped files, validation status, and any follow-up needed.
+1. 确认目标 skill，并读取下方对应的登记项。
+2. 修改前先检查当前本地 skill 目录。
+3. 将远程来源获取到临时目录。优先使用浅克隆；对子目录使用 sparse checkout；更新后删除临时目录。
+4. 更新前先比较获取到的远程 skill 内容与本地 skill。如果没有有意义的差异，就停止并报告本地 skill 已是最新。
+5. 只有在比较发现差异时，才应用登记的更新方式。不要盲目覆盖本地变更；先比较来源与目标。
+6. 保留登记项中标明的本地 overlay。
+7. 当运行环境有兼容的 Python 环境时，使用可用的 `skill-creator` validator 验证更新后的 skill。否则，至少检查 `SKILL.md` frontmatter、必需文件和变更文件 diff。
+8. 总结已变更文件、已跳过文件、验证状态，以及任何需要跟进的事项。
 
-## New Skill Follow-up
+## 新 Skill 后续处理
 
-After any new skill is created, ask the user:
+创建任何新 skill 后，询问用户：
 
 ```text
 新创建的 <skill-name> 是否来自远程 Git 仓库或远程 skill 包？如果是，请提供来源地址和期望的更新方式。是否需要把它添加到 skill-update 的远程技能登记表？
 ```
 
-If the user says yes, add an entry to the registry with:
+如果用户确认需要，就向登记表添加一项，包含：
 
 - `skill-name`
-- local skill path
-- Remote source URL or Git repository URL
-- source subdirectory, if any
-- update method
-- local overlays or post-update steps, if any
+- 本地 skill 路径
+- 远程来源 URL 或 Git 仓库 URL
+- 来源子目录，如有
+- 更新方式
+- 本地 overlay 或更新后步骤，如有
 
-## Remote Skill Registry
+## 远程 Skill 登记表
 
-| skill-name | Remote source | Local path | Update method |
+| skill-name | 远程来源 | 本地路径 | 更新方式 |
 | --- | --- | --- | --- |
-| `antd` | `https://ant.design/llms-full-cn.txt`; `https://ant.design/llms-semantic-cn.md` | child folder: `.agents/skills/code-spec/antd`; parent guidance: `.agents/skills/code-spec/SKILL.md` component-library sections | Download the two official Chinese `llms` files into a temporary location, regenerate `references/component-docs/` by splitting `llms-full-cn.txt` on top-level Ant Design component sections, regenerate `references/semantic-docs/` by splitting `llms-semantic-cn.md` on top-level semantic sections, regenerate `references/component-map.md` and `references/semantic-map.md`, delete the downloaded `llms` source files after successful splitting, then compare the refreshed temporary child folder with `.agents/skills/code-spec/antd` before syncing meaningful changes. Preserve local Ant Design workflow guidance and the `code-spec` parent routing entry. |
-| `design-lark-chart` | `skills.byted.org/iaasng/veai` | Embedded chart resources in `.agents/skills/lark-doc-quality`; no standalone `.agents/skills/design-lark-chart` folder | Fetch into a temporary repo/worktree with `npm_config_registry="https://bnpm.byted.org" pnpx skills@latest add skills.byted.org/iaasng/veai --skill design-lark-chart --agent codex --yes`, compare the fetched skill with the embedded chart resources in `.agents/skills/lark-doc-quality` (`references/01-pipeline.md` through `references/08-freeform-svg-mode.md`, `references/COVERAGE_REPORT.md`, `references/examples/`, `assets/`, `scripts/`), then sync only meaningful chart-resource changes. Preserve the `lark-doc-quality` integration entry `references/lark-chart.md`. Do not recreate a standalone `design-lark-chart` folder unless the user explicitly asks for it. |
-| `drizzle-orm` | `https://github.com/drizzle-team/drizzle-orm-docs/tree/main/src/content/docs` | child folder: `.agents/skills/code-spec/drizzle-orm`; parent guidance: `.agents/skills/code-spec/SKILL.md` backend sections | Copy the local child folder to a temporary directory, run `scripts/update-source-docs.ps1` in that temporary copy to refresh the docs snapshot, then compare the refreshed temporary child folder with `.agents/skills/code-spec/drizzle-orm` before syncing meaningful changes. Preserve local Drizzle safety guidance, evals, and the `code-spec` parent routing entry. Update `references/doc-map.md` if upstream topics or file names changed. |
-| `gpt-image` | `https://github.com/wuyoscar/gpt_image_2_skill` | `.agents/skills/gpt-image` | Clone the repository into a temporary directory, inspect the root skill contents, then sync the skill files into the local path after reviewing the diff. Keep generated outputs, API keys, and local-only environment files out of the sync. |
-| `hono` | `https://github.com/honojs/website/tree/main/docs` | child folder: `.agents/skills/code-spec/hono`; parent guidance: `.agents/skills/code-spec/SKILL.md` backend sections | Clone `https://github.com/honojs/website` with sparse checkout for `docs`, compare the fetched docs with `.agents/skills/code-spec/hono/references/source-docs`, then sync only meaningful docs changes. Regenerate `references/source-map.md`, update the snapshot commit in `hono/SKILL.md`, and preserve local Hono workflow guidance, evals, and the `code-spec` parent routing entry. |
-| `react-query` | `https://github.com/TanStack/query/tree/main/docs/framework/react` | child folder: `.agents/skills/code-spec/react-query`; parent guidance: `.agents/skills/code-spec/SKILL.md` data-fetching and external dependency sections | Copy the local child folder to a temporary directory, run `scripts/update-source-docs.ps1` in that temporary copy to refresh the React framework docs snapshot, then compare the refreshed temporary child folder with `.agents/skills/code-spec/react-query` before syncing meaningful changes. Preserve local TanStack Query workflow guidance, evals, and the `code-spec` parent routing entry. Update `references/doc-map.md` if upstream guides, hooks, plugins, or file names changed. |
-| `shadcn` | `https://github.com/shadcn/ui/tree/main/skills/shadcn` | child folder: `.agents/skills/code-spec/shadcn`; parent guidance: `.agents/skills/code-spec/SKILL.md` shadcn/ui sections | Clone `https://github.com/shadcn/ui` with sparse checkout for `skills/shadcn`, then copy that subdirectory into the child folder after reviewing the diff. Preserve and refresh the concise shadcn/ui guidance embedded in `code-spec` so it stays direct, readable, and aligned with current shadcn rules. |
-| `skill-creator` | `https://github.com/anthropics/skills/tree/main/skills/skill-creator` | `.agents/skills/skill-creator` | Clone `https://github.com/anthropics/skills` with sparse checkout for `skills/skill-creator`, then sync that subdirectory into the local path after reviewing the diff. Preserve the local post-creation rule that invokes `skill-update` after creating a new skill. |
-| `vite-plus` | `https://github.com/voidzero-dev/vite-plus` | child folder: `.agents/skills/code-spec/vite-plus`; parent guidance: `.agents/skills/code-spec/SKILL.md` Vite+ section | Clone the repository into a temporary directory, then use `skill-extractor` to regenerate the Vite+ child skill folder from the repository documentation. Do not update by direct file sync alone; the local skill is extracted and condensed. Preserve and refresh the concise Vite+ guidance embedded in `code-spec` so it stays direct, readable, and linked to current detailed references. |
-| `zod` | `https://github.com/colinhacks/zod/tree/main/packages/docs/content` | child folder: `.agents/skills/code-spec/zod`; parent guidance: `.agents/skills/code-spec/SKILL.md` validation and external dependency sections | Copy the local child folder to a temporary directory, run `scripts/update-source-docs.ps1` in that temporary copy to refresh the Zod docs snapshot, then compare the refreshed temporary child folder with `.agents/skills/code-spec/zod` before syncing meaningful changes. Preserve local Zod workflow guidance, evals, and the `code-spec` parent routing entry. Update `references/doc-map.md` if upstream docs routes, package docs, or file names changed. |
+| `antd` | `https://ant.design/llms-full-cn.txt`; `https://ant.design/llms-semantic-cn.md` | 子文件夹：`.agents/skills/code-spec/antd`；父级 guidance：`.agents/skills/code-spec/SKILL.md` component-library 相关章节 | 将两个官方中文 `llms` 文件下载到临时位置；按顶层 Ant Design 组件章节拆分 `llms-full-cn.txt`，重新生成 `references/component-docs/`；按顶层语义化章节拆分 `llms-semantic-cn.md`，重新生成 `references/semantic-docs/`；重新生成 `references/component-map.md` 和 `references/semantic-map.md`；拆分成功后删除下载的 `llms` 源文件；然后在同步有意义变更前，比较刷新后的临时子文件夹与 `.agents/skills/code-spec/antd`。保留本地 Ant Design 工作流 guidance 和 `code-spec` 父级路由入口。 |
+| `design-lark-chart` | `skills.byted.org/iaasng/veai` | `.agents/skills/lark-doc-quality` 中的嵌入式图表资源；没有独立的 `.agents/skills/design-lark-chart` 文件夹 | 使用 `npm_config_registry="https://bnpm.byted.org" pnpx skills@latest add skills.byted.org/iaasng/veai --skill design-lark-chart --agent codex --yes` 获取到临时仓库/worktree；比较获取到的 skill 与 `.agents/skills/lark-doc-quality` 中嵌入的图表资源（`references/01-pipeline.md` 到 `references/08-freeform-svg-mode.md`、`references/COVERAGE_REPORT.md`、`references/examples/`、`assets/`、`scripts/`）；然后只同步有意义的图表资源变更。保留 `lark-doc-quality` 集成入口 `references/lark-chart.md`。除非用户明确要求，否则不要重新创建独立的 `design-lark-chart` 文件夹。 |
+| `diagnose` | `https://github.com/mattpocock/skills/tree/main/skills/engineering/diagnose` | `.agents/skills/diagnose` | 使用 sparse checkout 克隆 `https://github.com/mattpocock/skills` 的 `skills/engineering/diagnose`，比较远程目录与本地目录后同步有意义变更。同步后保留本地后处理：删除对 `setup-matt-pocock-skills` 基础配置的硬性假设，包括预置 domain glossary、`CONTEXT.md`、ADR 配置等表述；只保留基于实际读取文件的诊断流程。 |
+| `drizzle-orm` | `https://github.com/drizzle-team/drizzle-orm-docs/tree/main/src/content/docs` | 子文件夹：`.agents/skills/code-spec/drizzle-orm`；父级 guidance：`.agents/skills/code-spec/SKILL.md` backend 相关章节 | 将本地子文件夹复制到临时目录，在该临时副本中运行 `scripts/update-source-docs.ps1` 以刷新 docs 快照，然后在同步有意义变更前，比较刷新后的临时子文件夹与 `.agents/skills/code-spec/drizzle-orm`。保留本地 Drizzle 安全 guidance、evals 和 `code-spec` 父级路由入口。如果上游主题或文件名发生变化，更新 `references/doc-map.md`。 |
+| `grill-me` | `https://github.com/mattpocock/skills/tree/main/skills/productivity/grill-me` | `.agents/skills/grill-me` | 使用 sparse checkout 克隆 `https://github.com/mattpocock/skills` 的 `skills/productivity/grill-me`，比较远程目录与本地目录后同步有意义变更。该 skill 当前没有 `setup-matt-pocock-skills` 基础配置依赖；若上游以后新增相关表述，同步后删除这些硬性假设。 |
+| `gpt-image` | `https://github.com/wuyoscar/gpt_image_2_skill` | `.agents/skills/gpt-image` | 将仓库克隆到临时目录，检查根 skill 内容，然后在审阅 diff 后把 skill 文件同步到本地路径。不要同步生成输出、API keys 和仅本地使用的环境文件。 |
+| `hono` | `https://github.com/honojs/website/tree/main/docs` | 子文件夹：`.agents/skills/code-spec/hono`；父级 guidance：`.agents/skills/code-spec/SKILL.md` backend 相关章节 | 使用 sparse checkout 克隆 `https://github.com/honojs/website` 的 `docs`，比较获取到的 docs 与 `.agents/skills/code-spec/hono/references/source-docs`，然后只同步有意义的 docs 变更。重新生成 `references/source-map.md`，更新 `hono/SKILL.md` 中的快照 commit，并保留本地 Hono 工作流 guidance、evals 和 `code-spec` 父级路由入口。 |
+| `improve-codebase-architecture` | `https://github.com/mattpocock/skills/tree/main/skills/engineering/improve-codebase-architecture` | `.agents/skills/improve-codebase-architecture` | 使用 sparse checkout 克隆 `https://github.com/mattpocock/skills` 的 `skills/engineering/improve-codebase-architecture`，比较远程目录与本地目录后同步有意义变更。同步后保留本地后处理：删除对 `setup-matt-pocock-skills` 基础配置的硬性假设，包括预置 `CONTEXT.md`、ADR 布局、`grill-with-docs` 产物和未安装相对链接；只保留基于实际读取文件的架构审查流程。 |
+| `react-query` | `https://github.com/TanStack/query/tree/main/docs/framework/react` | 子文件夹：`.agents/skills/code-spec/react-query`；父级 guidance：`.agents/skills/code-spec/SKILL.md` data-fetching 与外部依赖相关章节 | 将本地子文件夹复制到临时目录，在该临时副本中运行 `scripts/update-source-docs.ps1` 以刷新 React framework docs 快照，然后在同步有意义变更前，比较刷新后的临时子文件夹与 `.agents/skills/code-spec/react-query`。保留本地 TanStack Query 工作流 guidance、evals 和 `code-spec` 父级路由入口。如果上游 guides、hooks、plugins 或文件名发生变化，更新 `references/doc-map.md`。 |
+| `shadcn` | `https://github.com/shadcn/ui/tree/main/skills/shadcn` | 子文件夹：`.agents/skills/code-spec/shadcn`；父级 guidance：`.agents/skills/code-spec/SKILL.md` shadcn/ui 相关章节 | 使用 sparse checkout 克隆 `https://github.com/shadcn/ui` 的 `skills/shadcn`，然后在审阅 diff 后将该子目录复制到子文件夹中。保留并刷新嵌入在 `code-spec` 中的简明 shadcn/ui guidance，确保它直接、可读，并与当前 shadcn 规则一致。 |
+| `skill-creator` | `https://github.com/anthropics/skills/tree/main/skills/skill-creator` | `.agents/skills/skill-creator` | 使用 sparse checkout 克隆 `https://github.com/anthropics/skills` 的 `skills/skill-creator`，然后在审阅 diff 后将该子目录同步到本地路径。保留本地规则：创建新 skill 后调用 `skill-update` 做后续处理。 |
+| `tdd` | `https://github.com/mattpocock/skills/tree/main/skills/engineering/tdd` | `.agents/skills/tdd` | 使用 sparse checkout 克隆 `https://github.com/mattpocock/skills` 的 `skills/engineering/tdd`，比较远程目录与本地目录后同步有意义变更。同步后保留本地后处理：删除对 `setup-matt-pocock-skills` 基础配置的硬性假设，包括预置 domain glossary、`CONTEXT.md`、ADR 配置等表述；只保留基于实际读取文件的 TDD 流程。 |
+| `to-prd` | `https://github.com/mattpocock/skills/tree/main/skills/engineering/to-prd` | `.agents/skills/to-prd` | 使用 sparse checkout 克隆 `https://github.com/mattpocock/skills` 的 `skills/engineering/to-prd`，比较远程目录与本地目录后同步有意义变更。同步后保留本地后处理：删除对 `setup-matt-pocock-skills` 基础配置的硬性假设，包括 issue tracker、triage label、预置 domain glossary 和 ADR 配置；默认只产出 PRD 并返回给用户，不发布到问题追踪系统。 |
+| `vite-plus` | `https://github.com/voidzero-dev/vite-plus` | 子文件夹：`.agents/skills/code-spec/vite-plus`；父级 guidance：`.agents/skills/code-spec/SKILL.md` Vite+ 章节 | 将仓库克隆到临时目录，然后使用 `skill-extractor` 从仓库文档重新生成 Vite+ 子 skill 文件夹。不要只通过直接文件同步来更新；本地 skill 是提取并压缩后的结果。保留并刷新嵌入在 `code-spec` 中的简明 Vite+ guidance，确保它直接、可读，并链接到当前详细参考。 |
+| `zod` | `https://github.com/colinhacks/zod/tree/main/packages/docs/content` | 子文件夹：`.agents/skills/code-spec/zod`；父级 guidance：`.agents/skills/code-spec/SKILL.md` validation 与外部依赖相关章节 | 将本地子文件夹复制到临时目录，在该临时副本中运行 `scripts/update-source-docs.ps1` 以刷新 Zod docs 快照，然后在同步有意义变更前，比较刷新后的临时子文件夹与 `.agents/skills/code-spec/zod`。保留本地 Zod 工作流 guidance、evals 和 `code-spec` 父级路由入口。如果上游 docs routes、package docs 或文件名发生变化，更新 `references/doc-map.md`。 |
 
-## Update Method Details
+## 更新方式细节
 
-### Consistency Check
+### 一致性检查
 
-After fetching the remote source, compare the source skill directory with the local skill directory before copying or regenerating anything.
+获取远程来源后，在复制或重新生成任何内容前，先比较来源 skill 目录与本地 skill 目录。
 
 ```bash
 diff -qr <remote-skill-dir> <local-skill-dir>
 ```
 
-If `diff` reports no differences after excluding known local-only files, do not update the local skill. Report that the local and remote skills are already consistent.
+如果排除已知的仅本地文件后，`diff` 报告没有差异，就不要更新本地 skill。报告本地与远程 skill 已经一致。
 
-For extracted skills, generate the refreshed skill into a temporary output directory first, then compare that temporary generated skill with the local skill. Only replace local files when the generated output differs.
+对于提取型 skills，先把刷新后的 skill 生成到临时输出目录，然后比较该临时生成 skill 与本地 skill。只有生成输出存在差异时，才替换本地文件。
 
-### Direct Skill Repository
+### 直接 Skill 仓库
 
-Use for repositories whose root is already the skill package, such as `gpt-image`.
+适用于仓库根目录本身就是 skill 包的情况，例如 `gpt-image`。
 
 ```bash
 git clone --depth 1 <repo-url> <tmp-dir>
-# Inspect <tmp-dir>, compare it with .agents/skills/<skill-name>, then sync intentionally.
+# 检查 <tmp-dir>，将其与 .agents/skills/<skill-name> 比较，然后有意识地同步。
 ```
 
-Prefer `rsync --delete` only after verifying the source layout matches the destination skill. Exclude local-only files and do not copy secrets or generated outputs.
+只有在确认来源布局与目标 skill 匹配后，才优先考虑 `rsync --delete`。排除仅本地文件，不复制 secrets 或生成输出。
 
-### GitHub Subdirectory
+### GitHub 子目录
 
-Use for skills stored inside a larger repository, such as `skill-creator`.
+适用于存放在较大仓库内部的 skills，例如 `skill-creator`。
 
 ```bash
 git clone --depth 1 --filter=blob:none --sparse <repo-url> <tmp-dir>
 cd <tmp-dir>
 git sparse-checkout set <source-subdirectory>
-# Inspect <source-subdirectory>, compare it with the local skill, then sync intentionally.
+# 检查 <source-subdirectory>，将其与本地 skill 比较，然后有意识地同步。
 ```
 
-After updating `skill-creator`, confirm its instructions still include the `skill-update` new-skill follow-up.
+更新 `skill-creator` 后，确认它的说明仍包含 `skill-update` 的新 skill 后续处理规则。
 
-### Extracted Skill
+### 提取型 Skill
 
-Use for source repositories whose documentation is transformed into a skill, such as `vite-plus`.
+适用于将来源仓库文档转换成 skill 的情况，例如 `vite-plus`。
 
-1. Clone or update the remote repository in a temporary directory.
-2. Read the relevant docs and source documentation entry points.
-3. Use `skill-extractor` to regenerate the skill into the target path.
-4. Verify the generated skill preserves important source documentation and follows progressive disclosure.
-5. Review diffs before accepting the regenerated files.
+1. 在临时目录中克隆或更新远程仓库。
+2. 阅读相关 docs 和来源文档入口。
+3. 使用 `skill-extractor` 将 skill 重新生成到目标路径。
+4. 验证生成的 skill 保留了重要来源文档，并遵循 progressive disclosure。
+5. 接受重新生成的文件前，先审阅 diff。
 
-### Child Skill Folder and Embedded Guidance
+### 子 Skill 文件夹与嵌入式 Guidance
 
-Use when a remote skill is stored as a child folder under another local skill and its common rules are also embedded directly in the parent skill, such as `vite-plus`, `shadcn`, `antd`, `hono`, `drizzle-orm`, `react-query`, and `zod` inside `code-spec`.
+适用于远程 skill 作为子文件夹存放在另一个本地 skill 下，且其通用规则也直接嵌入父 skill 的情况，例如 `code-spec` 内部的 `vite-plus`、`shadcn`、`antd`、`hono`、`drizzle-orm`、`react-query` 和 `zod`。
 
-1. Update or regenerate the child skill folder first, following its registry method.
-2. Inspect the embedded guidance section in `.agents/skills/code-spec/SKILL.md`.
-3. Keep the embedded guidance concise: it should explain the common workflow in direct language and only link out to the child folder for detailed command, config, or component API questions.
-4. Preserve local integration notes, especially Vite+ command wrappers for shadcn and `kxh-awesome` validation boundaries.
-5. Do not copy the whole upstream skill body into `code-spec/SKILL.md`; keep it readable and leave deep details in the child skill folder references.
+1. 先按照登记方式更新或重新生成子 skill 文件夹。
+2. 检查 `.agents/skills/code-spec/SKILL.md` 中的嵌入式 guidance 章节。
+3. 保持嵌入式 guidance 简洁：它应使用直接语言说明通用工作流，并且只在详细命令、配置或组件 API 问题上链接到子文件夹。
+4. 保留本地集成说明，尤其是 shadcn 的 Vite+ 命令包装方式，以及 `kxh-awesome` 的验证边界。
+5. 不要把整个上游 skill 正文复制到 `code-spec/SKILL.md`；保持其可读性，把深入细节留在子 skill 文件夹的 references 中。
