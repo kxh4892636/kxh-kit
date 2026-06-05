@@ -14,11 +14,9 @@ description: 飞书/Lark 文档与画板的读取、撰写、改写、更新和�
 | 场景 | 读取 |
 | --- | --- |
 | 任意飞书文档撰写、润色、改写、总结、补充 | `references/general-quality.md` |
-| SOP、接入手册、操作手册、平台使用手册、流程说明 | `references/sop-template.md` |
-| 业务需求前端技术文档、基于 PRD/Meego/UI/后端文档写前端技术方案 | `references/frontend-tech-doc-template.md` |
 | 飞书文档配图、飞书画板、架构图、流程图、泳道图、时序图、状态机、ER 图、思维导图、自由图解等 | `references/lark-chart.md` |
 
-多个场景同时命中时，先读 `general-quality.md`，再读具体模板。例如“把 PRD 改成前端技术文档”需要读 `general-quality.md` 和 `frontend-tech-doc-template.md`；“把方案改好并补一张架构图同步到飞书”需要读 `general-quality.md` 和 `lark-chart.md`。
+多个场景同时命中时，先读 `general-quality.md`，再读涉及画板的 `lark-chart.md`。例如“把方案改好并补一张架构图同步到飞书”需要读 `general-quality.md` 和 `lark-chart.md`。
 
 ## 工作流
 
