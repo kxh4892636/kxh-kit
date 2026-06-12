@@ -44,7 +44,6 @@ description: 维护远程来源 skill 的登记与更新流程。触发场景：
 | `diagnose` | `https://github.com/mattpocock/skills/tree/main/skills/engineering/diagnose` | `.agents/skills/diagnose` | 使用 sparse checkout 克隆 `https://github.com/mattpocock/skills` 的 `skills/engineering/diagnose`，比较远程目录与本地目录后同步有意义变更。同步后保留本地后处理：删除对 `setup-matt-pocock-skills` 基础配置的硬性假设，包括预置 domain glossary、`CONTEXT.md`、ADR 配置等表述；只保留基于实际读取文件的诊断流程。 |
 | `drizzle-orm` | `https://github.com/drizzle-team/drizzle-orm-docs/tree/main/src/content/docs` | 子文件夹：`.agents/skills/code-spec/drizzle-orm`；父级 guidance：`.agents/skills/code-spec/SKILL.md` backend 相关章节 | 将本地子文件夹复制到临时目录，在该临时副本中运行 `scripts/update-source-docs.ps1` 以刷新 docs 快照，然后在同步有意义变更前，比较刷新后的临时子文件夹与 `.agents/skills/code-spec/drizzle-orm`。保留本地 Drizzle 安全 guidance、evals 和 `code-spec` 父级路由入口。如果上游主题或文件名发生变化，更新 `references/doc-map.md`。 |
 | `grill-me` | `https://github.com/mattpocock/skills/tree/main/skills/productivity/grill-me` | `.agents/skills/grill-me` | 使用 sparse checkout 克隆 `https://github.com/mattpocock/skills` 的 `skills/productivity/grill-me`，比较远程目录与本地目录后同步有意义变更。该 skill 当前没有 `setup-matt-pocock-skills` 基础配置依赖；若上游以后新增相关表述，同步后删除这些硬性假设。 |
-| `gpt-image` | `https://github.com/wuyoscar/gpt_image_2_skill` | `.agents/skills/gpt-image` | 将仓库克隆到临时目录，检查根 skill 内容，然后在审阅 diff 后把 skill 文件同步到本地路径。不要同步生成输出、API keys 和仅本地使用的环境文件。 |
 | `hono` | `https://github.com/honojs/website/tree/main/docs` | 子文件夹：`.agents/skills/code-spec/hono`；父级 guidance：`.agents/skills/code-spec/SKILL.md` backend 相关章节 | 使用 sparse checkout 克隆 `https://github.com/honojs/website` 的 `docs`，比较获取到的 docs 与 `.agents/skills/code-spec/hono/references/source-docs`，然后只同步有意义的 docs 变更。重新生成 `references/source-map.md`，更新 `hono/SKILL.md` 中的快照 commit，并保留本地 Hono 工作流 guidance、evals 和 `code-spec` 父级路由入口。 |
 | `improve-codebase-architecture` | `https://github.com/mattpocock/skills/tree/main/skills/engineering/improve-codebase-architecture` | `.agents/skills/improve-codebase-architecture` | 使用 sparse checkout 克隆 `https://github.com/mattpocock/skills` 的 `skills/engineering/improve-codebase-architecture`，比较远程目录与本地目录后同步有意义变更。同步后保留本地后处理：删除对 `setup-matt-pocock-skills` 基础配置的硬性假设，包括预置 `CONTEXT.md`、ADR 布局、`grill-with-docs` 产物和未安装相对链接；只保留基于实际读取文件的架构审查流程。 |
 | `react-query` | `https://github.com/TanStack/query/tree/main/docs/framework/react` | 子文件夹：`.agents/skills/code-spec/react-query`；父级 guidance：`.agents/skills/code-spec/SKILL.md` data-fetching 与外部依赖相关章节 | 将本地子文件夹复制到临时目录，在该临时副本中运行 `scripts/update-source-docs.ps1` 以刷新 React framework docs 快照，然后在同步有意义变更前，比较刷新后的临时子文件夹与 `.agents/skills/code-spec/react-query`。保留本地 TanStack Query 工作流 guidance、evals 和 `code-spec` 父级路由入口。如果上游 guides、hooks、plugins 或文件名发生变化，更新 `references/doc-map.md`。 |
@@ -71,7 +70,7 @@ diff -qr <remote-skill-dir> <local-skill-dir>
 
 ### 直接 Skill 仓库
 
-适用于仓库根目录本身就是 skill 包的情况，例如 `gpt-image`。
+适用于仓库根目录本身就是 skill 包的情况。
 
 ```bash
 git clone --depth 1 <repo-url> <tmp-dir>
