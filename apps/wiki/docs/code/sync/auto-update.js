@@ -2,7 +2,49 @@ const fs = require("node:fs");
 const path = require("node:path");
 
 const DOCS_ROOT = path.resolve(__dirname, "..", "..");
+const TARGET_DOCS_ROOT = "D:\\kxh\\10-wiki\\doc";
 const MB = 1024 * 1024;
+
+const normalizePath = (targetPath) => path.resolve(targetPath).toLowerCase();
+
+const isPathInside = (childPath, parentPath) =>
+  normalizePath(childPath).startsWith(`${normalizePath(parentPath)}${path.sep}`);
+
+const assertCanExportDocs = (sourceRoot, targetRoot) => {
+  if (!fs.existsSync(sourceRoot)) {
+    throw new Error(`Source docs directory does not exist: ${sourceRoot}`);
+  }
+  if (!fs.statSync(sourceRoot).isDirectory()) {
+    throw new Error(`Source docs path is not a directory: ${sourceRoot}`);
+  }
+  if (normalizePath(sourceRoot) === normalizePath(targetRoot)) {
+    throw new Error("Source docs directory and target docs directory must be different.");
+  }
+  if (isPathInside(targetRoot, sourceRoot) || isPathInside(sourceRoot, targetRoot)) {
+    throw new Error("Source docs directory and target docs directory cannot contain each other.");
+  }
+  if (normalizePath(targetRoot) !== normalizePath(TARGET_DOCS_ROOT)) {
+    throw new Error(`Unexpected target docs directory: ${targetRoot}`);
+  }
+};
+
+const exportDocsToTarget = (sourceRoot, targetRoot) => {
+  assertCanExportDocs(sourceRoot, targetRoot);
+  fs.mkdirSync(path.dirname(targetRoot), { recursive: true });
+
+  if (fs.existsSync(targetRoot)) {
+    // 只替换外部目标目录，源目录 apps/wiki/docs 不移动、不删除。
+    fs.rmSync(targetRoot, { recursive: true, force: true });
+  }
+
+  fs.cpSync(sourceRoot, targetRoot, {
+    recursive: true,
+    force: true,
+    preserveTimestamps: true,
+  });
+
+  console.log(`docs exported to ${targetRoot}`);
+};
 
 const walkDirectory = (dirPath, options = {}) => {
   const { bottomUp = false } = options;
@@ -67,17 +109,6 @@ const createReadme = (dirPath) => {
   }
 
   console.log("readme updated");
-};
-
-const _copyImages = (origin, target) => {
-  for (const filename of fs.readdirSync(origin)) {
-    const sourceFile = path.join(origin, filename);
-    const destinationFile = path.join(target, filename);
-    if (fs.existsSync(destinationFile)) {
-      continue;
-    }
-    fs.copyFileSync(sourceFile, destinationFile);
-  }
 };
 
 const printUnusedImages = (rootDir) => {
@@ -175,47 +206,8 @@ const countNoteSize = (rootDir) => {
   console.log("");
 };
 
-// const findLongNote = (rootDir) => {
-//   console.log("以下文件行数超过 999");
-//   for (const { dirPath: currentDir, files } of walkDirectory(rootDir)) {
-//     if (!currentDir?.includes("wiki")) {
-//       continue;
-//     }
-//
-//     if (currentDir?.includes("diary")) {
-//       continue;
-//     }
-//
-//     for (const file of files) {
-//       if (
-//         !file?.endsWith(".md") ||
-//         file === "_sidebar.md" ||
-//         file === "README.md" ||
-//         currentDir?.includes("记录") ||
-//         currentDir?.includes(".git") ||
-//         currentDir?.includes(".obsidian")
-//       ) {
-//         continue;
-//       }
-//
-//       const filePath = path.join(currentDir, file);
-//       const linesNum = fs.readFileSync(filePath, "utf8")?.split(/\r?\n/)?.length;
-//
-//       if (linesNum > 999) {
-//         console.log(filePath);
-//       }
-//     }
-//   }
-//
-//   console.log("");
-// };
-
-// _copyImages(
-//   "D:\\kxh\\10-wiki\\1030-科研\\103090-文献笔记\\images",
-//   "D:\\kxh\\10-wiki\\1030-科研\\103090-文献整理\\images",
-// );
 createReadme(DOCS_ROOT);
 const images = printUnusedImages(DOCS_ROOT);
 deleteUnusedImages(images);
 countNoteSize(DOCS_ROOT);
-// findLongNote(DOCS_ROOT);
+exportDocsToTarget(DOCS_ROOT, TARGET_DOCS_ROOT);
