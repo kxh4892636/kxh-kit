@@ -1,9 +1,9 @@
 ---
 name: vite-plus
-description: Vite+ 统一前端工具链使用指南。集成 Vite、Vitest、Oxlint、Oxfmt、Rolldown、tsdown、Vite Task，管理 git hook。vp 命令、配置、迁移或故障排查时触发。关键词：vp、vite-plus、viteplus、vite plus、vite+
+description: Vite+ 统一前端工具链参考。由 code-spec 按需读取，用于 Vite、Vitest、Oxlint、Oxfmt、Rolldown、tsdown、Vite Task、git hook、vp 命令、配置、迁移或故障排查。关键词：vp、vite-plus、viteplus、vite plus、vite+
 ---
 
-# Vite+ Skill
+# Vite+ Reference
 
 Vite+ is the unified toolchain and entry point for web development. It manages runtime, package manager, and frontend toolchain in one place by combining Vite, Vitest, Oxlint, Oxfmt, Rolldown, tsdown, and Vite Task.
 
@@ -14,7 +14,7 @@ Vite+ is the unified toolchain and entry point for web development. It manages r
 - `vp` — global command-line tool
 - `vite-plus` — local package installed in each project
 
-## When to Use This Skill
+## When to Use This Reference
 
 - User asks about any `vp` command (dev, build, test, check, lint, fmt, run, pack, create, migrate, install, add, remove, upgrade, implode, env, vpx, etc.)
 - User needs help configuring Vite+ (`vite.config.ts` blocks: lint, fmt, test, run, pack, staged)

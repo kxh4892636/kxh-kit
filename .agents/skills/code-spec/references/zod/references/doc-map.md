@@ -5,7 +5,7 @@ This file routes Zod tasks to the bundled upstream docs snapshot in `references/
 The complete source content is preserved under `source-docs`; this map is only a navigation layer. If a prompt mentions an exact API, option, issue code, package subpath, or migration note, search the source snapshot before answering:
 
 ```powershell
-rg -n "search term" .agents/skills/code-spec/zod/references/source-docs
+rg -n "search term" .agents/skills/code-spec/references/zod/references/source-docs
 ```
 
 ## Source Snapshot

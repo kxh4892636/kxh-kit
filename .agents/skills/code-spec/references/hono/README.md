@@ -1,11 +1,11 @@
 ---
 name: hono
-description: Use this skill whenever the user asks to build, debug, review, migrate, or explain Hono/honojs applications, APIs, routing, middleware, helpers, RPC clients, validation, JSX, testing, adapters, or deployment on Cloudflare Workers/Pages, Node.js, Bun, Deno, Vercel, Netlify, AWS Lambda/Lambda@Edge, Fastly, Next.js, Service Worker, Supabase, Azure Functions, Google Cloud Run, Alibaba Function Compute, or WebAssembly WASI. 当用户提到 Hono、honojs、Hono 中间件、helper、RPC、adapter、路由、校验、部署或类型安全 API 时必须使用，并优先查阅本地官方 docs 镜像。
+description: Hono/honojs 专项参考。由 code-spec 按需读取，用于构建、调试、评审、迁移或解释 Hono 应用、API、路由、中间件、helper、RPC client、校验、JSX、测试、adapter 和部署，并优先查阅本地官方 docs 镜像。
 ---
 
 # Hono
 
-Use this skill to answer or implement Hono work from the official Hono website docs. The local reference is a snapshot of the upstream docs, so prefer it over memory for API details, import paths, runtime entry points, middleware options, and examples.
+Use this reference to answer or implement Hono work from the official Hono website docs. The local reference is a snapshot of the upstream docs, so prefer it over memory for API details, import paths, runtime entry points, middleware options, and examples.
 
 ## Source
 
@@ -15,7 +15,7 @@ Use this skill to answer or implement Hono work from the official Hono website d
 - Full source docs: `references/source-docs/`
 - Compact source map: `references/source-map.md`
 
-The full upstream docs are mirrored under `references/source-docs/` to preserve completeness. Do not treat this `SKILL.md` as a replacement for the detailed reference files.
+The full upstream docs are mirrored under `references/source-docs/` to preserve completeness. Do not treat this `README.md` as a replacement for the detailed reference files.
 
 ## What Counts As Done
 

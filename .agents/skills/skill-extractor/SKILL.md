@@ -296,4 +296,4 @@ description: 从 git 仓库、网址 URL、markdown 文档、交互对话或历�
 
 ## 示例
 
-参考 `code-spec/vite-plus/` 目录，该 skill 从 Vite+ 官方文档提取，使用 `skill-creator` 编写，遵循渐进式披露原则组织内容。
+参考 `code-spec/references/vite-plus/` 目录，该 reference 模块从 Vite+ 官方文档提取，使用 `skill-creator` 编写，遵循渐进式披露原则组织内容。

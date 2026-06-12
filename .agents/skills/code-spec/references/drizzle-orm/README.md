@@ -1,11 +1,11 @@
 ---
 name: drizzle-orm
-description: Drizzle ORM / Drizzle Kit 官方文档型开发技能。凡是用户提到 Drizzle、drizzle-orm、Drizzle Kit、drizzle.config、schema、relations、relational query builder、migrations、push/generate/migrate/pull、seed、数据库连接、PostgreSQL/MySQL/SQLite/Turso/D1/Neon/Supabase 等 Drizzle 相关实现、调试、迁移、评审或解释任务时都应使用，并优先读取本 skill 打包的官方 docs 快照。
+description: Drizzle ORM / Drizzle Kit 官方文档型参考。由 code-spec 按需读取，用于 Drizzle、drizzle-orm、Drizzle Kit、drizzle.config、schema、relations、relational query builder、migrations、push/generate/migrate/pull、seed、数据库连接、PostgreSQL/MySQL/SQLite/Turso/D1/Neon/Supabase 等实现、调试、迁移、评审或解释任务，并优先读取本 reference 打包的官方 docs 快照。
 ---
 
-# Drizzle ORM Skill
+# Drizzle ORM Reference
 
-Use this skill for Drizzle ORM and Drizzle Kit work: schema modeling, database connections, SQL-like queries, relational queries, migrations, config files, seeding, validation integrations, and Drizzle-specific troubleshooting.
+Use this reference for Drizzle ORM and Drizzle Kit work: schema modeling, database connections, SQL-like queries, relational queries, migrations, config files, seeding, validation integrations, and Drizzle-specific troubleshooting.
 
 **Source docs:** https://github.com/drizzle-team/drizzle-orm-docs/tree/main/src/content/docs
 
@@ -116,7 +116,7 @@ Before recommending or running `push`, `migrate`, or `pull`, confirm the target 
 The bundled source docs were extracted from the GitHub docs repository. To refresh:
 
 ```powershell
-pwsh .agents/skills/code-spec/drizzle-orm/scripts/update-source-docs.ps1
+pwsh .agents/skills/code-spec/references/drizzle-orm/scripts/update-source-docs.ps1
 ```
 
-Then review `references/source-docs/`, `references/doc-map.md`, and this `SKILL.md` against upstream changes. If new major topics appear in `_meta.json`, update the routing tables.
+Then review `references/source-docs/`, `references/doc-map.md`, and this `README.md` against upstream changes. If new major topics appear in `_meta.json`, update the routing tables.

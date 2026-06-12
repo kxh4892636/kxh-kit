@@ -5,7 +5,7 @@ This file routes Drizzle tasks to the bundled upstream docs snapshot in `referen
 The complete source content is preserved under `source-docs`; this map is only a navigation layer. If a prompt mentions an exact API, CLI flag, driver, config key, error text, or integration name, search the source snapshot before answering:
 
 ```powershell
-rg -n "search term" .agents/skills/code-spec/drizzle-orm/references/source-docs
+rg -n "search term" .agents/skills/code-spec/references/drizzle-orm/references/source-docs
 ```
 
 ## Source Snapshot

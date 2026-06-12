@@ -1,11 +1,11 @@
 ---
 name: zod
-description: Zod 官方文档型开发技能。凡是用户提到 Zod、zod schema、parse/safeParse、ZodError、refine/superRefine、transform、codec、JSON Schema、z.infer、z.input、z.output、zod/mini、zod/v4/core，或需要为 TypeScript 前后端实现、调试、迁移或评审运行时数据校验时都应使用，并优先读取本 skill 打包的官方 docs 快照。
+description: Zod 官方文档型参考。由 code-spec 按需读取，用于 Zod、zod schema、parse/safeParse、ZodError、refine/superRefine、transform、codec、JSON Schema、z.infer、z.input、z.output、zod/mini、zod/v4/core，或 TypeScript 前后端运行时数据校验实现、调试、迁移或评审，并优先读取本 reference 打包的官方 docs 快照。
 ---
 
-# Zod Skill
+# Zod Reference
 
-Use this skill for Zod schema validation work: runtime parsing, TypeScript inference, error handling, refinements, transforms, codecs, JSON Schema conversion, package selection, and Zod 4 migration questions.
+Use this reference for Zod schema validation work: runtime parsing, TypeScript inference, error handling, refinements, transforms, codecs, JSON Schema conversion, package selection, and Zod 4 migration questions.
 
 **Source docs:** https://github.com/colinhacks/zod/tree/main/packages/docs/content
 
@@ -99,7 +99,7 @@ For repo changes:
 The bundled source docs were extracted from the GitHub docs directory. To refresh:
 
 ```powershell
-pwsh .agents/skills/code-spec/zod/scripts/update-source-docs.ps1
+pwsh .agents/skills/code-spec/references/zod/scripts/update-source-docs.ps1
 ```
 
-Then review `references/source-docs/`, `references/doc-map.md`, `references/snapshot.json`, and this `SKILL.md` against upstream changes. If new major topics appear in `meta.json`, update the routing tables and the parent `code-spec` routing entry.
+Then review `references/source-docs/`, `references/doc-map.md`, `references/snapshot.json`, and this `README.md` against upstream changes. If new major topics appear in `meta.json`, update the routing tables and the parent `code-spec` routing entry.

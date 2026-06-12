@@ -5,7 +5,7 @@ This file routes TanStack Query React tasks to the bundled upstream docs snapsho
 The complete source content is preserved under `source-docs`; this map is only a navigation layer. If a prompt mentions an exact hook, option, status flag, cache method, plugin, or migration note, search the source snapshot before answering:
 
 ```powershell
-rg -n "search term" .agents/skills/code-spec/react-query/references/source-docs
+rg -n "search term" .agents/skills/code-spec/references/react-query/references/source-docs
 ```
 
 ## Source Snapshot

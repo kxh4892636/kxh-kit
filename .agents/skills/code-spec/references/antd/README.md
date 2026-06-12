@@ -1,11 +1,11 @@
 ---
 name: antd
-description: Ant Design / antd React 组件库专项指南。用户要求使用、修改、调试、评审或解释 Ant Design、antd、AntD、ConfigProvider、Form、Table、Modal、Select、DatePicker、Upload、Layout、主题 token、classNames/styles 语义化 DOM、组件 API 或中文官方文档时触发；作为 code-spec 的子 skill 使用。
+description: Ant Design / antd React 组件库专项参考。由 code-spec 按需读取，用于使用、修改、调试、评审或解释 Ant Design、antd、AntD、ConfigProvider、Form、Table、Modal、Select、DatePicker、Upload、Layout、主题 token、classNames/styles 语义化 DOM、组件 API 或中文官方文档。
 ---
 
 # Ant Design
 
-Use this skill for Ant Design React work. Prefer the local Chinese official documentation snapshots over memory for component APIs, examples, semantic DOM keys, design tokens, and migration-sensitive behavior.
+Use this reference for Ant Design React work. Prefer the local Chinese official documentation snapshots over memory for component APIs, examples, semantic DOM keys, design tokens, and migration-sensitive behavior.
 
 ## Source
 

@@ -1,6 +1,6 @@
 ---
 name: code-spec
-description: 全栈代码规范与专项开发指南。执行 html/css/js/ts/react/vue 前端开发、React 组件、接口请求、Zod 校验、TanStack Query/react-query、Vite+/vp、shadcn/ui、Ant Design/antd、第三方依赖、Hono API/中间件/部署、Drizzle ORM/Drizzle Kit/schema/migration/query 等代码任务时触发；当前通用规范以前端为主，后端规范通过 Hono 和 Drizzle ORM 子 skill 承载。关键词：代码规范、前端、后端、React、Vue、TypeScript、接口请求、Zod、zod、TanStack Query、react-query、useQuery、useMutation、Vite+、vp、shadcn、Ant Design、antd、Hono、Drizzle、ORM、migration。
+description: 全栈代码规范与专项开发指南。执行 html/css/js/ts/react/vue 前端开发、React 组件、接口请求、Zod 校验、TanStack Query/react-query、Vite+/vp、shadcn/ui、Ant Design/antd、第三方依赖、Hono API/中间件/部署、Drizzle ORM/Drizzle Kit/schema/migration/query 等代码任务时触发；当前通用规范以前端为主，专项规范通过 references 下的参考模块渐进披露。关键词：代码规范、前端、后端、React、Vue、TypeScript、接口请求、Zod、zod、TanStack Query、react-query、useQuery、useMutation、Vite+、vp、shadcn、Ant Design、antd、Hono、Drizzle、ORM、migration。
 ---
 
 # code-spec
@@ -11,26 +11,26 @@ description: 全栈代码规范与专项开发指南。执行 html/css/js/ts/rea
 
 1. 所有代码开发任务先读本文件，确认本次任务属于前端通用规范、组件体系专项规范、后端专项规范还是工具链规范。
 2. 前端开发任务使用本文的项目结构、命名、组件、请求和检查规范；当前通用规范以前端 TypeScript 项目为主。
-3. 任务涉及 Vite+/vp 时，先看本文的 Vite+ 工具链规范；只有具体命令、配置或故障细节不确定时，再读 `vite-plus/` 子目录中的对应参考。
-4. 任务涉及 shadcn/ui 时，先看本文的 shadcn/ui 快速规则；只有具体组件 API、CLI 行为或样式规则不确定时，再读 `shadcn/` 子目录中的对应参考。
-5. 任务涉及 Ant Design/antd 组件、主题、Form/Table、语义化 DOM、`classNames` 或 `styles` 时，读取 `antd/SKILL.md`，再按需读取 `antd/references/component-map.md`、`antd/references/semantic-map.md` 和对应拆分文档。
-6. 任务涉及 Hono API、路由、中间件、适配器、RPC、测试或部署时，读取 `hono/SKILL.md`，再按需读取 `hono/references/source-map.md` 和具体官方 docs 快照。
-7. 任务涉及 Drizzle ORM、Drizzle Kit、schema、relations、query、migration、seed 或数据库连接时，读取 `drizzle-orm/SKILL.md`，再按需读取 `drizzle-orm/references/doc-map.md` 和具体官方 docs 快照。
-8. 任务涉及 Zod schema、运行时校验、parse/safeParse、错误格式化、JSON Schema、codec、transform 或 Zod 迁移时，读取 `zod/SKILL.md`，再按需读取 `zod/references/doc-map.md` 和具体官方 docs 快照。
-9. 任务涉及 TanStack Query / React Query、QueryClient、useQuery、useMutation、queryKey、invalidateQueries、SSR/hydration、Suspense、乐观更新或服务端状态缓存时，读取 `react-query/SKILL.md`，再按需读取 `react-query/references/doc-map.md` 和具体官方 docs 快照。
+3. 任务涉及 Vite+/vp 时，先看本文的 Vite+ 工具链规范；只有具体命令、配置或故障细节不确定时，再读 `references/vite-plus/README.md` 和对应参考。
+4. 任务涉及 shadcn/ui 时，先看本文的 shadcn/ui 快速规则；只有具体组件 API、CLI 行为或样式规则不确定时，再读 `references/shadcn/README.md` 和对应参考。
+5. 任务涉及 Ant Design/antd 组件、主题、Form/Table、语义化 DOM、`classNames` 或 `styles` 时，读取 `references/antd/README.md`，再按需读取 `references/antd/references/component-map.md`、`references/antd/references/semantic-map.md` 和对应拆分文档。
+6. 任务涉及 Hono API、路由、中间件、适配器、RPC、测试或部署时，读取 `references/hono/README.md`，再按需读取 `references/hono/references/source-map.md` 和具体官方 docs 快照。
+7. 任务涉及 Drizzle ORM、Drizzle Kit、schema、relations、query、migration、seed 或数据库连接时，读取 `references/drizzle-orm/README.md`，再按需读取 `references/drizzle-orm/references/doc-map.md` 和具体官方 docs 快照。
+8. 任务涉及 Zod schema、运行时校验、parse/safeParse、错误格式化、JSON Schema、codec、transform 或 Zod 迁移时，读取 `references/zod/README.md`，再按需读取 `references/zod/references/doc-map.md` 和具体官方 docs 快照。
+9. 任务涉及 TanStack Query / React Query、QueryClient、useQuery、useMutation、queryKey、invalidateQueries、SSR/hydration、Suspense、乐观更新或服务端状态缓存时，读取 `references/react-query/README.md`，再按需读取 `references/react-query/references/doc-map.md` 和具体官方 docs 快照。
 10. 只有任务涉及 React 组件、Hook、状态、数据请求、bundle、首屏渲染、交互性能或代码评审时，读取 `references/react/README.md`，再按需读取单条 React 规则。
 11. 外部官方文档只在 API 不确定、版本差异可能影响实现、或用户明确要求查证时读取；内部依赖优先搜索项目内现有用法。
 
 ## 规范分层
 
-- 本文件承载通用代码规范入口和前端规范主体；后续新增通用后端规范时直接补充在本 skill 中。
-- `hono/` 是 Hono 后端专项子 skill，保留官方 docs 快照和路由索引。
-- `drizzle-orm/` 是 Drizzle ORM / Drizzle Kit 后端专项子 skill，保留官方 docs 快照、路由索引和刷新脚本。
-- `zod/` 是 Zod 数据校验专项子 skill，保留官方 docs 快照、路由索引和刷新脚本。
-- `react-query/` 是 TanStack Query React 服务端状态专项子 skill，保留官方 docs 快照、路由索引和刷新脚本。
-- `vite-plus/` 是工具链子 skill；`shadcn/` 和 `antd/` 是组件体系子 skill，父文件只保留常用规则和路由入口。
+- 本文件承载对外唯一暴露的 `code-spec` skill 入口和前端规范主体；后续新增通用后端规范时直接补充在本 skill 中。
+- `references/hono/` 是 Hono 后端专项参考模块，保留官方 docs 快照和路由索引。
+- `references/drizzle-orm/` 是 Drizzle ORM / Drizzle Kit 后端专项参考模块，保留官方 docs 快照、路由索引和刷新脚本。
+- `references/zod/` 是 Zod 数据校验专项参考模块，保留官方 docs 快照、路由索引和刷新脚本。
+- `references/react-query/` 是 TanStack Query React 服务端状态专项参考模块，保留官方 docs 快照、路由索引和刷新脚本。
+- `references/vite-plus/` 是工具链参考模块；`references/shadcn/` 和 `references/antd/` 是组件体系参考模块，父文件只保留常用规则和路由入口。
 
-以下项目结构提供前后端 TypeScript 项目的默认组织方式；命名、代码、React、HTTP 请求和检查规范仍以前端 TypeScript 项目为主，后端专项规则按需读取 Hono / Drizzle 子 skill。
+以下项目结构提供前后端 TypeScript 项目的默认组织方式；命名、代码、React、HTTP 请求和检查规范仍以前端 TypeScript 项目为主，后端专项规则按需读取 Hono / Drizzle 参考模块。
 
 ## 项目结构
 
@@ -164,7 +164,7 @@ export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps)
 - 添加、更新、修复或组合 shadcn/ui 组件时，先看本节快速规则；执行命令前查看项目现有 UI 组件目录和工具函数目录，避免重复添加或导入不存在的组件;
 - Vite+ 项目优先使用 `vp dlx -- shadcn@latest ... --cwd <project-path>`；非 Vite+ 项目按 `packageManager` 选择 `npx shadcn@latest`、`pnpm dlx shadcn@latest` 或 `bunx --bun shadcn@latest`;
 - shadcn/ui 生成的 `components/ui` 源码保持官方组件结构；业务组件和页面代码继续遵守本 skill 的命名、拆分、props 和请求规范;
-- 已经统一使用 Ant Design 的既有项目继续使用 `antd`；涉及组件 API、主题 token、Form/Table 复杂行为、`classNames`/`styles` 或语义化 DOM 时读取 `antd/SKILL.md` 和本地中文官方文档快照;
+- 已经统一使用 Ant Design 的既有项目继续使用 `antd`；涉及组件 API、主题 token、Form/Table 复杂行为、`classNames`/`styles` 或语义化 DOM 时读取 `references/antd/README.md` 和本地中文官方文档快照;
 - 已经统一使用内部 PC 组件库的既有项目可继续使用 `@ecom/auxo`，但不要在同一应用中再引入另一套 PC 组件库;
 - H5 应用使用 `@ecom/auxo-mobile` 或者 `@arco-design/mobile-react`;
 - 高级组件：`@ecom/auxo-pro-table`、`@ecom/auxo-pro-form`;
@@ -189,7 +189,7 @@ export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps)
 - 内置命令不能覆盖；需要运行项目脚本或自定义任务时使用 `vp run <script>` 或 `vpr <script>`;
 - 测试工具从 `vite-plus/test` 导入，不直接从 `vitest` 导入，除非当前项目明确不是 Vite+ 项目;
 - 代码任务完成后按项目上下文执行 `vp check` 和 `vp test`，并检查是否需要通过 `vp run <script>` 运行 `package.json` 或 `vite.config.ts` 中的任务;
-- 需要命令细节时读 `vite-plus/references/commands-reference.md`；需要配置细节时读 `vite-plus/references/config-reference.md`；涉及 `vp create` 组织模板、`create.defaultTemplate` 或 monorepo 根配置时读 `vite-plus/references/getting-started.md` 和 `vite-plus/references/monorepo.md`；排障时读 `vite-plus/references/troubleshooting.md`。
+- 需要命令细节时读 `references/vite-plus/references/commands-reference.md`；需要配置细节时读 `references/vite-plus/references/config-reference.md`；涉及 `vp create` 组织模板、`create.defaultTemplate` 或 monorepo 根配置时读 `references/vite-plus/references/getting-started.md` 和 `references/vite-plus/references/monorepo.md`；排障时读 `references/vite-plus/references/troubleshooting.md`。
 
 ### React 性能规范
 
@@ -200,24 +200,24 @@ export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps)
 
 ## 数据校验与服务端状态专项规范
 
-当前 Zod 与 TanStack Query 规范通过子 skill 渐进披露，父文件只保留常用分流入口。
+当前 Zod 与 TanStack Query 规范通过 references 渐进披露，父文件只保留常用分流入口。
 
 | 任务 | 先读 | 继续按需读取 |
 |------|------|--------------|
-| Zod schema、运行时校验、parse/safeParse、ZodError、refine/superRefine、transform、codec、JSON Schema 或 Zod 迁移 | `zod/SKILL.md` | `zod/references/doc-map.md` 和 `zod/references/source-docs/` 中的相关文件 |
-| TanStack Query / React Query、QueryClient、useQuery、useMutation、useInfiniteQuery、queryKey、invalidateQueries、SSR/hydration、Suspense、乐观更新或持久化 | `react-query/SKILL.md` | `react-query/references/doc-map.md` 和 `react-query/references/source-docs/` 中的相关文件 |
+| Zod schema、运行时校验、parse/safeParse、ZodError、refine/superRefine、transform、codec、JSON Schema 或 Zod 迁移 | `references/zod/README.md` | `references/zod/references/doc-map.md` 和 `references/zod/references/source-docs/` 中的相关文件 |
+| TanStack Query / React Query、QueryClient、useQuery、useMutation、useInfiniteQuery、queryKey、invalidateQueries、SSR/hydration、Suspense、乐观更新或持久化 | `references/react-query/README.md` | `references/react-query/references/doc-map.md` 和 `references/react-query/references/source-docs/` 中的相关文件 |
 
 - Zod 任务先确认校验发生在请求、表单、环境变量、外部 API 响应还是持久化 JSON 边界，再决定 schema 与错误形态。
 - React Query 任务先确认现有 `QueryClient`、query key 约定、请求封装、错误处理和 SSR 框架，再新增 hook 或缓存策略。
 
 ## 后端专项规范
 
-当前后端规范通过子 skill 渐进披露，避免把完整官方文档和框架细节堆进父文件。
+当前后端规范通过 references 渐进披露，避免把完整官方文档和框架细节堆进父文件。
 
 | 任务 | 先读 | 继续按需读取 |
 |------|------|--------------|
-| Hono API、路由、中间件、helper、RPC、校验、JSX、测试、运行时适配或部署 | `hono/SKILL.md` | `hono/references/source-map.md` 和 `hono/references/source-docs/` 中的相关文件 |
-| Drizzle ORM / Drizzle Kit、schema、relations、query、migration、seed、数据库连接或方言差异 | `drizzle-orm/SKILL.md` | `drizzle-orm/references/doc-map.md` 和 `drizzle-orm/references/source-docs/` 中的相关文件 |
+| Hono API、路由、中间件、helper、RPC、校验、JSX、测试、运行时适配或部署 | `references/hono/README.md` | `references/hono/references/source-map.md` 和 `references/hono/references/source-docs/` 中的相关文件 |
+| Drizzle ORM / Drizzle Kit、schema、relations、query、migration、seed、数据库连接或方言差异 | `references/drizzle-orm/README.md` | `references/drizzle-orm/references/doc-map.md` 和 `references/drizzle-orm/references/source-docs/` 中的相关文件 |
 
 - Hono 任务先确认 runtime、adapter、包管理器和 TypeScript 约束，再写匹配运行时入口的代码。
 - Drizzle 任务先确认数据库方言、driver、迁移策略和是否会触碰真实数据库；`push`、`migrate`、`pull` 这类数据库影响命令需要明确目标环境后再执行或推荐。
@@ -238,7 +238,7 @@ export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps)
 2. 基于封装后的请求函数, 使用 `ahook` 或者 `react-query` 生成对应的 hook;
 3. 在组件中使用 hook 来调用接口;
 
-涉及 React Query 具体 API、query key、mutation/invalidation、SSR/hydration、Suspense 或缓存策略时，先读取 `react-query/SKILL.md`，不要只凭示例扩展复杂行为。
+涉及 React Query 具体 API、query key、mutation/invalidation、SSR/hydration、Suspense 或缓存策略时，先读取 `references/react-query/README.md`，不要只凭示例扩展复杂行为。
 
 ### hook 示例
 
@@ -329,10 +329,10 @@ export const usePosts = (random = true) => {
 | TypeScript | https://www.typescriptlang.org/docs/ |
 | Tailwind CSS | https://tailwindcss.com/docs |
 | shadcn/ui | 先看本文的 shadcn/ui 快速规则，再查 https://ui.shadcn.com/docs |
-| Ant Design / antd | 先看 `antd/SKILL.md` 和本地中文官方文档快照，再查 https://ant.design/components/overview-cn/ |
+| Ant Design / antd | 先看 `references/antd/README.md` 和本地中文官方文档快照，再查 https://ant.design/components/overview-cn/ |
 | Zustand | https://zustand.docs.pmnd.rs/ |
-| Zod | 先看 `zod/SKILL.md` 和本地 docs 快照，再查 https://zod.dev/ |
-| @tanstack/react-query | 先看 `react-query/SKILL.md` 和本地 React docs 快照，再查 https://tanstack.com/query/latest/docs |
+| Zod | 先看 `references/zod/README.md` 和本地 docs 快照，再查 https://zod.dev/ |
+| @tanstack/react-query | 先看 `references/react-query/README.md` 和本地 React docs 快照，再查 https://tanstack.com/query/latest/docs |
 | @tanstack/react-router | https://tanstack.com/router/latest/docs |
 | dayjs | https://day.js.org/ |
 | es-toolkit | https://es-toolkit.slash.page/ |
@@ -345,8 +345,8 @@ export const usePosts = (random = true) => {
 | ConnectRPC | https://connectrpc.com/docs/web/getting-started |
 | @connectrpc/connect | https://www.npmjs.com/package/@connectrpc/connect |
 | @bufbuild/protobuf | https://buf.build/docs/protobuf-es |
-| Hono | 先看 `hono/SKILL.md` 和本地 docs 快照，再查 https://hono.dev/docs/ |
-| Drizzle ORM | 先看 `drizzle-orm/SKILL.md` 和本地 docs 快照，再查 https://orm.drizzle.team/docs/overview |
+| Hono | 先看 `references/hono/README.md` 和本地 docs 快照，再查 https://hono.dev/docs/ |
+| Drizzle ORM | 先看 `references/drizzle-orm/README.md` 和本地 docs 快照，再查 https://orm.drizzle.team/docs/overview |
 
 > **内部依赖**（无公开文档）：@ecom/auxo、@ecom/auxo-mobile、@ecom/auxo-pro-table、@ecom/auxo-pro-form、BAM。遇到这些库的问题时，搜索项目内现有用法作为参考。
 

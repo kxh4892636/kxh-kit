@@ -1,11 +1,11 @@
 ---
 name: react-query
-description: TanStack Query / React Query 官方文档型开发技能。凡是用户提到 @tanstack/react-query、TanStack Query、React Query、QueryClient、QueryClientProvider、useQuery、useMutation、useInfiniteQuery、useQueries、queryKey、invalidateQueries、prefetch、hydrate/dehydrate、SSR、Suspense、optimistic update、query cache、mutation cache、persistQueryClient 或 React 服务端状态请求封装时都应使用，并优先读取本 skill 打包的官方 React docs 快照。
+description: TanStack Query / React Query 官方文档型参考。由 code-spec 按需读取，用于 @tanstack/react-query、TanStack Query、React Query、QueryClient、QueryClientProvider、useQuery、useMutation、useInfiniteQuery、useQueries、queryKey、invalidateQueries、prefetch、hydrate/dehydrate、SSR、Suspense、optimistic update、query cache、mutation cache、persistQueryClient 或 React 服务端状态请求封装，并优先读取本 reference 打包的官方 React docs 快照。
 ---
 
-# React Query Skill
+# React Query Reference
 
-Use this skill for TanStack Query React work: query client setup, server state hooks, query keys, query functions, mutations, invalidation, optimistic updates, infinite queries, prefetching, SSR/hydration, Suspense, persistence, testing, and TypeScript typing.
+Use this reference for TanStack Query React work: query client setup, server state hooks, query keys, query functions, mutations, invalidation, optimistic updates, infinite queries, prefetching, SSR/hydration, Suspense, persistence, testing, and TypeScript typing.
 
 **Source docs:** https://github.com/TanStack/query/tree/main/docs/framework/react
 
@@ -107,7 +107,7 @@ For repo changes:
 The bundled source docs were extracted from the GitHub docs directory. To refresh:
 
 ```powershell
-pwsh .agents/skills/code-spec/react-query/scripts/update-source-docs.ps1
+pwsh .agents/skills/code-spec/references/react-query/scripts/update-source-docs.ps1
 ```
 
-Then review `references/source-docs/`, `references/doc-map.md`, `references/snapshot.json`, and this `SKILL.md` against upstream changes. If new guides, hooks, plugins, or migration topics appear, update the routing tables and the parent `code-spec` routing entry.
+Then review `references/source-docs/`, `references/doc-map.md`, `references/snapshot.json`, and this `README.md` against upstream changes. If new guides, hooks, plugins, or migration topics appear, update the routing tables and the parent `code-spec` routing entry.
