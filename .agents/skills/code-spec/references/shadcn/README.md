@@ -258,3 +258,13 @@ npx shadcn@latest view @shadcn/button
 - [rules/base-vs-radix.md](./rules/base-vs-radix.md) — asChild vs render, Select, ToggleGroup, Slider, Accordion
 - [cli.md](./cli.md) — Commands, flags, presets, templates
 - [customization.md](./customization.md) — Theming, CSS variables, extending components
+
+## Updating This Reference
+
+Refresh from upstream with the cross-platform Node.js script:
+
+```bash
+node .agents/skills/code-spec/references/shadcn/scripts/update-source-docs.mjs
+```
+
+The script uses git sparse checkout for `skills/shadcn`, mirrors the upstream skill into this reference module, preserves local `scripts/`, and writes `snapshot.json`. Review the diff before accepting upstream changes.

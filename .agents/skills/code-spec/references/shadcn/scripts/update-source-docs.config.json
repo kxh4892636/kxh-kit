@@ -1,0 +1,27 @@
+{
+  "name": "shadcn",
+  "slug": "shadcn-skill",
+  "mode": "skill-root",
+  "repoUrl": "https://github.com/shadcn/ui",
+  "branch": "main",
+  "sourceMappings": [
+    {
+      "source": "skills/shadcn",
+      "target": "."
+    }
+  ],
+  "targetRoot": ".",
+  "preserveEntries": [
+    "scripts",
+    "snapshot.json"
+  ],
+  "snapshotPath": "snapshot.json",
+  "sourceUrls": [
+    "https://github.com/shadcn/ui/tree/main/skills/shadcn"
+  ],
+  "notes": [
+    "Snapshot was updated with git sparse checkout.",
+    "The upstream skills/shadcn directory is mirrored into this reference module.",
+    "scripts/ is a local update overlay and is preserved during sync."
+  ]
+}

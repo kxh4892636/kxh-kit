@@ -113,10 +113,10 @@ Before recommending or running `push`, `migrate`, or `pull`, confirm the target 
 
 ## Updating This Skill
 
-The bundled source docs were extracted from the GitHub docs repository. To refresh:
+The bundled source docs are refreshed from the GitHub docs repository with a cross-platform Node.js script:
 
-```powershell
-pwsh .agents/skills/code-spec/references/drizzle-orm/scripts/update-source-docs.ps1
+```bash
+node .agents/skills/code-spec/references/drizzle-orm/scripts/update-source-docs.mjs
 ```
 
-Then review `references/source-docs/`, `references/doc-map.md`, and this `README.md` against upstream changes. If new major topics appear in `_meta.json`, update the routing tables.
+The script uses git sparse checkout for `src/content/docs`, then replaces `references/source-docs/` and updates `references/snapshot.json`. Then review `references/source-docs/`, `references/doc-map.md`, and this `README.md` against upstream changes. If new major topics appear in `_meta.json`, update the routing tables.

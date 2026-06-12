@@ -9,6 +9,17 @@ Vite+ is the unified toolchain and entry point for web development. It manages r
 
 **Source repo:** https://github.com/voidzero-dev/vite-plus
 
+**Source docs:** `docs/config` and `docs/guide`
+
+## Completion Standard
+
+A Vite+ answer is complete when it:
+
+- Uses `vp` as the entry point for Vite+ projects instead of falling back to direct package-manager or Vite/Vitest commands.
+- Checks the exact local source docs under `references/source-docs/` before answering detailed command, config, migration, CI, IDE, or troubleshooting questions.
+- Separates facts from assumptions when project files omit the package manager, Node version, or Vite+ config shape.
+- Keeps local project conventions intact and runs the smallest relevant validation command when changing code or toolchain config.
+
 ## Two Parts
 
 - `vp` — global command-line tool
@@ -82,18 +93,30 @@ export default defineConfig({
 - **`create.defaultTemplate`:** Sets the default `vp create` template or organization picker for a repository
 - **Monorepos:** Use a root `vite.config.ts` for shared Vite+ tool config, with `lint.overrides` / `fmt.overrides` for package-specific settings
 
-## Reference Files
+## Source Docs
 
-For detailed information, read the appropriate reference file:
+For detailed information, start with [references/source-map.md](references/source-map.md), then read the matching upstream snapshot under `references/source-docs/`.
 
-| Reference File | Contents |
-|---------------|----------|
-| [references/getting-started.md](references/getting-started.md) | Installation, project creation, why Vite+, migration |
-| [references/commands-reference.md](references/commands-reference.md) | All command documentation: dev, build, check, lint, fmt, test, run, pack, install, env, vpx, commit-hooks, upgrade, implode, cache |
-| [references/config-reference.md](references/config-reference.md) | Full config reference: lint, fmt, test, run, pack, staged, build blocks |
-| [references/monorepo.md](references/monorepo.md) | Root monorepo config, lint/format overrides, composed config, app command patterns |
-| [references/troubleshooting.md](references/troubleshooting.md) | Common issues, workarounds, asking for help |
-| [references/ide-integration.md](references/ide-integration.md) | VS Code and Zed setup |
-| [references/ci.md](references/ci.md) | GitHub Actions CI setup with setup-vp |
+| Need | Read |
+| --- | --- |
+| Getting started, why Vite+, project creation, migration, monorepos | `references/source-docs/guide/index.md`, `why.md`, `create.md`, `migrate.md`, `monorepo.md` |
+| Commands such as dev, build, check, lint, fmt, test, run, pack, install, env, vpx, cache, hooks, upgrade, implode | `references/source-docs/guide/<topic>.md` |
+| Config blocks such as build, create, fmt, lint, pack, run, staged, test | `references/source-docs/config/<topic>.md` |
+| CI, IDE integration, troubleshooting | `references/source-docs/guide/ci.md`, `ide-integration.md`, `troubleshooting.md` |
 
-Read the relevant reference file before answering detailed questions about a specific command or config block.
+Do not rely on the deleted summary markdown files for command or config details. Use the mirrored upstream docs when exact wording, options, examples, or changed behavior matter.
+
+## Updating This Reference
+
+The upstream docs are refreshed with the same git-based workflow used by the other `code-spec` reference modules:
+
+```bash
+node .agents/skills/code-spec/references/vite-plus/scripts/update-source-docs.mjs
+```
+
+The script uses git sparse checkout against:
+
+- `https://github.com/voidzero-dev/vite-plus/tree/main/docs/config`
+- `https://github.com/voidzero-dev/vite-plus/tree/main/docs/guide`
+
+After running it, review `references/source-docs/`, `references/source-map.md`, `references/snapshot.json`, and this `README.md`. Keep only this README and the parent `code-spec` Vite+ guidance as local overlays.

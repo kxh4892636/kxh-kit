@@ -1,0 +1,23 @@
+{
+  "name": "Drizzle ORM",
+  "slug": "drizzle-orm-docs",
+  "mode": "source-docs",
+  "repoUrl": "https://github.com/drizzle-team/drizzle-orm-docs",
+  "branch": "main",
+  "sourceMappings": [
+    {
+      "source": "src/content/docs",
+      "target": "."
+    }
+  ],
+  "docsDestination": "references/source-docs",
+  "snapshotPath": "references/snapshot.json",
+  "sourceUrls": [
+    "https://github.com/drizzle-team/drizzle-orm-docs/tree/main/src/content/docs"
+  ],
+  "notes": [
+    "Snapshot was updated with git sparse checkout.",
+    "The complete upstream src/content/docs directory is mirrored under references/source-docs.",
+    "references/doc-map.md is a local routing overlay and must be reviewed, not blindly overwritten."
+  ]
+}

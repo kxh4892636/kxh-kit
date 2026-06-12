@@ -189,7 +189,7 @@ export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps)
 - 内置命令不能覆盖；需要运行项目脚本或自定义任务时使用 `vp run <script>` 或 `vpr <script>`;
 - 测试工具从 `vite-plus/test` 导入，不直接从 `vitest` 导入，除非当前项目明确不是 Vite+ 项目;
 - 代码任务完成后按项目上下文执行 `vp check` 和 `vp test`，并检查是否需要通过 `vp run <script>` 运行 `package.json` 或 `vite.config.ts` 中的任务;
-- 需要命令细节时读 `references/vite-plus/references/commands-reference.md`；需要配置细节时读 `references/vite-plus/references/config-reference.md`；涉及 `vp create` 组织模板、`create.defaultTemplate` 或 monorepo 根配置时读 `references/vite-plus/references/getting-started.md` 和 `references/vite-plus/references/monorepo.md`；排障时读 `references/vite-plus/references/troubleshooting.md`。
+- 需要命令、配置、迁移、CI、IDE 或排障细节时，先读 `references/vite-plus/references/source-map.md`，再打开 `references/vite-plus/references/source-docs/guide/` 或 `references/vite-plus/references/source-docs/config/` 下的对应上游快照文件。
 
 ### React 性能规范
 

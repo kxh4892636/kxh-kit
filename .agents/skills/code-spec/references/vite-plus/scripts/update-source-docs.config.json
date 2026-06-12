@@ -1,0 +1,34 @@
+{
+  "name": "Vite+",
+  "slug": "vite-plus-docs",
+  "mode": "source-docs",
+  "repoUrl": "https://github.com/voidzero-dev/vite-plus",
+  "branch": "main",
+  "sourceMappings": [
+    {
+      "source": "docs/config",
+      "target": "config"
+    },
+    {
+      "source": "docs/guide",
+      "target": "guide"
+    }
+  ],
+  "docsDestination": "references/source-docs",
+  "snapshotPath": "references/snapshot.json",
+  "sourceUrls": [
+    "https://github.com/voidzero-dev/vite-plus/tree/main/docs/config",
+    "https://github.com/voidzero-dev/vite-plus/tree/main/docs/guide"
+  ],
+  "sourceMap": {
+    "path": "references/source-map.md",
+    "title": "Vite+ Source Docs Map",
+    "localMirror": "references/source-docs/",
+    "intro": "The source docs are copied from upstream with git sparse checkout. Use this map to choose the smallest relevant source file before relying on exact command or configuration details."
+  },
+  "notes": [
+    "Snapshot was updated with git sparse checkout.",
+    "Only docs/config and docs/guide are mirrored under references/source-docs.",
+    "Curated Vite+ guidance and extracted reference files are local overlays and must be reviewed, not blindly overwritten."
+  ]
+}
