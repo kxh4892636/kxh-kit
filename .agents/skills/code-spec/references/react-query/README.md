@@ -104,10 +104,10 @@ For repo changes:
 
 ## Updating This Skill
 
-The bundled source docs were extracted from the GitHub docs directory. To refresh:
+The bundled source docs are refreshed from the GitHub docs directory with a cross-platform Node.js script:
 
-```powershell
-pwsh .agents/skills/code-spec/references/react-query/scripts/update-source-docs.ps1
+```bash
+node .agents/skills/code-spec/references/react-query/scripts/update-source-docs.mjs
 ```
 
-Then review `references/source-docs/`, `references/doc-map.md`, `references/snapshot.json`, and this `README.md` against upstream changes. If new guides, hooks, plugins, or migration topics appear, update the routing tables and the parent `code-spec` routing entry.
+The script uses git sparse checkout for `docs/framework/react`, then replaces `references/source-docs/` and updates `references/snapshot.json`. Then review `references/source-docs/`, `references/doc-map.md`, `references/snapshot.json`, and this `README.md` against upstream changes. If new guides, hooks, plugins, or migration topics appear, update the routing tables and the parent `code-spec` routing entry.

@@ -1,0 +1,21 @@
+{
+  "repo_url": "https://github.com/voidzero-dev/vite-plus",
+  "source_urls": [
+    "https://github.com/voidzero-dev/vite-plus/tree/main/docs/config",
+    "https://github.com/voidzero-dev/vite-plus/tree/main/docs/guide"
+  ],
+  "branch": "main",
+  "source_subdirectories": [
+    "docs/config",
+    "docs/guide"
+  ],
+  "snapshot_date": "2026-06-12",
+  "commit_sha": "ec6d4b12899aa01d9c2745321f05c18d2140ca73",
+  "file_count": 32,
+  "byte_count": 103205,
+  "notes": [
+    "Snapshot was updated with git sparse checkout.",
+    "Only docs/config and docs/guide are mirrored under references/source-docs.",
+    "Only README.md and the parent code-spec Vite+ guidance are local overlays and must be reviewed, not blindly overwritten."
+  ]
+}

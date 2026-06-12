@@ -1,0 +1,23 @@
+{
+  "name": "React Query",
+  "slug": "react-query-docs",
+  "mode": "source-docs",
+  "repoUrl": "https://github.com/TanStack/query",
+  "branch": "main",
+  "sourceMappings": [
+    {
+      "source": "docs/framework/react",
+      "target": "."
+    }
+  ],
+  "docsDestination": "references/source-docs",
+  "snapshotPath": "references/snapshot.json",
+  "sourceUrls": [
+    "https://github.com/TanStack/query/tree/main/docs/framework/react"
+  ],
+  "notes": [
+    "Snapshot was updated with git sparse checkout.",
+    "The complete React framework docs directory is mirrored under references/source-docs.",
+    "references/doc-map.md is a local routing overlay and must be reviewed, not blindly overwritten."
+  ]
+}

@@ -70,25 +70,13 @@ Start with these files:
 
 ## Updating This Skill
 
-Use this process when refreshing from upstream:
+Refresh from upstream with the cross-platform Node.js script:
 
-1. Clone the website repository into a temporary directory:
+```bash
+node .agents/skills/code-spec/references/hono/scripts/update-source-docs.mjs
+```
 
-   ```powershell
-   git clone --depth 1 --filter=blob:none --sparse https://github.com/honojs/website <tmp-dir>
-   ```
-
-2. In the temporary repository, check out only docs:
-
-   ```powershell
-   git sparse-checkout set docs
-   git rev-parse HEAD
-   ```
-
-3. Replace `references/source-docs/` with the refreshed `docs/` contents, preserving the same relative paths.
-4. Regenerate `references/source-map.md` from the refreshed file list and headings.
-5. Update the snapshot commit in this file.
-6. Review the diff to ensure no source document, paragraph, code sample, option, or warning was dropped.
+The script uses git sparse checkout for `docs`, replaces `references/source-docs/`, regenerates `references/source-map.md`, writes `references/snapshot.json`, and updates the snapshot commit in this file. Review the diff to ensure no source document, paragraph, code sample, option, or warning was dropped.
 
 ## Validation Prompts
 
