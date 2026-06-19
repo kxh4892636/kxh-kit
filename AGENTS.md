@@ -5,6 +5,7 @@ This repository contains both engineering projects and non-code content work.
 ## Git
 
 - git message use chinese;
+- message less than 13 words；
 
 ## Task Scope
 
