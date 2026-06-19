@@ -51,21 +51,17 @@ Source: https://ant.design/components/alert-cn/semantic.md
           </div>
         </div>
         <div class="ant-alert-actions semantic-mark-actions">
-          <div class="ant-space ant-space-vertical ant-space-gap-row-small ant-space-gap-col-small css-var-test-id">
-            <div class="ant-space-item">
-              <button class="ant-btn css-var-test-id ant-btn-primary ant-btn-color-primary ant-btn-variant-solid ant-btn-sm" type="button">
-                <span>
-                  Accept
-                </span>
-              </button>
-            </div>
-            <div class="ant-space-item">
-              <button class="ant-btn css-var-test-id ant-btn-default ant-btn-dangerous ant-btn-color-dangerous ant-btn-variant-outlined ant-btn-sm ant-btn-background-ghost" type="button">
-                <span>
-                  Decline
-                </span>
-              </button>
-            </div>
+          <div class="ant-flex css-var-test-id ant-flex-align-stretch ant-flex-gap-small ant-flex-vertical" style="min-width: 80px;">
+            <button class="ant-btn css-var-test-id ant-btn-primary ant-btn-color-primary ant-btn-variant-solid ant-btn-sm ant-btn-block" type="button">
+              <span>
+                Accept
+              </span>
+            </button>
+            <button class="ant-btn css-var-test-id ant-btn-default ant-btn-dangerous ant-btn-color-dangerous ant-btn-variant-outlined ant-btn-sm ant-btn-background-ghost ant-btn-block" type="button">
+              <span>
+                Decline
+              </span>
+            </button>
           </div>
         </div>
         <button class="ant-alert-close-icon semantic-mark-close" tabindex="0" type="button">

@@ -555,6 +555,7 @@ export default App;
 
 
 
+
 ## API
 
 通用属性参考：[通用属性](/docs/react/common-props)
@@ -692,6 +693,7 @@ https://ant.design/components/auto-complete-cn/semantic.md
 | controlHeight | Ant Design 中按钮和输入框等基础控件的高度 | number |  |
 | controlHeightLG | 较高的组件高度 | number |  |
 | controlHeightSM | 较小的组件高度 | number |  |
+| controlItemBgActiveHover | 控制组件项在鼠标悬浮且激活状态下的背景颜色。 | string |  |
 | controlOutlineWidth | 控制输入组件的外轮廓线宽度。 | number |  |
 | controlPaddingHorizontal | 控制元素水平内间距。 | number |  |
 | fontFamily | Ant Design 的字体家族中优先使用系统默认的界面字体，同时提供了一套利于屏显的备用字体库，来维护在不同平台以及浏览器的显示下，字体始终保持良好的易读性和可读性，体现了友好、稳定和专业的特性。 | string |  |

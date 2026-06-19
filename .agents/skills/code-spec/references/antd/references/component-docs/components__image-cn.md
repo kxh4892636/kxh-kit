@@ -45,11 +45,17 @@ export default App;
 
 ```tsx
 import React, { useEffect, useState } from 'react';
-import { Button, Flex, Image } from 'antd';
+import { Button, Flex, Image, theme } from 'antd';
 
 const GeneratingProgress: React.FC = () => {
+  const { token } = theme.useToken();
   const [percent, setPercent] = useState(0);
   const [status, setStatus] = useState<'idle' | 'generating' | 'complete'>('idle');
+  const imageStyles = {
+    root: { borderRadius: token.borderRadiusLG },
+    image: { borderRadius: token.borderRadiusLG },
+    cover: { borderRadius: token.borderRadiusLG },
+  };
 
   useEffect(() => {
     if (status === 'generating' && percent < 100) {
@@ -75,14 +81,14 @@ const GeneratingProgress: React.FC = () => {
       <Image
         width={200}
         height={200}
-        style={{ borderRadius: 8 }}
+        styles={imageStyles}
         src="https://zos.alipayobjects.com/rmsportal/jkjgkEfvpUPVyRjUImniVslZfWPnJuuZ.png"
       />
     ) : (
       <Image
         width={200}
         height={200}
-        style={{ borderRadius: 8 }}
+        styles={imageStyles}
         placeholder={{
           progress: {
             percent: Math.round(percent),
@@ -108,33 +114,34 @@ const GeneratingProgress: React.FC = () => {
 };
 
 const App: React.FC = () => {
+  const { token } = theme.useToken();
   const [random, setRandom] = useState<number>(() => Date.now());
+  const imageStyles = {
+    root: { borderRadius: token.borderRadiusLG },
+    image: { borderRadius: token.borderRadiusLG },
+    cover: { borderRadius: token.borderRadiusLG },
+  };
 
   return (
     <>
       <Flex gap={16} wrap>
+        <Image width={200} height={200} styles={imageStyles} placeholder={{ progress: true }} />
         <Image
           width={200}
           height={200}
-          style={{ borderRadius: 8 }}
-          placeholder={{ progress: true }}
-        />
-        <Image
-          width={200}
-          height={200}
-          style={{ borderRadius: 8 }}
+          styles={imageStyles}
           placeholder={{ progress: { render: () => 'loading...' } }}
         />
         <Image
           width={200}
           height={200}
-          style={{ borderRadius: 8 }}
+          styles={imageStyles}
           placeholder={{ progress: { percent: 50 } }}
         />
         <Image
           width={200}
           height={200}
-          style={{ borderRadius: 8 }}
+          styles={imageStyles}
           placeholder={{
             progress: {
               percent: 75,
@@ -162,7 +169,7 @@ const App: React.FC = () => {
             width={200}
             height={200}
             alt="basic image"
-            style={{ borderRadius: 8 }}
+            styles={imageStyles}
             src={`https://zos.alipayobjects.com/rmsportal/jkjgkEfvpUPVyRjUImniVslZfWPnJuuZ.png?${random}`}
             placeholder={
               <div
@@ -171,7 +178,7 @@ const App: React.FC = () => {
                   height: '100%',
                   background: 'rgba(255, 255, 255, 0.3)',
                   backdropFilter: 'blur(10px)',
-                  borderRadius: 8,
+                  borderRadius: token.borderRadiusLG,
                 }}
               />
             }
@@ -352,7 +359,7 @@ import {
   ZoomInOutlined,
   ZoomOutOutlined,
 } from '@ant-design/icons';
-import { Image, Slider, Space } from 'antd';
+import { Image, Space } from 'antd';
 
 const imageList = [
   'https://gw.alipayobjects.com/zos/rmsportal/KDpgvguMpGfqaHPjicRK.svg',
@@ -403,43 +410,23 @@ const App: React.FC = () => {
               onReset,
             },
           },
-        ) => {
-          const handleScaleChange = (nextScale: number) => {
-            // `@rc-component/image` v1.7.x no longer exposes an `onChangeScale` action.
-            // We approximate scale changes by triggering one step of zoom in/out.
-            if (nextScale > scale) {
-              onZoomIn();
-            } else if (nextScale < scale) {
-              onZoomOut();
-            }
-          };
-
-          return (
-            <Space size={12} className="toolbar-wrapper">
-              <LeftOutlined disabled={current === 0} onClick={() => onActive?.(-1)} />
-              <RightOutlined
-                disabled={current === imageList.length - 1}
-                onClick={() => onActive?.(1)}
-              />
-              <DownloadOutlined onClick={onDownload} />
-              <SwapOutlined rotate={90} onClick={onFlipY} />
-              <SwapOutlined onClick={onFlipX} />
-              <RotateLeftOutlined onClick={onRotateLeft} />
-              <RotateRightOutlined onClick={onRotateRight} />
-              <ZoomOutOutlined disabled={scale === 1} onClick={onZoomOut} />
-              <Slider
-                min={1}
-                max={50}
-                step={0.1}
-                value={scale}
-                styles={{ root: { width: 100, marginInline: 12 } }}
-                onChange={handleScaleChange}
-              />
-              <ZoomInOutlined disabled={scale === 50} onClick={onZoomIn} />
-              <UndoOutlined onClick={onReset} />
-            </Space>
-          );
-        },
+        ) => (
+          <Space size={12} className="toolbar-wrapper">
+            <LeftOutlined disabled={current === 0} onClick={() => onActive?.(-1)} />
+            <RightOutlined
+              disabled={current === imageList.length - 1}
+              onClick={() => onActive?.(1)}
+            />
+            <DownloadOutlined onClick={onDownload} />
+            <SwapOutlined rotate={90} onClick={onFlipY} />
+            <SwapOutlined onClick={onFlipX} />
+            <RotateLeftOutlined onClick={onRotateLeft} />
+            <RotateRightOutlined onClick={onRotateRight} />
+            <ZoomOutOutlined disabled={scale === 1} onClick={onZoomOut} />
+            <ZoomInOutlined disabled={scale === 50} onClick={onZoomIn} />
+            <UndoOutlined onClick={onReset} />
+          </Space>
+        ),
         onChange: (index) => {
           setCurrent(index);
         },
@@ -711,18 +698,18 @@ export default App;
 
 ### Image
 
-| 参数 | 说明 | 类型 | 默认值 | 版本 |
-| --- | --- | --- | --- | --- |
-| alt | 图像描述 | string | - |  |
-| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - |  |
-| fallback | 加载失败容错地址 | string | - |  |
-| height | 图像高度 | string \| number | - |  |
-| placeholder | 加载占位，支持 ReactNode 或配置对象 | [PlaceholderType](#placeholdertype) | - |  |
-| preview | 预览参数，为 `false` 时禁用 | boolean \| [PreviewType](#previewtype) | true |  |
-| src | 图片地址 | string | - |  |
-| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - |  |
-| width | 图像宽度 | string \| number | - |  |
-| onError | 加载错误回调 | (event: Event) => void | - |  |
+| 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
+| --- | --- | --- | --- | --- | --- |
+| alt | 图像描述 | string | - |  | × |
+| classNames | 用于自定义组件内部各语义化结构的 class，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), string> | - |  | 6.0.0 |
+| fallback | 加载失败容错地址 | string | - |  | 5.28.0 |
+| height | 图像高度 | string \| number | - |  | × |
+| placeholder | 加载占位，支持 ReactNode 或配置对象 | [PlaceholderType](#placeholdertype) | - |  | × |
+| preview | 预览参数，为 `false` 时禁用 | boolean \| [PreviewType](#previewtype) | true |  | `preview.closeIcon`: 5.14.0，`preview.mask`: 6.0.0，`preview.mask.closable`: 6.4.0 |
+| src | 图片地址 | string | - |  | × |
+| styles | 用于自定义组件内部各语义化结构的行内 style，支持对象或函数 | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props })=> Record<[SemanticDOM](#semantic-dom), CSSProperties> | - |  | 6.0.0 |
+| width | 图像宽度 | string \| number | - |  | × |
+| onError | 加载错误回调 | (event: Event) => void | - |  | × |
 
 其他属性见 [&lt;img>](https://developer.mozilla.org/en-US/docs/Web/HTML/Element/img#Attributes)
 
@@ -755,7 +742,7 @@ export default App;
 | ~~maskClassName~~ | 缩略图遮罩类名，请使用 `classNames.cover` 替换 | string | - |  |
 | maxScale | 最大缩放倍数 | number | 50 |  |
 | minScale | 最小缩放倍数 | number | 1 |  |
-| movable | 是否可移动 | boolean | true |  |
+| movable | 预览图片大于视口时是否可拖拽移动 | boolean | true |  |
 | open | 是否显示预览 | boolean | - |  |
 | rootClassName | 预览图的根 DOM 类名，会同时作用在图片和预览层最外侧 | string | - |  |
 | scaleStep | `1 + scaleStep` 为缩放放大的每步倍数 | number | 0.5 |  |
@@ -792,7 +779,7 @@ export default App;
 | ~~maskClassName~~ | 缩略图遮罩类名，请使用 `classNames.cover` 替换 | string | - |  |
 | minScale | 最小缩放倍数 | number | 1 |  |
 | maxScale | 最大放大倍数 | number | 50 |  |
-| movable | 是否可移动 | boolean | true |  |
+| movable | 预览图片大于视口时是否可拖拽移动 | boolean | true |  |
 | open | 是否显示预览 | boolean | - |  |
 | ~~rootClassName~~ | 预览图的根 DOM 类名，会同时作用在图片和预览层最外侧，请使用 `classNames.root` 替换 | string | - |  |
 | styles | 自定义语义化结构样式 | Record<[SemanticDOM](#semantic-dom), CSSProperties> | - |  |

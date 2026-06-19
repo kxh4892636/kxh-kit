@@ -2,7 +2,7 @@
 
 Source repo: `https://github.com/voidzero-dev/vite-plus`
 Source directories: `docs/config`, `docs/guide`
-Snapshot commit: `ec6d4b12899aa01d9c2745321f05c18d2140ca73`
+Snapshot commit: `4c793b77b9f583bb2a93d233f0b6fd475405913b`
 
 Local mirror: `references/source-docs/`
 

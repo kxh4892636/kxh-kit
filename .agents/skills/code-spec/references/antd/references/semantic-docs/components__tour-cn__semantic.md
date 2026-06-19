@@ -44,7 +44,7 @@ Source: https://ant.design/components/tour-cn/semantic.md
 ### Abstract DOM Structure
 
 ```html
-<div style="width: 100%; height: 825px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;">
+<div style="width: 100%; height: 600px; display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;">
         <button class="ant-btn css-var-test-id ant-btn-default ant-btn-color-default ant-btn-variant-outlined" type="button">
           <span>
             Show
@@ -62,7 +62,7 @@ Source: https://ant.design/components/tour-cn/semantic.md
                 </span>
               </button>
               <div class="ant-tour-cover semantic-mark-cover">
-                <img alt="tour.png" src="https://user-images.githubusercontent.com/5378891/197385811-55df8480-7ff4-44bd-9d43-a7dade598d70.png">
+                <img alt="tour.png" src="https://user-images.githubusercontent.com/5378891/197385811-55df8480-7ff4-44bd-9d43-a7dade598d70.png" style="width: 360px; max-width: 100%;">
               </div>
               <div class="ant-tour-header semantic-mark-header">
                 <div class="ant-tour-title semantic-mark-title">

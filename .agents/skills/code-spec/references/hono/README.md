@@ -11,7 +11,7 @@ Use this reference to answer or implement Hono work from the official Hono websi
 
 - Upstream repository: `https://github.com/honojs/website`
 - Upstream source directory: `docs/`
-- Snapshot commit: `3593c79adbe4caf5c519ee8f15f0e31f1a2a63c5`
+- Snapshot commit: `3a0fe30fad088f4e449572ad3e4eaeac77d9351a`
 - Full source docs: `references/source-docs/`
 - Compact source map: `references/source-map.md`
 

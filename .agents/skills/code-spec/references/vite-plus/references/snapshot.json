@@ -9,13 +9,13 @@
     "docs/config",
     "docs/guide"
   ],
-  "snapshot_date": "2026-06-12",
-  "commit_sha": "ec6d4b12899aa01d9c2745321f05c18d2140ca73",
+  "snapshot_date": "2026-06-19",
+  "commit_sha": "4c793b77b9f583bb2a93d233f0b6fd475405913b",
   "file_count": 32,
-  "byte_count": 103205,
+  "byte_count": 109429,
   "notes": [
     "Snapshot was updated with git sparse checkout.",
     "Only docs/config and docs/guide are mirrored under references/source-docs.",
-    "Only README.md and the parent code-spec Vite+ guidance are local overlays and must be reviewed, not blindly overwritten."
+    "Curated Vite+ guidance and extracted reference files are local overlays and must be reviewed, not blindly overwritten."
   ]
 }

@@ -430,12 +430,12 @@ export default App;
 
 通用属性参考：[通用属性](/docs/react/common-props)
 
-| 参数 | 说明 | 类型 | 默认值 | 版本 |
-| --- | --- | --- | --- | --- |
-| title | 提示文字 | ReactNode \| () => ReactNode | - | - |
-| color | 设置背景颜色，使用该属性后内部文字颜色将自适应 | string | - | 5.27.0 |
-| classNames | 语义化结构 class | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), string> | - |  |
-| styles | 语义化结构 style | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties> | - |  |
+| 参数 | 说明 | 类型 | 默认值 | 版本 | [全局配置](/components/config-provider-cn#component-config) |
+| --- | --- | --- | --- | --- | --- |
+| title | 提示文字 | ReactNode \| () => ReactNode | - | - | × |
+| color | 设置背景颜色，使用该属性后内部文字颜色将自适应 | string | - | 5.27.0 | × |
+| classNames | 语义化结构 class | Record<[SemanticDOM](#semantic-dom), string> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), string> | - | 5.23.0 | 5.23.0 |
+| styles | 语义化结构 style | Record<[SemanticDOM](#semantic-dom), CSSProperties> \| (info: { props }) => Record<[SemanticDOM](#semantic-dom), CSSProperties> | - | 5.23.0 | 5.23.0 |
 
 ### 共同的 API
 
@@ -487,7 +487,6 @@ https://ant.design/components/tooltip-cn/semantic.md
 | --- | --- | --- | --- |
 | borderRadius | 基础组件的圆角大小，例如按钮、输入框、卡片等 | number |  |
 | borderRadiusXS | XS号圆角，用于组件中的一些小圆角，如 Segmented 、Arrow 等一些内部圆角的组件样式中。 | number |  |
-| boxShadowSecondary | 控制元素二级阴影样式。 | string |  |
 | colorBgSpotlight | 该色用于引起用户强烈关注注意的背景色，目前只用在 Tooltip 的背景色上。 | string |  |
 | colorText | 最深的文本色。为了符合W3C标准，默认的文本颜色使用了该色，同时这个颜色也是最深的中性色。 | string |  |
 | colorTextLightSolid | 控制带背景色的文本，例如 Primary Button 组件中的文本高亮颜色。 | string |  |

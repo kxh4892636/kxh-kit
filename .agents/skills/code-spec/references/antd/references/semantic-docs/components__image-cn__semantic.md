@@ -45,7 +45,7 @@ Source: https://ant.design/components/image-cn/semantic.md
             <div class="ant-image-cover semantic-mark-cover acss-e54699 ant-image-cover-center">
           </div>
         </div>
-        <div style="flex: 1 1 0%; position: relative; min-height: 500px; width: 100%;">
+        <div style="flex: 1 1 0%; position: relative; min-height: 360px; width: 100%;">
           <div aria-modal="true" class="ant-image-preview css-var-test-id ant-image-css-var semantic-mark-popup-root ant-image-preview-movable" role="dialog" style="position: absolute;" tabindex="-1">
             <div class="ant-image-preview-mask semantic-mark-popup-mask">
             <div class="ant-image-preview-body semantic-mark-popup-body">

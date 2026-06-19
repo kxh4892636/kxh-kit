@@ -34,8 +34,8 @@ Source: https://ant.design/components/splitter-cn/semantic.md
             </h5>
           </div>
         </div>
-        <div aria-valuemax="0" aria-valuemin="0" aria-valuenow="50" class="ant-splitter-bar" role="separator">
-          <div class="ant-splitter-bar-dragger semantic-mark-dragger">
+        <div class="ant-splitter-bar">
+          <div aria-disabled="false" aria-orientation="vertical" aria-valuemax="0" aria-valuemin="0" aria-valuenow="50" class="ant-splitter-bar-dragger semantic-mark-dragger" role="separator">
         </div>
         <div class="ant-splitter-panel semantic-mark-panel" style="flex-basis: auto; flex-grow: 1;">
           <div class="ant-flex css-var-test-id ant-flex-align-center ant-flex-justify-center" style="height: 100%;">

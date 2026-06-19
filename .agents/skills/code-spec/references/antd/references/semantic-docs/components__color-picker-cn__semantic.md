@@ -122,7 +122,7 @@ Source: https://ant.design/components/color-picker-cn/semantic.md
           </div>
         </div>
         <div class="ant-color-picker-trigger css-var-test-id ant-color-picker-css-var semantic-mark-root">
-          <div class="ant-color-picker-clear semantic-mark-body">
+          <div aria-label="Clear color" class="ant-color-picker-clear semantic-mark-body" role="button" tabindex="0">
         </div>
       </div>
     </div>

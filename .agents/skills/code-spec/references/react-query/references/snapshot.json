@@ -1,14 +1,19 @@
 {
-  "source_url": "https://github.com/TanStack/query/tree/main/docs/framework/react",
-  "download_url": "https://codeload.github.com/TanStack/query/zip/refs/heads/main",
+  "repo_url": "https://github.com/TanStack/query",
+  "source_urls": [
+    "https://github.com/TanStack/query/tree/main/docs/framework/react"
+  ],
   "branch": "main",
-  "source_subdirectory": "docs/framework/react",
-  "snapshot_date": "2026-05-31",
-  "commit_sha": "7fa2781a1b10a185091a50fd4d0d8ca168f4177b",
+  "source_subdirectories": [
+    "docs/framework/react"
+  ],
+  "snapshot_date": "2026-06-19",
+  "commit_sha": "4f11927ac5f3841984389a07587ee2ae1e0abfbb",
   "file_count": 71,
-  "byte_count": 418528,
+  "byte_count": 419091,
   "notes": [
-    "Snapshot was downloaded from GitHub codeload for the main branch.",
-    "The complete React framework docs directory is mirrored under references/source-docs."
+    "Snapshot was updated with git sparse checkout.",
+    "The complete React framework docs directory is mirrored under references/source-docs.",
+    "references/doc-map.md is a local routing overlay and must be reviewed, not blindly overwritten."
   ]
 }

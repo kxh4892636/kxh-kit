@@ -25,22 +25,22 @@ Source: https://ant.design/components/tag-cn/semantic_group.md
 
 ```html
 <div class="ant-tag-checkable-group css-var-test-id semantic-mark-root">
-        <span class="ant-tag ant-tag-checkable ant-tag-checkable-group-item semantic-mark-item css-var-test-id">
+        <span aria-checked="false" class="ant-tag ant-tag-checkable ant-tag-checkable-group-item semantic-mark-item css-var-test-id" role="checkbox" tabindex="0">
           <span>
             Movies
           </span>
         </span>
-        <span class="ant-tag ant-tag-checkable ant-tag-checkable-checked ant-tag-checkable-group-item semantic-mark-item css-var-test-id">
+        <span aria-checked="true" class="ant-tag ant-tag-checkable ant-tag-checkable-checked ant-tag-checkable-group-item semantic-mark-item css-var-test-id" role="checkbox" tabindex="0">
           <span>
             Books
           </span>
         </span>
-        <span class="ant-tag ant-tag-checkable ant-tag-checkable-group-item semantic-mark-item css-var-test-id">
+        <span aria-checked="false" class="ant-tag ant-tag-checkable ant-tag-checkable-group-item semantic-mark-item css-var-test-id" role="checkbox" tabindex="0">
           <span>
             Music
           </span>
         </span>
-        <span class="ant-tag ant-tag-checkable ant-tag-checkable-group-item semantic-mark-item css-var-test-id">
+        <span aria-checked="false" class="ant-tag ant-tag-checkable ant-tag-checkable-group-item semantic-mark-item css-var-test-id" role="checkbox" tabindex="0">
           <span>
             Sports
           </span>

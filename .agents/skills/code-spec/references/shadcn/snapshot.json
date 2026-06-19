@@ -1,0 +1,19 @@
+{
+  "repo_url": "https://github.com/shadcn/ui",
+  "source_urls": [
+    "https://github.com/shadcn/ui/tree/main/skills/shadcn"
+  ],
+  "branch": "main",
+  "source_subdirectories": [
+    "skills/shadcn"
+  ],
+  "snapshot_date": "2026-06-19",
+  "commit_sha": "3ffd3e1c7c801f5af5aa72f7c70e21ace3b356bc",
+  "file_count": 14,
+  "byte_count": 84373,
+  "notes": [
+    "Snapshot was updated with git sparse checkout.",
+    "The upstream skills/shadcn directory is mirrored into this reference module.",
+    "scripts/ is a local update overlay and is preserved during sync."
+  ]
+}
