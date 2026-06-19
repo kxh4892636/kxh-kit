@@ -2,7 +2,6 @@ packages:
   - apps/*
   - templates/*
   - packages/*
-  - tools/*
 
 catalog:
   "@ant-design/cssinjs": ^2.1.2
