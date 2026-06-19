@@ -2,6 +2,10 @@
 
 This repository contains both engineering projects and non-code content work.
 
+## Git
+
+- git message use chinese;
+
 ## Task Scope
 
 - For code, dependency, Node.js, workspace, build, test, lint, format, RPC/proto, generated-code, git-hook, or package-script tasks, use the Vite+ guidance below and inspect only the relevant project configuration.
