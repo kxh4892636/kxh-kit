@@ -1,0 +1,23 @@
+{
+  "skill_name": "stock-selector",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "只验证 stock-selector 的东方财富数据获取脚本：生成 summary.md，并拆成每只股票一个 CSV；不生成 union.csv。",
+      "expected_output": "Treats this as a data-script-only validation, uses the bundled Eastmoney script, verifies both parser condition lists, saves only summary.md and stocks/{name}-{code}.csv files under inbox/stock-selector/<day>/raw, reports condition counts/intersection/union/stock file count, removes stale union.csv, removes match-source columns, and for duplicate stocks uses condition 1 values while appending condition 2-only fields at the end of each per-stock CSV.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "基于 stock-selector 的并集结果做初步筛选，给我 10-20 只优先分析股票，只能使用 xuangu 返回的数据，然后继续做深入分析。",
+      "expected_output": "Uses the investment-analysis framework to create shortlist.md using only the xuangu stock CSVs under raw/stocks/, explains scoring with valuation, quality, cash flow, leverage, industry, and timing fields, does not call investment-analysis data scripts during preliminary screening, then proceeds to mandatory deep analysis for every shortlisted stock.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "对 stock-selector 初筛后的股票生成深入分析报告，保存到 inbox/stock-selector/今天日期，最多 5 个子 agent 并行。",
+      "expected_output": "Uses investment-analysis for deeper analysis after preliminary selection, batches deep report work with no more than five active subagents, and saves one markdown report per stock under inbox/stock-selector/<YYYYMMDD>/.",
+      "files": []
+    }
+  ]
+}
