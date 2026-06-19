@@ -32,3 +32,4 @@ dist-ssr
 # AI agent worktrees
 .claude/worktrees/
 nano/
+.reasonix
