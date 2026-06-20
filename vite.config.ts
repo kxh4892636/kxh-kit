@@ -5,10 +5,10 @@ export default defineConfig({
     "*": "vp check --fix",
   },
   fmt: {
-    ignorePatterns: [".agents/**"],
+    ignorePatterns: [".agents/**", "packages/kxh-kit/**"],
   },
   lint: {
-    ignorePatterns: [".agents/**"],
+    ignorePatterns: [".agents/**", "packages/kxh-kit/**"],
     options: { typeAware: true, typeCheck: true },
   },
   run: {
