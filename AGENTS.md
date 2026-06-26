@@ -7,6 +7,7 @@
 ## Git
 
 - Remote: `git@github.com:kxh4892636/kxh-awesome.git`
+- Git commit message 遵循 commitlint 规范；
 - Git commit message 使用中文。
 - Git commit message 少于 13 个字。
 
