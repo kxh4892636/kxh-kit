@@ -121,18 +121,71 @@ main -> service + repository
 
 ## 推荐目录
 
-### Go 后端模板
+### 按业务模块组织
 
 ```text
-internal/
-├── database/      # DB 打开、连接配置、基础设施初始化
-├── model/         # 数据库模型
-├── repository/    # 数据访问实现
-└── service/       # 业务用例
-script/            # 初始化脚本、运维脚本
-data/              # 本地数据库文件
-main.go            # 实例装配、服务启动、路由注册
+src 或 internal/
+├── app/                 # 应用启动、依赖装配、路由注册
+├── modules/             # 按业务模块聚合 controller/service/repository/model
+├── shared/              # 跨模块共享能力, 如 db/config/logger/errors/utils
+├── integrations/        # 外部系统接入, 如 payment/email/storage/行情源
+└── tests/               # 跨模块或端到端测试
 ```
+
+- 目录核心: 不是按技术层全局分散文件, 而是先按业务模块聚合变化;
+- `app`: 只做启动与装配, 不写业务规则;
+- `modules/<domain>`: 一个业务模块内同时放入口、用例、持久化、模型和错误;
+- `shared`: 真正跨模块复用的基础能力, 禁止放业务规则;
+- `integrations`: 第三方系统 adapter, 隔离外部协议、字段和异常;
+
+### ETF Go 后端落地结构
+
+```text
+apps/etf-service/
+├── main.go                         # 进程入口, 内嵌 docs, 调用 app.Run
+├── proto/                          # ConnectRPC API 契约
+├── gen/                            # protobuf/connect 生成物
+├── docs/                           # API 文档生成物
+├── data/                           # SQLite 运行数据
+└── internal/
+    ├── app/
+    │   └── server.go               # DB/config/client/service/handler 装配, 路由注册
+    ├── modules/
+    │   └── market/
+    │       ├── controller.go        # ConnectRPC handler 适配层
+    │       ├── service.go           # 行情业务用例
+    │       ├── repository.go        # GORM 数据访问
+    │       ├── model.go             # GORM 表模型
+    │       ├── types.go             # 模块领域类型 / DTO
+    │       ├── errors.go            # 模块错误
+    │       └── service_test.go      # service 单元测试
+    ├── shared/
+    │   ├── config/                 # 环境变量和支持证券配置
+    │   ├── db/                     # SQLite/GORM 打开逻辑
+    │   └── utils/                  # 日期工具
+    └── integrations/
+        └── hongsehuojian/
+            ├── client.go           # 红色火箭 HTTP client
+            ├── parser.go           # K 线 JSON 解析
+            └── parser_test.go      # parser 单元测试
+```
+
+- 实际取舍: 当前只有行情业务, 只创建 `modules/market`, 不制造空的 `user/order` 示例模块;
+- 类型合并: `Security`、`DailyBar` 等领域类型放在 `modules/market/types.go`;
+- 模型区分: GORM 表模型使用 `SecurityModel`、`DailyBarModel`、`TradingCalendarModel`, 避免和领域类型同名;
+- 外部数据源: 红色火箭解析和 HTTP 细节留在 `integrations/hongsehuojian`, service 只依赖 `RemoteFetcher` 能力;
+- 启动装配: `internal/app/server.go` 创建 DB、repository、service、integration client 和 ConnectRPC handler;
+- 入口瘦身: `main.go` 不直接关心数据库、路由和业务依赖;
+
+### 目录选择规则
+
+| 场景                         | 推荐放置                 |
+| ---------------------------- | ------------------------ |
+| 单个业务模块内部使用         | `modules/<domain>/`      |
+| 多个业务模块共享且无业务语义 | `shared/`                |
+| 第三方系统协议、client、解析 | `integrations/<system>/` |
+| 进程启动、依赖装配、路由注册 | `app/`                   |
+| protobuf / OpenAPI 生成物    | `gen/`、`docs/`          |
 
 ## 判断标准
 
