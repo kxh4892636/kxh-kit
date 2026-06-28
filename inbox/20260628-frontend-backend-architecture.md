@@ -1,0 +1,131 @@
+# 前后端项目架构梳理
+
+## 前端 Web 应用
+
+```txt
+apps/web/
+├── index.html                      # Web 入口 HTML
+├── package.json                    # 应用依赖与脚本
+├── vite.config.ts                  # Vite 构建配置
+├── tsconfig.json                   # TypeScript 配置
+└── src/
+    ├── app/                        # 应用入口、路由、Provider、配置装配
+    │   ├── main.tsx                # 应用启动入口
+    │   ├── router.tsx              # 路由创建与注册
+    │   ├── providers.tsx           # 全局 Provider 装配
+    │   ├── config.ts               # 应用配置
+    │   └── env.ts                  # 环境变量读取与校验
+    ├── pages/                      # 页面级组合，按路由组织
+    │   └── order/
+    │       ├── OrderListPage.tsx   # 订单列表页
+    │       ├── OrderDetailPage.tsx # 订单详情页
+    │       └── route.ts            # 订单路由配置
+    ├── features/                   # 页面内业务功能，按用例组织
+    │   ├── order-list/
+    │   │   ├── components/         # 订单列表用例组件
+    │   │   ├── hooks/              # 订单列表用例状态与交互逻辑
+    │   │   └── index.ts            # order-list 用例出口
+    │   └── order-detail/
+    │       ├── components/         # 订单详情用例组件
+    │       ├── hooks/              # 订单详情用例状态与交互逻辑
+    │       └── index.ts            # order-detail 用例出口
+    └── shared/                     # 应用级共享能力：请求、鉴权、布局、样式、工具
+        ├── api/                    # HTTP/RPC client、请求错误处理
+        ├── auth/                   # session、登录态、路由守卫
+        ├── layout/                 # AppShell、Header、Sidebar 等应用布局
+        ├── hooks/                  # 应用通用 hooks
+        ├── styles/                 # 全局样式、主题变量
+        └── utils/                  # 应用通用工具函数
+```
+
+## 领域 Kit
+
+```txt
+packages/domain-kit/
+├── package.json                    # kit 依赖、导出与构建脚本
+├── vite.config.ts                  # kit 构建配置
+├── tsconfig.json                   # TypeScript 配置
+└── src/
+    ├── order/                      # 示例领域模块：订单
+    │   ├── model/                  # 领域类型、schema、常量、错误
+    │   ├── api/                    # API 契约类型、DTO 映射、query key
+    │   ├── utils/                  # 订单金额、状态、业务判断等纯函数
+    │   ├── hooks/                  # 双端共享的订单展示与动作逻辑
+    │   ├── ui/                     # 双端共享的订单领域 UI
+    │   └── index.ts                # order 模块出口
+    ├── shared/                     # kit 内跨领域共享能力
+    └── index.ts                    # domain-kit 总出口
+```
+
+## 后端服务
+
+基于当前 `apps/etf-service` 实际结构整理：
+
+```txt
+apps/etf-service/
+├── main.go                         # 进程入口，内嵌 docs，调用 internal/app.Run
+├── go.mod                          # Go 模块定义
+├── go.sum                          # Go 依赖锁定
+├── .env                            # 本地环境变量
+├── .gitignore                      # Git 忽略规则
+├── AGENTS.md                       # etf-service 项目层 Agent 规则
+├── generate.sh                     # 生成 Go 代码和 API 文档
+├── buf.yaml                        # Buf proto 配置
+├── buf.gen.yaml                    # protobuf/connect Go 代码生成配置
+├── buf.gen.doc.yaml                # API 文档生成配置
+├── proto/                          # ConnectRPC API 契约源头
+│   └── etf/v1/etf.proto
+├── gen/                            # protobuf/connect 生成物，只读
+│   └── etf/v1/
+│       ├── etf.pb.go
+│       └── etfv1connect/etf.connect.go
+├── docs/                           # API 文档生成物，只读
+│   └── index.html
+├── data/                           # SQLite 运行数据
+├── logs/                           # 本地运行日志
+├── node_modules/                   # 文档/codegen 工具依赖
+└── internal/
+    ├── app/                        # 应用装配：DB、模块、路由、CORS、h2c、健康检查、优雅退出
+    │   └── server.go
+    ├── modules/
+    │   └── market/                 # 行情业务模块
+    │       ├── controller.go       # ConnectRPC handler，协议模型与领域模型转换
+    │       ├── service.go          # 行情用例：缓存刷新、日期裁剪、查询编排
+    │       ├── repository.go       # GORM 数据读写
+    │       ├── model.go            # GORM model
+    │       ├── types.go            # 领域类型
+    │       ├── errors.go           # 领域错误
+    │       └── service_test.go     # 行情 service 测试
+    ├── integrations/
+    │   └── hongsehuojian/          # 红色火箭行情源集成
+    │       ├── client.go           # 行情源 HTTP client
+    │       ├── parser.go           # K 线 JSON 解析
+    │       └── parser_test.go      # 解析测试
+    └── shared/
+        ├── config/                 # 环境变量和支持证券配置
+        │   ├── config.go
+        │   ├── securities.go
+        │   └── securities_test.go
+        ├── db/
+        │   └── database.go         # SQLite/GORM 打开逻辑
+        └── utils/
+            └── date.go             # 跨模块日期工具
+```
+
+## 依赖方向
+
+```txt
+apps/web -> packages/domain-kit
+packages/domain-kit/order -> packages/domain-kit/shared
+
+apps/etf-service/main.go -> internal/app
+internal/app -> internal/modules/market
+internal/app -> internal/integrations/hongsehuojian
+internal/modules/market -> internal/shared
+```
+
+核心边界：
+
+- `apps/web` 负责页面、路由、应用装配和端应用共享能力。
+- `packages/domain-kit` 负责双端共享的领域类型、领域规则、领域工具、领域 hooks 和领域 UI。
+- `apps/etf-service` 以 `proto/` 为 API 契约源头，`internal/app` 做装配，`internal/modules/market` 承载行情业务。
