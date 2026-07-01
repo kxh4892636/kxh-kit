@@ -5,10 +5,20 @@ export default defineConfig({
     "*": "vp check --fix",
   },
   fmt: {
-    ignorePatterns: [".agents/**", "packages/meta-kit/**", "packages/wiki-kit/**"],
+    ignorePatterns: [
+      ".agents/**",
+      "packages/plugin-meta-kit/**",
+      "packages/plugin-wiki-kit/**",
+      "packages/plugin-loop-kit/**",
+    ],
   },
   lint: {
-    ignorePatterns: [".agents/**", "packages/meta-kit/**", "packages/wiki-kit/**"],
+    ignorePatterns: [
+      ".agents/**",
+      "packages/plugin-meta-kit/**",
+      "packages/plugin-wiki-kit/**",
+      "packages/plugin-loop-kit/**",
+    ],
     options: { typeAware: true, typeCheck: true },
   },
   run: {
