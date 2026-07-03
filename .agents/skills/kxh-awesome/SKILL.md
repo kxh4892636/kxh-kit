@@ -59,8 +59,8 @@ vp 涵盖了本仓库的全部操作，包括：
 ## 仓库地图
 
 - `apps/wiki`：Docusaurus 知识库和 Markdown 内容。
-- `apps/react-go-template`：React 19 SPA 模板，使用 TanStack Router/Query、shadcn/ui、Tailwind CSS、Zustand、ConnectRPC。
-- `apps/go-template`：Go ConnectRPC 后端；`proto/` 是 API 契约，`internal/` 写业务逻辑，`gen/` 和 `docs/` 是生成物。
+- `templates/react-go-template`：React 19 SPA 模板，使用 TanStack Router/Query、shadcn/ui、Tailwind CSS、Zustand、ConnectRPC。
+- `templates/go-template`：Go ConnectRPC 后端模板；`proto/` 是 API 契约，`internal/` 写业务逻辑，`gen/` 和 `docs/` 是生成物。
 - `packages/utils`：通过 Vite+ 构建和测试的 TypeScript 工具包。
 - `.agents/skills`：本仓库内维护的本地 skills，按具体 skill 的职责处理内容任务或工程任务。
 - `scripts/`：仓库维护脚本，保持小而确定。
@@ -68,7 +68,7 @@ vp 涵盖了本仓库的全部操作，包括：
 ## 命名规范
 
 - **所有子包的 `package.json` 中 `name` 字段必须为 `@kxh-awesome/xxx` 格式**，其中 `xxx` 为项目名称，一般与项目文件夹名称相同
-  - 示例：`apps/react-go-template` → `"name": "@kxh-awesome/react-go-template"`
+  - 示例：`templates/react-go-template` → `"name": "@kxh-awesome/react-go-template"`
   - 示例：`packages/utils` → `"name": "@kxh-awesome/utils"`
 
 ## 核心原则
@@ -84,6 +84,6 @@ vp 涵盖了本仓库的全部操作，包括：
 
 - React 模板：在 `templates/react-go-template` 中使用 `vp dev`、`vp run build`。
 - Wiki：在 `apps/wiki` 中通过 `vp run <script>` 执行 Docusaurus 脚本。
-- Go 后端：修改 `apps/go-template/proto/**` 后运行 `apps/go-template/generate.sh`，再补齐 `internal/` 实现。
+- Go 后端模板：修改 `templates/go-template/proto/**` 后运行 `templates/go-template/generate.sh`，再补齐 `internal/` 实现。
 - 前端 RPC 客户端：后端 proto 变化后，同步更新 `templates/react-go-template/src/api/gen/go-template/` 并验证前端构建。
 - TypeScript 包：通过 package 脚本或 workspace 过滤使用 `vp pack`、`vp test`、`vp check [path]`。
