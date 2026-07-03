@@ -1,35 +1,20 @@
-# kxh-awesome Agent Instructions
+<!-- GENERALLY RULES START -->
 
-## 仓库性质
+遵循原则：第一性原理；结构化思维；批判性思维；奥卡姆剃刀原理
+遵循流程：
 
-本仓库同时包含工程项目、项目模板、本地工具包、Codex skills、文档和草稿内容。Agent 规则只分两层：根层 `AGENTS.md` 和独立项目目录内的项目层 `AGENTS.md`；
+1. 定义（目标）：目标导向，结果导向；明确交付产物、验收标注、不做范围；
+2. 对齐（约束）：区分已验证事实和未验证假设；明确客观约束和主观决策；划分可执行范围与禁止边界；
+3. 规划（路径）：优先处理失败代价最高、影响范围最大、预期收益最高的部分；根据依赖关系拆分实现路径，单一分支最小化，可验证，可回退；纵向切分方案，最小化、完整化实现/验证，快速迭代；
+4. 实现（方案）：若无必要，勿增实体，使用假设最少、简单直接、复杂度最低的方案；复用已有方案，遵循现有约定，保持现实一致性；明确边界，服务于目标，避免范围外改动；
+5. 验证（测试）：关键改动必须存在对应验证方式，用结果修正方案；高风险不可逆改动优先验证，低风险可逆改动迅速试错；验证错误及时修正，验证失败暴露风险；
+6. 审查（复盘）：检查边界条件，连锁影响、遗漏验证和残余风险；持续检查「定义/对齐/规划」目标、约束、路径是否有效，实时校准「实现」方案，调整「验证」测试；
+7. 交付（结果）：说明交付成果、完成状态、验证结果、剩余风险、下一步计划；
 
-## Git
+<!-- GENERALLY RULES END -->
 
-- Remote: `git@github.com:kxh4892636/kxh-awesome.git`
-- Git commit message 遵循 commitlint 规范；
-- Git commit message 使用中文。
+<!-- RECOMMEND SKILLS START-->
 
-## 任务分流
+kxh-awesome
 
-- 工程任务：代码、依赖、Node/workspace、构建、测试、lint、format、RPC/proto、生成代码、git hook、package script 或工程配置变更。先读取最近的 `AGENTS.md`、相关 `package.json`、`tsconfig.json`、`vite.config.ts`、协议文件和入口文件，再做最小必要验证。
-- 内容任务：笔记、周报、调研、文档润色、资料整理、非构建产物的 Markdown/文本输出。优先读取用户材料和目标内容文件，不要因为文件在本仓库内就默认读取 Node/Vite+ 配置或运行工程检查。
-- 混合任务：如果内容变更会影响站点构建、导航、配置、可执行示例、生成文档、package metadata 或发布产物，先完成内容主体，再只读取受影响工程配置并做贴近影响面的验证。
-
-## 统一工具链
-
-- Node、workspace、前端、构建、测试、lint、format、依赖和 package script 相关操作统一使用 `vp`。
-- 不要直接调用 `pnpm`、`npm`、`yarn`、`vite`、`vitest`、`oxlint` 或 `oxfmt`。
-- 运行 package script 使用 `vp run <script>`；需要递归或过滤时使用 `vp run` 的 workspace 能力。
-- 生成物默认只读。不要手写 `dist/`、`build/`、`gen/`、`src/api/gen/`、`.docusaurus/`、`pnpm-lock.yaml` 或 `*.tsbuildinfo`。
-
-## 顶层目录
-
-- `apps/`：真实应用。每个独立应用目录维护自己的项目层 `AGENTS.md`。
-- `packages/`：可复用包、Codex plugin 和浏览器扩展。每个独立 package 或扩展目录维护自己的项目层 `AGENTS.md`。
-- `templates/`：可复制的项目模板。模板规则写在各模板目录的项目层 `AGENTS.md`。
-- `.agents/`：本仓库维护的本地 skills。按具体 skill 文件和用户任务处理，不默认运行工程检查。
-- `docs/`：仓库文档和计划文档。更新计划文档 TaskList 时保持事实、假设、决策和状态分开。
-- `inbox/`：临时资料、草稿和迁移内容。默认按内容任务处理。
-- `scripts/`：仓库维护脚本。保持脚本小而确定，修改后只运行相关验证。
-- `output/`：工具输出和临时产物。默认视为可再生成内容，清理或依赖其中结果前先确认用途。
+<!-- RECOMMEND SKILLS END -->
