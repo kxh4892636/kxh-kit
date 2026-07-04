@@ -33,9 +33,12 @@ description: etf 领域开发路由。触发：apps/etf-dashboard 或 apps/etf-s
 
 ## 领域路由
 
+- 改 ETF 前后端测试策略、BDD/TDD 原则、测试目录或验收文档维护方式时，读取 `references/test.md`。
+
 ### 前端
 
 - 改页面、路由、Provider、看板组件、图表、状态和格式化时，读取 `references/frontend/application.md`。
+- 改前端 BDD 验收流程、`features/*/test/*.md` 或 E2E 场景文档时，读取 `references/test.md` 和 `references/verification.md`。
 - 改前端开发命令、生成物、项目结构时，读取 `references/frontend/development.md`。
 - 改前端 RPC 调用、Connect Query hook、后端地址或生成客户端时，读取 `references/frontend/api.md`。
 - 选择前端验收或本地联调方式时，读取 `references/verification.md`。
@@ -46,6 +49,7 @@ description: etf 领域开发路由。触发：apps/etf-dashboard 或 apps/etf-s
 - 改服务装配、模块边界、配置、数据源、SQLite 或行情缓存逻辑时，读取 `references/backend/application.md`。
 - 改后端开发命令、代码生成、生成物或项目结构时，读取 `references/backend/development.md`。
 - 改 proto、ConnectRPC handler、对外接口、错误码或前后端契约同步时，读取 `references/backend/api.md`。
+- 改后端 TDD 测试、回归测试或测试文件组织时，读取 `references/test.md` 和 `references/verification.md`。
 - 选择后端验收或本地联调方式时，读取 `references/verification.md`。
 - 处理前后端开发链路、契约同步或跨端改动顺序时，读取 `references/development-flow.md`。
 

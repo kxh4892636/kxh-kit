@@ -35,3 +35,4 @@
 - 新增页面前先确认 `src/routes/index.tsx` 的路由树，不绕过 TanStack Router。
 - 页面请求入口优先收敛在 `src/hooks/use-market.ts`，避免组件直接依赖生成客户端。
 - 图表行为改动要同时检查空数据、加载中、请求失败和刷新中状态。
+- 前端 BDD/TDD 维护原则见 `../test.md`；需求进入实现前，先确认对应测试或验收入口。

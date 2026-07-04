@@ -1,5 +1,7 @@
 # Verification
 
+测试资产维护原则见 `test.md`；本文件只描述具体命令、联调和验收路径。
+
 ## 前端
 
 适用范围：只改前端展示、交互、图表、样式、路由、Provider、hooks 或前端生成客户端消费方式。
@@ -9,6 +11,7 @@
 - 普通前端改动运行 `vp run build`。
 - 涉及格式、lint 或较宽影响面时运行 `vp run check` 或仓库级最小相关 `vp check`。
 - 涉及交互、图表行为、响应式或错误态时，启动后端和前端后按 `e2e/*.md` 验收核心页面。
+- 功能迁入 `features/*` 后，新增需求优先按对应 `features/*/test/*.md` 验收；`test/index.md` 只在需求明确通过后更新为模块回归入口。
 - 后端服务不可用场景参考 `e2e/04-service-unavailable.md`。
 
 ## 后端
