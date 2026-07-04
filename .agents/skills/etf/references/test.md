@@ -15,13 +15,13 @@
 - 前端 BDD 测试用例使用 Markdown 维护，验收执行走真实浏览器 E2E 路径。
 - 新增或重构后的 `features/*` 模块必须在模块内创建 `test/` 目录，例如 `src/features/market-dashboard/test/`。
 - 每个模块的 `test/index.md` 维护该模块经过多次需求迭代后的最新稳定验收流程，作为当前模块的回归入口。
-- 每个需求单独创建 `test/xxx.md` 保存本次需求的验收流程；`xxx` 使用简短、可读的 kebab-case 需求名。
-- 需求开发时先更新对应 `test/xxx.md`，记录目标、前置条件、操作步骤、验收断言、失败定位和执行结果。
+- 每个需求单独创建 `test/yyyy-mm-dd-xxx.md` 保存本次需求的验收流程；日期使用创建文档当天的本地日期，`xxx` 使用简短、可读的 kebab-case 需求名。
+- 需求开发时先更新对应 `test/yyyy-mm-dd-xxx.md`，记录目标、前置条件、操作步骤、验收断言、失败定位和执行结果。
 - 只有当某个需求的真实浏览器 E2E 验收明确通过后，才把对应的稳定流程合并更新到 `test/index.md`；未通过、待确认或临时调试步骤不要写入 `index.md`。
 
 ## 前端 BDD 文档模板
 
-`features/*/test/xxx.md` 至少包含：
+`features/*/test/yyyy-mm-dd-xxx.md` 至少包含：
 
 - 目标：本次需求要证明的用户结果。
 - 前置条件：后端、前端、测试数据、浏览器视口和登录态等。
