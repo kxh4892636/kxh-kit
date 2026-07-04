@@ -23,6 +23,7 @@ apps/web/
     ├── features/                   # 页面内业务功能，按用例组织
     │   ├── order-list/
     │   │   ├── components/         # 订单列表用例组件
+    │   │   ├── utils/              # 订单列表用例工具函数
     │   │   ├── hooks/              # 订单列表用例状态与交互逻辑
     │   │   └── index.ts            # order-list 用例出口
     │   └── order-detail/
