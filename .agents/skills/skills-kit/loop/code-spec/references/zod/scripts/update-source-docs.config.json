@@ -1,0 +1,23 @@
+{
+  "name": "Zod",
+  "slug": "zod-docs",
+  "mode": "source-docs",
+  "repoUrl": "https://github.com/colinhacks/zod",
+  "branch": "main",
+  "sourceMappings": [
+    {
+      "source": "packages/docs/content",
+      "target": "."
+    }
+  ],
+  "docsDestination": "references/source-docs",
+  "snapshotPath": "references/snapshot.json",
+  "sourceUrls": [
+    "https://github.com/colinhacks/zod/tree/main/packages/docs/content"
+  ],
+  "notes": [
+    "Snapshot was updated with git sparse checkout.",
+    "The complete docs content directory is mirrored under references/source-docs.",
+    "references/doc-map.md is a local routing overlay and must be reviewed, not blindly overwritten."
+  ]
+}
