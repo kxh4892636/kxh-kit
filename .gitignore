@@ -34,3 +34,8 @@ dist-ssr
 .claude/worktrees/
 docs/spec
 .reasonix
+
+# k2 injected: managed agent directories
+**/.codex/skills/k2/
+**/.claude/skills/k2/
+.k2/
