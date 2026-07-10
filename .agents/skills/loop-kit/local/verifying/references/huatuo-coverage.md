@@ -43,15 +43,15 @@ URL query 中直接解析这些字段：
 优先使用当前 skill 自带脚本。若从仓库根目录执行，路径为：
 
 ```bash
-node .agents/skills/loop-kit/domain/verifying/scripts/huatuo_coverage_report.mjs
+node .agents/skills/loop-kit/local/verifying/scripts/huatuo_coverage_report.mjs
 ```
 
 常用参数：
 
 ```bash
-node .agents/skills/loop-kit/domain/verifying/scripts/huatuo_coverage_report.mjs --project-id <id> --branch feature/example
-node .agents/skills/loop-kit/domain/verifying/scripts/huatuo_coverage_report.mjs --repo <repo-path> --mr-id <id>
-node .agents/skills/loop-kit/domain/verifying/scripts/huatuo_coverage_report.mjs --repo <repo-path> --mr-id <id> --json
+node .agents/skills/loop-kit/local/verifying/scripts/huatuo_coverage_report.mjs --project-id <id> --branch feature/example
+node .agents/skills/loop-kit/local/verifying/scripts/huatuo_coverage_report.mjs --repo <repo-path> --mr-id <id>
+node .agents/skills/loop-kit/local/verifying/scripts/huatuo_coverage_report.mjs --repo <repo-path> --mr-id <id> --json
 ```
 
 Branch mode 必须通过 `--project-id`、URL query 或 `HUATUO_PROJECT_ID` 提供项目 ID；通用脚本不内置仓库默认值。
@@ -59,7 +59,7 @@ Branch mode 必须通过 `--project-id`、URL query 或 `HUATUO_PROJECT_ID` 提�
 单文件：
 
 ```bash
-node .agents/skills/loop-kit/domain/verifying/scripts/huatuo_coverage_report.mjs \
+node .agents/skills/loop-kit/local/verifying/scripts/huatuo_coverage_report.mjs \
   --repo <repo-path> \
   --mr-id <id> \
   --file-path src/example.ts
