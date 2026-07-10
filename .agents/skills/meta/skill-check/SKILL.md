@@ -30,11 +30,12 @@ description: 检查和清理 skill 的失效引用、错误引用格式、过期
    - skill 内部资源优先使用相对路径；除非明确指向用户环境或外部系统，避免把本机绝对路径写进可复用 skill。
    - 示例占位路径要写成明显模板；不要让普通文件名形式的示例被误当成真实依赖。
    - 链接文本、目标文件和触发条件要一致；不要把已改名 skill、旧目录名或历史迁移说明留作运行指引。
+   - 当语义是运行、使用、调用或切换到另一个 skill 时，统一写成 `/skill-name`，并校验名称与目标 skill 的 frontmatter `name` 一致。`SKILL.md` 路径和 Markdown 链接只用于资料导航，不承担调用动作。
    - 工具名和子 agent 类型必须能从当前可用工具或项目入口证明；无法证明时标记为 `uncertain`。
 
 4. **检查 skill 规范**
 
-   需要判断 skill 规范、description、入口长度、渐进式披露、信息层级、重复论述或无行为差异内容时，先读取 `writing-great-skills`，按它的原则做优化检查。本 skill 只负责路由和问题归类，不重复展开具体写作规则。
+   需要判断 skill 规范、description、入口长度、渐进式披露、信息层级、重复论述或无行为差异内容时，先使用 `/writing-great-skills`，按它的原则做优化检查。本 skill 只负责路由和问题归类，不重复展开具体写作规则。
 
 5. **分类问题**
 
@@ -42,7 +43,7 @@ description: 检查和清理 skill 的失效引用、错误引用格式、过期
    - `live`：目标存在，且当前流程仍需要它。
    - `renamed`：旧名不存在，但能从当前目录、manifest、registry 或上下文确定新名。
    - `dead`：目标不存在，且没有可证明的新目标。
-   - `format-error`：目标可能存在，但引用格式不正确，例如绝对路径不便携、相对路径层级错误、示例路径伪装成真实依赖。
+   - `format-error`：目标可能存在，但引用格式不正确，例如绝对路径不便携、相对路径层级错误、示例路径伪装成真实依赖，或使用 `SKILL.md` 路径、Markdown 链接代替 `/skill-name` 调用 skill。
    - `spec-issue`：根据 `writing-great-skills` 优化检查确认的 skill 规范问题。
    - `external`：目标在当前目录外，例如其它插件、远程 URL、系统工具或用户环境。
    - `uncertain`：无法从现有上下文证明有效或无效。
@@ -66,6 +67,7 @@ description: 检查和清理 skill 的失效引用、错误引用格式、过期
    至少完成以下检查：
    - 用 `rg` 确认已删除或已改名对象不再残留在目标范围内。
    - 用文件系统验证修改后的相对路径和直接引用文件仍可解析。
+   - 逐项核对所有 skill 调用均使用 `/skill-name`，且调用名与目标 skill 的 frontmatter `name` 一致。
    - 校验 `SKILL.md` frontmatter 只有当前运行环境接受的字段。
    - 若目标属于插件，运行插件验证；若只有单个 skill，运行 skill validator。
    - 运行 `git diff --check` 检查空白和换行问题。
