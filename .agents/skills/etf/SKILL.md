@@ -38,7 +38,7 @@ description: etf 领域开发路由。触发：apps/etf-dashboard 或 apps/etf-s
 ### 前端
 
 - 改页面、路由、Provider、看板组件、图表、状态和格式化时，读取 `references/frontend/application.md`。
-- 改前端 BDD 验收流程、`features/*/test/*.md` 或 E2E 场景文档时，读取 `references/test.md` 和 `references/verification.md`。
+- 改前端 BDD 需求流、`.scratch/<feature-slug>/e2e/`，或模块主流程 `apps/etf-dashboard/src/features/*/e2e/index.md` 时，读取 `references/test.md` 和 `references/verification.md`。
 - 改前端开发命令、生成物、项目结构时，读取 `references/frontend/development.md`。
 - 改前端 RPC 调用、Connect Query hook、后端地址或生成客户端时，读取 `references/frontend/api.md`。
 - 选择前端验收或本地联调方式时，读取 `references/verification.md`。

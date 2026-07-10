@@ -6,7 +6,7 @@
 - `apps/etf-dashboard/connectrpc.config.json`：后端 IDL 到前端生成目录的映射。
 - `apps/etf-dashboard/scripts/gen-rpc-client.mjs`：根据配置生成 ConnectRPC TypeScript client。
 - `apps/etf-dashboard/src/api/gen/etf-service/`：生成的 ConnectRPC TypeScript API 客户端，只读。
-- `apps/etf-dashboard/e2e/*.md`：浏览器验收场景。
+- 前端测试与验收资产目录由 [test.md](../test.md) 统一维护。
 
 ## 常用命令
 

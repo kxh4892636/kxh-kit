@@ -1,6 +1,6 @@
 # Verification
 
-测试资产维护原则见 `test.md`；本文件只描述具体命令、联调和验收路径。
+测试资产维护原则与目录见 [test.md](test.md)；本文件只描述具体命令、联调和验收路径。
 
 ## 前端
 
@@ -10,9 +10,7 @@
 
 - 普通前端改动运行 `vp run build`。
 - 涉及格式、lint 或较宽影响面时运行 `vp run check` 或仓库级最小相关 `vp check`。
-- 涉及交互、图表行为、响应式或错误态时，启动后端和前端后按 `e2e/*.md` 验收核心页面。
-- 功能迁入 `features/*` 后，新增需求优先按对应 `features/*/test/*.md` 验收；`test/index.md` 只在需求明确通过后更新为模块回归入口。
-- 后端服务不可用场景参考 `e2e/04-service-unavailable.md`。
+- 涉及交互、图表行为、响应式或错误态时，启动后端和前端后执行 [test.md](test.md) 指定的当前需求流；回归既有能力时执行受影响模块的 `src/features/*/e2e/index.md`。
 
 ## 后端
 
@@ -36,8 +34,8 @@
 3. 在 `apps/etf-dashboard` 运行 `vp run dev`。
 4. 打开 `http://localhost:5173`，确认默认后端地址或 `VITE_API_BASE_URL` 指向正在运行的 `etf-service`。
 5. 验收默认标的加载、日线 K 线展示、刷新、缓存状态、错误提示和页面响应式。
-6. 需要浏览器场景时，按 `apps/etf-dashboard/e2e/*.md` 选择最小相关场景。
+6. 需要浏览器场景时，按当前需求流或受影响模块的 `apps/etf-dashboard/src/features/*/e2e/index.md` 选择最小相关场景。
 
-服务不可用场景参考 `apps/etf-dashboard/e2e/04-service-unavailable.md`。如果页面显示加载失败，先确认 `8080` 端口监听进程确实是 `apps/etf-service`，再检查浏览器请求的 base URL、CORS 预检和 ConnectRPC 响应。
+服务不可用场景参考 `apps/etf-dashboard/src/features/market-dashboard/e2e/index.md`。如果页面显示加载失败，先确认 `8080` 端口监听进程确实是 `apps/etf-service`，再检查浏览器请求的 base URL、CORS 预检和 ConnectRPC 响应。
 
 改 CORS、h2c、`VITE_API_BASE_URL`、Connect transport、错误态或 E2E 场景时，必须走一次真实浏览器路径，不能只依赖构建或单元测试。
