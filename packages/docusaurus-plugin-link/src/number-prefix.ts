@@ -20,8 +20,8 @@ export const defaultNumberPrefixParser = (params: {
   }
 
   return {
-    filename: match.groups.suffix ?? filename,
-    numberPrefix: Number.parseInt(match.groups.numberPrefix ?? "", 10),
+    filename: match.groups["suffix"] ?? filename,
+    numberPrefix: Number.parseInt(match.groups["numberPrefix"] ?? "", 10),
   };
 };
 

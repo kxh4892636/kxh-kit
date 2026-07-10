@@ -1,21 +1,17 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "target": "esnext",
-    "lib": ["es2023", "dom"],
-    "moduleDetection": "force",
+    "target": "es2022",
+    "lib": ["es2022", "dom"],
     "module": "nodenext",
     "moduleResolution": "nodenext",
     "jsx": "react-jsx",
-    "types": ["node", "@docusaurus/module-type-aliases"],
-    "strict": true,
-    "noUnusedLocals": true,
+    "types": ["node", "react", "@docusaurus/module-type-aliases"],
+    "rootDir": ".",
+    "tsBuildInfoFile": "./node_modules/.cache/tsconfig.tsbuildinfo",
     "declaration": true,
-    "noEmit": true,
-    "allowImportingTsExtensions": true,
     "esModuleInterop": true,
-    "isolatedModules": true,
-    "verbatimModuleSyntax": true,
-    "skipLibCheck": true
+    "isolatedModules": true
   },
   "include": ["src", "tests", "vite.config.ts"]
 }

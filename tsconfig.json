@@ -1,9 +1,10 @@
 {
-  "compilerOptions": {
-    "noEmit": true,
-    "module": "nodenext",
-    "moduleResolution": "nodenext",
-    "allowImportingTsExtensions": true,
-    "esModuleInterop": true
-  }
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "files": [],
+  "references": [
+    { "path": "./apps/wiki" },
+    { "path": "./apps/etf-dashboard" },
+    { "path": "./templates/react-go-template" },
+    { "path": "./packages/docusaurus-plugin-link" }
+  ]
 }

@@ -32,17 +32,17 @@ const normalizeFrontMatter = (params: {
   sourceFilePath: string;
 }): LinkDocFrontMatter => {
   const { frontMatter, sourceFilePath } = params;
-  const id = frontMatter.id;
+  const id = frontMatter["id"];
   if (id !== undefined && (typeof id !== "string" || id.trim() === "")) {
     throw new Error(`Document "${sourceFilePath}" front matter id must be a non-empty string.`);
   }
 
-  const slug = frontMatter.slug;
+  const slug = frontMatter["slug"];
   if (slug !== undefined && typeof slug !== "string") {
     throw new Error(`Document "${sourceFilePath}" front matter slug must be a string.`);
   }
 
-  const parseNumberPrefixes = frontMatter.parse_number_prefixes;
+  const parseNumberPrefixes = frontMatter["parse_number_prefixes"];
   if (parseNumberPrefixes !== undefined && typeof parseNumberPrefixes !== "boolean") {
     throw new Error(
       `Document "${sourceFilePath}" front matter parse_number_prefixes must be a boolean.`,
@@ -50,9 +50,9 @@ const normalizeFrontMatter = (params: {
   }
 
   return {
-    id,
-    slug,
-    parse_number_prefixes: parseNumberPrefixes,
+    ...(id === undefined ? {} : { id }),
+    ...(slug === undefined ? {} : { slug }),
+    ...(parseNumberPrefixes === undefined ? {} : { parse_number_prefixes: parseNumberPrefixes }),
   };
 };
 

@@ -111,7 +111,7 @@ export const createDocPermalink = (params: {
   const sourceDirName = getSourceDirName({ source: doc.source });
   const docSlug = getDocSlug({
     baseID: id,
-    frontMatterSlug: slug,
+    ...(slug === undefined ? {} : { frontMatterSlug: slug }),
     source: doc.source,
     sourceDirName,
     shouldParseNumberPrefixes: parseNumberPrefixes,
