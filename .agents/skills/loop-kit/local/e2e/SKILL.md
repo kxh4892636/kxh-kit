@@ -7,6 +7,8 @@ description: E2E 验收：任何前后端项目需要编写 Markdown/Gherkin 验
 
 E2E 是 agent-driven acceptance testing：Markdown 场景是可复验的验收资产，真实系统边界上的操作与证据是验收执行。
 
+探索代码库或确定验收范围时，读取 `CONTEXT.md`（如存在），使场景命名和断言匹配项目领域语言；同时读取所触及区域的 ADR，使验收路径和断言遵循既有架构决策。
+
 ## 分支
 
 1. **写验收资产**：创建、更新或沉淀验收文档时，读取 [documentation.md](documentation.md)。完成标准：每个 ready 场景都有稳定 ID、Gherkin、执行通道、入口、前置条件、可观察断言、证据要求和执行记录位置。
