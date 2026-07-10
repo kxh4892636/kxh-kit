@@ -1,6 +1,6 @@
 ---
 name: etf
-description: etf 领域开发路由。触发：apps/etf-dashboard 或 apps/etf-service 的前后端业务、ConnectRPC 契约、K 线看板、行情缓存、红色火箭数据源、SQLite、ETF 项目结构、联调、生成代码、常用命令和验证任务。
+description: etf 领域开发路由。触发：apps/etf-dashboard 或 apps/etf-service 的前后端业务、ConnectRPC 契约、K 线看板、行情缓存、红色火箭数据源、SQLite、ETF 项目结构、测试、E2E、交付验证、联调或生成代码。
 ---
 
 # etf
@@ -33,15 +33,18 @@ description: etf 领域开发路由。触发：apps/etf-dashboard 或 apps/etf-s
 
 ## 领域路由
 
-- 改 ETF 前后端测试策略、BDD/TDD 原则、测试目录或验收文档维护方式时，读取 `references/test.md`。
+### 测试与验收
+
+- 编写或更新 ETF Markdown/Gherkin 验收资产时，调用 `/e2e` 的“写验收资产”分支；ETF 的需求流程、回归流程与晋升门槛读取 `references/test.md`。
+- 通过浏览器、API 或 CLI 执行 ETF 真实系统路径并留证时，调用 `/e2e` 的“跑真实路径”分支；项目入口、运行命令与场景范围读取 `references/verification.md`。
+- 对 ETF 改动执行本地门禁、运行态确认、E2E、接口排障或最小重验时，调用 `/verifying`；项目级门禁映射读取 `references/verification.md`。
+- 改 ETF 前端验收资产目录、需求流程或回归流程的晋升规则时，读取 `references/test.md`。
 
 ### 前端
 
 - 改页面、路由、Provider、看板组件、图表、状态和格式化时，读取 `references/frontend/application.md`。
-- 改前端 BDD 需求流、`.scratch/<feature-slug>/e2e/`，或模块主流程 `apps/etf-dashboard/src/features/*/e2e/index.md` 时，读取 `references/test.md` 和 `references/verification.md`。
 - 改前端开发命令、生成物、项目结构时，读取 `references/frontend/development.md`。
 - 改前端 RPC 调用、Connect Query hook、后端地址或生成客户端时，读取 `references/frontend/api.md`。
-- 选择前端验收或本地联调方式时，读取 `references/verification.md`。
 - 处理前后端开发链路、契约同步或跨端改动顺序时，读取 `references/development-flow.md`。
 
 ### 后端
@@ -49,13 +52,11 @@ description: etf 领域开发路由。触发：apps/etf-dashboard 或 apps/etf-s
 - 改服务装配、模块边界、配置、数据源、SQLite 或行情缓存逻辑时，读取 `references/backend/application.md`。
 - 改后端开发命令、代码生成、生成物或项目结构时，读取 `references/backend/development.md`。
 - 改 proto、ConnectRPC handler、对外接口、错误码或前后端契约同步时，读取 `references/backend/api.md`。
-- 改后端 TDD 测试、回归测试或测试文件组织时，读取 `references/test.md` 和 `references/verification.md`。
-- 选择后端验收或本地联调方式时，读取 `references/verification.md`。
 - 处理前后端开发链路、契约同步或跨端改动顺序时，读取 `references/development-flow.md`。
 
 ## 开发链路
 
-前后端开发链路统一维护在 `references/development-flow.md`；验收和本地联调方式统一维护在 `references/verification.md`。
+前后端开发链路统一维护在 `references/development-flow.md`。
 
 ## 边界
 
