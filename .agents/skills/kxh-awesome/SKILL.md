@@ -1,89 +1,55 @@
 ---
 name: kxh-awesome
-description: kxh-awesome 仓库任务分流与工程操作规范。触发：本仓库内代码、依赖、Node、workspace、构建、测试、格式化、RPC/proto、codegen、git hook 或提交任务；非代码内容仅用于判定仓库边界，除非触碰工程配置或用户要求，不主动运行 Node/Vite+ 检查。关键词：pnpm、vp、vite-plus、monorepo、connectrpc、pre-commit、commit-msg。
+description: kxh-awesome 仓库路由与工程门禁。用于本仓库的代码、依赖或 workspace、构建测试、RPC/proto/codegen、Git hooks 与提交任务；内容变更在触及构建、导航、脚本、生成物或发布时使用。
 ---
 
 # kxh-awesome
 
-本仓库既包含 pnpm workspaces + Vite+ 的工程项目，也包含技能、笔记、分析报告等非代码内容。先判断任务类型，再决定要读取哪些上下文和运行哪些工具。
+以**影响面**为路由：先确定目标路径与产物类型，再读取事实源、实施并验证。仅在路径归属或生成边界不清楚时读取[仓库地图](references/repository-map.md)。
 
-## 任务分流
+## 执行流程
 
-- **工程任务**：代码修改、依赖管理、Node/workspace 操作、构建、测试、格式化、lint、RPC/proto、生成代码、git hook、发布脚本、配置文件、提交前检查。按本 skill 的 Vite+ / monorepo 规则执行。
-- **非代码内容任务**：笔记撰写、股票/基金分析、周报、调研报告、文档润色、知识整理、非构建产物的 Markdown/文本输出。优先使用对应领域 skill 和用户给定材料，不默认读取工程配置，也不默认运行 `vp install`、`vp check`、`vp test`。
-- **混合任务**：如果内容变更会影响站点构建、导航、代码示例、生成文档、脚本或包发布，先按内容任务完成主体，再只读取受影响工程配置并做最小必要验证。
+### 1. 路由影响面
 
-## 工作原则
+- **内容**：笔记、报告、知识整理和构建链路外的 Markdown/文本。
+- **Node/workspace**：具有 `package.json` 的前端、TypeScript 包、依赖、脚本、Vite+ 配置、构建、测试、格式化和 Git hooks。
+- **静态扩展**：`packages/url-network-guard-extension` 的 Manifest V3、后台脚本和 popup；以扩展文件与 Chrome 真实路径为门禁。
+- **Go 实现**：Go 模块、服务实现和测试。
+- **契约/codegen**：proto、生成配置、生成器或生成客户端；与受影响的 Go/Node 分支叠加。
+- **混合**：内容同时影响站点导航、代码示例、生成文档、脚本或发布；叠加所有适用分支。
+- **ETF**：`apps/etf-dashboard` 或 `apps/etf-service` 的领域任务同时使用 `/etf`。
 
-- **源头优先**：工程任务读取最近的 `AGENTS.md`/`AGENT.md`、`package.json`、`vite.config.ts`、`tsconfig.json`、协议文件和相关配置；非代码内容任务读取用户输入、领域资料、模板和目标输出文件。
-- **最小变更**：只修改用户请求需要的文件；保留无关变更、生成物、锁文件和用户已有改动。
-- **统一工具链**：Node/workspace/前端工程操作使用 `vp`，不要直接调用 `pnpm` / `npm` / `yarn` / `vite` / `vitest` / `oxlint` / `oxfmt`。
-- **生成物只读**：修改源定义后重新生成，不手写 `gen/`、`docs/index.html`、`src/api/gen/`、`dist/`、`pnpm-lock.yaml`。
-- **契约先于调用方**：RPC 变更先改 `proto/`，再生成后端代码和文档，最后生成前端客户端并调整调用方。
-- **验证贴近影响面**：工程任务先运行能证明本次改动的最小检查；共享行为变更再扩大到 `vp check`、`vp test` 或 `vp run ready`。非代码内容任务以事实复核、格式检查、引用/日期检查和目标文件审阅为主。
+**完成标准：** 每项交付物都已对应目标路径、适用分支、事实源，以及“源文件 / 配置 / 运行数据 / 生成物”中的一种类型。
 
-## 仓库元信息
+### 2. 读取事实源
 
-- **包管理器**: pnpm（版本见 `package.json` 的 `packageManager`）
-- **Node 版本**: 见 `.node-version`，最低要求见 `package.json` 的 `engines`
-- **工具链**: Vite+ (`vp`)
+- 从仓库根到目标目录读取适用的 `AGENTS.md`。
+- Node/workspace 分支读取根与目标包的 `package.json`，并按需要读取 `pnpm-workspace.yaml`、`vite.config.ts`、`tsconfig.json`、`.node-version`。
+- 静态扩展分支读取 `manifest.json`、`README.md` 及 manifest 声明的入口文件。
+- Go 实现分支读取目标模块的 `go.mod` 与相关源码；契约/codegen 分支再读取 `proto/`、生成脚本与客户端生成配置。
+- Vite+ 的可用命令与参数以当前安装的 `vp <command> --help` 为准；脚本名以当前 `package.json` 为准。
 
-## vp 能做什么
+**完成标准：** 待使用的每条路径、命令和版本约束都能由当前文件或本地帮助信息证明；每个生成物都已找到源定义与生成入口。
 
-vp 涵盖了本仓库的全部操作，包括：
+### 3. 在源头实施
 
-- **依赖管理**：安装、添加、删除、更新、查看、去重、重建原生模块、依赖分析
-- **Node 版本管理**：安装、切换、固定、诊断、远程版本查询、按版本执行命令
-- **命令执行**：运行 package.json 脚本、workspace 过滤（按名称/glob）、递归/传递性执行、并发控制
-- **代码质量**：格式化（Oxfmt）、Lint（Oxlint，启用 typeAware + typeCheck）、一站式检查及自动修复
-- **构建与打包**：Vite 应用构建（Rolldown）、库打包（tsdown）
-- **临时工具**：运行本地/远程二进制而不添加依赖
-- **Git hooks**：安装 pre-commit hook，提交前自动检查
-- **升级维护**：升级 vp 自身、清除任务缓存、环境诊断
+- Node/workspace 操作统一从 `vp` 进入；内置构建使用 `vp build`，执行 `package.json` 脚本使用 `vp run <script>`。
+- 依赖变更使用 `vp add`、`vp remove`、`vp update` 或 `vp install`。根 catalog 已有依赖时使用 `catalog:`；包内新增依赖保留包内版本，只有任务明确包含共享版本策略时才扩展根 catalog。catalog 变更后运行 `vp install`。
+- workspace 包的 `package.json#name` 使用 `@kxh-awesome/<目录名>`。
+- RPC 契约变化按“proto → 后端生成代码与文档 → 前端客户端 → 调用方”的**契约链**推进；契约/codegen 分支使用目标目录已检入的生成脚本。
+- 手工修改落在源定义；`gen/`、`dist/`、生成客户端、生成文档和 `pnpm-lock.yaml` 由对应工具刷新。
 
-具体命令参见 `code-spec/references/vite-plus` 参考模块。
+**完成标准：** 所有手改都位于权威源文件；生成物与其生成入口一致；适用的依赖、包名和契约消费者均已覆盖。
 
-## 工程配置文件
+### 4. 通过工程门禁
 
-仅当任务属于工程任务，或非代码内容明确影响构建、代码、配置、依赖、脚本、生成物时，才需要读取这些文件。
+| 影响面 | 最小证据 |
+| --- | --- |
+| 内容 | 适用的事实、引用、日期、格式和目标 diff 已复核；进入构建链路时叠加对应工程门禁 |
+| Node 包 | `vp check --fix <本次变更路径>`，再运行受影响包当前定义的测试、构建脚本中的所有适用项 |
+| 静态扩展 | 校验 manifest JSON、权限与声明入口；运行时行为变化通过 Chrome 加载未打包扩展的真实路径验证 |
+| Go 实现 | 在受影响模块运行 `go test ./...` |
+| 契约/codegen | proto、生成配置或生成器变化时执行所有受影响生成链，审阅生成 diff，并验证消费者 |
+| 根配置或共享行为 | 先做针对性检查；当前根 `package.json` 定义 `ready` 时再用 `vp run ready` 扩大验证 |
 
-| 文件 | 用途 |
-|------|------|
-| `package.json` | 根项目元信息、脚本、engines、packageManager |
-| `pnpm-workspace.yaml` | workspace 布局、catalog 共享版本、overrides |
-| `vite.config.ts` | Vite+ 统一配置（lint, fmt, run, staged） |
-| `tsconfig.json` | 共享 TypeScript 配置 |
-| `.node-version` | Node 版本固定 |
-| `pnpm-lock.yaml` | 锁定依赖版本（自动生成，勿手动编辑） |
-
-## 仓库地图
-
-- `apps/wiki`：Docusaurus 知识库和 Markdown 内容。
-- `templates/react-go-template`：React 19 SPA 模板，使用 TanStack Router/Query、shadcn/ui、Tailwind CSS、Zustand、ConnectRPC。
-- `templates/go-template`：Go ConnectRPC 后端模板；`proto/` 是 API 契约，`internal/` 写业务逻辑，`gen/` 和 `docs/` 是生成物。
-- `packages/utils`：通过 Vite+ 构建和测试的 TypeScript 工具包。
-- `.agents/skills`：本仓库内维护的本地 skills，按具体 skill 的职责处理内容任务或工程任务。
-- `scripts/`：仓库维护脚本，保持小而确定。
-
-## 命名规范
-
-- **所有子包的 `package.json` 中 `name` 字段必须为 `@kxh-awesome/xxx` 格式**，其中 `xxx` 为项目名称，一般与项目文件夹名称相同
-  - 示例：`templates/react-go-template` → `"name": "@kxh-awesome/react-go-template"`
-  - 示例：`packages/utils` → `"name": "@kxh-awesome/utils"`
-
-## 核心原则
-
-- **工程工具链一切用 vp**，不要直接调用 pnpm / npm / yarn
-- **添加依赖时优先使用 `catalog:` 引用 `pnpm-workspace.yaml` 中的共享版本**，例如 `"react": "catalog:"`。若用户未明确要求，**禁止新增 catalog 条目**，但可提醒用户可将依赖加入共享版本
-- **修改 catalog 后执行 `vp install`** 使变更生效
-- **工程/代码变更提交前通过 `vp check --fix [path]`**（只检查 git change 中的代码，禁止检查其他代码），或依赖 pre-commit hook
-- **遵守 `.node-version` 和 `engines` 的 Node 版本约束**
-- **`vp build` 始终执行内置 Vite 构建**，执行 package.json 脚本用 `vp run build`
-
-## 常用流程
-
-- React 模板：在 `templates/react-go-template` 中使用 `vp dev`、`vp run build`。
-- Wiki：在 `apps/wiki` 中通过 `vp run <script>` 执行 Docusaurus 脚本。
-- Go 后端模板：修改 `templates/go-template/proto/**` 后运行 `templates/go-template/generate.sh`，再补齐 `internal/` 实现。
-- 前端 RPC 客户端：后端 proto 变化后，同步更新 `templates/react-go-template/src/api/gen/go-template/` 并验证前端构建。
-- TypeScript 包：通过 package 脚本或 workspace 过滤使用 `vp pack`、`vp test`、`vp check [path]`。
+**完成标准：** 每个适用影响面都有成功证据，或在无法执行时给出具体原因和残余风险。
