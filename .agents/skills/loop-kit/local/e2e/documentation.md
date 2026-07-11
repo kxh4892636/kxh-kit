@@ -1,6 +1,6 @@
 # E2E 验收文档
 
-本 reference 负责创建和维护适用于前端、后端及全栈项目的 Markdown 验收资产：Gherkin 场景、agent 执行步骤、外部断言、证据要求和执行记录。
+本 reference 负责创建和维护适用于前端、后端及全栈项目的 Markdown E2E 验收资产：Gherkin 场景、agent 执行步骤、外部断言、证据要求和执行记录。
 
 ## 工作流程
 
