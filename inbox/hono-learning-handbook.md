@@ -30,13 +30,13 @@ id: 574ae033-fc7d-4189-8274-0e3594be6e1d
 
 ### 适合场景
 
-| 场景 | Hono 价值 | 新手关注点 |
-| --- | --- | --- |
-| Web API | 路由、JSON response、中间件、校验直接可用 | 先掌握 `Context` 和 `HonoRequest` |
-| Edge API | 基于 Fetch API, 贴近 Workers/Deno/Bun | 不要依赖 Node-only API |
-| Backend proxy | 读取 request, 调用上游, 返回 raw `Response` | 注意 body 消费和 headers |
-| Full-stack server | Hono RPC 共享 server route type | 需要 TypeScript strict 和版本一致 |
-| Library base server | 可把 Hono app 挂载到平台 adapter | 区分 app logic 和 runtime entry |
+| 场景                | Hono 价值                                   | 新手关注点                        |
+| ------------------- | ------------------------------------------- | --------------------------------- |
+| Web API             | 路由、JSON response、中间件、校验直接可用   | 先掌握 `Context` 和 `HonoRequest` |
+| Edge API            | 基于 Fetch API, 贴近 Workers/Deno/Bun       | 不要依赖 Node-only API            |
+| Backend proxy       | 读取 request, 调用上游, 返回 raw `Response` | 注意 body 消费和 headers          |
+| Full-stack server   | Hono RPC 共享 server route type             | 需要 TypeScript strict 和版本一致 |
+| Library base server | 可把 Hono app 挂载到平台 adapter            | 区分 app logic 和 runtime entry   |
 
 ### 与 Express 的关键差异
 
@@ -83,27 +83,27 @@ Client Request
 
 ### Runtime 选择
 
-| Runtime | Entry point | Adapter 状态 | 适合场景 |
-| --- | --- | --- | --- |
-| Cloudflare Workers | `export default app` 或 `{ fetch: app.fetch }` | 原生 Fetch runtime | Edge API、KV/R2/D1、低冷启动 |
-| Node.js | `serve(app)` 或 `serve({ fetch: app.fetch })` | 需要 `@hono/node-server` | 传统服务器、Node SDK、长连接进程 |
-| Bun | `export default app` 或 `{ port, fetch: app.fetch }` | Bun 支持 Fetch server | Bun 项目、快速本地 TS runtime |
-| Deno | `Deno.serve(app.fetch)` | Deno 支持 Fetch server | Deno Deploy、JSR/npm import |
-| Vercel | `export default app` | 使用 Vercel template | Serverless API、Vercel frontend 共仓 |
-| AWS Lambda/Netlify/Fastly | 依平台 guide/template | 使用对应 adapter/preset | 平台约束强的 serverless/edge 部署 |
+| Runtime                   | Entry point                                          | Adapter 状态             | 适合场景                             |
+| ------------------------- | ---------------------------------------------------- | ------------------------ | ------------------------------------ |
+| Cloudflare Workers        | `export default app` 或 `{ fetch: app.fetch }`       | 原生 Fetch runtime       | Edge API、KV/R2/D1、低冷启动         |
+| Node.js                   | `serve(app)` 或 `serve({ fetch: app.fetch })`        | 需要 `@hono/node-server` | 传统服务器、Node SDK、长连接进程     |
+| Bun                       | `export default app` 或 `{ port, fetch: app.fetch }` | Bun 支持 Fetch server    | Bun 项目、快速本地 TS runtime        |
+| Deno                      | `Deno.serve(app.fetch)`                              | Deno 支持 Fetch server   | Deno Deploy、JSR/npm import          |
+| Vercel                    | `export default app`                                 | 使用 Vercel template     | Serverless API、Vercel frontend 共仓 |
+| AWS Lambda/Netlify/Fastly | 依平台 guide/template                                | 使用对应 adapter/preset  | 平台约束强的 serverless/edge 部署    |
 
 ### 通用 Hono App
 
 ```typescript
-import { Hono } from 'hono'
+import { Hono } from "hono";
 
-const app = new Hono()
+const app = new Hono();
 
-app.get('/', (c) => {
-  return c.text('Hello Hono!')
-})
+app.get("/", (c) => {
+  return c.text("Hello Hono!");
+});
 
-export default app
+export default app;
 ```
 
 - 通用部分: `new Hono()`、`app.get()`、handler、middleware、`c.text()` 等核心 API;
@@ -112,19 +112,19 @@ export default app
 ### Cloudflare Workers Entry
 
 ```typescript
-import { Hono } from 'hono'
+import { Hono } from "hono";
 
 type Bindings = {
-  API_TOKEN: string
-}
+  API_TOKEN: string;
+};
 
-const app = new Hono<{ Bindings: Bindings }>()
+const app = new Hono<{ Bindings: Bindings }>();
 
-app.get('/token-name', (c) => {
-  return c.text(typeof c.env.API_TOKEN)
-})
+app.get("/token-name", (c) => {
+  return c.text(typeof c.env.API_TOKEN);
+});
 
-export default app
+export default app;
 ```
 
 - Workers 默认入口: `export default app`;
@@ -134,16 +134,16 @@ export default app
 ### Node.js Entry
 
 ```typescript
-import { serve } from '@hono/node-server'
-import { Hono } from 'hono'
+import { serve } from "@hono/node-server";
+import { Hono } from "hono";
 
-const app = new Hono()
+const app = new Hono();
 
-app.get('/', (c) => {
-  return c.text('Hello Node.js!')
-})
+app.get("/", (c) => {
+  return c.text("Hello Node.js!");
+});
 
-serve(app)
+serve(app);
 ```
 
 - Node.js 要点: Hono 最初不是为 Node.js 设计, 通过 `@hono/node-server` adapter 运行;
@@ -153,18 +153,18 @@ serve(app)
 ### Bun Entry
 
 ```typescript
-import { Hono } from 'hono'
+import { Hono } from "hono";
 
-const app = new Hono()
+const app = new Hono();
 
-app.get('/', (c) => {
-  return c.text('Hello Bun!')
-})
+app.get("/", (c) => {
+  return c.text("Hello Bun!");
+});
 
 export default {
   port: 3000,
   fetch: app.fetch,
-}
+};
 ```
 
 - Bun 要点: 可以直接运行 TypeScript, `export default app` 也可作为基础入口;
@@ -173,15 +173,15 @@ export default {
 ### Deno Entry
 
 ```typescript
-import { Hono } from 'hono'
+import { Hono } from "hono";
 
-const app = new Hono()
+const app = new Hono();
 
-app.get('/', (c) => {
-  return c.text('Hello Deno!')
-})
+app.get("/", (c) => {
+  return c.text("Hello Deno!");
+});
 
-Deno.serve({ port: 8787 }, app.fetch)
+Deno.serve({ port: 8787 }, app.fetch);
 ```
 
 - Deno 要点: 使用 `Deno.serve(app.fetch)` 或带 port 的重载;
@@ -235,15 +235,15 @@ src/
 ### 大型应用路由聚合
 
 ```typescript
-import { Hono } from 'hono'
-import posts from './routes/posts'
-import users from './routes/users'
+import { Hono } from "hono";
+import posts from "./routes/posts";
+import users from "./routes/users";
 
-const app = new Hono()
+const app = new Hono();
 
-export const routes = app.route('/posts', posts).route('/users', users)
+export const routes = app.route("/posts", posts).route("/users", users);
 
-export default app
+export default app;
 ```
 
 - `app.route()`: 把子 Hono app 挂载到 path 前缀下;
@@ -267,22 +267,22 @@ deno init --npm hono@latest my-app
 ### Hello World
 
 ```typescript
-import { Hono } from 'hono'
+import { Hono } from "hono";
 
-const app = new Hono()
+const app = new Hono();
 
-app.get('/', (c) => {
-  return c.text('Hello Hono!')
-})
+app.get("/", (c) => {
+  return c.text("Hello Hono!");
+});
 
-app.get('/api/hello', (c) => {
+app.get("/api/hello", (c) => {
   return c.json({
     ok: true,
-    message: 'Hello Hono!',
-  })
-})
+    message: "Hello Hono!",
+  });
+});
 
-export default app
+export default app;
 ```
 
 - `new Hono()`: 创建应用实例;
@@ -295,32 +295,32 @@ export default app
 
 ### 基础方法
 
-| API | 用途 | 示例 |
-| --- | --- | --- |
-| `app.get(path, handler)` | GET route | `app.get('/users', handler)` |
-| `app.post(path, handler)` | POST route | `app.post('/users', handler)` |
-| `app.put(path, handler)` | PUT route | `app.put('/users/:id', handler)` |
-| `app.delete(path, handler)` | DELETE route | `app.delete('/users/:id', handler)` |
-| `app.all(path, handler)` | 任意 HTTP method | `app.all('/health', handler)` |
+| API                             | 用途                     | 示例                                           |
+| ------------------------------- | ------------------------ | ---------------------------------------------- |
+| `app.get(path, handler)`        | GET route                | `app.get('/users', handler)`                   |
+| `app.post(path, handler)`       | POST route               | `app.post('/users', handler)`                  |
+| `app.put(path, handler)`        | PUT route                | `app.put('/users/:id', handler)`               |
+| `app.delete(path, handler)`     | DELETE route             | `app.delete('/users/:id', handler)`            |
+| `app.all(path, handler)`        | 任意 HTTP method         | `app.all('/health', handler)`                  |
 | `app.on(method, path, handler)` | 自定义或多个 method/path | `app.on(['PUT', 'DELETE'], '/posts', handler)` |
-| `app.use(path?, middleware)` | 注册 middleware | `app.use('/api/*', cors())` |
+| `app.use(path?, middleware)`    | 注册 middleware          | `app.use('/api/*', cors())`                    |
 
 ### Path Param 与 Query
 
 ```typescript
-import { Hono } from 'hono'
+import { Hono } from "hono";
 
-const app = new Hono()
+const app = new Hono();
 
-app.get('/posts/:id', (c) => {
-  const id = c.req.param('id')
-  const page = c.req.query('page') ?? '1'
+app.get("/posts/:id", (c) => {
+  const id = c.req.param("id");
+  const page = c.req.query("page") ?? "1";
 
   return c.json({
     id,
     page,
-  })
-})
+  });
+});
 ```
 
 - Path param: `:id` 会被 `c.req.param('id')` 读取;
@@ -330,17 +330,17 @@ app.get('/posts/:id', (c) => {
 ### 复杂路径
 
 ```typescript
-const app = new Hono()
+const app = new Hono();
 
-app.get('/files/*', (c) => c.text('wildcard'))
-app.get('/api/animal/:type?', (c) => c.text('optional param'))
-app.get('/posts/:date{[0-9]+}/:title{[a-z]+}', (c) => {
-  const { date, title } = c.req.param()
-  return c.json({ date, title })
-})
-app.get('/images/:filename{.+\\.png}', (c) => {
-  return c.text(c.req.param('filename'))
-})
+app.get("/files/*", (c) => c.text("wildcard"));
+app.get("/api/animal/:type?", (c) => c.text("optional param"));
+app.get("/posts/:date{[0-9]+}/:title{[a-z]+}", (c) => {
+  const { date, title } = c.req.param();
+  return c.json({ date, title });
+});
+app.get("/images/:filename{.+\\.png}", (c) => {
+  return c.text(c.req.param("filename"));
+});
 ```
 
 - Wildcard: `*` 匹配一段不固定路径;
@@ -351,21 +351,21 @@ app.get('/images/:filename{.+\\.png}', (c) => {
 ### 路由分组
 
 ```typescript
-import { Hono } from 'hono'
+import { Hono } from "hono";
 
-const books = new Hono()
+const books = new Hono();
 
-books.get('/', (c) => c.json({ type: 'list books' }))
-books.post('/', (c) => c.json({ type: 'create book' }, 201))
-books.get('/:id', (c) => {
-  return c.json({ id: c.req.param('id') })
-})
+books.get("/", (c) => c.json({ type: "list books" }));
+books.post("/", (c) => c.json({ type: "create book" }, 201));
+books.get("/:id", (c) => {
+  return c.json({ id: c.req.param("id") });
+});
 
-const app = new Hono()
+const app = new Hono();
 
-app.route('/books', books)
+app.route("/books", books);
 
-export default app
+export default app;
 ```
 
 - 子 app: 每个业务域可独立创建 `new Hono()`;
@@ -375,11 +375,11 @@ export default app
 ### Base Path
 
 ```typescript
-const api = new Hono().basePath('/api')
+const api = new Hono().basePath("/api");
 
-api.get('/books', (c) => {
-  return c.text('GET /api/books')
-})
+api.get("/books", (c) => {
+  return c.text("GET /api/books");
+});
 ```
 
 - `basePath()`: 给当前 app 增加固定 path prefix;
@@ -388,11 +388,11 @@ api.get('/books', (c) => {
 ### 路由优先级
 
 ```typescript
-const app = new Hono()
+const app = new Hono();
 
-app.get('/books/a', (c) => c.text('a'))
-app.get('/books/:slug', (c) => c.text(c.req.param('slug')))
-app.get('*', (c) => c.text('fallback'))
+app.get("/books/a", (c) => c.text("a"));
+app.get("/books/:slug", (c) => c.text(c.req.param("slug")));
+app.get("*", (c) => c.text("fallback"));
 ```
 
 - 注册顺序: handler 和 middleware 按注册顺序执行;
@@ -416,19 +416,19 @@ app.get('*', (c) => c.text('fallback'))
 ### Response Helper
 
 ```typescript
-app.get('/responses', (c) => {
-  c.status(201)
-  c.header('X-Message', 'created')
+app.get("/responses", (c) => {
+  c.status(201);
+  c.header("X-Message", "created");
 
   return c.json({
     ok: true,
-  })
-})
+  });
+});
 
-app.get('/plain', (c) => c.text('plain text'))
-app.get('/html', (c) => c.html('<h1>Hello</h1>'))
-app.get('/redirect', (c) => c.redirect('/', 302))
-app.get('/raw', () => new Response('raw response'))
+app.get("/plain", (c) => c.text("plain text"));
+app.get("/html", (c) => c.html("<h1>Hello</h1>"));
+app.get("/redirect", (c) => c.redirect("/", 302));
+app.get("/raw", () => new Response("raw response"));
 ```
 
 - `c.status(code)`: 设置 HTTP status, 默认 200;
@@ -443,19 +443,19 @@ app.get('/raw', () => new Response('raw response'))
 ### HonoRequest `c.req`
 
 ```typescript
-app.post('/posts/:id', async (c) => {
-  const id = c.req.param('id')
-  const tags = c.req.queries('tag') ?? []
-  const userAgent = c.req.header('User-Agent')
-  const body = await c.req.json()
+app.post("/posts/:id", async (c) => {
+  const id = c.req.param("id");
+  const tags = c.req.queries("tag") ?? [];
+  const userAgent = c.req.header("User-Agent");
+  const body = await c.req.json();
 
   return c.json({
     id,
     tags,
     userAgent,
     body,
-  })
-})
+  });
+});
 ```
 
 - `c.req.param(name?)`: 读取 path params;
@@ -478,30 +478,30 @@ app.post('/posts/:id', async (c) => {
 ### Request-Scoped Variables
 
 ```typescript
-import { Hono } from 'hono'
+import { Hono } from "hono";
 
 type User = {
-  id: string
-  name: string
-}
+  id: string;
+  name: string;
+};
 
 type Variables = {
-  user: User
-}
+  user: User;
+};
 
-const app = new Hono<{ Variables: Variables }>()
+const app = new Hono<{ Variables: Variables }>();
 
-app.use('/auth/*', async (c, next) => {
-  c.set('user', {
-    id: 'u1',
-    name: 'Ada',
-  })
-  await next()
-})
+app.use("/auth/*", async (c, next) => {
+  c.set("user", {
+    id: "u1",
+    name: "Ada",
+  });
+  await next();
+});
 
-app.get('/auth/me', (c) => {
-  return c.json(c.var.user)
-})
+app.get("/auth/me", (c) => {
+  return c.json(c.var.user);
+});
 ```
 
 - `c.set()`/`c.get()`: 在同一个 request 内传递值;
@@ -527,21 +527,21 @@ app.get('/auth/me', (c) => {
 
 ```typescript
 app.use(async (c, next) => {
-  console.log('middleware 1 start')
-  await next()
-  console.log('middleware 1 end')
-})
+  console.log("middleware 1 start");
+  await next();
+  console.log("middleware 1 end");
+});
 
 app.use(async (c, next) => {
-  console.log('middleware 2 start')
-  await next()
-  console.log('middleware 2 end')
-})
+  console.log("middleware 2 start");
+  await next();
+  console.log("middleware 2 end");
+});
 
-app.get('/', (c) => {
-  console.log('handler')
-  return c.text('Hello')
-})
+app.get("/", (c) => {
+  console.log("handler");
+  return c.text("Hello");
+});
 ```
 
 ```text
@@ -558,25 +558,25 @@ middleware 1 end
 ### 内置 Middleware
 
 ```typescript
-import { Hono } from 'hono'
-import { cors } from 'hono/cors'
-import { logger } from 'hono/logger'
+import { Hono } from "hono";
+import { cors } from "hono/cors";
+import { logger } from "hono/logger";
 
-const app = new Hono()
+const app = new Hono();
 
-app.use(logger())
+app.use(logger());
 app.use(
-  '/api/*',
+  "/api/*",
   cors({
-    origin: 'https://example.com',
-    allowMethods: ['GET', 'POST', 'OPTIONS'],
+    origin: "https://example.com",
+    allowMethods: ["GET", "POST", "OPTIONS"],
     credentials: true,
-  })
-)
+  }),
+);
 
-app.get('/api/health', (c) => {
-  return c.json({ ok: true })
-})
+app.get("/api/health", (c) => {
+  return c.json({ ok: true });
+});
 ```
 
 - `logger()`: 记录 request method、path、response status、耗时等信息;
@@ -588,26 +588,26 @@ app.get('/api/health', (c) => {
 ### JWT Middleware
 
 ```typescript
-import { Hono } from 'hono'
-import { jwt } from 'hono/jwt'
-import type { JwtVariables } from 'hono/jwt'
+import { Hono } from "hono";
+import { jwt } from "hono/jwt";
+import type { JwtVariables } from "hono/jwt";
 
-type Variables = JwtVariables
+type Variables = JwtVariables;
 
-const app = new Hono<{ Variables: Variables }>()
+const app = new Hono<{ Variables: Variables }>();
 
 app.use(
-  '/auth/*',
+  "/auth/*",
   jwt({
-    secret: 'it-is-very-secret',
-    alg: 'HS256',
-  })
-)
+    secret: "it-is-very-secret",
+    alg: "HS256",
+  }),
+);
 
-app.get('/auth/page', (c) => {
-  const payload = c.get('jwtPayload')
-  return c.json(payload)
-})
+app.get("/auth/page", (c) => {
+  const payload = c.get("jwtPayload");
+  return c.json(payload);
+});
 ```
 
 - Import path: `jwt` 来自 `hono/jwt`;
@@ -618,32 +618,32 @@ app.get('/auth/page', (c) => {
 - 环境变量: `secret` 来自 `c.env.JWT_SECRET` 时, 在 wrapper middleware 内创建 `jwt(...)` 并返回调用结果;
 
 ```typescript
-app.use('/auth/*', (c, next) => {
+app.use("/auth/*", (c, next) => {
   const jwtMiddleware = jwt({
     secret: c.env.JWT_SECRET,
-    alg: 'HS256',
-  })
+    alg: "HS256",
+  });
 
-  return jwtMiddleware(c, next)
-})
+  return jwtMiddleware(c, next);
+});
 ```
 
 ### 自定义 Middleware
 
 ```typescript
-import { createMiddleware } from 'hono/factory'
+import { createMiddleware } from "hono/factory";
 
 type Variables = {
-  requestId: string
-}
+  requestId: string;
+};
 
 const requestIdMiddleware = createMiddleware<{
-  Variables: Variables
+  Variables: Variables;
 }>(async (c, next) => {
-  c.set('requestId', crypto.randomUUID())
-  await next()
-  c.header('X-Request-Id', c.var.requestId)
-})
+  c.set("requestId", crypto.randomUUID());
+  await next();
+  c.header("X-Request-Id", c.var.requestId);
+});
 ```
 
 - `createMiddleware()`: 分离 middleware 文件时保留 `Context` 和 `next` 类型;
@@ -662,29 +662,29 @@ const requestIdMiddleware = createMiddleware<{
 ### Manual Validator
 
 ```typescript
-import { Hono } from 'hono'
-import { validator } from 'hono/validator'
+import { Hono } from "hono";
+import { validator } from "hono/validator";
 
-const app = new Hono()
+const app = new Hono();
 
 app.post(
-  '/posts',
-  validator('json', (value, c) => {
-    const title = value['title']
+  "/posts",
+  validator("json", (value, c) => {
+    const title = value["title"];
 
-    if (!title || typeof title !== 'string') {
-      return c.json({ error: 'title is required' }, 400)
+    if (!title || typeof title !== "string") {
+      return c.json({ error: "title is required" }, 400);
     }
 
     return {
       title,
-    }
+    };
   }),
   (c) => {
-    const data = c.req.valid('json')
-    return c.json({ ok: true, title: data.title }, 201)
-  }
-)
+    const data = c.req.valid("json");
+    return c.json({ ok: true, title: data.title }, 201);
+  },
+);
 ```
 
 - Import path: `validator` 来自 `hono/validator`;
@@ -695,14 +695,14 @@ app.post(
 
 ### Validation Targets
 
-| Target | 数据来源 | 常见用途 |
-| --- | --- | --- |
-| `json` | JSON request body | API create/update |
-| `form` | form body | HTML form、file upload |
-| `query` | query string | pagination、filter |
-| `param` | path params | resource id |
-| `header` | request headers | idempotency key、signature |
-| `cookie` | cookies | session token |
+| Target   | 数据来源          | 常见用途                   |
+| -------- | ----------------- | -------------------------- |
+| `json`   | JSON request body | API create/update          |
+| `form`   | form body         | HTML form、file upload     |
+| `query`  | query string      | pagination、filter         |
+| `param`  | path params       | resource id                |
+| `header` | request headers   | idempotency key、signature |
+| `cookie` | cookies           | session token              |
 
 ### Content-Type 与 Header 陷阱
 
@@ -711,42 +711,38 @@ app.post(
 - Header 校验: `validator('header', ...)` 内使用 lowercase key, 如 `value['idempotency-key']`;
 
 ```typescript
-const res = await app.request('/posts', {
-  method: 'POST',
-  body: JSON.stringify({ title: 'Hello' }),
+const res = await app.request("/posts", {
+  method: "POST",
+  body: JSON.stringify({ title: "Hello" }),
   headers: new Headers({
-    'Content-Type': 'application/json',
+    "Content-Type": "application/json",
   }),
-})
+});
 ```
 
 ### Zod Validator
 
 ```typescript
-import { zValidator } from '@hono/zod-validator'
-import * as z from 'zod'
+import { zValidator } from "@hono/zod-validator";
+import * as z from "zod";
 
 const createPostSchema = z.object({
   title: z.string().min(1),
   body: z.string().min(1),
-})
+});
 
-const route = app.post(
-  '/posts',
-  zValidator('json', createPostSchema),
-  (c) => {
-    const data = c.req.valid('json')
-    return c.json(
-      {
-        ok: true,
-        title: data.title,
-      },
-      201
-    )
-  }
-)
+const route = app.post("/posts", zValidator("json", createPostSchema), (c) => {
+  const data = c.req.valid("json");
+  return c.json(
+    {
+      ok: true,
+      title: data.title,
+    },
+    201,
+  );
+});
 
-export type CreatePostRoute = typeof route
+export type CreatePostRoute = typeof route;
 ```
 
 - 官方建议: Hono core validator 很薄, 复杂校验推荐结合第三方 validator;
@@ -759,11 +755,11 @@ export type CreatePostRoute = typeof route
 ### Not Found
 
 ```typescript
-const app = new Hono()
+const app = new Hono();
 
 app.notFound((c) => {
-  return c.json({ error: 'not found' }, 404)
-})
+  return c.json({ error: "not found" }, 404);
+});
 ```
 
 - `app.notFound()`: 自定义 404 response;
@@ -773,16 +769,16 @@ app.notFound((c) => {
 ### onError
 
 ```typescript
-import { HTTPException } from 'hono/http-exception'
+import { HTTPException } from "hono/http-exception";
 
 app.onError((err, c) => {
   if (err instanceof HTTPException) {
-    return err.getResponse()
+    return err.getResponse();
   }
 
-  console.error(err)
-  return c.json({ error: 'internal server error' }, 500)
-})
+  console.error(err);
+  return c.json({ error: "internal server error" }, 500);
+});
 ```
 
 - `app.onError()`: 捕获未处理异常并返回自定义 response;
@@ -792,22 +788,22 @@ app.onError((err, c) => {
 ### HTTPException
 
 ```typescript
-import { HTTPException } from 'hono/http-exception'
+import { HTTPException } from "hono/http-exception";
 
-app.post('/login', async (c) => {
-  const ok = false
+app.post("/login", async (c) => {
+  const ok = false;
 
   if (!ok) {
     throw new HTTPException(401, {
-      message: 'Unauthorized',
+      message: "Unauthorized",
       cause: {
-        reason: 'invalid password',
+        reason: "invalid password",
       },
-    })
+    });
   }
 
-  return c.redirect('/')
-})
+  return c.redirect("/");
+});
 ```
 
 - `HTTPException`: Hono custom `Error`, 用 status + message/custom response 描述可预期 HTTP 错误;
@@ -820,10 +816,10 @@ app.post('/login', async (c) => {
 ```typescript
 type ErrorBody = {
   error: {
-    code: string
-    message: string
-  }
-}
+    code: string;
+    message: string;
+  };
+};
 ```
 
 - 统一结构: 保持 `error.code` 供 client 分支处理, `error.message` 供展示或日志;
@@ -850,75 +846,73 @@ type ErrorBody = {
 
 ```typescript
 // routes/authors.ts
-import { Hono } from 'hono'
-import { zValidator } from '@hono/zod-validator'
-import * as z from 'zod'
+import { Hono } from "hono";
+import { zValidator } from "@hono/zod-validator";
+import * as z from "zod";
 
 const authors = new Hono()
   .get(
-    '/',
+    "/",
     zValidator(
-      'query',
+      "query",
       z.object({
         page: z.string().optional(),
-      })
+      }),
     ),
     (c) => {
-      const query = c.req.valid('query')
-      return c.json({ authors: [], page: query.page ?? '1' }, 200)
-    }
+      const query = c.req.valid("query");
+      return c.json({ authors: [], page: query.page ?? "1" }, 200);
+    },
   )
-  .get('/:id', (c) => {
-    const id = c.req.param('id')
+  .get("/:id", (c) => {
+    const id = c.req.param("id");
 
-    if (id === 'missing') {
-      return c.json({ error: 'author not found' }, 404)
+    if (id === "missing") {
+      return c.json({ error: "author not found" }, 404);
     }
 
-    return c.json({ author: { id, name: 'Ada' } }, 200)
+    return c.json({ author: { id, name: "Ada" } }, 200);
   })
   .post(
-    '/',
+    "/",
     zValidator(
-      'json',
+      "json",
       z.object({
         name: z.string().min(1),
-      })
+      }),
     ),
     (c) => {
-      const data = c.req.valid('json')
-      return c.json({ author: { id: '1', name: data.name } }, 201)
-    }
-  )
+      const data = c.req.valid("json");
+      return c.json({ author: { id: "1", name: data.name } }, 201);
+    },
+  );
 
-export default authors
+export default authors;
 ```
 
 ```typescript
 // routes/books.ts
-import { Hono } from 'hono'
+import { Hono } from "hono";
 
 const books = new Hono()
-  .get('/', (c) => c.json({ books: [] }, 200))
-  .post('/', (c) => c.json({ ok: true }, 201))
+  .get("/", (c) => c.json({ books: [] }, 200))
+  .post("/", (c) => c.json({ ok: true }, 201));
 
-export default books
+export default books;
 ```
 
 ```typescript
 // app.ts
-import { Hono } from 'hono'
-import authors from './routes/authors'
-import books from './routes/books'
+import { Hono } from "hono";
+import authors from "./routes/authors";
+import books from "./routes/books";
 
-const app = new Hono()
+const app = new Hono();
 
-export const routes = app.route('/authors', authors).route('/books', books)
+export const routes = app.route("/authors", authors).route("/books", books);
 
-export default app
+export default app;
 ```
-
-
 
 ### 预编译 Typed Client
 
@@ -929,14 +923,14 @@ export default app
 
 ```typescript
 // rpc-client.ts
-import { hc } from 'hono/client'
-import { routes } from './app'
+import { hc } from "hono/client";
+import { routes } from "./app";
 
-export type RpcClient = ReturnType<typeof hc<typeof routes>>
+export type RpcClient = ReturnType<typeof hc<typeof routes>>;
 
 export const hcWithType = (...args: Parameters<typeof hc>): RpcClient => {
-  return hc<typeof routes>(...args)
-}
+  return hc<typeof routes>(...args);
+};
 ```
 
 - `routes` value import: 让 `tsc` 编译 `rpc-client.ts` 时能计算完整 route client 类型;
@@ -949,54 +943,54 @@ export const hcWithType = (...args: Parameters<typeof hc>): RpcClient => {
 
 ```typescript
 // web/api-client.ts
-import { hcWithType } from '@acme/api/rpc-client'
+import { hcWithType } from "@acme/api/rpc-client";
 
-export const apiClient = hcWithType('http://localhost:8787/', {
+export const apiClient = hcWithType("http://localhost:8787/", {
   init: {
-    credentials: 'include',
+    credentials: "include",
   },
-})
+});
 ```
 
 ```typescript
 // web/authors.ts
-import type { InferRequestType, InferResponseType } from 'hono/client'
-import { apiClient } from './api-client'
+import type { InferRequestType, InferResponseType } from "hono/client";
+import { apiClient } from "./api-client";
 
-const $createAuthor = apiClient.authors.$post
+const $createAuthor = apiClient.authors.$post;
 
-type CreateAuthorJson = InferRequestType<typeof $createAuthor>['json']
-type CreateAuthorResponse = InferResponseType<typeof $createAuthor, 201>
+type CreateAuthorJson = InferRequestType<typeof $createAuthor>["json"];
+type CreateAuthorResponse = InferResponseType<typeof $createAuthor, 201>;
 
-const input: CreateAuthorJson = { name: 'Grace' }
+const input: CreateAuthorJson = { name: "Grace" };
 
-const createdRes = await $createAuthor({ json: input })
+const createdRes = await $createAuthor({ json: input });
 
 if (createdRes.status === 201) {
-  const data: CreateAuthorResponse = await createdRes.json()
-  console.log(data.author.name)
+  const data: CreateAuthorResponse = await createdRes.json();
+  console.log(data.author.name);
 }
 
-const detailRes = await apiClient.authors[':id'].$get({
+const detailRes = await apiClient.authors[":id"].$get({
   param: {
-    id: 'missing',
+    id: "missing",
   },
-})
+});
 
 if (detailRes.status === 404) {
-  const data = await detailRes.json()
-  console.log(data.error)
+  const data = await detailRes.json();
+  console.log(data.error);
 }
 
 const listRes = await apiClient.authors.$get({
   query: {
-    page: '1',
+    page: "1",
   },
-})
+});
 
 if (listRes.ok) {
-  const data = await listRes.json()
-  console.log(data.authors)
+  const data = await listRes.json();
+  console.log(data.authors);
 }
 ```
 
@@ -1022,32 +1016,32 @@ if (listRes.ok) {
 ### app.request()
 
 ```typescript
-import { describe, expect, test } from 'vitest'
-import app from '../src/app'
+import { describe, expect, test } from "vitest";
+import app from "../src/app";
 
-describe('posts API', () => {
-  test('GET /posts returns text', async () => {
-    const res = await app.request('/posts')
+describe("posts API", () => {
+  test("GET /posts returns text", async () => {
+    const res = await app.request("/posts");
 
-    expect(res.status).toBe(200)
-    expect(await res.text()).toBe('Many posts')
-  })
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe("Many posts");
+  });
 
-  test('POST /posts returns json', async () => {
-    const res = await app.request('/posts', {
-      method: 'POST',
-      body: JSON.stringify({ title: 'Hello' }),
+  test("POST /posts returns json", async () => {
+    const res = await app.request("/posts", {
+      method: "POST",
+      body: JSON.stringify({ title: "Hello" }),
       headers: new Headers({
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       }),
-    })
+    });
 
-    expect(res.status).toBe(201)
+    expect(res.status).toBe(201);
     expect(await res.json()).toEqual({
-      message: 'Created',
-    })
-  })
-})
+      message: "Created",
+    });
+  });
+});
 ```
 
 - `app.request(path, options?)`: 直接向 Hono app 发请求, 返回 Web `Response`;
@@ -1060,11 +1054,11 @@ describe('posts API', () => {
 
 ```typescript
 const mockEnv = {
-  API_HOST: 'https://example.com',
-  JWT_SECRET: 'test-secret',
-}
+  API_HOST: "https://example.com",
+  JWT_SECRET: "test-secret",
+};
 
-const res = await app.request('/auth/me', {}, mockEnv)
+const res = await app.request("/auth/me", {}, mockEnv);
 ```
 
 - 第三个参数: `app.request(path, options, env)` 可给 `c.env` 注入 mock;
@@ -1073,11 +1067,11 @@ const res = await app.request('/auth/me', {}, mockEnv)
 
 ### 测试分层
 
-| 层级 | 测什么 | 工具 |
-| --- | --- | --- |
-| Route test | method/path/status/body/header | `app.request()` |
-| Middleware test | header、auth、early response、`c.var` | `app.request()` + mock env |
-| Service test | 纯业务逻辑 | 普通 unit test |
+| 层级                | 测什么                                                  | 工具                             |
+| ------------------- | ------------------------------------------------------- | -------------------------------- |
+| Route test          | method/path/status/body/header                          | `app.request()`                  |
+| Middleware test     | header、auth、early response、`c.var`                   | `app.request()` + mock env       |
+| Service test        | 纯业务逻辑                                              | 普通 unit test                   |
 | Runtime integration | Workers bindings、Node adapter、static files、WebSocket | runtime-specific test/dev server |
 
 ## 部署选择
@@ -1091,14 +1085,14 @@ const res = await app.request('/auth/me', {}, mockEnv)
 
 ### 场景建议
 
-| 约束 | 优先选择 | 原因 |
-| --- | --- | --- |
-| 全球低延迟 API | Cloudflare Workers/Fastly/Deno Deploy | Edge runtime 更贴近用户 |
-| 依赖 Node SDK 或本地文件系统 | Node.js | Node ecosystem 和 adapter 支持 |
-| 与 Vercel frontend 同部署 | Vercel template | 路由和部署体验统一 |
-| 想用 Bun runtime | Bun template | TypeScript 运行和本地开发简单 |
-| 想用 Deno Deploy 或 JSR | Deno template | Deno.serve 和 Deno Deploy 对齐 |
-| 不确定 | `create-hono` template | 先用官方模板拿到正确入口 |
+| 约束                         | 优先选择                              | 原因                           |
+| ---------------------------- | ------------------------------------- | ------------------------------ |
+| 全球低延迟 API               | Cloudflare Workers/Fastly/Deno Deploy | Edge runtime 更贴近用户        |
+| 依赖 Node SDK 或本地文件系统 | Node.js                               | Node ecosystem 和 adapter 支持 |
+| 与 Vercel frontend 同部署    | Vercel template                       | 路由和部署体验统一             |
+| 想用 Bun runtime             | Bun template                          | TypeScript 运行和本地开发简单  |
+| 想用 Deno Deploy 或 JSR      | Deno template                         | Deno.serve 和 Deno Deploy 对齐 |
+| 不确定                       | `create-hono` template                | 先用官方模板拿到正确入口       |
 
 ### 部署前检查
 

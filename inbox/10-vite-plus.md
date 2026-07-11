@@ -15,10 +15,10 @@ id: 8ab3ae09-612b-4fd0-985a-179c450331ed
 
 ### 两层模型
 
-| 层级          | 角色     | 作用                                      |
-| ------------- | -------- | ----------------------------------------- |
-| 全局层 `vp`   | 入口工具 | 管理命令入口、Node.js 环境、包管理器代理  |
-| 项目层 Vite+  | 本地能力 | 读取 `vite.config.ts`, 执行项目内工具行为 |
+| 层级         | 角色     | 作用                                      |
+| ------------ | -------- | ----------------------------------------- |
+| 全局层 `vp`  | 入口工具 | 管理命令入口、Node.js 环境、包管理器代理  |
+| 项目层 Vite+ | 本地能力 | 读取 `vite.config.ts`, 执行项目内工具行为 |
 
 - 全局层: 解决“开发者机器上怎么运行”的问题;
 - 项目层: 解决“当前项目用什么规则运行”的问题;
@@ -131,35 +131,35 @@ export default defineConfig({
 
 ### 生命周期
 
-| 阶段     | 命令                    | 作用                         |
-| -------- | ----------------------- | ---------------------------- |
-| 创建     | `vp create`             | 创建应用、库、生成器或模板项目 |
-| 迁移     | `vp migrate`            | 把旧工具链迁移到 Vite+       |
-| 安装     | `vp install`            | 按项目包管理器安装依赖       |
-| 开发     | `vp dev`                | 启动 Vite dev server         |
-| 检查     | `vp check`              | 格式化、lint、类型检查       |
-| 测试     | `vp test`               | 运行 Vitest                  |
-| 构建     | `vp build`              | 运行 Vite/Rolldown 应用构建  |
-| 打包     | `vp pack`               | 使用 tsdown 构建库或可执行文件 |
-| 预览     | `vp preview`            | 预览生产构建产物             |
-| 执行任务 | `vp run` / `vpr`        | 执行 scripts 或配置任务      |
-| 环境     | `vp env`                | 管理 Node.js 版本和 shim     |
-| 升级     | `vp upgrade`            | 升级全局 `vp`                |
-| 移除     | `vp implode`            | 移除 Vite+ 本机数据          |
+| 阶段     | 命令             | 作用                           |
+| -------- | ---------------- | ------------------------------ |
+| 创建     | `vp create`      | 创建应用、库、生成器或模板项目 |
+| 迁移     | `vp migrate`     | 把旧工具链迁移到 Vite+         |
+| 安装     | `vp install`     | 按项目包管理器安装依赖         |
+| 开发     | `vp dev`         | 启动 Vite dev server           |
+| 检查     | `vp check`       | 格式化、lint、类型检查         |
+| 测试     | `vp test`        | 运行 Vitest                    |
+| 构建     | `vp build`       | 运行 Vite/Rolldown 应用构建    |
+| 打包     | `vp pack`        | 使用 tsdown 构建库或可执行文件 |
+| 预览     | `vp preview`     | 预览生产构建产物               |
+| 执行任务 | `vp run` / `vpr` | 执行 scripts 或配置任务        |
+| 环境     | `vp env`         | 管理 Node.js 版本和 shim       |
+| 升级     | `vp upgrade`     | 升级全局 `vp`                  |
+| 移除     | `vp implode`     | 移除 Vite+ 本机数据            |
 
 ### 底层工具集成
 
-| 能力       | 底层工具             | Vite+ 入口       |
-| ---------- | -------------------- | ---------------- |
-| 开发服务器 | Vite                 | `vp dev`         |
-| 应用构建   | Vite + Rolldown      | `vp build`       |
-| 单元测试   | Vitest               | `vp test`        |
-| Lint       | Oxlint               | `vp lint`        |
-| Format     | Oxfmt                | `vp fmt`         |
-| 综合检查   | Oxfmt + Oxlint + TS  | `vp check`       |
-| 库打包     | tsdown               | `vp pack`        |
-| 任务编排   | Vite Task            | `vp run` / `vpr` |
-| Git hook   | Vite+ staged config  | `vp staged`      |
+| 能力       | 底层工具            | Vite+ 入口       |
+| ---------- | ------------------- | ---------------- |
+| 开发服务器 | Vite                | `vp dev`         |
+| 应用构建   | Vite + Rolldown     | `vp build`       |
+| 单元测试   | Vitest              | `vp test`        |
+| Lint       | Oxlint              | `vp lint`        |
+| Format     | Oxfmt               | `vp fmt`         |
+| 综合检查   | Oxfmt + Oxlint + TS | `vp check`       |
+| 库打包     | tsdown              | `vp pack`        |
+| 任务编排   | Vite Task           | `vp run` / `vpr` |
+| Git hook   | Vite+ staged config | `vp staged`      |
 
 ## 核心机制
 
@@ -250,12 +250,12 @@ vp upgrade                   # 升级全局 vp;
 
 ### Built-in vs Script
 
-| 命令           | 含义                     |
-| -------------- | ------------------------ |
-| `vp build`     | Vite+ 内置应用构建       |
-| `vp run build` | 项目 `build` 脚本或任务  |
-| `vp test`      | Vite+ 内置 Vitest 测试   |
-| `vp run test`  | 项目 `test` 脚本或任务   |
+| 命令           | 含义                    |
+| -------------- | ----------------------- |
+| `vp build`     | Vite+ 内置应用构建      |
+| `vp run build` | 项目 `build` 脚本或任务 |
+| `vp test`      | Vite+ 内置 Vitest 测试  |
+| `vp run test`  | 项目 `test` 脚本或任务  |
 
 - 内置命令不可被覆盖;
 - 自定义流程放到 `package.json` scripts 或 `run.tasks`;

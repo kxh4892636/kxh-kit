@@ -53,14 +53,14 @@ Application code
 
 #### Drizzle 与传统 ORM 对比
 
-| 维度 | Drizzle | 常见 data framework 风格 ORM |
-| --- | --- | --- |
-| 查询表达 | SQL-like + RQB | 自定义 abstraction 层较厚 |
-| 项目结构 | 不强制 | 往往强制 model/service/migration 约定 |
-| 类型来源 | TypeScript schema 推断 | 可能依赖 codegen 或 runtime metadata |
-| SQL 可见性 | 易推导生成 SQL | 可能需要额外日志或解释 |
-| 关系查询 | opt-in relations | 通常 model relation 是核心抽象 |
-| 迁移策略 | database-first 与 codebase-first 都支持 | 常绑定单一迁移工作流 |
+| 维度       | Drizzle                                 | 常见 data framework 风格 ORM          |
+| ---------- | --------------------------------------- | ------------------------------------- |
+| 查询表达   | SQL-like + RQB                          | 自定义 abstraction 层较厚             |
+| 项目结构   | 不强制                                  | 往往强制 model/service/migration 约定 |
+| 类型来源   | TypeScript schema 推断                  | 可能依赖 codegen 或 runtime metadata  |
+| SQL 可见性 | 易推导生成 SQL                          | 可能需要额外日志或解释                |
+| 关系查询   | opt-in relations                        | 通常 model relation 是核心抽象        |
+| 迁移策略   | database-first 与 codebase-first 都支持 | 常绑定单一迁移工作流                  |
 
 ### 什么时候用哪种 API
 
@@ -115,16 +115,16 @@ npm install -D drizzle-kit
 
 #### 常见 driver import path
 
-| 场景 | `drizzle()` import path | 说明 |
-| --- | --- | --- |
-| PostgreSQL + node-postgres | `drizzle-orm/node-postgres` | Node.js 服务端常见选择 |
-| Neon HTTP | `drizzle-orm/neon-http` | serverless HTTP driver |
-| Neon WebSocket | `drizzle-orm/neon-serverless` | serverless websocket driver |
-| Vercel Postgres | `drizzle-orm/vercel-postgres` | Vercel 数据库集成 |
-| PlanetScale | `drizzle-orm/planetscale` | MySQL serverless driver |
-| Cloudflare D1 | `drizzle-orm/d1` | Cloudflare Workers/D1 |
-| Bun SQLite | `drizzle-orm/bun-sqlite` | Bun runtime |
-| Expo SQLite | `drizzle-orm/expo-sqlite` | React Native/Expo |
+| 场景                       | `drizzle()` import path       | 说明                        |
+| -------------------------- | ----------------------------- | --------------------------- |
+| PostgreSQL + node-postgres | `drizzle-orm/node-postgres`   | Node.js 服务端常见选择      |
+| Neon HTTP                  | `drizzle-orm/neon-http`       | serverless HTTP driver      |
+| Neon WebSocket             | `drizzle-orm/neon-serverless` | serverless websocket driver |
+| Vercel Postgres            | `drizzle-orm/vercel-postgres` | Vercel 数据库集成           |
+| PlanetScale                | `drizzle-orm/planetscale`     | MySQL serverless driver     |
+| Cloudflare D1              | `drizzle-orm/d1`              | Cloudflare Workers/D1       |
+| Bun SQLite                 | `drizzle-orm/bun-sqlite`      | Bun runtime                 |
+| Expo SQLite                | `drizzle-orm/expo-sqlite`     | React Native/Expo           |
 
 ### 连接数据库
 
@@ -228,16 +228,16 @@ select "id", "first_name" from "users";
 
 ### 常用 column modifiers
 
-| Modifier | 含义 | 典型场景 |
-| --- | --- | --- |
-| `.primaryKey()` | 主键 | `id` |
-| `.notNull()` | 非空约束 | required field |
-| `.unique()` | 唯一约束 | email、slug |
-| `.default(value)` | 数据库默认值 | status、role |
-| `.defaultNow()` | 当前时间默认值 | `createdAt` |
-| `.$default(fn)` / `.$defaultFn(fn)` | runtime 生成默认值 | cuid、slug |
-| `.references(() => table.id)` | foreign key | authorId、postId |
-| `.$type<T>()` | TypeScript 类型收窄 | SQLite enum-like text |
+| Modifier                            | 含义                | 典型场景              |
+| ----------------------------------- | ------------------- | --------------------- |
+| `.primaryKey()`                     | 主键                | `id`                  |
+| `.notNull()`                        | 非空约束            | required field        |
+| `.unique()`                         | 唯一约束            | email、slug           |
+| `.default(value)`                   | 数据库默认值        | status、role          |
+| `.defaultNow()`                     | 当前时间默认值      | `createdAt`           |
+| `.$default(fn)` / `.$defaultFn(fn)` | runtime 生成默认值  | cuid、slug            |
+| `.references(() => table.id)`       | foreign key         | authorId、postId      |
+| `.$type<T>()`                       | TypeScript 类型收窄 | SQLite enum-like text |
 
 ### 类型推断
 
@@ -277,20 +277,27 @@ export const posts = p.pgTable(
     id: p.integer().primaryKey().generatedAlwaysAsIdentity(),
     title: p.text().notNull(),
     content: p.text().notNull(),
-    authorId: p.integer("author_id").notNull().references(() => users.id),
+    authorId: p
+      .integer("author_id")
+      .notNull()
+      .references(() => users.id),
     createdAt: p.timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [
-    p.index("posts_author_id_idx").on(table.authorId),
-  ],
+  (table) => [p.index("posts_author_id_idx").on(table.authorId)],
 );
 
 export const comments = p.pgTable(
   "comments",
   {
     id: p.integer().primaryKey().generatedAlwaysAsIdentity(),
-    postId: p.integer("post_id").notNull().references(() => posts.id),
-    authorId: p.integer("author_id").notNull().references(() => users.id),
+    postId: p
+      .integer("post_id")
+      .notNull()
+      .references(() => posts.id),
+    authorId: p
+      .integer("author_id")
+      .notNull()
+      .references(() => users.id),
     body: p.text().notNull(),
     createdAt: p.timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -418,18 +425,18 @@ const rows = await db
   );
 ```
 
-| Operator | SQL 语义 | 用法 |
-| --- | --- | --- |
-| `eq(a, b)` | `a = b` | 等值 |
-| `ne(a, b)` | `a <> b` | 不等 |
-| `gt` / `gte` | `>` / `>=` | 大于/大于等于 |
-| `lt` / `lte` | `<` / `<=` | 小于/小于等于 |
-| `isNull` / `isNotNull` | `IS NULL` / `IS NOT NULL` | null 判断 |
-| `inArray` / `notInArray` | `IN` / `NOT IN` | 数组或 subquery |
-| `between` / `notBetween` | `BETWEEN` | 范围 |
-| `like` / `ilike` | `LIKE` / `ILIKE` | 模糊匹配, `ilike` 主要 PostgreSQL |
-| `and` / `or` / `not` | boolean composition | 组合条件 |
-| `exists` / `notExists` | subquery existence | 子查询存在判断 |
+| Operator                 | SQL 语义                  | 用法                              |
+| ------------------------ | ------------------------- | --------------------------------- |
+| `eq(a, b)`               | `a = b`                   | 等值                              |
+| `ne(a, b)`               | `a <> b`                  | 不等                              |
+| `gt` / `gte`             | `>` / `>=`                | 大于/大于等于                     |
+| `lt` / `lte`             | `<` / `<=`                | 小于/小于等于                     |
+| `isNull` / `isNotNull`   | `IS NULL` / `IS NOT NULL` | null 判断                         |
+| `inArray` / `notInArray` | `IN` / `NOT IN`           | 数组或 subquery                   |
+| `between` / `notBetween` | `BETWEEN`                 | 范围                              |
+| `like` / `ilike`         | `LIKE` / `ILIKE`          | 模糊匹配, `ilike` 主要 PostgreSQL |
+| `and` / `or` / `not`     | boolean composition       | 组合条件                          |
+| `exists` / `notExists`   | subquery existence        | 子查询存在判断                    |
 
 #### Dynamic filters
 
@@ -448,7 +455,10 @@ const searchPosts = async (params: { term?: string; minId?: number }) => {
     filters.push(gt(posts.id, params.minId));
   }
 
-  return db.select().from(posts).where(and(...filters));
+  return db
+    .select()
+    .from(posts)
+    .where(and(...filters));
 };
 ```
 
@@ -570,9 +580,9 @@ await db.delete(users).where(eq(users.id, 1)).returning({
 ### CTE 与 subquery
 
 ```typescript
-const activeUsers = db.$with("active_users").as(
-  db.select().from(users).where(isNotNull(users.email)),
-);
+const activeUsers = db
+  .$with("active_users")
+  .as(db.select().from(users).where(isNotNull(users.email)));
 
 const rows = await db.with(activeUsers).select().from(activeUsers);
 ```
@@ -598,20 +608,17 @@ const rows = await db
 
 ### Join 类型与 nullability
 
-| API | SQL | 返回类型重点 |
-| --- | --- | --- |
-| `.innerJoin()` | `INNER JOIN` | 两侧都非空 |
-| `.leftJoin()` | `LEFT JOIN` | 右侧 nullable |
-| `.rightJoin()` | `RIGHT JOIN` | 左侧 nullable |
-| `.fullJoin()` | `FULL JOIN` | 两侧都 nullable |
-| `.crossJoin()` | `CROSS JOIN` | 笛卡尔积, 两侧非空 |
+| API                  | SQL                 | 返回类型重点                       |
+| -------------------- | ------------------- | ---------------------------------- |
+| `.innerJoin()`       | `INNER JOIN`        | 两侧都非空                         |
+| `.leftJoin()`        | `LEFT JOIN`         | 右侧 nullable                      |
+| `.rightJoin()`       | `RIGHT JOIN`        | 左侧 nullable                      |
+| `.fullJoin()`        | `FULL JOIN`         | 两侧都 nullable                    |
+| `.crossJoin()`       | `CROSS JOIN`        | 笛卡尔积, 两侧非空                 |
 | `.leftJoinLateral()` | `LEFT JOIN LATERAL` | subquery 可引用左表, 右侧 nullable |
 
 ```typescript
-const rows = await db
-  .select()
-  .from(users)
-  .leftJoin(posts, eq(users.id, posts.authorId));
+const rows = await db.select().from(users).leftJoin(posts, eq(users.id, posts.authorId));
 ```
 
 - 类型推断: left join 后 `posts` object 是 `{ ... } | null`;
@@ -639,10 +646,7 @@ import { alias, eq } from "drizzle-orm";
 
 const inviter = alias(users, "inviter");
 
-const rows = await db
-  .select()
-  .from(users)
-  .leftJoin(inviter, eq(inviter.id, users.invitedBy));
+const rows = await db.select().from(users).leftJoin(inviter, eq(inviter.id, users.invitedBy));
 ```
 
 - `alias()`: 同一 table 多次出现在 query 中必须使用 alias;
@@ -681,10 +685,10 @@ const mapped = rows.reduce<Record<number, { user: User; posts: Post[] }>>((acc, 
 
 #### 核心区别
 
-| 概念 | 层级 | 作用 | 是否改变 database schema |
-| --- | --- | --- | --- |
-| `references()` | database | 约束 insert/update/delete 的 referential integrity | 是 |
-| `defineRelations()` | application/Drizzle | 告诉 RQB 如何关联和嵌套查询 | 否 |
+| 概念                | 层级                | 作用                                               | 是否改变 database schema |
+| ------------------- | ------------------- | -------------------------------------------------- | ------------------------ |
+| `references()`      | database            | 约束 insert/update/delete 的 referential integrity | 是                       |
+| `defineRelations()` | application/Drizzle | 告诉 RQB 如何关联和嵌套查询                        | 否                       |
 
 - 可同时使用: 推荐业务关键关系同时有 foreign key + relation;
 - 可单独使用: 某些数据库或历史 schema 无 foreign key 时, 仍可定义 relations 用于 RQB;
@@ -771,8 +775,14 @@ export const groups = p.pgTable("groups", {
 export const usersToGroups = p.pgTable(
   "users_to_groups",
   {
-    userId: p.integer("user_id").notNull().references(() => users.id),
-    groupId: p.integer("group_id").notNull().references(() => groups.id),
+    userId: p
+      .integer("user_id")
+      .notNull()
+      .references(() => users.id),
+    groupId: p
+      .integer("group_id")
+      .notNull()
+      .references(() => groups.id),
   },
   (table) => [
     p.primaryKey({ columns: [table.userId, table.groupId] }),
@@ -850,10 +860,7 @@ const postsList = await db.query.posts.findMany({
 const postsList = await db.query.posts.findMany({
   where: {
     id: { gt: 10 },
-    OR: [
-      { title: { like: "Drizzle%" } },
-      { title: { ilike: "ORM%" } },
-    ],
+    OR: [{ title: { like: "Drizzle%" } }, { title: { ilike: "ORM%" } }],
   },
   with: {
     comments: {
@@ -896,18 +903,20 @@ const postsList = await db.query.posts.findMany({
 ### Prepared statements
 
 ```typescript
-const prepared = db.query.users.findMany({
-  limit: sql.placeholder("limit"),
-  offset: sql.placeholder("offset"),
-  where: {
-    id: { eq: sql.placeholder("id") },
-  },
-  with: {
-    posts: {
-      limit: sql.placeholder("postsLimit"),
+const prepared = db.query.users
+  .findMany({
+    limit: sql.placeholder("limit"),
+    offset: sql.placeholder("offset"),
+    where: {
+      id: { eq: sql.placeholder("id") },
     },
-  },
-}).prepare("users_with_posts");
+    with: {
+      posts: {
+        limit: sql.placeholder("postsLimit"),
+      },
+    },
+  })
+  .prepare("users_with_posts");
 
 const rows = await prepared.execute({
   id: 1,
@@ -939,16 +948,16 @@ const rows = await prepared.execute({
 
 ### Drizzle Kit 命令
 
-| Command | 作用 | 风险等级 |
-| --- | --- | --- |
-| `drizzle-kit generate` | 根据 schema diff 生成 SQL migration files | 低, 写本地 migration |
-| `drizzle-kit migrate` | 应用 migration 到 database | 高, 改真实数据库 |
-| `drizzle-kit push` | 直接把 schema changes push 到 database | 高, 跳过 migration 文件 |
-| `drizzle-kit pull` | 从 database introspect schema 到 codebase | 中, 可能覆盖/生成 schema 文件 |
-| `drizzle-kit check` | 检查 generated migrations 是否有冲突 | 低 |
-| `drizzle-kit up` | 升级旧 migration snapshots | 中 |
-| `drizzle-kit studio` | 启动 Drizzle Studio 浏览数据库 | 中, 会连接数据库 |
-| `drizzle-kit export` | 输出 SQL representation | 低 |
+| Command                | 作用                                      | 风险等级                      |
+| ---------------------- | ----------------------------------------- | ----------------------------- |
+| `drizzle-kit generate` | 根据 schema diff 生成 SQL migration files | 低, 写本地 migration          |
+| `drizzle-kit migrate`  | 应用 migration 到 database                | 高, 改真实数据库              |
+| `drizzle-kit push`     | 直接把 schema changes push 到 database    | 高, 跳过 migration 文件       |
+| `drizzle-kit pull`     | 从 database introspect schema 到 codebase | 中, 可能覆盖/生成 schema 文件 |
+| `drizzle-kit check`    | 检查 generated migrations 是否有冲突      | 低                            |
+| `drizzle-kit up`       | 升级旧 migration snapshots                | 中                            |
+| `drizzle-kit studio`   | 启动 Drizzle Studio 浏览数据库            | 中, 会连接数据库              |
+| `drizzle-kit export`   | 输出 SQL representation                   | 低                            |
 
 ### 常见工作流选择
 
@@ -1020,22 +1029,22 @@ export default defineConfig({
 });
 ```
 
-| Config | 作用 |
-| --- | --- |
-| `dialect` | 数据库 dialect, 如 `postgresql` / `mysql` / `sqlite` / `turso` / `singlestore` / `mssql` |
-| `schema` | schema file/folder glob |
-| `out` | migration SQL 与 snapshots 输出目录, 默认 `drizzle` |
-| `driver` | vendor-specific driver, 如 `pglite` / `d1-http` / `aws-data-api` |
-| `dbCredentials` | `migrate` / `push` / `pull` 需要的连接信息 |
-| `migrations` | migration log table/schema |
-| `introspect.casing` | `pull` 时生成代码 key 的 casing |
-| `tablesFilter` | 管理指定 table |
-| `schemaFilter` | 管理指定 schema |
-| `extensionsFilters` | 忽略 extension 创建的对象, 如 PostGIS |
-| `entities.roles` | PostgreSQL roles 管理策略 |
-| `strict` | `push` 时要求确认 SQL |
-| `verbose` | 打印 SQL |
-| `breakpoints` | 生成 statement breakpoint, 对 MySQL/SQLite 等有意义 |
+| Config              | 作用                                                                                     |
+| ------------------- | ---------------------------------------------------------------------------------------- |
+| `dialect`           | 数据库 dialect, 如 `postgresql` / `mysql` / `sqlite` / `turso` / `singlestore` / `mssql` |
+| `schema`            | schema file/folder glob                                                                  |
+| `out`               | migration SQL 与 snapshots 输出目录, 默认 `drizzle`                                      |
+| `driver`            | vendor-specific driver, 如 `pglite` / `d1-http` / `aws-data-api`                         |
+| `dbCredentials`     | `migrate` / `push` / `pull` 需要的连接信息                                               |
+| `migrations`        | migration log table/schema                                                               |
+| `introspect.casing` | `pull` 时生成代码 key 的 casing                                                          |
+| `tablesFilter`      | 管理指定 table                                                                           |
+| `schemaFilter`      | 管理指定 schema                                                                          |
+| `extensionsFilters` | 忽略 extension 创建的对象, 如 PostGIS                                                    |
+| `entities.roles`    | PostgreSQL roles 管理策略                                                                |
+| `strict`            | `push` 时要求确认 SQL                                                                    |
+| `verbose`           | 打印 SQL                                                                                 |
+| `breakpoints`       | 生成 statement breakpoint, 对 MySQL/SQLite 等有意义                                      |
 
 ### Migration 安全边界
 
@@ -1167,10 +1176,7 @@ await db.execute(sql.raw(`select ${unsafeColumn} from users`));
 #### SQL chunk 组合
 
 ```typescript
-const chunks = [
-  sql`select * from ${users}`,
-  sql`where ${users.id} = ${1}`,
-];
+const chunks = [sql`select * from ${users}`, sql`where ${users.id} = ${1}`];
 
 const query = sql.join(chunks, sql.raw(" "));
 await db.execute(query);
@@ -1200,18 +1206,18 @@ await db.execute(query);
 
 ### 常见误区表
 
-| 误区 | 正确理解 |
-| --- | --- |
-| Drizzle 会替我设计数据库 | Drizzle 表达数据库 schema, 设计仍依赖 SQL/建模能力 |
-| `defineRelations()` 会创建 foreign key | 不会, 它只影响 RQB |
-| 有 TypeScript 类型就不用校验输入 | TypeScript 不保护 runtime input |
-| `sql<number>` 会把 string count 转 number | 不会, 要 `.mapWith(Number)` 或 helper |
-| RQB 一定比 SQL-like query 快 | 不一定, RQB 适合 nested shape, 复杂统计仍用 SQL-like |
-| `push` 是 migration 的替代品 | 只适合明确可接受 direct schema sync 的环境 |
-| MySQL 可以 `.returning()` | MySQL 用 `$returningId()` 或单独查询 |
-| `db.delete(table)` 会安全删除匹配行 | 没有 `where` 就是删除全表 |
-| 多文件 schema 不需要 export | Drizzle Kit 需要 import/export 才能 diff |
-| `sql.raw()` 和 `sql`` 一样安全 | `sql.raw()` 不参数化也不转义 |
+| 误区                                      | 正确理解                                             |
+| ----------------------------------------- | ---------------------------------------------------- |
+| Drizzle 会替我设计数据库                  | Drizzle 表达数据库 schema, 设计仍依赖 SQL/建模能力   |
+| `defineRelations()` 会创建 foreign key    | 不会, 它只影响 RQB                                   |
+| 有 TypeScript 类型就不用校验输入          | TypeScript 不保护 runtime input                      |
+| `sql<number>` 会把 string count 转 number | 不会, 要 `.mapWith(Number)` 或 helper                |
+| RQB 一定比 SQL-like query 快              | 不一定, RQB 适合 nested shape, 复杂统计仍用 SQL-like |
+| `push` 是 migration 的替代品              | 只适合明确可接受 direct schema sync 的环境           |
+| MySQL 可以 `.returning()`                 | MySQL 用 `$returningId()` 或单独查询                 |
+| `db.delete(table)` 会安全删除匹配行       | 没有 `where` 就是删除全表                            |
+| 多文件 schema 不需要 export               | Drizzle Kit 需要 import/export 才能 diff             |
+| `sql.raw()` 和 `sql`` 一样安全            | `sql.raw()` 不参数化也不转义                         |
 
 ## 学习路径
 
@@ -1299,7 +1305,10 @@ export const users = p.pgTable("users", {
 export const posts = p.pgTable("posts", {
   id: p.integer().primaryKey().generatedAlwaysAsIdentity(),
   title: p.text().notNull(),
-  authorId: p.integer("author_id").notNull().references(() => users.id),
+  authorId: p
+    .integer("author_id")
+    .notNull()
+    .references(() => users.id),
 });
 
 export const relations = defineRelations({ users, posts }, (r) => ({

@@ -458,11 +458,11 @@ id: 1D38D1DE-81E9-4967-9782-18A03D6F1C52
   - Streaming: 一次或多次请求与响应, 支持 gRPC/Protobuf, Thrift Streaming 有单独文档;
 - 实现机制:
 
-  | 消息类型 | 编码协议 | 传输协议 |
-  | --- | --- | --- |
-  | PingPong | Thrift / Protobuf | TTHeader / HTTP2(gRPC) |
-  | Oneway | Thrift | TTHeader |
-  | Streaming | Protobuf | HTTP2(gRPC) |
+  | 消息类型  | 编码协议          | 传输协议               |
+  | --------- | ----------------- | ---------------------- |
+  | PingPong  | Thrift / Protobuf | TTHeader / HTTP2(gRPC) |
+  | Oneway    | Thrift            | TTHeader               |
+  | Streaming | Protobuf          | HTTP2(gRPC)            |
 
 - 边界: 默认入门优先掌握 PingPong, Oneway 和 Streaming 属于进阶特性;
 
@@ -831,4 +831,3 @@ id: 1D38D1DE-81E9-4967-9782-18A03D6F1C52
 - `Kitex - 日志`;
 - `Kitex - Metric 指标`;
 - `Kitex - 使用注意事项`;
-

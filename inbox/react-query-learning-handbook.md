@@ -27,12 +27,12 @@ id: 42333178-1C4A-4A65-B8ED-254D1DFE52F3
 
 ### 三个核心概念
 
-| 概念 | 作用 | 初学者记法 |
-| --- | --- | --- |
-| `QueryClient` | 持有 query cache 与 mutation cache | 一个 app 级 server-state 管理器 |
-| `useQuery` | 读取 server state | GET-like data dependency |
-| `useMutation` | 写入 server state 或触发 side effect | POST/PUT/PATCH/DELETE-like action |
-| `invalidateQueries` | 标记 query stale 并触发活跃 query 后台 refetch | mutation 后告诉相关读模型过期 |
+| 概念                | 作用                                           | 初学者记法                        |
+| ------------------- | ---------------------------------------------- | --------------------------------- |
+| `QueryClient`       | 持有 query cache 与 mutation cache             | 一个 app 级 server-state 管理器   |
+| `useQuery`          | 读取 server state                              | GET-like data dependency          |
+| `useMutation`       | 写入 server state 或触发 side effect           | POST/PUT/PATCH/DELETE-like action |
+| `invalidateQueries` | 标记 query stale 并触发活跃 query 后台 refetch | mutation 后告诉相关读模型过期     |
 
 ## 最小应用骨架
 
@@ -106,14 +106,14 @@ const todosQuery = useQuery({
 
 ### Query 状态
 
-| 状态 | 含义 | 常见 UI |
-| --- | --- | --- |
-| `isPending` / `status === "pending"` | 还没有可用 data | 首屏 loading / skeleton |
-| `isError` / `status === "error"` | queryFn throw/reject | error message / retry |
-| `isSuccess` / `status === "success"` | 有可用 data | 正常渲染 |
-| `isFetching` | queryFn 正在执行, 含后台 refetch | 小型 syncing indicator |
-| `isLoading` | `isPending && isFetching` | lazy query 首次真正请求中 |
-| `isRefetching` | `isFetching && !isPending` | 已有旧数据时后台刷新中 |
+| 状态                                 | 含义                             | 常见 UI                   |
+| ------------------------------------ | -------------------------------- | ------------------------- |
+| `isPending` / `status === "pending"` | 还没有可用 data                  | 首屏 loading / skeleton   |
+| `isError` / `status === "error"`     | queryFn throw/reject             | error message / retry     |
+| `isSuccess` / `status === "success"` | 有可用 data                      | 正常渲染                  |
+| `isFetching`                         | queryFn 正在执行, 含后台 refetch | 小型 syncing indicator    |
+| `isLoading`                          | `isPending && isFetching`        | lazy query 首次真正请求中 |
+| `isRefetching`                       | `isFetching && !isPending`       | 已有旧数据时后台刷新中    |
 
 - `status`: 描述 data 是否存在;
 - `fetchStatus`: 描述 queryFn 是否正在运行, 值为 `fetching/paused/idle`;
@@ -153,14 +153,14 @@ const filteredTodosQuery = useQuery({
 
 ### Important Defaults
 
-| 默认项 | 默认值 | 影响 |
-| --- | --- | --- |
-| `staleTime` | `0` | query 成功后立即 stale |
-| stale refetch | mount / window focus / reconnect | stale query 会后台 refetch |
-| `gcTime` | `5 * 60 * 1000` | inactive query 5 分钟后被清理 |
-| query retry | client 默认 3 次 | 失败后指数退避重试 |
-| mutation retry | 默认 0 次 | 写操作默认不重试 |
-| structural sharing | 默认开启 | JSON-compatible data 未变时保持引用稳定 |
+| 默认项             | 默认值                           | 影响                                    |
+| ------------------ | -------------------------------- | --------------------------------------- |
+| `staleTime`        | `0`                              | query 成功后立即 stale                  |
+| stale refetch      | mount / window focus / reconnect | stale query 会后台 refetch              |
+| `gcTime`           | `5 * 60 * 1000`                  | inactive query 5 分钟后被清理           |
+| query retry        | client 默认 3 次                 | 失败后指数退避重试                      |
+| mutation retry     | 默认 0 次                        | 写操作默认不重试                        |
+| structural sharing | 默认开启                         | JSON-compatible data 未变时保持引用稳定 |
 
 - Fresh: `staleTime` 未过期, 不因 mount/focus/reconnect 自动 refetch;
 - Stale: 可展示旧数据, 但会在触发点后台 refetch;
@@ -230,12 +230,12 @@ createTodoMutation.mutate({ title: "Read TanStack Query docs" });
 
 ### mutation callbacks
 
-| Callback | 时机 | 常见用途 |
-| --- | --- | --- |
-| `onMutate` | mutationFn 前 | optimistic update、snapshot、cancel queries |
-| `onSuccess` | 成功后 | invalidate、set cache、toast、navigate |
-| `onError` | 失败后 | rollback、error toast |
-| `onSettled` | 成功或失败后 | cleanup、最终 invalidate |
+| Callback    | 时机          | 常见用途                                    |
+| ----------- | ------------- | ------------------------------------------- |
+| `onMutate`  | mutationFn 前 | optimistic update、snapshot、cancel queries |
+| `onSuccess` | 成功后        | invalidate、set cache、toast、navigate      |
+| `onError`   | 失败后        | rollback、error toast                       |
+| `onSettled` | 成功或失败后  | cleanup、最终 invalidate                    |
 
 - Promise callback: callback 返回 Promise 时会被 await, 下一个 callback 等它完成;
 - Consecutive mutations: `useMutation` 上的 handler 每次都会跑, `mutate(..., callbacks)` 的额外 callback 可能只对最后一次且组件仍 mounted 时运行;
@@ -401,24 +401,24 @@ const updateTodoMutation = useMutation({
 
 ## 最小学习路径
 
-| 步骤 | 学习目标 | 验收方式 |
-| --- | --- | --- |
-| 1 | `QueryClientProvider` + `useQuery` 拉列表 | pending/error/success 都能渲染 |
-| 2 | `queryKey` 包含所有变量 | filter/page 变化会命中新 key |
-| 3 | 理解 `staleTime/gcTime/refetch` | focus/refetch 行为能解释 |
-| 4 | `enabled` 做 lazy/dependent query | disabled 时不 fetching, 条件满足才请求 |
-| 5 | `useMutation` + `invalidateQueries` | create 后列表自动更新 |
-| 6 | optimistic update 边界 | 默认 UI-only, 多处同步才改 cache |
+| 步骤 | 学习目标                                  | 验收方式                               |
+| ---- | ----------------------------------------- | -------------------------------------- |
+| 1    | `QueryClientProvider` + `useQuery` 拉列表 | pending/error/success 都能渲染         |
+| 2    | `queryKey` 包含所有变量                   | filter/page 变化会命中新 key           |
+| 3    | 理解 `staleTime/gcTime/refetch`           | focus/refetch 行为能解释               |
+| 4    | `enabled` 做 lazy/dependent query         | disabled 时不 fetching, 条件满足才请求 |
+| 5    | `useMutation` + `invalidateQueries`       | create 后列表自动更新                  |
+| 6    | optimistic update 边界                    | 默认 UI-only, 多处同步才改 cache       |
 
 ## API 速查
 
-| API | 最小用途 | 初学默认选择 |
-| --- | --- | --- |
-| `new QueryClient()` | 创建 cache client | app 根部单例 |
-| `<QueryClientProvider client={client}>` | 注入 client | 包住应用 |
-| `useQuery({ queryKey, queryFn })` | 读数据 | queryKey 包含全部变量 |
-| `useMutation({ mutationFn })` | 写数据 | 成功后 invalidate |
-| `useQueryClient()` | 取当前 client | mutation callback 中常用 |
-| `queryClient.invalidateQueries({ queryKey })` | 标记 stale 并 refetch active query | mutation 成功后首选 |
-| `queryClient.setQueryData(queryKey, updater)` | 直接写 cache | 只在响应足够或 optimistic 明确时用 |
-| `queryClient.cancelQueries({ queryKey })` | 取消正在飞的 refetch | cache optimistic 前用 |
+| API                                           | 最小用途                           | 初学默认选择                       |
+| --------------------------------------------- | ---------------------------------- | ---------------------------------- |
+| `new QueryClient()`                           | 创建 cache client                  | app 根部单例                       |
+| `<QueryClientProvider client={client}>`       | 注入 client                        | 包住应用                           |
+| `useQuery({ queryKey, queryFn })`             | 读数据                             | queryKey 包含全部变量              |
+| `useMutation({ mutationFn })`                 | 写数据                             | 成功后 invalidate                  |
+| `useQueryClient()`                            | 取当前 client                      | mutation callback 中常用           |
+| `queryClient.invalidateQueries({ queryKey })` | 标记 stale 并 refetch active query | mutation 成功后首选                |
+| `queryClient.setQueryData(queryKey, updater)` | 直接写 cache                       | 只在响应足够或 optimistic 明确时用 |
+| `queryClient.cancelQueries({ queryKey })`     | 取消正在飞的 refetch               | cache optimistic 前用              |

@@ -129,22 +129,19 @@ const FailedSchema = z.object({
   error: z.string(),
 });
 
-const ResultSchema = z.discriminatedUnion("status", [
-  SuccessSchema,
-  FailedSchema,
-]);
+const ResultSchema = z.discriminatedUnion("status", [SuccessSchema, FailedSchema]);
 ```
 
 ## Parse And Errors
 
 ### Parse Strategy
 
-| API | 成功 | 失败 | 场景 |
-| --- | --- | --- | --- |
-| `parse` | 返回 data | throw `ZodError` | 中央错误处理、启动期配置 |
-| `safeParse` | `{ success: true, data }` | `{ success: false, error }` | 表单、接口入口、局部分支 |
-| `parseAsync` | Promise data | reject/throw | async refine/transform |
-| `safeParseAsync` | Promise result | Promise result | async 且需局部分支 |
+| API              | 成功                      | 失败                        | 场景                     |
+| ---------------- | ------------------------- | --------------------------- | ------------------------ |
+| `parse`          | 返回 data                 | throw `ZodError`            | 中央错误处理、启动期配置 |
+| `safeParse`      | `{ success: true, data }` | `{ success: false, error }` | 表单、接口入口、局部分支 |
+| `parseAsync`     | Promise data              | reject/throw                | async refine/transform   |
+| `safeParseAsync` | Promise result            | Promise result              | async 且需局部分支       |
 
 ```typescript
 const parsed = LoginSchema.safeParse(body);
@@ -290,14 +287,10 @@ B.parse(undefined); // "TUNA"
 - Transform 边界: `.transform()` 是单向转换, 含 transform 的 schema 不能安全 `encode`;
 
 ```typescript
-const IsoDateCodec = z.codec(
-  z.iso.datetime(),
-  z.date(),
-  {
-    decode: (value) => new Date(value),
-    encode: (value) => value.toISOString(),
-  },
-);
+const IsoDateCodec = z.codec(z.iso.datetime(), z.date(), {
+  decode: (value) => new Date(value),
+  encode: (value) => value.toISOString(),
+});
 
 const date = z.decode(IsoDateCodec, "2024-01-15T10:30:00.000Z");
 const iso = z.encode(IsoDateCodec, date);
@@ -334,11 +327,11 @@ const jsonSchema = z.toJSONSchema(PayloadSchema);
 
 ## Zod Mini
 
-| Package | 适合场景 | API 风格 | 默认建议 |
-| --- | --- | --- | --- |
-| `zod` | 大多数 app/backend/tooling | chainable methods | 默认选择 |
-| `zod/mini` | 极端 bundle size 约束 | functional + `.check()` | 谨慎选择 |
-| `zod/v4/core` | schema library authors | low-level substrate | 初学者不用 |
+| Package       | 适合场景                   | API 风格                | 默认建议   |
+| ------------- | -------------------------- | ----------------------- | ---------- |
+| `zod`         | 大多数 app/backend/tooling | chainable methods       | 默认选择   |
+| `zod/mini`    | 极端 bundle size 约束      | functional + `.check()` | 谨慎选择   |
+| `zod/v4/core` | schema library authors     | low-level substrate     | 初学者不用 |
 
 - Zod Mini 功能与 `zod` 对齐, 但为了 tree-shaking 使用更多 top-level functions;
 - Zod Mini DX 较弱, autocomplete 和链式组合不如 regular Zod;
@@ -347,11 +340,7 @@ const jsonSchema = z.toJSONSchema(PayloadSchema);
 ```typescript
 import * as z from "zod/mini";
 
-const NameSchema = z.string().check(
-  z.minLength(1),
-  z.maxLength(40),
-  z.trim(),
-);
+const NameSchema = z.string().check(z.minLength(1), z.maxLength(40), z.trim());
 ```
 
 ## 常见误区
