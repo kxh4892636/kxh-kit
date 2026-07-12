@@ -49,7 +49,7 @@ disable-model-invocation: true
 
 ### 5. 审查并验证
 
-使用 `/skill-check` 检查新 skill，然后修复所有已证明的问题。至少逐项验证：
+检查新 skill，并修复所有已证明的问题。至少逐项验证：
 
 - frontmatter 字段受当前环境支持，name 与目录名一致；
 - model-invoked description 覆盖每个真实分支且没有同义触发，user-invoked description 保持一行；
@@ -60,7 +60,7 @@ disable-model-invocation: true
 - 正向行为是主要表述；硬护栏同时给出替代动作；
 - 生成的目标 skill 没有未解析占位符；本 skill 自身的模板占位符统一用 `<...>` 明示；没有失效引用、编辑残留、sediment 或 sprawl。
 
-**完成标准：** `/skill-check` 没有未处理的确定性问题；所有直接引用可解析；修改文件通过目标仓库的文本、格式和 diff 检查。
+**完成标准：** 没有未处理的确定性问题；所有直接引用可解析；修改文件通过目标仓库的文本、格式和 diff 检查。
 
 ### 6. 交付
 
