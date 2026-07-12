@@ -1,26 +1,100 @@
 ---
 name: to-anki
-description: Anki 卡片创建任务分流器；当用户要从笔记、Markdown、词表、问答或 cloze 内容创建 Anki 卡片时使用。
+description: 将 Markdown 学习笔记、词表、现成问答或完形填空内容转换为 Anki 卡片；用户要求划分知识点、预览卡片、批量创建或生成可导入数据时使用。
 ---
 
-# To Anki
+# Anki 制卡
 
-Route Anki card creation tasks to the right flow. `SKILL.md` is only the dispatcher; do not plan or create cards from this file alone. Load the referenced flow file before doing any detailed work.
+将用户资料转换为 Anki 卡片，遵循流程 **对齐 → 解析 → 预览 → 确认 → 创建 → 核验**。
 
-## Flow Router
+## 1. 对齐批次
 
-Choose exactly one primary flow for the task. If the task mixes multiple flows, handle them sequentially and preview each flow separately.
+从用户材料和当前环境中推断可验证的信息，只询问会阻塞预览的缺项：
 
-| User intent | Route | Load |
-|---|---|---|
-| Markdown learning notes, wiki learning notes, `inbox/<topic>` notes, chapter files with headings, cards derived from note structure | Learning Notes Basic Cards | `references/learning-notes-basic-cards.md` |
-| Vocabulary, word lists, phrase lists, bilingual memorization | Vocabulary Cards | Not implemented yet; ask for desired front/back format, then add a flow before bulk creation |
-| Existing summaries converted into direct Q/A cards | Q/A Cards | Not implemented yet; ask for Q/A format, then add a flow before bulk creation |
-| Cloze deletion cards or fill-in-the-blank memorization | Cloze Cards | Not implemented yet; ask for cloze template and note type, then add a flow before bulk creation |
-| Any other Anki import workflow | New Flow | Ask for source shape, deck mapping, note type, field format, preview format, and verification rule; then add a dedicated reference flow |
+- 源材料：路径、文件列表或用户直接提供的内容；
+- 卡片类型：学习笔记基础卡、词汇卡、问答卡或完形填空卡；
+- 目标：根牌组、子牌组映射、笔记类型和字段映射；
+- 格式：正反面格式、来源链接、标签及需要保留的 HTML；
+- 重复策略：默认跳过重复项并记录，只有用户明确要求时才创建重复项；
 
-## Dispatcher Steps
+**完成标准：** 每张候选卡的来源、目标牌组、笔记类型、字段映射、格式、重复策略都有明确值；所有未验证信息均已标为假设。
 
-1. Classify the user's request using the router table.
-2. Load the selected reference flow.
-3. Follow the loaded flow exactly.
+## 2. 解析源材料
+
+原材料按章节和语义知识点划分，保留标题层级与来源行号
+
+所有候选卡都应满足：
+
+- **原子化：** 一张基础卡聚焦一个主要回忆目标；
+- **忠实：** 答案只来自源材料，补充内容必须单独标明；
+- **可追溯：** 记录文件与行号，或原始条目的稳定标识；
+- **可复现：** 相同输入和规则产生相同的牌组、字段与卡片边界。
+
+### Markdown 学习笔记约定
+
+处理章节目录时：
+
+- 记录 markdown 文件可能包含的 YAML frontmatter 中的 `id`
+- `README.md` 和明显的索引文件默认列入排除项，用户明确要求时再纳入；
+- 子牌组名取文件名移除数字前缀和 `.md` 后的部分，例如 `010-Go-入门.md` → `Go-入门`；
+- 默认一个 `H2` 对应一张卡，相关 `H3` 合并到父级；
+- 以约 30–90 行为可审查范围；当一个 `H2` 过长、包含多个独立概念或混合不同回忆目标时，才按 `H3` 或语义组拆分；
+- 连贯知识点可以超过建议行数，但必须在预览中说明保持合并的理由。
+
+默认配置如下：
+
+- 根牌组：用户未指定时，以 `<topic>` 作为预览假设；
+- 子牌组：`根牌组::章节名`；
+- 笔记类型：`基础`，字段为 `正面` 和 `背面`；
+- 正面：`根牌组-章节名-知识点`；
+- 背面：`<a href="https://wiki.kongxiaohan.cn/<id>">跳转wiki</a>`。
+
+只有链接基址与 `id` 同时存在时才生成链接；缺少任一项时，把背面格式列为待确认。
+
+**完成标准：** 每张候选卡都能追溯到一个源条目或明确的 Markdown 范围，且所有源内容都已归入“纳入”或“排除”。
+
+## 3. 生成强制预览
+
+每次预览分配递增版本号，例如 `v1`、`v2`。预览推荐格式：
+
+```markdown
+预览版本：v1
+候选卡片：57
+笔记类型：基础（正面 → 正面，背面 → 背面）
+
+| # | 来源 | 目标牌组 | 正面/填空文本 | 背面/答案 | 范围 |
+|---:|---|---|---|---|---:|
+| 1 | 010-Go-入门.md | Go::Go-入门 | Go-Go-入门-开发环境 | 统一 Wiki 链接 | L31–L107，共 77 行 |
+
+超出建议行数的卡片及保持合并的理由
+
+所有假设、未验证项和可能的冲突
+```
+
+**完成标准：** 表格行数与候选总数一致；每个源条目恰好出现于候选表或排除项中；仅凭预览即可复现待执行批次。
+
+## 4. 等待确认
+
+用户明确确认当前预览版本后，才进入创建或导出。用户提出修改、源文件发生变化或任何字段映射改变时，生成下一个预览版本并重新等待确认。
+
+**完成标准：** 当前版本获得明确确认，且确认后批次内容未发生变化。
+
+## 5. 创建
+
+创建并写入 anki 卡片：
+
+1. 创建缺失的目标牌组，并按确认预览逐条创建；
+2. 导出时，按确认的字段顺序生成 UTF-8 TSV/CSV，按格式引用含分隔符或换行的字段，并原样保留 HTML；
+3. 若实际模板、字段或目标状态与预览不一致，返回预览步骤生成新版本。
+
+**完成标准：** `创建数或导出记录数 + 跳过数 + 失败数 = 已确认候选数`，且每个结果都能映射回预览中的唯一序号。
+
+## 6. 核验交付
+
+写入后，从 Anki 重新读取目标笔记，逐项核对牌组、笔记类型和关键字段，最终报告：
+
+- 已确认的预览版本和候选总数；
+- 每个牌组的创建或导出数量；
+- 笔记类型与字段映射；
+- 创建、跳过、失败数量及原因；
+- 核验方式、结果和仍未解决的问题。
