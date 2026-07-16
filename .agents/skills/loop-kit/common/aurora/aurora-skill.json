@@ -1,0 +1,43 @@
+{
+  "name": "aurora",
+  "version": "0.1.3",
+  "description": "Aurora 官方单入口 Skill，渐进式覆盖组件知识、Auxo 到 Aurora 迁移和实验性 ECOP 物料召回",
+  "type": "progressive",
+  "requiresCli": ">=0.2.1",
+  "cliPackage": "@ecom/aurora-cli",
+  "cliRegistry": "https://bnpm.byted.org",
+  "cliResolution": [
+    "prefer global aurora command",
+    "fallback to AURORA_CLI_REPO/bin/aurora.js",
+    "fallback to npx -y @ecom/aurora-cli@latest"
+  ],
+  "references": [
+    {
+      "path": "references/component-expert.md",
+      "intent": "aurora component knowledge",
+      "fallback": ["aurora info", "aurora doc", "aurora demo", "aurora token", "aurora semantic"]
+    },
+    {
+      "path": "references/migration-assistant.md",
+      "intent": "auxo-to-aurora migration",
+      "fallback": ["aurora usage", "aurora migrate auxo", "aurora check"]
+    },
+    {
+      "path": "references/material-recall.md",
+      "intent": "experimental ECOP business material recall",
+      "fallback": ["aurora material recall", "aurora material show", "aurora material validate"]
+    }
+  ],
+  "mcpTools": [
+    "aurora_list",
+    "aurora_info",
+    "aurora_doc",
+    "aurora_demo",
+    "aurora_token",
+    "aurora_semantic",
+    "recall_materials_for_task",
+    "get_material_context",
+    "validate_material_usage"
+  ],
+  "targets": ["trae-cn"]
+}
