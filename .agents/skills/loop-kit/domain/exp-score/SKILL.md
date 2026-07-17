@@ -10,7 +10,7 @@ description: 体验分开发与交付 SOP。用户处理体验分 V10、前端�
 ## References
 
 - 仓库定位：读取 [workspace.md](references/workspace.md)，再判断代码、文档、前端、后端或数据服务所在仓库。
-- JS/TS 开发：读取 [rule-common.md](references/rule-common.md)，再编写或修改代码。
+- 代码开发：先调用 `/code-spec`，再编写、修改或审查代码。
 - 前端命令：读取 [command-common.md](references/command-common.md)，再执行启动、构建、依赖、BAM 或静态检查命令。
 - V10 架构：读取 [v10-architecture-fe.md](references/v10-architecture-fe.md)，再改动 H5/PC `src/v10` 或体验分 Kit。
 - V10 组件：读取 [v10-component-fe.md](references/v10-component-fe.md)，再新增或重构 page、feature、common 或 Kit 组件。
