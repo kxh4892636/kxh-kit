@@ -1,39 +1,38 @@
 # Backend Application
 
-## 技术栈
+## 结构
 
-- Go 1.23+ ConnectRPC 后端。
-- 使用 GORM 和 SQLite。
-- ConnectRPC handler 通过 h2c 服务，便于本地 HTTP/2 调试。
-- 行情源为红色火箭。
+`internal` 是后端源码根，其一级目录具有架构含义，不拆平：
 
-## 入口与装配
+| 一级目录 | 职责 |
+| --- | --- |
+| `internal/app` | 依赖装配、HTTP 生命周期、Connect interceptor、健康检查、CORS 与文档 |
+| `internal/integrations` | 外部系统 adapter；当前为 `hongsehuojian` |
+| `internal/modules` | 领域模块；当前为 `market` |
+| `internal/shared` | 真正跨模块的配置与数据库基础设施 |
 
-- `main.go` 只保留进程入口和内嵌文档。
-- `internal/app/server.go` 负责加载配置、打开 SQLite、AutoMigrate、种子证券、装配 repository/service/fetcher/handler、注册 ConnectRPC 路由、健康检查、CORS 和 `/doc/` 静态文档。
-- `internal/shared/config/config.go` 读取 `.env`、`PORT` 和 `DATABASE_URL`；默认端口是 `8080`，默认数据库是 `./data/etf-service.sqlite`。
-- `GET /` 返回健康信息 JSON。
-- `/doc/` 暴露内嵌 HTML API 文档。
+`main.go` 只创建 JSON `slog`、提供嵌入文档并调用 `app.Run`。`shared` 仍保留，但证券目录、交易日历和行情语义归 `market`，红色火箭日期协议归 adapter。
 
 ## 市场模块
 
-- `internal/modules/market/controller.go`：ConnectRPC controller，负责 proto 和领域类型转换、错误码映射。
-- `internal/modules/market/service.go`：行情业务用例，负责缓存刷新、日期裁剪、休市标记和查询编排。
-- `internal/modules/market/repository.go`：GORM repository。
-- `internal/modules/market/model.go`：GORM model。
-- `internal/modules/market/types.go`：领域类型。
-- `internal/modules/market/errors.go`：领域错误。
+- `MarketService.GetDailyBars` 是行情用例入口。
+- `MarketStore` 是数据库中立的存储 seam；`GormStore` 是当前 adapter，名称不绑定 SQLite。
+- `RemoteFetcher` 隔离行情源。
+- `securities.go` 持有 `Security` 领域实体和受支持证券目录；ETF/指数是 `asset_type`，不是两套实体。
+- `daily_bars_request.go` 持有 qfq 与日期请求语义，`trading_calendar.go` 持有市场日历。
+- `connect_handler.go` 只做 proto 与领域类型转换，错误在 app interceptor 统一映射。
 
-## 缓存与日期口径
+缓存以 T-1 为最新完整日；有效请求会裁剪到证券历史区间，已确认无行情的工作日写入交易日历，避免重复刷新缺口。
 
-- `GetDailyBars` 默认 `adjType` 为 `qfq`。
-- 本地缓存只认 T-1，避免交易日盘中未定稿数据污染图表口径。
-- 请求范围会裁剪到证券最早交易日和已完成交易日。
-- 刷新判断基于最近应开市日，避免周末和节假日误判缓存落后。
-- 刷新后把无 K 线的工作日写入日历为休市，后续请求跳过已验证缺口。
+## 配置与存储
 
-## 外部集成
+- `internal/shared/config.Config` 只含 `PORT` 和 `DATABASE_DSN`。
+- `.env` 缺失允许；存在时只允许空行、注释和上述已知键，未知键、畸形行、空值、读取或设置失败都终止启动。进程环境优先于 `.env`。
+- 默认端口 `8080`，默认 DSN `./data/etf-service.sqlite`；非法 `PORT` 不回退。
+- `internal/shared/database.OpenSQLite` 是当前 SQLite/GORM 初始化。未来 MySQL/PostgreSQL 在该 seam 增加 dialector，不改变 `MarketStore`。
 
-- `internal/integrations/hongsehuojian/client.go`：行情源客户端。
-- `internal/integrations/hongsehuojian/parser.go`：K 线 JSON 解析。
-- 相关解析测试在 `parser_test.go`。
+## 红色火箭
+
+- `kline_client.go` 负责固定 endpoint、`qfq -> adjust=1`、15 秒总超时、非 2xx 和 8 MiB 响应限制。
+- `kline_response.go` 的 `ParseKlineJSON` 接受顶层或嵌套 `data` 形态，使用 typed DTO，并校验列、证券、日期、OHLC、非负成交量/额和有限数字。
+- 外部错误 wrap 为 `ErrUpstreamUnavailable`，由终端 interceptor 记录一次。

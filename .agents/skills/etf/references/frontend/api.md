@@ -1,24 +1,20 @@
 # Frontend API
 
-## Transport
+## Transport 与请求入口
 
-- `src/app.tsx` 使用 `createConnectTransport` 创建 Connect Web transport。
-- `VITE_API_BASE_URL` 控制后端地址；未设置时默认 `http://localhost:8080`。
-- 浏览器直接调用 `etf-service`，后端需要 CORS 放行。
+- `src/app/config.ts` 提供 `API_BASE_URL`，未设置时为 `http://localhost:8080`。
+- `src/app/providers.tsx` 装配 Connect Web transport、Connect Query 和 TanStack Query；QueryCache 在请求终端用 `console.error` 记录一次失败。
+- `src/libs/api/use-market.ts` 是页面业务请求入口；`libs/api` 是稳定边界，不拆分。
+- `useSecurities()` 调用 `listSecurities`；`useDailyBars(symbol)` 调用 `getDailyBars`，发送 `qfq`，空 symbol 时禁用请求。
 
-## Hooks
-
-- `src/hooks/use-market.ts` 是前端业务请求入口。
-- `useSecurities()` 调用 `listSecurities`，返回证券列表和基础加载/错误状态。
-- `useDailyBars(symbol)` 调用 `getDailyBars`，默认 `adjType` 是 `qfq`。
-- `useDailyBars` 在 `symbol` 为空时禁用请求，避免后端记录无意义错误。
+组件只消费 hook 返回的加载、刷新、错误和 protobuf 数据，不直接依赖 transport 或生成 client。
 
 ## 生成客户端
 
-- 生成客户端来自 `src/api/gen/etf-service/etf/v1/etf_pb.ts` 和 `etf-EtfService_connectquery.ts`。
-- 生成脚本会校验 backend id、输出目录必须位于 `src/api/gen` 内，并在生成前删除旧输出目录。
-- 修改生成文件前，应回到 proto 或生成脚本确认源头。
+`src/libs/api/gen/etf-service/**` 来自后端 proto 和 `vp run gen`，不手写。`connectrpc.config.json` 的 backend 为 `etf-service`，输出目录是 `src/libs/api/gen/etf-service`。
 
-## 前后端契约同步
+同步顺序见 [../development-flow.md](../development-flow.md)。
 
-前后端契约同步顺序统一维护在 `../development-flow.md`。
+## 领域边界例外
+
+生成 protobuf 类型是前端结构契约。ETF dashboard 不在 hook 或组件中再次验证 RPC response，也不为 `VITE_API_BASE_URL` 增加运行时 schema/validator；服务端和 Connect 层负责输入、外部数据与错误语义。前端 E2E 只验证用户可见成功、失败和恢复结果。

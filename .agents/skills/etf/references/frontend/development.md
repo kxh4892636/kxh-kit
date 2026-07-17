@@ -1,31 +1,23 @@
 # Frontend Development
 
-## 项目结构
+## 项目地图
 
-- `apps/etf-dashboard/package.json`：前端包信息、脚本和依赖。
-- `apps/etf-dashboard/connectrpc.config.json`：后端 IDL 到前端生成目录的映射。
-- `apps/etf-dashboard/scripts/gen-rpc-client.mjs`：根据配置生成 ConnectRPC TypeScript client。
-- `apps/etf-dashboard/src/api/gen/etf-service/`：生成的 ConnectRPC TypeScript API 客户端，只读。
-- 前端测试与验收资产目录由 [test.md](../test.md) 统一维护。
+- `package.json`：package `@kxh-awesome/etf-dashboard` 与脚本。
+- `connectrpc.config.json`：后端 IDL 到 `src/libs/api/gen` 的映射。
+- `scripts/gen-rpc-client.mjs`：ConnectRPC TypeScript client 生成脚本。
+- `src/app`、`src/pages`、`src/features`、`src/libs`、`src/common`：源码一级边界。
+- `src/features/market-dashboard/e2e/index.md`：稳定浏览器回归资产。
 
-## 常用命令
+`dist/**`、`logs/**`、`node_modules/**`、`*.tsbuildinfo` 和 `src/libs/api/gen/**` 不手写。`src/libs/api` 不拆分；现有 `index.*` 不重命名。
 
-在 `apps/etf-dashboard` 下执行：
+## 命令
 
-- `vp run dev`：启动前端开发服务器，常用地址是 `http://localhost:5173`。
-- `vp run gen`：根据 `connectrpc.config.json` 生成全部后端 RPC client。
+在 `apps/etf-dashboard` 执行：
+
+- `vp run dev`：启动开发服务，默认 `http://localhost:5173`。
+- `vp run gen`：根据 `connectrpc.config.json` 生成全部 RPC client。
+- `vp run check`：格式、lint 和类型检查。
 - `vp run build`：执行 `tsc -b && vp build`。
 - `vp run preview`：预览构建产物。
-- `vp run check`：运行 Vite+ 检查。
 
-## 依赖关系
-
-- 前端 package 名称是 `@kxh-awesome/etf-dashboard`。
-- 依赖 `apps/etf-service` 提供的 ConnectRPC proto 契约。
-- 不通过 workspace import 后端 Go 代码；接口契约来自 `src/api/gen/etf-service/` 生成产物。
-- `connectrpc.config.json` 当前只有一个 backend：`etf-service`，`idl` 是 `../etf-service`，输出是 `src/api/gen/etf-service`。
-
-## 生成物
-
-- `dist/`、`logs/`、`node_modules/`、`*.tsbuildinfo` 和 `src/api/gen/etf-service/` 不手动编辑。
-- 后端 proto 改动后，前端通过 `vp run gen` 更新生成客户端。
+前端不增加 TDD 门禁；实现完成后执行 check/build，并按 [../test.md](../test.md) 与 [../verification.md](../verification.md) 跑真实浏览器 E2E。

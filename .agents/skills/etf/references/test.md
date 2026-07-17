@@ -1,15 +1,31 @@
-# ETF 验收资产
+# ETF Test Strategy
 
-ETF 前端验收使用一条资产链：**需求流程 → 真实路径 → 回归流程**。`/e2e` 定义 Markdown/Gherkin 结构、场景状态、执行方法与证据标准；本 reference 只实例化 ETF 的文档位置和晋升门槛。项目命令与运行态入口见 [verification.md](verification.md)。
+本文只持有 ETF 的测试分支和验收资产位置。测试写法由 `/tdd` 与 `/e2e` 定义，命令和运行态由 [verification.md](verification.md) 持有。
+
+## 后端 TDD
+
+后端行为在约定 seam 上测试先行：
+
+- `market.MarketService.GetDailyBars`：请求语义、缓存刷新、日期裁剪和成功空结果。
+- `hongsehuojian.ParseKlineJSON`：外部 DTO、结构兼容和行情语义校验。
+- `HongsehuojianClient` + `httptest.Server`：请求映射、状态码、超时和 8 MiB 响应上限。
+- `config.Load` + 临时环境：严格 `.env`、默认值与非法配置。
+- 真实 Connect handler + client：错误码和终端结构化日志。
+
+存储行为通过 `MarketStore` seam 驱动；只有需要证明 GORM/数据库行为时才增加 adapter 集成测试。
+
+## 前端 E2E
+
+前端不要求 TDD 或组件单元测试，以真实浏览器 E2E 验证消费者行为。稳定回归资产是：
+
+`apps/etf-dashboard/src/features/market-dashboard/e2e/index.md`
+
+现有四个场景均需保留：默认行情、核心交互、窄屏、服务不可用与恢复。除非需求新增消费者行为，不扩写场景数量。
 
 ## 资产链
 
-1. **需求流程**：编写或更新单次需求的验收资产时，调用 `/e2e` 的“写验收资产”分支，文档保存到仓库根目录 `.scratch/<feature-slug>/e2e/yyyy-mm-dd-xxx.md`。完成标准：本次需求的场景状态、执行记录和临时排障步骤统一维护在该目录，尚未 passed 的内容没有进入模块回归流程。
-2. **真实路径**：需求场景达到 ready 后，调用 `/e2e` 的“跑真实路径”分支；运行态、入口和项目命令读取 [verification.md](verification.md)。完成标准：范围内每个 ready 场景都有目标版本上的 passed / failed / blocked 结论与证据，失败重验范围已记录。
-3. **回归流程**：场景达到 passed 且可长期复验后，将稳定 ID、入口、前置、动作、断言和证据要求合并到 `apps/etf-dashboard/src/features/<feature-name>/e2e/index.md`。完成标准：模块入口只包含已通过的稳定场景；新流程替换旧流程时，同一能力不存在冲突的验收口径。
+1. 单次需求资产写入 `.scratch/<feature-slug>/e2e/yyyy-mm-dd-xxx.md`。
+2. ready 场景通过 `/e2e` 执行真实路径并记录版本、断言与证据。
+3. 只有长期可复验且 passed 的场景才合并到 feature 的 `e2e/index.md`。
 
-## 共同契约
-
-- ETF 的需求流程和回归流程位置覆盖 `/e2e` 的通用目录回退规则；场景结构、状态与证据契约仍以 `/e2e` 为准。
-- 同一需求影响多个前端模块时，需求流程使用一份端到端文档；通过后按模块职责把稳定场景合入各自回归流程。
-- 跨端需求先按 [development-flow.md](development-flow.md) 确认 proto/API 语义，再执行真实路径并晋升稳定场景。
+ETF 的上述位置覆盖 `/e2e` 通用目录回退；Gherkin、状态和证据格式仍以 `/e2e` 为准。
