@@ -53,4 +53,4 @@ Off the main flow entirely.
 
 ### Domain docs
 
-This repo uses a multi-context domain-doc layout: root `CONTEXT-MAP.md` points to per-context `CONTEXT.md` files, with ADRs at `docs/adr/` and context-specific `src/<context>/docs/adr/`. See `docs/agents/domain.md`.
+This repository uses a single-context domain documentation layout. See `docs/agents/domain.md`.
