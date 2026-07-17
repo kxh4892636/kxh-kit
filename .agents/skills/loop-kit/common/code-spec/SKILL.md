@@ -6,13 +6,12 @@ description: 代码规范；编写、修改或审查代码时使用，覆盖通�
 ## 目录层级
 
 - 将 `/src` 视为`level-1`，若 `/src` 不存在，则视为项目根目录（`/`）。
-- 目录层级禁止超过 5 层目录，`/level-5` 下只能包含文件，即 `/level-1/level-2/level-3/level-4/level-5/index.ts` 。
+- 目录层级禁止超过 4 层目录，`/level-4` 下只能包含文件，即 `/level-1/level-2/level-3/level-4/index.ts` 。
 
 ## 命名规范
 
 - 文件夹和文件的名称使用 `kebab-case`；
 - 文件夹和文件应按实际内容使用领域名称（如 `tab-group-state.ts`、`terminal-cleanup.ts`），禁用 `helpers`、`utils`、`common`、`components`、`hooks` 等不传递信息、易沦为杂物堆的泛化名称（如 `tabs-helpers.ts`、`terminal-utils.ts`）。若只能想到此类名称，通常说明文件职责过多需拆分，或应按函数的操作对象命名。
-- `/level-1` 下的 `common，shared，misc` 等通用文件夹例外，其包含跨领域的模块，首先根据模块类型分类，再使用领域名称，如 `/level-1/common/components/layout/index.ts`。
 
 ## 代码文件
 
@@ -64,3 +63,4 @@ export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps)
 
 - 工具链约定的文件夹和文件；
 - 自动生成的文件夹和文件；
+- 领域 skill 的优先级高于通用 skill；
