@@ -6,7 +6,7 @@ description: 代码规范；编写、修改或审查代码时使用，覆盖通�
 ## 目录层级
 
 - 将 `/src` 视为`level-1`，若 `/src` 不存在，则视为项目根目录（`/`）。
-- 目录层级禁止超过 4 层目录，`/level-4` 下只能包含文件，即 `/level-1/level-2/level-3/level-4/index.ts` 。
+- 目录层级禁止超过 5 层目录，`/level-5` 下只能包含文件，即 `/level-1/level-2/level-3/level-4/level-5/index.ts` 。
 
 ## 命名规范
 
