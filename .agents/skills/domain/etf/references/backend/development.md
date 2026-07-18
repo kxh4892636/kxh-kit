@@ -22,4 +22,4 @@
 - `go test ./...`：全量测试与编译。
 - `go vet ./...`：交付静态检查。
 
-Go 文件提交前执行 `gofmt`。契约改动继续按 [../development-flow.md](../development-flow.md) 同步前端。
+Go 文件提交前执行 `gofmt`。契约改动继续按 [../development-flow.md](./../development-flow.md) 同步前端。

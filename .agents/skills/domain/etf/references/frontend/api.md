@@ -13,7 +13,7 @@
 
 `src/libs/api/gen/etf-service/**` 来自后端 proto 和 `vp run gen`，不手写。`connectrpc.config.json` 的 backend 为 `etf-service`，输出目录是 `src/libs/api/gen/etf-service`。
 
-同步顺序见 [../development-flow.md](../development-flow.md)。
+同步顺序见 [../development-flow.md](./../development-flow.md)。
 
 ## 领域边界例外
 

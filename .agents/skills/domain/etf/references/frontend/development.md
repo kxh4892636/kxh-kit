@@ -20,4 +20,4 @@
 - `vp run build`：执行 `tsc -b && vp build`。
 - `vp run preview`：预览构建产物。
 
-前端不增加 TDD 门禁；实现完成后执行 check/build，并按 [../test.md](../test.md) 与 [../verification.md](../verification.md) 跑真实浏览器 E2E。
+前端不增加 TDD 门禁；实现完成后执行 check/build，并按 [../test.md](./../test.md) 与 [../verification.md](./../verification.md) 跑真实浏览器 E2E。

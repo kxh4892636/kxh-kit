@@ -7,7 +7,7 @@
 - `EtfService.GetDailyBars` 返回 `Security`、`DailyBar[]` 和缓存 `meta`。
 - `GetDailyBarsRequest` 接收 `symbol`、`adj_type`、可选 `start_date` 与 `end_date`。
 
-契约更新顺序见 [../development-flow.md](../development-flow.md)。
+契约更新顺序见 [../development-flow.md](./../development-flow.md)。
 
 ## 请求语义
 
