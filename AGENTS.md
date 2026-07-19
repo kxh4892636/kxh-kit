@@ -23,8 +23,6 @@ The route most work travels. You have an idea and want it built.
 
 A starting situation that generates work, then merges onto the main flow.
 
-- **Bugs and requests piling up** → **`/triage`**. It moves issues through triage roles and produces agent-ready issues, which **`/implement`** later picks up.
-  Triage is only for issues **you didn't create** — bug reports, incoming feature requests, anything that arrives raw.
 - **A huge, foggy effort — a greenfield project or a huge feature build, too big for one session** → **`/to-workstreams`**. It splits the effort into independently implementable and verifiable vertical-slice **workstreams**, confirms their boundaries and direct dependencies, writes one shared handoff by **`/handoff`**, and creates an independent session for each one. Each generated workstream merges onto the main flow at **`/grill-with-docs`**.
 
 ## Vocabulary underneath
