@@ -45,6 +45,7 @@ func main() {
 	}()
 
 	println(<-ch) // 双方都就绪时完成值交接
+	println("wait")
 }
 ```
 

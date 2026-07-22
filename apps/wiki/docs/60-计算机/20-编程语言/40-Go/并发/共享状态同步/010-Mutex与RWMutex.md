@@ -36,26 +36,34 @@ func main() {
 ### 概念
 
 - `sync.RWMutex`: 适合读多写少场景的读写锁;
-- 读锁: 多个 goroutine 可同时持有 `RLock`;
+- 读锁: 多个 goroutine 可同时持有 `RLock`，堵塞写;
 - 写锁: `Lock` 独占访问并阻塞其他读写;
 - defer 解锁: 加锁成功后可用 `defer` 保证释放;
 
 ### 语法格式
 
 ```go
-var mu sync.RWMutex
-var count int
+// 读1 ─┐
+// 读2 ─┼── 可以同时读取
+// 读3 ─┘
 
-func read() int {
-	mu.RLock()         // 多个读者可并发持有
-	defer mu.RUnlock() // 释放读锁
-	return count
+// 写入 ─── 等所有读锁释放 ─── 修改配置
+
+var (
+	mu     sync.RWMutex
+	config map[string]string
+)
+
+func Get(key string) string {
+	mu.RLock()         // 多个 goroutine 可同时读取配置
+	defer mu.RUnlock() // 读取结束后释放读锁
+	return config[key]
 }
+
+func Reload(newConfig map[string]string) {
+	mu.Lock()         // 独占访问，等待已有读锁释放
+	defer mu.Unlock() // 更新结束后释放写锁
+	config = newConfig
+}
+
 ```
-
-## 使用场景
-
-| 工具           | 优先使用场景                      |
-| -------------- | --------------------------------- |
-| `sync.Mutex`   | 共享变量、map、计数器需要互斥访问 |
-| `sync.RWMutex` | 共享数据读多写少                  |
