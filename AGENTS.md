@@ -23,7 +23,7 @@ The route most work travels. You have an idea and want it built.
 
 A starting situation that generates work, then merges onto the main flow.
 
-- **A huge, foggy effort — a greenfield project or a huge feature build, too big for one session** → **`/to-workstreams`**. It splits the effort into independently implementable and verifiable vertical-slice **workstreams**, confirms their boundaries and direct dependencies, writes one shared handoff by **`/handoff`**, and creates an independent session for each one. Each generated workstream merges onto the main flow at **`/grill-with-docs`**.
+- **A huge, foggy effort — a greenfield project or a huge feature build, too big for one session** → **`/to-workstreams`**. It splits the effort into independently implementable and verifiable vertical-slice **workstreams**, confirms their boundaries and direct dependencies, writes handoff for each one, and creates an independent session for each one. Each generated workstream merges onto the main flow at **`/grill-with-docs`**.
 
 ## Vocabulary underneath
 
@@ -31,11 +31,6 @@ Two model-invoked references that run _beneath_ the other skills — each the si
 
 - **`/domain-modeling`** — sharpen the project's _domain_ language: challenge a fuzzy term, resolve an overloaded word ("account" doing three jobs), record a hard-to-reverse decision as an ADR. It's the active discipline `/grill-with-docs` drives to keep `CONTEXT.md` a clean glossary.
 - **`/codebase-design`** — the deep-module vocabulary (module, interface, depth, seam, adapter, leverage, locality) for designing a module's _shape_: a lot of behaviour behind a small interface at a clean seam. `/tdd` speaks it.
-
-## Crossing sessions
-
-- **`/handoff`** — when a thread is full or you need to branch off, this compacts the conversation into a markdown file. You don't continue in place — you **open a new session and reference that file** to carry the context across. It's the bridge between context windows, in either direction. Use it when you want a **fresh session** but need the **current conversation preserved**.
-- **`/compact`** (built-in) — stay in the **same conversation**, letting the earlier turns be summarized. Use it at **intentional breaks between phases**, when you don't mind losing the verbatim history. Don't compact mid-phase — the agent can lose its way. `/handoff` forks; `/compact` continues.
 
 ## Standalone
 
@@ -47,8 +42,11 @@ Off the main flow entirely.
 
 <!-- LOOP KIT END -->
 
-## Agent skills
-
-### Domain docs
+<!-- DOMAIN DOCS START -->
 
 This repository uses a single-context domain documentation layout. See `docs/agents/domain.md`.
+`CONTEXT.md` 和 `docs/adr/` 中的文件内容使用中文
+`docs/adr/` 中的文件名使用中文
+`CONTEXT.md` 行数 <= 610 行，`docs/adr/` 中的 adr 文档数量 <= 89 个, 每个 adr 文档的行数 <= 144 行；文件数量和行数超过限制时进行重构
+
+<!-- DOMAIN DOCS END -->
