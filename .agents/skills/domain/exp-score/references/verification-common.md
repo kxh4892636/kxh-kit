@@ -19,7 +19,7 @@
    - 后端按各子仓规范执行受影响包或服务的 lint、类型检查、测试和 build。
    - 完成标准：受影响两侧的适用门禁均通过；未受影响侧已有明确记录。
 2. **后端运行态**
-   - 后端版本需要变化时，使用 verifying 的 BITS pipeline guard 准备 PPE；用户明确指定 BOE 时切换目标环境。
+   - 后端版本需要变化时，按项目当前发布流程准备目标 PPE/BOE，并记录部署任务与版本映射。
    - 后端无需变化时，记录目标环境已有所需版本、配置和数据依赖的证据。
    - 完成标准：目标接口所在服务版本与待验版本对齐。
 3. **商家态**
@@ -36,17 +36,5 @@
 
 - **完整交付**：从第 1 步进入，覆盖所有适用阶段。
 - **仅本地验证**：只执行第 1 步，并列明部署、商家态与真实路径未覆盖。
-- **从部署继续**：已有本地门禁通过证据，且本轮已 push 或用户提供 BITS develop URL、dev-id、pipeline ID 时，从第 2 步进入。
+- **从部署继续**：已有本地门禁通过证据，且用户提供部署任务或版本证据时，从第 2 步进入。
 - **从商家态继续**：用户要求验收已部署版本，且版本对齐已有证据时，从第 3 步进入。
-
-## Huatuo 参数
-
-体验分前端仓库的 Huatuo `projectId` 通常是 `141`。调用 verifying 的 Huatuo 分支时显式传入：
-
-```bash
-node .agents/skills/loop-kit/domain/verifying/scripts/huatuo_coverage_report.mjs \
-  --project-id 141 \
-  --branch <branch>
-```
-
-MR mode 已提供 `repo + mrId` 时可直接查询；URL 中的 `projectId` 优先于本 profile 默认值。完成标准：报告记录实际使用的 `projectId`、repo、MR 或分支基线。

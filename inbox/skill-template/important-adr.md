@@ -9,6 +9,7 @@ disable-model-invocation: true
 调用 `grill-with-docs` skill, 初始化/更新业务域的 _ADR_ 文档。
 关注于业务域*多仓库全栈开发*。
 根据代码库现状，用尽可能少但足够的问题，使其覆盖下列实际存在的主题。
+以下主题为重大架构决策，只要存在，必须创建为 ADR 文档。
 
 ## common
 
