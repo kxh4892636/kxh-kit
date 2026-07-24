@@ -1,6 +1,7 @@
 ---
 name: to-tech
 description: 根据对话上下文，生成前端技术文档；当用户要求生成技术文档时使用。
+disable-model-invocation: true
 ---
 
 # to-tech

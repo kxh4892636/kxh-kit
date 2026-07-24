@@ -47,7 +47,6 @@ Off the main flow entirely.
 <!-- SKILL RULES START -->
 
 - codin-d2c-cli: invoke `codin-d2c` for Figma design-to-code，d2c 静态资源统一使用 svg 格式；
-- browser-skill: 使用 bsk daemon start --port 52831 命令启动；
 
 <!-- SKILL RULES END -->
 
