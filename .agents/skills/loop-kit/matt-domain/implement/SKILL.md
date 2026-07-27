@@ -12,4 +12,4 @@ Use /verifying, run typechecking regularly, single test files regularly, e2e tes
 
 Once done, use /code-review to review the work.
 
-Commit your work to the current branch.
+Commit your work to the current branch after user approval.
