@@ -3,8 +3,6 @@
 遵循原则：第一性原理；结构化思维；批判性思维；奥卡姆剃刀原理；对抗性审查；
 推理原则：优先采用基于检索的推理，而不是基于预训练知识的推理。
 
-没有指定目录的临时文件保存至 `temp/` 目录。
-
 <!-- GENERAL RULES END -->
 
 <!-- LOOP KIT START -->
@@ -48,12 +46,12 @@ Off the main flow entirely.
 This repository uses a single-context domain documentation layout. See `docs/agents/domain.md`.
 `CONTEXT.md` 和 `docs/adr/` 中的文件内容使用中文
 `docs/adr/` 中的文件名使用中文
-`CONTEXT.md` 行数 <= 610 行，`docs/adr/` 中的 adr 文档数量 <= 89 个, 每个 adr 文档的行数 <= 144 行；文件数量和行数超过限制时进行重构
+`CONTEXT.md` 行数 <= 610 行，`docs/adr/` 中的 adr 文档数量 <= 89 个, 每个 adr 文档的行数 <= 144 行；文件数量和行数超过限制时进行合并、拆分、移除废弃内容。
 
 <!-- DOMAIN DOCS END -->
 
-<!-- SKILL RULES START -->
+<!-- PROJECT RULES START -->
 
 - codin-d2c-cli: invoke `codin-d2c` for Figma design-to-code，d2c 静态资源统一使用 svg 格式；
 
-<!-- SKILL RULES END -->
+<!-- PROJECT RULES END -->
