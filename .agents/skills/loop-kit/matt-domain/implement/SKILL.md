@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 Implement the work described by the user in the spec or tickets.
 
-Use /tdd or /e2e where possible , at pre-agreed seams.
+Use /tdd or /e2e where possible, at pre-agreed seams.
 
 Use /verifying, run typechecking regularly, single test files regularly, e2e tests regularly, and the full test suite once at the end.
 
