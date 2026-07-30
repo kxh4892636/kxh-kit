@@ -44,8 +44,8 @@ Off the main flow entirely.
 <!-- DOMAIN DOCS START -->
 
 This repository uses a single-context domain documentation layout. See `docs/agents/domain.md`.
-`CONTEXT.md` 和 `docs/adr/` 中的文件内容使用中文
-`docs/adr/` 中的文件名使用中文
+`CONTEXT.md` 和 `docs/adr/` 中的文件内容使用中文, adr 文件名使用中文
+`CONTEXT.md` 和 `docs/adr/` 只在项目根目录创建，不在子仓/子应用目录创建
 `CONTEXT.md` 行数 <= 610 行，`docs/adr/` 中的 adr 文档数量 <= 89 个, 每个 adr 文档的行数 <= 144 行；文件数量和行数超过限制时进行合并、拆分、移除废弃内容。
 
 <!-- DOMAIN DOCS END -->
