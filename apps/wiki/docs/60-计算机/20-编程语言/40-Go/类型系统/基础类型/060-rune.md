@@ -43,7 +43,7 @@ func main() {
 func main() {
 	s := "a" // 双引号; string
 	r := 'a' // 单引号; rune, 输出数值为 97
-	println(s, r)
+	println(s, r) // a 97
 }
 ```
 
