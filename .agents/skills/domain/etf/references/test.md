@@ -1,6 +1,12 @@
 # ETF Test Strategy
 
-本文只持有 ETF 的测试分支和验收资产位置。测试写法由 `/tdd` 与 `/e2e` 定义，命令和运行态由 [verification.md](verification.md) 持有。
+本文只持有 ETF 的测试分支和测试资产位置。后端测试写法由 `/tdd` 定义，命令和运行态由 [verification.md](verification.md) 持有。分层决策见 [0004-etf-前端测试代码化](../../../../../docs/adr/0004-etf-前端测试代码化.md)。
+
+## 术语
+
+- **单测**：Vitest node 环境的纯逻辑测试（`src/**/*.test.ts`），无 DOM、无浏览器。
+- **组件测试**：Vitest browser mode 测试（`src/**/*.test.tsx`），在真实 Chrome 中渲染组件；canvas 渲染与 tooltip、缩放、拖拽交互的回归在本层；API 数据在 Connect transport seam 上 mock（`createRouterTransport`）。
+- **E2E**：Playwright 测试（`apps/etf-dashboard/e2e/`），从真实消费者入口验证联通性；保持薄，细粒度交互断言下沉到组件测试。
 
 ## 后端 TDD
 
@@ -14,18 +20,18 @@
 
 存储行为通过 `MarketStore` seam 驱动；只有需要证明 GORM/数据库行为时才增加 adapter 集成测试。
 
-## 前端 E2E
+## 前端测试分层
 
-前端不要求 TDD 或组件单元测试，以真实浏览器 E2E 验证消费者行为。稳定回归资产是：
+前端行为按层归位：
 
-`apps/etf-dashboard/src/features/market-dashboard/e2e/index.md`
+- 纯数据逻辑（K 线聚合、数字格式化、MA 计算）→ 单测。
+- 组件渲染、canvas 交互、服务错误态 → 组件测试。
+- 消费者旅程联通性 → E2E。现有四个场景保留：S1 默认行情、S2 核心交互联通、S3 窄屏、S4 服务不可用与恢复。除非需求新增消费者行为，不扩写场景数量。
 
-现有四个场景均需保留：默认行情、核心交互、窄屏、服务不可用与恢复。除非需求新增消费者行为，不扩写场景数量。
+## 资产位置
 
-## 资产链
+- 单测与组件测试：与源文件同目录的 `*.test.ts` / `*.test.tsx`。
+- E2E：`apps/etf-dashboard/e2e/`，config 在应用根 `playwright.config.ts`。
+- E2E 进程编排：Playwright webServer 起前端 dev server，global setup 构建并拉起 etf-service；S4 在测试内真实 kill/restart 后端，后端为外部管理时 S4 跳过。
 
-1. 单次需求资产写入 `.scratch/<feature-slug>/e2e/yyyy-mm-dd-xxx.md`。
-2. ready 场景通过 `/e2e` 执行真实路径并记录版本、断言与证据。
-3. 只有长期可复验且 passed 的场景才合并到 feature 的 `e2e/index.md`。
-
-ETF 的上述位置覆盖 `/e2e` 通用目录回退；Gherkin、状态和证据格式仍以 `/e2e` 为准。
+ETF 前端不再使用 `/acceptance` 的 Markdown 验收资产；该形态对仓库其他领域继续有效。
