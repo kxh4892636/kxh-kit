@@ -4,7 +4,7 @@
   "description": "Install the Kxh Kit agent rules, domain guide, and Loop Kit skills.",
   "license": "MIT",
   "bin": {
-    "loop-kit": "./dist/cli.mjs"
+    "loop-kit": "dist/cli.mjs"
   },
   "files": [
     "dist",
