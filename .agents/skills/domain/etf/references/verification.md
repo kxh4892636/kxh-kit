@@ -6,7 +6,7 @@
 
 | 影响面 | 工作目录 | 必跑命令 |
 | --- | --- | --- |
-| 前端源码 | `apps/etf-dashboard` | `vp run check`、`vp run build` |
+| 前端源码 | `apps/etf-dashboard` | `vp run check`、`vp run test`、`vp run build` |
 | 后端源码 | `apps/etf-service` | `gofmt` 变更 Go 文件、`go vet ./...`、`go test ./...` |
 | proto/生成链路 | 两端 | 先走 [development-flow.md](development-flow.md)，再跑前后端全部门禁 |
 | skill/docs only | 仓库根 | 检查链接、路径、重复事实和过期名称 |
@@ -22,14 +22,14 @@
 
 ## E2E 范围
 
-前端或消费者可见后端行为变化时，使用真实浏览器执行 `market-dashboard/e2e/index.md` 中受影响场景。本模块结构重构需重跑全部四个现有场景：
+前端或消费者可见后端行为变化时，在 `apps/etf-dashboard` 执行 `vp run test:e2e`（Playwright，真实 Chrome）。受影响场景必须重跑；本模块结构重构需重跑全部四个现有场景：
 
 - E2E-S1 默认行情和 K 线/MA 可见。
-- E2E-S2 刷新、标的、周期、范围、均线、tooltip、缩放和拖拽。
+- E2E-S2 刷新、标的、周期和范围切换后看板联通正常。
 - E2E-S3 `390 x 844` 无横向溢出且关键控件可用。
-- E2E-S4 后端不可用时显示错误，恢复后看板可继续使用。
+- E2E-S4 后端不可用时显示错误，恢复后看板可继续使用（后端为外部管理时该场景跳过并记录原因）。
 
-每个场景记录外部断言、截图或等价证据、浏览器控制台和目标版本。前端不验证 protobuf 响应或 base URL 配置对象本身；E2E 只验证用户可见结果。
+断言与截图证据由 Playwright 产生；报告记录目标版本、通过与跳过场景和遗留 warning。前端不验证 protobuf 响应或 base URL 配置对象本身；E2E 只验证用户可见结果。
 
 ## 诊断与重验
 

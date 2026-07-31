@@ -46,6 +46,21 @@ Optional: `bsk session start --browser <instance-id-or-label>` when multiple bro
 
 Emergency cleanup: `bsk session stop --all` or the Agent Window overlay **Stop all**.
 
+## Stop when the goal is met
+
+Every task is a **bounded goal**, not open-ended browsing. The goal may come from the user's request, a recorded `trace.json`, or both.
+
+1. **Define success first** — one concrete, observable condition derived from the user's words, `purpose`, or the last meaningful step in a trace (e.g. "form submitted", "item added to cart", "playback started").
+2. **Take the shortest path** — snapshot → act → at most one check. Do not wander, re-try unrelated actions, or stack exploratory steps.
+3. **Stop as soon as success is reached** — run `bsk session stop <id>` immediately unless the user explicitly asked to keep the session open (e.g. "don't close yet", "keep browsing").
+4. **No post-success work** — once the goal is met, do not click, refresh, navigate, re-search, switch tabs, or "double-check" that it worked. Further verification is a new task.
+5. **When blocked, pause — do not brute-force** — if the page requires human input (login, captcha, OTP, payment confirmation) or an action fails twice with no progress, call `bsk request-help` instead of retrying blindly. See **Ask the human for help** below.
+6. **When unsure** — at most one extra `bsk snapshot`. If success looks met, stop. If not, ask the user; do not keep clicking.
+
+**With a trace:** replay steps in order using `target` role/name/tag and raw `value`/`selection` fields. After the last step (or when its `effect.navigated_to` / success hint is satisfied), apply rules 3–4 immediately. The trace guides execution; it does not extend control beyond the goal.
+
+**Without a trace:** the user's request *is* the success condition. Satisfying it ends the task — same stop rules apply.
+
 ## Core interaction loop
 
 Write operations only affect tabs in the **Agent Window** (or tabs you **borrowed** into it).
@@ -53,6 +68,7 @@ Write operations only affect tabs in the **Agent Window** (or tabs you **borrowe
 ```
 bsk navigate <url> --session <id>
 bsk snapshot --session <id>          → aria tree with @e1, @e2, … refs
+bsk observe --session <id>           → semantic VOM view; may reveal hover/focus surfaces
 bsk click @e3 --session <id>          → or bsk fill, bsk select, bsk press
 bsk snapshot --session <id>            → again after navigation / DOM change
 ```
@@ -63,11 +79,12 @@ Prefer `@eN` refs from the latest snapshot over raw CSS selectors. Use `--ref` /
 
 ## Observation priority
 
-Start with `bsk snapshot` to understand page structure, text, controls, and element refs. Only escalate when the latest snapshot cannot answer the question:
+Start with `bsk snapshot` to understand page structure, text, controls, and element refs. Use `bsk observe` when semantic VOM output or conditional hover/focus surfaces would materially help. Only escalate to raw HTML or screenshots when the latest observation cannot answer the question:
 
-1. `bsk snapshot` — default for page understanding and interaction planning
-2. `bsk get-html` — when hidden DOM, metadata, or markup details are required
-3. `bsk screenshot` — when visual layout, canvas/image content, or styling cannot be inferred from the snapshot. Use `--ref @eN` (from the latest snapshot) to crop to one element; omit `--ref` for the full visible tab.
+1. `bsk snapshot` — strict static page understanding and interaction planning
+2. `bsk observe` — semantic VOM observation; may run bounded perception probes such as hover-surface discovery
+3. `bsk get-html` — when hidden DOM, metadata, or markup details are required
+4. `bsk screenshot` — when visual layout, canvas/image content, or styling cannot be inferred from the observation. Use `--ref @eN` (from the latest snapshot/observe) to crop to one element; omit `--ref` for the full visible tab.
 
 Do **not** call `bsk get-html` or `bsk screenshot` first just to inspect a page.
 
@@ -126,7 +143,8 @@ Details and flags: **`bsk <cmd> --help`**
 
 | Command | Summary |
 |---------|---------|
-| `bsk snapshot` | First-choice page understanding: accessibility tree with `@eN` element refs |
+| `bsk snapshot` | First-choice static page understanding: accessibility tree with `@eN` element refs |
+| `bsk observe` | Semantic VOM observation with bounded perception probes for conditional surfaces |
 | `bsk get-html` | Raw HTML dump after snapshot is insufficient (high token cost) |
 | `bsk screenshot` | PNG capture after snapshot is insufficient: full visible tab, or `--ref @eN` to crop to one element (`--out` path optional) |
 
@@ -163,7 +181,7 @@ Details and flags: **`bsk <cmd> --help`**
 When a step needs a human (captcha, login, OTP) or you want the user to
 confirm an important action, pause and ask:
 
-    bsk request-help --session <id> --prompt "Solve the captcha, then click Continue" \
+    bsk request-help --session <id> --prompt "Solve the captcha, then click Done only after the site accepts it" \
       --title "Captcha required" --target @e7 --target "#submit" --timeout 5m
 
 - `--prompt` (required): what the user should do.
@@ -178,18 +196,46 @@ confirm an important action, pause and ask:
   prompt with no `--target` for cases where there is genuinely no specific
   element to point at (e.g. "wait for the page to finish loading").
 - `--timeout` (default `5m`): how long to wait.
+- `--completion-criteria` (optional): JSON success detector. Use it only
+  when there is a concrete post-help success signal, e.g.
+  `{"any":[{"url_contains":"/dashboard"},{"selector_exists":"[data-testid='account-menu']"}],"stable_for_ms":1000}`.
 
 The target tab is brought to the foreground; the page stays interactive
 while the agent control mask is hidden. The call blocks until the user
-acts. The result `outcome` is one of:
+explicitly acts, the timeout expires, cancellation arrives, or explicit
+completion criteria match. Page reloads, SPA route changes, and captcha
+refreshes do not return control by themselves. The result `outcome` is one of:
 
-- `continued` — the user finished and clicked Continue (treat as confirm).
+- `continued` — the user finished and clicked Done / return control (treat as confirm).
 - `cancelled` — the user clicked Cancel (treat as reject/abort).
 - `timed_out` — nobody acted within the timeout.
-- `navigated` — the page navigated while waiting (full reload or SPA URL change). Snapshot refs are stale; run `bsk snapshot` on the new page, then decide whether to call `bsk request-help` again.
+- `completed` — the explicit `--completion-criteria` matched while the user had control.
+- `navigated` — deprecated legacy outcome. Do not rely on navigation as a completion signal.
 
 `note` carries any text the user typed back. `resolved_targets` reports
 which refs/selectors matched a live element.
+
+`request-help` does not refresh the page model after the user returns
+control. After a `continued` or `completed` result, issue a separate
+observation tool call (usually `bsk snapshot --session <id>`) before using
+new refs or reasoning about the post-help page state.
+
+### Recording — `bsk record`
+
+Capture the user's own actions in the Agent Window to a `trace.json`, for later LLM-driven automation:
+
+```bash
+bsk record start --browser <instance-id-or-label> [--url https://…] [--purpose "publish a wiki doc"] [--output trace.json]
+# `--url` is optional; default https://example.com/ when omitted (must be http(s)).
+# Blocks until the user clicks Finish in the recording panel, then writes ./trace.json and closes the window.
+
+bsk record stop [--output trace.json]   # terminal fallback if the browser panel is unavailable
+```
+
+- The trace is a **record-only action log** (a `pages[]` dictionary + `navigate`/`click`/`fill`/`select`/`press` steps with `target` descriptors). It records *what the user did*; deciding which inputs are variable is left to the executing agent.
+- `--purpose` is optional context metadata; it does **not** change what gets captured.
+- There is **no** `bsk replay` — to redo a flow, read the trace and reuse the existing `session` / `snapshot` / `@eN` / `click` / `fill` tools. Follow **Stop when the goal is met**.
+- Do **not** record on banking/SSO/password-manager pages; passwords are redacted but traces may still contain sensitive text.
 
 ## Error handling
 
@@ -221,8 +267,9 @@ Always **`bsk session stop <id>`** in a `finally`-style path so the Agent Window
 1. **No token theft** — do not `bsk evaluate` on sensitive sites to read `localStorage`, cookies, or auth headers for exfiltration.
 2. **No long borrow** — do not leave a user's personal tab in the Agent Window across unrelated tasks.
 3. **No skip stop** — always `bsk session stop <id>`; never assume idle timeout will clean up.
-4. **No observe escalation before snapshot** — use `bsk snapshot` first; only use `bsk get-html` or `bsk screenshot` when the snapshot is insufficient. Element screenshots (`--ref @eN`) still require a fresh snapshot ref — never skip snapshot just to grab a visual.
-5. **`evaluate` is powerful and risky** — use only when snapshot + click/fill/select cannot suffice; never on credential surfaces.
+4. **No post-success control** — once the user’s goal (or last trace step) is met, do not keep operating the page; stop the session unless they asked to keep it open.
+5. **No raw observe escalation before snapshot/observe** — use `bsk snapshot` first; use `bsk observe` when VOM semantics or conditional surfaces help. Only use `bsk get-html` or `bsk screenshot` when snapshot/observe is insufficient. Element screenshots (`--ref @eN`) still require a fresh snapshot/observe ref — never skip observation just to grab a visual.
+6. **`evaluate` is powerful and risky** — use only when snapshot + click/fill/select cannot suffice; never on credential surfaces.
 
 ---
 

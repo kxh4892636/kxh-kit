@@ -6,7 +6,7 @@
 - `connectrpc.config.json`：后端 IDL 到 `src/libs/api/gen` 的映射。
 - `scripts/gen-rpc-client.mjs`：ConnectRPC TypeScript client 生成脚本。
 - `src/app`、`src/pages`、`src/features`、`src/libs`、`src/common`：源码一级边界。
-- `src/features/market-dashboard/e2e/index.md`：稳定浏览器回归资产。
+- `e2e/`：Playwright E2E 资产（config 在应用根 `playwright.config.ts`）；单测/组件测试与源文件同目录（`*.test.ts` / `*.test.tsx`）。
 
 `dist/**`、`logs/**`、`node_modules/**`、`*.tsbuildinfo` 和 `src/libs/api/gen/**` 不手写。`src/libs/api` 不拆分；现有 `index.*` 不重命名。
 
@@ -19,5 +19,7 @@
 - `vp run check`：格式、lint 和类型检查。
 - `vp run build`：执行 `tsc -b && vp build`。
 - `vp run preview`：预览构建产物。
+- `vp run test`：Vitest 单测（node）与组件测试（browser mode）。
+- `vp run test:e2e`：Playwright E2E，进程编排见 [../test.md](./../test.md)。
 
-前端不增加 TDD 门禁；实现完成后执行 check/build，并按 [../test.md](./../test.md) 与 [../verification.md](./../verification.md) 跑真实浏览器 E2E。
+实现完成后执行 check/test/build，并按 [../verification.md](./../verification.md) 跑受影响的 E2E 场景。

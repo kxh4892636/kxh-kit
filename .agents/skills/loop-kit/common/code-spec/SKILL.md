@@ -70,4 +70,4 @@ export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps)
 
 - 工具链约定的文件夹和文件；
 - 自动生成的文件夹和文件；
-- 领域 skill 的优先级高于通用 skill；
+- 领域 skill 的优先级高于该 skill；

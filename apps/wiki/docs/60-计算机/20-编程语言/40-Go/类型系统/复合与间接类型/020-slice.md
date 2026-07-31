@@ -37,9 +37,17 @@ func main() {
 
 ### 概念
 
-- nil slice: 值为 nil，长度和容量为 0;
-- empty slice: 值非 nil，长度为 0;
+- nil slice: 指针为 nil，长度和容量为 0;
+- empty slice: 指针非 nil，长度为 0;
 - `append`: nil slice 和 empty slice 均可直接追加元素;
+
+```go
+type slice struct {
+	array unsafe.Pointer // 底层数组指针
+	len   int
+	cap   int
+}
+```
 
 ### 语法格式
 
@@ -54,7 +62,7 @@ func main() {
 
 ## 状态对比
 
-| 状态        | 是否为 nil | `len` | `cap` | 可直接 `append` |
-| ----------- | ---------- | ----- | ----- | --------------- |
-| nil slice   | 是         | 0     | 0     | 是              |
-| empty slice | 否         | 0     | 由创建方式决定 | 是       |
+| 状态        | 是否为 nil | `len` | `cap`          | 可直接 `append` |
+| ----------- | ---------- | ----- | -------------- | --------------- |
+| nil slice   | 是         | 0     | 0              | 是              |
+| empty slice | 否         | 0     | 由创建方式决定 | 是              |

@@ -4,6 +4,7 @@ data
 !apps/etf-service/data/*.json
 inbox/local
 .cache
+.scratch/
 
 # Logs
 logs
