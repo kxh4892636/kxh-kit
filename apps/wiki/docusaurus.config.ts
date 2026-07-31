@@ -13,7 +13,7 @@ const config: Config = {
   baseUrl: "/",
 
   organizationName: "kxh4892636",
-  projectName: "kxh-wiki",
+  projectName: "kxh-kit",
 
   onBrokenLinks: "throw",
 
@@ -39,7 +39,7 @@ const config: Config = {
         docs: {
           path: "docs",
           sidebarPath: "./sidebars.ts",
-          editUrl: "https://github.com/kxh4892636/kxh-wiki/",
+          editUrl: "https://github.com/kxh4892636/kxh-kit/",
           remarkPlugins: [remarkMath],
           rehypePlugins: [rehypeKatex],
         },
@@ -53,7 +53,7 @@ const config: Config = {
 
   plugins: [
     [
-      "@kxh-awesome/docusaurus-plugin-link",
+      "@kxh4892636/docusaurus-plugin-link",
       {
         docsPath: "docs",
         routeBasePath: "docs",
@@ -102,7 +102,7 @@ const config: Config = {
           position: "right",
         },
         {
-          href: "https://github.com/kxh4892636/kxh-wiki/",
+          href: "https://github.com/kxh4892636/kxh-kit/",
           label: "GitHub",
           position: "right",
         },

@@ -52,7 +52,7 @@ interface OptionValidationContext<UserOptions, Options> {
   validate: (schema: unknown, options: UserOptions) => Options;
 }
 
-const pluginName = "@kxh-awesome/docusaurus-plugin-link";
+const pluginName = "@kxh4892636/docusaurus-plugin-link";
 
 const defaultOptions: LinkPluginOptions = {
   docsPath: "docs",

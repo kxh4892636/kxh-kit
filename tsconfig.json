@@ -1,10 +1,5 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
   "files": [],
-  "references": [
-    { "path": "./apps/wiki" },
-    { "path": "./apps/etf-dashboard" },
-    { "path": "./templates/react-go-template" },
-    { "path": "./packages/docusaurus-plugin-link" }
-  ]
+  "references": [{ "path": "./apps/wiki" }, { "path": "./packages/docusaurus-plugin-link" }]
 }

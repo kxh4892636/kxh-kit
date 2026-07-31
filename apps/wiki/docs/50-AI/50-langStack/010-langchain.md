@@ -127,9 +127,7 @@ const contextSchema = z.object({
 
 const agent = createAgent({
   model: "gpt-4o",
-  tools: [
-    /* ... */
-  ],
+  tools: [/* ... */],
   contextSchema,
   middleware: [
     dynamicSystemPromptMiddleware<z.infer<typeof contextSchema>>((state, runtime) => {

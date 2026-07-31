@@ -1,6 +1,6 @@
 {
   "$schema": "https://json.schemastore.org/tsconfig",
-  "display": "kxh-awesome shared strict baseline",
+  "display": "kxh-kit shared strict baseline",
   "compilerOptions": {
     "composite": true,
     "noEmit": true,

@@ -1,11 +1,11 @@
 {
-  "name": "kxh-monorepo",
+  "name": "kxh-kit",
   "version": "0.0.0",
   "private": true,
   "type": "module",
   "scripts": {
     "ready": "vp check && vp run -r test && vp run -r build",
-    "dev": "vp run website#dev",
+    "dev": "vp run @kxh4892636/wiki#start",
     "prepare": "vp config"
   },
   "devDependencies": {
