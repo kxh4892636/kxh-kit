@@ -38,12 +38,16 @@ Off the main flow entirely.
 
 - **`/grill-me`** — the same relentless interview as `/grill-with-docs`, but for when you have **no codebase**. Stateless: it saves nothing locally, builds no `CONTEXT.md`. Reach for it to sharpen any plan or design that doesn't live in a repo.
 - **`/writing-great-skills`** — reference for writing and editing skills well.
+- **`/codin-d2c-cli`** — invoke `codin-d2c` for Figma design-to-code，d2c 静态资源统一使用 svg 格式；
+
+## Domain Doc
+
+- This repository uses a single-context domain documentation layout. See `DOMAIN.md`.
 
 <!-- LOOP KIT END -->
 
 <!-- PROJECT RULES START -->
 
-- This repository uses a single-context domain documentation layout. See `DOMAIN.md`.
-- invoke `codin-d2c` for Figma design-to-code，d2c 静态资源统一使用 svg 格式；
+仓库 monorepo 使用 vite plus 进行管理（脚手架、依赖管理、运行时管理、测试、打包、格式化、运行等），参考 `/vite-plus` skill。
 
 <!-- PROJECT RULES END -->
