@@ -37,6 +37,7 @@ Two model-invoked references that run _beneath_ the other skills — each the si
 Off the main flow entirely.
 
 - **`/grill-me`** — the same relentless interview as `/grill-with-docs`, but for when you have **no codebase**. Stateless: it saves nothing locally, builds no `CONTEXT.md`. Reach for it to sharpen any plan or design that doesn't live in a repo.
+- **`/to-workflow`** — 发现反复出现的循环，并将其固化为 `docs/workflows/*.md` 下规范且可执行的工作流。
 - **`/writing-great-skills`** — reference for writing and editing skills well.
 - **`/codin-d2c-cli`** — invoke `codin-d2c` for Figma design-to-code，d2c 静态资源统一使用 svg 格式；
 

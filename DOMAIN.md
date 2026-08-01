@@ -4,8 +4,8 @@ How the engineering skills should consume this repo's domain documentation when 
 
 ## Rules
 
-- `CONTEXT.md` 和 `docs/adr/` 中的文件内容使用中文, adr 文件名使用中文
-- `CONTEXT.md` 和 `docs/adr/` 只在工作区/项目根目录创建，不在子仓/子应用目录创建
+- 所有文件内容使用中文, adr 文件名使用中文
+- 所有文件(夹)只在工作区/项目根目录创建，不在子仓/子应用目录创建
 - `CONTEXT.md` 行数 <= 610 行，`docs/adr/` 中的 adr 文档数量 <= 89 个, 每个 adr 文档的行数 <= 144 行；文件数量和行数超过限制时进行合并、拆分、移除废弃内容。
 
 ## Layout
@@ -14,6 +14,7 @@ This repository uses a single-context layout:
 
 - `CONTEXT.md` at the repository root contains the domain glossary.
 - `docs/adr/` contains architectural decision records.
+- `docs/workflows/*.md` 是工作流规格的唯一事实来源。
 
 ## Before exploring, read these
 
@@ -30,6 +31,9 @@ If these files don't exist, proceed silently. Don't flag their absence or sugges
 ├── docs/adr/
 │   ├── 0001-example-decision.md
 │   └── 0002-another-decision.md
+├── docs/workflows/
+│   ├── 0001-example-workflow.md
+│   └── 0002-another-workflow.md
 └── src/
 ```
 
