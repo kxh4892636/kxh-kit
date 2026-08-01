@@ -11,8 +11,8 @@ id: aebde013-28c5-467b-8a82-a1e04feebf5c
 - 接口值: 保存动态类型和动态值;
 - 理解模型: 接口值可理解为 `(动态类型, 动态值)`;
 - nil interface: 动态类型和动态值都为空;
-- 非 nil interface: 只要动态类型存在，接口值就不等于 nil;
-- typed nil: 具体类型为指针、值为 nil 的动态值;
+- 非 nil interface: 只要动态类型存在, 接口值就不等于 nil;
+- typed nil: 具体类型为指针, 值为 nil 的动态值;
 
 ## typed nil
 

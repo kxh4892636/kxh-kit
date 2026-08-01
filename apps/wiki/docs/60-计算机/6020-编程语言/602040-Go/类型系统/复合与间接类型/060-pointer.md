@@ -40,7 +40,7 @@ func main() {
 ### 概念
 
 - `new(T)`: 分配 `T` 的零值并返回 `*T`;
-- `make`: 只用于 slice、map、channel;
+- `make`: 只用于 slice, map, channel;
 
 ```go
 func main() {

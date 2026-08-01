@@ -14,7 +14,7 @@ id: b17ea17a-3b39-55eb-bb48-aa7f18cd98b4
 
 ```go
 type User struct {
-	Name string // 导出字段；包外可见
+	Name string // 导出字段;包外可见
 	Age  int
 }
 ```
@@ -24,8 +24,8 @@ type User struct {
 ```go
 func main() {
 	a := User{}
-	b := User{Name: "Tom", Age: 18} // 命名字段初始化；推荐使用
-	c := User{"Jerry", 20}          // 顺序初始化；依赖字段顺序
+	b := User{Name: "Tom", Age: 18} // 命名字段初始化;推荐使用
+	c := User{"Jerry", 20}          // 顺序初始化;依赖字段顺序
 	b.Age = 19
 	println(a.Name, b.Age, c.Name)
 }
@@ -72,7 +72,7 @@ println(u.City) // Beijing
 ### 概念
 
 - `struct{}`: 不包含字段的结构体;
-- 使用场景: set、只传递信号的 channel;
+- 使用场景: set, 只传递信号的 channel;
 
 ```go
 func main() {

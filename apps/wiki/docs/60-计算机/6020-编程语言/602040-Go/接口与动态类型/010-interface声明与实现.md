@@ -9,7 +9,7 @@ id: bb87ade7-23f1-521c-abaf-99e693207181
 ### 概念
 
 - interface: 由方法集合定义的抽象类型;
-- 实现方式: 类型拥有接口要求的全部方法，即实现接口;
+- 实现方式: 类型拥有接口要求的全部方法, 即实现接口;
 - 隐式实现: 不需要写 `implements`;
 
 ### 语法格式
@@ -32,14 +32,14 @@ type Greeter interface {
 
 - 接口声明: `Greeter` 要求实现者能够通过 `Greet()` 打招呼;
 - 接口实现: `Person` 决定如何打招呼;
-- 调用方: 只关心传入的值能否打招呼，不关心它的具体类型;
+- 调用方: 只关心传入的值能否打招呼, 不关心它的具体类型;
 
 ```go
 package main
 
 import "fmt"
 
-// Greeter 声明规则：拥有 Greet() string 方法的类型都满足 Greeter。
+// Greeter 声明规则:拥有 Greet() string 方法的类型都满足 Greeter.
 type Greeter interface {
 	Greet() string
 }
@@ -48,19 +48,19 @@ type Person struct {
 	Name string
 }
 
-// Person 拥有了 Greeter 要求的 Greet 方法，自动实现 Greeter。
-// Go 不需要额外写 implements Greeter。
+// Person 拥有了 Greeter 要求的 Greet 方法,自动实现 Greeter.
+// Go 不需要额外写 implements Greeter.
 func (p Person) Greet() string {
-	return "你好，我是" + p.Name
+	return "你好,我是" + p.Name
 }
 
-// sayHello 接受任何实现了 Greeter 的值。
+// sayHello 接受任何实现了 Greeter 的值.
 func sayHello(g Greeter) {
 	fmt.Println(g.Greet())
 }
 
 func main() {
 	p := Person{Name: "小明"}
-	sayHello(p) // 输出：你好，我是小明
+	sayHello(p) // 输出:你好,我是小明
 }
 ```

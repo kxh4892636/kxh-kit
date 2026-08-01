@@ -32,7 +32,7 @@ const createArchives = (sourceFolders, destinationPath) => {
       },
     );
 
-    // 7z 失败时立即停止，避免继续移动或清理旧备份。
+    // 7z 失败时立即停止,避免继续移动或清理旧备份.
     if (result?.error) {
       throw result.error;
     }
@@ -67,7 +67,7 @@ const moveArchives = (sourcePath, destinationPath) => {
       continue;
     }
 
-    // 只移动云端缺失的压缩包，避免覆盖已有备份。
+    // 只移动云端缺失的压缩包,避免覆盖已有备份.
     moveFile(localPath, cloudPath);
   }
 };
@@ -81,7 +81,7 @@ const deleteOlderArchives = (archivePath) => {
 
   const filesToDelete = files?.sort()?.slice(0, files?.length - 3);
 
-  // 保留最新 3 个按文件名排序的备份，其余旧压缩包清理掉。
+  // 保留最新 3 个按文件名排序的备份,其余旧压缩包清理掉.
   for (const file of filesToDelete) {
     fs.rmSync(path.join(archivePath, file));
   }

@@ -6,10 +6,10 @@ id: 8ab3ae09-612b-4fd0-985a-179c450331ed
 
 ## 是什么
 
-- Vite+: Web 工程统一工具链, 一个入口管理运行时、包管理器、开发、构建、测试、检查、格式化、打包和任务编排;
-- `vp`: 全局 CLI, 负责创建项目、安装依赖、运行命令、管理 Node.js 和升级工具链;
+- Vite+: Web 工程统一工具链, 一个入口管理运行时, 包管理器, 开发, 构建, 测试, 检查, 格式化, 打包和任务编排;
+- `vp`: 全局 CLI, 负责创建项目, 安装依赖, 运行命令, 管理 Node.js 和升级工具链;
 - `vite-plus`: 项目内本地依赖, 提供 Vite+ 配置和命令实现;
-- 核心思路: 把分散在 Node、pnpm/npm、Vite、Vitest、Oxlint、Oxfmt、tsdown、git hook、CI 中的工程操作收束为统一模型;
+- 核心思路: 把分散在 Node, pnpm/npm, Vite, Vitest, Oxlint, Oxfmt, tsdown, git hook, CI 中的工程操作收束为统一模型;
 - 统一入口: `vp <action>`; 统一配置: `vite.config.ts`; 统一门禁: `vp check`; 统一任务: `vp run`;
 
 ## 功能与命令
@@ -45,7 +45,7 @@ id: 8ab3ae09-612b-4fd0-985a-179c450331ed
 | `test`                         | Vitest 测试                                                    |
 | `lint`                         | Oxlint, `options.typeAware` / `options.typeCheck` 开启类型感知 |
 | `fmt`                          | Oxfmt 格式化                                                   |
-| `run.tasks`                    | 任务定义、`dependsOn`、缓存                                    |
+| `run.tasks`                    | 任务定义, `dependsOn`, 缓存                                    |
 | `pack`                         | tsdown 打包                                                    |
 | `staged`                       | 替代 lint-staged 的提交前规则                                  |
 

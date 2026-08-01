@@ -97,7 +97,7 @@ const response = await agent.invoke(
 );
 console.log(response.structuredResponse);
 
-// 注意：我们可以使用相同的 `thread_id` 继续对话
+// 注意:我们可以使用相同的 `thread_id` 继续对话
 const thankYouResponse = await agent.invoke(
   { messages: [{ role: "user", content: "thank you!" }] },
   config,
@@ -637,7 +637,7 @@ const imageBlock: ContentBlock.Multimodal.Image = {
 ### 定义工具
 
 - 使用 tool 函数定义工具;
-- 每个工具都有名称、描述和输入参数的模式;
+- 每个工具都有名称, 描述和输入参数的模式;
 
 ```typescript
 import * as z from "zod";

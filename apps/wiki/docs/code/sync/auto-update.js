@@ -33,7 +33,7 @@ const exportDocsToTarget = (sourceRoot, targetRoot) => {
   fs.mkdirSync(path.dirname(targetRoot), { recursive: true });
 
   if (fs.existsSync(targetRoot)) {
-    // 只替换外部目标目录，源目录 apps/wiki/docs 不移动、不删除。
+    // 只替换外部目标目录,源目录 apps/wiki/docs 不移动,不删除.
     fs.rmSync(targetRoot, { recursive: true, force: true });
   }
 
@@ -65,7 +65,7 @@ const createReadme = (dirPath) => {
   for (const { dirPath: currentDir, dirs, files } of walkDirectory(dirPath, {
     bottomUp: true,
   })) {
-    // README 只为内容目录生成，跳过图片与脚本目录。
+    // README 只为内容目录生成,跳过图片与脚本目录.
     if (currentDir?.includes("images") || currentDir?.includes("code")) {
       continue;
     }
@@ -141,7 +141,7 @@ const printUnusedImages = (rootDir) => {
     for (const mdPath of mdFilesPath) {
       const content = fs.readFileSync(mdPath, "utf8");
 
-      // 只要图片文件名出现在同级 Markdown 中，就视为仍在使用。
+      // 只要图片文件名出现在同级 Markdown 中,就视为仍在使用.
       currentImages = currentImages.filter((image) => {
         const imageName = path.basename(image);
         return !content?.includes(imageName);
@@ -160,7 +160,7 @@ const printUnusedImages = (rootDir) => {
 };
 
 const deleteUnusedImages = (images) => {
-  // 删除前由 printUnusedImages 输出清单，便于从终端回看本次清理内容。
+  // 删除前由 printUnusedImages 输出清单,便于从终端回看本次清理内容.
   for (const image of images) {
     fs.rmSync(image);
   }

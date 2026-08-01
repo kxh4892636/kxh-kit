@@ -16,7 +16,7 @@ id: a00bdeac-164d-5fc7-a706-1bb335cef8bf
 
 ```go
 func main() {
-	var zero []int       // nil slice；len 和 cap 均为 0
+	var zero []int       // nil slice;len 和 cap 均为 0
 	s := []int{1, 2, 3} // 指向底层数组的一段连续元素
 	println(len(zero), cap(zero), len(s), cap(s))
 }
@@ -27,8 +27,8 @@ func main() {
 ```go
 func main() {
 	a := []int{1, 2, 3}    // slice literal
-	b := make([]int, 3)    // 长度为 3，容量为 3
-	c := make([]int, 0, 8) // 长度为 0，容量为 8
+	b := make([]int, 3)    // 长度为 3,容量为 3
+	c := make([]int, 0, 8) // 长度为 0,容量为 8
 	println(len(a), len(b), cap(c))
 }
 ```
@@ -37,8 +37,8 @@ func main() {
 
 ### 概念
 
-- nil slice: 指针为 nil，长度和容量为 0;
-- empty slice: 指针非 nil，长度为 0;
+- nil slice: 指针为 nil, 长度和容量为 0;
+- empty slice: 指针非 nil, 长度为 0;
 - `append`: nil slice 和 empty slice 均可直接追加元素;
 
 ```go
