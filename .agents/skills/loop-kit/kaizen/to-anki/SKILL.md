@@ -1,6 +1,7 @@
 ---
 name: to-anki
 description: 将 Markdown 学习笔记,词表,现成问答或完形填空内容转换为 Anki 卡片;用户要求划分知识点,预览卡片,批量创建或生成可导入数据时使用.
+disable-model-invocation: true
 ---
 
 # Anki 制卡
