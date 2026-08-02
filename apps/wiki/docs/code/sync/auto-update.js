@@ -46,69 +46,14 @@ const exportDocsToTarget = (sourceRoot, targetRoot) => {
   console.log(`docs exported to ${targetRoot}`);
 };
 
-const walkDirectory = (dirPath, options = {}) => {
-  const { bottomUp = false } = options;
+const walkDirectory = (dirPath) => {
   const entries = fs.readdirSync(dirPath, { withFileTypes: true });
   const dirs = entries?.filter((entry) => entry?.isDirectory())?.map((entry) => entry?.name);
   const files = entries?.filter((entry) => entry?.isFile())?.map((entry) => entry?.name);
 
   const current = { dirPath, dirs, files };
 
-  if (!bottomUp) {
-    return [current, ...dirs.flatMap((dir) => walkDirectory(path.join(dirPath, dir), options))];
-  }
-
-  return [...dirs.flatMap((dir) => walkDirectory(path.join(dirPath, dir), options)), current];
-};
-
-const createReadme = (dirPath) => {
-  for (const { dirPath: currentDir, dirs, files } of walkDirectory(dirPath, {
-    bottomUp: true,
-  })) {
-    // README 只为内容目录生成,跳过图片与脚本目录.
-    if (currentDir?.includes("images") || currentDir?.includes("code")) {
-      continue;
-    }
-
-    const title = path.basename(currentDir);
-    const contentParts = [`# ${title}\n\n`];
-
-    for (const file of files) {
-      if (!file?.endsWith(".md")) {
-        continue;
-      }
-      if (file === "_sidebar.md" || file === "README.md") {
-        continue;
-      }
-
-      const fileName = file?.replace(/\.md$/, "");
-      contentParts.push(`- [${fileName}](./${file})\n`);
-    }
-
-    for (const dir of dirs) {
-      if (dir?.includes("images")) {
-        continue;
-      }
-      if (
-        dir?.includes("0-中转") ||
-        dir?.includes("0-记录") ||
-        dir?.includes("0-工作") ||
-        dir?.includes("code")
-      ) {
-        continue;
-      }
-
-      contentParts.push(`- [${dir}](./${dir}/README.md)\n`);
-    }
-
-    const filePath = path.join(currentDir, "README.md");
-    if (fs.existsSync(filePath)) {
-      fs.rmSync(filePath);
-    }
-    fs.writeFileSync(filePath, contentParts.join(""), "utf8");
-  }
-
-  console.log("readme updated");
+  return [current, ...dirs.flatMap((dir) => walkDirectory(path.join(dirPath, dir)))];
 };
 
 const printUnusedImages = (rootDir) => {
@@ -206,7 +151,6 @@ const countNoteSize = (rootDir) => {
   console.log("");
 };
 
-createReadme(DOCS_ROOT);
 const images = printUnusedImages(DOCS_ROOT);
 deleteUnusedImages(images);
 countNoteSize(DOCS_ROOT);
