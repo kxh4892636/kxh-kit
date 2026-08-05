@@ -23,23 +23,25 @@ The route most work travels. You have an idea and want it built.
 
 A starting situation that generates work, then merges onto the main flow.
 
-- **A huge, foggy effort — a greenfield project or a huge feature build, too big for one session** → **`/to-workstreams`**. It splits the effort into independently implementable and verifiable vertical-slice **workstreams**, confirms their boundaries and direct dependencies, writes handoff for each one, and creates an independent session for each one. Each generated workstream merges onto the main flow at **`/grill-with-docs`**.
+- **A huge, foggy effort — a greenfield project or a huge feature build, too big for one session** → **`/to-workstreams`**. It splits the effort into independently implementable and verifiable vertical-slice **workstreams**, confirms their boundaries and direct dependencies, writes handoff for each one. Each generated workstream merges onto the main flow at **`/grill-with-docs`**.
 
 ## Vocabulary underneath
 
 Two model-invoked references that run _beneath_ the other skills — each the single source of truth for its vocabulary. Reach for them directly when the **words**, not the process, are the problem; or let the skills above pull them in.
 
 - **`/domain-modeling`** — sharpen the project's _domain_ language: challenge a fuzzy term, resolve an overloaded word ("account" doing three jobs), record a hard-to-reverse decision as an ADR. It's the active discipline `/grill-with-docs` drives to keep `CONTEXT.md` a clean glossary.
-- **`/codebase-design`** — the deep-module vocabulary (module, interface, depth, seam, adapter, leverage, locality) for designing a module's _shape_: a lot of behaviour behind a small interface at a clean seam. `/tdd` speaks it.
+- **`/codebase-design`** — the deep-module vocabulary (module, interface, depth, seam, adapter, leverage, locality) for designing a module's _shape_: a lot of behaviour behind a small interface at a clean seam. `/tdd` speak it.
 
 ## Standalone
 
 Off the main flow entirely.
 
-- **`/grill-me`** — the same relentless interview as `/grill-with-docs`, but for when you have **no codebase**. Stateless: it saves nothing locally, builds no `CONTEXT.md`. Reach for it to sharpen any plan or design that doesn't live in a repo.
-- **`/to-workflow`** — 发现反复出现的循环，并将其固化为 `docs/workflows/*.md` 下规范且可执行的工作流。
-- **`/writing-great-skills`** — reference for writing and editing skills well.
-- **`/codin-d2c-cli`** — invoke `codin-d2c` for Figma design-to-code，d2c 静态资源统一使用 svg 格式；
+- **`/grill-me`** — the same relentless interview as `/grill-with-docs`, but **stateless**: it saves nothing locally and builds no `CONTEXT.md`. Reach for it when you are **not working in a working directory** — sharpening a plan, a design, a piece of writing, anything with no repo under it. If you are in a working directory, use `/grill-with-docs` instead: it runs the same interview and leaves a paper trail, so it is strictly the better one.
+- **`/grilling`** — the interview primitive itself: rounds, the frontier, facts are the agent's job and decisions are yours. `/grill-me` and `/grill-with-docs` are the two named ways in. Reach for it directly only when you want the interview with no wrapper around it.
+- **`/wait-what`** — the corrective for a message that didn't land. Use it mid-conversation, inside any other skill, and the agent re-pitches what it just said with the context you were missing, in plain English, using the `CONTEXT.md` vocabulary. It works after the fact; `/grill-with-docs` is the upfront cure, because a shared language agreed early is what stops the jargon arriving at all.
+- **`/writing-for-agents`** — reference for writing documents agents consume: skills, AGENTS.md, pointed-at docs.
+- **`/to-workflow`** — find recurring patterns in current work, and solidify them as workflows in `docs/workflows/*.md`.
+- **`/codin-d2c-cli`** — invoke `codin-d2c` for Figma design-to-code，d2c static resources use svg format；
 
 ## Domain Doc
 
@@ -49,6 +51,6 @@ Off the main flow entirely.
 
 <!-- PROJECT RULES START -->
 
-仓库 monorepo 使用 vite plus 进行管理（脚手架、依赖管理、运行时管理、测试、打包、格式化、运行等），参考 `/vite-plus` skill。
+Monorepo use vite-plus to manage the project(bootstrap, dependency management, runtime management, testing, packaging, formatting, running, etc), and see `/vite-plus` skill.
 
 <!-- PROJECT RULES END -->
