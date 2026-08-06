@@ -6,7 +6,7 @@ How the engineering skills should consume this repo's domain documentation when 
 
 - All files are created in the repository root, not in sub-repositories;
 - `docs/` 目录下的所有文件名和文件内容使用中文;
-- `CONTEXT.md` lines <= 610, `docs/adr/*.md` files <= 89, `docs/adr/*.md` lines <= 144, `docs/workflows/*.md` lines <= 233;
+- `CONTEXT.md` lines <= 610; `docs/adr/*.md` files <= 89, lines <= 144; `docs/workflows/*.md` lines <= 144;
 - If any of these limits are exceeded, merge, split, or remove the excess content.
 
 ## Before exploring, read these
@@ -43,8 +43,8 @@ When your output names a domain concept (in an issue title, a refactor proposal,
 
 If the concept you need isn't in the glossary yet, that's a signal — either you're inventing language the project doesn't use (reconsider) or there's a real gap (note it for `/domain-modeling`).
 
-## Flag ADR conflicts
+## Flag ADR and Workflow conflicts
 
-If your output contradicts an existing ADR, surface it explicitly rather than silently overriding:
+If your output contradicts an existing ADR or Workflow, surface it explicitly rather than silently overriding:
 
 > _Contradicts ADR-0007 (event-sourced orders) — but worth reopening because…_
