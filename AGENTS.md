@@ -51,6 +51,4 @@ Off the main flow entirely.
 
 <!-- PROJECT RULES START -->
 
-Monorepo use vite-plus to manage the project(bootstrap, dependency management, runtime management, testing, packaging, formatting, running, etc), and see `/vite-plus` skill.
-
 <!-- PROJECT RULES END -->

@@ -22,7 +22,6 @@ description: 代码规范;编写,修改或审查代码时使用,覆盖通用规�
 
 ## 代码注释
 
-- 注释保持简洁, 最大不超过 8 行.
 - 注释只写说明性注释, 解释代码背后的原因, 约束, 取舍和风险.
 - 禁止用注释复述代码正在做什么或如何执行.
 
@@ -60,9 +59,7 @@ export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps)
   // 组件属性使用 `props` 定义,组件内部使用解构赋值获取属性
   const { prop1, prop2 } = props;
   // 组件内部按功能逻辑块组织,最后返回 UI,通用功能逻辑放置于顶部
-  // 通用功能逻辑
-  // 功能逻辑块 1,2,3...
-  return (<div></div>);
+  return (<Component />);
 };
 ```
 
