@@ -10,7 +10,7 @@ Install the latest published Kxh Kit agent rules, domain guide, and Loop Kit ski
 ## Usage
 
 ```powershell
-npx @kxh4892636/loop-kit@latest --target D:\projects\target
+npx --yes --registry=https://registry.npmjs.org/ @kxh4892636/loop-kit@latest --target .
 ```
 
 Relative target paths are resolved from the current working directory. The command prints the resolved absolute path and the number of created, updated, and unchanged files.
