@@ -29,7 +29,7 @@ disable-model-invocation: true
 笔记模板参考 `template.md`
 
 - 笔记以 `id: <uuid>` 的 YAML frontmatter 开头, 并保证 `id` 唯一;
-- H1 仅用于文档主题; 正文按 H2 → H3 → ... 连续递进, 层级由知识关系决定;
+- H1 仅用于文档主题; 正文按 H2 → ... 连续递进, 层级由知识关系决定;
 - 普通文本使用电报体, 一个 bullet 承载一个独立知识点, 使用格式 `term: explanation;`;
 - 富文本信息优先使用代码块\表格\公式等信息载体;
 - 专业名词保留原始描述, 不进行翻译;

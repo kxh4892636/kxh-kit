@@ -5,5 +5,6 @@
 - [030-slice操作](./030-slice操作.md)
 - [040-map](./040-map.md)
 - [050-struct](./050-struct.md)
+- [051-struct嵌入与空结构体](./051-struct嵌入与空结构体.md)
 - [060-pointer](./060-pointer.md)
 - [070-uintptr与指针边界](./070-uintptr与指针边界.md)
