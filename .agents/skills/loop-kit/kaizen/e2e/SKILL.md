@@ -1,10 +1,9 @@
 ---
-name: acceptance
+name: e2e
 description: 验收:维护 Markdown 验收资产,执行 agent 驱动的验收走查.
-disable-model-invocation: true
 ---
 
-# Acceptance
+# E2E
 
 验收通过真实系统边界证明消费者可感知的结果. 它使用一条**证据链**: 验收主张 → 真实路径 → 外部观察 → 结论. 用户输入和工作区约定决定工具, 环境, 数据与证据; 本 skill 只固定证据链与结论门禁.
 

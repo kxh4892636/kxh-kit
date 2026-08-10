@@ -26,7 +26,7 @@ disable-model-invocation: true
 ## 原则
 
 - 一个 `docs/workflows/*.md` 对应一个循环及其工作流.
-- 文件命名使用 `{workflow-name}-{trigger-words}.md` 的形式，使用 3 - 5 个简短的触发词，概述工作流触发条件；
+- 文件命名使用 `{\d{4}}-{workflow-name}-{trigger-words}.md` 的形式，使用 3 - 5 个简短的触发词，概述工作流触发条件；
 - 包含 `推荐技能` 章节，说明执行该工作流推荐调用那些技能；
 - 词汇只是共享的领域语言, 不强制工作流的任何结构流程, 让循环决定工作流结构, 除非循环认为其需要.
 
