@@ -6,7 +6,7 @@ How the engineering skills should consume this repo's domain documentation when 
 
 - All files are created in the repository root, not in sub-repositories;
 - `docs/` 目录下的所有文件名和文件内容使用中文;
-- `CONTEXT.md` lines <= 610; `docs/adr/*.md` files <= 89, lines <= 144; `docs/workflows/*.md` lines <= 233;
+- `CONTEXT.md` lines <= 610; `docs/adr/*.md` files <= 89, lines <= 144; `docs/workflows/*.md` files <= 55, lines <= 233;
 - If any of these limits are exceeded, merge, split, or remove the excess content.
 
 ## Before exploring, read these
