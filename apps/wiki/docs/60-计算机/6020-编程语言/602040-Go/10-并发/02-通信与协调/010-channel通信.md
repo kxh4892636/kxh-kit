@@ -4,14 +4,16 @@ id: c0868707-8a02-5c94-8be4-de302322de56
 
 # channel 通信
 
-## 基本概念
+channel 通信是什么？无缓冲 channel是什么？有缓冲 channel是什么？
 
-### 概念
+## channel 通信是什么
+
+### channel 通信是什么的核心规则
 
 - channel: goroutine 之间传递值的通信管道;
 - channel 元素类型: 决定管道中传递的值类型;
 
-### 语法格式
+### channel 通信是什么的写法
 
 ```go
 func main() {
@@ -26,7 +28,7 @@ func main() {
 
 ## 无缓冲 channel
 
-### 概念
+### 无缓冲 channel的核心规则
 
 - unbuffered channel: 没有缓冲空间;
 - 同步语义: 发送和接收同时完成值交接;
@@ -34,7 +36,7 @@ func main() {
 - 接收完成条件: 必须有发送者发送值;
 - 使用定位: 不是队列, 而是 goroutine 之间的同步交接点;
 
-### 语法格式
+### 无缓冲 channel的写法
 
 ```go
 func main() {
@@ -51,13 +53,13 @@ func main() {
 
 ## 有缓冲 channel
 
-### 概念
+### 有缓冲 channel的核心规则
 
 - buffered channel: 拥有固定容量缓冲区;
 - 发送阻塞: 缓冲区满时阻塞;
 - 接收阻塞: 缓冲区空时阻塞;
 
-### 语法格式
+### 有缓冲 channel的写法
 
 ```go
 func main() {

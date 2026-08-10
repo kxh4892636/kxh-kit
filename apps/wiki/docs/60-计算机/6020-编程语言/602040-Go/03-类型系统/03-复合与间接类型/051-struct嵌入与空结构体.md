@@ -4,6 +4,8 @@ id: c7bd861f-b58c-4c8e-aaa8-438a389d8e4b
 
 # struct 嵌入与空结构体
 
+嵌入字段是什么？空结构体是什么？
+
 ## 嵌入字段
 
 - embedded field: 只写类型名的匿名字段;

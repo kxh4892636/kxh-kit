@@ -4,6 +4,8 @@ id: 4fd8230e-1d75-4bd7-b445-bcc03fbdcba5
 
 # Option 配置体系
 
+三种作用域是什么？常用 Client Option是什么？常用 Server Option是什么？配置陷阱有哪些注意点？
+
 ## 三种作用域
 
 | 类型             | 注入位置        | 作用域          | 典型用途                     |

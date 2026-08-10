@@ -4,14 +4,16 @@ id: f7614ee8-d45e-5745-bfc4-7991cade0cfe
 
 # switch
 
+表达式 switch是什么？无表达式 switch是什么？fallthrough是什么？
+
 ## 表达式 switch
 
-### 概念
+### 表达式 switch的核心规则
 
 - 自动 break: 每个 case 默认不会继续执行下一个 case;
 - default: 可放在任意 case 位置, 通常放在最后;
 
-### 语法格式
+### 表达式 switch的写法
 
 ```go
 func main() {
@@ -29,7 +31,7 @@ func main() {
 
 ## 无表达式 switch
 
-### 语法格式
+### 无表达式 switch的写法
 
 ```go
 func main() {
@@ -47,12 +49,12 @@ func main() {
 
 ## fallthrough
 
-### 概念
+### fallthrough的核心规则
 
 - `fallthrough`: 不能用于最后一个 case;
 - 使用建议: 少用, 避免破坏 switch 默认清晰语义;
 
-### 语法格式
+### fallthrough的写法
 
 ```go
 func main() {

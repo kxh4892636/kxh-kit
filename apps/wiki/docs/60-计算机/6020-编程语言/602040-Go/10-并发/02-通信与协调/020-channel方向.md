@@ -4,9 +4,11 @@ id: 84ae2b8c-3a4a-4f66-9a9b-58fe9d3164de
 
 # channel 方向
 
+单向 channel是什么？发送方向是什么？接收方向是什么？方向对比说明什么？
+
 ## 单向 channel
 
-### 概念
+### 单向 channel的核心规则
 
 - 单向 channel: 在函数签名中表达通信方向;
 - `chan<- T`: 只允许向 channel 发送 `T`;

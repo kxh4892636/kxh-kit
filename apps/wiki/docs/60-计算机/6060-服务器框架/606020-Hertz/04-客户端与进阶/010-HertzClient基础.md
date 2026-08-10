@@ -4,6 +4,8 @@ id: e6a3dd8e-140e-4ca6-aced-b368c34ad566
 
 # Hertz Client 基础
 
+Hertz Client 基础解决什么问题？基本请求是什么？响应处理应该如何完成？领域适配是什么？资源管理应该如何完成？
+
 ## 定位
 
 - Hertz Client: 发起出站 HTTP 请求; 支持连接复用、超时、代理和扩展;

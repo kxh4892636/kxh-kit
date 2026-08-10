@@ -4,9 +4,11 @@ id: 11ca99a8-30be-4df1-9d5c-a9730c6fe1fb
 
 # atomic
 
-## 基本概念
+atomic是什么？常用 API是什么？如何组合使用atomic？
 
-### 概念
+## atomic是什么
+
+### atomic是什么的核心规则
 
 - `sync/atomic`: 将一次读取, 写入或更新作为不可分割的操作, 避免并发 goroutine 看到中间状态;
 - 使用场景: 简单计数器, 状态标记, 指针或只读配置快照;
@@ -33,7 +35,7 @@ id: 11ca99a8-30be-4df1-9d5c-a9730c6fe1fb
 - `atomic.Pointer[T]`: 类型安全地发布和替换 `*T`;
 - `atomic.Value`: 保存任意类型的只读快照; 首次 `Store` 后, 后续 `Store` 必须使用相同的具体类型, 且不能存储 `nil`;
 
-## 组合示例
+## 如何组合使用atomic
 
 ```go
 package main

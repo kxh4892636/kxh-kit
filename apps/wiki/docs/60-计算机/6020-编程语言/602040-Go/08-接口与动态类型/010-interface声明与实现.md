@@ -4,15 +4,17 @@ id: bb87ade7-23f1-521c-abaf-99e693207181
 
 # interface 声明与实现
 
-## 基本概念
+interface 声明与实现是什么？实现接口是什么？实现条件是什么？
 
-### 概念
+## interface 声明与实现是什么
+
+### interface 声明与实现是什么的核心规则
 
 - interface: 由方法集合定义的抽象类型;
 - 实现方式: 类型拥有接口要求的全部方法, 即实现接口;
 - 隐式实现: 不需要写 `implements`;
 
-### 语法格式
+### interface 声明与实现是什么的写法
 
 ```go
 type Greeter interface {

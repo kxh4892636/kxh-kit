@@ -4,9 +4,11 @@ id: 30cab41a-0e9b-4e67-9063-9fcdd39f63aa
 
 # recover
 
-## 基本概念
+recover是什么？recover如何声明或使用？使用recover时的边界有哪些注意点？机制对比说明什么？
 
-### 概念
+## recover是什么
+
+### recover是什么的核心规则
 
 - recover: 捕获当前 goroutine 正在传播的 panic;
 - 调用位置: 必须在 defer 函数中直接调用;
@@ -14,7 +16,7 @@ id: 30cab41a-0e9b-4e67-9063-9fcdd39f63aa
 - 恢复效果: 捕获后停止 panic 继续向上传播;
 - 执行恢复: 不会回到 `panic` 后继续执行, 当前函数从 defer 后返回;
 
-## 语法格式
+## recover如何声明或使用
 
 ```go
 package main
@@ -42,7 +44,7 @@ func main() {
 // after safeRun
 ```
 
-## 使用边界
+## 使用recover时的边界
 
 - 适用位置: goroutine 边界, 框架边界, 任务边界兜底;
 - 作用范围: 只处理当前 goroutine 中正在传播的 panic;

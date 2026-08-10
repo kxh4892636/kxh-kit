@@ -4,16 +4,18 @@ id: 78b92ccf-f8bc-4897-98aa-45c05ad85a74
 
 # channel 关闭与接收
 
+关闭 channel是什么？comma ok 接收是什么？
+
 ## 关闭 channel
 
-### 概念
+### 关闭 channel的核心规则
 
 - 关闭方: 通常由发送方关闭;
 - 接收关闭 channel: 读完缓冲后得到元素零值和 `false`;
 - 发送关闭 channel: 引发 panic;
 - `range channel`: 持续接收, 直到 channel 关闭且缓冲耗尽;
 
-### 语法格式
+### 关闭 channel的写法
 
 ```go
 func main() {

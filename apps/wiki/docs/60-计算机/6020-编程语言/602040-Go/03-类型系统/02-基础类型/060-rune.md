@@ -4,9 +4,11 @@ id: dcaa06ae-1aef-5727-a493-a86a6a6bc737
 
 # rune
 
+字符码点是什么？字符字面量是什么？双引号和单引号的区别是什么？字符串遍历如何完成？
+
 ## 字符码点
 
-### 语法格式
+### 字符码点的写法
 
 ```go
 package main
@@ -49,12 +51,12 @@ func main() {
 
 ## 字符串遍历
 
-### 概念
+### 字符串遍历的核心规则
 
 - `range string`: 按 UTF-8 解码后遍历 rune;
 - range index: 当前 rune 在原字符串中的起始 byte 位置;
 
-### 语法格式
+### 字符串遍历的写法
 
 ```go
 package main

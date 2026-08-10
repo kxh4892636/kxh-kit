@@ -4,12 +4,15 @@ id: 7ba617f0-f4a3-48c0-a102-14840942be0e
 
 # Hertz 心智模型
 
+Hertz 解决什么问题，Engine、Handler 与 RequestContext 如何分工？一个 HTTP 请求从连接到响应会经过哪些环节？初学 Hertz 应该先掌握哪条主线？什么时候才需要代码生成、HTTP/2、WebSocket、SSE 或第三方扩展？
+
 ## 定位
 
 - Hertz: CloudWeGo 的 Go HTTP 框架; 负责网络收发、路由、请求上下文、中间件和响应渲染;
-- Engine: 服务入口和路由树; 配置监听、协议、超时、模板与生命周期;
-- Handler: 处理一次 HTTP 请求; 将协议输入转换为业务调用并写回响应;
-- RequestContext: 本次请求的可变 HTTP 状态; 包含参数、请求、响应和中间件数据;
+- HTTP 框架: 接收 HTTP 请求、匹配地址和方法、调用业务代码并生成 HTTP 响应的基础设施;
+- Engine: 服务入口和路由树；路由树负责把“方法 + 路径”匹配到 Handler，Engine 还管理监听、协议、超时与生命周期;
+- Handler: 处理一次 HTTP 请求的函数；把协议输入转换为业务调用，再把结果写回响应;
+- RequestContext: 本次请求的可变 HTTP 状态；包含参数、请求、响应和中间件数据，请求结束后会被复用;
 - `context.Context`: 取消信号、截止时间和跨层请求范围值; 不等同于 `RequestContext`;
 
 ## 请求链路
@@ -20,8 +23,9 @@ id: 7ba617f0-f4a3-48c0-a102-14840942be0e
 ```
 
 - 数据面: Engine、network、protocol、route 和 Handler 执行每次请求;
-- 横切面: 中间件处理认证、日志、恢复、限流和观测;
-- 业务面: Service 表达业务规则，Repository 隔离数据库;
+- 中间件: 在 Handler 前后运行的通用处理链，用于认证、日志、恢复、限流和观测;
+- Service: 不依赖 HTTP 细节的业务规则层;
+- Repository: 隔离数据库或其他持久化实现的数据访问层;
 
 ## 默认主线
 

@@ -4,8 +4,16 @@ id: 44bdff8b-4ce7-4a93-a071-b25646d5b2b7
 
 # Monorepo 配置
 
-## 本质
+Monorepo 配置解决的核心问题是什么？分层责任是什么？`references`, `composite` 与 `noEmit`是什么？叶项目是什么？
 
+## Monorepo 配置解决的核心问题
+
+- Monorepo: 在同一个版本库中维护多个应用或代码包，并让它们共享依赖与开发流程;
+- `tsconfig.json`: TypeScript 编译器的项目配置文件，决定检查哪些源码以及采用哪些语言和模块规则;
+- project reference: 一个 TypeScript 项目对另一个项目的显式引用，用来组成可按依赖顺序检查或构建的项目图;
+- solution: 只汇总下级项目的入口配置，本身通常不直接包含源码;
+- shared baseline: 被多个项目继承的公共配置，只保存真正通用的检查规则;
+- 叶项目: 项目图末端的实际源码项目，例如浏览器应用、Node.js 服务或待发布的代码包;
 - 三层模型: TypeScript monorepo 按"根 solution - shared baseline - 叶项目"分层;
 - 根 solution: 汇总 project references, 提供全仓统一入口;
 - shared baseline: 承载跨项目都成立的安全约束;
@@ -37,6 +45,9 @@ id: 44bdff8b-4ce7-4a93-a071-b25646d5b2b7
 
 ### 选择 Module 体系
 
+- runtime: JavaScript 最终运行的环境，例如浏览器或 Node.js;
+- module resolution: 编译器根据 `import` 路径寻找目标文件或代码包的规则;
+
 | 项目类别     | `module` / `moduleResolution` | 适用边界                                     |
 | ------------ | ----------------------------- | -------------------------------------------- |
 | bundler 应用 | `ESNext` / `Bundler`          | 由 Vite, Docusaurus 等工具解析并打包模块     |
@@ -44,6 +55,7 @@ id: 44bdff8b-4ce7-4a93-a071-b25646d5b2b7
 
 ### 显式配置边界
 
+- ambient types: 不需要在当前文件中 `import` 就会进入全局作用域的类型声明，例如某些测试框架提供的全局 API;
 - `target` / `lib`: 按运行环境支持范围锁定, 不依赖编译器默认值;
 - `types`: 仅列出项目允许的 ambient type packages, 防止依赖偶然注入 globals;
 - `rootDir` / `include`: 同时定义源码根与项目输入, 排除文档示例, 生成物与构建产物;

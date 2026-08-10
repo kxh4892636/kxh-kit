@@ -4,9 +4,11 @@ id: aebde013-28c5-467b-8a82-a1e04feebf5c
 
 # interface 值
 
+动态类型与动态值是什么？typed nil是什么？typed nil 边界有哪些注意点？空接口是什么？
+
 ## 动态类型与动态值
 
-### 概念
+### 动态类型与动态值的核心规则
 
 - 接口值: 保存动态类型和动态值;
 - 理解模型: 接口值可理解为 `(动态类型, 动态值)`;
@@ -16,7 +18,7 @@ id: aebde013-28c5-467b-8a82-a1e04feebf5c
 
 ## typed nil
 
-### 语法格式
+### typed nil的写法
 
 ```go
 package main
@@ -51,13 +53,13 @@ func main() {
 
 ## 空接口
 
-### 概念
+### 空接口的核心规则
 
 - `interface{}`: 空方法集合接口;
 - `any`: `interface{}` 的别名;
 - 类型信息: 使用空接口会丢失具体静态类型;
 
-### 语法格式
+### 空接口的写法
 
 ```go
 func printAny(v any) {

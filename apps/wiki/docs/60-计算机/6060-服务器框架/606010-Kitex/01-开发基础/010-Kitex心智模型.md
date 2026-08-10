@@ -4,13 +4,17 @@ id: e5f03202-fdc3-4560-be6f-4f7f49f0d25b
 
 # Kitex 心智模型
 
+Kitex 解决什么问题，一次 RPC 调用经过哪些环节？从定义接口到完成调用需要哪些步骤？IDL、Handler、Client、Option 与 middleware 分别负责什么？初学 Kitex 应该先掌握哪条主线？什么时候才需要 Protobuf、gRPC、StreamX 或泛化调用？
+
 ## 定位
 
 - Kitex: 面向微服务的 Go RPC 框架; 核心价值为高性能网络、IDL 驱动开发、服务治理与可扩展接口;
-- RPC: Client 像调用本地方法一样调用远端 Handler; 框架负责寻址、编码、传输、超时与错误转换;
+- RPC: 远程过程调用；Client 像调用本地函数一样请求另一进程中的 Handler，框架负责找到服务、编码数据并通过网络传输;
+- IDL: 接口描述语言；用与具体实现分离的文件定义方法和数据结构，再生成两端都遵守的代码;
+- middleware: 包围一次调用的中间层，用于日志、超时、重试、鉴权等不属于业务本身的通用逻辑;
 - 一次调用: 业务请求 → Client middleware → 服务发现与负载均衡 → 编码与传输 → Server middleware → Handler;
-- 控制面: Registry、Resolver、配置中心提供实例与策略;
-- 数据面: Client、Server、Codec、Transport 执行每次请求;
+- 控制面: 决定“调用哪个实例、采用什么策略”的部分；Registry、Resolver、配置中心提供实例与规则;
+- 数据面: 真正处理每次请求的部分；Client、Server、Codec、Transport 负责调用、编解码和传输;
 
 ## 开发闭环
 
@@ -30,6 +34,10 @@ id: e5f03202-fdc3-4560-be6f-4f7f49f0d25b
 | Client      | 发现缓存、连接池、治理策略     | 进程级复用             |
 | Option      | 构造期或单次调用配置           | 取决于 Option 类型     |
 | middleware  | 横切治理逻辑                   | Client/Server 生命周期 |
+
+- Handler: 服务端真正处理一个方法的函数实现;
+- Client: 调用方持有的可复用对象，内部管理连接、寻址缓存与治理策略;
+- Option: 创建 Client、Server 或发起单次调用时传入的配置项;
 
 ## 默认主线
 

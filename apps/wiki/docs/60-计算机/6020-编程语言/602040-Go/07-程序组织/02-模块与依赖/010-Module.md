@@ -4,9 +4,11 @@ id: 21fd7a38-20f9-57eb-be76-6994decc9c13
 
 # Module
 
-## 基本概念
+Module是什么？创建模块如何完成？replace是什么？核心文件是什么？
 
-### 定义
+## Module是什么
+
+### Module是什么的定义
 
 - module: 一组共享同一 module path 的 Go package 集合;
 - module path: 当前 module 被导入时使用的根路径;
@@ -25,7 +27,7 @@ go mod init example.com/hello # 创建 go.mod 并写入 module path
 
 ## replace
 
-### 语法格式
+### replace的写法
 
 ```go
 // 替换为本地目录;常用于本地联调或临时 fork

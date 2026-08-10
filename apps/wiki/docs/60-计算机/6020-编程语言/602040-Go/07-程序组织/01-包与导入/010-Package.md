@@ -4,9 +4,11 @@ id: 66e72704-a872-5b41-a33c-7fdcb5c53b17
 
 # Package
 
-## 基本概念
+Package是什么？main 包是什么？普通包是什么？包类型对比说明什么？
 
-### 定义
+## Package是什么
+
+### Package是什么的定义
 
 - package: Go 代码的基本组织单位;
 - 目录与包: 一个目录通常对应一个 package;

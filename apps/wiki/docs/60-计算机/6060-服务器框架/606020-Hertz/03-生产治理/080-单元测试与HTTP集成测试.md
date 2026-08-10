@@ -4,6 +4,8 @@ id: 7bd9043b-cd5e-408b-86e8-d882d69c44ce
 
 # 单元测试与 HTTP 集成测试
 
+测试分层应该如何完成？Service 示例是什么？Handler 断言是什么？集成场景是什么？交付门禁应该如何完成？
+
 ## 测试分层
 
 - Service 单测: fake Repository; 验证业务规则、权限和错误分类;

@@ -4,6 +4,8 @@ id: 4f37fafb-7698-4ad3-bba1-da1b7ec02d67
 
 # OpenTelemetry 与 Prometheus
 
+三类信号包含什么？OpenTelemetry是什么？Prometheus 指标是什么？Hertz 接入应该如何完成？告警起点是什么？
+
 ## 三类信号
 
 - Trace: 一次请求跨 Hertz、Kitex、数据库和外部 HTTP 的因果路径;

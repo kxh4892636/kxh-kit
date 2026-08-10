@@ -4,6 +4,8 @@ id: 4c90658c-7064-4543-8392-1b5220b33963
 
 # StreamX 流式通信
 
+模型包含什么？生命周期规则如何运作？治理差异是什么？常见泄漏是什么？
+
 ## 模型
 
 - StreamX: Kitex 的统一 streaming API; 支持 client、server、bidirectional streaming;

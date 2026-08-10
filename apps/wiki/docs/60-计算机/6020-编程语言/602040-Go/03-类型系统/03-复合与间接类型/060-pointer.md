@@ -4,9 +4,11 @@ id: 7623ad0d-3b0d-506a-849c-5e808ed7d3f9
 
 # pointer
 
-## 基本概念
+pointer是什么？指针参数是什么？new是什么？多级指针是什么？
 
-### 概念
+## pointer是什么
+
+### pointer是什么的核心规则
 
 - pointer: 保存变量内存地址的值;
 - 零值: `nil`;
@@ -37,7 +39,7 @@ func main() {
 
 ## new
 
-### 概念
+### new的核心规则
 
 - `new(T)`: 分配 `T` 的零值并返回 `*T`;
 - `make`: 只用于 slice, map, channel;

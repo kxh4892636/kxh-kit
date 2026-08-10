@@ -4,15 +4,17 @@ id: a00bdeac-164d-5fc7-a706-1bb335cef8bf
 
 # slice
 
-## 基本概念
+slice是什么？创建方式包含什么，如何选择？nil 和 empty slice是什么？状态对比说明什么？
 
-### 概念
+## slice是什么
+
+### slice是什么的核心规则
 
 - slice: 指向底层数组一段连续元素的描述符;
 - 长度: 当前可访问元素数量;
 - 容量: 从起始位置到底层数组末尾的可扩展空间;
 
-### 语法格式
+### slice是什么的写法
 
 ```go
 func main() {
@@ -35,7 +37,7 @@ func main() {
 
 ## nil 和 empty slice
 
-### 概念
+### nil 和 empty slice的核心规则
 
 - nil slice: 指针为 nil, 长度和容量为 0;
 - empty slice: 指针非 nil, 长度为 0;
@@ -49,7 +51,7 @@ type slice struct {
 }
 ```
 
-### 语法格式
+### nil 和 empty slice的写法
 
 ```go
 func main() {

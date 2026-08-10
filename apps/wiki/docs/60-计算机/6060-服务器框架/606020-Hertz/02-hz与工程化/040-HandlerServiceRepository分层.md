@@ -4,6 +4,8 @@ id: 9477e4ec-ca7a-4297-94bf-799b1c804950
 
 # Handler、Service、Repository 分层
 
+依赖方向是什么？Service是什么？Handler是什么？边界检查有哪些注意点？
+
 ## 依赖方向
 
 ```text
