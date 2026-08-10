@@ -16,6 +16,30 @@ id: 4fd8230e-1d75-4bd7-b445-bcc03fbdcba5
 - 配置原则: 稳定默认值放构造期; 请求特例才放 Call Option;
 - 组合原则: 将一组组织级配置封装为 `Suite`, 避免每个 Client 重复排列 Option;
 
+```go
+type orgClientSuite struct{}
+
+func (orgClientSuite) Options() []client.Option {
+	return []client.Option{
+		client.WithConnectTimeout(200 * time.Millisecond),
+		client.WithRPCTimeout(time.Second),
+		// 可继续加入重试、熔断和 Middleware 等组织级配置。
+	}
+}
+
+func newUserClient() (userservice.Client, error) {
+	cli, err := userservice.NewClient(
+		"user",
+		client.WithSuite(orgClientSuite{}),
+		client.WithHostPorts("127.0.0.1:8888"),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create user client: %w", err)
+	}
+	return cli, nil
+}
+```
+
 ## 常用 Client Option
 
 - `WithClientBasicInfo`: 调用方身份;
