@@ -15,9 +15,11 @@ Most repos have a single context:
 /
 ├── CONTEXT.md
 ├── docs/
-│   └── adr/
-│       ├── 0001-event-sourced-orders.md
-│       └── 0002-postgres-for-write-model.md
+│   ├── adr/
+│   │   ├── 0001-event-sourced-orders.md
+│   │   └── 0002-postgres-for-write-model.md
+│   └── workflows/
+│       └── 0001-ordering-workflow.md
 └── src/
 ```
 
@@ -27,17 +29,22 @@ If a `CONTEXT-MAP.md` exists at the root, the repo has multiple contexts. The ma
 /
 ├── CONTEXT-MAP.md
 ├── docs/
-│   └── adr/                          ← system-wide decisions
+│   ├── adr/                          ← system-wide decisions
+│   └── workflows/                    ← system-wide recurring loops
 ├── src/
 │   ├── ordering/
 │   │   ├── CONTEXT.md
-│   │   └── docs/adr/                 ← context-specific decisions
+│   │   └── docs/
+│   │       ├── adr/                  ← context-specific decisions
+│   │       └── workflows/            ← context-specific recurring loops
 │   └── billing/
 │       ├── CONTEXT.md
-│       └── docs/adr/
+│       └── docs/
+│           ├── adr/
+│           └── workflows/
 ```
 
-Create files lazily — only when you have something to write. If no `CONTEXT.md` exists, create one when the first term is resolved. If no `docs/adr/` exists, create it when the first ADR is needed.
+Create files lazily — only when you have something to write. If no `CONTEXT.md` exists, create one when the first term is resolved. If no `docs/adr/` exists, create it when the first ADR is needed. If no `docs/workflows/` exists, create it when the first recurring loop is specified.
 
 ## During the session
 
@@ -62,6 +69,12 @@ When the user states how something works, check whether the code agrees. If you 
 When a term is resolved, update `CONTEXT.md` right there. Don't batch these up — capture them as they happen. Use the format in [CONTEXT-FORMAT.md](./CONTEXT-FORMAT.md).
 
 `CONTEXT.md` should be totally devoid of implementation details. Do not treat `CONTEXT.md` as a spec, a scratch pad, or a repository for implementation decisions. It is a glossary and nothing else.
+
+### Maintain workflows inline
+
+When a recurring loop is specified, create or update its workflow right there. A workflow captures how the loop runs: its trigger, inputs, preconditions, delegation boundary, completion boundary, and outputs. Use the glossary's language and honour existing ADRs.
+
+Keep each concern in its own home: domain meaning belongs in `CONTEXT.md`, hard-to-reverse architectural decisions belong in ADRs, and recurring execution belongs in `docs/workflows/`.
 
 ### Offer ADRs sparingly
 

@@ -16,7 +16,7 @@ A **flow** is a path through the skills. Most paths run along one **main flow**,
 
 The route most work travels. You have an idea and want it built.
 
-1. **`/grill-with-docs`** — sharpen the idea by interview. Start here when you **have a codebase**: it's stateful, retaining what it learns in `CONTEXT.md` and ADRs. (No codebase? Use `/grill-me` — see Standalone. Both run the same `/grilling` primitive; `grill-with-docs` is the one that leaves a paper trail.)
+1. **`/grill-with-docs`** — sharpen the idea by interview. Start here when you **have a codebase**: it's stateful, retaining what it learns in `CONTEXT.md` and ADRs. (No codebase? Use `/grill-me` — see Standalone. Both run the same `/grilling` primitive; `grill-with-docs` is the one that leaves a paper trail.). Lock in two decisions: whether `/implement` uses `/tdd` (default: yes), and which acceptance gate `/verifying` uses.
 2. **`/implement`** — build it in the same context window. It chooses sibling test branches by impact surface: select **`/tdd`**. Once every applicable branch has evidence, it runs **`/verifying`** for the applicable delivery gates, then **`/code-review`** a two-axis review (Standards + Spec), before committing. Reach for **`/tdd`** alone for concrete test-first behavior, **`/verifying`** alone for delivery evidence, **`/code-review`** alone for a branch or PR review.
 
 ## On-ramps
