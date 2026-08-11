@@ -23,7 +23,7 @@ The route most work travels. You have an idea and want it built.
 
 A starting situation that generates work, then merges onto the main flow.
 
-- **A huge, foggy effort — a greenfield project or a huge feature build, too big for one session** → **`/to-workstreams`**. It splits the effort into independently implementable and verifiable vertical-slice **workstreams**, confirms their boundaries and direct dependencies, writes handoff for each one. Each generated workstream merges onto the main flow at **`/grill-with-docs`**.
+- **A huge, foggy effort — a greenfield project or a huge feature build, too big for one session** → **`/to-slices`**. It splits the effort into independently implementable and verifiable **vertical slices**, confirms their boundaries and direct dependencies, writes handoff for each one. Each generated slice merges onto the main flow at **`/grill-with-docs`**.
 
 ## Vocabulary underneath
 
