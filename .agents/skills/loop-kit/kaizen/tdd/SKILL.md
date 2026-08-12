@@ -1,38 +1,38 @@
 ---
 name: tdd
-description: Test-driven development. Use when the user wants to build features or fix bugs test-first, mentions "red-green-refactor", or wants integration tests.
+description: Test-driven development. 当用户想以 test-first 方式构建 features 或修复 bugs, 提到 "red-green-refactor", 或需要 integration tests 时使用.
 ---
 
 # Test-Driven Development
 
-TDD is the red → green loop. This skill is the reference that makes that loop produce tests worth keeping: what a good test is, where tests go, the anti-patterns, and the rules of the loop. Every section applies on every cycle — consult them before and during the loop, not after.
+TDD 是 red → green loop. 本 skill 是让该 loop 产出值得保留的测试的 reference: 什么是良好的测试, 测试应放在哪里, anti-patterns, 以及 loop 的规则. 每个章节都适用于每次循环, 在 loop 开始前和进行期间查阅, 而不是事后查阅.
 
-When exploring the codebase, read `CONTEXT.md` (if it exists) so test names and interface vocabulary match the project's domain language, and respect ADRs in the area you're touching.
+探索 codebase 时, 读取 `CONTEXT.md`(如果存在), 使测试名称和 interface vocabulary 与项目的 domain language 一致, 并遵守所触及区域的 ADRs.
 
-## What a good test is
+## 什么是良好的 test
 
-Tests verify behavior through public interfaces, not implementation details. Code can change entirely; tests shouldn't. A good test reads like a specification — "user can checkout with valid cart" tells you exactly what capability exists — and survives refactors because it doesn't care about internal structure.
+测试通过 public interfaces 验证行为, 而不是 implementation details. 代码可以完全改变, 测试不应该随之改变. 良好的测试读起来像 specification. "用户可以使用有效 cart 结账"会准确说明存在什么能力. 它不关心内部结构, 因此能经受重构.
 
-See [tests.md](tests.md) for examples and [mocking.md](mocking.md) for mocking guidelines.
+示例参见 [tests.md](tests.md), mocking 指南参见 [mocking.md](mocking.md).
 
-## Seams — where tests go
+## Seams - tests 应放在哪里
 
-A **seam** is the public boundary you test at: the interface where you observe behavior without reaching inside. Tests live at seams, never against internals.
+**seam** 是执行测试的 public boundary: 你可以在该 interface 上观察行为, 而无需深入内部. 测试位于 seams 上, 绝不针对内部结构.
 
-**Test only at pre-agreed seams.** Before writing any test, write down the seams under test and confirm them with the user. No test is written at an unconfirmed seam. You can't test everything — agreeing the seams up front is how testing effort lands on the critical paths and complex logic instead of every edge case.
+**Test only at pre-agreed seams.** 编写任何测试前, 写下受测 seams 并与用户确认. 不在未经确认的 seam 上编写测试. 你无法测试一切. 预先商定 seams, 才能让测试投入落在 critical paths 和复杂逻辑上, 而不是每个 edge case 上.
 
-Ask: "What's the public interface, and which seams should we test?"
+询问: "public interface 是什么, 我们应该测试哪些 seams?"
 
-When the shape of that interface is itself in question — how deep the module is, where the seam belongs, what the interface should expose — use the `/codebase-design` skill for the vocabulary. It is the shared source of the module, interface, depth, seam, adapter, leverage and locality terms, and it is a reference to consult, not a session to run.
+如果该 interface 的形态本身仍是问题, 例如 module 应该多 deep, seam 应放在哪里, interface 应暴露什么, 使用 `/codebase-design` skill 获取 vocabulary. 它是 module, interface, depth, seam, adapter, leverage 和 locality 这些术语的共享来源, 是需要查阅的 reference, 而不是需要运行的会话.
 
 ## Anti-patterns
 
-- **Implementation-coupled** — mocks internal collaborators, tests private methods, or verifies through a side channel (querying the database instead of using the interface). The tell: the test breaks when you refactor but behavior hasn't changed.
-- **Tautological** — the assertion recomputes the expected value the way the code does (`expect(add(a, b)).toBe(a + b)`, a snapshot derived by hand the same way, a constant asserted equal to itself), so it passes by construction and can never disagree with the code. Expected values must come from an independent source of truth — a known-good literal, a worked example, the spec.
-- **Horizontal slicing** — writing all tests first, then all implementation. Bulk tests verify _imagined_ behavior: you test the _shape_ of things rather than user-facing behavior, the tests go insensitive to real changes, and you commit to test structure before understanding the implementation. Work in **vertical slices** instead — one test → one implementation → repeat, each test a **tracer bullet** that responds to what the last cycle taught you.
+- **Implementation-coupled** - mock internal collaborators, 测试 private methods, 或通过 side channel 验证(查询 database, 而不是使用 interface). 识别信号: 重构时行为没有变化, 测试却失败.
+- **Tautological** - assertion 使用与代码相同的方式重新计算 expected value(`expect(add(a, b)).toBe(a + b)`, 以相同方式手动导出的 snapshot, 断言 constant 等于自身), 因此它由构造保证通过, 永远无法与代码产生分歧. Expected values 必须来自独立的 source of truth, 例如 known-good literal, worked example 或 spec.
+- **Horizontal slicing** - 先编写所有测试, 再编写所有 implementation. 批量测试验证_想象中的_行为: 你测试的是事物的_形态_, 而不是 user-facing behavior. 测试会对真实变更失去敏感性, 你也会在理解 implementation 前便对测试结构作出承诺. 改用 **vertical slices**, 一次测试 → 一次 implementation → 重复. 每个测试都是会响应上一个循环所带来认识的 **tracer bullet**.
 
-## Rules of the loop
+## Loop 规则
 
-- **Red before green.** Write the failing test first, then only enough code to pass it. Don't anticipate future tests or add speculative features.
-- **One slice at a time.** One seam, one test, one minimal implementation per cycle.
-- **Refactoring is not part of the loop.** It belongs to the review stage (see the `code-review` skill), not the red → green implementation cycle.
+- **Red before green.** 先编写 failing test, 然后只编写足以使其通过的代码. 不要预判未来测试, 也不要添加 speculative features.
+- **One slice at a time.** 每个循环只处理一个 seam, 一个测试, 一个 minimal implementation.
+- **Refactoring is not part of the loop.** Refactoring 属于 review stage(参见 `code-review` skill), 不属于 red → green implementation cycle.

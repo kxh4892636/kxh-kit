@@ -1,37 +1,37 @@
 # Deepening
 
-How to deepen a cluster of shallow modules safely, given its dependencies. Assumes the vocabulary in [SKILL.md](SKILL.md) — **module**, **interface**, **seam**, **adapter**.
+如何根据依赖安全地 deepen 一组 shallow modules. 本文假定使用 [SKILL.md](SKILL.md) 中的 vocabulary - **module**, **interface**, **seam**, **adapter**.
 
 ## Dependency categories
 
-When assessing a candidate for deepening, classify its dependencies. The category determines how the deepened module is tested across its seam.
+评估 deepening 候选项时, 对它的依赖进行分类. category 决定如何跨越 seam 测试 deepened module.
 
 ### 1. In-process
 
-Pure computation, in-memory state, no I/O. Always deepenable — merge the modules and test through the new interface directly. No adapter needed.
+纯计算, in-memory state, 无 I/O. 始终可以 deepen. 合并 modules, 直接通过新 interface 进行测试. 不需要 adapter.
 
 ### 2. Local-substitutable
 
-Dependencies that have local test stand-ins (PGLite for Postgres, in-memory filesystem). Deepenable if the stand-in exists. The deepened module is tested with the stand-in running in the test suite. The seam is internal; no port at the module's external interface.
+拥有本地 test stand-ins 的依赖(Postgres 使用 PGLite, 文件系统使用 in-memory filesystem). 如果存在 stand-in, 就可以 deepen. 运行 test suite 时, 使用 stand-in 测试 deepened module. seam 是 internal 的, module 的 external interface 上没有 port.
 
 ### 3. Remote but owned (Ports & Adapters)
 
-Your own services across a network boundary (microservices, internal APIs). Define a **port** (interface) at the seam. The deep module owns the logic; the transport is injected as an **adapter**. Tests use an in-memory adapter. Production uses an HTTP/gRPC/queue adapter.
+跨越网络边界的自有服务(microservices, internal APIs). 在 seam 上定义 **port**(interface). deep module 拥有逻辑, transport 以 **adapter** 形式注入. 测试使用 in-memory adapter. 生产环境使用 HTTP/gRPC/queue adapter.
 
-Recommendation shape: _"Define a port at the seam, implement an HTTP adapter for production and an in-memory adapter for testing, so the logic sits in one deep module even though it's deployed across a network."_
+推荐表达: _"在 seam 上定义 port, 为 production 实现 HTTP adapter, 为测试实现 in-memory adapter. 这样, 即使跨网络部署, 逻辑仍位于一个 deep module 中."_
 
 ### 4. True external (Mock)
 
-Third-party services (Stripe, Twilio, etc.) you don't control. The deepened module takes the external dependency as an injected port; tests provide a mock adapter.
+不受你控制的第三方服务(Stripe, Twilio 等). deepened module 将外部依赖作为注入的 port 接收. 测试提供 mock adapter.
 
 ## Seam discipline
 
-- **One adapter means a hypothetical seam. Two adapters means a real one.** Don't introduce a port unless at least two adapters are justified (typically production + test). A single-adapter seam is just indirection.
-- **Internal seams vs external seams.** A deep module can have internal seams (private to its implementation, used by its own tests) as well as the external seam at its interface. Don't expose internal seams through the interface just because tests use them.
+- **One adapter means a hypothetical seam. Two adapters means a real one.** 除非至少两个 adapters 合理存在(通常是生产环境 + 测试), 否则不要引入 port. single-adapter seam 只是 indirection.
+- **Internal seams vs external seams.** deep module 既可以拥有 internal seams(implementation 私有, 由自身测试使用), 也可以在 interface 上拥有 external seam. 不要仅仅因为测试使用 internal seams, 就通过 interface 暴露它们.
 
 ## Testing strategy: replace, don't layer
 
-- Old unit tests on shallow modules become waste once tests at the deepened module's interface exist — delete them.
-- Write new tests at the deepened module's interface. The **interface is the test surface**.
-- Tests assert on observable outcomes through the interface, not internal state.
-- Tests should survive internal refactors — they describe behaviour, not implementation. If a test has to change when the implementation changes, it's testing past the interface.
+- 一旦 deepened module 的 interface 上有了测试, shallow modules 上的旧 unit tests 就变成浪费, 删除它们.
+- 在 deepened module 的 interface 上编写新测试. **interface is the test surface**.
+- 测试通过 interface 对可观察结果作出断言, 而不是对内部状态作出断言.
+- 测试应该能经受内部重构. 它们描述行为, 而不是 implementation. 如果 implementation 变化时测试必须变化, 它测试的范围就越过了 interface.

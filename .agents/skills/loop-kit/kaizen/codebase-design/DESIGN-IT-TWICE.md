@@ -1,44 +1,44 @@
 # Design It Twice
 
-When the user wants to explore alternative interfaces for a chosen deepening candidate, use this parallel sub-agent pattern. Based on "Design It Twice" (Ousterhout) — your first idea is unlikely to be the best.
+当用户想为选定的 deepening 候选项探索备选 interfaces 时, 使用此 parallel sub-agent pattern. 它基于 "Design It Twice"(Ousterhout) - 你的第一个想法不太可能是最好的.
 
-Uses the vocabulary in [SKILL.md](SKILL.md) — **module**, **interface**, **seam**, **adapter**, **leverage**.
+使用 [SKILL.md](SKILL.md) 中的 vocabulary - **module**, **interface**, **seam**, **adapter**, **leverage**.
 
-## Process
+## 流程
 
-### 1. Frame the problem space
+### 1. 界定 problem space
 
-Before spawning sub-agents, write a user-facing explanation of the problem space for the chosen candidate:
+派遣 sub-agents 前, 为选定的候选项编写一份面向用户的 problem space 说明:
 
-- The constraints any new interface would need to satisfy
-- The dependencies it would rely on, and which category they fall into (see [DEEPENING.md](DEEPENING.md))
-- A rough illustrative code sketch to ground the constraints — not a proposal, just a way to make the constraints concrete
+- 任何新 interface 都需要满足的 constraints.
+- 它将依赖的内容, 以及它们所属的 category(参见 [DEEPENING.md](DEEPENING.md)).
+- 用于落地 constraints 的粗略说明性代码草图. 它不是提案, 只是让 constraints 变得具体的方法.
 
-Show this to the user, then immediately proceed to Step 2. The user reads and thinks while the sub-agents work in parallel.
+向用户展示这份说明, 然后立即进入第 2 步. 当 sub-agents 并行工作时, 用户可以阅读和思考.
 
-### 2. Spawn sub-agents
+### 2. 派遣 sub-agents
 
-Spawn 3+ sub-agents in parallel. Each must produce a **radically different** interface for the deepened module.
+并行派遣至少 3 个 sub-agents. 每个 sub-agent 都必须为 deepened module 产出一个**截然不同**的 interface.
 
-Prompt each sub-agent with a separate technical brief (file paths, coupling details, dependency category from [DEEPENING.md](DEEPENING.md), what sits behind the seam). The brief is independent of the user-facing problem-space explanation in Step 1. Give each agent a different design constraint:
+使用独立的 technical brief 提示每个 sub-agent(文件路径, coupling details, [DEEPENING.md](DEEPENING.md) 中的 dependency category, seam 后面的内容). 该 brief 独立于第 1 步面向用户的 problem-space 说明. 为每个 agent 指定不同的 design constraint:
 
-- Agent 1: "Minimize the interface — aim for 1–3 entry points max. Maximise leverage per entry point."
-- Agent 2: "Maximise flexibility — support many use cases and extension."
-- Agent 3: "Optimise for the most common caller — make the default case trivial."
-- Agent 4 (if applicable): "Design around ports & adapters for cross-seam dependencies."
+- Agent 1: "最小化 interface, 最多以 1-3 个入口为目标. 最大化每个入口的 leverage."
+- Agent 2: "最大化灵活性, 支持多种 use cases 和扩展."
+- Agent 3: "为最常见的调用方优化, 让默认情况变得简单."
+- Agent 4(如果适用): "围绕 ports & adapters 设计 cross-seam dependencies."
 
-Include both [SKILL.md](SKILL.md) vocabulary and CONTEXT.md vocabulary in the brief so each sub-agent names things consistently with the architecture language and the project's domain language.
+在 brief 中同时包含 [SKILL.md](SKILL.md) vocabulary 和 CONTEXT.md vocabulary, 让每个 sub-agent 都使用与架构语言和项目 domain language 一致的名称.
 
-Each sub-agent outputs:
+每个 sub-agent 输出:
 
-1. Interface (types, methods, params — plus invariants, ordering, error modes)
-2. Usage example showing how callers use it
-3. What the implementation hides behind the seam
-4. Dependency strategy and adapters (see [DEEPENING.md](DEEPENING.md))
-5. Trade-offs — where leverage is high, where it's thin
+1. Interface(types, methods, params, 以及 invariants, 顺序, 错误模式).
+2. 展示调用方如何使用它的用例.
+3. implementation 隐藏在 seam 后面的内容.
+4. 依赖策略和 adapters(参见 [DEEPENING.md](DEEPENING.md)).
+5. 权衡, leverage 在哪里高, 在哪里薄弱.
 
-### 3. Present and compare
+### 3. 展示并比较
 
-Present designs sequentially so the user can absorb each one, then compare them in prose. Contrast by **depth** (leverage at the interface), **locality** (where change concentrates), and **seam placement**.
+依次展示 designs, 让用户逐个理解, 然后用文字比较它们. 按 **depth**(interface 上的 leverage), **locality**(变更集中的位置)和 **seam placement** 进行对比.
 
-After comparing, give your own recommendation: which design you think is strongest and why. If elements from different designs would combine well, propose a hybrid. Be opinionated — the user wants a strong read, not a menu.
+比较后给出你自己的推荐: 你认为哪个 design 最强, 以及原因. 如果不同 designs 中的要素可以很好地组合, 提出 hybrid. 明确表达观点, 用户想要的是有力判断, 而不是一份菜单.
