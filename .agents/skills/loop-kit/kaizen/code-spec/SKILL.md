@@ -52,7 +52,7 @@ description: 代码规范;编写,修改或审查代码时使用.
 ### 组件模板
 
 ```typescript
-// 组件属性使用接口声明
+// 组件属性使用接口声明, 组件属性数量 <= 8 个, 超过重构组件
 interface MyComponentProps {prop1: string; prop2: number;}
 // 使用箭头函数组件和命名导出;
 export const MyComponent: React.FC<MyComponentProps> = (props: MyComponentProps) => {
