@@ -7,44 +7,44 @@
 
 <!-- LOOP KIT START -->
 
-# Ask Matt
+# Loop Kit
 
-You don't remember every skill, so ask.
-A **flow** is a path through the skills. Most paths run along one **main flow**, and **on-ramps** merge onto it. Everything else is standalone, or a vocabulary layer that runs underneath.
+**流程**是一条贯穿多个 skill 的路径。多数路径沿主流程推进，由接入路径汇入。其余内容要么独立运行，要么作为底层词汇层存在。
 
-## The main flow: idea → ship
+## 主流程：想法 → 交付
 
-The route most work travels. You have an idea and want it built.
+大多数工作都沿这条路径推进：你有一个想法，并希望将它实现。
 
-1. **`/grill-with-docs`** — sharpen the idea by interview. Start here when you **have a codebase**: it's stateful, retaining what it learns in `CONTEXT.md` and ADRs. (No codebase? Use `/grilling` — see Standalone. `grill-with-docs` is the one that leaves a paper trail.). Lock in two decisions: whether `/implement` uses `/tdd` (default: yes), and which acceptance gate `/verifying` uses.
-2. **`/implement`** — build it in the same context window. It chooses sibling test branches by impact surface: select **`/tdd`**. Once every applicable branch has evidence, it runs **`/verifying`** for the applicable delivery gates, then **`/code-review`** a two-axis review (Standards + Spec), before committing. Reach for **`/tdd`** alone for concrete test-first behavior, **`/verifying`** alone for delivery evidence, **`/code-review`** alone for a branch or PR review.
+1. **`/grill-with-docs`**——通过访谈打磨想法。**已有工作区**时从这里开始：它是有状态的，会将访谈中确认的内容保留在 `CONTEXT.md` 和 ADR 中。（没有工作区？使用 `/grilling`——参见“独立工具”。`grill-with-docs` 会留下文档记录。）确认两个决策：`/implement` 是否使用 `/tdd`（默认：是），以及 `/verifying` 使用哪些验收门禁。
+2. **`/implement`**——在同一个上下文窗口中完成构建。它根据影响范围选择同级测试分支：选择 **`/tdd`**。每个适用分支都有证据后，它先运行 **`/verifying`** 执行适用的交付门禁，再运行 **`/code-review`** 完成 **Standards + Spec** 双轴审查，然后提交。需要具体的测试先行行为时单独使用 **`/tdd`**，需要交付证据时单独使用 **`/verifying`**，需要审查分支或 PR 时单独使用 **`/code-review`**。
 
-## On-ramps
+## 接入路径
 
-A starting situation that generates work, then merges onto the main flow.
+从特定起点生成工作，再汇入主流程。
 
-- **A huge, foggy effort — a greenfield project or a huge feature build, too big for one session** → **`/to-slices`**. It splits the effort into independently implementable and verifiable **vertical slices**, confirms their boundaries and direct dependencies, writes handoff for each one. Each generated slice merges onto the main flow at **`/grill-with-docs`**.
+- **一项庞大而模糊的工作——greenfield project 或超大型功能开发，大到单次会话无法完成** → **`/to-slices`**。它将工作拆分为可独立实现、独立验证的 **vertical slice**，确认各切片的边界和直接依赖，并为每个切片编写交接文档。每个生成的切片都从 **`/grill-with-docs`** 汇入主流程。
 
-## Vocabulary underneath
+## 底层词汇
 
-Two model-invoked references that run _beneath_ the other skills — each the single source of truth for its vocabulary. Reach for them directly when the **words**, not the process, are the problem; or let the skills above pull them in.
+供模型调用的参考资料运行在其他 skill _之下_——每一个都是相应术语的 **single source of truth**。当问题出在**术语**而非流程时，直接调用它们；也可以让上层 skill 按需引入它们。
 
-- **`/domain-modeling`** — sharpen the project's _domain_ language: challenge a fuzzy term, resolve an overloaded word ("account" doing three jobs), record a hard-to-reverse decision as an ADR. It's the active discipline `/grill-with-docs` drives to keep `CONTEXT.md` a clean glossary.
-- **`/codebase-design`** — the deep-module vocabulary (module, interface, depth, seam, adapter, leverage, locality) for designing a module's _shape_: a lot of behaviour behind a small interface at a clean seam. `/tdd` speak it.
+- **`/domain-modeling`**——打磨项目的 **domain language**：质疑模糊术语，消解 **overloaded term**（例如用“account”承担三种含义），将难以逆转的决策记录为 ADR。它是 `/grill-with-docs` 主动采用的方法，用于保持 `CONTEXT.md` 是一份干净的术语表。
+- **`/codebase-design`**——用于设计模块 **shape** 的 **deep-module vocabulary**：module、interface、depth、seam、adapter、leverage、locality，即在清晰的 seam 后通过小型 interface 承载大量行为。`/tdd` 使用这套语言。
+- **`/code-spec`**——代码规范，编写, 修改或审查代码时使用.
 
-## Standalone
+## 独立工具
 
-Off the main flow entirely.
+完全独立于主流程。
 
-- **`/grilling`** — the same relentless interview as `/grill-with-docs`, but **stateless**: it saves nothing locally and builds no `CONTEXT.md`. Reach for it when you are **not working in a working directory** — sharpening a plan, a design, a piece of writing, anything with no repo under it. If you are in a working directory, use `/grill-with-docs` instead: it runs the same interview and leaves a paper trail, so it is strictly the better one.
-- **`/wait-what`** — the corrective for a message that didn't land. Use it mid-conversation, inside any other skill, and the agent re-pitches what it just said with the context you were missing, in plain English, using the `CONTEXT.md` vocabulary. It works after the fact; `/grill-with-docs` is the upfront cure, because a shared language agreed early is what stops the jargon arriving at all.
-- **`/writing-for-agents`** — reference for writing documents agents consume: skills, AGENTS.md, pointed-at docs.
-- **`/to-workflow`** — find recurring patterns in current work, and solidify them as workflows in `docs/workflows/*.md`.
-- **`/codin-d2c-cli`** — invoke `codin-d2c` for Figma design-to-code，d2c static resources use svg format；
+- **`/grilling`**——与 `/grill-with-docs` 相同的持续追问式访谈，但它是**无状态**的：不会在本地保存任何内容，也不会创建 `CONTEXT.md`。当工作**不依附于工作目录**时使用它——无论是打磨计划、设计、文章，还是任何不依附于代码仓库的内容。如果位于工作目录中，则使用 `/grill-with-docs`：它执行相同的访谈并留下文档记录，因此严格来说是更优选择。
+- **`/wait-what`**——用于纠正没有传达清楚的信息。在对话过程中或任何其他 skill 内使用它，agent 会补充你缺失的上下文，用通俗语言和 `CONTEXT.md` 中的词汇重新表达刚才的内容。它是事后补救；`/grill-with-docs` 是事前预防，因为尽早确认共同语言，才能避免术语突然出现。
+- **`/writing-for-agents`**——编写供 agent 使用的文档时所参考的资料：skill、AGENTS.md 以及 **context pointer** 指向的文档。
+- **`/to-workflow`**——发现当前工作中的重复模式，并将其固化为 `docs/workflows/*.md` 中的 Workflow。
+- **`/codin-d2c-cli`**——调用 `codin-d2c` 完成 Figma Design-to-Code；D2C 静态资源使用 SVG 格式。
 
-## Domain Doc
+## 领域文档
 
-- This repository uses a single-context domain documentation layout. See `DOMAIN.md`.
+- 本工作区采用 **single-context** 领域文档布局。参见 `DOMAIN.md`。
 
 <!-- LOOP KIT END -->
 
