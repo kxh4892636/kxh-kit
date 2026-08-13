@@ -5,7 +5,7 @@ description: 构建并打磨项目的 domain model. 当用户想确定 domain te
 
 # Domain Modeling
 
-在设计过程中主动构建并打磨项目的 domain model. 这是一项_主动_实践, 它会质疑术语, 构造 edge-case scenarios, 并在 glossary 和决策明确的那一刻将其写下.(仅仅为了 vocabulary 而_读取_领域文档并不属于本 skill, 那是任何 skill 都能做到的一行习惯. 本 skill 用于改变 domain model, 而不是只使用它.)
+在设计过程中主动构建并打磨项目的 domain model. 这是一项*主动*实践, 它会质疑术语, 构造 edge-case scenarios, 并在 glossary 和决策明确的那一刻将其写下.(仅仅为了 vocabulary 而*读取*领域文档并不属于本 skill, 那是任何 skill 都能做到的一行习惯. 本 skill 用于改变 domain model, 而不是只使用它.)
 
 ## 文件结构
 
@@ -60,12 +60,6 @@ repos 默认采用 multi-context 布局. 根目录的 `CONTEXT-MAP.md` 索引业
 
 `CONTEXT.md` 应完全不包含 implementation details. 不要将 `CONTEXT.md` 当作 spec, scratch pad 或 implementation decisions 的存储库. 它只是 glossary, 除此之外什么都不是.
 
-### 就地维护 workflows
-
-明确 recurring loop 后, 当场创建或更新 `docs/{domain-name}/workflows/` 中的 workflow. workflow 记录 loop 如何运行: 它的 trigger, 输入, 前置条件, delegation boundary, completion boundary 和输出. 使用 glossary 中的语言, 并遵守该业务域及相关业务域的 ADRs.
-
-让每项关注点都待在自己的归属地: domain meaning 属于业务域 `CONTEXT.md`, hard-to-reverse architectural decisions 属于业务域 `adr/`, recurring execution 属于业务域 `workflows/`.
-
 ### 谨慎提议 ADRs
 
 只有同时满足以下三个条件时, 才提议创建 ADR:
@@ -75,3 +69,7 @@ repos 默认采用 multi-context 布局. 根目录的 `CONTEXT-MAP.md` 索引业
 3. **The result of a real trade-off** - 确实存在备选方案, 并且你出于具体原因选择了其中一个.
 
 缺少其中任何一个条件时, 跳过 ADR. 使用 [ADR-FORMAT.md](./ADR-FORMAT.md) 中的格式.
+
+### 显式创建 workflows
+
+workflow 只能用户显式调用 `/to-workflow` skill 创建/更新, 当用户输入与 workflow 事实冲突，应显式指出: "你说当前工作需要使用 A, 但是 workflow 中规定使用 B, 那个是正确的?".

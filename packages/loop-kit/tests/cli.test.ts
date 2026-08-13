@@ -50,12 +50,12 @@ test("installs the published snapshot into an empty target root", (): void => {
     );
     expect(
       readFileSync(
-        join(targetRoot, ".agents", "skills", "loop-kit", "matt", "grilling", "SKILL.md"),
+        join(targetRoot, ".agents", "skills", "loop-kit", "kaizen", "grilling", "SKILL.md"),
         "utf8",
       ),
     ).toBe(
       readFileSync(
-        join(repositoryRoot, ".agents", "skills", "loop-kit", "matt", "grilling", "SKILL.md"),
+        join(repositoryRoot, ".agents", "skills", "loop-kit", "kaizen", "grilling", "SKILL.md"),
         "utf8",
       ),
     );
@@ -71,7 +71,60 @@ test("installs the published snapshot into an empty target root", (): void => {
   }
 });
 
-test("updates managed content while preserving target-owned content", (): void => {
+test("removes a target-only skill and reports one deleted skill", (): void => {
+  const targetRoot = mkdtempSync(join(tmpdir(), "loop-kit-cli-"));
+  const staleSkillRoot = join(targetRoot, ".agents", "skills", "loop-kit", "local", "stale-skill");
+  mkdirSync(staleSkillRoot, { recursive: true });
+  writeFileSync(join(staleSkillRoot, "SKILL.md"), "# Stale skill\n");
+
+  try {
+    const result = runCli(["--target", targetRoot]);
+
+    expect(result.status).toBe(0);
+    expect(existsSync(staleSkillRoot)).toBe(false);
+    expect(result.stdout).toContain("deleted 1");
+  } finally {
+    rmSync(targetRoot, { recursive: true, force: true });
+  }
+});
+
+test("removes target-only non-skill content without counting it as a skill", (): void => {
+  const targetRoot = mkdtempSync(join(tmpdir(), "loop-kit-cli-"));
+  const staleFile = join(targetRoot, ".agents", "skills", "loop-kit", "local-note.md");
+  mkdirSync(dirname(staleFile), { recursive: true });
+  writeFileSync(staleFile, "not a skill\n");
+
+  try {
+    const result = runCli(["--target", targetRoot]);
+
+    expect(result.status).toBe(0);
+    expect(existsSync(staleFile)).toBe(false);
+    expect(result.stdout).toContain("deleted 0");
+  } finally {
+    rmSync(targetRoot, { recursive: true, force: true });
+  }
+});
+
+test("removes a target-only empty directory without counting it as a skill", (): void => {
+  const targetRoot = mkdtempSync(join(tmpdir(), "loop-kit-cli-"));
+
+  try {
+    const first = runCli(["--target", targetRoot]);
+    expect(first.status).toBe(0);
+
+    const staleDirectory = join(targetRoot, ".agents", "skills", "loop-kit", "empty-directory");
+    mkdirSync(staleDirectory);
+
+    const second = runCli(["--target", targetRoot]);
+    expect(second.status).toBe(0);
+    expect(existsSync(staleDirectory)).toBe(false);
+    expect(second.stdout).toContain("deleted 0");
+  } finally {
+    rmSync(targetRoot, { recursive: true, force: true });
+  }
+});
+
+test("updates managed files while preserving target-owned AGENTS.md content", (): void => {
   const targetRoot = mkdtempSync(join(tmpdir(), "loop-kit-cli-"));
   const extraSkill = join(targetRoot, ".agents", "skills", "loop-kit", "local-skill.md");
   mkdirSync(dirname(extraSkill), { recursive: true });
@@ -106,8 +159,8 @@ test("updates managed content while preserving target-owned content", (): void =
     expect(agents).toContain("local skill rules");
     expect(agents).not.toContain("old general rules");
     expect(agents).not.toContain("old loop kit");
-    expect(agents).toContain("# Ask Matt");
-    expect(readFileSync(extraSkill, "utf8")).toBe("local skill\n");
+    expect(agents).toContain("## 主流程：想法 → 交付");
+    expect(existsSync(extraSkill)).toBe(false);
     expect(readFileSync(join(targetRoot, "DOMAIN.md"), "utf8")).toBe(
       readFileSync(join(repositoryRoot, "DOMAIN.md"), "utf8"),
     );
@@ -115,6 +168,7 @@ test("updates managed content while preserving target-owned content", (): void =
     const second = runCli(["--target", targetRoot]);
     expect(second.status).toBe(0);
     expect(second.stdout).toContain("updated 0");
+    expect(second.stdout).toContain("deleted 0");
   } finally {
     rmSync(targetRoot, { recursive: true, force: true });
   }
@@ -152,25 +206,35 @@ test("rolls back earlier writes when a later destination fails", (): void => {
 test("rejects ambiguous managed markers before changing other files", (): void => {
   const targetRoot = mkdtempSync(join(tmpdir(), "loop-kit-cli-"));
   const originalDomain = "original domain\n";
-  writeFileSync(join(targetRoot, "DOMAIN.md"), originalDomain);
-  writeFileSync(
-    join(targetRoot, "AGENTS.md"),
-    [
-      "<!-- GENERAL RULES START -->",
-      "first",
-      "<!-- GENERAL RULES START -->",
-      "second",
-      "<!-- GENERAL RULES END -->",
-    ].join("\n"),
+  const originalAgents = [
+    "<!-- GENERAL RULES START -->",
+    "first",
+    "<!-- GENERAL RULES START -->",
+    "second",
+    "<!-- GENERAL RULES END -->",
+  ].join("\n");
+  const originalSkill = join(
+    targetRoot,
+    ".agents",
+    "skills",
+    "loop-kit",
+    "local",
+    "original-skill",
+    "SKILL.md",
   );
+  mkdirSync(dirname(originalSkill), { recursive: true });
+  writeFileSync(originalSkill, "original skill\n");
+  writeFileSync(join(targetRoot, "DOMAIN.md"), originalDomain);
+  writeFileSync(join(targetRoot, "AGENTS.md"), originalAgents);
 
   try {
     const result = runCli(["--target", targetRoot]);
 
     expect(result.status).toBe(1);
     expect(result.stderr).toContain("Invalid GENERAL RULES markers");
+    expect(readFileSync(join(targetRoot, "AGENTS.md"), "utf8")).toBe(originalAgents);
     expect(readFileSync(join(targetRoot, "DOMAIN.md"), "utf8")).toBe(originalDomain);
-    expect(existsSync(join(targetRoot, ".agents", "skills", "loop-kit"))).toBe(false);
+    expect(readFileSync(originalSkill, "utf8")).toBe("original skill\n");
   } finally {
     rmSync(targetRoot, { recursive: true, force: true });
   }

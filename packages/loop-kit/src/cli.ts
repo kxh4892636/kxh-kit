@@ -32,7 +32,7 @@ if (target === undefined || target.startsWith("--")) {
       const payloadRoot = join(dirname(fileURLToPath(import.meta.url)), "payload");
       const summary = installSnapshot(payloadRoot, targetRoot);
       console.log(
-        `Installed to ${targetRoot}: created ${summary.created}, updated ${summary.updated}, unchanged ${summary.unchanged}`,
+        `Installed to ${targetRoot}: created ${summary.created}, updated ${summary.updated}, unchanged ${summary.unchanged}, deleted ${summary.deleted}`,
       );
     } catch (error: unknown) {
       console.error(`Installation failed for ${targetRoot}`, error);
