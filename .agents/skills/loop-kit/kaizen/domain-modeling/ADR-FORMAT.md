@@ -1,8 +1,8 @@
 # ADR Format
 
-ADRs 位于 `docs/adr/`, 并使用连续编号: `0001-slug.md`, `0002-slug.md` 等.
+ADRs 位于拥有该决策的业务域 `docs/{domain-name}/adr/`, 并使用连续编号: `0001-slug.md`, `0002-slug.md` 等. 每个业务域独立编号.
 
-惰性创建 `docs/adr/` 目录, 仅在需要第一个 ADR 时创建.
+惰性创建 `docs/{domain-name}/adr/` 目录, 仅在该业务域需要第一个 ADR 时创建. 跨业务域决策只选择一个 owner, 其他业务域通过链接引用, 不复制决策.
 
 ## 模板
 
@@ -24,7 +24,7 @@ ADRs 位于 `docs/adr/`, 并使用连续编号: `0001-slug.md`, `0002-slug.md` �
 
 ## 编号
 
-扫描 `docs/adr/` 中已有的最大编号, 并递增 1.
+扫描目标业务域 `docs/{domain-name}/adr/` 中已有的最大编号, 并递增 1.
 
 ## 何时提议 ADR
 

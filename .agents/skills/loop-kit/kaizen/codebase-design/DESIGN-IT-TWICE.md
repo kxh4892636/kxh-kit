@@ -27,7 +27,7 @@
 - Agent 3: "为最常见的调用方优化, 让默认情况变得简单."
 - Agent 4(如果适用): "围绕 ports & adapters 设计 cross-seam dependencies."
 
-在 brief 中同时包含 [SKILL.md](SKILL.md) vocabulary 和 CONTEXT.md vocabulary, 让每个 sub-agent 都使用与架构语言和项目 domain language 一致的名称.
+在 brief 中同时包含 [SKILL.md](SKILL.md) vocabulary 和相关业务域的 CONTEXT.md vocabulary, 让每个 sub-agent 都使用与架构语言和项目 domain language 一致的名称.
 
 每个 sub-agent 输出:
 

@@ -7,7 +7,7 @@ description: Test-driven development. 当用户想以 test-first 方式构建 fe
 
 TDD 是 red → green loop. 本 skill 是让该 loop 产出值得保留的测试的 reference: 什么是良好的测试, 测试应放在哪里, anti-patterns, 以及 loop 的规则. 每个章节都适用于每次循环, 在 loop 开始前和进行期间查阅, 而不是事后查阅.
 
-探索 codebase 时, 读取 `CONTEXT.md`(如果存在), 使测试名称和 interface vocabulary 与项目的 domain language 一致, 并遵守所触及区域的 ADRs.
+探索 codebase 时, 从 `CONTEXT-MAP.md` 定位所触及业务域并读取它们的 `CONTEXT.md`, 使测试名称和 interface vocabulary 与项目的 domain language 一致, 并遵守相关业务域的 ADRs.
 
 ## 什么是良好的 test
 

@@ -11,7 +11,7 @@ disable-model-invocation: true
 
 ## 1. 建立工作边界
 
-从用户参数或当前工作中提取目标, 并先自行查明工作区事实. 读取 `CONTEXT.md`, 所触及区域的 ADR / Workflow, 以及已有 PRD, spec, issue, commit 或 diff.
+从用户参数或当前工作中提取目标, 并先自行查明工作区事实. 从 `CONTEXT-MAP.md` 定位所触及业务域, 读取它们的 `CONTEXT.md`, 相关 ADR / Workflow, 以及已有 PRD, spec, issue, commit 或 diff.
 
 形成一份工作简报:
 

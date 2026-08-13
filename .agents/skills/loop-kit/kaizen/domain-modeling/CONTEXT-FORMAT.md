@@ -1,6 +1,6 @@
-# CONTEXT.md Format
+# Context Format
 
-## 结构
+## 业务域 CONTEXT.md
 
 ```md
 # {Context 名称}
@@ -22,27 +22,25 @@ _Avoid_: Bill, payment request
 _Avoid_: Client, buyer, account
 ```
 
-## 规则
+### 规则
 
 - **明确表达主张.** 如果同一个概念有多个词, 选择最好的一个, 并将其他词列在 `_Avoid_` 下.
 - **保持定义紧凑.** 最多一到两句话. 定义它_是什么_, 而不是它做什么.
 - **只包含此项目 context 特有的术语.** 即使项目大量使用通用编程概念(timeouts, error types, utility patterns), 它们也不属于这里. 添加术语前, 询问: 这是此 context 独有的概念, 还是通用编程概念? 只包含前者.
 - **在 subheadings 下对术语分组.** 在自然形成 clusters 时对术语分组. 如果所有术语都属于同一个 cohesive area, 使用 flat list 即可.
 
-## Single-context 与 multi-context repos
+## CONTEXT-MAP.md
 
-**Single context(大多数 repos):** repo 根目录下有一个 `CONTEXT.md`.
-
-**Multiple contexts:** repo 根目录下的 `CONTEXT-MAP.md` 列出 contexts, 它们所在的位置, 以及彼此之间的关系:
+repo 根目录的 `CONTEXT-MAP.md` 列出业务域, 它们的 glossary 位置, 以及彼此之间的关系:
 
 ```md
 # Context Map
 
 ## Contexts
 
-- [Ordering](./src/ordering/CONTEXT.md) - 接收并跟踪 customer orders.
-- [Billing](./src/billing/CONTEXT.md) - 生成 invoices 并处理 payments.
-- [Fulfillment](./src/fulfillment/CONTEXT.md) - 管理仓库拣货和运输.
+- [Ordering](./docs/ordering/CONTEXT.md) - 接收并跟踪 customer orders.
+- [Billing](./docs/billing/CONTEXT.md) - 生成 invoices 并处理 payments.
+- [Fulfillment](./docs/fulfillment/CONTEXT.md) - 管理仓库拣货和运输.
 
 ## Relationships
 
@@ -51,10 +49,11 @@ _Avoid_: Client, buyer, account
 - **Ordering ↔ Billing**: 共享 `CustomerId` 和 `Money` types.
 ```
 
-skill 推断适用的结构:
+map 只承担索引与关系, 不重复业务域 glossary. 没有跨域关系时省略 `Relationships`.
 
-- 如果存在 `CONTEXT-MAP.md`, 读取它以查找 contexts.
-- 如果只存在根目录 `CONTEXT.md`, 使用 single context.
-- 如果两者都不存在, 在确定第一个 term 时惰性创建根目录 `CONTEXT.md`.
+## 定位与创建
 
-存在 multiple contexts 时, 推断当前 topic 与哪个 context 相关. 如果不清楚, 询问用户.
+- 先读取 `CONTEXT-MAP.md`, 再推断当前 topic 与哪些业务域相关.
+- 如果归属不清楚, 询问用户.
+- 新业务域使用稳定、简短的 kebab-case `domain-name`; 同时创建 `docs/{domain-name}/CONTEXT.md` 和 map entry, 使链接始终可解析.
+- 新的跨域关系只在 map 中记录一次.
