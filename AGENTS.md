@@ -22,7 +22,7 @@
 
 从特定起点生成工作，再汇入主流程。
 
-- **一项庞大而模糊的工作——greenfield project 或超大型功能开发，大到单次会话无法完成** → **`/to-slices`**。它将工作拆分为可独立实现、独立验证的 **vertical slice**，确认各切片的边界和直接依赖，并为每个切片编写交接文档。每个生成的切片都从 **`/grill-with-docs`** 汇入主流程。
+- **一项庞大而模糊的工作——greenfield project 或超大型功能开发，大到单次会话上下文无法完成** → **`/to-issues`**。它由 **`/grill-with-docs`** 驱动，将访谈中澄清的内容动态维护为业务域 plans 目录下的一份 **spec** 和可独立实现、独立验证的 **tracer-bullet issue**。就绪的 issue 直接进入 **`/implement`**，仍需澄清的经 **`/grill-with-docs`** 汇入主流程。
 
 ## 底层词汇
 

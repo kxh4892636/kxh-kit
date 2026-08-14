@@ -5,7 +5,7 @@
 ## 规则
 
 - 所有文件都创建在工作区根目录，而不是子仓库中；
-- `docs/` 下的 ADR 和 Workflow 文件名及所有文档正文使用中文；约定名 `CONTEXT.md` 与 `domain-name` 除外；
+- `docs/` 下的 ADR、Workflow 和 Plan 文件名及所有文档正文使用中文；约定名 `CONTEXT.md`、`spec.md` 与 `domain-name` 除外；
 - 每个 `docs/{domain-name}/CONTEXT.md` 行数 <= 610；每个领域的 `adr/*.md` 文件数 <= 89，行数 <= 144；每个领域的 `workflows/*.md` 文件数 <= 55，行数 <= 233；
 - 如果超出任一限制，合并、拆分或删除超出的内容。
 
@@ -28,6 +28,7 @@
 - `docs/{domain-name}/CONTEXT.md` 包含该业务域的 domain glossary（领域术语表）。
 - `docs/{domain-name}/adr/` 包含该业务域的 ADR（Architecture Decision Record，架构决策记录）。
 - `docs/{domain-name}/workflows/` 包含该业务域的 Workflow 规范。
+- `docs/{domain-name}/plans/` 包含该业务域的工作计划（Plan）：每个子目录是一项工作的 spec 及其 tracer-bullet issue 拆分（由 `/to-issues` 维护），按生命周期分类，约束见「Plan 生命周期」。
 
 ```text
 /
@@ -37,16 +38,32 @@
 │   │   ├── CONTEXT.md
 │   │   ├── adr/
 │   │   │   └── 0001-采用事件溯源订单.md
+│   │   ├── plans/
+│   │   │   └── active/
+│   │   │       └── 0001-支持订单取消/
+│   │   │           ├── spec.md
+│   │   │           └── 01-取消接口.md
 │   │   └── workflows/
 │   │       └── 0001-订单处理-创建-支付-履约.md
 │   └── billing/
 │       ├── CONTEXT.md
 │       ├── adr/
+│       ├── plans/
 │       └── workflows/
 └── src/
 ```
 
 `domain-name` 使用稳定、简短的 kebab-case 名称。新增业务域时同时把它加入 `CONTEXT-MAP.md`；跨业务域关系也只在 map 中定义一次。
+
+## Plan 生命周期
+
+`docs/{domain-name}/plans/` 按生命周期分为三类目录：
+
+- `active/`——进行中：当前正在推进的 plan；
+- `reference/`——可参考：已完成且仍有参考价值的 plan；
+- `archived/`——已归档：已废弃、已过时、不再有用的 plan。内容冻结，不再更新，也不再是权威来源。
+
+plan 生命周期与 plan 内 spec/issue 的状态协议相互独立：目录位置承载活性与价值分类，frontmatter `status:` 承载执行进度，两者不互相推导；
 
 ## 使用术语表中的词汇
 
