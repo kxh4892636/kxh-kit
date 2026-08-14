@@ -15,6 +15,24 @@ npx --yes --registry=https://registry.npmjs.org/ @kxh4892636/loop-kit@latest --t
 
 Relative target paths are resolved from the current working directory. The command prints the resolved absolute path, created, updated, and unchanged file counts, and the deleted skill count.
 
+### Local build and global install
+
+For development, install the workspace directory globally with one command. npm links the directory (no copy, no `prepack` run), so rebuild after source edits:
+
+```bash
+npm run build && npm install --global .
+```
+
+For an immutable copy of exactly what would be published, pack the workspace version and install from the local tarball instead. Run each command in turn. `npm pack` runs `prepack`, which rebuilds the CLI and snapshots the current workspace files, and prints the tarball name (the version comes from `package.json`):
+
+```bash
+npm pack
+npm install --global ./kxh4892636-loop-kit-0.1.8.tgz
+loop-kit --target .
+```
+
+The globally installed `loop-kit` command behaves exactly like the `npx` invocation above.
+
 ## Installation behavior
 
 - `DOMAIN.md` is replaced with the published version.

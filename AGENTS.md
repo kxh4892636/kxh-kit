@@ -51,4 +51,6 @@
 
 <!-- PROJECT RULES START -->
 
+使用 `/herdr`, 创建一个同 Model 同 Agent 的 Session, 实现 SubAgent 功能;
+
 <!-- PROJECT RULES END -->
