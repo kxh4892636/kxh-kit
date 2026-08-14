@@ -1,10 +1,10 @@
 ---
 name: implement
-description: "根据 spec 或一组 tickets 实现一项工作."
+description: "根据 spec 或 issues 实现一项工作."
 disable-model-invocation: true
 ---
 
-实现用户在 spec 或 tickets 中描述的工作.
+实现用户在 spec 或 issues 中描述的工作.
 
 尽可能在预先商定的 seams 上使用 /tdd.
 

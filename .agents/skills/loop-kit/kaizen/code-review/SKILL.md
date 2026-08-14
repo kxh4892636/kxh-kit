@@ -25,7 +25,7 @@ description: 沿两个轴审查自 fixed point(commit, branch, tag 或 merge-bas
 按以下顺序查找原始 spec:
 
 1. 用户作为参数传入的路径.
-2. `docs/` 下与 branch 名称或 feature 匹配的 spec 文件.
+2. `docs/{domain-name}/plans/` 下与 branch 名称或 feature 匹配的 plan 目录中的 spec.md 文件.
 3. 如果没有找到, 询问用户 spec 在哪里. 如果用户表示没有 spec, 跳过 **Spec** sub-agent, 并报告 "没有可用的 spec".
 
 ### 3. 确定 Standards 来源
@@ -37,7 +37,7 @@ repo 中任何说明代码应如何编写的内容, 例如 `CODING_STANDARDS.md`
 - **The repo overrides.** 仓库中记录的 standard 始终优先. 如果它认可 smell baseline 会标记的内容, 则抑制该 smell.
 - **Always a judgement call.** 每个 smell 都是带标签的 heuristic("可能存在 Feature Envy"), 绝不是硬性违规. 与这里的任何 standard 一样, 跳过工具已经强制执行的内容.
 
-每个 smell 都按_它是什么_ → _如何修复_来描述. 将其与 diff 对照:
+每个 smell 都按*它是什么* → *如何修复*来描述. 将其与 diff 对照:
 
 - **Mysterious Name** - function, variable 或 type 的名称没有揭示它执行或承载的内容. → 重命名. 如果想不出诚实的名称, 说明设计含混不清.
 - **Duplicated Code** - 同一种逻辑形态出现在本次变更的多个 hunk 或文件中. → 提取共享形态, 并从两处调用它.
@@ -70,9 +70,9 @@ repo 中任何说明代码应如何编写的内容, 例如 `CODING_STANDARDS.md`
 
 ### 5. 汇总
 
-在 `## Standards` 和 `## Spec` 标题下逐字呈现或轻度整理两份报告. **不要**合并发现或重新排序. 两个轴是刻意分开的(参见_为什么使用两个轴_).
+在 `## Standards` 和 `## Spec` 标题下逐字呈现或轻度整理两份报告. **不要**合并发现或重新排序. 两个轴是刻意分开的(参见*为什么使用两个轴*).
 
-最后用一行总结: 每个轴的发现总数, 以及_每个轴内部_最严重的问题(如果有). 不要跨轴选出唯一最严重的问题, 因为这种重新排序正是两个轴的分离所要避免的.
+最后用一行总结: 每个轴的发现总数, 以及*每个轴内部*最严重的问题(如果有). 不要跨轴选出唯一最严重的问题, 因为这种重新排序正是两个轴的分离所要避免的.
 
 ## 为什么使用两个轴
 
