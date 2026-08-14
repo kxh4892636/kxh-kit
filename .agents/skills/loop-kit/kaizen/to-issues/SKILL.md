@@ -1,6 +1,6 @@
 ---
 name: to-issues
-description: 把一次上下文无法安全完成的工作维护为领域 plan——一份 spec 加一张 tracer-bullet issue 图, 由 /grill-with-docs 驱动, 落在 docs/{domain-name}/plans/.
+description: 把一次上下文无法安全完成的工作维护为领域 plan——一份 spec 加一张 tracer-bullet issue 图, 落在 docs/{domain-name}/plans/.
 argument-hint: "要拆分或推进什么工作?"
 disable-model-invocation: true
 ---
@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 两种调用方式:
 
-- **建立与维护**——由 `/grill-with-docs` 驱动, 访谈中确认的内容就地落为 spec 和 issue;
+- **建立与维护**——由 `/grill-with-docs` skill 驱动, 访谈中确认的内容就地落为 spec 和 issue;
 - **推进**——领取可开始的 issue, 进入实现或继续澄清.
 
 文档布局(`NNNN` 取该域 plans/ 下下一个顺序号):
@@ -23,25 +23,21 @@ docs/{domain-name}/plans/{lifecycle}/NNNN-中文工作名/
 
 lifecycle 为 `active/`(进行中), `reference/`(可参考)或 `archived/`(已归档); 新 plan 一律落在 `active/`.
 
-spec 是索引不是仓库: 它承载问题, 方案, 状态和依赖图; 决策细节在 issue 和 ADR 中.
+spec 承载问题, 方案, 状态和依赖图; 决策细节在 issue 和 ADR 中.
 
 ## 建立与维护
 
-运行 `/grill-with-docs`, 将 design tree 限制在边界, 覆盖关系, 直接依赖和最小验收结果. 每轮访谈确认的内容**就地**创建或更新文档, 不攒批:
+运行 `/grill-with-docs`, 每轮访谈确认的内容**就地**创建或更新文档, 不攒批:
 
-1. **定域与查明事实**——从 `CONTEXT-MAP.md` 定位业务域, 工作落在**一个**域内; 跨域工作先在 map 中确认关系并选定主域, 或按域拆成多次拆分. 读取该域 `CONTEXT.md`, 相关 ADR / Workflow, 已有 spec, issue, commit 或 diff.
+1. **定域与查明事实**——从 `CONTEXT-MAP.md` 定位业务域, 工作落在**一个**域内; 跨域工作先在 map 中确认关系并选定主域, 或按域拆成多次拆分. 读取该域 `CONTEXT.md`, 相关 ADR / Workflow, 已有 spec, issue, commit 或 diff 等工作涉及产物.
 2. **逐轮澄清, 就地落盘**:
-   - 目标, 约束, 实施决策 → spec.md 对应小节;
-   - 执行所需的项目管理与开发环境信息 → spec.md 的 `工作环境`;
-   - 被击败的方案和理由 → spec.md 的 `已排除的备选`;
-   - 可精确表述且可独立验收的工作 → 新 issue 文件(按下方 tracer-bullet 规则);
-   - 尚不能精确表述的部分 → spec.md 的 `待定` 节, 澄清后 graduate 为 issue.
+   - 落盘的是确认后的结论, 不是对话记录; 每条结论当轮归入 spec.md 对应小节, 无对应小节的按模板扩展处理;
+   - 可精确表述且可独立验收的工作 → 新 issue 文件(tracer-bullet 规则);
 3. **每轮结束校验不变量**(见状态协议), 迭代到用户批准整体边界和依赖图.
 
 tracer-bullet 规则:
 
 - 以一个完整的用户结果或业务能力为边界, 只贯穿实现该能力所需的层级;
-- 大小适配单个全新上下文窗口;
 - 在直接依赖成立后, 可以独立实现, 交付和验收;
 - 从 `01` 按依赖序编号, 编号即稳定 ID;
 - 每条直接依赖都说明原因和本 issue 消费的产物或契约;

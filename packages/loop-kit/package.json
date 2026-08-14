@@ -1,6 +1,6 @@
 {
   "name": "@kxh4892636/loop-kit",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "description": "Install the Kxh Kit agent rules, domain guide, and Loop Kit skills.",
   "license": "MIT",
   "bin": {
