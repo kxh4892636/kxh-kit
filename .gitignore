@@ -1,10 +1,6 @@
 # Data
-data
-!apps/etf-service/data/
-!apps/etf-service/data/*.json
-inbox/local
 .cache
-.scratch/
+.temp/
 
 # Logs
 logs
@@ -33,8 +29,6 @@ dist-ssr
 
 # AI agent worktrees
 .claude/worktrees/
-docs/spec
-.reasonix
 
 # k2 injected: managed agent directories
 **/.codex/skills/k2/

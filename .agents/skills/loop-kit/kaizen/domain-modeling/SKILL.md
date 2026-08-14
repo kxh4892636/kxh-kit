@@ -30,7 +30,7 @@ repos 默认采用 multi-context 布局. 根目录的 `CONTEXT-MAP.md` 索引业
 
 先读取 `CONTEXT-MAP.md`, 再根据当前 topic 定位一个或多个业务域. 如果归属不清楚, 询问用户. `domain-name` 使用稳定、简短的 kebab-case 名称.
 
-创建新业务域时, 同时创建 `docs/{domain-name}/CONTEXT.md` 并加入 `CONTEXT-MAP.md`. `adr/` 和 `workflows/` 惰性创建, 只在分别有 ADR 或 recurring loop 可写时创建. 跨业务域关系只在 map 中定义一次; 跨域决策或 workflow 归入拥有它的业务域, 其他业务域通过链接引用.
+创建新业务域时, 同时创建 `docs/{domain-name}/CONTEXT.md` 并加入 `CONTEXT-MAP.md`. `adr/` 和 `workflows/` 惰性创建, 只在分别有 ADR 或用户显式创建 workflow 时创建. 跨业务域关系只在 map 中定义一次; 跨域决策或 workflow 归入拥有它的业务域, 其他业务域通过链接引用.
 
 ## 会话期间
 
@@ -72,4 +72,4 @@ repos 默认采用 multi-context 布局. 根目录的 `CONTEXT-MAP.md` 索引业
 
 ### 显式创建 workflows
 
-workflow 只能用户显式调用 `/to-workflow` skill 创建/更新, 当用户输入与 workflow 事实冲突，应显式指出: "你说当前工作需要使用 A, 但是 workflow 中规定使用 B, 那个是正确的?".
+workflow 只能用户显式调用 `/to-workflow` skill 创建/更新/删除, 当用户输入与 workflow 事实冲突，应显式指出: "你说当前工作需要使用 A, 但是 workflow 中规定使用 B, 那个是正确的?".
