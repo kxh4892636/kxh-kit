@@ -18,12 +18,18 @@ repos 默认采用 multi-context 布局. 根目录的 `CONTEXT-MAP.md` 索引业
 │   ├── ordering/
 │   │   ├── CONTEXT.md
 │   │   ├── adr/
-│   │   │   └── 0001-event-sourced-orders.md
+│   │   │   └── 0001-采用事件溯源订单.md
+│   │   ├── plans/
+│   │   │   └── active/
+│   │   │       └── 0001-支持订单取消/
+│   │   │           ├── spec.md
+│   │   │           └── 01-取消接口.md
 │   │   └── workflows/
-│   │       └── 0001-ordering-workflow.md
+│   │       └── 0001-订单处理-创建-支付-履约.md
 │   └── billing/
 │       ├── CONTEXT.md
 │       ├── adr/
+│       ├── plans/
 │       └── workflows/
 └── src/
 ```

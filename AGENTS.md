@@ -15,8 +15,8 @@
 
 大多数工作都沿这条路径推进：你有一个想法，并希望将它实现。
 
-1. **`/grill-with-docs`**——通过访谈打磨想法。**已有工作区**时从这里开始：它是有状态的，会将访谈中确认的内容保留在对应业务域的 `CONTEXT.md`、ADR 和 Workflow 中。（没有工作区？使用 `/grilling`——参见“独立工具”。`grill-with-docs` 会留下文档记录。）确认两个决策：`/implement` 是否使用 `/tdd`（默认：是），以及 `/verifying` 使用哪些验收门禁。
-2. **`/implement`**——在同一个上下文窗口中完成构建。它根据影响范围选择同级测试分支：选择 **`/tdd`**。每个适用分支都有证据后，它先运行 **`/verifying`** 执行适用的交付门禁，再运行 **`/code-review`** 完成 **Standards + Spec** 双轴审查，然后提交。需要具体的测试先行行为时单独使用 **`/tdd`**，需要交付证据时单独使用 **`/verifying`**，需要审查分支或 PR 时单独使用 **`/code-review`**。
+1. **`/grill-with-docs`**——通过访谈打磨想法。**已有工作区**时从这里开始：它是有状态的，会将访谈中确认的内容保留在对应业务域的 `CONTEXT.md` 和 ADR 中。（没有工作区？使用 `/grilling`——参见“独立工具”。`grill-with-docs` 会留下文档记录。）固定明确 `/verifying` 使用哪些验收门禁。
+2. **`/implement`**——在同一个上下文窗口中完成构建，默认使用 **`/tdd`** 编写测试。测试有证据后，它先运行 **`/verifying`** 执行适用的交付门禁，再运行 **`/code-review`** 完成 **Standards + Spec** 双轴审查，然后提交。需要具体的测试先行行为时单独使用 **`/tdd`**，需要交付证据时单独使用 **`/verifying`**，需要审查分支或 PR 时单独使用 **`/code-review`**。
 
 ## 接入路径
 
@@ -40,6 +40,7 @@
 - **`/wait-what`**——用于纠正没有传达清楚的信息。在对话过程中或任何其他 skill 内使用它，agent 会补充你缺失的上下文，用通俗语言和相关业务域 `CONTEXT.md` 中的词汇重新表达刚才的内容。它是事后补救；`/grill-with-docs` 是事前预防，因为尽早确认共同语言，才能避免术语突然出现。
 - **`/writing-for-agents`**——编写供 agent 使用的文档时所参考的资料：skill、AGENTS.md 以及 **context pointer** 指向的文档。
 - **`/to-workflow`**——发现当前工作中的重复模式，并将其固化为 `docs/{domain-name}/workflows/*.md` 中的 Workflow。
+- **`/e2e`**——验收：维护 Markdown 验收资产（Gherkin 场景），或执行 agent 驱动的验收走查，以证据链（验收主张 → 真实路径 → 外部观察 → 结论）证明消费者可感知的结果。
 - **`/codin-d2c-cli`**——调用 `codin-d2c` 完成 Figma Design-to-Code；D2C 静态资源使用 SVG 格式。
 
 ## 领域文档

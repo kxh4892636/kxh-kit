@@ -30,7 +30,7 @@ description: 沿两个轴审查自 fixed point(commit, branch, tag 或 merge-bas
 
 ### 3. 确定 Standards 来源
 
-repo 中任何说明代码应如何编写的内容, 例如 `CODING_STANDARDS.md` 或 `CONTRIBUTING.md`.
+repo 中任何说明代码应如何编写的内容, 例如 `CODING_STANDARDS.md`, `CONTRIBUTING.md` 或 `/code-spec` skill.
 
 除仓库记录的内容外, Standards 轴始终带有以下 **smell baseline** - 一组固定的 Fowler code smells(_Refactoring_, 第 3 章), 即使仓库没有记录任何规范也适用. 它受两条规则约束:
 
