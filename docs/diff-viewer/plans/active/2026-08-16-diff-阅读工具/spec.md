@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in_progress
 ---
 
 # Diff 阅读工具
@@ -22,7 +22,7 @@ status: pending
 
 ## 实施决策
 
-- **传输层**：无 HTTP server——preload 注入 fetch bridge（先例：difit `staticApiBridge.ts` 以 monkey-patch `window.fetch` 让全套 UI 无 server 运行）将 `/api/*` 路由到主进程 IPC handler；`/api/watch` 的 SSE 用 EventSource polyfill + `webContents.send` 模拟；blob 二进制经 IPC 传 ArrayBuffer，在 bridge 内构造 Response。降级预案：主进程 Hono 随机端口。
+- **传输层**：无 HTTP server——preload 注入 fetch bridge（先例：difit `staticApiBridge.ts` 以 monkey-patch `window.fetch` 让全套 UI 无 server 运行）将 `/api/*` 路由到主进程 IPC handler；`/api/watch` 的 SSE 用 EventSource polyfill + `webContents.send` 模拟；blob 二进制经 IPC 传 ArrayBuffer，在 bridge 内构造 Response。降级预案：主进程 Hono 随机端口。01 落地时的事实性更新：`/api/watch` v1 仅推 stub `connected`（`@parcel/watcher` native 不进 Electron），无文件变更自动刷新，上游 diff LRU 缓存随之移除以防过期 diff；`<img src="/api/blob/...">` 直链拦截不到，ImageDiffViewer 改经 bridge fetch 转 Object URL（fork client 第 3 处改动，清单见该文件头注释）。
 - **技术栈**：Electron + React 19 + Vite + Tailwind v4（继承 fork）；主进程 TypeScript。
 - **测试策略**：单元、组件、e2e 三层全部代码驱动。单元测试（Vitest，覆盖主进程逻辑：GitDiffParser、扫描器、executor 等）与组件测试（Vitest + Testing Library + happy-dom，继承 difit 测试模式）的测试文件与实现文件放在**同级目录**（`foo.test.ts` / `foo.test.tsx`）；e2e（@playwright/test 驱动 Electron）驱动整个应用、无单一同级实现文件，集中在 `apps/diff-viewer/e2e/`。
 - **对比矩阵**：v1 支持 ① 未提交改动（unstaged + staged vs HEAD，untracked 经 `git add --intent-to-add` 纳入）② 任意两 branch 的三点对比（默认；两点为可切换选项）③ 任意两 commit 对比（单 commit 即 `commit^..commit` 特例）。每仓库同一时刻一个激活对比，可切换。
@@ -73,13 +73,13 @@ status: pending
 
 ## Issue
 
-| #   | Issue                                                             | 状态        | 阻塞于 | 下一步     |
-| --- | ----------------------------------------------------------------- | ----------- | ------ | ---------- |
-| 01  | [Electron 骨架与裁剪 fork 落地](01-electron骨架与裁剪fork落地.md) | in_progress | —      | /implement |
-| 02  | [默认对比与三点对比](02-默认对比与三点对比.md)                    | pending     | 01     | /implement |
-| 03  | [目录打开与嵌套仓库扫描](03-目录打开与嵌套仓库扫描.md)            | pending     | 01     | /implement |
-| 04  | [多仓库文件树与同视图 diff](04-多仓库文件树与同视图diff.md)       | pending     | 03     | /implement |
-| 05  | [评论持久化与一键复制](05-评论持久化与一键复制.md)                | pending     | 01     | /implement |
-| 06  | [SSH 远程视图](06-ssh远程视图.md)                                 | pending     | 03     | /implement |
-| 07  | [本地 VSCode 打开](07-本地vscode打开.md)                          | pending     | 01     | /implement |
-| 08  | [全平台打包](08-全平台打包.md)                                    | pending     | 01     | /implement |
+| #   | Issue                                                             | 状态      | 阻塞于 | 下一步     |
+| --- | ----------------------------------------------------------------- | --------- | ------ | ---------- |
+| 01  | [Electron 骨架与裁剪 fork 落地](01-electron骨架与裁剪fork落地.md) | completed | —      | /implement |
+| 02  | [默认对比与三点对比](02-默认对比与三点对比.md)                    | pending   | 01     | /implement |
+| 03  | [目录打开与嵌套仓库扫描](03-目录打开与嵌套仓库扫描.md)            | pending   | 01     | /implement |
+| 04  | [多仓库文件树与同视图 diff](04-多仓库文件树与同视图diff.md)       | pending   | 03     | /implement |
+| 05  | [评论持久化与一键复制](05-评论持久化与一键复制.md)                | pending   | 01     | /implement |
+| 06  | [SSH 远程视图](06-ssh远程视图.md)                                 | pending   | 03     | /implement |
+| 07  | [本地 VSCode 打开](07-本地vscode打开.md)                          | pending   | 01     | /implement |
+| 08  | [全平台打包](08-全平台打包.md)                                    | pending   | 01     | /implement |

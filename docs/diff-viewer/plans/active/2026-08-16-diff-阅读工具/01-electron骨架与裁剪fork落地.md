@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 blocked_by: []
 ---
 
@@ -27,7 +27,20 @@ blocked_by: []
 
 ## 验收
 
-- [ ] `pnpm dev` 启动应用，指向本地仓库路径后能渲染该仓库的 diff，unified/split 可切换。
+- [x] `pnpm dev` 启动应用，指向本地仓库路径后能渲染该仓库的 diff，unified/split 可切换。
+
+## 交付物与证据
+
+- 交付物：`apps/diff-viewer`（Electron main/preload/renderer + fork client/GitDiffParser + fetch bridge + EventSource polyfill + 三层测试基建）。
+- 合回 commit：`fd77ff4`（主体）、`c4c9cf1`（workspace 允许 electron postinstall）、`ab227ca`（双轴审查修复），merge commit `deae067`。
+- 验证证据：`pnpm ready` exit 0（vp check 0 errors + 全仓 test/build 绿）；单测 56 文件 657 passed + 1 skipped；e2e `e2e/diff-render.spec.ts` 1 passed（Playwright 真起 Electron 渲染 fixture 仓库 diff 并切换 unified/split，即验收项的自动化等价证据）。
+- code review：Standards + Spec 双轴各经独立 sub-agent 审查（dv/01-skeleton vs main），硬性违规与确认 smell 已在 `ab227ca` 修复。
+- 接受偏差（内容冻结前记录）：
+  - `git-diff.test.ts` 超 987 行——随上游 port 豁免；
+  - `src/main` 文件数超 13——用户要求测试与实现同级，优先于目录文件数规则；
+  - `initial-selection.ts` 简化版默认对比（有改动→`.` vs HEAD，否则 `HEAD^..HEAD`）——「启动即看到 diff」必需，完整三点对比归 02；
+  - `useFileWatch` 永不触发（`@parcel/watcher` native 不进 Electron，`/api/watch` 仅推 stub `connected`）——v1 接受，无文件变更自动刷新；上游 diff LRU 缓存随之移除以避免过期 diff；
+  - fork client 改动共 3 处：`main.tsx` 接 bridge、`useHighlightedCode.ts` 显式泛型、`ImageDiffViewer.tsx` 图片经 bridge fetch 转 Object URL（修复 `<img>` 直链 404），清单登记在 `ImageDiffViewer.tsx` 文件头注释。
 
 ## 上下文
 
