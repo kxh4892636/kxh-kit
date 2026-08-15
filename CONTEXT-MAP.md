@@ -4,6 +4,7 @@
 
 - [common](./docs/common/CONTEXT.md) - 由多个业务域共同贡献的基础业务域。
 - [loop-kit](./docs/loop-kit/CONTEXT.md) - Loop Kit 业务域。
+- [diff-viewer](./docs/diff-viewer/CONTEXT.md) - Diff Viewer 业务域：Electron 桌面的多仓库 git diff 阅读工具。
 
 ## Relationships
 
