@@ -6,6 +6,7 @@ allowBuilds:
   "@bufbuild/buf": true
   "@swc/core": false
   core-js: false
+  electron: true
   esbuild: false
 
 catalog:
