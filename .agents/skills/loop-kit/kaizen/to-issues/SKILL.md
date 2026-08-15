@@ -12,10 +12,10 @@ disable-model-invocation: true
 - **建立与维护**——由 `/grill-with-docs` skill 驱动, 访谈中确认的内容就地落为 spec 和 issue;
 - **推进**——领取可开始的 issue, 进入实现或继续澄清.
 
-文档布局(`NNNN` 取该域 plans/ 下下一个顺序号):
+文档布局(`YYYY-MM-DD` 取 plan 创建日期):
 
 ```text
-docs/{domain-name}/plans/{lifecycle}/NNNN-中文工作名/
+docs/{domain-name}/plans/{lifecycle}/YYYY-MM-DD-中文工作名/
 ├── spec.md
 ├── 01-中文标题.md
 └── 02-中文标题.md
