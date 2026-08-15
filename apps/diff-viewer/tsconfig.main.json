@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "@tsconfig/strictest/tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist/main",
+    "rootDir": "src",
+    "sourceMap": false,
+    "declaration": false,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "exactOptionalPropertyTypes": false,
+    "noPropertyAccessFromIndexSignature": false,
+    // 移植的上游代码未在 tsc strictest 下验证过 (上游仅跑 oxlint type-aware),
+    // 关闭 noUncheckedIndexedAccess 保持 fork 源码不为此改动
+    "noUncheckedIndexedAccess": false,
+    "types": ["node"]
+  },
+  "include": [
+    "src/main/**/*",
+    "src/preload/**/*",
+    "src/types/**/*",
+    "src/utils/**/*",
+    "src/api-bridge/api-bridge-types.ts",
+    "src/api-bridge/api-channels.ts"
+  ]
+}
