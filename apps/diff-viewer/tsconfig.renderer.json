@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "@tsconfig/strictest/tsconfig.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "exactOptionalPropertyTypes": false,
+    "noPropertyAccessFromIndexSignature": false,
+    // 移植的上游代码未在 tsc strictest 下验证过 (上游仅跑 oxlint type-aware),
+    // 关闭 noUncheckedIndexedAccess 保持 fork 源码不为此改动
+    "noUncheckedIndexedAccess": false
+  },
+  "include": [
+    "src/client/**/*",
+    "src/api-bridge/**/*",
+    "src/types/**/*",
+    "src/utils/**/*",
+    "vitest.setup.ts",
+    "vitest.env.stub.ts"
+  ]
+}

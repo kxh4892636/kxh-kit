@@ -2,6 +2,7 @@
   "$schema": "https://json.schemastore.org/tsconfig",
   "files": [],
   "references": [
+    { "path": "./apps/diff-viewer" },
     { "path": "./apps/wiki" },
     { "path": "./packages/docusaurus-plugin-link" },
     { "path": "./packages/loop-kit" }
