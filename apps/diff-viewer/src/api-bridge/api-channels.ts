@@ -2,6 +2,5 @@
 export const API_CHANNELS = {
   request: "api:request",
   watchOpen: "api:watch:open",
-  watchClose: "api:watch:close",
   watchEvent: "api:watch:event",
 } as const;

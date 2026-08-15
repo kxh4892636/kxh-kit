@@ -6,7 +6,7 @@
 // 上游的 diff LRU 缓存依赖文件监听失效回调, 本 issue watch 为 stub, 为避免展示过期
 // diff 而整体移除, 每次请求都实时解析。
 import { createHash } from "crypto";
-import { isAbsolute, resolve, sep } from "path";
+import { resolve } from "path";
 
 import type { ApiBridgeRequest, ApiBridgeResponse } from "../api-bridge/api-bridge-types.js";
 import {
@@ -19,7 +19,11 @@ import { DiffMode, type WatchEvent } from "../types/watch.js";
 import { createDiffSelection } from "../utils/diffSelection.js";
 import { getFileExtension } from "../utils/fileUtils.js";
 
-import { createCommentSessionStore, parseCommentPushBody } from "./comment-sessions.js";
+import {
+  createCommentSessionStore,
+  parseBodyObject,
+  parseCommentPushBody,
+} from "./comment-sessions.js";
 import { GitDiffParser } from "./git-diff.js";
 import { parseUserSettingsPatch, readUserConfig, updateUserClientSettings } from "./user-config.js";
 
@@ -65,15 +69,33 @@ const jsonResponse = (data: unknown, status = 200): ApiBridgeResponse => ({
 const errorResponse = (status: number, message: string): ApiBridgeResponse =>
   jsonResponse({ error: message }, status);
 
-const parseJsonBody = (body: string | undefined): unknown => {
-  if (body === undefined || body === "") {
-    return {};
-  }
-  return JSON.parse(body) as unknown;
-};
-
 const parseBaseMode = (value: unknown): BaseMode | undefined =>
   value === "merge-base" ? "merge-base" : undefined;
+
+// base/target/baseMode 查询参数 → DiffSelection, 未提供的字段回退到 fallback。
+// 约定: 显式给了 base 或 target 而未给 baseMode 时, baseMode 重置 (回到两点对比)
+const selectionFromQuery = (
+  query: Record<string, string>,
+  fallback: DiffSelection,
+): DiffSelection => {
+  const hasBase = typeof query.base === "string";
+  const hasTarget = typeof query.target === "string";
+  const hasBaseMode = typeof query.baseMode === "string";
+
+  if (!hasBase && !hasTarget && !hasBaseMode) {
+    return fallback;
+  }
+
+  return createDiffSelection(
+    hasBase ? query.base : fallback.baseCommitish,
+    hasTarget ? query.target : fallback.targetCommitish,
+    hasBaseMode
+      ? parseBaseMode(query.baseMode)
+      : hasBase || hasTarget
+        ? undefined
+        : fallback.baseMode,
+  );
+};
 
 export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
   const { parser, repoPath, configPath } = options;
@@ -96,64 +118,24 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
     options.broadcast?.(JSON.stringify(event));
   });
 
-  const parseRepositoryRelativePath = (
-    filepath: unknown,
-  ):
-    | { ok: true; path: string }
-    | { ok: false; error: "Invalid file path" | "File path outside repository" } => {
-    if (typeof filepath !== "string" || filepath.length === 0) {
-      return { ok: false, error: "Invalid file path" };
+  // 仓库相对路径归一化的唯一实现在 GitDiffParser (port 侧), 这里把抛错映射为 400
+  const toRepositoryRelativePath = (
+    filepath: string,
+  ): { ok: true; path: string } | { ok: false; error: string } => {
+    try {
+      return { ok: true, path: parser.normalizeRepositoryRelativePath(filepath) };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Invalid file path" };
     }
-
-    const normalizedFilepath = filepath.replace(/\\/g, "/");
-    const hasParentTraversal = normalizedFilepath.split("/").some((segment) => segment === "..");
-    if (isAbsolute(filepath) || normalizedFilepath.startsWith("/") || hasParentTraversal) {
-      return { ok: false, error: "File path outside repository" };
-    }
-
-    const resolvedPath = resolve(repositoryPath, normalizedFilepath);
-    if (resolvedPath !== repositoryPath && !resolvedPath.startsWith(`${repositoryPath}${sep}`)) {
-      return { ok: false, error: "File path outside repository" };
-    }
-
-    return { ok: true, path: normalizedFilepath };
   };
 
-  const getCommentSelectionFromQuery = (query: Record<string, string>): DiffSelection => {
-    const hasBase = typeof query.base === "string";
-    const hasTarget = typeof query.target === "string";
-    const hasBaseMode = typeof query.baseMode === "string";
-
-    if (!hasBase && !hasTarget && !hasBaseMode) {
-      return currentCommentSelection;
-    }
-
-    return createDiffSelection(
-      hasBase ? (query.base as string) : currentCommentSelection.baseCommitish,
-      hasTarget ? (query.target as string) : currentCommentSelection.targetCommitish,
-      hasBaseMode
-        ? parseBaseMode(query.baseMode)
-        : hasBase || hasTarget
-          ? undefined
-          : currentCommentSelection.baseMode,
-    );
-  };
+  const getCommentSelectionFromQuery = (query: Record<string, string>): DiffSelection =>
+    selectionFromQuery(query, currentCommentSelection);
 
   const handleDiff = async (request: ApiBridgeRequest): Promise<ApiBridgeResponse> => {
     const { query } = request;
     const ignoreWhitespace = query.ignoreWhitespace === "true";
-    const hasBase = typeof query.base === "string";
-    const hasTarget = typeof query.target === "string";
-    const hasBaseMode = typeof query.baseMode === "string";
-    const requestedSelection = createDiffSelection(
-      hasBase ? (query.base as string) : currentSelection.baseCommitish,
-      hasTarget ? (query.target as string) : currentSelection.targetCommitish,
-      hasBaseMode
-        ? parseBaseMode(query.baseMode)
-        : hasBase || hasTarget
-          ? undefined
-          : currentSelection.baseMode,
-    );
+    const requestedSelection = selectionFromQuery(query, currentSelection);
 
     let responseDiffData;
     try {
@@ -223,7 +205,7 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
     query: Record<string, string>,
   ): Promise<ApiBridgeResponse> => {
     try {
-      const filepathResult = parseRepositoryRelativePath(filepath);
+      const filepathResult = toRepositoryRelativePath(filepath);
       if (!filepathResult.ok) {
         return errorResponse(400, filepathResult.error);
       }
@@ -260,14 +242,14 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
     query: Record<string, string>,
   ): Promise<ApiBridgeResponse> => {
     try {
-      const filepathResult = parseRepositoryRelativePath(filepath);
+      const filepathResult = toRepositoryRelativePath(filepath);
       if (!filepathResult.ok) {
         return errorResponse(400, filepathResult.error);
       }
       const normalizedFilepath = filepathResult.path;
       const oldRef = query.oldRef;
       const oldPathResult = query.oldPath
-        ? parseRepositoryRelativePath(query.oldPath)
+        ? toRepositoryRelativePath(query.oldPath)
         : { ok: true as const, path: normalizedFilepath };
       if (!oldPathResult.ok) {
         return errorResponse(400, oldPathResult.error);
@@ -277,17 +259,20 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
 
       const result: { oldLineCount?: number; newLineCount?: number } = {};
 
+      // 单侧读取失败不致命 (新增/删除的文件在另一侧不存在), 记 0 行但需留日志
       if (oldRef) {
         try {
           result.oldLineCount = await parser.getLineCount(oldPath, oldRef);
-        } catch {
+        } catch (error) {
+          console.error(`Failed to get line count for ${oldPath} at ${oldRef}:`, error);
           result.oldLineCount = 0;
         }
       }
       if (newRef) {
         try {
           result.newLineCount = await parser.getLineCount(normalizedFilepath, newRef);
-        } catch {
+        } catch (error) {
+          console.error(`Failed to get line count for ${normalizedFilepath} at ${newRef}:`, error);
           result.newLineCount = 0;
         }
       }
@@ -304,7 +289,7 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
     query: Record<string, string>,
   ): Promise<ApiBridgeResponse> => {
     try {
-      const filepathResult = parseRepositoryRelativePath(filepath);
+      const filepathResult = toRepositoryRelativePath(filepath);
       if (!filepathResult.ok) {
         return errorResponse(400, filepathResult.error);
       }
@@ -372,7 +357,7 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
   const handleUserSettingsWrite = async (request: ApiBridgeRequest): Promise<ApiBridgeResponse> => {
     let patch: Record<string, unknown> | null;
     try {
-      patch = parseUserSettingsPatch(parseJsonBody(request.body));
+      patch = parseUserSettingsPatch(parseBodyObject(request.body));
     } catch {
       patch = null;
     }

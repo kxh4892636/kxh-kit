@@ -6,6 +6,8 @@ import type { DiffFile } from "../../types/diff";
 import { ImageDiffViewer } from "./ImageDiffViewer";
 import type { DiffViewerBodyProps } from "./types";
 
+// fork 适配: 组件改为经 fetch 拉 blob 后构造 Object URL (见 ImageDiffViewer.tsx 头注释),
+// 测试相应 mock fetch 的 arrayBuffer 响应与 URL.createObjectURL/revokeObjectURL
 describe("ImageDiffViewer", () => {
   const baseProps: Omit<DiffViewerBodyProps, "file"> = {
     threads: [],
@@ -22,21 +24,36 @@ describe("ImageDiffViewer", () => {
     onUpdateMessage: vi.fn(),
   };
 
+  let objectUrlCounter = 0;
+
   const renderViewer = (file: DiffFile, overrides: Partial<DiffViewerBodyProps> = {}) =>
     render(<ImageDiffViewer {...baseProps} file={file} {...overrides} />);
 
   beforeEach(() => {
     vi.clearAllMocks();
+    objectUrlCounter = 0;
     delete (window as Window & { __DIFIT_STATIC_BLOB_URLS__?: Record<string, string> })
       .__DIFIT_STATIC_BLOB_URLS__;
-    // Mock fetch to return a blob with size
+    // blob 响应供 handleImageLoad 读取文件大小, arrayBuffer 供 useImageObjectUrl 构造 Blob
     (global.fetch as any).mockResolvedValue({
+      ok: true,
+      arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)),
       blob: () => Promise.resolve({ size: 1024 }),
+    });
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      writable: true,
+      value: vi.fn(() => `blob:mock-${++objectUrlCounter}`),
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      writable: true,
+      value: vi.fn(),
     });
   });
 
   describe("File status handling", () => {
-    it("renders deleted image correctly", () => {
+    it("renders deleted image correctly", async () => {
       const deletedFile: DiffFile = {
         path: "test.jpg",
         oldPath: "test.jpg",
@@ -50,10 +67,15 @@ describe("ImageDiffViewer", () => {
 
       expect(screen.getByText("Deleted Image")).toBeInTheDocument();
       expect(screen.getByText("Previous version:")).toBeInTheDocument();
-      expect(screen.getByRole("img")).toHaveAttribute("src", "/api/blob/test.jpg?ref=HEAD~1");
+      await waitFor(() => {
+        expect(screen.getByRole("img")).toHaveAttribute("src", "blob:mock-1");
+      });
+      // 删除的文件不请求 target 侧 (不存在)
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(global.fetch).toHaveBeenCalledWith("/api/blob/test.jpg?ref=HEAD~1");
     });
 
-    it("renders added image correctly", () => {
+    it("renders added image correctly", async () => {
       const addedFile: DiffFile = {
         path: "test.jpg",
         status: "added",
@@ -66,10 +88,14 @@ describe("ImageDiffViewer", () => {
 
       expect(screen.getByText("Added Image")).toBeInTheDocument();
       expect(screen.getByText("New file:")).toBeInTheDocument();
-      expect(screen.getByRole("img")).toHaveAttribute("src", "/api/blob/test.jpg?ref=HEAD");
+      await waitFor(() => {
+        expect(screen.getByRole("img")).toHaveAttribute("src", "blob:mock-1");
+      });
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(global.fetch).toHaveBeenCalledWith("/api/blob/test.jpg?ref=HEAD");
     });
 
-    it("renders modified image correctly in split mode", () => {
+    it("renders modified image correctly in split mode", async () => {
       const modifiedFile: DiffFile = {
         path: "test.jpg",
         oldPath: "test.jpg",
@@ -87,9 +113,13 @@ describe("ImageDiffViewer", () => {
 
       const images = screen.getAllByRole("img");
       expect(images).toHaveLength(2);
+      await waitFor(() => {
+        expect(images[0]).toHaveAttribute("src", "blob:mock-1");
+        expect(images[1]).toHaveAttribute("src", "blob:mock-2");
+      });
     });
 
-    it("handles renamed image correctly", () => {
+    it("handles renamed image correctly", async () => {
       const renamedFile: DiffFile = {
         path: "new-name.jpg",
         oldPath: "old-name.jpg",
@@ -104,13 +134,17 @@ describe("ImageDiffViewer", () => {
       expect(screen.getByText("Modified Image")).toBeInTheDocument();
 
       const images = screen.getAllByRole("img");
-      expect(images[0]).toHaveAttribute("src", "/api/blob/old-name.jpg?ref=HEAD~1");
-      expect(images[1]).toHaveAttribute("src", "/api/blob/new-name.jpg?ref=HEAD");
+      await waitFor(() => {
+        expect(images[0]).toHaveAttribute("src", "blob:mock-1");
+        expect(images[1]).toHaveAttribute("src", "blob:mock-2");
+      });
+      expect(global.fetch).toHaveBeenCalledWith("/api/blob/old-name.jpg?ref=HEAD~1");
+      expect(global.fetch).toHaveBeenCalledWith("/api/blob/new-name.jpg?ref=HEAD");
     });
   });
 
   describe("Image loading with custom refs", () => {
-    it("sets correct image src URLs with custom commitish", () => {
+    it("sets correct image src URLs with custom commitish", async () => {
       const file: DiffFile = {
         path: "test.jpg",
         oldPath: "old-test.jpg",
@@ -123,11 +157,15 @@ describe("ImageDiffViewer", () => {
       renderViewer(file, { baseCommitish: "main", targetCommitish: "feature" });
 
       const images = screen.getAllByRole("img");
-      expect(images[0]).toHaveAttribute("src", "/api/blob/old-test.jpg?ref=main");
-      expect(images[1]).toHaveAttribute("src", "/api/blob/test.jpg?ref=feature");
+      await waitFor(() => {
+        expect(images[0]).toHaveAttribute("src", "blob:mock-1");
+        expect(images[1]).toHaveAttribute("src", "blob:mock-2");
+      });
+      expect(global.fetch).toHaveBeenCalledWith("/api/blob/old-test.jpg?ref=main");
+      expect(global.fetch).toHaveBeenCalledWith("/api/blob/test.jpg?ref=feature");
     });
 
-    it("uses default refs when not provided", () => {
+    it("uses default refs when not provided", async () => {
       const file: DiffFile = {
         path: "test.jpg",
         oldPath: "old-test.jpg",
@@ -140,8 +178,12 @@ describe("ImageDiffViewer", () => {
       renderViewer(file);
 
       const images = screen.getAllByRole("img");
-      expect(images[0]).toHaveAttribute("src", "/api/blob/old-test.jpg?ref=HEAD~1");
-      expect(images[1]).toHaveAttribute("src", "/api/blob/test.jpg?ref=HEAD");
+      await waitFor(() => {
+        expect(images[0]).toHaveAttribute("src", "blob:mock-1");
+        expect(images[1]).toHaveAttribute("src", "blob:mock-2");
+      });
+      expect(global.fetch).toHaveBeenCalledWith("/api/blob/old-test.jpg?ref=HEAD~1");
+      expect(global.fetch).toHaveBeenCalledWith("/api/blob/test.jpg?ref=HEAD");
     });
 
     it("uses static blob URLs when available", () => {
@@ -164,6 +206,8 @@ describe("ImageDiffViewer", () => {
         "src",
         "/difit/site-data/blobs/abcdef1/test.jpg",
       );
+      // 静态导出模式不经过 fetch
+      expect(global.fetch).not.toHaveBeenCalled();
     });
   });
 
@@ -180,6 +224,9 @@ describe("ImageDiffViewer", () => {
       renderViewer(file);
 
       const image = screen.getByRole("img");
+      await waitFor(() => {
+        expect(image).toHaveAttribute("src", "blob:mock-1");
+      });
 
       // Mock naturalWidth and naturalHeight
       Object.defineProperty(image, "naturalWidth", { value: 800, configurable: true });

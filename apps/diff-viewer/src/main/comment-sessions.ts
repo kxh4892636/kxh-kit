@@ -188,7 +188,8 @@ const parseBaseVersion = (payload: unknown): number | undefined => {
   return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : undefined;
 };
 
-const parseBodyObject = (body: string | undefined): unknown => {
+// 请求体 JSON 解析的唯一实现, api-router 复用; 空 body 按空对象处理
+export const parseBodyObject = (body: string | undefined): unknown => {
   if (body === undefined || body === "") {
     return {};
   }

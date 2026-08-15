@@ -26,7 +26,8 @@ export class GitDiffParser {
     this.git = simpleGit(repoPath);
   }
 
-  private normalizeRepositoryRelativePath(filepath: string): string {
+  // 仓库相对路径归一化的唯一实现; api-router 直接复用并把抛错映射为 400 响应
+  normalizeRepositoryRelativePath(filepath: string): string {
     if (filepath.length === 0) {
       throw new Error("Invalid file path");
     }
@@ -603,16 +604,6 @@ export class GitDiffParser {
     } catch {
       return false;
     }
-  }
-
-  parseStdinDiff(diffContent: string): DiffResponse {
-    const files = this.parseUnifiedDiff(diffContent);
-
-    return {
-      commit: "stdin diff",
-      files,
-      isEmpty: files.length === 0,
-    };
   }
 
   async getBlobContent(filepath: string, ref: string): Promise<Buffer> {

@@ -14,7 +14,6 @@ const createFakeBridge = () => {
       }),
     ),
     openWatch: vi.fn(async () => true),
-    closeWatch: vi.fn(),
     onWatchEvent: vi.fn((callback: (payload: string) => void) => {
       watchListeners.add(callback);
       return () => {

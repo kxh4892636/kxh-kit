@@ -20,7 +20,6 @@ export interface ApiBridgeResponse {
 export interface DiffViewerBridge {
   invokeApi: (request: ApiBridgeRequest) => Promise<ApiBridgeResponse>;
   openWatch: () => Promise<unknown>;
-  closeWatch: () => void;
   // 返回取消订阅函数
   onWatchEvent: (callback: (payload: string) => void) => () => void;
 }

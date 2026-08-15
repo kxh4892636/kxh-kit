@@ -10,7 +10,6 @@ import type { ApiBridgeResponse, DiffViewerBridge } from "../api-bridge/api-brid
 const API_CHANNELS = {
   request: "api:request",
   watchOpen: "api:watch:open",
-  watchClose: "api:watch:close",
   watchEvent: "api:watch:event",
 } as const;
 
@@ -18,9 +17,6 @@ const bridge: DiffViewerBridge = {
   invokeApi: (request) =>
     ipcRenderer.invoke(API_CHANNELS.request, request) as Promise<ApiBridgeResponse>,
   openWatch: () => ipcRenderer.invoke(API_CHANNELS.watchOpen),
-  closeWatch: () => {
-    ipcRenderer.send(API_CHANNELS.watchClose);
-  },
   onWatchEvent: (callback) => {
     const listener = (_event: IpcRendererEvent, payload: string): void => callback(payload);
     ipcRenderer.on(API_CHANNELS.watchEvent, listener);

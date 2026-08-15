@@ -1,4 +1,7 @@
-import { useState } from "react";
+// fork 改动 (client 第 3 处): Electron 下 <img src="/api/..."> 直链不经过 fetch monkey-patch,
+// 必然 404; 改为组件内经 (已 patch 的) fetch 拉取二进制 → Blob → Object URL, 卸载时 revoke。
+// 其余两处 fork 改动: main.tsx 安装 api bridge, useHighlightedCode.ts 显式泛型。
+import { useEffect, useState } from "react";
 
 import { DEFAULT_DIFF_VIEW_MODE } from "../../utils/diffMode";
 
@@ -16,9 +19,54 @@ interface StaticBlobWindow {
 
 const blobKey = (ref: string, path: string): string => `${ref.slice(0, 7)}:${path}`;
 
-const imageBlobUrl = (path: string, ref: string): string => {
-  const staticBlobUrls = (window as Window & StaticBlobWindow).__DIFIT_STATIC_BLOB_URLS__;
-  return staticBlobUrls?.[blobKey(ref, path)] ?? `/api/blob/${path}?ref=${ref}`;
+// 上游 --static 导出模式直出映射 URL; 否则经 fetch 拉 blob 构造 Object URL
+const useImageObjectUrl = (path: string | null, ref: string): string | undefined => {
+  const [url, setUrl] = useState<string>();
+
+  useEffect(() => {
+    if (path === null) {
+      setUrl(undefined);
+      return;
+    }
+
+    const staticUrl = (window as Window & StaticBlobWindow).__DIFIT_STATIC_BLOB_URLS__?.[
+      blobKey(ref, path)
+    ];
+    if (staticUrl) {
+      setUrl(staticUrl);
+      return;
+    }
+
+    let objectUrl: string | undefined;
+    let cancelled = false;
+    setUrl(undefined);
+    fetch(`/api/blob/${path}?ref=${ref}`)
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error(`Failed to fetch image blob: ${response.status}`);
+        }
+        return response.arrayBuffer();
+      })
+      .then((bytes) => {
+        if (cancelled) {
+          return;
+        }
+        objectUrl = URL.createObjectURL(new Blob([bytes]));
+        setUrl(objectUrl);
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to load image blob:", error);
+      });
+
+    return () => {
+      cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
+      }
+    };
+  }, [path, ref]);
+
+  return url;
 };
 
 export function ImageDiffViewer({
@@ -35,6 +83,10 @@ export function ImageDiffViewer({
   // Determine the actual refs to use
   const baseRef = baseCommitish || "HEAD~1";
   const targetRef = targetCommitish || "HEAD";
+
+  // 不展示的一侧不发起 blob 请求 (新增文件在 base 侧不存在, 删除文件反之)
+  const oldImageUrl = useImageObjectUrl(isAdded ? null : file.oldPath || file.path, baseRef);
+  const newImageUrl = useImageObjectUrl(isDeleted ? null : file.path, targetRef);
 
   // State for image information
   const [oldImageInfo, setOldImageInfo] = useState<ImageInfo>({});
@@ -99,7 +151,7 @@ export function ImageDiffViewer({
               Previous version:
             </div>
             <img
-              src={imageBlobUrl(file.oldPath || file.path, baseRef)}
+              src={oldImageUrl}
               alt={`Previous version of ${file.oldPath || file.path}`}
               className="max-w-full max-h-96 border border-github-border rounded mx-auto"
               style={checkerboardStyle}
@@ -139,7 +191,7 @@ export function ImageDiffViewer({
               New file:
             </div>
             <img
-              src={imageBlobUrl(file.path, targetRef)}
+              src={newImageUrl}
               alt={`New image ${file.path}`}
               className="max-w-full max-h-96 border border-github-border rounded mx-auto"
               style={checkerboardStyle}
@@ -182,7 +234,7 @@ export function ImageDiffViewer({
                   Previous version:
                 </div>
                 <img
-                  src={imageBlobUrl(file.oldPath || file.path, baseRef)}
+                  src={oldImageUrl}
                   alt={`Previous version of ${file.oldPath || file.path}`}
                   className="max-w-full max-h-96 border border-github-border rounded mx-auto"
                   style={checkerboardStyle}
@@ -213,7 +265,7 @@ export function ImageDiffViewer({
                   Current version:
                 </div>
                 <img
-                  src={imageBlobUrl(file.path, targetRef)}
+                  src={newImageUrl}
                   alt={`Current version of ${file.path}`}
                   className="max-w-full max-h-96 border border-github-border rounded mx-auto"
                   style={checkerboardStyle}
@@ -254,7 +306,7 @@ export function ImageDiffViewer({
                   Previous version:
                 </div>
                 <img
-                  src={imageBlobUrl(file.oldPath || file.path, baseRef)}
+                  src={oldImageUrl}
                   alt={`Previous version of ${file.oldPath || file.path}`}
                   className="max-w-full max-h-96 border border-github-border rounded mx-auto"
                   style={checkerboardStyle}
@@ -285,7 +337,7 @@ export function ImageDiffViewer({
                   Current version:
                 </div>
                 <img
-                  src={imageBlobUrl(file.path, targetRef)}
+                  src={newImageUrl}
                   alt={`Current version of ${file.path}`}
                   className="max-w-full max-h-96 border border-github-border rounded mx-auto"
                   style={checkerboardStyle}
