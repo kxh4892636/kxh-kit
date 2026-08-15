@@ -25,7 +25,7 @@ description: 沿两个轴审查自 fixed point(commit, branch, tag 或 merge-bas
 按以下顺序查找原始 spec:
 
 1. 用户作为参数传入的路径.
-2. `docs/{domain-name}/plans/` 下与 branch 名称或 feature 匹配的 plan 目录中的 spec.md 文件.
+2. `docs/{domain-name}/plans/` 下与 branch 名称或 feature 匹配的 plan 目录中的 story.md 和 spec.md 文件.
 3. 如果没有找到, 询问用户 spec 在哪里. 如果用户表示没有 spec, 跳过 **Spec** sub-agent, 并报告 "没有可用的 spec".
 
 ### 3. 确定 Standards 来源

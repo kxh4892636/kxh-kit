@@ -1,6 +1,6 @@
 ---
 name: implement
-description: "根据 spec 或 issues 实现一项工作."
+description: "根据 spec 或 issues 实现工作."
 disable-model-invocation: true
 ---
 
@@ -13,3 +13,5 @@ disable-model-invocation: true
 完成后, 使用 /code-review 审查这项工作.
 
 将你的工作 commit 到当前 branch.
+
+基于 issues 的依赖图, 串行执行用户明确的 issue, 每个 issue 创建 worktree, 并独立执行上述流程的完整循环.

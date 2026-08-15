@@ -16,12 +16,13 @@ disable-model-invocation: true
 
 ```text
 docs/{domain-name}/plans/{lifecycle}/YYYY-MM-DD-中文工作名/
+├── story.md
 ├── spec.md
 ├── 01-中文标题.md
 └── 02-中文标题.md
 ```
 
-lifecycle 为 `active/`(进行中), `reference/`(可参考)或 `archived/`(已归档); 新 plan 一律落在 `active/`.
+lifecycle 为 `active/`(进行中), `reference/`(可参考)或 `archived/`(已归档); 新 plan 一律落在 `active/`. story.md 是可选的用户故事集, 由 `/to-story` 维护; 不存在则忽略.
 
 spec 承载问题, 方案, 状态和依赖图; 决策细节在 issue 和 ADR 中.
 
@@ -29,7 +30,7 @@ spec 承载问题, 方案, 状态和依赖图; 决策细节在 issue 和 ADR 中
 
 运行 `/grill-with-docs`, 每轮访谈确认的内容**就地**创建或更新文档, 不攒批:
 
-1. **定域与查明事实**——从 `CONTEXT-MAP.md` 定位业务域, 工作落在**一个**域内; 跨域工作先在 map 中确认关系并选定主域, 或按域拆成多次拆分. 读取该域 `CONTEXT.md`, 相关 ADR / Workflow, 已有 spec, issue, commit 或 diff 等工作涉及产物.
+1. **定域与查明事实**——从 `CONTEXT-MAP.md` 定位业务域, 工作落在**一个**域内; 跨域工作先在 map 中确认关系并选定主域, 或按域拆成多次拆分. 读取该域 `CONTEXT.md`, 相关 ADR / Workflow, 已有 story, spec, issue, commit 或 diff 等工作涉及产物.
 2. **逐轮澄清, 就地落盘**:
    - 落盘的是确认后的结论, 不是对话记录; 每条结论当轮归入 spec.md 对应小节, 无对应小节的按模板扩展处理;
    - 可精确表述且可独立验收的工作 → 新 issue 文件(tracer-bullet 规则);
@@ -121,7 +122,7 @@ status: pending
 
 ## 上下文
 
-{通过路径或 URL 引用已有产物: PRD, spec, ADR, commit, diff 等; 域内文档使用 ../../ 相对路径}
+{通过路径或 URL 引用已有产物: PRD, story, spec, ADR, commit, diff 等; 域内文档使用 ../../ 相对路径}
 
 ## Issue
 
@@ -158,7 +159,7 @@ blocked_by: []
 
 ## 上下文
 
-- {通过路径或 URL 引用相关产物: PRD, spec, ADR, commit, diff 等; 域内文档一律 ../../ 相对路径}
+- {通过路径或 URL 引用相关产物: PRD, story, spec, ADR, commit, diff 等; 域内文档一律 ../../ 相对路径}
 
 ## 下一步
 

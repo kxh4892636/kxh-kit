@@ -5,7 +5,7 @@
 ## 规则
 
 - 所有文件都创建在工作区根目录，而不是子仓库中；
-- `docs/` 下的 ADR、Workflow 和 Plan 文件名及所有文档正文使用中文；约定名 `CONTEXT.md`、`spec.md` 与 `domain-name` 除外；
+- `docs/` 下的 ADR、Workflow 和 Plan 文件名及所有文档正文使用中文；约定名 `CONTEXT.md`、`spec.md`、`story.md` 与 `domain-name` 除外；
 - 每个 `docs/{domain-name}/CONTEXT.md` 行数 <= 610；每个领域的 `adr/*.md` 文件数 <= 89，行数 <= 144；每个领域的 `workflows/*.md` 文件数 <= 55，行数 <= 233；
 - 如果超出任一限制，合并、拆分或删除超出的内容。
 
@@ -28,7 +28,7 @@
 - `docs/{domain-name}/CONTEXT.md` 包含该业务域的 domain glossary（领域术语表）。
 - `docs/{domain-name}/adr/` 包含该业务域的 ADR（Architecture Decision Record，架构决策记录）。
 - `docs/{domain-name}/workflows/` 包含该业务域的 Workflow 规范。
-- `docs/{domain-name}/plans/` 包含该业务域的工作计划（Plan）：每个子目录是一项工作的 spec 及其 tracer-bullet issue 拆分（由 `/to-issues` 维护），按生命周期分类，约束见「Plan 生命周期」。
+- `docs/{domain-name}/plans/` 包含该业务域的工作计划（Plan）：每个子目录是一项工作的 spec 及其 tracer-bullet issue 拆分（由 `/to-issues` 或 `/to-story` 维护），按生命周期分类，约束见「Plan 生命周期」。
 
 ```text
 /
