@@ -1,23 +1,23 @@
-// 简化的初始对比: 有未提交改动则展示 工作区 vs HEAD, 否则展示最近一次 commit 的 diff。
-// 完整的默认对比 (当前分支与远程默认分支的三点对比) 归后续 issue。
-import { simpleGit } from "simple-git";
-
+// 默认对比 (issue 02): 当前分支与远程默认分支的三点对比, 打开仓库即有意义的 diff。
+// 降级链: detached HEAD 或无远程默认分支 → 未提交改动 vs HEAD。
 import type { DiffSelection } from "../types/diff.js";
 
-export const resolveInitialSelection = async (repoPath: string): Promise<DiffSelection> => {
-  const git = simpleGit(repoPath);
+import type { GitDiffParser } from "./git-diff.js";
+
+export const resolveInitialSelection = async (parser: GitDiffParser): Promise<DiffSelection> => {
   // 非 git 仓库会在此抛错, 由调用方决定兜底行为
-  const status = await git.status();
+  const currentBranch = await parser.getCurrentBranch();
 
-  if (status.files.length > 0) {
-    return { baseCommitish: "HEAD", targetCommitish: "." };
+  // detached HEAD 不再探测远程, 直接降级
+  const originDefaultBranch = currentBranch === null ? null : await parser.getOriginDefaultBranch();
+
+  if (currentBranch !== null && originDefaultBranch !== null) {
+    return {
+      baseCommitish: originDefaultBranch,
+      targetCommitish: currentBranch,
+      baseMode: "merge-base",
+    };
   }
 
-  try {
-    await git.revparse(["HEAD^"]);
-    return { baseCommitish: "HEAD^", targetCommitish: "HEAD" };
-  } catch {
-    // 单 commit 仓库没有父提交: 退化为 工作区 vs HEAD (通常为空白 diff)
-    return { baseCommitish: "HEAD", targetCommitish: "." };
-  }
+  return { baseCommitish: "HEAD", targetCommitish: "." };
 };

@@ -295,6 +295,59 @@ describe("DiffQuickMenu", () => {
     expect(screen.getByText("No matching branches or commits")).toBeInTheDocument();
   });
 
+  it("selects 默认对比 preset (current branch vs origin default, merge-base)", () => {
+    const onSelectDiff = vi.fn();
+    render(
+      createElement(DiffQuickMenu, {
+        options,
+        selection: { baseCommitish: "HEAD", targetCommitish: "." },
+        onSelectDiff,
+        onOpenAdvanced: vi.fn(),
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Revision menu:/ }));
+    fireEvent.click(screen.getByRole("button", { name: "origin/main...main (merge-base)" }));
+
+    expect(onSelectDiff).toHaveBeenCalledWith({
+      baseCommitish: "origin/main",
+      targetCommitish: "main",
+      baseMode: "merge-base",
+    });
+  });
+
+  it("hides 默认对比 preset without origin default branch or current branch", () => {
+    const { unmount } = render(
+      createElement(DiffQuickMenu, {
+        options: { ...options, originDefaultBranch: undefined },
+        selection: { baseCommitish: "HEAD", targetCommitish: "." },
+        onSelectDiff: vi.fn(),
+        onOpenAdvanced: vi.fn(),
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Revision menu:/ }));
+    expect(
+      screen.queryByRole("button", { name: "origin/main...main (merge-base)" }),
+    ).not.toBeInTheDocument();
+    unmount();
+
+    // detached HEAD: branches 里没有 current, 同样不给出默认对比预设
+    render(
+      createElement(DiffQuickMenu, {
+        options: { ...options, branches: [{ name: "main", current: false }] },
+        selection: { baseCommitish: "HEAD", targetCommitish: "." },
+        onSelectDiff: vi.fn(),
+        onOpenAdvanced: vi.fn(),
+      }),
+    );
+
+    fireEvent.click(screen.getAllByRole("button", { name: /Revision menu:/ })[0]);
+    expect(
+      screen.queryByRole("button", { name: "origin/main...main (merge-base)" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows merge-base in the current label", () => {
     render(
       createElement(DiffQuickMenu, {

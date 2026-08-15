@@ -20,7 +20,7 @@ const bootstrap = async (): Promise<void> => {
 
   let initialSelection: DiffSelection;
   try {
-    initialSelection = await resolveInitialSelection(repoPath);
+    initialSelection = await resolveInitialSelection(parser);
   } catch (error) {
     // 目标路径不是 git 仓库时仍打开窗口, 由 UI 呈现 /api/diff 的错误信息
     console.error(`Failed to inspect repository at ${repoPath}:`, error);

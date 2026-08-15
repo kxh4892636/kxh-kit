@@ -770,32 +770,49 @@ export class GitDiffParser {
     return null;
   }
 
+  // 当前本地分支名; detached HEAD 时返回 null, 供默认对比降级链判断
+  async getCurrentBranch(): Promise<string | null> {
+    const status = await this.git.status();
+    return status.detached ? null : status.current;
+  }
+
+  // 远程默认分支判定顺序: origin/HEAD symref → origin/main → origin/master → 第一个远程分支;
+  // 没有任何远程分支时返回 null (调用方走降级)。
+  // 注意不能用 show-ref --quiet 的退出码探测: simple-git 对空输出的非零退出不抛错。
   async getOriginDefaultBranch(): Promise<string | null> {
     try {
-      const result = await this.git.raw(["symbolic-ref", "refs/remotes/origin/HEAD"]);
-      const match = result.trim().match(/refs\/remotes\/origin\/(.+)/);
-      if (match) {
-        return `origin/${match[1]}`;
-      }
-    } catch {
-      const commonDefaults = ["main", "master"];
+      const output = await this.git.raw([
+        "for-each-ref",
+        "--format=%(refname:short)%09%(symref:short)",
+        "refs/remotes",
+      ]);
+      const entries = output
+        .split("\n")
+        .map((line) => line.trim())
+        .filter((line) => line.length > 0)
+        .map((line) => {
+          const [name, symrefTarget] = line.split("\t");
+          return { name, symrefTarget };
+        });
 
-      for (const defaultName of commonDefaults) {
-        try {
-          await this.git.raw([
-            "show-ref",
-            "--verify",
-            "--quiet",
-            `refs/remotes/origin/${defaultName}`,
-          ]);
-          return `origin/${defaultName}`;
-        } catch {
-          // Ignore missing refs and continue checking common defaults.
-        }
+      // refs/remotes 下唯一带 symref 目标的就是 origin/HEAD 这类远程默认分支标记
+      const symrefEntry = entries.find((entry) => entry.symrefTarget);
+      if (symrefEntry?.symrefTarget) {
+        return symrefEntry.symrefTarget;
       }
+
+      const names = entries.map((entry) => entry.name);
+      if (names.includes("origin/main")) {
+        return "origin/main";
+      }
+      if (names.includes("origin/master")) {
+        return "origin/master";
+      }
+      return names[0] ?? null;
+    } catch (error) {
+      console.error("Failed to resolve origin default branch:", error);
+      return null;
     }
-
-    return null;
   }
 
   async getRevisionOptions(

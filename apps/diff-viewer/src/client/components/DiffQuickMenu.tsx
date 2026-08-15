@@ -1,3 +1,7 @@
+// fork 改动 (client 第 4 处, issue 02): Quick Diffs 增加默认对比预设 (当前分支与远程默认分支的
+// 三点对比), 与 Detailed 弹窗应用的两点对比构成可逆的三点/两点切换。
+// 其余 fork 改动: main.tsx 安装 api bridge, useHighlightedCode.ts 显式泛型,
+// viewers/ImageDiffViewer.tsx 经 bridge fetch 转 Object URL (清单见该文件头注释)。
 import {
   useFloating,
   autoUpdate,
@@ -203,6 +207,10 @@ export function DiffQuickMenu({
   );
 
   const originDefaultBranch = options.originDefaultBranch;
+  const currentBranch = useMemo(
+    () => options.branches.find((branch) => branch.current) ?? null,
+    [options.branches],
+  );
   const headPreset = useMemo(() => createDiffSelection("HEAD^", "HEAD"), []);
   const headUncommittedPreset = useMemo(() => createDiffSelection("HEAD", ".", "merge-base"), []);
   const mainUncommittedPreset = useMemo(
@@ -213,6 +221,15 @@ export function DiffQuickMenu({
     () =>
       originDefaultBranch ? createDiffSelection(originDefaultBranch, ".", "merge-base") : null,
     [originDefaultBranch],
+  );
+  // 默认对比预设: 当前分支与远程默认分支的三点对比, 是三点/两点切换中回到三点的入口;
+  // detached HEAD (无 current 分支) 或无远程时不提供
+  const defaultComparePreset = useMemo(
+    () =>
+      originDefaultBranch && currentBranch
+        ? createDiffSelection(originDefaultBranch, currentBranch.name, "merge-base")
+        : null,
+    [originDefaultBranch, currentBranch],
   );
   const previousCommitPreset = useMemo(
     () => getPreviousCommitPreset(selection.targetCommitish),
@@ -260,6 +277,13 @@ export function DiffQuickMenu({
         selection: originUncommittedPreset,
       });
     }
+    if (defaultComparePreset && originDefaultBranch && currentBranch) {
+      items.push({
+        key: "default-compare",
+        label: `${originDefaultBranch}...${currentBranch.name} (merge-base)`,
+        selection: defaultComparePreset,
+      });
+    }
     items.push({
       key: "previous",
       label: "Previous commit",
@@ -273,6 +297,8 @@ export function DiffQuickMenu({
     mainUncommittedPreset,
     originDefaultBranch,
     originUncommittedPreset,
+    defaultComparePreset,
+    currentBranch,
     previousCommitPreset,
   ]);
 
