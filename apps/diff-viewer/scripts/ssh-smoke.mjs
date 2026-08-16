@@ -1,8 +1,9 @@
 // 真实 SSH 主机 smoke (issue 06): e2e 用 fake executor 覆盖全链路, 本脚本补传输层
 // 在真实主机上的证据 —— createSshExecutor (ControlMaster/参数组装) + 远程 find 扫描
 // 脚本 + RemoteGitDiffParser 数据面, 全部对真机执行。
-// 用法: pnpm run build 后 `node scripts/ssh-smoke.mjs [target]`
-// (target 默认读 ssh config 可达的 123.57.92.26; 远端需要 POSIX shell + find + git)
+// 用法: pnpm run build 后 `node scripts/ssh-smoke.mjs <target>`
+// (target 为 ssh config Host 别名或 user@host[:port], 也可用环境变量
+// DIFF_VIEWER_SSH_SMOKE_TARGET 提供; 远端需要 POSIX shell + find + git)
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 
@@ -12,7 +13,14 @@ const { createSshExecutor } = require("../dist/main/main/remote/ssh-executor.js"
 const { scanRemoteRepositories } = require("../dist/main/main/repo-scan/remote-repo-scanner.js");
 const { RemoteGitDiffParser } = require("../dist/main/main/remote/remote-git-diff.js");
 
-const target = process.argv[2] ?? "123.57.92.26";
+const target = process.argv[2] ?? process.env.DIFF_VIEWER_SSH_SMOKE_TARGET;
+if (!target) {
+  console.error(
+    "用法: node scripts/ssh-smoke.mjs <target>\n" +
+      "  target 为 ssh config Host 别名或 user@host[:port] (也可设 DIFF_VIEWER_SSH_SMOKE_TARGET)",
+  );
+  process.exit(2);
+}
 const remoteRoot = `/tmp/difit-smoke-${Date.now()}`;
 
 // 夹具搭建/清理用 plain ssh (不经被测代码), 与被测路径隔离

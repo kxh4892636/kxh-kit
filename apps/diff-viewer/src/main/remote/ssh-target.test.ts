@@ -17,7 +17,8 @@ describe("parseSshTarget", () => {
   });
 
   it("解析 user@host", () => {
-    expect(parseSshTarget("root@123.57.92.26")).toEqual({ host: "123.57.92.26", user: "root" });
+    // RFC 5737 文档用 IP, 不写真实主机
+    expect(parseSshTarget("root@192.0.2.10")).toEqual({ host: "192.0.2.10", user: "root" });
   });
 
   it("解析 user@host:port 与 host:port", () => {

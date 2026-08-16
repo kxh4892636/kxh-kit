@@ -13,7 +13,7 @@ import { SshConnectPanel } from "./ssh-connect-panel";
 
 const HISTORY: SshConnectionEntry[] = [
   { target: "dev-box", path: "/srv/repos", lastUsedAt: "2026-08-15T10:00:00.000Z" },
-  { target: "root@123.57.92.26", path: "/opt/app", lastUsedAt: "2026-08-14T09:00:00.000Z" },
+  { target: "root@192.0.2.10", path: "/opt/app", lastUsedAt: "2026-08-14T09:00:00.000Z" },
 ];
 
 const createScanStub = (overrides: Partial<RepositoryScanState> = {}): RepositoryScanState => ({
@@ -63,7 +63,7 @@ describe("SshConnectPanel", () => {
 
     await waitFor(() => expect(screen.getByTestId("ssh-history-list")).toBeInTheDocument());
     expect(screen.getByTestId("ssh-history-list")).toHaveTextContent("dev-box");
-    expect(screen.getByTestId("ssh-history-list")).toHaveTextContent("root@123.57.92.26");
+    expect(screen.getByTestId("ssh-history-list")).toHaveTextContent("root@192.0.2.10");
   });
 
   it("空 target 或空 path 不发起连接", () => {
