@@ -2,6 +2,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { resolve } from "path";
 
 import { GitDiffParser } from "./git-diff";
+import { countLinesFromChunks, parseFileBlock } from "./git-text-parse";
+
+// parseFileBlock / countLinesFromChunks 已抽到 git-text-parse.ts (issue 06 共享纯解析)。
+// 用例历史上经 (parser as any) 调私有方法, 且第二参传的是遗留 summary 对象
+// (现签名为 format), 以宽松签名包一层保持用例主体不改写
+const parseFileBlockForTest = parseFileBlock as (
+  block: string,
+  format?: unknown,
+) => Exclude<ReturnType<typeof parseFileBlock>, null>;
 
 const TEST_REPO_PATH = resolve("/test/repo");
 
@@ -207,7 +216,7 @@ describe("GitDiffParser", () => {
       };
 
       // Access private method for testing
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+      const result = parseFileBlockForTest(diffLines.join("\n"), summary);
 
       expect(result).toEqual({
         path: "image.jpg",
@@ -237,7 +246,7 @@ describe("GitDiffParser", () => {
         binary: true,
       };
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+      const result = parseFileBlockForTest(diffLines.join("\n"), summary);
 
       expect(result).toEqual({
         path: "old-image.png",
@@ -266,7 +275,7 @@ describe("GitDiffParser", () => {
         binary: true,
       };
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+      const result = parseFileBlockForTest(diffLines.join("\n"), summary);
 
       expect(result).toEqual({
         path: "photo.jpg",
@@ -295,7 +304,7 @@ describe("GitDiffParser", () => {
         binary: true,
       };
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+      const result = parseFileBlockForTest(diffLines.join("\n"), summary);
 
       expect(result).toEqual({
         path: "new-name.gif",
@@ -327,7 +336,7 @@ describe("GitDiffParser", () => {
         binary: false,
       };
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+      const result = parseFileBlockForTest(diffLines.join("\n"), summary);
 
       expect(result).toEqual({
         path: "script.js",
@@ -363,7 +372,7 @@ describe("GitDiffParser", () => {
         binary: false,
       };
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+      const result = parseFileBlockForTest(diffLines.join("\n"), summary);
 
       expect(result).toEqual({
         path: "script.js",
@@ -394,7 +403,7 @@ describe("GitDiffParser", () => {
         binary: false,
       };
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+      const result = parseFileBlockForTest(diffLines.join("\n"), summary);
 
       expect(result.status).toBe("added");
       expect(result.isGenerated).toBe(false);
@@ -418,7 +427,7 @@ describe("GitDiffParser", () => {
         binary: false,
       };
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+      const result = parseFileBlockForTest(diffLines.join("\n"), summary);
 
       expect(result.status).toBe("deleted");
       expect(result.isGenerated).toBe(false);
@@ -437,7 +446,7 @@ describe("GitDiffParser", () => {
         "+foo",
       ];
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), null);
+      const result = parseFileBlockForTest(diffLines.join("\n"), null);
       expect(result).toBeDefined();
       expect(result.path).toBe("test with spaces/file name.txt");
       expect(result.status).toBe("added");
@@ -464,7 +473,7 @@ describe("GitDiffParser", () => {
         binary: false,
       };
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+      const result = parseFileBlockForTest(diffLines.join("\n"), summary);
 
       expect(result?.path).toBe("templates/test file.py");
       expect(result?.oldPath).toBeUndefined();
@@ -482,7 +491,7 @@ describe("GitDiffParser", () => {
         "+test",
       ];
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), null);
+      const result = parseFileBlockForTest(diffLines.join("\n"), null);
       expect(result).toBeDefined();
       expect(result.path).toBe("templates/test_000_{{ package_name }}/__.py");
       expect(result.status).toBe("added");
@@ -500,7 +509,7 @@ describe("GitDiffParser", () => {
         "+content",
       ];
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), null);
+      const result = parseFileBlockForTest(diffLines.join("\n"), null);
       expect(result).toBeDefined();
       expect(result.path).toBe("file\twith\ttabs.txt");
       expect(result.status).toBe("added");
@@ -515,7 +524,7 @@ describe("GitDiffParser", () => {
         "rename to new folder/new name.txt",
       ];
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), null);
+      const result = parseFileBlockForTest(diffLines.join("\n"), null);
       expect(result).toBeDefined();
       expect(result.path).toBe("new folder/new name.txt");
       expect(result.oldPath).toBe("old folder/old name.txt");
@@ -536,7 +545,7 @@ describe("GitDiffParser", () => {
         " line3",
       ];
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), null);
+      const result = parseFileBlockForTest(diffLines.join("\n"), null);
       expect(result).toBeDefined();
       expect(result.path).toBe("src/file.js");
       expect(result.status).toBe("modified");
@@ -556,7 +565,7 @@ describe("GitDiffParser", () => {
         "+new content",
       ];
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), null);
+      const result = parseFileBlockForTest(diffLines.join("\n"), null);
       expect(result).toBeDefined();
       expect(result.path).toBe("path with spaces/file.txt");
       expect(result.status).toBe("modified");
@@ -575,7 +584,7 @@ describe("GitDiffParser", () => {
         "@@ -0,0 +1 @@",
         "+content",
       ];
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), null);
+      const result = parseFileBlockForTest(diffLines.join("\n"), null);
       expect(result).toBeDefined();
       expect(result.path).toBe("テスト/file.txt");
     });
@@ -591,7 +600,7 @@ describe("GitDiffParser", () => {
         "+new",
       ];
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), null);
+      const result = parseFileBlockForTest(diffLines.join("\n"), null);
 
       expect(result?.path).toBe("some folder/file name.ts");
       expect(result?.oldPath).toBeUndefined();
@@ -609,7 +618,7 @@ describe("GitDiffParser", () => {
         "+new",
       ];
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), null);
+      const result = parseFileBlockForTest(diffLines.join("\n"), null);
       expect(result).toBeDefined();
       expect(result.path).toBe("dir b/sub/file");
       expect(result.oldPath).toBeUndefined();
@@ -625,7 +634,7 @@ describe("GitDiffParser", () => {
         "rename to new b/path/file",
       ];
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), null);
+      const result = parseFileBlockForTest(diffLines.join("\n"), null);
       expect(result).toBeDefined();
       expect(result.path).toBe("new b/path/file");
       expect(result.oldPath).toBe("old b/path/file");
@@ -651,7 +660,7 @@ describe("GitDiffParser", () => {
         binary: false,
       };
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+      const result = parseFileBlockForTest(diffLines.join("\n"), summary);
 
       expect(result).toBeDefined();
       expect(result.path).toBe("a/test.txt");
@@ -676,7 +685,7 @@ describe("GitDiffParser", () => {
         binary: false,
       };
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+      const result = parseFileBlockForTest(diffLines.join("\n"), summary);
 
       expect(result).toBeDefined();
       expect(result.path).toBe("new/name.txt");
@@ -703,7 +712,7 @@ describe("GitDiffParser", () => {
         binary: false,
       };
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+      const result = parseFileBlockForTest(diffLines.join("\n"), summary);
 
       expect(result).toBeDefined();
       expect(result.path).toBe("foo bar.txt");
@@ -729,7 +738,7 @@ describe("GitDiffParser", () => {
         binary: false,
       };
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+      const result = parseFileBlockForTest(diffLines.join("\n"), summary);
 
       expect(result).toBeDefined();
       expect(result?.path).toBe("a/test.txt");
@@ -756,7 +765,7 @@ describe("GitDiffParser", () => {
         binary: false,
       };
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+      const result = parseFileBlockForTest(diffLines.join("\n"), summary);
 
       expect(result).toBeDefined();
       expect(result?.status).toBe("added");
@@ -775,7 +784,7 @@ describe("GitDiffParser", () => {
         "+content",
       ];
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), null);
+      const result = parseFileBlockForTest(diffLines.join("\n"), null);
       expect(result).toBeDefined();
       expect(result.path).toBe("fileä.txt");
       expect(result.status).toBe("added");
@@ -793,7 +802,7 @@ describe("GitDiffParser", () => {
         "+test",
       ];
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), null);
+      const result = parseFileBlockForTest(diffLines.join("\n"), null);
       expect(result).toBeDefined();
       expect(result.path).toBe("diré/file\twith\nmixed.txt");
       expect(result.status).toBe("added");
@@ -818,7 +827,7 @@ describe("GitDiffParser", () => {
         binary: false,
       };
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+      const result = parseFileBlockForTest(diffLines.join("\n"), summary);
 
       expect(result.status).toBe("added");
       expect(result.isGenerated).toBe(false);
@@ -840,7 +849,7 @@ describe("GitDiffParser", () => {
         binary: false,
       };
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+      const result = parseFileBlockForTest(diffLines.join("\n"), summary);
 
       expect(result.status).toBe("deleted");
       expect(result.isGenerated).toBe(false);
@@ -877,7 +886,7 @@ describe("GitDiffParser", () => {
         },
       ];
 
-      const result = (parser as any).countLinesFromChunks(chunks);
+      const result = countLinesFromChunks(chunks);
       expect(result).toEqual({ additions: 2, deletions: 1 });
     });
   });
@@ -916,7 +925,7 @@ describe("GitDiffParser", () => {
         binary: false,
       };
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+      const result = parseFileBlockForTest(diffLines.join("\n"), summary);
       expect(result.isGenerated).toBe(true);
     });
 
@@ -1016,7 +1025,7 @@ describe("GitDiffParser", () => {
           binary: false,
         };
 
-        const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+        const result = parseFileBlockForTest(diffLines.join("\n"), summary);
         expect(result.isGenerated).toBe(true);
       }
     });
@@ -1040,7 +1049,7 @@ describe("GitDiffParser", () => {
         binary: false,
       };
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+      const result = parseFileBlockForTest(diffLines.join("\n"), summary);
       expect(result.isGenerated).toBe(true);
     });
 
@@ -1065,7 +1074,7 @@ describe("GitDiffParser", () => {
           binary: false,
         };
 
-        const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+        const result = parseFileBlockForTest(diffLines.join("\n"), summary);
         expect(result.isGenerated).toBe(false);
       }
     });
@@ -1087,7 +1096,7 @@ describe("GitDiffParser", () => {
         binary: true,
       };
 
-      const result = (parser as any).parseFileBlock(diffLines.join("\n"), summary);
+      const result = parseFileBlockForTest(diffLines.join("\n"), summary);
       expect(result.isGenerated).toBe(true);
     });
   });

@@ -2,6 +2,7 @@
 // renderer 的 /api/* fetch 被序列化为 ApiBridgeRequest 经 ipcRenderer.invoke 送往主进程,
 // 主进程处理后返回 ApiBridgeResponse, 由 bridge 在 renderer 侧重新构造 Response。
 import type { RepositoryScanResult, ScanProgress } from "../types/repository.js";
+import type { SshConnectRequest, SshConnectionEntry } from "../types/ssh.js";
 
 export interface ApiBridgeRequest {
   method: string;
@@ -33,6 +34,11 @@ export interface DiffViewerBridge {
   scanRepositories: (scanId: string, rootPath: string) => Promise<RepositoryScanResult>;
   // 返回取消订阅函数
   onScanProgress: (callback: (scanId: string, progress: ScanProgress) => void) => () => void;
+  // issue 06 SSH 远程视图: 连接目标校验 + 远程仓库扫描, 成功即建立远程会话数据源;
+  // 失败 (校验/连接/扫描) 以 reject 带错误信息回 renderer
+  connectSsh: (payload: SshConnectRequest) => Promise<RepositoryScanResult>;
+  // 历史连接列表 (userData 落盘, 最近在前)
+  listSshConnections: () => Promise<SshConnectionEntry[]>;
 }
 
 declare global {

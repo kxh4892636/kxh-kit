@@ -25,6 +25,9 @@ const createFakeBridge = () => {
     pickDirectory: vi.fn(async (): Promise<string | null> => null),
     scanRepositories: vi.fn(),
     onScanProgress: vi.fn(() => () => {}),
+    // issue 06 的 ssh 通道同理
+    connectSsh: vi.fn(),
+    listSshConnections: vi.fn(async () => []),
   };
   return {
     bridge,

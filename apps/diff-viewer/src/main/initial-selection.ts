@@ -2,9 +2,9 @@
 // 降级链: detached HEAD 或无远程默认分支 → 未提交改动 vs HEAD。
 import type { DiffSelection } from "../types/diff.js";
 
-import type { GitDiffParser } from "./git-diff.js";
+import type { DiffParser } from "./diff-parser.js";
 
-export const resolveInitialSelection = async (parser: GitDiffParser): Promise<DiffSelection> => {
+export const resolveInitialSelection = async (parser: DiffParser): Promise<DiffSelection> => {
   // 非 git 仓库会在此抛错, 由调用方决定兜底行为
   const currentBranch = await parser.getCurrentBranch();
 

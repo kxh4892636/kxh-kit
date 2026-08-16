@@ -1,17 +1,15 @@
+// issue 06: unified diff 文本与 check-attr 输出的纯解析抽到 git-text-parse.ts,
+// 供本地 (simple-git 取文本) 与远程 (ssh exec 取文本) 两个 parser 复用;
+// 本类只保留 git 命令调用与结果组装。
 import { simpleGit, type SimpleGit } from "simple-git";
 import { isAbsolute, resolve, sep } from "path";
 
 import { validateDiffArguments, shortHash, createCommitRangeString } from "./commitish.js";
-import {
-  type DiffChunk,
-  type DiffFile,
-  type DiffLine,
-  type DiffResponse,
-  type DiffSelection,
-} from "../types/diff.js";
+import { type DiffFile, type DiffResponse, type DiffSelection } from "../types/diff.js";
 import { getMergeBaseTargetRef, normalizeBaseMode } from "../utils/diffSelection.js";
 
 import { isGeneratedFile } from "./generated-file-check.js";
+import { parseGitattributesGeneratedOutput, parseUnifiedDiff } from "./git-text-parse.js";
 
 export class GitDiffParser {
   private git: SimpleGit;
@@ -123,7 +121,7 @@ export class GitDiffParser {
       // Single git invocation for better startup latency on large repositories.
       const diffRaw = await this.git.diff(diffArgs);
       const files = await this.markGitattributesGeneratedFiles(
-        this.parseUnifiedDiff(diffRaw),
+        parseUnifiedDiff(diffRaw),
         attributesRef,
       );
 
@@ -144,81 +142,6 @@ export class GitDiffParser {
     }
   }
 
-  private parseUnifiedDiff(diffText: string): DiffFile[] {
-    const files: DiffFile[] = [];
-    const fileBlocks = diffText.split(/^diff --git /m).slice(1);
-
-    if (fileBlocks.length > 0) {
-      for (const fileBlock of fileBlocks) {
-        const block = `diff --git ${fileBlock}`;
-        const file = this.parseFileBlock(block);
-        if (file) {
-          files.push(file);
-        }
-      }
-
-      return files;
-    }
-
-    for (const fileBlock of this.splitPlainUnifiedDiff(diffText)) {
-      const file = this.parseFileBlock(fileBlock, "plain");
-      if (file) {
-        files.push(file);
-      }
-    }
-
-    return files;
-  }
-
-  private splitPlainUnifiedDiff(diffText: string): string[] {
-    const lines = diffText.split(/\r?\n/);
-    const blocks: string[] = [];
-    let blockStart: number | null = null;
-    let remainingOldLines = 0;
-    let remainingNewLines = 0;
-
-    for (let index = 0; index < lines.length; index++) {
-      const line = lines[index];
-
-      if (blockStart !== null && line.startsWith("@@")) {
-        const match = line.match(/@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
-        if (match) {
-          remainingOldLines = parseInt(match[2] ?? "1");
-          remainingNewLines = parseInt(match[4] ?? "1");
-        }
-        continue;
-      }
-
-      if (blockStart !== null && (remainingOldLines > 0 || remainingNewLines > 0)) {
-        if (line.startsWith("\\")) {
-          continue;
-        }
-        if (line.startsWith("+")) {
-          remainingNewLines--;
-        } else if (line.startsWith("-")) {
-          remainingOldLines--;
-        } else if (line.startsWith(" ")) {
-          remainingOldLines--;
-          remainingNewLines--;
-        }
-        continue;
-      }
-
-      if (line.startsWith("--- ") && lines[index + 1]?.startsWith("+++ ")) {
-        if (blockStart !== null) {
-          blocks.push(lines.slice(blockStart, index).join("\n"));
-        }
-        blockStart = index;
-      }
-    }
-
-    if (blockStart !== null) {
-      blocks.push(lines.slice(blockStart).join("\n"));
-    }
-
-    return blocks;
-  }
-
   private getGitattributesSourceArgs(ref: string): string[] {
     if (ref === "working" || ref === ".") {
       return [];
@@ -229,20 +152,6 @@ export class GitDiffParser {
     }
 
     return ["--source", ref];
-  }
-
-  private parseGitattributesGeneratedOutput(output: string): Set<string> {
-    const generatedPaths = new Set<string>();
-    const fields = output.split("\0");
-
-    for (let i = 0; i + 2 < fields.length; i += 3) {
-      const [path, attribute, value] = fields.slice(i, i + 3);
-      if (attribute === "linguist-generated" && value === "true") {
-        generatedPaths.add(path);
-      }
-    }
-
-    return generatedPaths;
   }
 
   private async getGitattributesGeneratedPaths(
@@ -271,7 +180,7 @@ export class GitDiffParser {
           continue;
         }
 
-        for (const path of this.parseGitattributesGeneratedOutput(output)) {
+        for (const path of parseGitattributesGeneratedOutput(output)) {
           generatedPaths.add(path);
         }
       }
@@ -296,300 +205,6 @@ export class GitDiffParser {
     return files.map((file) =>
       generatedPaths.has(file.path) ? { ...file, isGenerated: true } : file,
     );
-  }
-
-  private decodeGitPath(
-    rawPath: string | undefined,
-    stripGitPrefix: boolean = true,
-  ): string | undefined {
-    if (typeof rawPath !== "string") {
-      return undefined;
-    }
-
-    const tabIndex = rawPath.indexOf("\t");
-    const pathWithoutTimestamp = tabIndex === -1 ? rawPath : rawPath.slice(0, tabIndex);
-    const trimmed =
-      pathWithoutTimestamp.startsWith('"') && pathWithoutTimestamp.endsWith('"')
-        ? pathWithoutTimestamp.slice(1, -1)
-        : pathWithoutTimestamp;
-
-    const gitPrefixes = ["a/", "b/", "c/", "i/", "w/"];
-    let withoutPrefix = trimmed;
-    if (stripGitPrefix) {
-      for (const prefix of gitPrefixes) {
-        if (withoutPrefix.startsWith(prefix)) {
-          withoutPrefix = withoutPrefix.slice(prefix.length);
-          break;
-        }
-      }
-    }
-
-    if (withoutPrefix === "/dev/null") {
-      return undefined;
-    }
-
-    const bytes: number[] = [];
-    for (let i = 0; i < withoutPrefix.length; i++) {
-      const char = withoutPrefix[i];
-
-      if (char === "\\" && i + 1 < withoutPrefix.length) {
-        const next = withoutPrefix[i + 1];
-
-        if (/[0-7]/.test(next)) {
-          let octal = next;
-          let read = 1;
-
-          while (read < 3 && i + 1 + read < withoutPrefix.length) {
-            const candidate = withoutPrefix[i + 1 + read];
-            if (!/[0-7]/.test(candidate)) {
-              break;
-            }
-            octal += candidate;
-            read++;
-          }
-
-          bytes.push(parseInt(octal, 8));
-          i += read; // Skip consumed digits
-          continue;
-        }
-
-        switch (next) {
-          case "t":
-            bytes.push(0x09);
-            break;
-          case "n":
-            bytes.push(0x0a);
-            break;
-          case "r":
-            bytes.push(0x0d);
-            break;
-          case "b":
-            bytes.push(0x08);
-            break;
-          case "f":
-            bytes.push(0x0c);
-            break;
-          case "v":
-            bytes.push(0x0b);
-            break;
-          case "a":
-            bytes.push(0x07);
-            break;
-          case "\\":
-            bytes.push(0x5c);
-            break;
-          case '"':
-            bytes.push(0x22);
-            break;
-          case " ":
-            bytes.push(0x20);
-            break;
-          default:
-            bytes.push(...Buffer.from(next, "utf8"));
-            break;
-        }
-        i++; // Skip the escaped character
-        continue;
-      }
-
-      bytes.push(...Buffer.from(char, "utf8"));
-    }
-
-    return Buffer.from(bytes).toString("utf8");
-  }
-
-  private extractPathFromLine(
-    line: string | undefined,
-    prefix: string,
-    stripGitPrefix: boolean = true,
-  ): string | undefined {
-    if (!line?.startsWith(prefix)) {
-      return undefined;
-    }
-
-    return this.decodeGitPath(line.slice(prefix.length), stripGitPrefix);
-  }
-
-  private parseDiffHeaderPaths(
-    headerLine: string,
-  ): { oldPath: string | undefined; newPath: string | undefined } | null {
-    if (!headerLine.startsWith("diff --git ")) {
-      return null;
-    }
-
-    const raw = headerLine.slice("diff --git ".length);
-    const segments: string[] = [];
-    let current = "";
-    let inQuotes = false;
-
-    for (let i = 0; i < raw.length; i++) {
-      const char = raw[i];
-      const prevChar = i > 0 ? raw[i - 1] : null;
-
-      if (char === '"' && prevChar !== "\\") {
-        inQuotes = !inQuotes;
-        current += char;
-        continue;
-      }
-
-      if (char === " " && !inQuotes && prevChar !== "\\") {
-        if (current) {
-          segments.push(current);
-          current = "";
-        }
-        continue;
-      }
-
-      current += char;
-    }
-
-    if (current) {
-      segments.push(current);
-    }
-
-    if (segments.length !== 2) {
-      return null;
-    }
-
-    const [rawOldPath, rawNewPath] = segments;
-    return {
-      oldPath: this.decodeGitPath(rawOldPath),
-      newPath: this.decodeGitPath(rawNewPath),
-    };
-  }
-
-  private parseFileBlock(block: string, format: "git" | "plain" | null = "git"): DiffFile | null {
-    const lines = block.split("\n");
-    const headerLine = lines[0];
-    const headerPaths = this.parseDiffHeaderPaths(headerLine);
-
-    const minusLine = lines.find((line) => line.startsWith("--- "));
-    const plusLine = lines.find((line) => line.startsWith("+++ "));
-    const renameFromLine = lines.find((line) => line.startsWith("rename from "));
-    const renameToLine = lines.find((line) => line.startsWith("rename to "));
-
-    const stripGitPrefix = format !== "plain";
-    const plusPath = this.extractPathFromLine(plusLine, "+++ ", stripGitPrefix);
-    const minusPath = this.extractPathFromLine(minusLine, "--- ", stripGitPrefix);
-    const renameFromPath = this.extractPathFromLine(renameFromLine, "rename from ");
-    const renameToPath = this.extractPathFromLine(renameToLine, "rename to ");
-    const parsedNewPath = renameToPath ?? plusPath ?? headerPaths?.newPath;
-    const parsedOldPath = renameFromPath ?? minusPath ?? headerPaths?.oldPath;
-    const newPath = parsedNewPath ?? parsedOldPath;
-    const oldPath = parsedOldPath ?? newPath;
-
-    if (!newPath) {
-      return null;
-    }
-
-    const path = newPath;
-
-    let status: DiffFile["status"] = "modified";
-
-    // Check for new file mode (added files)
-    const newFileMode = lines.find((line) => line.startsWith("new file mode"));
-    const deletedFileMode = lines.find((line) => line.startsWith("deleted file mode"));
-
-    // Check for /dev/null which indicates added or deleted files
-    if (newFileMode || minusLine?.includes("/dev/null")) {
-      status = "added";
-    } else if (deletedFileMode || plusLine?.includes("/dev/null")) {
-      status = "deleted";
-    } else if (format !== "plain" && oldPath !== newPath) {
-      status = "renamed";
-    }
-
-    // Common properties for all files
-    const baseFile = {
-      path,
-      oldPath: status === "renamed" && oldPath !== newPath ? oldPath : undefined,
-      status,
-    };
-
-    // Parse chunks
-    const chunks = this.parseChunks(lines);
-
-    const { additions, deletions } = this.countLinesFromChunks(chunks);
-    return {
-      ...baseFile,
-      additions,
-      deletions,
-      chunks,
-      isGenerated: isGeneratedFile(path).isGenerated,
-    };
-  }
-
-  private countLinesFromChunks(chunks: DiffChunk[]): {
-    additions: number;
-    deletions: number;
-  } {
-    let additions = 0;
-    let deletions = 0;
-    for (const chunk of chunks) {
-      for (const line of chunk.lines) {
-        if (line.type === "add") additions++;
-        else if (line.type === "delete") deletions++;
-      }
-    }
-    return { additions, deletions };
-  }
-
-  private parseChunks(lines: string[]): DiffChunk[] {
-    const chunks: DiffChunk[] = [];
-    let currentChunk: DiffChunk | null = null;
-    let oldLineNum = 0;
-    let newLineNum = 0;
-
-    for (const line of lines) {
-      if (line.startsWith("@@")) {
-        if (currentChunk) {
-          chunks.push(currentChunk);
-        }
-
-        const match = line.match(/@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)/);
-        if (match) {
-          const oldStart = parseInt(match[1]);
-          const oldLines = parseInt(match[2] || "1");
-          const newStart = parseInt(match[3]);
-          const newLines = parseInt(match[4] || "1");
-
-          oldLineNum = oldStart;
-          newLineNum = newStart;
-
-          currentChunk = {
-            header: line,
-            oldStart,
-            oldLines,
-            newStart,
-            newLines,
-            lines: [],
-          };
-        }
-      } else if (
-        currentChunk &&
-        (line.startsWith("+") || line.startsWith("-") || line.startsWith(" "))
-      ) {
-        const type = line.startsWith("+") ? "add" : line.startsWith("-") ? "delete" : "normal";
-
-        const diffLine: DiffLine = {
-          type,
-          content: line.slice(1),
-          oldLineNumber: type !== "add" ? oldLineNum : undefined,
-          newLineNumber: type !== "delete" ? newLineNum : undefined,
-        };
-
-        currentChunk.lines.push(diffLine);
-
-        if (type !== "add") oldLineNum++;
-        if (type !== "delete") newLineNum++;
-      }
-    }
-
-    if (currentChunk) {
-      chunks.push(currentChunk);
-    }
-
-    return chunks;
   }
 
   async validateCommit(commitish: string): Promise<boolean> {

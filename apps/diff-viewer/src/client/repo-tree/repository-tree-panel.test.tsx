@@ -32,6 +32,7 @@ const createScanState = (overrides: Partial<RepositoryScanState> = {}): Reposito
   openFolder: vi.fn(async () => {}),
   toggleRepository: vi.fn(),
   activateRepository: vi.fn(async () => true),
+  openRemote: vi.fn(async () => true),
   ...overrides,
 });
 
