@@ -122,7 +122,7 @@ status: pending
 
 ## 上下文
 
-{通过路径或 URL 引用已有产物: PRD, story, spec, ADR, commit, diff 等; 域内文档使用 ../../ 相对路径}
+{通过路径或 URL 引用已有产物: PRD, story, spec, ADR, workflow, commit, diff 等; 域内文档使用 ../../ 相对路径}
 
 ## Issue
 
@@ -159,7 +159,7 @@ blocked_by: []
 
 ## 上下文
 
-- {通过路径或 URL 引用相关产物: PRD, story, spec, ADR, commit, diff 等; 域内文档一律 ../../ 相对路径}
+- {通过路径或 URL 引用相关产物: PRD, story, spec, ADR, workflow, commit, diff 等; 域内文档一律 ../../ 相对路径}
 
 ## 下一步
 
@@ -173,4 +173,4 @@ blocked_by: []
 - **独特**——内容无法归入任何现有章节, 语义不重叠;
 - **必要**——缺少它, 该工作的执行或验收会缺失关键信息.
 
-两条同时满足才添加, 章节标题使用中文; 否则归入现有章节或省略. 扩展只作用于单个 plan; 若同类章节在多个 plan 中反复出现, 回到本 skill 更新模板.
+两条同时满足才添加, 章节标题使用中文; 否则归入现有章节或省略.
