@@ -1,0 +1,26 @@
+# issue 08: 三平台安装包配置。产物只含 dist (tsc 主进程/preload + vite renderer)
+# 与生产依赖 (package.json dependencies 仅 js-yaml/simple-git, renderer 依赖全在
+# devDependencies 经 vite 打包); 代码签名/自动更新/CI 发布均为非范围。
+# 契约守卫见 src/main/packaging-config.test.ts; Windows 实机验收见 scripts/pack-smoke.mjs。
+appId: com.kxh4892636.diff-viewer
+productName: Diff Viewer
+directories:
+  output: release
+files:
+  - dist/**
+  - package.json
+win:
+  target: nsis
+nsis:
+  # 非一键安装: 允许选择安装目录 (pack-smoke 依赖 /D 指定隔离目录)
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: Diff Viewer
+mac:
+  target: dmg
+  category: public.app-category.developer-tools
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Development
