@@ -73,13 +73,13 @@ status: in_progress
 
 ## Issue
 
-| #   | Issue                                                             | 状态      | 阻塞于 | 下一步     |
-| --- | ----------------------------------------------------------------- | --------- | ------ | ---------- |
-| 01  | [Electron 骨架与裁剪 fork 落地](01-electron骨架与裁剪fork落地.md) | completed | —      | /implement |
-| 02  | [默认对比与三点对比](02-默认对比与三点对比.md)                    | completed | 01     | /implement |
-| 03  | [目录打开与嵌套仓库扫描](03-目录打开与嵌套仓库扫描.md)            | completed | 01     | /implement |
-| 04  | [多仓库文件树与同视图 diff](04-多仓库文件树与同视图diff.md)       | completed | 03     | /implement |
-| 05  | [评论持久化与一键复制](05-评论持久化与一键复制.md)                | completed | 01     | /implement |
-| 06  | [SSH 远程视图](06-ssh远程视图.md)                                 | completed | 03     | /implement |
-| 07  | [本地 VSCode 打开](07-本地vscode打开.md)                          | pending   | 01     | /implement |
-| 08  | [全平台打包](08-全平台打包.md)                                    | pending   | 01     | /implement |
+| #   | Issue                                                             | 状态        | 阻塞于 | 下一步     |
+| --- | ----------------------------------------------------------------- | ----------- | ------ | ---------- |
+| 01  | [Electron 骨架与裁剪 fork 落地](01-electron骨架与裁剪fork落地.md) | completed   | —      | /implement |
+| 02  | [默认对比与三点对比](02-默认对比与三点对比.md)                    | completed   | 01     | /implement |
+| 03  | [目录打开与嵌套仓库扫描](03-目录打开与嵌套仓库扫描.md)            | completed   | 01     | /implement |
+| 04  | [多仓库文件树与同视图 diff](04-多仓库文件树与同视图diff.md)       | completed   | 03     | /implement |
+| 05  | [评论持久化与一键复制](05-评论持久化与一键复制.md)                | completed   | 01     | /implement |
+| 06  | [SSH 远程视图](06-ssh远程视图.md)                                 | completed   | 03     | /implement |
+| 07  | [本地 VSCode 打开](07-本地vscode打开.md)                          | in_progress | 01     | /implement |
+| 08  | [全平台打包](08-全平台打包.md)                                    | pending     | 01     | /implement |

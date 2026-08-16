@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in_progress
 blocked_by: []
 ---
 
