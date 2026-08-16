@@ -10,6 +10,10 @@
 // 各仓库的激活对比/评论会话/generated 缓存互相独立, 切换仓库互不覆盖。
 // issue 05: 评论会话经 comment-persistence.ts 落盘到 commentsDir (userData/comments/
 // <repositoryId>.json), 路由处理评论读写前一律先 hydrate, 变更响应前等 persisted 落盘。
+// issue 06: 会话 key 空间扩展 ssh://user@host[:port]/path 远程仓库 (createRemoteParser
+// 工厂注入); 远程会话的 /api/open-in-editor 生成 vscode-remote 协议 URL 经注入的
+// openExternal 打开 (本地会话仍属 issue 07, 固定 400), diff 响应的
+// openInEditorAvailable 对远程会话按 openExternal 可用性上报。
 import { isAbsolute, join } from "path";
 
 import type { ApiBridgeRequest, ApiBridgeResponse } from "../api-bridge/api-bridge-types.js";
@@ -31,11 +35,12 @@ import {
 } from "./comment-sessions.js";
 import { createCommentPersister } from "./comment-persistence.js";
 import { createRepoSessionManager, type RepoSession } from "./repo-sessions.js";
-import type { GitDiffParser } from "./git-diff.js";
+import type { DiffParser } from "./diff-parser.js";
+import { buildVscodeRemoteUrl, isRemoteRepoKey } from "./remote/ssh-target.js";
 import { parseUserSettingsPatch, readUserConfig, updateUserClientSettings } from "./user-config.js";
 
 export interface ApiRouterOptions {
-  parser: GitDiffParser;
+  parser: DiffParser;
   repoPath: string;
   initialSelection: DiffSelection;
   configPath: string;
@@ -43,6 +48,10 @@ export interface ApiRouterOptions {
   commentsDir: string;
   // 评论变化时向 renderer 广播 (经 watch 通道)
   broadcast?: (payload: string) => void;
+  // issue 06: 远程仓库会话工厂 (入参为规范 ssh:// 键); 未提供时远程键激活失败
+  createRemoteParser?: (key: string) => DiffParser;
+  // issue 06: 打开外部协议 URL (electron shell.openExternal); 远程视图的编辑器按钮依赖
+  openExternal?: (url: string) => Promise<unknown>;
 }
 
 export interface ApiRouter {
@@ -117,6 +126,7 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
     repoPath: options.repoPath,
     parser: options.parser,
     initialSelection: options.initialSelection,
+    createRemoteParser: options.createRemoteParser,
   });
 
   // 评论会话按仓库隔离: store 以 selection 为键, 跨仓库共用会在相同对比下串评论;
@@ -204,7 +214,8 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
     return jsonResponse({
       ...responseDiffData,
       ignoreWhitespace,
-      openInEditorAvailable: false,
+      // 远程会话 (issue 06) 编辑器按钮走 vscode-remote; 本地仍待 issue 07
+      openInEditorAvailable: session.remote !== undefined && options.openExternal !== undefined,
       baseCommitish,
       targetCommitish,
       requestedBaseCommitish:
@@ -448,7 +459,12 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
     }
     const candidate =
       body !== null && typeof body === "object" ? (body as { path?: unknown }).path : undefined;
-    if (typeof candidate !== "string" || candidate.length === 0 || !isAbsolute(candidate)) {
+    // 本地绝对路径或 ssh:// 远程仓库键 (issue 06)
+    if (
+      typeof candidate !== "string" ||
+      candidate.length === 0 ||
+      (!isAbsolute(candidate) && !isRemoteRepoKey(candidate))
+    ) {
       return errorResponse(400, "Invalid repository path");
     }
 
@@ -462,6 +478,47 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
       path: activated.session.repoPath,
       selection: activated.session.currentSelection,
     });
+  };
+
+  // 远程会话: 仓库相对路径 → vscode-remote 协议 URL; 行号为可选正整数
+  const handleOpenInEditor = async (
+    session: RepoSession,
+    request: ApiBridgeRequest,
+  ): Promise<ApiBridgeResponse> => {
+    if (session.remote === undefined || options.openExternal === undefined) {
+      return errorResponse(400, "Open in editor is not available in this build");
+    }
+
+    let body: unknown;
+    try {
+      body = parseBodyObject(request.body);
+    } catch {
+      return errorResponse(400, "Invalid open-in-editor payload");
+    }
+    const candidate = body as { filePath?: unknown; line?: unknown };
+    if (typeof candidate.filePath !== "string") {
+      return errorResponse(400, "Invalid open-in-editor payload");
+    }
+
+    const filepathResult = toRepositoryRelativePath(session, candidate.filePath);
+    if (!filepathResult.ok) {
+      return errorResponse(400, filepathResult.error);
+    }
+
+    const line =
+      typeof candidate.line === "number" && Number.isInteger(candidate.line) && candidate.line > 0
+        ? candidate.line
+        : undefined;
+    const absoluteRemotePath = `${session.remote.remotePath.replace(/\/+$/, "")}/${filepathResult.path}`;
+    const url = buildVscodeRemoteUrl(session.remote.target, absoluteRemotePath, line);
+
+    try {
+      await options.openExternal(url);
+    } catch (error) {
+      console.error(`Failed to open ${url} via OS handler:`, error);
+      return errorResponse(500, "Failed to open file in editor");
+    }
+    return jsonResponse({ success: true, url });
   };
 
   const route = async (request: ApiBridgeRequest): Promise<ApiBridgeResponse> => {
@@ -531,8 +588,9 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
       return handleSetActiveRepository(request);
     }
     if (method === "POST" && path === "/api/open-in-editor") {
-      // 编辑器打开属于后续 issue, 本骨架版本固定不可用
-      return errorResponse(400, "Open in editor is not available in this build");
+      // issue 06: 远程会话生成 vscode-remote 协议 URL 经 openExternal 打开;
+      // 本地会话的编辑器打开属于 issue 07, 固定 400
+      return withSession(query, (session) => handleOpenInEditor(session, request));
     }
 
     return errorResponse(404, `Unknown API endpoint: ${method} ${path}`);

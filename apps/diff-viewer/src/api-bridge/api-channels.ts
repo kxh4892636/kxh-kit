@@ -9,4 +9,7 @@ export const API_CHANNELS = {
   workspacePickDirectory: "workspace:pick-directory",
   workspaceScan: "workspace:scan",
   workspaceScanProgress: "workspace:scan-progress",
+  // issue 06 SSH 远程视图: 连接校验+远程扫描与历史连接读取, 同样无 HTTP 对应
+  sshConnect: "ssh:connect",
+  sshHistory: "ssh:list-history",
 } as const;

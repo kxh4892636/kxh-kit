@@ -1,6 +1,7 @@
 // 仓库扫描状态机测试 (issue 03 移植自原面板组件测试, 04 上提 App 后直接测 hook):
 // 挂载自动扫描、根仓库自动勾选不重复激活、勾选激活/取消回退、
-// 取消最后一个保持聚焦 (04 取舍)、打开目录重扫、激活失败错误、跨仓库聚焦。
+// 取消最后一个保持聚焦 (04 取舍)、打开目录重扫、激活失败错误、跨仓库聚焦;
+// issue 06: openRemote 连接远程 (成功换树/失败保留/使在途扫描失效)。
 // bridge (window.diffViewerBridge) 全部 stub, 不经真实 IPC。
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -32,6 +33,27 @@ const ELSEWHERE_RESULT: RepositoryScanResult = {
   repositories: [{ path: "/elsewhere", name: "elsewhere", isSubmodule: false, children: [] }],
 };
 
+// issue 06: 远程扫描结果的节点 path 即 ssh:// 会话键 (与主进程 remote-repo-scanner 约定一致)
+const REMOTE_RESULT: RepositoryScanResult = {
+  rootPath: "ssh://fake-host/remote/ws",
+  scannedDirectories: 3,
+  repositories: [
+    {
+      path: "ssh://fake-host/remote/ws",
+      name: "ws",
+      isSubmodule: false,
+      children: [
+        {
+          path: "ssh://fake-host/remote/ws/lib/nested-lib",
+          name: "nested-lib",
+          isSubmodule: false,
+          children: [],
+        },
+      ],
+    },
+  ],
+};
+
 const createBridgeStub = (overrides: Partial<DiffViewerBridge> = {}): DiffViewerBridge => ({
   invokeApi: vi.fn(),
   openWatch: vi.fn(),
@@ -40,6 +62,8 @@ const createBridgeStub = (overrides: Partial<DiffViewerBridge> = {}): DiffViewer
   pickDirectory: vi.fn(async () => null),
   scanRepositories: vi.fn(async () => SCAN_RESULT),
   onScanProgress: vi.fn(() => () => {}),
+  connectSsh: vi.fn(),
+  listSshConnections: vi.fn(async () => []),
   ...overrides,
 });
 
@@ -190,5 +214,79 @@ describe("useRepositoryScan", () => {
     expect(onActivate).toHaveBeenLastCalledWith("/ws");
     expect(result.current.activePath).toBe("/ws");
     expect(result.current.checkedPaths).toEqual(["/ws", "/ws/lib/nested"]);
+  });
+
+  // issue 06: 连接远程 = 新工作上下文, 语义与 openFolder 换目录一致 (勾选不跨上下文保留)
+  it("openRemote 连接成功: 替换仓库树, 勾选重置, 自动勾选并激活远程根仓库", async () => {
+    const connectSsh = vi.fn(async () => REMOTE_RESULT);
+    const onActivate = vi.fn(async () => true);
+    window.diffViewerBridge = createBridgeStub({ connectSsh });
+    const { result } = renderHook(() => useRepositoryScan({ onActivateRepository: onActivate }));
+    await waitFor(() => expect(result.current.repositories).toHaveLength(1));
+
+    // 先勾选 nested, 验证连接远程后勾选不跨上下文保留
+    act(() => result.current.toggleRepository("/ws/lib/nested"));
+    await waitFor(() => expect(result.current.activePath).toBe("/ws/lib/nested"));
+
+    let succeeded: boolean | undefined;
+    await act(async () => {
+      succeeded = await result.current.openRemote("fake-host", "/remote/ws");
+    });
+    expect(succeeded).toBe(true);
+    expect(connectSsh).toHaveBeenCalledWith({ target: "fake-host", path: "/remote/ws" });
+    expect(result.current.workspaceRoot).toBe("ssh://fake-host/remote/ws");
+    expect(result.current.repositories[0]?.path).toBe("ssh://fake-host/remote/ws");
+    expect(result.current.checkedPaths).toEqual(["ssh://fake-host/remote/ws"]);
+    expect(onActivate).toHaveBeenLastCalledWith("ssh://fake-host/remote/ws");
+    expect(result.current.activePath).toBe("ssh://fake-host/remote/ws");
+    expect(result.current.error).toBeNull();
+  });
+
+  it("openRemote 连接失败: 保留现有树与勾选, 暴露错误信息, 返回 false", async () => {
+    const connectSsh = vi.fn(async (): Promise<RepositoryScanResult> => {
+      throw new Error("ssh: connect to host bad-host port 22: Connection refused");
+    });
+    const onActivate = vi.fn(async () => true);
+    window.diffViewerBridge = createBridgeStub({ connectSsh });
+    const { result } = renderHook(() => useRepositoryScan({ onActivateRepository: onActivate }));
+    await waitFor(() => expect(result.current.checkedPaths).toEqual(["/ws"]));
+
+    let succeeded: boolean | undefined;
+    await act(async () => {
+      succeeded = await result.current.openRemote("bad-host", "/remote/ws");
+    });
+    expect(succeeded).toBe(false);
+    expect(result.current.error).toContain("Connection refused");
+    expect(result.current.workspaceRoot).toBe("/ws");
+    expect(result.current.checkedPaths).toEqual(["/ws"]);
+    expect(result.current.activePath).toBe("/ws");
+  });
+
+  it("openRemote 使在途的本地扫描失效 (后到的旧扫描结果不得覆盖远程树)", async () => {
+    let resolveStaleScan: ((scanResult: RepositoryScanResult) => void) | null = null;
+    const scanRepositories = vi.fn(
+      () =>
+        new Promise<RepositoryScanResult>((resolvePromise) => {
+          resolveStaleScan = resolvePromise;
+        }),
+    );
+    const connectSsh = vi.fn(async () => REMOTE_RESULT);
+    window.diffViewerBridge = createBridgeStub({ scanRepositories, connectSsh });
+    const { result } = renderHook(() =>
+      useRepositoryScan({ onActivateRepository: onActivateNoop }),
+    );
+    await waitFor(() => expect(result.current.scanning).toBe(true));
+
+    await act(async () => {
+      await result.current.openRemote("fake-host", "/remote/ws");
+    });
+    expect(result.current.workspaceRoot).toBe("ssh://fake-host/remote/ws");
+
+    // 旧扫描随后才返回: 序列号已失效, 结果必须被丢弃
+    await act(async () => {
+      resolveStaleScan?.(SCAN_RESULT);
+    });
+    expect(result.current.workspaceRoot).toBe("ssh://fake-host/remote/ws");
+    expect(result.current.scanning).toBe(false);
   });
 });

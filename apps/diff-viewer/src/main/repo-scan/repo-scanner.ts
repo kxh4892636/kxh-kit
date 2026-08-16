@@ -34,7 +34,8 @@ export type ScanProgressCallback = (progress: ScanProgress) => void | Promise<vo
 
 // 扫描到的仓库平铺条目, parentPath 为最近的祖先仓库路径 (无则顶层);
 // 树形结构由 buildRepositoryTree 还原
-interface ScannedRepository {
+// issue 06: 导出供远程扫描器 (remote-repo-scanner) 复用同一契约
+export interface ScannedRepository {
   path: string;
   name: string;
   isSubmodule: boolean;

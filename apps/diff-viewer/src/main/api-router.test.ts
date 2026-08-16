@@ -1,3 +1,4 @@
+import { createHash } from "crypto";
 import { mkdtemp, readdir, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -5,9 +6,10 @@ import { join } from "path";
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 
 import type { ApiBridgeResponse } from "../api-bridge/api-bridge-types.js";
-import type { DiffResponse } from "../types/diff.js";
+import type { DiffResponse, DiffSelection } from "../types/diff.js";
 
 import { createApiRouter, type ApiRouter } from "./api-router.js";
+import type { DiffParser } from "./diff-parser.js";
 import { createFixtureRepo, makeWorkingTreeChange, type FixtureRepo } from "./fixture-repo.js";
 import { GitDiffParser } from "./git-diff.js";
 
@@ -506,6 +508,193 @@ describe("api-router", () => {
       } finally {
         await second.cleanup();
       }
+    });
+  });
+
+  // issue 06: ssh:// 远程仓库会话经 createRemoteParser 工厂接入既有路由;
+  // 评论落盘键 = sha256(ssh://user@host/path), 编辑器按钮走 vscode-remote 协议
+  describe("远程仓库会话 (issue 06)", () => {
+    const REMOTE_KEY = "ssh://git@example.com/srv/work/repo";
+
+    const createRemoteParserStub = () => {
+      const parseDiffCalls: DiffSelection[] = [];
+      const parser: DiffParser = {
+        parseDiff: async (selection) => {
+          parseDiffCalls.push(selection);
+          return {
+            commit: "aaa1111...bbb2222",
+            files: [],
+            isEmpty: true,
+            baseCommitish: "aaa1111",
+            targetCommitish: "bbb2222",
+          };
+        },
+        getRevisionOptions: async () => ({ branches: [], commits: [] }),
+        normalizeRepositoryRelativePath: (filepath: string) => {
+          if (
+            filepath.length === 0 ||
+            filepath.startsWith("/") ||
+            filepath.split("/").includes("..")
+          ) {
+            throw new Error("File path outside repository");
+          }
+          return filepath.replace(/\\/g, "/");
+        },
+        getGeneratedStatus: async () => ({ isGenerated: false, source: "path" }),
+        getLineCount: async () => 0,
+        getBlobContent: async () => Buffer.alloc(0),
+        getCurrentBranch: async () => "main",
+        getOriginDefaultBranch: async () => null,
+      };
+      return { parser, parseDiffCalls };
+    };
+
+    const createRemoteRouter = (options: { openExternal?: (url: string) => Promise<void> }) => {
+      const stub = createRemoteParserStub();
+      const remoteRouter = createApiRouter({
+        parser: new GitDiffParser(fixture.repoPath),
+        repoPath: fixture.repoPath,
+        initialSelection: { baseCommitish: "HEAD^", targetCommitish: "HEAD" },
+        configPath: join(configDir, "config.json"),
+        commentsDir: join(configDir, "comments"),
+        createRemoteParser: () => stub.parser,
+        ...(options.openExternal ? { openExternal: options.openExternal } : {}),
+      });
+      return { remoteRouter, stub };
+    };
+
+    const activateRemote = (target: ApiRouter, key: string = REMOTE_KEY) =>
+      target.handle({
+        method: "POST",
+        path: "/api/active-repository",
+        query: {},
+        body: JSON.stringify({ path: key }),
+      });
+
+    it("ssh:// 键激活远程会话, /api/diff?repo= 路由到远程 parser", async () => {
+      const openedUrls: string[] = [];
+      const { remoteRouter, stub } = createRemoteRouter({
+        openExternal: async (url) => {
+          openedUrls.push(url);
+        },
+      });
+
+      const activated = await activateRemote(remoteRouter);
+      expect(activated.status).toBe(200);
+
+      const diff = await remoteRouter.handle({
+        method: "GET",
+        path: "/api/diff",
+        query: { repo: REMOTE_KEY },
+      });
+      expect(diff.status).toBe(200);
+      const body = readJson(diff) as DiffResponse;
+      expect(stub.parseDiffCalls).toHaveLength(1);
+      expect(body.repositoryId).toBe(createHash("sha256").update(REMOTE_KEY).digest("hex"));
+      expect(body.openInEditorAvailable).toBe(true);
+    });
+
+    it("远程视图 open-in-editor: 生成 vscode-remote URL 经 openExternal 打开", async () => {
+      const openedUrls: string[] = [];
+      const { remoteRouter } = createRemoteRouter({
+        openExternal: async (url) => {
+          openedUrls.push(url);
+        },
+      });
+      await activateRemote(remoteRouter);
+
+      const response = await remoteRouter.handle({
+        method: "POST",
+        path: "/api/open-in-editor",
+        query: { repo: REMOTE_KEY },
+        body: JSON.stringify({ filePath: "src/a.ts", line: 12 }),
+      });
+
+      expect(response.status).toBe(200);
+      expect(openedUrls).toEqual([
+        "vscode://vscode-remote/ssh-remote+git@example.com/srv/work/repo/src/a.ts:12",
+      ]);
+    });
+
+    it("未配置 openExternal 时: diff 报告不可用, open-in-editor 400", async () => {
+      const { remoteRouter } = createRemoteRouter({});
+      await activateRemote(remoteRouter);
+
+      const diff = await remoteRouter.handle({
+        method: "GET",
+        path: "/api/diff",
+        query: { repo: REMOTE_KEY },
+      });
+      expect((readJson(diff) as DiffResponse).openInEditorAvailable).toBe(false);
+
+      const response = await remoteRouter.handle({
+        method: "POST",
+        path: "/api/open-in-editor",
+        query: { repo: REMOTE_KEY },
+        body: JSON.stringify({ filePath: "src/a.ts", line: 12 }),
+      });
+      expect(response.status).toBe(400);
+    });
+
+    it("open-in-editor 路径穿越 400 且不调 openExternal", async () => {
+      const openedUrls: string[] = [];
+      const { remoteRouter } = createRemoteRouter({
+        openExternal: async (url) => {
+          openedUrls.push(url);
+        },
+      });
+      await activateRemote(remoteRouter);
+
+      const response = await remoteRouter.handle({
+        method: "POST",
+        path: "/api/open-in-editor",
+        query: { repo: REMOTE_KEY },
+        body: JSON.stringify({ filePath: "../../etc/passwd", line: 1 }),
+      });
+
+      expect(response.status).toBe(400);
+      expect(openedUrls).toEqual([]);
+    });
+
+    it("非法远程键 (ssh:// 缺路径) 激活 400", async () => {
+      const { remoteRouter } = createRemoteRouter({});
+      const response = await activateRemote(remoteRouter, "ssh://git@example.com");
+      expect(response.status).toBe(400);
+    });
+
+    it("远程仓库评论落盘文件名 = sha256(ssh:// 键)", async () => {
+      const { remoteRouter } = createRemoteRouter({});
+      await activateRemote(remoteRouter);
+
+      const push = await remoteRouter.handle({
+        method: "POST",
+        path: "/api/comments",
+        query: { repo: REMOTE_KEY },
+        body: JSON.stringify({
+          threads: [
+            {
+              id: "t-remote",
+              filePath: "a.ts",
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+              position: { side: "new", line: 1 },
+              messages: [
+                {
+                  id: "t-remote",
+                  body: "remote note",
+                  createdAt: "2026-01-01T00:00:00.000Z",
+                  updatedAt: "2026-01-01T00:00:00.000Z",
+                },
+              ],
+            },
+          ],
+        }),
+      });
+      expect(push.status).toBe(200);
+
+      const files = await readdir(join(configDir, "comments"));
+      const expectedName = `${createHash("sha256").update(REMOTE_KEY).digest("hex")}.json`;
+      expect(files).toContain(expectedName);
     });
   });
 });

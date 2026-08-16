@@ -12,6 +12,11 @@
 // 本文件的 bootstrap 改为以 /api/comments-json 持久化会话为准, merge 只作同步失败兜底);
 // 一键复制改用 utils/comments-markdown 的 Markdown 列表格式 (每条 `文件:行号` +
 // 引用代码块 + 正文), 不再使用 fork 的 ===== 分隔 prompt 格式。
+// fork 改动 (client 第 7 处): issue 06 SSH 远程视图 —— 仓库树上方接入 SshConnectPanel
+// (折叠表单 + 历史连接, 连接经 useRepositoryScan.openRemote 整体替换工作上下文);
+// 编辑器按钮在远程会话下由 diffData.openInEditorAvailable === true 直接启用
+// (远程走 vscode:// 协议, 不依赖 settings.editor 命令模板), handleOpenInEditor 的
+// POST 携带 repo 参数路由到聚焦的远程会话。
 // 其余 fork 改动清单见 main.tsx / useHighlightedCode.ts / ImageDiffViewer.tsx /
 // DiffQuickMenu.tsx / FileList.tsx 文件头。
 import { Columns, AlignLeft, Settings, PanelLeftClose, PanelLeft, Keyboard } from "lucide-react";
@@ -62,6 +67,7 @@ import { useViewport } from "./hooks/useViewport";
 import { RepositoryTreePanel } from "./repo-tree/repository-tree-panel";
 import { useMultiRepoDiff } from "./repo-tree/use-multi-repo-diff";
 import { useRepositoryScan } from "./repo-tree/use-repository-scan";
+import { SshConnectPanel } from "./ssh-connect/ssh-connect-panel";
 import { fetchClientSettings, saveClientSettings } from "./services/userSettings";
 import { hasMultipleCommentAuthors } from "./utils/commentAuthors";
 import { copyTextToClipboard } from "./utils/clipboard";
@@ -1245,15 +1251,23 @@ function App() {
   const handleOpenInEditor = useCallback(
     async (filePath: string, lineNumber: number) => {
       try {
-        const response = await fetch("/api/open-in-editor", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            filePath,
-            line: lineNumber,
-            editor: settings.editor,
-          }),
-        });
+        // issue 06: 携带 repo 参数路由到聚焦会话; 远程会话由主进程构造
+        // vscode://vscode-remote/ URL 经 shell.openExternal 打开
+        const params = new URLSearchParams();
+        appendRepoParam(params, focusedRepoPathRef.current);
+        const query = params.toString();
+        const response = await fetch(
+          query ? `/api/open-in-editor?${query}` : "/api/open-in-editor",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              filePath,
+              line: lineNumber,
+              editor: settings.editor,
+            }),
+          },
+        );
 
         if (!response.ok) {
           const payload: unknown = await response.json().catch(() => null);
@@ -1306,10 +1320,12 @@ function App() {
   // 打开零仓库目录 (/api/diff 报错) 等场景仍可经面板打开其他目录; 主内容区按状态切换
   const canOpenInEditor =
     diffData !== null &&
-    diffData.openInEditorAvailable !== false &&
-    settings.editor.id !== "none" &&
-    settings.editor.command.trim() !== "" &&
-    settings.editor.argsTemplate.trim() !== "";
+    // issue 06: 远程会话由主进程显式标记可用 (vscode:// 协议, 无需本地编辑器配置)
+    (diffData.openInEditorAvailable === true ||
+      (diffData.openInEditorAvailable !== false &&
+        settings.editor.id !== "none" &&
+        settings.editor.command.trim() !== "" &&
+        settings.editor.argsTemplate.trim() !== ""));
 
   return (
     <WordHighlightProvider>
@@ -1540,6 +1556,8 @@ function App() {
               }}
             >
               <div className="flex-1 overflow-y-auto">
+                {/* issue 06: SSH 远程连接面板置于仓库树上方, 连接成功即整体替换工作上下文 */}
+                <SshConnectPanel scan={repositoryScan} />
                 {/* issue 03/04: 仓库树置于文件树上方, 勾选条目激活仓库并加入同视图;
                 文件树按仓库分组聚合各勾选仓库的变更文件 */}
                 <RepositoryTreePanel scan={repositoryScan} />

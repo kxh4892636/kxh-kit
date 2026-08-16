@@ -16,6 +16,8 @@ const API_CHANNELS = {
   workspacePickDirectory: "workspace:pick-directory",
   workspaceScan: "workspace:scan",
   workspaceScanProgress: "workspace:scan-progress",
+  sshConnect: "ssh:connect",
+  sshHistory: "ssh:list-history",
 } as const;
 
 const bridge: DiffViewerBridge = {
@@ -47,6 +49,14 @@ const bridge: DiffViewerBridge = {
       ipcRenderer.removeListener(API_CHANNELS.workspaceScanProgress, listener);
     };
   },
+  connectSsh: (payload) =>
+    ipcRenderer.invoke(API_CHANNELS.sshConnect, payload) as ReturnType<
+      DiffViewerBridge["connectSsh"]
+    >,
+  listSshConnections: () =>
+    ipcRenderer.invoke(API_CHANNELS.sshHistory) as ReturnType<
+      DiffViewerBridge["listSshConnections"]
+    >,
 };
 
 contextBridge.exposeInMainWorld("diffViewerBridge", bridge);
