@@ -22,7 +22,6 @@ import {
   type CommentThread,
   type RevisionsResponse,
 } from "../types/diff";
-import type { RepositoryNode } from "../types/repository";
 import { DEFAULT_DIFF_VIEW_MODE, normalizeDiffViewMode } from "../utils/diffMode";
 import { mergeCommentThreads } from "../utils/commentImports";
 import {
@@ -37,7 +36,7 @@ import { CommentsDropdown } from "./components/CommentsDropdown";
 import { CommentsListModal } from "./components/CommentsListModal";
 import { DiffQuickMenu } from "./components/DiffQuickMenu";
 import { DiffViewer } from "./components/DiffViewer";
-import { FileList, type RepoFileGroup } from "./components/FileList";
+import { FileList } from "./components/FileList";
 import { GitHubIcon } from "./components/GitHubIcon";
 import { HelpModal } from "./components/HelpModal";
 import { Logo } from "./components/Logo";
@@ -55,6 +54,7 @@ import { useLazyDiffRendering } from "./hooks/useLazyDiffRendering";
 import { useViewedFiles } from "./hooks/useViewedFiles";
 import { useViewport } from "./hooks/useViewport";
 import { RepositoryTreePanel } from "./repo-tree/repository-tree-panel";
+import { useMultiRepoDiff } from "./repo-tree/use-multi-repo-diff";
 import { useRepositoryScan } from "./repo-tree/use-repository-scan";
 import { fetchClientSettings, saveClientSettings } from "./services/userSettings";
 import { hasMultipleCommentAuthors } from "./utils/commentAuthors";
@@ -140,6 +140,13 @@ const getStoredSidebarOpen = (): boolean | null => {
 
 const getInitialFileTreeOpen = () => getStoredSidebarOpen() ?? true;
 
+// issue 04: 所有 /api/* 的 repo 参数统一经此拼接; null 表示聚焦会话, 不带 repo
+const appendRepoParam = (params: URLSearchParams, repoPath: string | null): void => {
+  if (repoPath) {
+    params.set("repo", repoPath);
+  }
+};
+
 function App() {
   const [diffData, setDiffData] = useState<DiffResponse | null>(null);
   const [diffDataVersion, setDiffDataVersion] = useState(0);
@@ -194,16 +201,11 @@ function App() {
   }, [resolvedSelection]);
 
   // issue 04: 多仓库同视图状态。diffData 始终 = 聚焦仓库的 diff (主视图单仓库展示,
-  // 既有 diff 管道不变); diffByRepo 缓存各勾选仓库最近一次抓取的 diff 供文件树分组聚合;
-  // 用户手选对比按仓库记忆, 聚焦切换时恢复 (服务端会话同样保持, 双保险)
-  const [diffByRepo, setDiffByRepo] = useState<ReadonlyMap<string, DiffResponse>>(new Map());
+  // 既有 diff 管道不变); 各勾选仓库的 diff 聚合/手选对比记忆/跨仓库滚动收拢在
+  // useMultiRepoDiff (见 repositoryScan 之后的调用)
   const [focusedRepoPath, setFocusedRepoPath] = useState<string | null>(null);
   const focusedRepoPathRef = useRef<string | null>(null);
   focusedRepoPathRef.current = focusedRepoPath;
-  const selectionByRepoRef = useRef(new Map<string, DiffSelection>());
-  const userSelectedReposRef = useRef(new Set<string>());
-  // 跨仓库文件点击: 等目标仓库成为聚焦仓库且 diff 数据就绪后再滚动定位
-  const pendingScrollFileRef = useRef<string | null>(null);
 
   const { settings, updateSettings } = useAppearanceSettings();
   const { isMobile, isDesktop } = useViewport();
@@ -251,9 +253,7 @@ function App() {
       params.set("baseMode", resolvedSelection.baseMode);
     }
     // issue 04: 评论会话按仓库隔离 (主进程会话 keyed), 请求携带聚焦仓库路由
-    if (focusedRepoPath) {
-      params.set("repo", focusedRepoPath);
-    }
+    appendRepoParam(params, focusedRepoPath);
 
     return params.toString();
   }, [resolvedSelection, focusedRepoPath]);
@@ -734,7 +734,7 @@ function App() {
         const params = new URLSearchParams({
           ignoreWhitespace: String(ignoreWhitespace),
         });
-        if (requestRepoPath) params.set("repo", requestRepoPath);
+        if (requestRepoPath) appendRepoParam(params, requestRepoPath);
         if (requestedSelection?.baseCommitish) params.set("base", requestedSelection.baseCommitish);
         if (requestedSelection?.targetCommitish)
           params.set("target", requestedSelection.targetCommitish);
@@ -754,15 +754,7 @@ function App() {
 
         // 按仓库缓存 diff (文件树分组聚合的数据源) 并记忆该仓库当前对比
         if (requestRepoPath) {
-          setDiffByRepo((prev) => new Map(prev).set(requestRepoPath, data));
-          const responseBase = data.requestedBaseCommitish ?? data.baseCommitish;
-          const responseTarget = data.requestedTargetCommitish ?? data.targetCommitish;
-          if (responseBase && responseTarget) {
-            selectionByRepoRef.current.set(
-              requestRepoPath,
-              createDiffSelection(responseBase, responseTarget, data.requestedBaseMode),
-            );
-          }
+          recordRepoDiff(requestRepoPath, data);
         }
 
         // Update resolved revision state from server response
@@ -904,9 +896,10 @@ function App() {
   const fetchRevisions = useCallback(async () => {
     try {
       const repoPath = focusedRepoPathRef.current;
-      const res = await fetch(
-        repoPath ? `/api/revisions?repo=${encodeURIComponent(repoPath)}` : "/api/revisions",
-      );
+      const params = new URLSearchParams();
+      appendRepoParam(params, repoPath);
+      const query = params.toString();
+      const res = await fetch(query ? `/api/revisions?${query}` : "/api/revisions");
       const data = (res.ok ? await res.json() : null) as RevisionsResponse | null;
       setRevisionOptions(data);
       if (
@@ -993,9 +986,25 @@ function App() {
   // issue 04: 扫描状态机上提到 App —— 勾选状态同时驱动文件树的多仓库分组聚合;
   // 面板组件 (RepositoryTreePanel) 纯渲染该状态
   const repositoryScan = useRepositoryScan({ onActivateRepository: handleActivateRepository });
+  // 04: 多仓库 diff 聚合收拢在 hook。上面的 fetchDiffData/handleRevisionChange/
+  // handleActivateRepository 以闭包引用这些返回值 —— 仅在事件/effect 阶段执行,
+  // 渲染主体跑完后才有调用, 不触 TDZ; refs 与 recordRepoDiff 均为稳定引用, 不进 deps
+  const {
+    selectionByRepoRef,
+    userSelectedReposRef,
+    pendingScrollFileRef,
+    fileTreeGroups,
+    recordRepoDiff,
+  } = useMultiRepoDiff({
+    diffData,
+    focusedRepoPath,
+    checkedPaths: repositoryScan.checkedPaths,
+    repositories: repositoryScan.repositories,
+    scrollFileIntoDiffContainer,
+  });
 
   // 文件树点击: 聚焦仓库内 = 直接滚动定位; 其他仓库 = 聚焦切换 (面板高亮经
-  // focusRepository 同步), 等目标仓库 diff 就绪后由下面的 pendingScroll 效果滚动
+  // activateRepository 同步), 等目标仓库 diff 就绪后由下面的 pendingScroll 效果滚动
   const handleSelectRepoFile = useCallback(
     (repoPath: string, filePath: string) => {
       if (!repoPath || repoPath === focusedRepoPathRef.current) {
@@ -1003,68 +1012,14 @@ function App() {
         return;
       }
       pendingScrollFileRef.current = filePath;
-      void repositoryScan.focusRepository(repoPath).then((succeeded) => {
+      void repositoryScan.activateRepository(repoPath).then((succeeded) => {
         if (!succeeded) {
           pendingScrollFileRef.current = null;
         }
       });
     },
-    [repositoryScan.focusRepository, scrollFileIntoDiffContainer],
+    [repositoryScan.activateRepository, scrollFileIntoDiffContainer],
   );
-
-  // 跨仓库聚焦切换完成后, 滚动到触发切换的文件
-  useEffect(() => {
-    const pendingFile = pendingScrollFileRef.current;
-    if (!pendingFile || !focusedRepoPath || !diffData) {
-      return;
-    }
-    // diffData 必须是聚焦仓库刚抓取的版本 (引用相等), 否则还在用旧仓库数据
-    if (diffByRepo.get(focusedRepoPath) !== diffData) {
-      return;
-    }
-    if (!diffData.files.some((file) => file.path === pendingFile)) {
-      return;
-    }
-    pendingScrollFileRef.current = null;
-    // 等文件容器挂载; lazy 渲染由 scrollFileIntoDiffContainer 内部 ensure 处理
-    const timer = setTimeout(() => scrollFileIntoDiffContainer(pendingFile), 100);
-    return () => clearTimeout(timer);
-  }, [focusedRepoPath, diffData, diffByRepo, scrollFileIntoDiffContainer]);
-
-  const repoNameByPath = useMemo(() => {
-    const map = new Map<string, string>();
-    const visit = (nodes: RepositoryNode[]): void => {
-      nodes.forEach((node) => {
-        map.set(node.path, node.name);
-        visit(node.children);
-      });
-    };
-    visit(repositoryScan.repositories);
-    return map;
-  }, [repositoryScan.repositories]);
-
-  // 文件树数据源: 勾选顺序即分组顺序; diff 尚未抓到的仓库 (激活进行中) 暂不出现
-  const fileTreeGroups = useMemo<RepoFileGroup[]>(() => {
-    const groups: RepoFileGroup[] = [];
-    repositoryScan.checkedPaths.forEach((repoPath) => {
-      const data = diffByRepo.get(repoPath);
-      if (!data) {
-        return;
-      }
-      groups.push({
-        repoPath,
-        repoName: repoNameByPath.get(repoPath) ?? repoPath.split(/[\\/]/).pop() ?? repoPath,
-        files: data.files,
-        isFocused: repoPath === focusedRepoPath,
-      });
-    });
-    // 回退平铺: 无可用分组时 (无 bridge 的纯浏览器 dev / 启动扫描完成前 / 取消全部
-    // 勾选后保持视图) 以当前 diffData 平铺, 保持 03 之前的单仓库树外观
-    if (groups.length === 0 && diffData) {
-      groups.push({ repoPath: "", repoName: "", files: diffData.files, isFocused: true });
-    }
-    return groups;
-  }, [repositoryScan.checkedPaths, diffByRepo, repoNameByPath, focusedRepoPath, diffData]);
 
   // Clear comments and viewed files on initial load if requested via CLI flag
   const hasCleanedRef = useRef(false);

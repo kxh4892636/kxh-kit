@@ -6,9 +6,9 @@ import { join, resolve } from "path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import type { DiffSelection } from "../../types/diff.js";
-import { createFixtureRepo, type FixtureRepo } from "../fixture-repo.js";
-import { GitDiffParser } from "../git-diff.js";
+import type { DiffSelection } from "../types/diff.js";
+import { createFixtureRepo, type FixtureRepo } from "./fixture-repo.js";
+import { GitDiffParser } from "./git-diff.js";
 
 import { createRepoSessionManager, type RepoSessionManager } from "./repo-sessions.js";
 

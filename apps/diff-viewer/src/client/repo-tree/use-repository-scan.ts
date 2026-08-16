@@ -21,7 +21,7 @@ export interface RepositoryScanState {
   toggleRepository: (path: string) => void;
   // 不改变勾选状态, 仅聚焦指定仓库 (文件树跨仓库文件点击);
   // 返回激活是否成功
-  focusRepository: (repoPath: string) => Promise<boolean>;
+  activateRepository: (repoPath: string) => Promise<boolean>;
 }
 
 interface UseRepositoryScanOptions {
@@ -211,6 +211,6 @@ export const useRepositoryScan = (options: UseRepositoryScanOptions): Repository
     activePath,
     openFolder,
     toggleRepository,
-    focusRepository: activate,
+    activateRepository: activate,
   };
 };

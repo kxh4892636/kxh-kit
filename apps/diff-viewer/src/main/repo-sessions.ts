@@ -5,9 +5,9 @@
 import { createHash } from "crypto";
 import { resolve } from "path";
 
-import type { DiffSelection, GeneratedStatusResponse } from "../../types/diff.js";
-import { GitDiffParser } from "../git-diff.js";
-import { resolveInitialSelection } from "../initial-selection.js";
+import type { DiffSelection, GeneratedStatusResponse } from "../types/diff.js";
+import { GitDiffParser } from "./git-diff.js";
+import { resolveInitialSelection } from "./initial-selection.js";
 
 export interface RepoSession {
   // 已 resolve 绝对路径, 同时是会话 key

@@ -27,7 +27,7 @@ import {
   parseCommentPushBody,
   type CommentSessionStore,
 } from "./comment-sessions.js";
-import { createRepoSessionManager, type RepoSession } from "./repo-sessions/repo-sessions.js";
+import { createRepoSessionManager, type RepoSession } from "./repo-sessions.js";
 import type { GitDiffParser } from "./git-diff.js";
 import { parseUserSettingsPatch, readUserConfig, updateUserClientSettings } from "./user-config.js";
 
@@ -133,14 +133,16 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
     return store;
   };
 
-  const resolveSession = (
+  // repo 参数路由守卫: 解析目标仓库会话, 未激活时直接 400; 各仓库作用域端点共用
+  const withSession = (
     query: Record<string, string>,
-  ): { ok: true; session: RepoSession } | { ok: false; response: ApiBridgeResponse } => {
+    handler: (session: RepoSession) => Promise<ApiBridgeResponse>,
+  ): Promise<ApiBridgeResponse> => {
     const lookup = sessionManager.resolveForRequest(query.repo);
     if (!lookup.ok) {
-      return { ok: false, response: errorResponse(400, lookup.error) };
+      return Promise.resolve(errorResponse(400, lookup.error));
     }
-    return { ok: true, session: lookup.session };
+    return handler(lookup.session);
   };
 
   // 仓库相对路径归一化的唯一实现在 GitDiffParser (port 侧), 这里把抛错映射为 400
@@ -447,68 +449,56 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
     const { method, path, query } = request;
 
     if (method === "GET" && path === "/api/diff") {
-      const resolved = resolveSession(query);
-      if (!resolved.ok) return resolved.response;
-      return handleDiff(resolved.session, request);
+      return withSession(query, (session) => handleDiff(session, request));
     }
     if (method === "GET" && path === "/api/revisions") {
-      const resolved = resolveSession(query);
-      if (!resolved.ok) return resolved.response;
-      return handleRevisions(resolved.session);
+      return withSession(query, handleRevisions);
     }
     if (method === "GET" && path.startsWith("/api/generated-status/")) {
-      const resolved = resolveSession(query);
-      if (!resolved.ok) return resolved.response;
-      return handleGeneratedStatus(
-        resolved.session,
-        decodeURIComponent(path.slice("/api/generated-status/".length)),
-        query,
+      return withSession(query, (session) =>
+        handleGeneratedStatus(
+          session,
+          decodeURIComponent(path.slice("/api/generated-status/".length)),
+          query,
+        ),
       );
     }
     if (method === "GET" && path.startsWith("/api/line-count/")) {
-      const resolved = resolveSession(query);
-      if (!resolved.ok) return resolved.response;
-      return handleLineCount(
-        resolved.session,
-        decodeURIComponent(path.slice("/api/line-count/".length)),
-        query,
+      return withSession(query, (session) =>
+        handleLineCount(session, decodeURIComponent(path.slice("/api/line-count/".length)), query),
       );
     }
     if (method === "GET" && path.startsWith("/api/blob/")) {
-      const resolved = resolveSession(query);
-      if (!resolved.ok) return resolved.response;
-      return handleBlob(
-        resolved.session,
-        decodeURIComponent(path.slice("/api/blob/".length)),
-        query,
+      return withSession(query, (session) =>
+        handleBlob(session, decodeURIComponent(path.slice("/api/blob/".length)), query),
       );
     }
     if (method === "POST" && path === "/api/comments") {
-      const resolved = resolveSession(query);
-      if (!resolved.ok) return resolved.response;
-      return handlePostComments(resolved.session, request);
+      return withSession(query, (session) => handlePostComments(session, request));
     }
     if (method === "DELETE" && path.startsWith("/api/comments/")) {
-      const resolved = resolveSession(query);
-      if (!resolved.ok) return resolved.response;
-      return handleDeleteComment(resolved.session, request, path.slice("/api/comments/".length));
+      return withSession(query, (session) =>
+        handleDeleteComment(session, request, path.slice("/api/comments/".length)),
+      );
     }
     if (method === "GET" && path === "/api/comments-json") {
-      const resolved = resolveSession(query);
-      if (!resolved.ok) return resolved.response;
-      const selection = getCommentSelectionFromQuery(resolved.session, query);
-      const session = commentStoreFor(resolved.session).getSession(selection);
-      return jsonResponse({ version: session.version, threads: session.threads });
+      return withSession(query, (session) => {
+        const selection = getCommentSelectionFromQuery(session, query);
+        const commentSession = commentStoreFor(session).getSession(selection);
+        return Promise.resolve(
+          jsonResponse({ version: commentSession.version, threads: commentSession.threads }),
+        );
+      });
     }
     if (method === "GET" && path === "/api/comments-output") {
-      const resolved = resolveSession(query);
-      if (!resolved.ok) return resolved.response;
-      const selection = getCommentSelectionFromQuery(resolved.session, query);
-      return {
-        status: 200,
-        headers: { "Content-Type": "text/plain" },
-        body: commentStoreFor(resolved.session).formatOutput(selection),
-      };
+      return withSession(query, (session) => {
+        const selection = getCommentSelectionFromQuery(session, query);
+        return Promise.resolve({
+          status: 200,
+          headers: { "Content-Type": "text/plain" },
+          body: commentStoreFor(session).formatOutput(selection),
+        });
+      });
     }
     if (method === "GET" && path === "/api/user-settings") {
       return handleUserSettingsRead();

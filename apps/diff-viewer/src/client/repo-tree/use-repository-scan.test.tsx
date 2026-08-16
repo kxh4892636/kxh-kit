@@ -174,7 +174,7 @@ describe("useRepositoryScan", () => {
     expect(result.current.activePath).toBe("/ws");
   });
 
-  it("focusRepository 跨仓库聚焦: 不改勾选状态, 激活成功后同步聚焦高亮", async () => {
+  it("activateRepository 跨仓库聚焦: 不改勾选状态, 激活成功后同步聚焦高亮", async () => {
     const onActivate = vi.fn(async () => true);
     const { result } = renderHook(() => useRepositoryScan({ onActivateRepository: onActivate }));
     await waitFor(() => expect(result.current.checkedPaths).toEqual(["/ws"]));
@@ -184,7 +184,7 @@ describe("useRepositoryScan", () => {
 
     let succeeded: boolean | undefined;
     await act(async () => {
-      succeeded = await result.current.focusRepository("/ws");
+      succeeded = await result.current.activateRepository("/ws");
     });
     expect(succeeded).toBe(true);
     expect(onActivate).toHaveBeenLastCalledWith("/ws");

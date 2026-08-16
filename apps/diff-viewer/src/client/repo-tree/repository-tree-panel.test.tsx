@@ -31,7 +31,7 @@ const createScanState = (overrides: Partial<RepositoryScanState> = {}): Reposito
   activePath: "/ws",
   openFolder: vi.fn(async () => {}),
   toggleRepository: vi.fn(),
-  focusRepository: vi.fn(async () => true),
+  activateRepository: vi.fn(async () => true),
   ...overrides,
 });
 
