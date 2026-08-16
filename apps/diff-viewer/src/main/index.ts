@@ -3,6 +3,8 @@
 // issue 06: SSH 远程连接走独立 ssh:* 通道 (registerSshIpc); 远程会话的 diff 数据
 // 经 createRemoteParser 按会话键惰性创建 RemoteGitDiffParser; e2e 经环境变量把
 // executor 工厂替换为语义等价的 fake (见 remote/fake-ssh-executor.ts)。
+// issue 07: 本地编辑器打开经 editor-adapter (v1 仅 VSCode); openExternal 以惰性闭包
+// 注入, e2e 直接 monkey-patch shell.openExternal 捕获 URL。
 import { app, BrowserWindow, shell } from "electron";
 import { join } from "path";
 
@@ -10,6 +12,7 @@ import type { DiffSelection } from "../types/diff.js";
 import { API_CHANNELS } from "../api-bridge/api-channels.js";
 
 import { createApiRouter } from "./api-router.js";
+import { createVscodeEditorAdapter } from "./editor/vscode-adapter.js";
 import { GitDiffParser } from "./git-diff.js";
 import { resolveInitialSelection } from "./initial-selection.js";
 import { registerApiIpc, registerSshIpc, registerWorkspaceIpc } from "./ipc.js";
@@ -59,6 +62,8 @@ const bootstrap = async (): Promise<void> => {
       return new RemoteGitDiffParser(createExecutor(target), remotePath);
     },
     openExternal: (url) => shell.openExternal(url),
+    // issue 07: 本地会话编辑器打开; 惰性闭包保持 e2e monkey-patch shell 生效
+    editorAdapter: createVscodeEditorAdapter({ openExternal: (url) => shell.openExternal(url) }),
     broadcast: (payload) => {
       mainWindow?.webContents.send(API_CHANNELS.watchEvent, payload);
     },

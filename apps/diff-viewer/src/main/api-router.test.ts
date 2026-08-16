@@ -10,6 +10,7 @@ import type { DiffResponse, DiffSelection } from "../types/diff.js";
 
 import { createApiRouter, type ApiRouter } from "./api-router.js";
 import type { DiffParser } from "./diff-parser.js";
+import type { EditorAdapter, OpenInEditorTarget } from "./editor/editor-adapter.js";
 import { createFixtureRepo, makeWorkingTreeChange, type FixtureRepo } from "./fixture-repo.js";
 import { GitDiffParser } from "./git-diff.js";
 
@@ -272,14 +273,115 @@ describe("api-router", () => {
     expect(readJson(after)).toEqual({ version: 1, client: { fontSize: 16 } });
   });
 
-  it("POST /api/open-in-editor 固定返回 400 (编辑器打开属于后续 issue)", async () => {
-    const response = await router.handle({
-      method: "POST",
-      path: "/api/open-in-editor",
-      query: {},
-      body: JSON.stringify({ filePath: "b.txt" }),
+  describe("本地会话 open-in-editor (issue 07)", () => {
+    const createCapturingAdapter = (openResult?: { ok: false; error: string }) => {
+      const opened: OpenInEditorTarget[] = [];
+      const adapter: EditorAdapter = {
+        id: "vscode",
+        isAvailable: () => true,
+        open: async (target) => {
+          opened.push(target);
+          return openResult ?? { ok: true, url: "vscode://file/captured" };
+        },
+      };
+      return { adapter, opened };
+    };
+
+    const createLocalRouter = (editorAdapter?: EditorAdapter): ApiRouter =>
+      createApiRouter({
+        parser: new GitDiffParser(fixture.repoPath),
+        repoPath: fixture.repoPath,
+        initialSelection: { baseCommitish: "HEAD^", targetCommitish: "HEAD" },
+        configPath: join(configDir, "config.json"),
+        commentsDir: join(configDir, "comments"),
+        editorAdapter,
+      });
+
+    const postOpen = (localRouter: ApiRouter, body: Record<string, unknown>) =>
+      localRouter.handle({
+        method: "POST",
+        path: "/api/open-in-editor",
+        query: {},
+        body: JSON.stringify(body),
+      });
+
+    it("未注入 adapter 时: diff 报告不可用, POST 400", async () => {
+      const localRouter = createLocalRouter();
+      const diff = await localRouter.handle({ method: "GET", path: "/api/diff", query: {} });
+      expect((readJson(diff) as DiffResponse).openInEditorAvailable).toBe(false);
+
+      const response = await postOpen(localRouter, { filePath: "b.txt", line: 3 });
+      expect(response.status).toBe(400);
     });
-    expect(response.status).toBe(400);
+
+    it("注入 adapter 后 diff 报告可用, POST 携带绝对路径与行号打开", async () => {
+      const { adapter, opened } = createCapturingAdapter();
+      const localRouter = createLocalRouter(adapter);
+
+      const diff = await localRouter.handle({ method: "GET", path: "/api/diff", query: {} });
+      expect((readJson(diff) as DiffResponse).openInEditorAvailable).toBe(true);
+
+      const response = await postOpen(localRouter, {
+        filePath: "b.txt",
+        line: 3,
+        editor: { id: "vscode", command: "code", argsTemplate: "-g %file:%line" },
+      });
+      expect(response.status).toBe(200);
+      expect(readJson(response)).toEqual({ success: true, url: "vscode://file/captured" });
+      expect(opened).toEqual([{ absolutePath: join(fixture.repoPath, "b.txt"), line: 3 }]);
+    });
+
+    it("行号缺省或非法时只打开文件 (adapter 收到 line undefined)", async () => {
+      const { adapter, opened } = createCapturingAdapter();
+      const localRouter = createLocalRouter(adapter);
+
+      expect((await postOpen(localRouter, { filePath: "b.txt" })).status).toBe(200);
+      expect((await postOpen(localRouter, { filePath: "b.txt", line: 0 })).status).toBe(200);
+      expect((await postOpen(localRouter, { filePath: "b.txt", line: 2.5 })).status).toBe(200);
+      expect(opened).toEqual([
+        { absolutePath: join(fixture.repoPath, "b.txt"), line: undefined },
+        { absolutePath: join(fixture.repoPath, "b.txt"), line: undefined },
+        { absolutePath: join(fixture.repoPath, "b.txt"), line: undefined },
+      ]);
+    });
+
+    it("editor.id 为 none 或其他编辑器时 400, adapter 不被调用", async () => {
+      const { adapter, opened } = createCapturingAdapter();
+      const localRouter = createLocalRouter(adapter);
+
+      const disabled = await postOpen(localRouter, {
+        filePath: "b.txt",
+        line: 1,
+        editor: { id: "none", command: "", argsTemplate: "" },
+      });
+      expect(disabled.status).toBe(400);
+
+      const cursor = await postOpen(localRouter, {
+        filePath: "b.txt",
+        line: 1,
+        editor: { id: "cursor", command: "cursor", argsTemplate: "-g %file:%line" },
+      });
+      expect(cursor.status).toBe(400);
+      expect(readJson(cursor)).toHaveProperty("error");
+
+      expect(opened).toEqual([]);
+    });
+
+    it("adapter 打开失败返回 500", async () => {
+      const { adapter } = createCapturingAdapter({ ok: false, error: "no handler" });
+      const localRouter = createLocalRouter(adapter);
+      const response = await postOpen(localRouter, { filePath: "b.txt", line: 1 });
+      expect(response.status).toBe(500);
+      expect(readJson(response)).toHaveProperty("error");
+    });
+
+    it("路径穿越 400, adapter 不被调用", async () => {
+      const { adapter, opened } = createCapturingAdapter();
+      const localRouter = createLocalRouter(adapter);
+      const response = await postOpen(localRouter, { filePath: "../../etc/passwd", line: 1 });
+      expect(response.status).toBe(400);
+      expect(opened).toEqual([]);
+    });
   });
 
   it("未知端点返回 404", async () => {
