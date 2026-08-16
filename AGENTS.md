@@ -53,3 +53,9 @@
 <!-- PROJECT RULES START -->
 
 <!-- PROJECT RULES END -->
+
+<!-- PI START -->
+以下规则只对 Pi Agent 生效
+- 使用 `/herdr` skill, 创建一个同 Model 同 Agent 的 Session, 实现 SubAgent 功能;
+- 访问 Web 失败时, 可使用 `/browser-skill` skill, 通过操作真实浏览器达成相同目标;
+<!-- PI END -->
