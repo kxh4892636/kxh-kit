@@ -1,3 +1,9 @@
+// fork 改动 (client 第 4 处): issue 03 目录打开与嵌套仓库扫描 —— 侧栏文件树上方接入
+// 自包含的 RepositoryTreePanel (打开目录/扫描进度/仓库父子层级勾选, 见
+// ./repo-tree/); 勾选经 /api/active-repository 让主进程切换激活仓库, 本文件负责
+// 重置对比状态并重取 diff 与 revisions (revisions 拉取从 mount effect 提为
+// fetchRevisions 回调)。其余 fork 改动清单见 main.tsx / useHighlightedCode.ts /
+// ImageDiffViewer.tsx 文件头。
 import { Columns, AlignLeft, Settings, PanelLeftClose, PanelLeft, Keyboard } from "lucide-react";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 
@@ -42,6 +48,7 @@ import { useKeyboardNavigation } from "./hooks/useKeyboardNavigation";
 import { useLazyDiffRendering } from "./hooks/useLazyDiffRendering";
 import { useViewedFiles } from "./hooks/useViewedFiles";
 import { useViewport } from "./hooks/useViewport";
+import { RepositoryTreePanel } from "./repo-tree/repository-tree-panel";
 import { fetchClientSettings, saveClientSettings } from "./services/userSettings";
 import { hasMultipleCommentAuthors } from "./utils/commentAuthors";
 import { copyTextToClipboard } from "./utils/clipboard";
@@ -852,24 +859,30 @@ function App() {
     saveClientSettings({ sidebarOpen: isFileTreeOpen });
   }, [isFileTreeOpen]);
 
+  // issue 03: revisions 拉取提为回调, 切换激活仓库后需重取新仓库的分支/提交
+  const fetchRevisions = useCallback(async () => {
+    try {
+      const res = await fetch("/api/revisions");
+      const data = (res.ok ? await res.json() : null) as RevisionsResponse | null;
+      setRevisionOptions(data);
+      if (
+        data?.resolvedBase &&
+        normalizeBaseMode(currentRequestedBaseModeRef.current) !== "merge-base"
+      ) {
+        setResolvedBaseRevision((prev) => prev || data.resolvedBase || "");
+      }
+      if (data?.resolvedTarget) {
+        setResolvedTargetRevision((prev) => prev || data.resolvedTarget || "");
+      }
+    } catch {
+      setRevisionOptions(null);
+    }
+  }, []);
+
   // Fetch revision options on mount
   useEffect(() => {
-    fetch("/api/revisions")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data: RevisionsResponse | null) => {
-        setRevisionOptions(data);
-        if (
-          data?.resolvedBase &&
-          normalizeBaseMode(currentRequestedBaseModeRef.current) !== "merge-base"
-        ) {
-          setResolvedBaseRevision((prev) => prev || data.resolvedBase || "");
-        }
-        if (data?.resolvedTarget) {
-          setResolvedTargetRevision((prev) => prev || data.resolvedTarget || "");
-        }
-      })
-      .catch(() => setRevisionOptions(null));
-  }, []);
+    void fetchRevisions();
+  }, [fetchRevisions]);
 
   // Handle revision change
   const handleRevisionChange = useCallback(
@@ -885,6 +898,40 @@ function App() {
       await fetchDiffData(nextSelection);
     },
     [fetchDiffData, selectedRevision],
+  );
+
+  // issue 03: 仓库树勾选后切换激活仓库。主进程已替换 parser 并重置为该仓库的默认对比,
+  // 这里清掉用户手选的对比状态, 按服务端默认重取 diff 与 revisions
+  const handleActivateRepository = useCallback(
+    async (repoPath: string): Promise<boolean> => {
+      let response: Response;
+      try {
+        response = await fetch("/api/active-repository", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ path: repoPath }),
+        });
+      } catch (activateError) {
+        console.error("Failed to activate repository:", activateError);
+        return false;
+      }
+      if (!response.ok) {
+        console.error("Failed to activate repository:", response.status);
+        return false;
+      }
+
+      hasUserSelectedRevisionRef.current = false;
+      setSelectedRevision(createDiffSelection("", ""));
+      setResolvedBaseRevision("");
+      setResolvedTargetRevision("");
+      setError(null);
+      // 不置 loading: loading 态会整屏替换布局并卸载仓库树面板, 扫描结果与勾选状态
+      // 会随之丢失; 保留旧 diff 静候新 diff 到达, 面板状态全程存活
+      await fetchDiffData();
+      await fetchRevisions();
+      return true;
+    },
+    [fetchDiffData, fetchRevisions],
   );
 
   // Clear comments and viewed files on initial load if requested via CLI flag
@@ -1424,6 +1471,8 @@ function App() {
               }}
             >
               <div className="flex-1 overflow-y-auto">
+                {/* issue 03: 仓库树置于文件树上方, 勾选条目切换激活仓库 */}
+                <RepositoryTreePanel onActivateRepository={handleActivateRepository} />
                 <FileList
                   files={diffData.files}
                   onScrollToFile={scrollFileIntoDiffContainer}

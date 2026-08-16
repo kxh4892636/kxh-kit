@@ -6,7 +6,7 @@
 // 上游的 diff LRU 缓存依赖文件监听失效回调, 本 issue watch 为 stub, 为避免展示过期
 // diff 而整体移除, 每次请求都实时解析。
 import { createHash } from "crypto";
-import { resolve } from "path";
+import { isAbsolute, resolve } from "path";
 
 import type { ApiBridgeRequest, ApiBridgeResponse } from "../api-bridge/api-bridge-types.js";
 import {
@@ -25,6 +25,7 @@ import {
   parseCommentPushBody,
 } from "./comment-sessions.js";
 import { GitDiffParser } from "./git-diff.js";
+import { resolveInitialSelection } from "./initial-selection.js";
 import { parseUserSettingsPatch, readUserConfig, updateUserClientSettings } from "./user-config.js";
 
 export interface ApiRouterOptions {
@@ -66,6 +67,10 @@ const jsonResponse = (data: unknown, status = 200): ApiBridgeResponse => ({
   body: JSON.stringify(data),
 });
 
+// 仓库标识 = 已 resolve 绝对路径的 sha256, 供 client 按仓库隔离评论/已读状态
+const computeRepositoryId = (repoPath: string): string =>
+  createHash("sha256").update(resolve(repoPath)).digest("hex");
+
 const errorResponse = (status: number, message: string): ApiBridgeResponse =>
   jsonResponse({ error: message }, status);
 
@@ -98,9 +103,11 @@ const selectionFromQuery = (
 };
 
 export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
-  const { parser, repoPath, configPath } = options;
-  const repositoryPath = resolve(repoPath);
-  const repositoryId = createHash("sha256").update(repositoryPath).digest("hex");
+  const { configPath } = options;
+  // 激活仓库可经 POST /api/active-repository 切换 (issue 03 侧栏仓库树勾选):
+  // parser / repositoryId / 激活对比随切换整体替换, 各 handler 始终读取当前值
+  let activeParser = options.parser;
+  let repositoryId = computeRepositoryId(options.repoPath);
   const generatedStatusCache = new Map<
     string,
     { value: GeneratedStatusResponse; expiresAt: number }
@@ -123,7 +130,7 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
     filepath: string,
   ): { ok: true; path: string } | { ok: false; error: string } => {
     try {
-      return { ok: true, path: parser.normalizeRepositoryRelativePath(filepath) };
+      return { ok: true, path: activeParser.normalizeRepositoryRelativePath(filepath) };
     } catch (error) {
       return { ok: false, error: error instanceof Error ? error.message : "Invalid file path" };
     }
@@ -139,7 +146,7 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
 
     let responseDiffData;
     try {
-      responseDiffData = await parser.parseDiff(requestedSelection, ignoreWhitespace);
+      responseDiffData = await activeParser.parseDiff(requestedSelection, ignoreWhitespace);
     } catch (error) {
       console.error("Error fetching diff:", error);
       return errorResponse(500, error instanceof Error ? error.message : "Failed to fetch diff");
@@ -175,7 +182,7 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
   const handleRevisions = async (): Promise<ApiBridgeResponse> => {
     try {
       const { branches, commits, originDefaultBranch, resolvedBase, resolvedTarget } =
-        await parser.getRevisionOptions(
+        await activeParser.getRevisionOptions(
           currentSelection.baseCommitish,
           currentSelection.targetCommitish,
         );
@@ -219,7 +226,7 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
         return jsonResponse(cached.value);
       }
 
-      const status = await parser.getGeneratedStatus(normalizedFilepath, ref);
+      const status = await activeParser.getGeneratedStatus(normalizedFilepath, ref);
       const response: GeneratedStatusResponse = {
         path: normalizedFilepath,
         ref,
@@ -262,7 +269,7 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
       // 单侧读取失败不致命 (新增/删除的文件在另一侧不存在), 记 0 行但需留日志
       if (oldRef) {
         try {
-          result.oldLineCount = await parser.getLineCount(oldPath, oldRef);
+          result.oldLineCount = await activeParser.getLineCount(oldPath, oldRef);
         } catch (error) {
           console.error(`Failed to get line count for ${oldPath} at ${oldRef}:`, error);
           result.oldLineCount = 0;
@@ -270,7 +277,7 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
       }
       if (newRef) {
         try {
-          result.newLineCount = await parser.getLineCount(normalizedFilepath, newRef);
+          result.newLineCount = await activeParser.getLineCount(normalizedFilepath, newRef);
         } catch (error) {
           console.error(`Failed to get line count for ${normalizedFilepath} at ${newRef}:`, error);
           result.newLineCount = 0;
@@ -295,7 +302,7 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
       }
       const ref = query.ref || "HEAD";
 
-      const blob = await parser.getBlobContent(filepathResult.path, ref);
+      const blob = await activeParser.getBlobContent(filepathResult.path, ref);
 
       const ext = getFileExtension(filepathResult.path);
       const contentType = (ext && BLOB_CONTENT_TYPES[ext]) || "application/octet-stream";
@@ -375,6 +382,41 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
     }
   };
 
+  // issue 03: 侧栏仓库树勾选后切换激活仓库。parser / repositoryId / 激活对比整体替换;
+  // 目标不是 git 仓库时拒绝并保持原状态, 由 UI 提示重新选择
+  const handleSetActiveRepository = async (
+    request: ApiBridgeRequest,
+  ): Promise<ApiBridgeResponse> => {
+    let body: unknown;
+    try {
+      body = parseBodyObject(request.body);
+    } catch {
+      return errorResponse(400, "Invalid active repository payload");
+    }
+    const candidate =
+      body !== null && typeof body === "object" ? (body as { path?: unknown }).path : undefined;
+    if (typeof candidate !== "string" || candidate.length === 0 || !isAbsolute(candidate)) {
+      return errorResponse(400, "Invalid repository path");
+    }
+
+    const nextParser = new GitDiffParser(candidate);
+    let nextSelection: DiffSelection;
+    try {
+      nextSelection = await resolveInitialSelection(nextParser);
+    } catch (error) {
+      console.error(`Failed to activate repository at ${candidate}:`, error);
+      return errorResponse(400, `Not a git repository: ${candidate}`);
+    }
+
+    activeParser = nextParser;
+    repositoryId = computeRepositoryId(candidate);
+    currentSelection = nextSelection;
+    currentCommentSelection = nextSelection;
+    generatedStatusCache.clear();
+
+    return jsonResponse({ path: resolve(candidate), selection: nextSelection });
+  };
+
   const route = async (request: ApiBridgeRequest): Promise<ApiBridgeResponse> => {
     const { method, path, query } = request;
 
@@ -420,6 +462,9 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
     }
     if (method === "PUT" && path === "/api/user-settings") {
       return handleUserSettingsWrite(request);
+    }
+    if (method === "POST" && path === "/api/active-repository") {
+      return handleSetActiveRepository(request);
     }
     if (method === "POST" && path === "/api/open-in-editor") {
       // 编辑器打开属于后续 issue, 本骨架版本固定不可用

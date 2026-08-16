@@ -20,6 +20,11 @@ const createFakeBridge = () => {
         watchListeners.delete(callback);
       };
     }),
+    // issue 03 的 workspace 通道与本套件无关, 仅为满足 DiffViewerBridge 形状
+    getWorkspace: vi.fn(async () => ({ rootPath: "/ws" })),
+    pickDirectory: vi.fn(async (): Promise<string | null> => null),
+    scanRepositories: vi.fn(),
+    onScanProgress: vi.fn(() => () => {}),
   };
   return {
     bridge,

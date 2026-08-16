@@ -3,4 +3,10 @@ export const API_CHANNELS = {
   request: "api:request",
   watchOpen: "api:watch:open",
   watchEvent: "api:watch:event",
+  // issue 03 目录打开与嵌套仓库扫描: 桌面端原生能力 (目录对话框/扫描/进度推送),
+  // 与上游 difit 的 HTTP API 无对应, 走独立通道而非 /api/* fetch bridge
+  workspaceGet: "workspace:get",
+  workspacePickDirectory: "workspace:pick-directory",
+  workspaceScan: "workspace:scan",
+  workspaceScanProgress: "workspace:scan-progress",
 } as const;

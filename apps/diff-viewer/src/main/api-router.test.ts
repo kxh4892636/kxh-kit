@@ -202,4 +202,84 @@ describe("api-router", () => {
     const body = readJson(response) as DiffResponse;
     expect(body.files.map((file) => file.path)).toContain("a.txt");
   });
+
+  // issue 03: 勾选侧栏仓库树条目后, 经此端点把激活仓库切到所选仓库,
+  // 后续 /api/diff 与 /api/revisions 全部面向新仓库 (单仓库管道承接)
+  describe("POST /api/active-repository", () => {
+    it("切换激活仓库后, diff 指向新仓库的默认对比且 repositoryId 变化", async () => {
+      const before = await router.handle({ method: "GET", path: "/api/diff", query: {} });
+      const beforeBody = readJson(before) as DiffResponse;
+
+      const second = await createFixtureRepo();
+      try {
+        await makeWorkingTreeChange(second.repoPath);
+        const switched = await router.handle({
+          method: "POST",
+          path: "/api/active-repository",
+          query: {},
+          body: JSON.stringify({ path: second.repoPath }),
+        });
+        expect(switched.status).toBe(200);
+        // 第二夹具无远程: 默认对比降级为未提交改动 vs HEAD
+        expect(readJson(switched)).toMatchObject({
+          path: second.repoPath,
+          selection: { baseCommitish: "HEAD", targetCommitish: "." },
+        });
+
+        // 不带参数的请求回落到新仓库的激活对比
+        const after = await router.handle({ method: "GET", path: "/api/diff", query: {} });
+        const afterBody = readJson(after) as DiffResponse;
+        expect(afterBody.files.map((file) => file.path)).toContain("a.txt");
+        expect(afterBody.repositoryId).not.toBe(beforeBody.repositoryId);
+      } finally {
+        await second.cleanup();
+      }
+    });
+
+    it("目标路径不是 git 仓库时返回 400, 激活仓库保持不变", async () => {
+      const plainDir = await mkdtemp(join(tmpdir(), "diff-viewer-plain-"));
+      try {
+        const response = await router.handle({
+          method: "POST",
+          path: "/api/active-repository",
+          query: {},
+          body: JSON.stringify({ path: plainDir }),
+        });
+        expect(response.status).toBe(400);
+
+        // 原激活仓库的初始对比 (HEAD^...HEAD → b.txt) 不受影响
+        const after = await router.handle({ method: "GET", path: "/api/diff", query: {} });
+        const afterBody = readJson(after) as DiffResponse;
+        expect(afterBody.files.map((file) => file.path)).toEqual(["b.txt"]);
+      } finally {
+        await rm(plainDir, { recursive: true, force: true });
+      }
+    });
+
+    it("非法 body (缺 path / 相对路径 / 非 JSON) 一律 400", async () => {
+      const missingPath = await router.handle({
+        method: "POST",
+        path: "/api/active-repository",
+        query: {},
+        body: JSON.stringify({}),
+      });
+      expect(missingPath.status).toBe(400);
+
+      const relativePath = await router.handle({
+        method: "POST",
+        path: "/api/active-repository",
+        query: {},
+        body: JSON.stringify({ path: "relative/dir" }),
+      });
+      expect(relativePath.status).toBe(400);
+
+      const notJson = await router.handle({
+        method: "POST",
+        path: "/api/active-repository",
+        query: {},
+        body: "not-json",
+      });
+      expect(notJson.status).toBe(400);
+    });
+  });
 });

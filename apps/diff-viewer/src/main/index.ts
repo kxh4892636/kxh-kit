@@ -9,7 +9,7 @@ import { API_CHANNELS } from "../api-bridge/api-channels.js";
 import { createApiRouter } from "./api-router.js";
 import { GitDiffParser } from "./git-diff.js";
 import { resolveInitialSelection } from "./initial-selection.js";
-import { registerApiIpc } from "./ipc.js";
+import { registerApiIpc, registerWorkspaceIpc } from "./ipc.js";
 import { resolveRepoPath } from "./repo-path.js";
 
 const bootstrap = async (): Promise<void> => {
@@ -38,6 +38,8 @@ const bootstrap = async (): Promise<void> => {
     },
   });
   registerApiIpc(router);
+  // 目录打开/嵌套仓库扫描 (issue 03); getWindow 延迟取值, 注册时窗口尚未创建
+  registerWorkspaceIpc({ rootPath: repoPath, getWindow: () => mainWindow });
 
   mainWindow = new BrowserWindow({
     width: 1440,

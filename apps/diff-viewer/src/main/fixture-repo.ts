@@ -3,7 +3,7 @@
 import { execFileSync } from "child_process";
 import { promises as fs } from "fs";
 import { tmpdir } from "os";
-import { join } from "path";
+import { basename, join } from "path";
 
 export interface FixtureRepo {
   repoPath: string;
@@ -125,4 +125,69 @@ export const createFixtureRepoWithOrigin = async (
 // 在工作区制造未提交改动 (修改已跟踪文件)
 export const makeWorkingTreeChange = async (repoPath: string): Promise<void> => {
   await fs.writeFile(join(repoPath, "a.txt"), "line one\nline two changed locally\nline three\n");
+};
+
+export interface NestedRepoFixture {
+  rootPath: string;
+  rootName: string;
+  nestedPath: string;
+  nestedName: string;
+  submodulePath: string;
+  submoduleName: string;
+  // node_modules 内的仓库, 扫描应跳过 (验收"未被遍历"的反例)
+  hiddenInNodeModulesPath: string;
+  hiddenName: string;
+  cleanup: () => Promise<void>;
+}
+
+// issue 03 e2e 夹具: 根仓库 + 仓中仓 + submodule 形态仓库 + node_modules 内隐藏仓库。
+// submodule 形态不经 git submodule add (本地路径 clone 走 file 传输, Windows 并行下
+// MSYS2 fork 偶发崩溃), 而是落盘等价布局: 真实 gitdir 移到 .fixture-gitdirs/,
+// 工作区 .git 写 gitfile 指回 —— 与 git submodule 检出后的磁盘形态一致,
+// git 命令经 gitfile 解析照常在子目录工作。
+export const createNestedRepoFixture = async (): Promise<NestedRepoFixture> => {
+  const rootPath = await fs.mkdtemp(join(tmpdir(), "diff-viewer-nested-"));
+  initRepo(rootPath, "main", false);
+  await writeAndCommit(rootPath, { "a.txt": "root one\nroot two\n" }, "root init");
+  // 根仓库未提交改动 → 默认对比 (无远程降级) 即展示 a.txt
+  await fs.writeFile(join(rootPath, "a.txt"), "root one\nroot two changed\n");
+
+  // 仓中仓: 真实 git 仓库
+  const nestedPath = join(rootPath, "lib", "nested-lib");
+  await fs.mkdir(nestedPath, { recursive: true });
+  initRepo(nestedPath, "main", false);
+  await writeAndCommit(nestedPath, { "nested.txt": "nested one\n" }, "nested init");
+  await fs.writeFile(join(nestedPath, "nested.txt"), "nested one\nnested two\n");
+
+  // submodule 形态: .git 文件 (gitfile) 指向旁边的真实 gitdir
+  const submodulePath = join(rootPath, "vendor", "sub-lib");
+  await fs.mkdir(submodulePath, { recursive: true });
+  initRepo(submodulePath, "main", false);
+  await writeAndCommit(submodulePath, { "submodule.txt": "sub one\n" }, "submodule init");
+  const gitdirStorage = join(rootPath, ".fixture-gitdirs", "sub-lib");
+  await fs.mkdir(join(rootPath, ".fixture-gitdirs"), { recursive: true });
+  await fs.rename(join(submodulePath, ".git"), gitdirStorage);
+  // gitfile 相对路径基于工作区目录解析, 正斜杠跨平台可用
+  await fs.writeFile(join(submodulePath, ".git"), "gitdir: ../../.fixture-gitdirs/sub-lib\n");
+  await fs.writeFile(join(submodulePath, "submodule.txt"), "sub one\nsub two\n");
+
+  // node_modules 内的仓库: 扫描器必须跳过, 不得出现在仓库树
+  const hiddenInNodeModulesPath = join(rootPath, "node_modules", "heavy-dep");
+  await fs.mkdir(hiddenInNodeModulesPath, { recursive: true });
+  initRepo(hiddenInNodeModulesPath, "main", false);
+  await writeAndCommit(hiddenInNodeModulesPath, { "dep.txt": "dep\n" }, "dep init");
+
+  return {
+    rootPath,
+    rootName: basename(rootPath),
+    nestedPath,
+    nestedName: basename(nestedPath),
+    submodulePath,
+    submoduleName: basename(submodulePath),
+    hiddenInNodeModulesPath,
+    hiddenName: basename(hiddenInNodeModulesPath),
+    cleanup: async () => {
+      await fs.rm(rootPath, { recursive: true, force: true });
+    },
+  };
 };
