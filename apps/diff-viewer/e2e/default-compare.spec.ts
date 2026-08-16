@@ -11,14 +11,17 @@ import {
   makeWorkingTreeChange,
 } from "../src/main/fixture-repo";
 
+import { createIsolatedUserData } from "./isolated-user-data";
+
 // playwright 以配置文件所在目录为 cwd, 包根即 Electron 应用入口目录
 const appPath = resolve(__dirname, "..");
 
 test("feature 分支仓库默认展示与远程默认分支的三点 diff", async () => {
   const fixture = await createFixtureRepoWithOrigin();
+  const userData = await createIsolatedUserData();
   let app;
   try {
-    app = await electron.launch({ args: [appPath, fixture.repoPath] });
+    app = await electron.launch({ args: [appPath, fixture.repoPath], env: userData.env });
     const window = await app.firstWindow();
 
     // 快捷菜单标签即为当前对比: 默认 = origin/main...feature 的三点对比
@@ -34,15 +37,17 @@ test("feature 分支仓库默认展示与远程默认分支的三点 diff", asyn
   } finally {
     await app?.close();
     await fixture.cleanup();
+    await userData.cleanup();
   }
 });
 
 test("无远程仓库默认展示未提交改动 vs HEAD", async () => {
   const fixture = await createFixtureRepo();
+  const userData = await createIsolatedUserData();
   let app;
   try {
     await makeWorkingTreeChange(fixture.repoPath);
-    app = await electron.launch({ args: [appPath, fixture.repoPath] });
+    app = await electron.launch({ args: [appPath, fixture.repoPath], env: userData.env });
     const window = await app.firstWindow();
 
     await expect(
@@ -55,5 +60,6 @@ test("无远程仓库默认展示未提交改动 vs HEAD", async () => {
   } finally {
     await app?.close();
     await fixture.cleanup();
+    await userData.cleanup();
   }
 });

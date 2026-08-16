@@ -1,3 +1,7 @@
+// fork 改动 (issue 05 评论持久化, client 改动总清单见 App.tsx 文件头 #6):
+// 评论 thread 不再以 localStorage 为存储 —— 事实源改为主进程 userData JSON
+// (经 App.tsx 的 /api/comments 同步管道读写, 重启不丢);
+// localStorage 只继续承载 viewedFiles 与 appliedCommentImportIds 等非评论数据。
 import { useState, useEffect, useCallback } from "react";
 
 import {
@@ -130,51 +134,22 @@ export function useDiffComments(
   }, [baseCommitish, targetCommitish, baseMode]);
 
   useEffect(() => {
-    if (!baseCommitish || !targetCommitish) {
-      setThreads([]);
-      setHasLoadedComments(false);
-      return;
-    }
-
-    const loadedThreads =
-      loadDiffContextData()?.threads ||
-      storageService.getCommentThreads(
-        baseCommitish,
-        targetCommitish,
-        currentCommitHash,
-        branchToHash,
-        repositoryId,
-        baseMode,
-      );
-    setThreads(loadedThreads);
-    setHasLoadedComments(true);
-  }, [
-    baseCommitish,
-    targetCommitish,
-    currentCommitHash,
-    branchToHash,
-    repositoryId,
-    baseMode,
-    loadDiffContextData,
-  ]);
+    // issue 05: thread 不从 localStorage 恢复; 初始为空, 由 App 的 bootstrap
+    // 从主进程持久化会话拉取 (fetchServerThreads → replaceThreads)。
+    // 依赖项与改造前一致: 任一上下文键变化都先清空, 避免跨仓库/对比串评论
+    setThreads([]);
+    setHasLoadedComments(Boolean(baseCommitish && targetCommitish));
+  }, [baseCommitish, targetCommitish, currentCommitHash, branchToHash, repositoryId, baseMode]);
 
   const saveThreads = useCallback(
     (newThreads: DiffCommentThread[]) => {
       if (!baseCommitish || !targetCommitish) return;
 
-      storageService.saveCommentThreads(
-        baseCommitish,
-        targetCommitish,
-        newThreads,
-        currentCommitHash,
-        branchToHash,
-        repositoryId,
-        baseMode,
-      );
+      // issue 05: 不再写 localStorage; 持久化由 App 同步到主进程 userData JSON
       setThreads(newThreads);
       setHasLoadedComments(true);
     },
-    [baseCommitish, targetCommitish, currentCommitHash, branchToHash, repositoryId, baseMode],
+    [baseCommitish, targetCommitish],
   );
 
   const replaceThreads = useCallback(
@@ -386,11 +361,12 @@ export function useDiffComments(
       }
 
       if (existingData.appliedCommentImportIds.includes(importId)) {
-        setThreads(existingData.threads);
         return [];
       }
 
-      const merged = mergeCommentImports(existingData.threads, imports);
+      // issue 05: thread 事实源是内存态 (经 App 同步主进程); localStorage 记录里
+      // 的 threads 字段不再回读, 仅 appliedCommentImportIds 仍在那里跟踪
+      const merged = mergeCommentImports(threads, imports);
       const nextData: DiffContextStorage = {
         ...existingData,
         threads: merged.threads,
@@ -418,6 +394,7 @@ export function useDiffComments(
       loadDiffContextData,
       repositoryId,
       baseMode,
+      threads,
     ],
   );
 

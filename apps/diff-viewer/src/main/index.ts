@@ -12,6 +12,14 @@ import { resolveInitialSelection } from "./initial-selection.js";
 import { registerApiIpc, registerWorkspaceIpc } from "./ipc.js";
 import { resolveRepoPath } from "./repo-path.js";
 
+// e2e 隔离: DIFIT_USER_DATA_DIR 把整个 userData (config.json、评论落盘、localStorage
+// 等) 指到独立临时目录。UI 偏好会被持久化, 共享真实 userData 会让用例间互相污染
+// (05 曾把布局切成 unified 导致 diff-render 的"默认 split"断言失败)
+const userDataOverride = process.env.DIFIT_USER_DATA_DIR?.trim();
+if (userDataOverride) {
+  app.setPath("userData", userDataOverride);
+}
+
 const bootstrap = async (): Promise<void> => {
   await app.whenReady();
 
@@ -33,6 +41,7 @@ const bootstrap = async (): Promise<void> => {
     repoPath,
     initialSelection,
     configPath: join(app.getPath("userData"), "config.json"),
+    commentsDir: join(app.getPath("userData"), "comments"),
     broadcast: (payload) => {
       mainWindow?.webContents.send(API_CHANNELS.watchEvent, payload);
     },

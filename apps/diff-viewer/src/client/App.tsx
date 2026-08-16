@@ -7,6 +7,11 @@
 // 使 fork 的 line-count/blob/generated-status 等无 repo 参数请求落在同一仓库) 后滚动定位;
 // loading/error 不再整屏早退, 仓库树面板在零仓库目录等场景保持可用。
 // 取消勾选最后一个仓库时保持当前 diff 与文件树 (取舍: 避免误操作清空上下文)。
+// fork 改动 (client 第 6 处): issue 05 评论持久化与一键复制 —— 评论事实源从 renderer
+// localStorage 换为主进程 userData JSON (useDiffComments 不再读写 localStorage 评论,
+// 本文件的 bootstrap 改为以 /api/comments-json 持久化会话为准, merge 只作同步失败兜底);
+// 一键复制改用 utils/comments-markdown 的 Markdown 列表格式 (每条 `文件:行号` +
+// 引用代码块 + 正文), 不再使用 fork 的 ===== 分隔 prompt 格式。
 // 其余 fork 改动清单见 main.tsx / useHighlightedCode.ts / ImageDiffViewer.tsx /
 // DiffQuickMenu.tsx / FileList.tsx 文件头。
 import { Columns, AlignLeft, Settings, PanelLeftClose, PanelLeft, Keyboard } from "lucide-react";
@@ -24,6 +29,7 @@ import {
 } from "../types/diff";
 import { DEFAULT_DIFF_VIEW_MODE, normalizeDiffViewMode } from "../utils/diffMode";
 import { mergeCommentThreads } from "../utils/commentImports";
+import { formatCommentsMarkdown } from "../utils/comments-markdown";
 import {
   createDiffSelection,
   diffSelectionsEqual,
@@ -222,7 +228,6 @@ function App() {
     updateMessage,
     clearAllComments,
     generateThreadPrompt,
-    generateAllCommentsPrompt,
   } = useDiffComments(
     resolvedSelection?.baseCommitish,
     resolvedSelection?.targetCommitish,
@@ -1207,18 +1212,16 @@ function App() {
 
   const handleCopyAllComments = async () => {
     try {
-      const prompt = generateAllCommentsPrompt({
-        requestedBaseCommitish: diffData?.requestedBaseCommitish,
-        requestedTargetCommitish: diffData?.requestedTargetCommitish,
-        baseMode: normalizeBaseMode(diffData?.requestedBaseMode),
-        resolvedBaseCommitish: diffData?.baseCommitish,
-        resolvedTargetCommitish: diffData?.targetCommitish,
-      });
-      await copyTextToClipboard(prompt);
+      // issue 05: Markdown 列表格式 (每条 `文件:行号` + 引用代码块 + 正文)
+      const markdown = formatCommentsMarkdown(threads);
+      if (!markdown) {
+        return;
+      }
+      await copyTextToClipboard(markdown);
       setIsCopiedAll(true);
       setTimeout(() => setIsCopiedAll(false), 2000);
     } catch (error) {
-      console.error("Failed to copy all comments prompt:", error);
+      console.error("Failed to copy all comments as Markdown:", error);
     }
   };
 

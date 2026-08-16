@@ -37,7 +37,7 @@ vi.mock("./hooks/useDiffComments", () => ({
     applyCommentImports: mockApplyCommentImports,
     generatePrompt: vi.fn(),
     generateThreadPrompt: vi.fn(),
-    generateAllCommentsPrompt: mockGenerateAllCommentsPrompt,
+    generateAllCommentsPrompt: vi.fn(),
   })),
 }));
 
@@ -90,6 +90,13 @@ Object.defineProperty(navigator, "sendBeacon", {
   value: vi.fn(),
 });
 
+// Mock navigator.clipboard (issue 05: 一键复制断言写剪贴板的 Markdown 内容)
+const mockWriteText = vi.fn<(text: string) => Promise<void>>(() => Promise.resolve());
+Object.defineProperty(navigator, "clipboard", {
+  writable: true,
+  value: { writeText: mockWriteText },
+});
+
 // Mock window.confirm
 const mockConfirm = vi.fn();
 Object.defineProperty(window, "confirm", {
@@ -124,7 +131,6 @@ let mockComments: DiffCommentThread[] = [];
 const mockReplaceThreads = vi.fn();
 const mockClearAllComments = vi.fn();
 const mockApplyCommentImports = vi.fn(() => []);
-const mockGenerateAllCommentsPrompt = vi.fn(() => "formatted prompt");
 
 function createMockThread({
   id,
@@ -132,12 +138,16 @@ function createMockThread({
   line,
   body,
   author = "User",
+  side = "new",
+  codeSnapshot,
 }: {
   id: string;
   filePath: string;
   line: number;
   body: string;
   author?: string;
+  side?: DiffCommentThread["position"]["side"];
+  codeSnapshot?: DiffCommentThread["codeSnapshot"];
 }): DiffCommentThread {
   const timestamp = "2024-01-01T00:00:00.000Z";
   return {
@@ -145,7 +155,8 @@ function createMockThread({
     filePath,
     createdAt: timestamp,
     updatedAt: timestamp,
-    position: { side: "new", line },
+    position: { side, line },
+    codeSnapshot,
     messages: [
       {
         id,
@@ -174,7 +185,7 @@ beforeEach(() => {
   mockViewedFiles = new Set<string>();
   mockHasLoadedInitialViewedFiles = true;
   mockReplaceThreads.mockReset();
-  mockGenerateAllCommentsPrompt.mockClear();
+  mockWriteText.mockClear();
 });
 
 const mockDiffResponse: DiffResponse = {
@@ -207,31 +218,45 @@ describe("App Component - Clear Comments Functionality", () => {
   });
 
   describe("Copy All Prompt Button", () => {
-    it("should generate Copy All Prompt with requested and resolved diff context", async () => {
+    it("一键复制为 Markdown 列表: 每条含 `文件:行号`、引用代码块与评论正文", async () => {
       mockComments = [
-        createMockThread({ id: "test-1", filePath: "test.ts", line: 10, body: "Test comment" }),
+        createMockThread({
+          id: "test-1",
+          filePath: "test.ts",
+          line: 10,
+          body: "Test comment",
+          codeSnapshot: { content: "const x = 1;", language: "typescript" },
+        }),
+        createMockThread({
+          id: "test-2",
+          filePath: "old.ts",
+          line: 3,
+          body: "旧侧评论",
+          side: "old",
+        }),
       ];
-      mockFetch({
-        ...mockDiffResponse,
-        baseCommitish: "abcdef1",
-        targetCommitish: "1234567",
-        requestedBaseCommitish: "main",
-        requestedTargetCommitish: "feature/docs-update",
-        requestedBaseMode: "merge-base",
-      });
+      mockFetch(mockDiffResponse);
 
       renderApp();
 
       fireEvent.click(await screen.findByText(/Copy All Prompt/));
 
       await waitFor(() => {
-        expect(mockGenerateAllCommentsPrompt).toHaveBeenCalledWith({
-          requestedBaseCommitish: "main",
-          requestedTargetCommitish: "feature/docs-update",
-          baseMode: "merge-base",
-          resolvedBaseCommitish: "abcdef1",
-          resolvedTargetCommitish: "1234567",
-        });
+        expect(mockWriteText).toHaveBeenCalledWith(
+          [
+            "- `test.ts:L10`",
+            "",
+            "  ```typescript",
+            "  const x = 1;",
+            "  ```",
+            "",
+            "  Test comment",
+            "",
+            "- `old.ts:L3` (old)",
+            "",
+            "  旧侧评论",
+          ].join("\n"),
+        );
       });
     });
   });

@@ -8,11 +8,14 @@ import { test, expect, _electron as electron } from "@playwright/test";
 
 import { createNestedRepoFixture, runFixtureGit } from "../src/main/fixture-repo";
 
+import { createIsolatedUserData } from "./isolated-user-data";
+
 // playwright 以配置文件所在目录为 cwd, 包根即 Electron 应用入口目录
 const appPath = resolve(__dirname, "..");
 
 test("勾选两个仓库各自设置对比: 文件树按仓库分组, 点击文件渲染对应仓库的 diff", async () => {
   const fixture = await createNestedRepoFixture();
+  const userData = await createIsolatedUserData();
   // 仓中仓的未提交改动提交为第二个 commit, 使其可设置 HEAD^...HEAD 对比
   // (nested.txt: "nested one\n" → "nested one\nnested two\n")
   runFixtureGit(fixture.nestedPath, ["add", "nested.txt"]);
@@ -20,7 +23,7 @@ test("勾选两个仓库各自设置对比: 文件树按仓库分组, 点击文�
 
   let app;
   try {
-    app = await electron.launch({ args: [appPath, fixture.rootPath] });
+    app = await electron.launch({ args: [appPath, fixture.rootPath], env: userData.env });
     const window = await app.firstWindow();
     const main = window.locator("main");
     const sidebar = window.locator("aside#file-tree-panel");
@@ -86,5 +89,6 @@ test("勾选两个仓库各自设置对比: 文件树按仓库分组, 点击文�
   } finally {
     await app?.close();
     await fixture.cleanup();
+    await userData.cleanup();
   }
 });

@@ -11,19 +11,20 @@ import { test, expect, _electron as electron } from "@playwright/test";
 
 import { createFixtureRepo, createNestedRepoFixture } from "../src/main/fixture-repo";
 
+import { createIsolatedUserData } from "./isolated-user-data";
+
 // playwright 以配置文件所在目录为 cwd, 包根即 Electron 应用入口目录
 const appPath = resolve(__dirname, "..");
 
-const launchEnv = {
-  ...process.env,
-  DIFF_VIEWER_SCAN_DELAY_MS: "40",
-};
-
 test("打开含嵌套仓库的目录: 父子层级全部列出, node_modules 未遍历, 扫描有进度指示", async () => {
   const fixture = await createNestedRepoFixture();
+  const userData = await createIsolatedUserData();
   let app;
   try {
-    app = await electron.launch({ args: [appPath, fixture.rootPath], env: launchEnv });
+    app = await electron.launch({
+      args: [appPath, fixture.rootPath],
+      env: { ...userData.env, DIFF_VIEWER_SCAN_DELAY_MS: "40" },
+    });
     const window = await app.firstWindow();
 
     // 扫描期间有进度指示, 完成后消失
@@ -60,15 +61,20 @@ test("打开含嵌套仓库的目录: 父子层级全部列出, node_modules 未
   } finally {
     await app?.close();
     await fixture.cleanup();
+    await userData.cleanup();
   }
 });
 
 test("目录选择对话框打开新目录: 重新扫描并自动激活新目录的根仓库", async () => {
   const initial = await createFixtureRepo();
   const nested = await createNestedRepoFixture();
+  const userData = await createIsolatedUserData();
   let app;
   try {
-    app = await electron.launch({ args: [appPath, initial.repoPath], env: launchEnv });
+    app = await electron.launch({
+      args: [appPath, initial.repoPath],
+      env: { ...userData.env, DIFF_VIEWER_SCAN_DELAY_MS: "40" },
+    });
     const window = await app.firstWindow();
 
     // 初始目录的扫描结果就位
@@ -105,5 +111,6 @@ test("目录选择对话框打开新目录: 重新扫描并自动激活新目录
     await app?.close();
     await initial.cleanup();
     await nested.cleanup();
+    await userData.cleanup();
   }
 });

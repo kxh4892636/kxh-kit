@@ -8,7 +8,9 @@
 // issue 04: parser 状态重构为按仓库 keyed 的多会话管理 (repo-sessions.ts)——
 // /api/* 携带 repo 参数 (绝对路径) 路由到对应仓库会话, 省略时落到当前聚焦会话;
 // 各仓库的激活对比/评论会话/generated 缓存互相独立, 切换仓库互不覆盖。
-import { isAbsolute } from "path";
+// issue 05: 评论会话经 comment-persistence.ts 落盘到 commentsDir (userData/comments/
+// <repositoryId>.json), 路由处理评论读写前一律先 hydrate, 变更响应前等 persisted 落盘。
+import { isAbsolute, join } from "path";
 
 import type { ApiBridgeRequest, ApiBridgeResponse } from "../api-bridge/api-bridge-types.js";
 import {
@@ -27,6 +29,7 @@ import {
   parseCommentPushBody,
   type CommentSessionStore,
 } from "./comment-sessions.js";
+import { createCommentPersister } from "./comment-persistence.js";
 import { createRepoSessionManager, type RepoSession } from "./repo-sessions.js";
 import type { GitDiffParser } from "./git-diff.js";
 import { parseUserSettingsPatch, readUserConfig, updateUserClientSettings } from "./user-config.js";
@@ -36,6 +39,8 @@ export interface ApiRouterOptions {
   repoPath: string;
   initialSelection: DiffSelection;
   configPath: string;
+  // 评论落盘目录 (userData/comments); 每仓库一个 <repositoryId>.json
+  commentsDir: string;
   // 评论变化时向 renderer 广播 (经 watch 通道)
   broadcast?: (payload: string) => void;
 }
@@ -114,21 +119,28 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
     initialSelection: options.initialSelection,
   });
 
-  // 评论会话按仓库隔离: store 以 selection 为键, 跨仓库共用会在相同对比下串评论
+  // 评论会话按仓库隔离: store 以 selection 为键, 跨仓库共用会在相同对比下串评论;
+  // issue 05 起每个仓库的会话经独立 persister 落盘 (每仓库一个 JSON 文件)
   const commentStores = new Map<string, CommentSessionStore>();
   const commentStoreFor = (session: RepoSession): CommentSessionStore => {
     const existing = commentStores.get(session.repoPath);
     if (existing) {
       return existing;
     }
-    const store = createCommentSessionStore((_selection, version) => {
-      const event: WatchEvent = {
-        type: "commentsChanged",
-        version,
-        timestamp: new Date().toISOString(),
-      };
-      options.broadcast?.(JSON.stringify(event));
-    });
+    const store = createCommentSessionStore(
+      (_selection, version) => {
+        const event: WatchEvent = {
+          type: "commentsChanged",
+          version,
+          timestamp: new Date().toISOString(),
+        };
+        options.broadcast?.(JSON.stringify(event));
+      },
+      createCommentPersister({
+        filePath: join(options.commentsDir, `${session.repositoryId}.json`),
+        repoPath: session.repoPath,
+      }),
+    );
     commentStores.set(session.repoPath, store);
     return store;
   };
@@ -360,7 +372,11 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
     try {
       const selection = getCommentSelectionFromQuery(session, request.query);
       const { threads, baseVersion } = parseCommentPushBody(request.body);
-      const result = commentStoreFor(session).replaceThreads(selection, threads, baseVersion);
+      const store = commentStoreFor(session);
+      await store.hydrate();
+      const result = store.replaceThreads(selection, threads, baseVersion);
+      // 响应前等落盘: 调用方 (含 e2e 重启断言) 依赖 200 = 已持久化
+      await result.persisted;
 
       return jsonResponse({
         success: true,
@@ -379,8 +395,11 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
     request: ApiBridgeRequest,
     threadId: string,
   ): Promise<ApiBridgeResponse> => {
+    const store = commentStoreFor(session);
+    await store.hydrate();
     const selection = getCommentSelectionFromQuery(session, request.query);
-    const result = commentStoreFor(session).deleteThread(selection, threadId);
+    const result = store.deleteThread(selection, threadId);
+    await result.persisted;
 
     if (!result.found) {
       return errorResponse(404, `Thread not found: ${threadId}`);
@@ -482,22 +501,24 @@ export const createApiRouter = (options: ApiRouterOptions): ApiRouter => {
       );
     }
     if (method === "GET" && path === "/api/comments-json") {
-      return withSession(query, (session) => {
+      return withSession(query, async (session) => {
         const selection = getCommentSelectionFromQuery(session, query);
-        const commentSession = commentStoreFor(session).getSession(selection);
-        return Promise.resolve(
-          jsonResponse({ version: commentSession.version, threads: commentSession.threads }),
-        );
+        const store = commentStoreFor(session);
+        await store.hydrate();
+        const commentSession = store.getSession(selection);
+        return jsonResponse({ version: commentSession.version, threads: commentSession.threads });
       });
     }
     if (method === "GET" && path === "/api/comments-output") {
-      return withSession(query, (session) => {
+      return withSession(query, async (session) => {
         const selection = getCommentSelectionFromQuery(session, query);
-        return Promise.resolve({
+        const store = commentStoreFor(session);
+        await store.hydrate();
+        return {
           status: 200,
           headers: { "Content-Type": "text/plain" },
-          body: commentStoreFor(session).formatOutput(selection),
-        });
+          body: store.formatOutput(selection),
+        };
       });
     }
     if (method === "GET" && path === "/api/user-settings") {

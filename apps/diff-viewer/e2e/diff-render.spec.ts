@@ -7,15 +7,18 @@ import { test, expect, _electron as electron } from "@playwright/test";
 
 import { createFixtureRepo, makeWorkingTreeChange } from "../src/main/fixture-repo";
 
+import { createIsolatedUserData } from "./isolated-user-data";
+
 // playwright 以配置文件所在目录为 cwd, 包根即 Electron 应用入口目录
 const appPath = resolve(__dirname, "..");
 
 test("渲染 fixture 仓库的 diff 并可切换 unified/split", async () => {
   const fixture = await createFixtureRepo();
+  const userData = await createIsolatedUserData();
   let app;
   try {
     await makeWorkingTreeChange(fixture.repoPath);
-    app = await electron.launch({ args: [appPath, fixture.repoPath] });
+    app = await electron.launch({ args: [appPath, fixture.repoPath], env: userData.env });
     const window = await app.firstWindow();
 
     // 初始对比为 未提交改动 vs HEAD (a.txt 被本地修改)
@@ -34,5 +37,6 @@ test("渲染 fixture 仓库的 diff 并可切换 unified/split", async () => {
   } finally {
     await app?.close();
     await fixture.cleanup();
+    await userData.cleanup();
   }
 });

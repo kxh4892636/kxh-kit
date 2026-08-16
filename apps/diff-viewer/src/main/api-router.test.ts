@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from "fs/promises";
+import { mkdtemp, readdir, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 
@@ -29,6 +29,7 @@ describe("api-router", () => {
       repoPath: fixture.repoPath,
       initialSelection: { baseCommitish: "HEAD^", targetCommitish: "HEAD" },
       configPath: join(configDir, "config.json"),
+      commentsDir: join(configDir, "comments"),
       broadcast: (payload) => broadcasts.push(payload),
     });
   });
@@ -153,6 +154,104 @@ describe("api-router", () => {
       query: {},
     });
     expect(response.status).toBe(404);
+  });
+
+  describe("评论落盘持久化 (issue 05)", () => {
+    const pushThread = (target: ApiRouter, threadId: string, repo?: string) =>
+      target.handle({
+        method: "POST",
+        path: "/api/comments",
+        query: repo ? { repo } : {},
+        body: JSON.stringify({
+          threads: [
+            {
+              id: threadId,
+              filePath: "b.txt",
+              createdAt: "2026-01-01T00:00:00.000Z",
+              updatedAt: "2026-01-01T00:00:00.000Z",
+              position: { side: "new", line: 1 },
+              codeSnapshot: { content: "beta one" },
+              messages: [
+                {
+                  id: threadId,
+                  body: `note ${threadId}`,
+                  createdAt: "2026-01-01T00:00:00.000Z",
+                  updatedAt: "2026-01-01T00:00:00.000Z",
+                },
+              ],
+            },
+          ],
+        }),
+      });
+
+    it("POST 后新建 router (模拟重启) 仍能读出相同 threads 与 version", async () => {
+      const push = await pushThread(router, "t1");
+      expect(push.status).toBe(200);
+
+      // 落盘文件位于 commentsDir, 文件名即 repositoryId
+      const commentsDir = join(configDir, "comments");
+      const files = await readdir(commentsDir);
+      expect(files).toHaveLength(1);
+      expect(files[0]).toMatch(/^[0-9a-f]{64}\.json$/);
+
+      const restarted = createApiRouter({
+        parser: new GitDiffParser(fixture.repoPath),
+        repoPath: fixture.repoPath,
+        initialSelection: { baseCommitish: "HEAD^", targetCommitish: "HEAD" },
+        configPath: join(configDir, "config.json"),
+        commentsDir,
+      });
+      const read = await restarted.handle({
+        method: "GET",
+        path: "/api/comments-json",
+        query: {},
+      });
+      const payload = readJson(read) as {
+        version: number;
+        threads: Array<{ id: string; codeSnapshot?: { content: string } }>;
+      };
+      expect(payload.version).toBe(1);
+      expect(payload.threads.map((thread) => thread.id)).toEqual(["t1"]);
+      expect(payload.threads[0]?.codeSnapshot?.content).toBe("beta one");
+    });
+
+    it("两个仓库的评论各落各的文件 (按仓库隔离的键组织)", async () => {
+      const second = await createFixtureRepo();
+      try {
+        await router.handle({
+          method: "POST",
+          path: "/api/active-repository",
+          query: {},
+          body: JSON.stringify({ path: second.repoPath }),
+        });
+
+        expect((await pushThread(router, "t-first", fixture.repoPath)).status).toBe(200);
+        expect((await pushThread(router, "t-second", second.repoPath)).status).toBe(200);
+
+        const files = await readdir(join(configDir, "comments"));
+        expect(files).toHaveLength(2);
+
+        const restarted = createApiRouter({
+          parser: new GitDiffParser(fixture.repoPath),
+          repoPath: fixture.repoPath,
+          initialSelection: { baseCommitish: "HEAD^", targetCommitish: "HEAD" },
+          configPath: join(configDir, "config.json"),
+          commentsDir: join(configDir, "comments"),
+        });
+        const firstRead = await restarted.handle({
+          method: "GET",
+          path: "/api/comments-json",
+          query: { repo: fixture.repoPath },
+        });
+        expect(
+          (readJson(firstRead) as { threads: Array<{ id: string }> }).threads.map(
+            (thread) => thread.id,
+          ),
+        ).toEqual(["t-first"]);
+      } finally {
+        await second.cleanup();
+      }
+    });
   });
 
   it("GET/PUT /api/user-settings 读写设置", async () => {

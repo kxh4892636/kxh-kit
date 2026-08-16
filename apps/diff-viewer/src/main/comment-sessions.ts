@@ -1,6 +1,7 @@
-// 移植自 difit 上游 src/server/server.ts 的评论会话逻辑: 进程内存中的评论 thread 存储,
-// 按对比 (DiffSelection key) 隔离会话。落盘持久化属于后续 issue, 本 issue 评论仍以
-// renderer 的 localStorage 为准, 这里只是同步目标。
+// 移植自 difit 上游 src/server/server.ts 的评论会话逻辑: 评论 thread 存储,
+// 按对比 (DiffSelection key) 隔离会话。issue 05 起会话经 comment-persistence.ts
+// 落盘到 userData JSON (按 仓库+对比 为键), 内存态只是运行期缓存;
+// 不注入 persister 时保持纯内存 (单测与无盘场景)。
 import { createHash } from "crypto";
 
 import {
@@ -13,20 +14,30 @@ import { formatCommentsOutput } from "../utils/commentFormatting.js";
 import { mergeCommentThreads } from "../utils/commentImports.js";
 import { getDiffSelectionKey } from "../utils/diffSelection.js";
 
+import { type CommentPersister, type CommentSessionSnapshot } from "./comment-persistence.js";
+
+export type { CommentSessionSnapshot } from "./comment-persistence.js";
+
 export interface CommentSessionState {
   threads: DiffCommentThread[];
   version: number;
 }
 
 export interface CommentSessionStore {
+  // 首次读写前恢复落盘会话; 幂等 (只 load 一次), 不覆盖内存已有会话
+  hydrate: () => Promise<void>;
   getSession: (selection: DiffSelection) => CommentSessionState;
-  // baseVersion 陈旧时说明有并发写入, 走 merge 而非覆盖
+  // baseVersion 陈旧时说明有并发写入, 走 merge 而非覆盖;
+  // persisted 在本次变更落盘 (或确认无需落盘) 后解析
   replaceThreads: (
     selection: DiffSelection,
     nextThreads: DiffCommentThread[],
     baseVersion?: number,
-  ) => { merged: boolean; version: number; threads: DiffCommentThread[] };
-  deleteThread: (selection: DiffSelection, threadId: string) => { found: boolean; version: number };
+  ) => { merged: boolean; version: number; threads: DiffCommentThread[]; persisted: Promise<void> };
+  deleteThread: (
+    selection: DiffSelection,
+    threadId: string,
+  ) => { found: boolean; version: number; persisted: Promise<void> };
   formatOutput: (selection: DiffSelection) => string;
 }
 
@@ -198,8 +209,43 @@ export const parseBodyObject = (body: string | undefined): unknown => {
 
 export const createCommentSessionStore = (
   onChanged?: (selection: DiffSelection, version: number) => void,
+  persister?: CommentPersister,
 ): CommentSessionStore => {
   const sessions = new Map<string, CommentSessionState>();
+  let hydratePromise: Promise<void> | null = null;
+
+  const hydrate = (): Promise<void> => {
+    if (!persister) {
+      return Promise.resolve();
+    }
+    hydratePromise ??= persister
+      .load()
+      .then((loaded) => {
+        for (const [key, snapshot] of Object.entries(loaded)) {
+          if (!sessions.has(key)) {
+            sessions.set(key, { threads: snapshot.threads, version: snapshot.version });
+          }
+        }
+      })
+      .catch((error: unknown) => {
+        // load 内部已按缺失/损坏分类记日志, 这里兜底未知异常, 保证路由永远可用
+        console.error("Failed to hydrate persisted comments:", error);
+      });
+    return hydratePromise;
+  };
+
+  // 每次变更整仓库快照落盘 (单文件全量写, 由 persister 队列串行化)
+  const persistSessions = (): Promise<void> => {
+    if (!persister) {
+      return Promise.resolve();
+    }
+    const updatedAt = new Date().toISOString();
+    const snapshot: Record<string, CommentSessionSnapshot> = {};
+    for (const [key, session] of sessions) {
+      snapshot[key] = { version: session.version, updatedAt, threads: session.threads };
+    }
+    return persister.save(snapshot);
+  };
 
   const getOrCreateSession = (selection: DiffSelection): CommentSessionState => {
     const key = getDiffSelectionKey(selection);
@@ -216,22 +262,23 @@ export const createCommentSessionStore = (
   const updateSession = (
     selection: DiffSelection,
     nextThreads: DiffCommentThread[],
-  ): { changed: boolean; session: CommentSessionState } => {
+  ): { changed: boolean; session: CommentSessionState; persisted: Promise<void> } => {
     const session = getOrCreateSession(selection);
     const previous = JSON.stringify(session.threads);
     const next = JSON.stringify(nextThreads);
     session.threads = nextThreads;
 
     if (previous === next) {
-      return { changed: false, session };
+      return { changed: false, session, persisted: Promise.resolve() };
     }
 
     session.version += 1;
     onChanged?.(selection, session.version);
-    return { changed: true, session };
+    return { changed: true, session, persisted: persistSessions() };
   };
 
   return {
+    hydrate,
     getSession: (selection) => getOrCreateSession(selection),
 
     replaceThreads: (selection, nextThreads, baseVersion) => {
@@ -242,8 +289,8 @@ export const createCommentSessionStore = (
         ? mergeCommentThreads(session.threads, nextThreads).threads
         : nextThreads;
 
-      const { session: updated } = updateSession(selection, resolvedThreads);
-      return { merged: isStale, version: updated.version, threads: updated.threads };
+      const { session: updated, persisted } = updateSession(selection, resolvedThreads);
+      return { merged: isStale, version: updated.version, threads: updated.threads, persisted };
     },
 
     deleteThread: (selection, threadId) => {
@@ -251,11 +298,11 @@ export const createCommentSessionStore = (
       const nextThreads = session.threads.filter((thread) => thread.id !== threadId);
 
       if (nextThreads.length === session.threads.length) {
-        return { found: false, version: session.version };
+        return { found: false, version: session.version, persisted: Promise.resolve() };
       }
 
-      const { session: updated } = updateSession(selection, nextThreads);
-      return { found: true, version: updated.version };
+      const { session: updated, persisted } = updateSession(selection, nextThreads);
+      return { found: true, version: updated.version, persisted };
     },
 
     formatOutput: (selection) => {
