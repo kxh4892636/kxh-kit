@@ -277,10 +277,11 @@ export function DiffQuickMenu({
         selection: originUncommittedPreset,
       });
     }
-    if (defaultComparePreset && originDefaultBranch && currentBranch) {
+    // defaultComparePreset 非空已蕴含 originDefaultBranch 与 currentBranch 均存在
+    if (defaultComparePreset) {
       items.push({
         key: "default-compare",
-        label: `${originDefaultBranch}...${currentBranch.name} (merge-base)`,
+        label: `${defaultComparePreset.baseCommitish}...${defaultComparePreset.targetCommitish} (merge-base)`,
         selection: defaultComparePreset,
       });
     }
@@ -298,7 +299,6 @@ export function DiffQuickMenu({
     originDefaultBranch,
     originUncommittedPreset,
     defaultComparePreset,
-    currentBranch,
     previousCommitPreset,
   ]);
 

@@ -4,7 +4,10 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { expect, test } from "vite-plus/test";
+import { expect, test, vi } from "vite-plus/test";
+
+// 每个用例 spawnSync node 子进程做真实安装, 并行负载下会超出 vitest 默认 5s 超时
+vi.setConfig({ testTimeout: 30_000 });
 
 const packageRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = join(packageRoot, "..", "..");
