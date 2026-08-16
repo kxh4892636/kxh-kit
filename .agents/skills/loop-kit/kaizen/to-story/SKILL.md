@@ -1,13 +1,13 @@
 ---
 name: to-story
-description: 把模糊想法打磨为 plan 目录下的 story.md——按 epic 组织、各带验收的用户故事集; plan 的可选成员, 不存在则忽略.
+description: 把模糊想法打磨为按 epic 组织、各带验收的用户故事集
 argument-hint: "要把什么想法打磨成用户故事?"
 disable-model-invocation: true
 ---
 
 # To Story
 
-用户故事的 **3C**: 卡片(story.md), 对话(`/grilling`), 确认(验收). 本 skill 运行 `/grilling`, 把一个模糊想法打磨为 story.md, 落在 plan 目录:
+用户故事的 **3C**: 卡片(story.md), 对话(`/grilling`), 确认(验收). 本 skill 运行 `/grilling`, 把一个模糊想法打磨为用户故事;
 
 ```text
 docs/{domain-name}/plans/{lifecycle}/YYYY-MM-DD-中文工作名/
@@ -15,8 +15,6 @@ docs/{domain-name}/plans/{lifecycle}/YYYY-MM-DD-中文工作名/
 ├── spec.md
 └── 01-中文标题.md
 ```
-
-story.md 与 spec.md 同级, 是 plan 的**可选**成员: plan 可以只有 story.md(故事刚清晰, 尚未拆分), 也可以没有 story.md(直接拆分的工作); 消费方找不到它时静默忽略. 目录命名与 lifecycle 规则同 `/to-issues`; 新 plan 一律落在 `active/`.
 
 从 `CONTEXT-MAP.md` 定位业务域, 读取该域 `CONTEXT.md` 借用词汇. 访谈确认的内容只落 story.md, 不写 `CONTEXT.md` 或 ADR——此阶段的决策尚未明确, 不进领域文档.
 
@@ -27,7 +25,7 @@ story.md 与 spec.md 同级, 是 plan 的**可选**成员: plan 可以只有 sto
 每轮从地图边缘选择可推进的路径——互不依赖的并行, 有依赖的串行:
 
 - **与用户讨论**——按 `/grilling` 的 rounds 询问 frontier: 为谁做, 想要什么, 为什么;
-- **后台调研**——派遣 sub-agent 查明环境事实(代码库现状, 领域文档, 既有 plan).
+- **后台调研**——派遣 sub-agent 查明环境事实(工作区, 领域文档, 既有 plan).
 
 每轮确认的内容**就地**落入 story.md, 不攒批:
 
@@ -67,4 +65,11 @@ story.md 与 spec.md 同级, 是 plan 的**可选**成员: plan 可以只有 sto
 {尚未探索清楚的空白; 澄清后 graduate 为故事}
 ```
 
-模板章节是最小集合; 扩展规则同 `/to-issues` 的「模板扩展」.
+## 模板扩展
+
+模板章节是最小集合, 不是封闭集合. 允许根据工作的性质添加模板未固定的章节, 但新增章节必须**真正独特且必要**:
+
+- **独特**——内容无法归入任何现有章节, 语义不重叠;
+- **必要**——缺少它, 该工作的执行或验收会缺失关键信息.
+
+两条同时满足才添加, 章节标题使用中文; 否则归入现有章节或省略. 扩展只作用于单个 plan; 若同类章节在多个 plan 中反复出现, 回到本 skill 更新模板.
