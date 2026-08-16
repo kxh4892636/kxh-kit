@@ -1,22 +1,22 @@
 ---
 name: to-story
-description: 把模糊想法打磨为按 epic 组织、各带验收的用户故事集
+description: 把模糊想法打磨为带编号和验收、按 epic 或独立条目组织的用户故事集
 argument-hint: "要把什么想法打磨成用户故事?"
 disable-model-invocation: true
 ---
 
 # To Story
 
-用户故事的 **3C**: 卡片(story.md), 对话(`/grilling`), 确认(验收). 本 skill 运行 `/grilling`, 把一个模糊想法打磨为用户故事;
+用户故事集是一组带唯一编号的用户故事有序集合. 用户故事的 **3C**: 卡片(story.md), 对话(`/grilling`), 确认(验收). 本 skill 运行 `/grilling`, 把一个模糊想法打磨为用户故事.
+
+先读取根 `DOMAIN.md` 的「Plan 生命周期」, 再从 `CONTEXT-MAP.md` 定位业务域并读取该域 `CONTEXT.md`, ADR 和 Workflow. 新 plan 一律落在 `active/`;
 
 ```text
-docs/{domain-name}/plans/{lifecycle}/YYYY-MM-DD-中文工作名/
-├── story.md
-├── spec.md
-└── 01-中文标题.md
+docs/{domain-name}/plans/active/YYYY-MM-DD-中文工作名/
+└── story.md
 ```
 
-从 `CONTEXT-MAP.md` 定位业务域, 读取该域 `CONTEXT.md` 借用词汇. 访谈确认的内容只落 story.md, 不写 `CONTEXT.md` 或 ADR——此阶段的决策尚未明确, 不进领域文档.
+访谈确认的内容只落 story.md, 不写 `CONTEXT.md` 或 ADR——此阶段的决策尚未明确, 不进领域文档.
 
 ## 行动地图
 
@@ -30,13 +30,15 @@ docs/{domain-name}/plans/{lifecycle}/YYYY-MM-DD-中文工作名/
 每轮确认的内容**就地**落入 story.md, 不攒批:
 
 - 明确的角色 → 「角色」节;
-- 明确的故事 → 「故事」节对应 epic 之下; 不足以成 epic 的精简故事直接独立列出;
+- 明确的故事 → 落入「故事」节对应 epic 之下; 不足以成 epic 的精简故事直接独立列出. 就地维护故事编号, 保证所有故事编号单调递增;
 - 新发现的空白 → 「迷雾」节, 澄清后 graduate 为故事;
 - 调研与讨论中使用的已有产物 → 「上下文」节.
 
-**完成标准:** frontier 为空; 每条故事都有验收; 迷雾节清空, 或条目经用户确认接受; 用户确认故事集覆盖原始想法. 需要拆分为实现工作时, 带着 story.md 进入 `/to-issues`.
+**完成标准:** frontier 为空; 每条故事具有唯一有序编号和验收; 迷雾节清空, 或条目经用户确认接受; 用户确认故事集覆盖原始想法. 需要拆分为实现工作时, 带着 story.md 进入 `/to-issues`.
 
 ## story.md 模板
+
+属于 epic 的故事使用四级标题; 不足以组成 epic 的故事使用三级标题独立列出, 不创建空壳 epic.
 
 ```markdown
 # {工作名}
@@ -55,7 +57,13 @@ docs/{domain-name}/plans/{lifecycle}/YYYY-MM-DD-中文工作名/
 
 {这组故事共同完成什么}
 
-#### {故事标题}
+#### US-001 {故事标题}
+
+作为 {角色}, 我 {想要}, 以便 {收益}.
+
+- [ ] {可判定的验收结果}
+
+### US-002 {独立故事标题}
 
 作为 {角色}, 我 {想要}, 以便 {收益}.
 
