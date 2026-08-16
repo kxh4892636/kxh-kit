@@ -1,15 +1,15 @@
-// issue 03 侧栏仓库树面板: 打开目录 → 异步扫描嵌套仓库 (进度可见) →
-// 父子层级展示并勾选。勾选经宿主的 onActivateRepository 切换激活仓库,
-// 单仓库 diff 管道 (01/02) 承接展示; 多仓库同视图归 04。
+// 侧栏仓库树面板 (issue 03 打开目录/扫描进度/父子层级勾选; issue 04 起为纯展示组件):
+// 扫描状态机 (useRepositoryScan) 上提至 App —— 多仓库同视图的文件树需要跨层消费
+// 勾选状态; 本组件只渲染 scan 状态并回调 openFolder/toggleRepository。
 import { FolderOpen, Loader2 } from "lucide-react";
 
 import type { RepositoryNode } from "../../types/repository";
 import { Checkbox } from "../components/Checkbox";
 
-import { useRepositoryScan } from "./use-repository-scan";
+import type { RepositoryScanState } from "./use-repository-scan";
 
 interface RepositoryTreePanelProps {
-  onActivateRepository: (repoPath: string) => Promise<boolean>;
+  scan: RepositoryScanState;
 }
 
 interface RepositoryTreeNodeProps {
@@ -64,7 +64,7 @@ const RepositoryTreeNode: React.FC<RepositoryTreeNodeProps> = (props) => {
 };
 
 export const RepositoryTreePanel: React.FC<RepositoryTreePanelProps> = (props) => {
-  const { onActivateRepository } = props;
+  const { scan } = props;
   const {
     repositories,
     scanning,
@@ -74,7 +74,7 @@ export const RepositoryTreePanel: React.FC<RepositoryTreePanelProps> = (props) =
     activePath,
     openFolder,
     toggleRepository,
-  } = useRepositoryScan({ onActivateRepository });
+  } = scan;
 
   // 纯浏览器 dev / 单测无 bridge 时降级, 不影响其余 UI
   if (typeof window === "undefined" || !window.diffViewerBridge) {

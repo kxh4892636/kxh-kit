@@ -1,9 +1,14 @@
-// fork 改动 (client 第 4 处): issue 03 目录打开与嵌套仓库扫描 —— 侧栏文件树上方接入
-// 自包含的 RepositoryTreePanel (打开目录/扫描进度/仓库父子层级勾选, 见
-// ./repo-tree/); 勾选经 /api/active-repository 让主进程切换激活仓库, 本文件负责
-// 重置对比状态并重取 diff 与 revisions (revisions 拉取从 mount effect 提为
-// fetchRevisions 回调)。其余 fork 改动清单见 main.tsx / useHighlightedCode.ts /
-// ImageDiffViewer.tsx 文件头。
+// fork 改动 (client 第 4 处): issue 03 目录打开与嵌套仓库扫描 + issue 04 多仓库同视图 diff ——
+// 侧栏文件树上方接入 RepositoryTreePanel (扫描状态机 useRepositoryScan 04 起上提到本文件,
+// 面板纯渲染); 04: 勾选 N 个仓库各自独立激活对比 (服务端按仓库 keyed 会话保持,
+// 客户端 selectedRevision 等按仓库记忆/恢复), /api/diff 与 /api/revisions 携带 repo 参数路由;
+// 文件树 (FileList, fork 第 5 处改动) 顶层按仓库分组聚合各勾选仓库的变更文件,
+// 点击其他仓库的文件 = 聚焦该仓库 (POST /api/active-repository 移动主进程聚焦指针,
+// 使 fork 的 line-count/blob/generated-status 等无 repo 参数请求落在同一仓库) 后滚动定位;
+// loading/error 不再整屏早退, 仓库树面板在零仓库目录等场景保持可用。
+// 取消勾选最后一个仓库时保持当前 diff 与文件树 (取舍: 避免误操作清空上下文)。
+// 其余 fork 改动清单见 main.tsx / useHighlightedCode.ts / ImageDiffViewer.tsx /
+// DiffQuickMenu.tsx / FileList.tsx 文件头。
 import { Columns, AlignLeft, Settings, PanelLeftClose, PanelLeft, Keyboard } from "lucide-react";
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 
@@ -17,6 +22,7 @@ import {
   type CommentThread,
   type RevisionsResponse,
 } from "../types/diff";
+import type { RepositoryNode } from "../types/repository";
 import { DEFAULT_DIFF_VIEW_MODE, normalizeDiffViewMode } from "../utils/diffMode";
 import { mergeCommentThreads } from "../utils/commentImports";
 import {
@@ -31,7 +37,7 @@ import { CommentsDropdown } from "./components/CommentsDropdown";
 import { CommentsListModal } from "./components/CommentsListModal";
 import { DiffQuickMenu } from "./components/DiffQuickMenu";
 import { DiffViewer } from "./components/DiffViewer";
-import { FileList } from "./components/FileList";
+import { FileList, type RepoFileGroup } from "./components/FileList";
 import { GitHubIcon } from "./components/GitHubIcon";
 import { HelpModal } from "./components/HelpModal";
 import { Logo } from "./components/Logo";
@@ -49,6 +55,7 @@ import { useLazyDiffRendering } from "./hooks/useLazyDiffRendering";
 import { useViewedFiles } from "./hooks/useViewedFiles";
 import { useViewport } from "./hooks/useViewport";
 import { RepositoryTreePanel } from "./repo-tree/repository-tree-panel";
+import { useRepositoryScan } from "./repo-tree/use-repository-scan";
 import { fetchClientSettings, saveClientSettings } from "./services/userSettings";
 import { hasMultipleCommentAuthors } from "./utils/commentAuthors";
 import { copyTextToClipboard } from "./utils/clipboard";
@@ -186,6 +193,18 @@ function App() {
     return getDiffSelectionKey(resolvedSelection);
   }, [resolvedSelection]);
 
+  // issue 04: 多仓库同视图状态。diffData 始终 = 聚焦仓库的 diff (主视图单仓库展示,
+  // 既有 diff 管道不变); diffByRepo 缓存各勾选仓库最近一次抓取的 diff 供文件树分组聚合;
+  // 用户手选对比按仓库记忆, 聚焦切换时恢复 (服务端会话同样保持, 双保险)
+  const [diffByRepo, setDiffByRepo] = useState<ReadonlyMap<string, DiffResponse>>(new Map());
+  const [focusedRepoPath, setFocusedRepoPath] = useState<string | null>(null);
+  const focusedRepoPathRef = useRef<string | null>(null);
+  focusedRepoPathRef.current = focusedRepoPath;
+  const selectionByRepoRef = useRef(new Map<string, DiffSelection>());
+  const userSelectedReposRef = useRef(new Set<string>());
+  // 跨仓库文件点击: 等目标仓库成为聚焦仓库且 diff 数据就绪后再滚动定位
+  const pendingScrollFileRef = useRef<string | null>(null);
+
   const { settings, updateSettings } = useAppearanceSettings();
   const { isMobile, isDesktop } = useViewport();
 
@@ -231,9 +250,13 @@ function App() {
     if (resolvedSelection.baseMode === "merge-base") {
       params.set("baseMode", resolvedSelection.baseMode);
     }
+    // issue 04: 评论会话按仓库隔离 (主进程会话 keyed), 请求携带聚焦仓库路由
+    if (focusedRepoPath) {
+      params.set("repo", focusedRepoPath);
+    }
 
     return params.toString();
-  }, [resolvedSelection]);
+  }, [resolvedSelection, focusedRepoPath]);
   const getCommentApiUrl = useCallback(
     (path: string) => {
       if (!commentSessionQueryString) {
@@ -701,6 +724,9 @@ function App() {
       activeDiffAbortControllerRef.current?.abort();
       const controller = new AbortController();
       activeDiffAbortControllerRef.current = controller;
+      // issue 04: 抓取目标 = 调用时刻的聚焦仓库; 启动后首次抓取尚无聚焦仓库,
+      // 不带 repo 参数落到主进程启动会话 (同一仓库, 扫描完成后经激活转为显式路由)
+      const requestRepoPath = focusedRepoPathRef.current;
       try {
         const requestedSelection =
           selection ??
@@ -708,6 +734,7 @@ function App() {
         const params = new URLSearchParams({
           ignoreWhitespace: String(ignoreWhitespace),
         });
+        if (requestRepoPath) params.set("repo", requestRepoPath);
         if (requestedSelection?.baseCommitish) params.set("base", requestedSelection.baseCommitish);
         if (requestedSelection?.targetCommitish)
           params.set("target", requestedSelection.targetCommitish);
@@ -724,6 +751,19 @@ function App() {
         }
         setDiffData(data);
         setDiffDataVersion((prev) => prev + 1);
+
+        // 按仓库缓存 diff (文件树分组聚合的数据源) 并记忆该仓库当前对比
+        if (requestRepoPath) {
+          setDiffByRepo((prev) => new Map(prev).set(requestRepoPath, data));
+          const responseBase = data.requestedBaseCommitish ?? data.baseCommitish;
+          const responseTarget = data.requestedTargetCommitish ?? data.targetCommitish;
+          if (responseBase && responseTarget) {
+            selectionByRepoRef.current.set(
+              requestRepoPath,
+              createDiffSelection(responseBase, responseTarget, data.requestedBaseMode),
+            );
+          }
+        }
 
         // Update resolved revision state from server response
         setResolvedBaseRevision(
@@ -860,9 +900,13 @@ function App() {
   }, [isFileTreeOpen]);
 
   // issue 03: revisions 拉取提为回调, 切换激活仓库后需重取新仓库的分支/提交
+  // issue 04: 按聚焦仓库路由 (?repo=), 各仓库分支/提交互不相同
   const fetchRevisions = useCallback(async () => {
     try {
-      const res = await fetch("/api/revisions");
+      const repoPath = focusedRepoPathRef.current;
+      const res = await fetch(
+        repoPath ? `/api/revisions?repo=${encodeURIComponent(repoPath)}` : "/api/revisions",
+      );
       const data = (res.ok ? await res.json() : null) as RevisionsResponse | null;
       setRevisionOptions(data);
       if (
@@ -890,6 +934,12 @@ function App() {
       // Skip if no actual change
       if (diffSelectionsEqual(nextSelection, selectedRevision)) return;
 
+      // issue 04: 手选对比记到聚焦仓库名下, 切走再切回时恢复
+      const repoPath = focusedRepoPathRef.current;
+      if (repoPath) {
+        userSelectedReposRef.current.add(repoPath);
+        selectionByRepoRef.current.set(repoPath, nextSelection);
+      }
       hasUserSelectedRevisionRef.current = true;
       selectedRevisionRef.current = nextSelection;
       setSelectedRevision(nextSelection);
@@ -900,8 +950,9 @@ function App() {
     [fetchDiffData, selectedRevision],
   );
 
-  // issue 03: 仓库树勾选后切换激活仓库。主进程已替换 parser 并重置为该仓库的默认对比,
-  // 这里清掉用户手选的对比状态, 按服务端默认重取 diff 与 revisions
+  // issue 04: 激活仓库 = 幂等确保主进程会话存在并把聚焦指针移过去 (不再丢弃其他
+  // 仓库的对比状态)。这里恢复该仓库的用户手选对比状态 (未手选过则由服务端会话的
+  // 当前对比经响应回填), 按该仓库重取 diff 与 revisions
   const handleActivateRepository = useCallback(
     async (repoPath: string): Promise<boolean> => {
       let response: Response;
@@ -920,19 +971,100 @@ function App() {
         return false;
       }
 
-      hasUserSelectedRevisionRef.current = false;
-      setSelectedRevision(createDiffSelection("", ""));
+      focusedRepoPathRef.current = repoPath;
+      setFocusedRepoPath(repoPath);
+      const userSelected = userSelectedReposRef.current.has(repoPath);
+      hasUserSelectedRevisionRef.current = userSelected;
+      const storedSelection = selectionByRepoRef.current.get(repoPath);
+      selectedRevisionRef.current = storedSelection ?? createDiffSelection("", "");
+      setSelectedRevision(selectedRevisionRef.current);
       setResolvedBaseRevision("");
       setResolvedTargetRevision("");
       setError(null);
       // 不置 loading: loading 态会整屏替换布局并卸载仓库树面板, 扫描结果与勾选状态
       // 会随之丢失; 保留旧 diff 静候新 diff 到达, 面板状态全程存活
-      await fetchDiffData();
+      await fetchDiffData(userSelected ? storedSelection : undefined);
       await fetchRevisions();
       return true;
     },
     [fetchDiffData, fetchRevisions],
   );
+
+  // issue 04: 扫描状态机上提到 App —— 勾选状态同时驱动文件树的多仓库分组聚合;
+  // 面板组件 (RepositoryTreePanel) 纯渲染该状态
+  const repositoryScan = useRepositoryScan({ onActivateRepository: handleActivateRepository });
+
+  // 文件树点击: 聚焦仓库内 = 直接滚动定位; 其他仓库 = 聚焦切换 (面板高亮经
+  // focusRepository 同步), 等目标仓库 diff 就绪后由下面的 pendingScroll 效果滚动
+  const handleSelectRepoFile = useCallback(
+    (repoPath: string, filePath: string) => {
+      if (!repoPath || repoPath === focusedRepoPathRef.current) {
+        scrollFileIntoDiffContainer(filePath);
+        return;
+      }
+      pendingScrollFileRef.current = filePath;
+      void repositoryScan.focusRepository(repoPath).then((succeeded) => {
+        if (!succeeded) {
+          pendingScrollFileRef.current = null;
+        }
+      });
+    },
+    [repositoryScan.focusRepository, scrollFileIntoDiffContainer],
+  );
+
+  // 跨仓库聚焦切换完成后, 滚动到触发切换的文件
+  useEffect(() => {
+    const pendingFile = pendingScrollFileRef.current;
+    if (!pendingFile || !focusedRepoPath || !diffData) {
+      return;
+    }
+    // diffData 必须是聚焦仓库刚抓取的版本 (引用相等), 否则还在用旧仓库数据
+    if (diffByRepo.get(focusedRepoPath) !== diffData) {
+      return;
+    }
+    if (!diffData.files.some((file) => file.path === pendingFile)) {
+      return;
+    }
+    pendingScrollFileRef.current = null;
+    // 等文件容器挂载; lazy 渲染由 scrollFileIntoDiffContainer 内部 ensure 处理
+    const timer = setTimeout(() => scrollFileIntoDiffContainer(pendingFile), 100);
+    return () => clearTimeout(timer);
+  }, [focusedRepoPath, diffData, diffByRepo, scrollFileIntoDiffContainer]);
+
+  const repoNameByPath = useMemo(() => {
+    const map = new Map<string, string>();
+    const visit = (nodes: RepositoryNode[]): void => {
+      nodes.forEach((node) => {
+        map.set(node.path, node.name);
+        visit(node.children);
+      });
+    };
+    visit(repositoryScan.repositories);
+    return map;
+  }, [repositoryScan.repositories]);
+
+  // 文件树数据源: 勾选顺序即分组顺序; diff 尚未抓到的仓库 (激活进行中) 暂不出现
+  const fileTreeGroups = useMemo<RepoFileGroup[]>(() => {
+    const groups: RepoFileGroup[] = [];
+    repositoryScan.checkedPaths.forEach((repoPath) => {
+      const data = diffByRepo.get(repoPath);
+      if (!data) {
+        return;
+      }
+      groups.push({
+        repoPath,
+        repoName: repoNameByPath.get(repoPath) ?? repoPath.split(/[\\/]/).pop() ?? repoPath,
+        files: data.files,
+        isFocused: repoPath === focusedRepoPath,
+      });
+    });
+    // 回退平铺: 无可用分组时 (无 bridge 的纯浏览器 dev / 启动扫描完成前 / 取消全部
+    // 勾选后保持视图) 以当前 diffData 平铺, 保持 03 之前的单仓库树外观
+    if (groups.length === 0 && diffData) {
+      groups.push({ repoPath: "", repoName: "", files: diffData.files, isFocused: true });
+    }
+    return groups;
+  }, [repositoryScan.checkedPaths, diffByRepo, repoNameByPath, focusedRepoPath, diffData]);
 
   // Clear comments and viewed files on initial load if requested via CLI flag
   const hasCleanedRef = useRef(false);
@@ -1212,33 +1344,10 @@ function App() {
     });
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-github-bg-primary">
-        <div className="text-github-text-secondary text-base">Loading diff...</div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-github-bg-primary text-center gap-2">
-        <h2 className="text-github-danger text-2xl mb-2">Error</h2>
-        <p className="text-github-text-secondary text-base">{error}</p>
-      </div>
-    );
-  }
-
-  if (!diffData) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen bg-github-bg-primary text-center gap-2">
-        <h2 className="text-github-danger text-2xl mb-2">No data</h2>
-        <p className="text-github-text-secondary text-base">No diff data available</p>
-      </div>
-    );
-  }
-
+  // issue 04: loading / error / 空数据不再整屏早退 —— 头部与侧栏 (含仓库树面板) 常驻,
+  // 打开零仓库目录 (/api/diff 报错) 等场景仍可经面板打开其他目录; 主内容区按状态切换
   const canOpenInEditor =
+    diffData !== null &&
     diffData.openInEditorAvailable !== false &&
     settings.editor.id !== "none" &&
     settings.editor.command.trim() !== "" &&
@@ -1362,36 +1471,38 @@ function App() {
                   onViewAll={() => setIsCommentsListOpen(true)}
                 />
               )}
-              <div className="flex flex-col gap-1 items-center">
-                <div className="text-xs relative">
-                  {viewedFiles.size === diffData.files.length
-                    ? "All diffs difit-ed!"
-                    : `${viewedFiles.size} / ${diffData.files.length} files viewed`}
-                  <SparkleAnimation isActive={showSparkles} />
-                </div>
-                <div
-                  className="relative h-2 bg-github-bg-tertiary rounded-full overflow-hidden"
-                  style={{
-                    width: "90px",
-                    border: "1px solid var(--color-github-border)",
-                  }}
-                >
+              {diffData && (
+                <div className="flex flex-col gap-1 items-center">
+                  <div className="text-xs relative">
+                    {viewedFiles.size === diffData.files.length
+                      ? "All diffs difit-ed!"
+                      : `${viewedFiles.size} / ${diffData.files.length} files viewed`}
+                    <SparkleAnimation isActive={showSparkles} />
+                  </div>
                   <div
-                    className="absolute top-0 right-0 h-full transition-all duration-300 ease-out"
+                    className="relative h-2 bg-github-bg-tertiary rounded-full overflow-hidden"
                     style={{
-                      width: `${((diffData.files.length - viewedFiles.size) / diffData.files.length) * 100}%`,
-                      backgroundColor: (() => {
-                        const remainingPercent =
-                          ((diffData.files.length - viewedFiles.size) / diffData.files.length) *
-                          100;
-                        if (remainingPercent > 50) return "var(--color-github-accent)"; // green
-                        if (remainingPercent > 20) return "var(--color-github-warning)"; // yellow
-                        return "var(--color-github-danger)"; // red
-                      })(),
+                      width: "90px",
+                      border: "1px solid var(--color-github-border)",
                     }}
-                  />
+                  >
+                    <div
+                      className="absolute top-0 right-0 h-full transition-all duration-300 ease-out"
+                      style={{
+                        width: `${((diffData.files.length - viewedFiles.size) / diffData.files.length) * 100}%`,
+                        backgroundColor: (() => {
+                          const remainingPercent =
+                            ((diffData.files.length - viewedFiles.size) / diffData.files.length) *
+                            100;
+                          if (remainingPercent > 50) return "var(--color-github-accent)"; // green
+                          if (remainingPercent > 20) return "var(--color-github-warning)"; // yellow
+                          return "var(--color-github-danger)"; // red
+                        })(),
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
+              )}
               {revisionOptions ? (
                 <DiffQuickMenu
                   options={revisionOptions}
@@ -1402,7 +1513,7 @@ function App() {
                   onOpenAdvanced={() => setIsRevisionModalOpen(true)}
                   compact={!isDesktop}
                 />
-              ) : (
+              ) : diffData ? (
                 <span className="text-xs">
                   Reviewing:{" "}
                   <code className="bg-github-bg-tertiary px-1.5 py-0.5 rounded text-xs text-github-text-primary">
@@ -1418,7 +1529,7 @@ function App() {
                     )}
                   </code>
                 </span>
-              )}
+              ) : null}
             </div>
           </div>
         </header>
@@ -1471,11 +1582,12 @@ function App() {
               }}
             >
               <div className="flex-1 overflow-y-auto">
-                {/* issue 03: 仓库树置于文件树上方, 勾选条目切换激活仓库 */}
-                <RepositoryTreePanel onActivateRepository={handleActivateRepository} />
+                {/* issue 03/04: 仓库树置于文件树上方, 勾选条目激活仓库并加入同视图;
+                文件树按仓库分组聚合各勾选仓库的变更文件 */}
+                <RepositoryTreePanel scan={repositoryScan} />
                 <FileList
-                  files={diffData.files}
-                  onScrollToFile={scrollFileIntoDiffContainer}
+                  groups={fileTreeGroups}
+                  onSelectFile={handleSelectRepoFile}
                   onFileSelected={isMobile ? handleMobileFileSelected : undefined}
                   comments={normalizedThreads}
                   reviewedFiles={viewedFiles}
@@ -1524,90 +1636,106 @@ function App() {
             ref={diffScrollContainerRef}
             className={`flex-1 overflow-y-auto ${showMobileCommentsBar ? "pb-16" : ""}`}
           >
-            {diffData.files.map((file, fileIndex) => {
-              const fileThreads = threadsByFile.get(file.path) ?? EMPTY_COMMENT_THREADS;
-              const mergedChunks =
-                getMergedChunksForVersion(mergedChunksState, diffDataVersion, file.path) ??
-                EMPTY_MERGED_CHUNKS;
-              const isRendered = renderedFilePaths.has(file.path);
-              return (
-                <div
-                  key={file.path}
-                  id={getFileElementId(file.path)}
-                  data-file-path={file.path}
-                  data-rendered={isRendered ? "true" : "false"}
-                  ref={(node) => registerLazyFileContainer(file.path, node)}
-                  className="mb-6"
-                  onMouseEnter={() => {
-                    hoveredFileIndexRef.current = fileIndex;
-                  }}
-                  onMouseLeave={() => {
-                    if (hoveredFileIndexRef.current === fileIndex) {
-                      hoveredFileIndexRef.current = null;
-                    }
-                  }}
-                >
-                  {isRendered ? (
-                    <DiffViewer
-                      file={file}
-                      threads={fileThreads}
-                      showAuthorBadges={showAuthorBadges}
-                      diffMode={diffMode}
-                      reviewedFiles={viewedFiles}
-                      isChangedSinceViewed={changedSinceViewedFiles.has(file.path)}
-                      onToggleReviewed={handleViewedButtonToggle}
-                      collapsedFiles={collapsedFiles}
-                      onToggleCollapsed={toggleFileCollapsed}
-                      onToggleAllCollapsed={toggleAllFilesCollapsed}
-                      onAddComment={handleAddComment}
-                      onGenerateThreadPrompt={handleGenerateThreadPrompt}
-                      onRemoveThread={removeThread}
-                      onReplyToThread={handleReplyToThread}
-                      onRemoveMessage={removeMessage}
-                      onUpdateMessage={updateMessage}
-                      onOpenInEditor={canOpenInEditor ? handleOpenInEditor : undefined}
-                      syntaxTheme={settings.syntaxTheme}
-                      baseCommitish={diffData.baseCommitish}
-                      targetCommitish={diffData.targetCommitish}
-                      cursor={cursor?.fileIndex === fileIndex ? cursor : null}
-                      isFocused={cursor?.fileIndex === fileIndex}
-                      fileIndex={fileIndex}
-                      onLineClick={handleLineClick}
-                      commentTrigger={
-                        commentTrigger?.fileIndex === fileIndex ? commentTrigger : null
+            {loading ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-github-text-secondary text-base">Loading diff...</div>
+              </div>
+            ) : error ? (
+              <div className="flex flex-col items-center justify-center h-full text-center gap-2">
+                <h2 className="text-github-danger text-2xl mb-2">Error</h2>
+                <p className="text-github-text-secondary text-base">{error}</p>
+              </div>
+            ) : !diffData ? (
+              <div className="flex flex-col items-center justify-center h-full text-center gap-2">
+                <h2 className="text-github-danger text-2xl mb-2">No data</h2>
+                <p className="text-github-text-secondary text-base">No diff data available</p>
+              </div>
+            ) : (
+              diffData.files.map((file, fileIndex) => {
+                const fileThreads = threadsByFile.get(file.path) ?? EMPTY_COMMENT_THREADS;
+                const mergedChunks =
+                  getMergedChunksForVersion(mergedChunksState, diffDataVersion, file.path) ??
+                  EMPTY_MERGED_CHUNKS;
+                const isRendered = renderedFilePaths.has(file.path);
+                return (
+                  <div
+                    key={file.path}
+                    id={getFileElementId(file.path)}
+                    data-file-path={file.path}
+                    data-rendered={isRendered ? "true" : "false"}
+                    ref={(node) => registerLazyFileContainer(file.path, node)}
+                    className="mb-6"
+                    onMouseEnter={() => {
+                      hoveredFileIndexRef.current = fileIndex;
+                    }}
+                    onMouseLeave={() => {
+                      if (hoveredFileIndexRef.current === fileIndex) {
+                        hoveredFileIndexRef.current = null;
                       }
-                      onCommentTriggerHandled={handleCommentTriggerHandled}
-                      mergedChunks={mergedChunks}
-                      expandLines={expandLines}
-                      expandAllBetweenChunks={expandAllBetweenChunks}
-                      prefetchFileContent={prefetchFileContent}
-                      isExpandLoading={isExpandLoading}
-                      diffVersion={diffDataVersion}
-                    />
-                  ) : (
-                    <div className="bg-github-bg-secondary border border-github-border rounded-md px-4 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="text-xs uppercase tracking-wide text-github-text-muted">
-                            Deferred Rendering
+                    }}
+                  >
+                    {isRendered ? (
+                      <DiffViewer
+                        file={file}
+                        threads={fileThreads}
+                        showAuthorBadges={showAuthorBadges}
+                        diffMode={diffMode}
+                        reviewedFiles={viewedFiles}
+                        isChangedSinceViewed={changedSinceViewedFiles.has(file.path)}
+                        onToggleReviewed={handleViewedButtonToggle}
+                        collapsedFiles={collapsedFiles}
+                        onToggleCollapsed={toggleFileCollapsed}
+                        onToggleAllCollapsed={toggleAllFilesCollapsed}
+                        onAddComment={handleAddComment}
+                        onGenerateThreadPrompt={handleGenerateThreadPrompt}
+                        onRemoveThread={removeThread}
+                        onReplyToThread={handleReplyToThread}
+                        onRemoveMessage={removeMessage}
+                        onUpdateMessage={updateMessage}
+                        onOpenInEditor={canOpenInEditor ? handleOpenInEditor : undefined}
+                        syntaxTheme={settings.syntaxTheme}
+                        baseCommitish={diffData.baseCommitish}
+                        targetCommitish={diffData.targetCommitish}
+                        cursor={cursor?.fileIndex === fileIndex ? cursor : null}
+                        isFocused={cursor?.fileIndex === fileIndex}
+                        fileIndex={fileIndex}
+                        onLineClick={handleLineClick}
+                        commentTrigger={
+                          commentTrigger?.fileIndex === fileIndex ? commentTrigger : null
+                        }
+                        onCommentTriggerHandled={handleCommentTriggerHandled}
+                        mergedChunks={mergedChunks}
+                        expandLines={expandLines}
+                        expandAllBetweenChunks={expandAllBetweenChunks}
+                        prefetchFileContent={prefetchFileContent}
+                        isExpandLoading={isExpandLoading}
+                        diffVersion={diffDataVersion}
+                      />
+                    ) : (
+                      <div className="bg-github-bg-secondary border border-github-border rounded-md px-4 py-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-xs uppercase tracking-wide text-github-text-muted">
+                              Deferred Rendering
+                            </div>
+                            <div className="text-sm font-mono text-github-text-primary truncate">
+                              {file.path}
+                            </div>
                           </div>
-                          <div className="text-sm font-mono text-github-text-primary truncate">
-                            {file.path}
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => ensureFileRendered(file.path)}
+                            className="px-3 py-1.5 text-xs rounded border border-github-border text-github-text-secondary hover:text-github-text-primary hover:bg-github-bg-tertiary"
+                          >
+                            Load now
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => ensureFileRendered(file.path)}
-                          className="px-3 py-1.5 text-xs rounded border border-github-border text-github-text-secondary hover:text-github-text-primary hover:bg-github-bg-tertiary"
-                        >
-                          Load now
-                        </button>
                       </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                    )}
+                  </div>
+                );
+              })
+            )}
           </main>
         </div>
 
