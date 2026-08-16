@@ -17,6 +17,11 @@
 // 编辑器按钮在远程会话下由 diffData.openInEditorAvailable === true 直接启用
 // (远程走 vscode:// 协议, 不依赖 settings.editor 命令模板), handleOpenInEditor 的
 // POST 携带 repo 参数路由到聚焦的远程会话。
+// fork 改动 (client 第 8 处): issue 07 本地 VSCode 打开 —— 本地会话经
+// diffData.openInEditorAvailable (主进程 editor-adapter 上报) 启用按钮;
+// canOpenInEditor 恢复 settings.editor.id === "none" 的隐藏语义 (06 的远程
+// 短路曾绕过该设置), 点击行号取新侧 (工作区文件) 行号由 vendored diff 组件
+// 原有逻辑保证 (删除行不展示按钮), 本 issue 无需改动。
 // 其余 fork 改动清单见 main.tsx / useHighlightedCode.ts / ImageDiffViewer.tsx /
 // DiffQuickMenu.tsx / FileList.tsx 文件头。
 import { Columns, AlignLeft, Settings, PanelLeftClose, PanelLeft, Keyboard } from "lucide-react";
@@ -1320,10 +1325,12 @@ function App() {
   // 打开零仓库目录 (/api/diff 报错) 等场景仍可经面板打开其他目录; 主内容区按状态切换
   const canOpenInEditor =
     diffData !== null &&
-    // issue 06: 远程会话由主进程显式标记可用 (vscode:// 协议, 无需本地编辑器配置)
+    // issue 07: 设置里选 none (隐藏按钮) 对本地与远程会话都生效
+    settings.editor.id !== "none" &&
+    // issue 06/07: 主进程显式标记可用 (远程 vscode-remote 协议 / 本地 editor-adapter),
+    // 无需本地编辑器命令配置; 未标记时按上游逻辑回退到 settings.editor 命令模板
     (diffData.openInEditorAvailable === true ||
       (diffData.openInEditorAvailable !== false &&
-        settings.editor.id !== "none" &&
         settings.editor.command.trim() !== "" &&
         settings.editor.argsTemplate.trim() !== ""));
 
