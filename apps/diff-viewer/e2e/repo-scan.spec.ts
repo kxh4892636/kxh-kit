@@ -1,6 +1,7 @@
 // 验收用例 (issue 03): 目录打开与嵌套仓库扫描。
 // 1) 打开含嵌套仓库 (仓中仓 + submodule 形态) 的目录: 全部仓库以父子层级列出,
-//    node_modules 未被遍历, 扫描期间有进度指示; 勾选仓库切换其 diff 展示。
+//    node_modules 未被遍历, 扫描期间有进度指示; 勾选仓库聚焦其 diff
+//    (issue 04 起已勾选仓库保留在文件树分组中, 不再互相替换)。
 // 2) 目录选择对话框 → 打开新目录 → 重新扫描并切换。
 // DIFF_VIEWER_SCAN_DELAY_MS: 夹具目录很小, 真实扫描瞬间完成, 无法稳定断言
 // "扫描期间"的进度指示; 用每目录延迟把扫描拉长到可观测窗口 (仅 e2e 设置)。
@@ -37,21 +38,25 @@ test("打开含嵌套仓库的目录: 父子层级全部列出, node_modules 未
     // node_modules 内的仓库未被遍历 (未出现在树中)
     await expect(window.getByTestId(`repo-node-${fixture.hiddenName}`)).toHaveCount(0);
 
-    // 启动目录即激活仓库: 默认对比 (无远程降级为未提交改动) 展示根仓库的 a.txt
+    // 启动目录即聚焦仓库: 默认对比 (无远程降级为未提交改动) 展示根仓库的 a.txt
     await expect(
       window.getByRole("button", { name: "Revision menu: HEAD...Uncommitted Changes" }),
     ).toBeVisible({ timeout: 30_000 });
-    await expect(window.getByText("a.txt", { exact: true }).first()).toBeVisible();
+    const main = window.locator("main");
+    const sidebar = window.locator("aside#file-tree-panel");
+    await expect(main.getByText("a.txt", { exact: true }).first()).toBeVisible();
 
-    // 勾选仓中仓 → 切换展示该仓库的 diff
+    // 勾选仓中仓 → 聚焦切换, 主视图展示其 diff; 04 起根仓库保留在文件树分组中
     await window.getByTestId(`repo-row-${fixture.nestedName}`).getByRole("checkbox").click();
-    await expect(window.getByText("nested.txt").first()).toBeVisible({ timeout: 30_000 });
-    await expect(window.getByText("a.txt", { exact: true })).toHaveCount(0);
+    await expect(main.getByText("nested.txt").first()).toBeVisible({ timeout: 30_000 });
+    await expect(main.getByText("a.txt", { exact: true })).toHaveCount(0);
+    await expect(sidebar.getByText("a.txt", { exact: true })).toBeVisible();
+    await expect(window.getByTestId(`file-tree-repo-${fixture.nestedName}`)).toBeVisible();
 
-    // 勾选 submodule 形态仓库 → gitfile 解析正常, 展示其 diff
+    // 勾选 submodule 形态仓库 → gitfile 解析正常, 聚焦展示其 diff
     await window.getByTestId(`repo-row-${fixture.submoduleName}`).getByRole("checkbox").click();
-    await expect(window.getByText("submodule.txt").first()).toBeVisible({ timeout: 30_000 });
-    await expect(window.getByText("nested.txt", { exact: true })).toHaveCount(0);
+    await expect(main.getByText("submodule.txt").first()).toBeVisible({ timeout: 30_000 });
+    await expect(main.getByText("nested.txt", { exact: true })).toHaveCount(0);
   } finally {
     await app?.close();
     await fixture.cleanup();

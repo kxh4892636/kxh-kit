@@ -282,4 +282,131 @@ describe("api-router", () => {
       expect(notJson.status).toBe(400);
     });
   });
+
+  // issue 04: /api/* 携带 repo 参数 (已 resolve 绝对路径) 路由到对应仓库会话;
+  // 省略时落到当前聚焦会话 (POST /api/active-repository 移动的指针)
+  describe("按仓库路由 (issue 04)", () => {
+    it("GET /api/diff?repo= 指向未激活仓库时返回 400", async () => {
+      const response = await router.handle({
+        method: "GET",
+        path: "/api/diff",
+        query: { repo: join(fixture.repoPath, "never-activated") },
+      });
+      expect(response.status).toBe(400);
+      expect(readJson(response)).toHaveProperty("error");
+    });
+
+    it("两仓库激活后按 repo 参数各自路由, 激活对比互不影响", async () => {
+      const second = await createFixtureRepo();
+      try {
+        await makeWorkingTreeChange(second.repoPath);
+        const activated = await router.handle({
+          method: "POST",
+          path: "/api/active-repository",
+          query: {},
+          body: JSON.stringify({ path: second.repoPath }),
+        });
+        expect(activated.status).toBe(200);
+
+        // 第一仓库切换到 HEAD~2...HEAD
+        const firstDiff = await router.handle({
+          method: "GET",
+          path: "/api/diff",
+          query: { repo: fixture.repoPath, base: "HEAD~2", target: "HEAD" },
+        });
+        expect(firstDiff.status).toBe(200);
+        const firstBody = readJson(firstDiff) as DiffResponse;
+        expect(firstBody.files.map((file) => file.path).sort()).toEqual(["a.txt", "b.txt"]);
+
+        // 无 repo 参数落到聚焦的第二仓库: 默认对比 (未提交改动 → 仅 a.txt)
+        const focused = await router.handle({ method: "GET", path: "/api/diff", query: {} });
+        const focusedBody = readJson(focused) as DiffResponse;
+        expect(focusedBody.files.map((file) => file.path)).toEqual(["a.txt"]);
+        expect(focusedBody.repositoryId).not.toBe(firstBody.repositoryId);
+
+        // 第一仓库的激活对比保持 HEAD~2...HEAD, 不被第二仓库的请求覆盖
+        const firstAgain = await router.handle({
+          method: "GET",
+          path: "/api/diff",
+          query: { repo: fixture.repoPath },
+        });
+        const firstAgainBody = readJson(firstAgain) as DiffResponse;
+        expect(firstAgainBody.files.map((file) => file.path).sort()).toEqual(["a.txt", "b.txt"]);
+        expect(firstAgainBody.repositoryId).toBe(firstBody.repositoryId);
+      } finally {
+        await second.cleanup();
+      }
+    });
+
+    it("GET /api/revisions?repo= 未激活仓库 400, 已激活仓库 200", async () => {
+      const unknown = await router.handle({
+        method: "GET",
+        path: "/api/revisions",
+        query: { repo: join(fixture.repoPath, "never-activated") },
+      });
+      expect(unknown.status).toBe(400);
+
+      const known = await router.handle({
+        method: "GET",
+        path: "/api/revisions",
+        query: { repo: fixture.repoPath },
+      });
+      expect(known.status).toBe(200);
+    });
+
+    it("评论会话按仓库隔离", async () => {
+      const second = await createFixtureRepo();
+      try {
+        await router.handle({
+          method: "POST",
+          path: "/api/active-repository",
+          query: {},
+          body: JSON.stringify({ path: second.repoPath }),
+        });
+
+        const push = await router.handle({
+          method: "POST",
+          path: "/api/comments",
+          query: { repo: fixture.repoPath },
+          body: JSON.stringify({
+            threads: [
+              {
+                id: "t1",
+                filePath: "b.txt",
+                createdAt: "2026-01-01T00:00:00.000Z",
+                updatedAt: "2026-01-01T00:00:00.000Z",
+                position: { side: "new", line: 1 },
+                messages: [
+                  {
+                    id: "t1",
+                    body: "note",
+                    createdAt: "2026-01-01T00:00:00.000Z",
+                    updatedAt: "2026-01-01T00:00:00.000Z",
+                  },
+                ],
+              },
+            ],
+          }),
+        });
+        expect(push.status).toBe(200);
+
+        // 无 repo 参数落到聚焦的第二仓库: 看不到第一仓库的评论
+        const focusedRead = await router.handle({
+          method: "GET",
+          path: "/api/comments-json",
+          query: {},
+        });
+        expect((readJson(focusedRead) as { threads: unknown[] }).threads).toHaveLength(0);
+
+        const firstRead = await router.handle({
+          method: "GET",
+          path: "/api/comments-json",
+          query: { repo: fixture.repoPath },
+        });
+        expect((readJson(firstRead) as { threads: unknown[] }).threads).toHaveLength(1);
+      } finally {
+        await second.cleanup();
+      }
+    });
+  });
 });

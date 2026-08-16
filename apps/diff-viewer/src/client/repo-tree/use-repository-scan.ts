@@ -1,6 +1,8 @@
-// 仓库扫描状态机 (issue 03): 挂载后扫描启动目录, 打开新目录后重扫;
-// 勾选状态按先后顺序维护, 勾选/回退激活仓库经宿主的 onActivateRepository
-// 落到主进程 (POST /api/active-repository) 切换单仓库 diff。
+// 仓库扫描状态机 (issue 03/04): 挂载后扫描启动目录, 打开新目录后重扫;
+// 勾选状态按先后顺序维护。04 起该 hook 由 App 直接调用 (勾选状态需跨层消费:
+// 文件树聚合各勾选仓库的变更文件), 面板组件纯渲染。
+// 勾选/回退/跨仓库文件点击聚焦都经宿主的 onActivateRepository 落到主进程
+// (POST /api/active-repository, 04 起为幂等激活, 不再丢弃其他仓库会话)。
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { RepositoryNode, ScanProgress } from "../../types/repository";
@@ -13,13 +15,17 @@ export interface RepositoryScanState {
   error: string | null;
   // 按勾选先后顺序排列, 取消勾选即移除
   checkedPaths: string[];
+  // 聚焦仓库 (主视图当前展示 diff 的仓库)
   activePath: string | null;
   openFolder: () => Promise<void>;
   toggleRepository: (path: string) => void;
+  // 不改变勾选状态, 仅聚焦指定仓库 (文件树跨仓库文件点击);
+  // 返回激活是否成功
+  activateRepository: (repoPath: string) => Promise<boolean>;
 }
 
 interface UseRepositoryScanOptions {
-  // 宿主 (App) 负责切换激活仓库并重取 diff/revisions; 返回是否成功
+  // 宿主 (App) 负责激活仓库并重取 diff/revisions; 返回是否成功
   onActivateRepository: (repoPath: string) => Promise<boolean>;
 }
 
@@ -43,7 +49,7 @@ export const useRepositoryScan = (options: UseRepositoryScanOptions): Repository
   const unsubscribeProgressRef = useRef<(() => void) | null>(null);
 
   const activate = useCallback(
-    async (repoPath: string): Promise<void> => {
+    async (repoPath: string): Promise<boolean> => {
       const succeeded = await onActivateRepository(repoPath);
       if (succeeded) {
         setActivePath(repoPath);
@@ -51,6 +57,7 @@ export const useRepositoryScan = (options: UseRepositoryScanOptions): Repository
       } else {
         setError(`Failed to open repository: ${repoPath}`);
       }
+      return succeeded;
     },
     [onActivateRepository],
   );
@@ -82,15 +89,15 @@ export const useRepositoryScan = (options: UseRepositoryScanOptions): Repository
         }
         setWorkspaceRoot(result.rootPath);
         setRepositories(result.repositories);
-        // 扫描根本身是仓库时自动勾选; 与当前激活仓库不同 (打开新目录) 则顺带切换
+        // 扫描根本身是仓库时自动勾选并激活。04 起不再跳过"已是聚焦仓库"的激活:
+        // 激活经 POST /api/active-repository 是幂等的 (会话对比不重置), 且能让
+        // App 记录 focusedRepoPath 并把该仓库 diff 纳入文件树分组的数据源
         const rootRepo = result.repositories.find((node) => node.path === result.rootPath);
         if (rootRepo) {
           setCheckedPaths((previous) =>
             previous.includes(rootRepo.path) ? previous : [rootRepo.path, ...previous],
           );
-          if (activePathRef.current !== rootRepo.path) {
-            await activate(rootRepo.path);
-          }
+          await activate(rootRepo.path);
         }
       } catch (scanError) {
         console.error("Repository scan failed:", scanError);
@@ -184,8 +191,9 @@ export const useRepositoryScan = (options: UseRepositoryScanOptions): Repository
 
       const remaining = checkedPathsRef.current.filter((path) => path !== repoPath);
       setCheckedPaths(remaining);
-      // 取消勾选的恰是当前激活仓库时, 回退到最近一个仍勾选的仓库;
-      // 无剩余勾选则维持当前 diff 不动 (多仓库同视图为 04 的范围)
+      // 取消勾选的恰是当前聚焦仓库时, 回退到最近一个仍勾选的仓库;
+      // 无剩余勾选则保持当前聚焦与 diff 视图 (04 取舍: 不清空视图,
+      // 避免误操作勾选导致内容消失; 文件树由 App 按勾选状态自然收敛)
       if (activePathRef.current === repoPath && remaining.length > 0) {
         void activate(remaining[remaining.length - 1] as string);
       }
@@ -203,5 +211,6 @@ export const useRepositoryScan = (options: UseRepositoryScanOptions): Repository
     activePath,
     openFolder,
     toggleRepository,
+    activateRepository: activate,
   };
 };
