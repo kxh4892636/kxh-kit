@@ -5,6 +5,9 @@
 // (POST /api/active-repository, 04 起为幂等激活, 不再丢弃其他仓库会话)。
 // issue 06: openRemote 经 bridge.connectSsh 连接 SSH 远程并整体替换工作上下文
 // (语义同 openFolder 换目录: 勾选不跨上下文保留, 在途扫描被失效)。
+// issue 01(阅读体验优化): 宿主回调经 ref 消费 —— App 的 onActivateRepository 身份随
+// 无关状态 (ignoreWhitespace) 变化, 若进依赖链会逐级重建 activate/applyScanResult/
+// startScan 并重启启动扫描 (重扫/聚焦重置/远程树被本地扫描结果替换)。
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { RepositoryNode, RepositoryScanResult, ScanProgress } from "../../types/repository";
@@ -51,20 +54,20 @@ export const useRepositoryScan = (options: UseRepositoryScanOptions): Repository
   const checkedPathsRef = useRef<string[]>([]);
   checkedPathsRef.current = checkedPaths;
   const unsubscribeProgressRef = useRef<(() => void) | null>(null);
+  // 最新宿主回调: activate 经 ref 消费, 保持身份稳定 (见文件头 issue 01 注)
+  const onActivateRepositoryRef = useRef(onActivateRepository);
+  onActivateRepositoryRef.current = onActivateRepository;
 
-  const activate = useCallback(
-    async (repoPath: string): Promise<boolean> => {
-      const succeeded = await onActivateRepository(repoPath);
-      if (succeeded) {
-        setActivePath(repoPath);
-        setError(null);
-      } else {
-        setError(`Failed to open repository: ${repoPath}`);
-      }
-      return succeeded;
-    },
-    [onActivateRepository],
-  );
+  const activate = useCallback(async (repoPath: string): Promise<boolean> => {
+    const succeeded = await onActivateRepositoryRef.current(repoPath);
+    if (succeeded) {
+      setActivePath(repoPath);
+      setError(null);
+    } else {
+      setError(`Failed to open repository: ${repoPath}`);
+    }
+    return succeeded;
+  }, []);
 
   // 扫描成功的落态 (本地扫描与远程连接共用): 扫描根本身是仓库时自动勾选并激活。
   // 04 起不再跳过"已是聚焦仓库"的激活: 激活经 POST /api/active-repository 是幂等的

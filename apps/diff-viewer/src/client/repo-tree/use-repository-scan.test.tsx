@@ -262,6 +262,30 @@ describe("useRepositoryScan", () => {
     expect(result.current.activePath).toBe("/ws");
   });
 
+  it("onActivateRepository 身份变化不触发重扫 (issue 01: ignoreWhitespace 切换经 App 回调链传导, 启动扫描只应在挂载时运行一次)", async () => {
+    const getWorkspace = vi.fn(async () => ({ rootPath: "/ws" }));
+    const scanRepositories = vi.fn(async () => SCAN_RESULT);
+    window.diffViewerBridge = createBridgeStub({ getWorkspace, scanRepositories });
+    const { result, rerender } = renderHook(
+      ({ onActivate }) => useRepositoryScan({ onActivateRepository: onActivate }),
+      { initialProps: { onActivate: vi.fn(async () => true) } },
+    );
+    await waitFor(() => expect(result.current.checkedPaths).toEqual(["/ws"]));
+    await waitFor(() => expect(result.current.activePath).toBe("/ws"));
+    expect(scanRepositories).toHaveBeenCalledTimes(1);
+
+    // App 中 ignoreWhitespace 切换 → fetchDiffData → handleActivateRepository 重建,
+    // 宿主每次渲染传入新身份的回调; 不得因此重启启动扫描
+    rerender({ onActivate: vi.fn(async () => true) });
+    await act(async () => {});
+
+    expect(getWorkspace).toHaveBeenCalledTimes(1);
+    expect(scanRepositories).toHaveBeenCalledTimes(1);
+    expect(result.current.repositories).toHaveLength(1);
+    expect(result.current.checkedPaths).toEqual(["/ws"]);
+    expect(result.current.activePath).toBe("/ws");
+  });
+
   it("openRemote 使在途的本地扫描失效 (后到的旧扫描结果不得覆盖远程树)", async () => {
     let resolveStaleScan: ((scanResult: RepositoryScanResult) => void) | null = null;
     const scanRepositories = vi.fn(
