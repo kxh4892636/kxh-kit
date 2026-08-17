@@ -34,6 +34,24 @@ describe("appearanceTheme", () => {
     expect(resolveThemePreference("dark", "light")).toBe("dark");
   });
 
+  // issue 02: 无存储偏好默认 light, 不跟随系统
+  it("defaults to light when no preference is stored, ignoring the system theme", () => {
+    setMatchMedia(true);
+
+    expect(bootstrapAppearanceTheme()).toBe("light");
+    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+    expect(getResolvedTheme()).toBe("light");
+  });
+
+  // issue 02: 仅显式 auto 跟随系统
+  it("keeps auto following the system theme (dark system resolves dark)", () => {
+    localStorage.setItem(APPEARANCE_STORAGE_KEY, JSON.stringify({ theme: "auto" }));
+    setMatchMedia(true);
+
+    expect(getResolvedTheme()).toBe("dark");
+    expect(bootstrapAppearanceTheme()).toBe("dark");
+  });
+
   it("bootstraps the saved light theme before app mount", () => {
     localStorage.setItem(
       APPEARANCE_STORAGE_KEY,

@@ -21,8 +21,9 @@ const DEFAULT_SETTINGS: AppearanceSettings = {
   fontSize: 14,
   fontFamily:
     '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif',
-  theme: "dark",
-  syntaxTheme: "vsDark",
+  // issue 02: 无存储偏好默认 light, 语法主题为 light 族首选 (themeLoader LIGHT_THEMES[0])
+  theme: "light",
+  syntaxTheme: "github",
   editor: {
     id: DEFAULT_EDITOR_OPTION.id,
     command: DEFAULT_EDITOR_OPTION.command,
