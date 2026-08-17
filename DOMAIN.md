@@ -25,6 +25,7 @@
 
 - 根目录 `CONTEXT-MAP.md` 只索引业务域及其关系。
 - 每个业务域封装在 `docs/{domain-name}/` 中。
+- `docs/common` 包含多个业务域共享的领域术语, ADR 和 Workflow;
 - `docs/{domain-name}/CONTEXT.md` 包含该业务域的 domain glossary（领域术语表）。
 - `docs/{domain-name}/adr/` 包含该业务域的 ADR（Architecture Decision Record，架构决策记录）。
 - `docs/{domain-name}/workflows/` 包含该业务域的 Workflow 规范。

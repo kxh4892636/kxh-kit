@@ -47,6 +47,7 @@
 ## 领域文档
 
 - 工作区默认采用 **multi-context** 领域文档布局：根目录使用 `CONTEXT-MAP.md`，每个业务域封装在 `docs/{domain-name}/`。参见 `DOMAIN.md`。
+- 遇到 block 卡点, 首先在 common 和业务域的 Workflow 中寻找可能的解决方法.
 
 <!-- LOOP KIT END -->
 
@@ -55,7 +56,9 @@
 <!-- PROJECT RULES END -->
 
 <!-- PI START -->
+
 以下规则只对 Pi Agent 生效
+
 - 使用 `/herdr` skill, 创建一个同 Model 同 Agent 的 Session, 实现 SubAgent 功能;
 - 访问 Web 失败时, 可使用 `/browser-skill` skill, 通过操作真实浏览器达成相同目标;
 <!-- PI END -->
