@@ -63,6 +63,19 @@ describe("useAppearanceSettings", () => {
       document.body.removeAttribute("style");
     });
 
+    // issue 02: 无存储偏好默认 light + GitHub Light 语法主题, 不跟随系统
+    it("defaults to light theme and GitHub Light syntax theme when nothing is stored", async () => {
+      setMatchMedia(true);
+
+      const { result } = renderHook(() => useAppearanceSettings());
+
+      expect(result.current.settings.theme).toBe("light");
+      expect(result.current.settings.syntaxTheme).toBe("github");
+      await waitFor(() => {
+        expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+      });
+    });
+
     it("updates syntax highlighting theme when auto theme follows OS changes", async () => {
       localStorage.setItem(
         APPEARANCE_STORAGE_KEY,

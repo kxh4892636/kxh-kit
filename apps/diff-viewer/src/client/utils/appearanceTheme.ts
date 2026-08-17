@@ -165,7 +165,12 @@ export function resolveThemePreference(
     return preference;
   }
 
-  return systemTheme;
+  // issue 02: 仅显式 auto 跟随系统; 无存储偏好默认 light, 不随系统
+  if (preference === "auto") {
+    return systemTheme;
+  }
+
+  return "light";
 }
 
 export function getResolvedTheme(
