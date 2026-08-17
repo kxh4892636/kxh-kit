@@ -148,21 +148,23 @@ test("切换 Ignore Whitespace 不触发重扫: 仓库树与聚焦不变, diff �
     const scanProgress = window.getByTestId("scan-progress");
     const whitespaceToggle = window.getByRole("checkbox", { name: "Ignore Whitespace" });
 
-    // 初始: 扫描完成, 根仓库聚焦, c.txt 因 whitespace-only 改动被忽略
+    // 初始: 扫描完成, 根仓库勾选并聚焦, c.txt 因 whitespace-only 改动被忽略
     await expect(scanProgress).toBeHidden({ timeout: 30_000 });
     await expect(rootRow).toHaveAttribute("data-active", "true");
+    await expect(rootRow.getByRole("checkbox")).toBeChecked();
     await expect(main.getByText("a.txt", { exact: true }).first()).toBeVisible({
       timeout: 30_000,
     });
     await expect(main.getByText("c.txt", { exact: true })).toHaveCount(0);
 
-    // 取消勾选 → diff 以关闭 -w 重取: c.txt 出现; 全程无重扫, 聚焦不变
+    // 取消勾选 → diff 以关闭 -w 重取: c.txt 出现; 全程无重扫, 勾选与聚焦不变
     await whitespaceToggle.click();
     await expect(main.getByText("c.txt", { exact: true }).first()).toBeVisible({
       timeout: 30_000,
     });
     await expect(scanProgress).toHaveCount(0);
     await expect(rootRow).toHaveAttribute("data-active", "true");
+    await expect(rootRow.getByRole("checkbox")).toBeChecked();
     await expect(window.getByTestId(`repo-node-${fixture.nestedName}`)).toBeVisible();
     await expect(window.getByTestId(`repo-node-${fixture.submoduleName}`)).toBeVisible();
 
@@ -174,11 +176,14 @@ test("切换 Ignore Whitespace 不触发重扫: 仓库树与聚焦不变, diff �
     // 聚焦仓中仓后再切换: 聚焦不被拽回根仓库, 主视图保持 nested diff
     await nestedRow.getByRole("checkbox").click();
     await expect(main.getByText("nested.txt").first()).toBeVisible({ timeout: 30_000 });
+    await expect(nestedRow.getByRole("checkbox")).toBeChecked();
     await whitespaceToggle.click();
     // 覆盖一次完整重扫的时长: 错误重扫在此期间必然可见 (scan-progress / 聚焦跳变)
     await window.waitForTimeout(1000);
     await expect(scanProgress).toHaveCount(0);
     await expect(nestedRow).toHaveAttribute("data-active", "true");
+    await expect(nestedRow.getByRole("checkbox")).toBeChecked();
+    await expect(rootRow.getByRole("checkbox")).toBeChecked();
     await expect(main.getByText("nested.txt").first()).toBeVisible();
     await expect(main.getByText("a.txt", { exact: true })).toHaveCount(0);
   } finally {
