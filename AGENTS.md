@@ -40,14 +40,13 @@
 - **`/grilling`**——与 `/grill-with-docs` 相同的持续追问式访谈，但它是**无状态**的：不会在本地保存任何内容，也不会创建领域文档。当工作**不依附于工作目录**时使用它——无论是打磨计划、设计、文章，还是任何不依附于代码仓库的内容。如果位于工作目录中，则使用 `/grill-with-docs`：它执行相同的访谈并留下文档记录，因此严格来说是更优选择。
 - **`/wait-what`**——用于纠正没有传达清楚的信息。在对话过程中或任何其他 skill 内使用它，agent 会补充你缺失的上下文，用通俗语言和相关业务域 `CONTEXT.md` 中的词汇重新表达刚才的内容。它是事后补救；`/grill-with-docs` 是事前预防，因为尽早确认共同语言，才能避免术语突然出现。
 - **`/writing-for-agents`**——编写供 agent 使用的文档时所参考的资料：skill、AGENTS.md 以及 **context pointer** 指向的文档。
-- **`/to-workflow`**——发现当前工作中的重复模式，并将其固化为 `docs/{domain-name}/workflows/*.md` 中的 Workflow。
+- **`/to-workflow`**——发现当前工作中的重复模式，并将其固化为 **`/workflow-x`** 业务域目录中的 Workflow。
 - **`/e2e`**——验收：维护 Markdown 验收资产（Gherkin 场景），或执行 agent 驱动的验收走查，以证据链（验收主张 → 真实路径 → 外部观察 → 结论）证明消费者可感知的结果。
 - **`/codin-d2c-cli`**——调用 `codin-d2c` 完成 Figma Design-to-Code；D2C 静态资源使用 SVG 格式。
 
 ## 领域文档
 
 - 工作区默认采用 **multi-context** 领域文档布局：根目录使用 `CONTEXT-MAP.md`，每个业务域封装在 `docs/{domain-name}/`。参见 `DOMAIN.md`。
-- 遇到 block 卡点, 首先在 common 和业务域的 Workflow 中寻找可能的解决方法.
 
 <!-- LOOP KIT END -->
 
