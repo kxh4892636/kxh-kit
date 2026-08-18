@@ -14,6 +14,4 @@ disable-model-invocation: true
 
 将你的工作 commit 到当前 branch.
 
-基于 issues 的依赖图, 串行执行用户明确的 issue, 每个 issue 创建 worktree, 并独立执行上述流程的完整循环.
-
 遇到 block 卡点, 首先在 `/workflow-x` 的 common 与对应业务域索引中寻找可能的解决方法.
