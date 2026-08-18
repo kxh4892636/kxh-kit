@@ -5,6 +5,7 @@
 - [common](./docs/common/CONTEXT.md) - 由多个业务域共同贡献的基础业务域。
 - [loop-kit](./docs/loop-kit/CONTEXT.md) - Loop Kit 业务域。
 - [diff-viewer](./docs/diff-viewer/CONTEXT.md) - Diff Viewer 业务域：Electron 桌面的多仓库 git diff 阅读工具。
+- [anki](./docs/anki/CONTEXT.md) - Anki 业务域：通过 AnkiConnect add-on 控制本地 Anki 的命令行工具。
 
 ## Relationships
 
