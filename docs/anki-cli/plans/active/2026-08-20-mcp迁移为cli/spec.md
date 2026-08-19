@@ -57,7 +57,7 @@ CLI 形态：`anki-cli <资源> <动词> [选项]`，全部输出 JSON（见 ADR
 | 10    | `anki-cli notes update <id> --field k=v...`                                                                                         | updateNoteFields                | 03         |
 | 11    | `anki-cli notes delete <noteIds...> --yes`                                                                                          | deleteNotes                     | 03         |
 | 12    | `anki-cli cards due [--deck] [--limit] [--no-learning] [--include-new]`                                                             | get_due_cards                   | 04         |
-| 13    | `anki-cli cards list [--deck] [--state due\|new\|learning\|suspended\|buried]...`                                                   | getCards                        | 04         |
+| 13    | `anki-cli cards list [--deck] [--state due\|new\|learning\|suspended\|buried] [--limit]`                                            | getCards                        | 04         |
 | 14    | `anki-cli cards present <id> [--answer]`                                                                                            | present_card                    | 04         |
 | 15    | `anki-cli cards rate <id> <1-4>`                                                                                                    | rate_card                       | 04         |
 | 16    | `anki-cli models list`                                                                                                              | modelNames                      | 05         |
@@ -81,7 +81,7 @@ CLI 形态：`anki-cli <资源> <动词> [选项]`，全部输出 JSON（见 ADR
 | 34    | `anki-cli media store (--file <path> \| --url <url> \| --data <base64>) [--filename] [--delete-original]`                           | storeMediaFile                  | 07         |
 | 35    | `anki-cli media delete <filename> --yes`                                                                                            | deleteMediaFile                 | 07         |
 | 36    | `anki-cli stats collection`                                                                                                         | collection_stats                | 08         |
-| 37    | `anki-cli stats review [--deck] [--days]`                                                                                           | review_stats                    | 08         |
+| 37    | `anki-cli stats review --start <YYYY-MM-DD> [--end <YYYY-MM-DD>] [--deck <n>]`                                                      | review_stats                    | 08         |
 | 38-48 | `anki-cli gui {browse,select,selected-notes,add-cards,edit,deck-overview,deck-browser,current-card,show-question,show-answer,undo}` | 11 个 gui* 工具                 | 09         |
 | 49    | `anki-cli review [--deck] [--limit] [--include-new] [--no-sync]`                                                                    | review-session prompt 的 CLI 化 | 10         |
 
