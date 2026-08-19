@@ -4,52 +4,70 @@ id: e5f03202-fdc3-4560-be6f-4f7f49f0d25b
 
 # Kitex 心智模型
 
-Kitex 解决什么问题，一次 RPC 调用经过哪些环节？从定义接口到完成调用需要哪些步骤？IDL、Handler、Client、Option 与 middleware 分别负责什么？初学 Kitex 应该先掌握哪条主线？什么时候才需要 Protobuf、gRPC、StreamX 或泛化调用？
+Kitex 解决什么问题？一次 RPC 调用从发起到返回经过哪些环节？IDL、Handler、Client、Option、middleware 各自负责什么？初学者应该先抓住哪条主线？什么时候才需要 Protobuf、gRPC、StreamX 或泛化调用？
 
-## 定位
+## 一句话理解
 
-- Kitex: 面向微服务的 Go RPC 框架; 核心价值为高性能网络、IDL 驱动开发、服务治理与可扩展接口;
-- RPC: 远程过程调用；Client 像调用本地函数一样请求另一进程中的 Handler，框架负责找到服务、编码数据并通过网络传输;
-- IDL: 接口描述语言；用与具体实现分离的文件定义方法和数据结构，再生成两端都遵守的代码;
-- middleware: 包围一次调用的中间层，用于日志、超时、重试、鉴权等不属于业务本身的通用逻辑;
-- 一次调用: 业务请求 → Client middleware → 服务发现与负载均衡 → 编码与传输 → Server middleware → Handler;
-- 控制面: 决定“调用哪个实例、采用什么策略”的部分；Registry、Resolver、配置中心提供实例与规则;
-- 数据面: 真正处理每次请求的部分；Client、Server、Codec、Transport 负责调用、编解码和传输;
+- Kitex: 面向微服务的 Go RPC 框架; 让你像调用本地函数一样调用远端服务，同时提供高性能网络、IDL 驱动开发和服务治理能力;
+- RPC: 远程过程调用; 本质是“客户端把参数打包送出去，服务端解包执行，再把结果打包送回来”;
+- 类比: 把 RPC 想成“打电话点餐”; 你不需要知道厨房怎么运作，只需报出菜单（IDL），接线员（框架）负责找到餐厅、传话和上菜;
 
-## 开发闭环
+## 一次调用发生了什么
 
-- 第一步: 使用 Thrift 或 proto3 定义 service、method、request、response;
-- 第二步: 使用 `kitex` 生成 `kitex_gen` 桩代码和可选 Server scaffold;
-- 第三步: 实现 Handler，使用生成的 `NewServer` 启动服务;
-- 第四步: 使用生成的 `NewClient` 创建可复用 Client;
-- 第五步: 配置寻址、超时、重试、熔断与可观测能力;
+- 控制面: 决定“调用谁、用什么策略”; 包括 Registry、Resolver、配置中心;
+- 数据面: 真正处理每一次请求; 包括 Client、Server、Codec、Transport;
+- 记忆点: 控制面管“选路和规则”，数据面管“跑请求”;
+
+```text
+业务代码
+  → Client middleware（日志/超时/重试等横切逻辑）
+  → 服务发现 + 负载均衡（选一个实例）
+  → 序列化 + 传输（把结构体变成字节并送上网）
+  → Server 接收
+  → Server middleware
+  → Handler（你的业务函数）
+  → 原路返回响应
+```
 
 ## 核心对象
 
-| 对象        | 职责                           | 生命周期               |
-| ----------- | ------------------------------ | ---------------------- |
-| IDL         | 跨语言契约与字段编号           | 随接口演进             |
-| `kitex_gen` | 类型、编解码、Client/Server 桩 | 由工具重新生成         |
-| Handler     | 业务实现                       | Server 生命周期        |
-| Client      | 发现缓存、连接池、治理策略     | 进程级复用             |
-| Option      | 构造期或单次调用配置           | 取决于 Option 类型     |
-| middleware  | 横切治理逻辑                   | Client/Server 生命周期 |
+| 对象        | 通俗解释                                  | 生命周期               |
+| ----------- | ----------------------------------------- | ---------------------- |
+| IDL         | 双方都认的“接口合同”                      | 随接口演进             |
+| `kitex_gen` | 由 IDL 自动生成的“翻译官”代码             | 由工具重新生成         |
+| Handler     | 服务端真正写业务逻辑的地方                | Server 生命周期        |
+| Client      | 调用方手里的“遥控器”，管理连接与策略      | 进程级复用             |
+| Option      | 创建 Server/Client 或单次调用时的配置旋钮 | 取决于注入位置         |
+| middleware  | 包在调用外面的通用处理层                  | Client/Server 生命周期 |
 
-- Handler: 服务端真正处理一个方法的函数实现;
-- Client: 调用方持有的可复用对象，内部管理连接、寻址缓存与治理策略;
-- Option: 创建 Client、Server 或发起单次调用时传入的配置项;
+- Handler: 实现 IDL 中定义的 service 接口，只关心业务，不处理网络和编解码;
+- Client: 创建一次后长期复用；内部管理连接池、服务发现缓存、超时重试等;
+- Option: 分为 `server.Option`、`client.Option`、`callopt.Option` 三种作用域;
+
+## 开发闭环
+
+- 第一步: 用 Thrift 或 proto3 写 IDL，定义 service、method、请求和响应;
+- 第二步: 用 `kitex` 命令生成 `kitex_gen` 桩代码;
+- 第三步: 服务端实现 Handler，用 `NewServer` 启动;
+- 第四步: 客户端用 `NewClient` 创建可复用 Client，然后调用方法;
+- 第五步: 按生产需要配置寻址、超时、重试、熔断和可观测性;
 
 ## 默认主线
 
-- Thrift unary: 最适合快速理解 Kitex 原生开发模型;
-- PingPong: 请求对应一个响应; 常规业务接口默认选择;
-- 长连接池: 默认连接模型; Client 不应按请求创建;
-- 生产最低要求: 明确服务名、寻址、RPC timeout、错误分类与基本观测;
+- 初学者主线: Thrift unary（PingPong）+ 长连接池 + 本地直连;
+- 原因: 这条线覆盖 IDL → 生成 → Server → Client 的最小闭环，概念最少;
+- 生产最低要求: 明确服务名、寻址方式、RPC timeout、错误分类和基本观测;
 
 ## 选型边界
 
-- Protobuf: 已有 proto3 契约或跨语言生态时使用; 必须声明 `go_package`;
-- gRPC: 需要 gRPC 互通或 streaming 时使用; unary proto 默认仍可能采用 Kitex Protobuf;
-- StreamX: 长连接双向数据流或持续推送场景; 普通请求响应不需要;
-- 泛化调用: 网关、测试平台、流量代理无法静态生成每个服务类型时使用;
-- HTTP 服务: Kitex 本身解决 RPC; 对外 HTTP API 通常由 Hertz 等网关层承载;
+- Protobuf: 已有 proto3 契约，或需要和 Protobuf 生态互通时使用; 必须声明 `go_package`;
+- gRPC: 需要标准 gRPC 互通或 streaming 时使用; unary proto 默认走 Kitex Protobuf;
+- StreamX: 需要长连接、持续推送或双向流时使用; 普通请求响应不需要;
+- 泛化调用: 网关、测试平台、流量代理等无法为每个服务静态生成代码时使用;
+- HTTP: Kitex 面向 RPC; 对外 HTTP API 通常由 Hertz 等网关层承载;
+
+## 常见误区
+
+- 误区: 每个请求都新建 Client; 正确做法是进程级复用;
+- 误区: 把 middleware 当业务代码; middleware 应放通用横切逻辑;
+- 误区: 一开始就学全部协议; 先跑通 Thrift unary，再按需扩展;

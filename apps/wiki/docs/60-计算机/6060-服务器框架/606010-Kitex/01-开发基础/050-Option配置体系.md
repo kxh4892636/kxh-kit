@@ -4,7 +4,13 @@ id: 4fd8230e-1d75-4bd7-b445-bcc03fbdcba5
 
 # Option 配置体系
 
-三种作用域是什么？常用 Client Option是什么？常用 Server Option是什么？配置陷阱有哪些注意点？
+Kitex 的配置分几种作用域？它们何时生效、优先级如何？常用 Client Option 和 Server Option 有哪些？为什么用 Suite 组合配置？有哪些配置陷阱？
+
+## 一句话理解
+
+- Option: 创建 Server、Client 或发起单次调用时传入的“配置项”;
+- 作用域决定配置的生命周期: 进程级、Client 级还是单次请求级;
+- 类比: `server.Option` 是餐厅装修方案，`client.Option` 是长期会员权益，`callopt.Option` 是本次点单的临时备注;
 
 ## 三种作用域
 
@@ -15,8 +21,13 @@ id: 4fd8230e-1d75-4bd7-b445-bcc03fbdcba5
 | `callopt.Option` | RPC method 尾参 | 单次调用        | 临时超时、目标地址、标签     |
 
 - 优先级: 单次 Call Option 通常覆盖同类 Client Option;
-- 配置原则: 稳定默认值放构造期; 请求特例才放 Call Option;
-- 组合原则: 将一组组织级配置封装为 `Suite`, 避免每个 Client 重复排列 Option;
+- 配置原则: 稳定默认值放构造期，请求特例才放 Call Option;
+
+## Suite 组合配置
+
+- Suite: 把一组组织级 Option 打包复用，避免每个 Client 重复排列;
+- 适用: 多服务共享超时、重试、中间件、观测等规范;
+- 风险: Suite 会隐藏默认值和顺序; 必须提供覆盖方式和版本策略;
 
 ```go
 type orgClientSuite struct{}
@@ -70,5 +81,11 @@ func newUserClient() (userservice.Client, error) {
 - protocol: Client 选择必须与 IDL、Server 能力相容;
 - middleware: 注册顺序会改变包裹顺序与错误观测结果;
 - limiter: 同时配置内置与自定义同类 limiter 时，自定义实现生效;
-- mux: 旧 `WithMuxConnection` / `WithMuxTransport` 依赖的 netpollmux 已不再维护; 新系统不要采用;
-- gRPC Option: 大量窗口、buffer、keepalive 参数只在证据表明默认值不适用时调整;
+- mux: 旧 `WithMuxConnection` / `WithMuxTransport` 依赖的 netpollmux 已不再维护;
+- gRPC Option: 大量窗口、buffer、keepalive 参数只在有证据表明默认值不适用时调整;
+
+## 常见误区
+
+- 误区: 把单次特例配置变成全局默认; 会让调用路径不可预测;
+- 误区: 不用 Suite 导致每个 Client 配置漂移;
+- 误区: 生产不设置 RPC timeout; 默认无限等待会拖垮调用方;

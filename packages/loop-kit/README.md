@@ -27,7 +27,7 @@ For an immutable copy of exactly what would be published, pack the workspace ver
 
 ```bash
 npm pack
-npm install --global ./kxh4892636-loop-kit-0.1.8.tgz
+npm install --global ./kxh4892636-loop-kit-0.2.0.tgz
 loop-kit --target .
 ```
 

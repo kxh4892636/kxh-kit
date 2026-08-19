@@ -43,12 +43,13 @@ interface SettingsModalProps {
 
 type SettingsSection = "appearance" | "system";
 
+// issue 02: Reset 默认值与 useAppearanceSettings 的 DEFAULT_SETTINGS 保持一致 (light + github)
 const DEFAULT_SETTINGS: AppearanceSettings = {
   fontSize: 14,
   fontFamily:
     '-apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif',
-  theme: "dark",
-  syntaxTheme: "vsDark",
+  theme: "light",
+  syntaxTheme: "github",
   editor: {
     id: DEFAULT_EDITOR_OPTION.id,
     command: DEFAULT_EDITOR_OPTION.command,

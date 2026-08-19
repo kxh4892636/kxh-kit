@@ -36,3 +36,4 @@ release
 **/.codex/skills/k2/
 **/.claude/skills/k2/
 .k2/
+.dsh

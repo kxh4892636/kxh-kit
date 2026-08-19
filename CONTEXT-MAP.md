@@ -8,4 +8,4 @@
 
 ## Relationships
 
-- **Loop Kit → Common**：Loop Kit 将跨业务域共享的基础约定与工作流贡献到 Common，并使用 Common 维护的共享基础能力。
+- **Loop Kit → Common**：Loop Kit 将跨业务域共享的基础约定贡献到 Common，并使用 Common 维护的共享基础能力。

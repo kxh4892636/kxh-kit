@@ -5,19 +5,19 @@
 ## 规则
 
 - 所有文件都创建在工作区根目录，而不是子仓库中；
-- `docs/` 下的 ADR、Workflow 和 Plan 文件名及所有文档正文使用中文；约定名 `CONTEXT.md`、`spec.md`、`story.md` 与 `domain-name` 除外；
-- 每个 `docs/{domain-name}/CONTEXT.md` 行数 <= 610；每个领域的 `adr/*.md` 文件数 <= 89，行数 <= 144；每个领域的 `workflows/*.md` 文件数 <= 55，行数 <= 233；
+- `docs/` 下的 ADR 和 Plan 文件名及所有文档正文使用中文；约定名 `CONTEXT.md`、`spec.md`、`story.md` 与 `domain-name` 除外；
+- 每个 `docs/{domain-name}/CONTEXT.md` 行数 <= 610；每个领域的 `adr/*.md` 文件数 <= 89，行数 <= 144；
 - 如果超出任一限制，合并、拆分或删除超出的内容。
 
 ## 探索前先定位领域
 
 1. 阅读工作区根目录下的 **`CONTEXT-MAP.md`**，确定即将处理的业务域及其关系。
 2. 阅读对应业务域的 **`docs/{domain-name}/CONTEXT.md`**。
-3. 阅读该业务域中与即将处理区域相关的 **`adr/`** 和 **`workflows/`**。
+3. 阅读该业务域中与即将处理区域相关的 **`adr/`**。
 
 跨业务域工作需要读取所有相关业务域的领域文档及 `CONTEXT-MAP.md` 中的关系。
 
-如果其中任何文件不存在，**静默继续**。不要报告文件缺失，也不要建议预先创建。只有在术语、决策或循环真正得到确认时，`/domain-modeling` skill（由 `/grill-with-docs` 进入）和 `/to-workflow` skill 才会按需创建它们。
+如果其中任何文件不存在，**静默继续**。不要报告文件缺失，也不要建议预先创建。只有在术语或决策真正得到确认时，`/domain-modeling` skill（由 `/grill-with-docs` 进入）才会按需创建它们。
 
 ## 布局
 
@@ -25,10 +25,9 @@
 
 - 根目录 `CONTEXT-MAP.md` 只索引业务域及其关系。
 - 每个业务域封装在 `docs/{domain-name}/` 中。
-- `docs/common` 包含多个业务域共享的领域术语, ADR 和 Workflow;
+- `docs/common` 包含多个业务域共享的领域术语和 ADR;
 - `docs/{domain-name}/CONTEXT.md` 包含该业务域的 domain glossary（领域术语表）。
 - `docs/{domain-name}/adr/` 包含该业务域的 ADR（Architecture Decision Record，架构决策记录）。
-- `docs/{domain-name}/workflows/` 包含该业务域的 Workflow 规范。
 - `docs/{domain-name}/plans/` 包含该业务域的工作计划（Plan）：每个子目录是一项工作的 spec 及其 tracer-bullet issue 拆分（由 `/to-issues` 或 `/to-story` 维护），按生命周期分类，约束见「Plan 生命周期」。
 
 ```text
@@ -39,18 +38,15 @@
 │   │   ├── CONTEXT.md
 │   │   ├── adr/
 │   │   │   └── 0001-采用事件溯源订单.md
-│   │   ├── plans/
-│   │   │   └── active/
-│   │   │       └── 0001-支持订单取消/
-│   │   │           ├── spec.md
-│   │   │           └── 01-取消接口.md
-│   │   └── workflows/
-│   │       └── 0001-订单处理-创建-支付-履约.md
+│   │   └── plans/
+│   │       └── active/
+│   │           └── 0001-支持订单取消/
+│   │               ├── spec.md
+│   │               └── 01-取消接口.md
 │   └── billing/
 │       ├── CONTEXT.md
 │       ├── adr/
-│       ├── plans/
-│       └── workflows/
+│       └── plans/
 └── src/
 ```
 
@@ -72,8 +68,8 @@ plan 生命周期与 plan 内 spec/issue 的状态协议相互独立：目录位
 
 如果所需概念尚未收录在术语表中，这是一个信号：要么你正在创造项目并未使用的语言（重新考虑），要么确实存在缺口（记录下来，交给 `/domain-modeling` 处理）。
 
-## 明示 ADR 和 Workflow 冲突
+## 明示 ADR 冲突
 
-如果输出与现有 ADR 或 Workflow 冲突，应显式指出，而不是静默覆盖：
+如果输出与现有 ADR 冲突，应显式指出，而不是静默覆盖：
 
 > _与 ADR-0007（event-sourced orders）冲突——但值得重新讨论，因为……_
