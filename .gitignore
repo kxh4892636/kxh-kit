@@ -16,6 +16,7 @@ node_modules
 dist
 dist-ssr
 release
+*.tgz
 *.local
 
 # Editor directories and files

@@ -2,7 +2,19 @@
   "name": "@kxh4892636/anki-cli",
   "version": "0.1.0",
   "description": "通过 AnkiConnect 控制 Anki 的命令行工具(由 anki-mcp-server 的 MCP 工具层迁移而来)",
+  "keywords": [
+    "anki",
+    "ankiconnect",
+    "cli",
+    "flashcards",
+    "spaced-repetition"
+  ],
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kxh4892636/kxh-kit.git",
+    "directory": "packages/anki-cli"
+  },
   "bin": {
     "anki-cli": "dist/main.mjs"
   },
@@ -14,10 +26,14 @@
     ".": "./dist/main.mjs",
     "./package.json": "./package.json"
   },
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "vp pack src/main.ts",
     "test": "vp test",
-    "check": "vp check"
+    "check": "vp check",
+    "prepublishOnly": "vp run build"
   },
   "dependencies": {
     "async-mutex": "^0.5.0",
