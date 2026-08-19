@@ -37,7 +37,7 @@ CLI 形态：`anki-cli <资源> <动词> [选项]`，全部输出 JSON（见 ADR
 - **复杂参数约定**：`--field k=v`（可重复）表示 fields record；批量笔记输入经 stdin JSON；破坏性命令（deleteNotes/removeModelField/clearUnusedTags/deleteMediaFile）要求 `--yes`（对应上游 confirmDeletion/confirm 参数）。
 - **测试策略**：单测移植上游 spec（注入假 client 改为假 AnkiConnect 服务器 + 真 client）；集成测试起本地假 AnkiConnect HTTP 服务器，端到端验证命令输出 JSON 形状；真实 Anki 验收在用户机器上执行（issue 10 的验收清单）。
 - **命令注册机制**：`src/cli/program.ts` 用 `import.meta.glob('../commands/*/index.ts', { eager: true })` 自动发现各组 `registerCommand(program)`——后续 issue 只新增自己的目录与文件，不改任何共享文件，保证并行 worktree 的改动集合互不相交、合并零冲突。
-- **执行策略**（用户指定）：每个 issue 一个 git worktree + 分支（`anki-cli/NN`，worktree 落 `.claude/worktrees/anki-cli-NN`），并行执行、同时最多 3 个，全部自动完成后按序合入 `feature/anki-cli`；01 为根先做，02–09 并行，10 依赖 04 于其后。
+- **执行策略**（用户指定，2026-08-20 修订）：每个 issue/批次一个 git worktree + 分支（worktree 落 `.claude/worktrees/`，分支 `anki-cli/NN`），**串行执行**——同一时间只运行一个实现者；一次批量可执行多个 issue（一个实现者按序完成多个 issue 的命令组后统一合入）。01 已交付；02–04 在修订前已并行启动，允许其完成（合入仍串行）；其后批次串行推进：05+06 → 07+08 → 09 → 10（10 依赖 04），全部完成后合入 `feature/anki-cli`。
 - **依赖一次性装齐**：全部运行时依赖（commander、zod、ky、async-mutex、mime、ipaddr.js）由 01 写入 `packages/anki-cli/package.json` 并更新 lockfile；后续 issue 不新增依赖，避免并行分支改 lockfile 冲突。不引 remark/unified（`markdown.utils` 仅被要删除的 twenty-rules prompt 使用，不移植）。
 - **命令映射**：48 条子命令 ↔ 48 个上游工具（README 声称 42，代码实为 48，以代码为准），见下表；各 issue 的参数与上游工具 schema 对齐。
 
