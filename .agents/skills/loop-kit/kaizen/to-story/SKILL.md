@@ -24,10 +24,10 @@ docs/{domain-name}/plans/active/YYYY-MM-DD-中文工作名/
 
 每轮从地图边缘选择可推进的路径——互不依赖的并行, 有依赖的串行:
 
-- **与用户讨论**——按 `/grilling` 的 rounds 询问 frontier;
+- **与用户讨论**——按 `/grilling` 的 rounds 批量询问 frontier;
 - **后台调研**——派遣 sub-agent 查明环境事实(工作区, 领域文档, 既有 plan).
 
-每轮确认的内容**就地**落入 story.md, 不攒批:
+每轮确认的内容**就地**落入 story.md:
 
 - 明确的角色 → 「角色」节;
 - 明确的故事 → 落入「故事」节对应 epic 之下; 不足以成 epic 的精简故事直接独立列出. 就地维护故事编号, 保证所有故事编号单调递增;

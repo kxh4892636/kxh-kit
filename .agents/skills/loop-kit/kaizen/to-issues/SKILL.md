@@ -28,10 +28,10 @@ spec 承载问题, 方案, 状态和依赖图; 决策细节在 issue 和 ADR 中
 
 ## 建立与维护
 
-运行 `/grill-with-docs`, 每轮访谈确认的内容**就地**创建或更新文档, 不攒批:
+运行 `/grill-with-docs`, 每轮访谈确认的内容**就地**创建或更新文档:
 
 1. **定域与查明事实**——从 `CONTEXT-MAP.md` 定位业务域, 工作落在**一个**域内; 跨域工作先在 map 中确认关系并选定主域, 或按域拆成多次拆分. 读取该域 `CONTEXT.md`, 相关 ADR / Workflow, 已有 story, spec, issue, commit 或 diff 等工作涉及产物.
-2. **逐轮澄清, 就地落盘**:
+2. **逐轮澄清, 就地落盘**: 按 rounds 批量询问 frontier;
    - 落盘的是确认后的结论, 不是对话记录; 每条结论当轮归入 spec.md 对应小节, 无对应小节的按模板扩展处理;
    - 可精确表述且可独立验收的工作 → 新 issue 文件(tracer-bullet 规则);
    - 固定明确 `/verifying` 针对 issue 使用哪些验收门禁;
