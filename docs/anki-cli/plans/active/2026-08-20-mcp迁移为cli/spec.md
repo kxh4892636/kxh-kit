@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in_progress
 ---
 
 # Anki MCP 迁移为 CLI
@@ -12,7 +12,7 @@ status: pending
 
 移植上游 `anki-mcp-server`（MIT，v0.24.1，基线 commit 8b82692）的工具层到 kxh-kit monorepo 的新包 `packages/anki-cli`：
 
-- **保留**：AnkiConnect 客户端（请求串行化互斥、重试、背压、只读守卫、错误分类）、42 个工具的业务逻辑、action 纯函数、zod 参数/输出 schema、媒体安全校验（SSRF/路径穿越/文件类型）、全部 utils 及其语义。
+- **保留**：AnkiConnect 客户端（请求串行化互斥、重试、背压、只读守卫、错误分类）、48 个工具的业务逻辑、action 纯函数、zod 参数/输出 schema、媒体安全校验（SSRF/路径穿越/文件类型）、全部 utils 及其语义。
 - **替换**：MCP 注册层（`@Tool` 装饰器）→ 分组子命令；NestJS DI/Logger → 轻量装配与自研 logger；`CallToolResult` 包装 → JSON 输出协议 + 退出码。
 - **删除**：MCP 传输层（stdio/http/tunnel）、prompts、resources、HTTP 守卫、ngrok、MCPB 打包、update-notifier、MCP 依赖全家桶。
 
@@ -121,15 +121,15 @@ CLI 形态：`anki-cli <资源> <动词> [选项]`，全部输出 JSON（见 ADR
 
 ## Issue
 
-| #   | Issue                                                             | 状态    | 阻塞于 | 下一步     |
-| --- | ----------------------------------------------------------------- | ------- | ------ | ---------- |
-| 01  | [CLI 骨架与 AnkiConnect 传输层](01-CLI骨架与AnkiConnect传输层.md) | pending | —      | /implement |
-| 02  | [牌组命令组](02-牌组命令组.md)                                    | pending | 01     | /implement |
-| 03  | [笔记命令组](03-笔记命令组.md)                                    | pending | 01     | /implement |
-| 04  | [卡片复习命令组](04-卡片复习命令组.md)                            | pending | 01     | /implement |
-| 05  | [模板命令组](05-模板命令组.md)                                    | pending | 01     | /implement |
-| 06  | [标签命令组](06-标签命令组.md)                                    | pending | 01     | /implement |
-| 07  | [媒体命令组](07-媒体命令组.md)                                    | pending | 01     | /implement |
-| 08  | [统计命令组](08-统计命令组.md)                                    | pending | 01     | /implement |
-| 09  | [GUI 命令组](09-GUI命令组.md)                                     | pending | 01     | /implement |
-| 10  | [交互式复习与文档](10-交互式复习与文档.md)                        | pending | 04     | /implement |
+| #   | Issue                                                             | 状态        | 阻塞于 | 下一步     |
+| --- | ----------------------------------------------------------------- | ----------- | ------ | ---------- |
+| 01  | [CLI 骨架与 AnkiConnect 传输层](01-CLI骨架与AnkiConnect传输层.md) | in_progress | —      | /implement |
+| 02  | [牌组命令组](02-牌组命令组.md)                                    | pending     | 01     | /implement |
+| 03  | [笔记命令组](03-笔记命令组.md)                                    | pending     | 01     | /implement |
+| 04  | [卡片复习命令组](04-卡片复习命令组.md)                            | pending     | 01     | /implement |
+| 05  | [模板命令组](05-模板命令组.md)                                    | pending     | 01     | /implement |
+| 06  | [标签命令组](06-标签命令组.md)                                    | pending     | 01     | /implement |
+| 07  | [媒体命令组](07-媒体命令组.md)                                    | pending     | 01     | /implement |
+| 08  | [统计命令组](08-统计命令组.md)                                    | pending     | 01     | /implement |
+| 09  | [GUI 命令组](09-GUI命令组.md)                                     | pending     | 01     | /implement |
+| 10  | [交互式复习与文档](10-交互式复习与文档.md)                        | pending     | 04     | /implement |
