@@ -123,10 +123,10 @@ CLI 形态：`anki-cli <资源> <动词> [选项]`，全部输出 JSON（见 ADR
 
 | #   | Issue                                                             | 状态        | 阻塞于 | 下一步     |
 | --- | ----------------------------------------------------------------- | ----------- | ------ | ---------- |
-| 01  | [CLI 骨架与 AnkiConnect 传输层](01-CLI骨架与AnkiConnect传输层.md) | in_progress | —      | /implement |
-| 02  | [牌组命令组](02-牌组命令组.md)                                    | pending     | 01     | /implement |
-| 03  | [笔记命令组](03-笔记命令组.md)                                    | pending     | 01     | /implement |
-| 04  | [卡片复习命令组](04-卡片复习命令组.md)                            | pending     | 01     | /implement |
+| 01  | [CLI 骨架与 AnkiConnect 传输层](01-CLI骨架与AnkiConnect传输层.md) | completed   | —      | 已交付     |
+| 02  | [牌组命令组](02-牌组命令组.md)                                    | in_progress | 01     | /implement |
+| 03  | [笔记命令组](03-笔记命令组.md)                                    | in_progress | 01     | /implement |
+| 04  | [卡片复习命令组](04-卡片复习命令组.md)                            | in_progress | 01     | /implement |
 | 05  | [模板命令组](05-模板命令组.md)                                    | pending     | 01     | /implement |
 | 06  | [标签命令组](06-标签命令组.md)                                    | pending     | 01     | /implement |
 | 07  | [媒体命令组](07-媒体命令组.md)                                    | pending     | 01     | /implement |

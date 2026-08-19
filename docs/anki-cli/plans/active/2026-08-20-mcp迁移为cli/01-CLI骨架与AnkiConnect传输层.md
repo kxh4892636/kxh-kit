@@ -1,9 +1,14 @@
 ---
-status: in_progress
+status: completed
 blocked_by: []
 ---
 
 # CLI 骨架与 AnkiConnect 传输层
+
+## 交付记录
+
+- 实现: `packages/anki-cli`(commit 10869ec, 经 1b51cf7 合入 feature/anki-cli)
+- 证据: 63 个 vitest 单测全绿(客户端串行化/重试/背压/只读守卫/错误分类 + utils + sync 命令端到端); `vp check` 0 错误 0 警告; `vp pack src/main.ts` 产出 dist/main.mjs, `node dist/main.mjs --help` 列出 sync, 离线错误路径退出码 1 且 stderr 输出 `{success:false,error,action,hint}`
 
 ## 交付
 
