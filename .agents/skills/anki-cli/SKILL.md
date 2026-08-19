@@ -1,6 +1,6 @@
 ---
 name: anki-cli
-description: anki-cli: 通过 AnkiConnect 操作本机 Anki 的命令行工具. 触发: 用户要求增删改查笔记/卡片/牌组/标签/媒体/模板, 复习到期卡片, 或查询 Anki 统计——任何 Anki 数据任务.
+description: 通过 AnkiConnect 操作本机 Anki 的命令行工具. 触发: 用户要求增删改查笔记/卡片/牌组/标签/媒体/模板, 复习到期卡片, 或查询 Anki 统计——任何 Anki 数据任务.
 ---
 
 # anki-cli
