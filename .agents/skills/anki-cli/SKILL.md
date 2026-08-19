@@ -1,18 +1,21 @@
 ---
 name: anki-cli
-description: 通过 AnkiConnect 操作本机 Anki 的命令行工具. 触发: 用户要求增删改查笔记/卡片/牌组/标签/媒体/模板, 复习到期卡片, 或查询 Anki 统计——任何 Anki 数据任务.
+description: 在终端用 anki-cli 命令操作本机 Anki(经 AnkiConnect). 触发: 用户要求增删改查笔记/卡片/牌组/标签/媒体/模板, 复习到期卡片, 或查询 Anki 统计——任何 Anki 数据任务.
 ---
 
 # anki-cli
 
-`anki-cli` 是操作本机 Anki 的 CLI(经 AnkiConnect, 默认 `http://localhost:8765`)。本 skill 只携带 agent 无法从 environment 低成本获取的内容:**流程**与**陷阱**。命令全表与参数细节以 environment 为单一事实来源, 现场检索, 不凭记忆:
+`anki-cli` 是在终端操作本机 Anki 的命令行工具(经 AnkiConnect, 默认 `http://localhost:8765`)。本 skill 只携带 agent 无法从 environment 低成本获取的内容:**流程**与**陷阱**。命令全表与参数细节以 environment 为单一事实来源, 现场检索, 不凭记忆:
 
 - `anki-cli --help` / `anki-cli <group> --help` — 命令与参数;
 - `packages/anki-cli/README.md` — 完整命令表、配置、安全说明;
 - `docs/anki-cli/CONTEXT.md` — 领域术语(笔记/卡片/牌组/笔记类型/评分);
 - `docs/anki-cli/smoke-checklist.md` — 真实 Anki 验收清单。
 
-在本工作区运行前先构建一次: `vp run @kxh4892636/anki-cli#build`, 之后用 `node packages/anki-cli/dist/main.mjs <命令>`(或 `--anki-connect <url>` 覆盖地址; 全局选项可放子命令前后)。
+## 安装与运行
+
+- 常规: `npm install -g @kxh4892636/anki-cli`, 之后在终端直接 `anki-cli <命令>`。
+- 全局选项可放子命令前后: `--anki-connect <url>` 覆盖地址、`--read-only`、`--debug`、`--compact`。
 
 ## 全局契约(每条命令都遵守)
 
