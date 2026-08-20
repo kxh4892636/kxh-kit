@@ -1,3 +1,8 @@
+---
+name: codebase-design
+description: 用于设计 deep modules 的共享 vocabulary. 当用户想要设计或改进 module 的 interface, 寻找 deepening 机会, 决定 seam 的位置, 提高代码的可测试性或 AI 可导航性, 或其他 skill 需要 deep-module vocabulary 时使用.
+---
+
 # Codebase Design
 
 设计 **deep modules**: 将大量行为放在小型 interface 之后, 将其置于清晰的 seam, 并可通过该 interface 进行测试. 只要正在设计或重构代码, 就使用这套语言和这些原则. 目标是为调用方提供 leverage, 为维护者提供 locality, 并让所有人都能轻松测试.

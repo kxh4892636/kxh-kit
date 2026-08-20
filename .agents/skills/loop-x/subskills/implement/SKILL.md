@@ -14,4 +14,4 @@ disable-model-invocation: true
 
 将你的工作 commit 到当前 branch.
 
-遇到 block 卡点, 首先在 `/workflow-x` 的 common 与对应业务域索引中寻找可能的解决方法.
+遇到 block 卡点, 首先在 `/ecom-x` 与对应业务域 workflow 中寻找可能的解决方法.
