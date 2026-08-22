@@ -4,7 +4,7 @@
 import { promises as fs } from "node:fs";
 import { join, resolve } from "node:path";
 
-import { test, expect, _electron as electron } from "@playwright/test";
+import { test, expect, _electron as electron, type ElectronApplication } from "@playwright/test";
 
 import { createFixtureRepo, makeWorkingTreeChange, runFixtureGit } from "../src/main/fixture-repo";
 
@@ -42,24 +42,28 @@ test("渲染 fixture 仓库的 diff 并可切换 unified/split", async () => {
   }
 });
 
-test("文件树可跳转到尚未挂载的靠后文件", async () => {
+test("文件树可跳转到尚未挂载的靠后文件", async (): Promise<void> => {
   const fixture = await createFixtureRepo();
   const userData = await createIsolatedUserData();
   const fileCount = 100;
   const lastFilePath = `bulk/file-${fileCount - 1}.txt`;
-  let app;
+  let app: ElectronApplication | undefined;
   try {
     await fs.mkdir(join(fixture.repoPath, "bulk"));
     await Promise.all(
-      Array.from({ length: fileCount }, (_, index) =>
-        fs.writeFile(join(fixture.repoPath, `bulk/file-${index}.txt`), `before ${index}\n`),
+      Array.from(
+        { length: fileCount },
+        (_, index): Promise<void> =>
+          fs.writeFile(join(fixture.repoPath, `bulk/file-${index}.txt`), `before ${index}\n`),
       ),
     );
     runFixtureGit(fixture.repoPath, ["add", "bulk"]);
     runFixtureGit(fixture.repoPath, ["commit", "-m", "add bulk files"]);
     await Promise.all(
-      Array.from({ length: fileCount }, (_, index) =>
-        fs.writeFile(join(fixture.repoPath, `bulk/file-${index}.txt`), `after ${index}\n`),
+      Array.from(
+        { length: fileCount },
+        (_, index): Promise<void> =>
+          fs.writeFile(join(fixture.repoPath, `bulk/file-${index}.txt`), `after ${index}\n`),
       ),
     );
 

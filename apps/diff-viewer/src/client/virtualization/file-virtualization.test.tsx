@@ -62,9 +62,9 @@ const installLayoutMock = (): void => {
   vi.stubGlobal(
     "ResizeObserver",
     class {
-      observe() {}
-      unobserve() {}
-      disconnect() {}
+      observe = (): void => {};
+      unobserve = (): void => {};
+      disconnect = (): void => {};
     },
   );
 };

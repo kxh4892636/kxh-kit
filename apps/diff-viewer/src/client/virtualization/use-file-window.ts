@@ -24,14 +24,12 @@ interface FileWindow {
   ensureFileMounted: (filePath: string) => void;
 }
 
-const ALL_FILES_SCROLL_ATTEMPTS = 5;
-
 /**
  * 为完整 diff 文件序列提供有界 windowing，并隐藏挂载后 DOM-id 导航的时序。
  */
 export const useFileWindow = (options: UseFileWindowOptions): FileWindow => {
   const { filePaths, anchorRef } = options;
-  const window = useScrollVirtualizer({
+  const virtualWindow = useScrollVirtualizer({
     itemCount: filePaths.length,
     estimateItemSize: (): number => ESTIMATED_FILE_HEIGHT,
     anchorRef,
@@ -44,10 +42,10 @@ export const useFileWindow = (options: UseFileWindowOptions): FileWindow => {
   );
   const fileIndexes = useMemo(
     (): number[] =>
-      window.virtualized
-        ? window.virtualItems.map((virtualItem): number => virtualItem.index)
+      virtualWindow.virtualized
+        ? virtualWindow.virtualItems.map((virtualItem): number => virtualItem.index)
         : allFileIndexes,
-    [allFileIndexes, window.virtualItems, window.virtualized],
+    [allFileIndexes, virtualWindow.virtualItems, virtualWindow.virtualized],
   );
   const renderedFilePaths = useMemo(
     (): Set<string> =>
@@ -68,33 +66,22 @@ export const useFileWindow = (options: UseFileWindowOptions): FileWindow => {
       const fileIndex = filePaths.indexOf(filePath);
       if (fileIndex < 0) return;
       const elementId = getFileElementId(filePath);
-      if (window.virtualized) {
-        window.ensureItemMounted(fileIndex, elementId);
+      if (virtualWindow.virtualized) {
+        virtualWindow.ensureItemMounted(fileIndex, elementId);
         return;
       }
 
-      let attempts = 0;
-      const retryScroll = (): void => {
-        requestAnimationFrame((): void => {
-          if (document.getElementById(elementId)) {
-            scrollToElement(elementId);
-            return;
-          }
-          attempts += 1;
-          if (attempts < ALL_FILES_SCROLL_ATTEMPTS) retryScroll();
-        });
-      };
-      retryScroll();
+      requestAnimationFrame((): void => scrollToElement(elementId));
     },
-    [filePaths, scrollToElement, window.ensureItemMounted, window.virtualized],
+    [filePaths, scrollToElement, virtualWindow.ensureItemMounted, virtualWindow.virtualized],
   );
 
   return {
     fileIndexes,
     renderedFilePaths,
-    paddingTop: window.paddingTop,
-    paddingBottom: window.paddingBottom,
-    measureFile: window.measureItem,
+    paddingTop: virtualWindow.paddingTop,
+    paddingBottom: virtualWindow.paddingBottom,
+    measureFile: virtualWindow.measureItem,
     ensureFileMounted,
   };
 };

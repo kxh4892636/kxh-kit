@@ -105,8 +105,12 @@ export function useLazyDiffRendering({
             return changed ? { ...previous, files: nextFiles } : previous;
           });
         })
-        .catch((): void => {
-          // generated-status 仅为渲染快路径，失败时保留普通 diff viewer。
+        .catch((error: unknown): void => {
+          console.warn("Failed to resolve generated status; keeping the regular diff viewer", {
+            error,
+            filePath: file.path,
+            ref,
+          });
         });
     });
   }, [diffData, fileWindow.renderedFilePaths, setDiffData]);

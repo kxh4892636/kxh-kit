@@ -74,6 +74,7 @@ import { useMultiRepoDiff } from "./repo-tree/use-multi-repo-diff";
 import { useRepositoryScan } from "./repo-tree/use-repository-scan";
 import { SshConnectPanel } from "./ssh-connect/ssh-connect-panel";
 import { fetchClientSettings, saveClientSettings } from "./services/userSettings";
+import { useCursorFileMount } from "./virtualization/use-cursor-file-mount";
 import { hasMultipleCommentAuthors } from "./utils/commentAuthors";
 import { copyTextToClipboard } from "./utils/clipboard";
 import { getFileElementId } from "./utils/domUtils";
@@ -680,14 +681,15 @@ function App() {
     [toggleFileReviewed, diffData, rememberFilePosition],
   );
 
-  useEffect(() => {
-    if (!diffData || !cursor) return;
-
-    const filePath = diffData.files[cursor.fileIndex]?.path;
-    if (!filePath || renderedFilePaths.has(filePath)) return;
-
-    ensureFileMounted(filePath);
-  }, [cursor, diffData, ensureFileMounted, renderedFilePaths]);
+  const cursorFilePath = cursor ? diffData?.files[cursor.fileIndex]?.path : undefined;
+  useCursorFileMount({
+    target: cursorFilePath
+      ? { key: `${diffDataVersion}:${cursorFilePath}`, filePath: cursorFilePath }
+      : null,
+    windowReady: !diffData || diffData.files.length === 0 || renderedFilePaths.size > 0,
+    mounted: cursorFilePath ? renderedFilePaths.has(cursorFilePath) : false,
+    ensureFileMounted,
+  });
 
   const handleLineClick = useCallback(
     (fileIndex: number, chunkIndex: number, lineIndex: number, side: "left" | "right") => {
