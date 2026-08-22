@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef, memo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, memo, type ReactNode } from "react";
 
 import { type VirtualItem } from "@tanstack/react-virtual";
 
@@ -16,13 +16,13 @@ import {
   ESTIMATED_CODE_ROW_HEIGHT,
   ESTIMATED_COMMENT_FORM_HEIGHT,
   ESTIMATED_COMMENT_ROW_HEIGHT,
-  VIRTUALIZED_LINE_OVERSCAN,
-  VIRTUALIZED_LINE_THRESHOLD,
 } from "../virtualization/constants";
-import { useScrollVirtualizer } from "../virtualization/use-scroll-virtualizer";
+import { useRowWindow } from "../virtualization/use-row-window";
 import { type CursorPosition } from "../hooks/keyboardNavigation";
 import { createWordDiffResolver } from "../utils/word-level-diff";
 import { useLineThreads } from "../virtualization/use-line-threads";
+import { createUnifiedRowModel } from "../virtualization/row-models";
+import { VirtualTableBody } from "../virtualization/virtual-table-body";
 
 import { CommentForm } from "./CommentForm";
 import { CommentThreadCard } from "./CommentThreadCard";
@@ -328,48 +328,14 @@ export const DiffChunk = memo(function DiffChunk({
 
   // 压平行模型: 代码行 + 锚定其后的评论卡片行/评论表单行。行数低于阈值时逐行
   // 渲染与原实现等价; 超过阈值时作为虚拟列表的行源
-  const { flatRows, lineRowIndexes } = useMemo(() => {
-    interface UnifiedRow {
-      kind: "line" | "thread" | "form";
-      lineIndex: number;
-      thread?: CommentThread;
-    }
-    const rows: UnifiedRow[] = [];
-    const indexes: number[] = [];
-    const formTargetLineNumber = commentingLine
-      ? Array.isArray(commentingLine.lineNumber)
-        ? commentingLine.lineNumber[1]
-        : commentingLine.lineNumber
-      : null;
-
-    chunk.lines.forEach((line, index) => {
-      indexes[index] = rows.length;
-      rows.push({ kind: "line", lineIndex: index });
-
-      const commentLineNumber = line.type === "delete" ? line.oldLineNumber : line.newLineNumber;
-      const commentSide: DiffSide = line.type === "delete" ? "old" : "new";
-      if (commentLineNumber) {
-        getThreadsForLine(commentLineNumber, commentSide).forEach((thread) => {
-          rows.push({ kind: "thread", lineIndex: index, thread });
-        });
-      }
-
-      const currentLineNumber = line.newLineNumber || line.oldLineNumber || 0;
-      if (
-        commentingLine &&
-        commentingLine.side === commentSide &&
-        formTargetLineNumber === currentLineNumber
-      ) {
-        rows.push({ kind: "form", lineIndex: index });
-      }
-    });
-
-    return { flatRows: rows, lineRowIndexes: indexes };
-  }, [chunk.lines, getThreadsForLine, commentingLine]);
+  const { rows: flatRows, lineRowIndexes } = useMemo(
+    () => createUnifiedRowModel({ lines: chunk.lines, commentingLine, getThreadsForLine }),
+    [chunk.lines, getThreadsForLine, commentingLine],
+  );
 
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const estimateRowSize = useCallback(
-    (rowIndex: number) => {
+    (rowIndex: number): number => {
       const row = flatRows[rowIndex];
       if (!row || row.kind === "line") return ESTIMATED_CODE_ROW_HEIGHT;
       return row.kind === "thread" ? ESTIMATED_COMMENT_ROW_HEIGHT : ESTIMATED_COMMENT_FORM_HEIGHT;
@@ -382,24 +348,16 @@ export const DiffChunk = memo(function DiffChunk({
     paddingTop,
     paddingBottom,
     measureItem: measureRow,
-    ensureItemMounted,
-  } = useScrollVirtualizer({
-    itemCount: flatRows.length,
-    estimateItemSize: estimateRowSize,
+  } = useRowWindow({
+    rowCount: flatRows.length,
+    estimateRowSize,
     anchorRef,
-    enabled: flatRows.length > VIRTUALIZED_LINE_THRESHOLD,
-    overscan: VIRTUALIZED_LINE_OVERSCAN,
+    targetRowIndex:
+      cursor?.chunkIndex === chunkIndex ? lineRowIndexes[cursor.lineIndex] : undefined,
+    targetElementId: cursor
+      ? `file-${fileIndex}-chunk-${chunkIndex}-line-${cursor.lineIndex}`
+      : undefined,
   });
-
-  // cursor/评论跳转到未挂载行时, 先让虚拟器把目标行滚动进视口;
-  // 已挂载时 align:"auto" 不会额外滚动, 既有 DOM 滚动逻辑照常接管
-  useEffect(() => {
-    if (!virtualized || !cursor || cursor.chunkIndex !== chunkIndex) return;
-    const rowIndex = lineRowIndexes[cursor.lineIndex];
-    if (rowIndex !== undefined) {
-      ensureItemMounted(rowIndex, `file-${fileIndex}-chunk-${chunkIndex}-line-${cursor.lineIndex}`);
-    }
-  }, [virtualized, cursor, fileIndex, chunkIndex, lineRowIndexes, ensureItemMounted]);
 
   // Use side-by-side component for split mode
   if (mode === "split") {
@@ -427,7 +385,7 @@ export const DiffChunk = memo(function DiffChunk({
     );
   }
 
-  const renderLineRow = (lineIndex: number, virtualItem?: VirtualItem) => {
+  const renderLineRow = (lineIndex: number, virtualItem?: VirtualItem): ReactNode => {
     const line = chunk.lines[lineIndex];
     if (!line) return null;
 
@@ -512,7 +470,7 @@ export const DiffChunk = memo(function DiffChunk({
     thread: CommentThread,
     anchorLine: DiffLine,
     virtualItem?: VirtualItem,
-  ) => {
+  ): ReactNode => {
     const layout = getCommentLayout(anchorLine);
     return (
       <tr
@@ -549,7 +507,7 @@ export const DiffChunk = memo(function DiffChunk({
     );
   };
 
-  const renderFormRow = (lineIndex: number, virtualItem?: VirtualItem) => {
+  const renderFormRow = (lineIndex: number, virtualItem?: VirtualItem): ReactNode => {
     const line = chunk.lines[lineIndex];
     if (!line) return null;
 
@@ -585,7 +543,7 @@ export const DiffChunk = memo(function DiffChunk({
     );
   };
 
-  const renderRow = (row: (typeof flatRows)[number], virtualItem?: VirtualItem) => {
+  const renderRow = (row: (typeof flatRows)[number], virtualItem?: VirtualItem): ReactNode => {
     if (row.kind === "line") {
       return renderLineRow(row.lineIndex, virtualItem);
     }
@@ -599,27 +557,15 @@ export const DiffChunk = memo(function DiffChunk({
   return (
     <div ref={anchorRef} className="bg-github-bg-primary">
       <table className="w-full table-fixed border-collapse font-mono text-sm leading-5">
-        <tbody>
-          {!virtualized && flatRows.map((row) => renderRow(row))}
-          {virtualized && (
-            <>
-              {paddingTop > 0 && (
-                <tr data-virtual-spacer="top" aria-hidden="true">
-                  <td colSpan={3} className="p-0 border-0" style={{ height: paddingTop }} />
-                </tr>
-              )}
-              {virtualItems.map((virtualItem) => {
-                const row = flatRows[virtualItem.index];
-                return row ? renderRow(row, virtualItem) : null;
-              })}
-              {paddingBottom > 0 && (
-                <tr data-virtual-spacer="bottom" aria-hidden="true">
-                  <td colSpan={3} className="p-0 border-0" style={{ height: paddingBottom }} />
-                </tr>
-              )}
-            </>
-          )}
-        </tbody>
+        <VirtualTableBody
+          rows={flatRows}
+          virtualized={virtualized}
+          virtualItems={virtualItems}
+          paddingTop={paddingTop}
+          paddingBottom={paddingBottom}
+          colSpan={3}
+          renderRow={renderRow}
+        />
       </table>
     </div>
   );

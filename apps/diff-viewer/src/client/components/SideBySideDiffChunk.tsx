@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
 
 import { type VirtualItem } from "@tanstack/react-virtual";
 
@@ -14,14 +14,14 @@ import {
   ESTIMATED_CODE_ROW_HEIGHT,
   ESTIMATED_COMMENT_FORM_HEIGHT,
   ESTIMATED_COMMENT_ROW_HEIGHT,
-  VIRTUALIZED_LINE_OVERSCAN,
-  VIRTUALIZED_LINE_THRESHOLD,
 } from "../virtualization/constants";
-import { useScrollVirtualizer } from "../virtualization/use-scroll-virtualizer";
+import { useRowWindow } from "../virtualization/use-row-window";
 import { useFileLevelTokensLookup } from "../contexts/FileLevelTokensContext";
 import { type CursorPosition } from "../hooks/keyboardNavigation";
 import { createWordDiffResolver } from "../utils/word-level-diff";
 import { useLineThreads } from "../virtualization/use-line-threads";
+import { createSplitRowModel } from "../virtualization/row-models";
+import { VirtualTableBody } from "../virtualization/virtual-table-body";
 
 import { CommentButton } from "./CommentButton";
 import { CommentForm } from "./CommentForm";
@@ -146,17 +146,80 @@ const getClickedLineTarget = (
   };
 };
 
-// 评论表单锚定判定: 单号直接比行号, 范围选区锚定结束行
-const isCommentFormTarget = (
-  commentingLine: { side: DiffSide; lineNumber: LineNumber } | null,
-  sideLine: SideBySideLine,
-): boolean => {
-  if (!commentingLine) return false;
-  const { side, lineNumber } = commentingLine;
-  const targetLineNumber = Array.isArray(lineNumber) ? lineNumber[1] : lineNumber;
-  return side === "old"
-    ? targetLineNumber === sideLine.oldLineNumber
-    : targetLineNumber === sideLine.newLineNumber;
+type ThreadCardActions = Pick<
+  SideBySideDiffChunkProps,
+  | "showAuthorBadges"
+  | "onGenerateThreadPrompt"
+  | "onRemoveThread"
+  | "onReplyToThread"
+  | "onRemoveMessage"
+  | "onUpdateMessage"
+  | "syntaxTheme"
+>;
+
+interface SplitThreadsRowProps {
+  sideLine: SideBySideLine;
+  virtualItem?: VirtualItem;
+  measureRow: (node: HTMLElement | null) => void;
+  getThreadsForLine: (lineNumber: number, side: DiffSide) => CommentThread[];
+  getCommentLayout: (sideLine: SideBySideLine) => "left" | "right" | "full";
+  actions: ThreadCardActions;
+}
+
+const SplitThreadsRow = (props: SplitThreadsRowProps): ReactNode => {
+  const { sideLine, virtualItem, measureRow, getThreadsForLine, getCommentLayout, actions } = props;
+  const oldThreads = sideLine.oldLineNumber ? getThreadsForLine(sideLine.oldLineNumber, "old") : [];
+  const newThreads = sideLine.newLineNumber ? getThreadsForLine(sideLine.newLineNumber, "new") : [];
+  const allThreads = [...oldThreads, ...newThreads];
+  if (allThreads.length === 0) return null;
+
+  return (
+    <tr
+      ref={virtualItem ? measureRow : undefined}
+      data-index={virtualItem?.index}
+      className="bg-github-bg-secondary"
+    >
+      <td colSpan={4} className="p-0 border-t border-github-border">
+        {allThreads.map((thread): ReactNode => {
+          const threadSide = thread.side || "new";
+          const layout =
+            threadSide === "old" && sideLine.oldLineNumber
+              ? "left"
+              : threadSide === "new" && sideLine.newLineNumber
+                ? "right"
+                : getCommentLayout(sideLine);
+
+          return (
+            <div
+              key={thread.id}
+              className={`flex ${
+                layout === "left"
+                  ? "justify-start"
+                  : layout === "right"
+                    ? "justify-end"
+                    : "justify-center"
+              }`}
+            >
+              <div className={layout === "full" ? "w-full" : "w-1/2"}>
+                <div className="m-2 mx-3">
+                  <CommentThreadCard
+                    thread={thread}
+                    showAuthorBadges={actions.showAuthorBadges}
+                    onGeneratePrompt={actions.onGenerateThreadPrompt}
+                    onRemoveThread={actions.onRemoveThread}
+                    onReplyToThread={actions.onReplyToThread}
+                    onRemoveMessage={actions.onRemoveMessage}
+                    onUpdateMessage={actions.onUpdateMessage}
+                    syntaxTheme={actions.syntaxTheme}
+                  />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </td>
+    </tr>
+  );
 };
 
 export function SideBySideDiffChunk({
@@ -512,45 +575,23 @@ export function SideBySideDiffChunk({
   // 压平行模型: 代码行 + 锚定其后的评论卡片行/评论表单行 (评论卡片按原渲染
   // 结构一组合一行)。行数低于阈值时逐行渲染与原实现等价; 超过阈值时作为
   // 虚拟列表的行源
-  const { flatRows, rowIndexByOldLineIndex, rowIndexByNewLineIndex } = useMemo(() => {
-    interface SplitRow {
-      kind: "line" | "threads" | "form";
-      sideLineIndex: number;
-    }
-    const rows: SplitRow[] = [];
-    const byOld = new Map<number, number>();
-    const byNew = new Map<number, number>();
-
-    sideBySideLines.forEach((sideLine, sideLineIndex) => {
-      const rowIndex = rows.length;
-      rows.push({ kind: "line", sideLineIndex });
-      if (sideLine.oldLineOriginalIndex !== undefined && sideLine.oldLineOriginalIndex >= 0) {
-        byOld.set(sideLine.oldLineOriginalIndex, rowIndex);
-      }
-      if (sideLine.newLineOriginalIndex !== undefined && sideLine.newLineOriginalIndex >= 0) {
-        byNew.set(sideLine.newLineOriginalIndex, rowIndex);
-      }
-
-      const oldThreads = sideLine.oldLineNumber
-        ? getThreadsForLine(sideLine.oldLineNumber, "old")
-        : [];
-      const newThreads = sideLine.newLineNumber
-        ? getThreadsForLine(sideLine.newLineNumber, "new")
-        : [];
-      if (oldThreads.length + newThreads.length > 0) {
-        rows.push({ kind: "threads", sideLineIndex });
-      }
-      if (isCommentFormTarget(commentingLine, sideLine)) {
-        rows.push({ kind: "form", sideLineIndex });
-      }
-    });
-
-    return { flatRows: rows, rowIndexByOldLineIndex: byOld, rowIndexByNewLineIndex: byNew };
-  }, [sideBySideLines, getThreadsForLine, commentingLine]);
+  const {
+    rows: flatRows,
+    rowIndexByOldLineIndex,
+    rowIndexByNewLineIndex,
+  } = useMemo(
+    () =>
+      createSplitRowModel({
+        sideLines: sideBySideLines,
+        commentingLine,
+        getThreadsForLine,
+      }),
+    [sideBySideLines, getThreadsForLine, commentingLine],
+  );
 
   const anchorRef = useRef<HTMLDivElement | null>(null);
   const estimateRowSize = useCallback(
-    (rowIndex: number) => {
+    (rowIndex: number): number => {
       const row = flatRows[rowIndex];
       if (!row || row.kind === "line") return ESTIMATED_CODE_ROW_HEIGHT;
       return row.kind === "threads" ? ESTIMATED_COMMENT_ROW_HEIGHT : ESTIMATED_COMMENT_FORM_HEIGHT;
@@ -563,40 +604,21 @@ export function SideBySideDiffChunk({
     paddingTop,
     paddingBottom,
     measureItem: measureRow,
-    ensureItemMounted,
-  } = useScrollVirtualizer({
-    itemCount: flatRows.length,
-    estimateItemSize: estimateRowSize,
+  } = useRowWindow({
+    rowCount: flatRows.length,
+    estimateRowSize,
     anchorRef,
-    enabled: flatRows.length > VIRTUALIZED_LINE_THRESHOLD,
-    overscan: VIRTUALIZED_LINE_OVERSCAN,
+    targetRowIndex: cursor
+      ? cursor.side === "left"
+        ? rowIndexByOldLineIndex.get(cursor.lineIndex)
+        : rowIndexByNewLineIndex.get(cursor.lineIndex)
+      : undefined,
+    targetElementId: cursor
+      ? `file-${fileIndex}-chunk-${chunkIndex}-line-${cursor.lineIndex}-${cursor.side}`
+      : undefined,
   });
 
-  // cursor/评论跳转到未挂载行时, 先让虚拟器把目标行滚动进视口;
-  // 已挂载时 align:"auto" 不会额外滚动, 既有 DOM 滚动逻辑照常接管
-  useEffect(() => {
-    if (!virtualized || !cursor || cursor.chunkIndex !== chunkIndex) return;
-    const rowIndex =
-      cursor.side === "left"
-        ? rowIndexByOldLineIndex.get(cursor.lineIndex)
-        : rowIndexByNewLineIndex.get(cursor.lineIndex);
-    if (rowIndex !== undefined) {
-      ensureItemMounted(
-        rowIndex,
-        `file-${fileIndex}-chunk-${chunkIndex}-line-${cursor.lineIndex}-${cursor.side}`,
-      );
-    }
-  }, [
-    virtualized,
-    cursor,
-    chunkIndex,
-    rowIndexByOldLineIndex,
-    rowIndexByNewLineIndex,
-    fileIndex,
-    ensureItemMounted,
-  ]);
-
-  const renderLineRow = (sideLineIndex: number, virtualItem?: VirtualItem) => {
+  const renderLineRow = (sideLineIndex: number, virtualItem?: VirtualItem): ReactNode => {
     const sideLine = sideBySideLines[sideLineIndex];
     if (!sideLine) return null;
 
@@ -844,73 +866,31 @@ export function SideBySideDiffChunk({
     );
   };
 
-  const renderThreadsRow = (sideLineIndex: number, virtualItem?: VirtualItem) => {
+  const renderThreadsRow = (sideLineIndex: number, virtualItem?: VirtualItem): ReactNode => {
     const sideLine = sideBySideLines[sideLineIndex];
     if (!sideLine) return null;
-
-    const oldThreads = sideLine.oldLineNumber
-      ? getThreadsForLine(sideLine.oldLineNumber, "old")
-      : [];
-    const newThreads = sideLine.newLineNumber
-      ? getThreadsForLine(sideLine.newLineNumber, "new")
-      : [];
-    const allThreads = [...oldThreads, ...newThreads];
-    if (allThreads.length === 0) return null;
-
     return (
-      <tr
+      <SplitThreadsRow
         key={virtualItem ? virtualItem.key : `threads-${sideLineIndex}`}
-        ref={virtualItem ? measureRow : undefined}
-        data-index={virtualItem?.index}
-        className="bg-github-bg-secondary"
-      >
-        <td colSpan={4} className="p-0 border-t border-github-border">
-          {allThreads.map((thread) => {
-            const threadSide = thread.side || "new";
-            let layout: "left" | "right" | "full";
-
-            if (threadSide === "old" && sideLine.oldLineNumber) {
-              layout = "left";
-            } else if (threadSide === "new" && sideLine.newLineNumber) {
-              layout = "right";
-            } else {
-              layout = getCommentLayout(sideLine);
-            }
-
-            return (
-              <div
-                key={thread.id}
-                className={`flex ${
-                  layout === "left"
-                    ? "justify-start"
-                    : layout === "right"
-                      ? "justify-end"
-                      : "justify-center"
-                }`}
-              >
-                <div className={`${layout === "full" ? "w-full" : "w-1/2"}`}>
-                  <div className="m-2 mx-3">
-                    <CommentThreadCard
-                      thread={thread}
-                      showAuthorBadges={showAuthorBadges}
-                      onGeneratePrompt={onGenerateThreadPrompt}
-                      onRemoveThread={onRemoveThread}
-                      onReplyToThread={onReplyToThread}
-                      onRemoveMessage={onRemoveMessage}
-                      onUpdateMessage={onUpdateMessage}
-                      syntaxTheme={syntaxTheme}
-                    />
-                  </div>
-                </div>
-              </div>
-            );
-          })}
-        </td>
-      </tr>
+        sideLine={sideLine}
+        virtualItem={virtualItem}
+        measureRow={measureRow}
+        getThreadsForLine={getThreadsForLine}
+        getCommentLayout={getCommentLayout}
+        actions={{
+          showAuthorBadges,
+          onGenerateThreadPrompt,
+          onRemoveThread,
+          onReplyToThread,
+          onRemoveMessage,
+          onUpdateMessage,
+          syntaxTheme,
+        }}
+      />
     );
   };
 
-  const renderFormRow = (sideLineIndex: number, virtualItem?: VirtualItem) => {
+  const renderFormRow = (sideLineIndex: number, virtualItem?: VirtualItem): ReactNode => {
     const sideLine = sideBySideLines[sideLineIndex];
     if (!sideLine || !commentingLine) return null;
 
@@ -946,7 +926,7 @@ export function SideBySideDiffChunk({
     );
   };
 
-  const renderSplitRow = (row: (typeof flatRows)[number], virtualItem?: VirtualItem) => {
+  const renderSplitRow = (row: (typeof flatRows)[number], virtualItem?: VirtualItem): ReactNode => {
     if (row.kind === "line") {
       return renderLineRow(row.sideLineIndex, virtualItem);
     }
@@ -959,27 +939,15 @@ export function SideBySideDiffChunk({
   return (
     <div ref={anchorRef} className="bg-github-bg-primary overflow-hidden">
       <table className="w-full table-fixed border-collapse font-mono text-sm leading-5">
-        <tbody>
-          {!virtualized && flatRows.map((row) => renderSplitRow(row))}
-          {virtualized && (
-            <>
-              {paddingTop > 0 && (
-                <tr data-virtual-spacer="top" aria-hidden="true">
-                  <td colSpan={4} className="p-0 border-0" style={{ height: paddingTop }} />
-                </tr>
-              )}
-              {virtualItems.map((virtualItem) => {
-                const row = flatRows[virtualItem.index];
-                return row ? renderSplitRow(row, virtualItem) : null;
-              })}
-              {paddingBottom > 0 && (
-                <tr data-virtual-spacer="bottom" aria-hidden="true">
-                  <td colSpan={4} className="p-0 border-0" style={{ height: paddingBottom }} />
-                </tr>
-              )}
-            </>
-          )}
-        </tbody>
+        <VirtualTableBody
+          rows={flatRows}
+          virtualized={virtualized}
+          virtualItems={virtualItems}
+          paddingTop={paddingTop}
+          paddingBottom={paddingBottom}
+          colSpan={4}
+          renderRow={renderSplitRow}
+        />
       </table>
     </div>
   );

@@ -79,7 +79,10 @@ export const useScrollVirtualizer = (
   const paddingBottom = lastItem
     ? Math.max(0, totalSize - (lastItem.end - scrollMargin))
     : totalSize;
-  const scrollToElement = useMemo(() => createScrollToElement(), []);
+  const scrollToElement = useMemo(
+    (): ReturnType<typeof createScrollToElement> => createScrollToElement(),
+    [],
+  );
 
   const ensureItemMounted = useCallback(
     (itemIndex: number, elementId?: string): void => {
