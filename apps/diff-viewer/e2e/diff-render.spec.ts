@@ -53,7 +53,7 @@ test("文件树可跳转到尚未挂载的靠后文件", async (): Promise<void>
     await Promise.all(
       Array.from(
         { length: fileCount },
-        (_, index): Promise<void> =>
+        (_value: unknown, index: number): Promise<void> =>
           fs.writeFile(join(fixture.repoPath, `bulk/file-${index}.txt`), `before ${index}\n`),
       ),
     );
@@ -62,7 +62,7 @@ test("文件树可跳转到尚未挂载的靠后文件", async (): Promise<void>
     await Promise.all(
       Array.from(
         { length: fileCount },
-        (_, index): Promise<void> =>
+        (_value: unknown, index: number): Promise<void> =>
           fs.writeFile(join(fixture.repoPath, `bulk/file-${index}.txt`), `after ${index}\n`),
       ),
     );

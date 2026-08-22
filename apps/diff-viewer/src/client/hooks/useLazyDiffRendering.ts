@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import { type DiffResponse } from "../../types/diff";
+import { type DiffFile, type DiffResponse } from "../../types/diff";
 import { useFileWindow } from "../virtualization/use-file-window";
 import { getFileElementId } from "../utils/domUtils";
 
@@ -34,7 +34,7 @@ export function useLazyDiffRendering({
   const generatedStatusCheckedRef = useRef<Set<string>>(new Set());
   const generatedStatusRevisionRef = useRef<string | null>(null);
   const filePaths = useMemo(
-    (): string[] => diffData?.files.map((file): string => file.path) ?? [],
+    (): string[] => diffData?.files.map((file: DiffFile): string => file.path) ?? [],
     [diffData],
   );
   const fileWindow = useFileWindow({ filePaths, anchorRef: fileListAnchorRef });
@@ -67,7 +67,7 @@ export function useLazyDiffRendering({
     const ref = diffData.targetCommitish || "HEAD";
     const generatedStatusRevisionKey = `${diffData.requestedBaseCommitish ?? ""}...${diffData.requestedTargetCommitish ?? ""}:${diffData.requestedBaseMode ?? "direct"}`;
 
-    diffData.files.forEach((file): void => {
+    diffData.files.forEach((file: DiffFile): void => {
       if (
         !fileWindow.renderedFilePaths.has(file.path) ||
         file.isGenerated !== false ||
@@ -88,7 +88,7 @@ export function useLazyDiffRendering({
         .then((payload: { isGenerated?: unknown } | null): void => {
           if (!payload || payload.isGenerated !== true) return;
 
-          setDiffData((previous): DiffResponse | null => {
+          setDiffData((previous: DiffResponse | null): DiffResponse | null => {
             if (!previous) return previous;
             if (
               previous.requestedBaseCommitish !== diffData.requestedBaseCommitish ||
@@ -99,7 +99,7 @@ export function useLazyDiffRendering({
             }
 
             let changed = false;
-            const nextFiles = previous.files.map((candidate): DiffResponse["files"][number] => {
+            const nextFiles = previous.files.map((candidate: DiffFile): DiffFile => {
               if (candidate.path !== file.path || candidate.isGenerated) return candidate;
               changed = true;
               return { ...candidate, isGenerated: true };

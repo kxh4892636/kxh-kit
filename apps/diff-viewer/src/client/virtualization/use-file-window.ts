@@ -1,3 +1,4 @@
+import { type VirtualItem } from "@tanstack/react-virtual";
 import { useCallback, useMemo, type RefObject } from "react";
 
 import { createScrollToElement } from "../hooks/keyboardNavigation/scrollUtils";
@@ -37,13 +38,13 @@ export const useFileWindow = (options: UseFileWindowOptions): FileWindow => {
     overscan: VIRTUALIZED_FILE_OVERSCAN,
   });
   const allFileIndexes = useMemo(
-    (): number[] => filePaths.map((_, fileIndex): number => fileIndex),
+    (): number[] => filePaths.map((_filePath: string, fileIndex: number): number => fileIndex),
     [filePaths],
   );
   const fileIndexes = useMemo(
     (): number[] =>
       virtualWindow.virtualized
-        ? virtualWindow.virtualItems.map((virtualItem): number => virtualItem.index)
+        ? virtualWindow.virtualItems.map((virtualItem: VirtualItem): number => virtualItem.index)
         : allFileIndexes,
     [allFileIndexes, virtualWindow.virtualItems, virtualWindow.virtualized],
   );
@@ -51,8 +52,8 @@ export const useFileWindow = (options: UseFileWindowOptions): FileWindow => {
     (): Set<string> =>
       new Set(
         fileIndexes
-          .map((fileIndex): string | undefined => filePaths[fileIndex])
-          .filter((filePath): filePath is string => filePath !== undefined),
+          .map((fileIndex: number): string | undefined => filePaths[fileIndex])
+          .filter((filePath: string | undefined): filePath is string => filePath !== undefined),
       ),
     [fileIndexes, filePaths],
   );
