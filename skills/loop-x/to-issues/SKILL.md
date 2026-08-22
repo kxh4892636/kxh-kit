@@ -2,7 +2,6 @@
 name: to-issues
 description: 把一次上下文无法安全完成的工作维护为领域 plan——一份 spec 加一张 tracer-bullet issue 图, 落在 docs/{domain-name}/plans/.
 argument-hint: "要拆分或推进什么工作?"
-disable-model-invocation: true
 ---
 
 # To Issues

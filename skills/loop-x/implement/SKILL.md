@@ -1,7 +1,6 @@
 ---
 name: implement
 description: "根据 spec 或 issues 实现工作."
-disable-model-invocation: true
 ---
 
 实现用户在 spec 或 issues 中描述的工作.
@@ -14,4 +13,4 @@ disable-model-invocation: true
 
 将你的工作 commit 到当前 branch.
 
-遇到 block 卡点, 首先在 `/ecom-x` 与对应业务域 workflow 中寻找可能的解决方法.
+遇到 block 卡点, 首先在对应业务域 workflow 中寻找可能的解决方法.
