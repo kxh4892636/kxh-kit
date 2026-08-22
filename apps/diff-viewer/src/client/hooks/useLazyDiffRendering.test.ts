@@ -10,6 +10,7 @@ function renderLazyDiffRendering(container: HTMLElement | null) {
     useLazyDiffRendering({
       diffData: null,
       diffScrollContainerRef: { current: container },
+      fileListAnchorRef: { current: null },
       setDiffData: () => {},
     }),
   );

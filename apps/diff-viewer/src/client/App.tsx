@@ -183,6 +183,7 @@ function App() {
   const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(new Set());
   const collapsedInitializedRef = useRef(false);
   const diffScrollContainerRef = useRef<HTMLElement | null>(null);
+  const fileListAnchorRef = useRef<HTMLDivElement | null>(null);
 
   // Revision selector state
   const [revisionOptions, setRevisionOptions] = useState<RevisionsResponse | null>(null);
@@ -377,14 +378,17 @@ function App() {
   }, [viewedFiles, hasLoadedInitialViewedFiles]);
   const {
     renderedFilePaths,
-    ensureFileRendered,
-    ensureFilesRenderedUpTo,
-    registerLazyFileContainer,
+    fileIndexes,
+    paddingTop: fileWindowPaddingTop,
+    paddingBottom: fileWindowPaddingBottom,
+    measureFile,
+    ensureFileMounted,
     scrollFileIntoDiffContainer,
     isFileScrolledPastContainerTop,
   } = useLazyDiffRendering({
     diffData,
     diffScrollContainerRef,
+    fileListAnchorRef,
     setDiffData,
   });
 
@@ -682,11 +686,8 @@ function App() {
     const filePath = diffData.files[cursor.fileIndex]?.path;
     if (!filePath || renderedFilePaths.has(filePath)) return;
 
-    ensureFilesRenderedUpTo(filePath);
-    requestAnimationFrame(() => {
-      setCursorPosition(cursor);
-    });
-  }, [cursor, diffData, ensureFilesRenderedUpTo, renderedFilePaths, setCursorPosition]);
+    ensureFileMounted(filePath);
+  }, [cursor, diffData, ensureFileMounted, renderedFilePaths]);
 
   const handleLineClick = useCallback(
     (fileIndex: number, chunkIndex: number, lineIndex: number, side: "left" | "right") => {
@@ -1634,30 +1635,36 @@ function App() {
                 <p className="text-github-text-secondary text-base">No diff data available</p>
               </div>
             ) : (
-              diffData.files.map((file, fileIndex) => {
-                const fileThreads = threadsByFile.get(file.path) ?? EMPTY_COMMENT_THREADS;
-                const mergedChunks =
-                  getMergedChunksForVersion(mergedChunksState, diffDataVersion, file.path) ??
-                  EMPTY_MERGED_CHUNKS;
-                const isRendered = renderedFilePaths.has(file.path);
-                return (
-                  <div
-                    key={file.path}
-                    id={getFileElementId(file.path)}
-                    data-file-path={file.path}
-                    data-rendered={isRendered ? "true" : "false"}
-                    ref={(node) => registerLazyFileContainer(file.path, node)}
-                    className="mb-6"
-                    onMouseEnter={() => {
-                      hoveredFileIndexRef.current = fileIndex;
-                    }}
-                    onMouseLeave={() => {
-                      if (hoveredFileIndexRef.current === fileIndex) {
-                        hoveredFileIndexRef.current = null;
-                      }
-                    }}
-                  >
-                    {isRendered ? (
+              <div ref={fileListAnchorRef}>
+                {fileWindowPaddingTop > 0 && (
+                  <div aria-hidden="true" style={{ height: fileWindowPaddingTop }} />
+                )}
+                {fileIndexes.map((fileIndex) => {
+                  const file = diffData.files[fileIndex];
+                  if (!file) return null;
+                  const fileThreads = threadsByFile.get(file.path) ?? EMPTY_COMMENT_THREADS;
+                  const mergedChunks =
+                    getMergedChunksForVersion(mergedChunksState, diffDataVersion, file.path) ??
+                    EMPTY_MERGED_CHUNKS;
+                  return (
+                    <div
+                      key={file.path}
+                      id={getFileElementId(file.path)}
+                      data-file-path={file.path}
+                      data-rendered="true"
+                      data-file-window-item="true"
+                      data-index={fileIndex}
+                      ref={measureFile}
+                      className="pb-6"
+                      onMouseEnter={() => {
+                        hoveredFileIndexRef.current = fileIndex;
+                      }}
+                      onMouseLeave={() => {
+                        if (hoveredFileIndexRef.current === fileIndex) {
+                          hoveredFileIndexRef.current = null;
+                        }
+                      }}
+                    >
                       <DiffViewer
                         file={file}
                         threads={fileThreads}
@@ -1694,30 +1701,13 @@ function App() {
                         isExpandLoading={isExpandLoading}
                         diffVersion={diffDataVersion}
                       />
-                    ) : (
-                      <div className="bg-github-bg-secondary border border-github-border rounded-md px-4 py-3">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="text-xs uppercase tracking-wide text-github-text-muted">
-                              Deferred Rendering
-                            </div>
-                            <div className="text-sm font-mono text-github-text-primary truncate">
-                              {file.path}
-                            </div>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => ensureFileRendered(file.path)}
-                            className="px-3 py-1.5 text-xs rounded border border-github-border text-github-text-secondary hover:text-github-text-primary hover:bg-github-bg-tertiary"
-                          >
-                            Load now
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })
+                    </div>
+                  );
+                })}
+                {fileWindowPaddingBottom > 0 && (
+                  <div aria-hidden="true" style={{ height: fileWindowPaddingBottom }} />
+                )}
+              </div>
             )}
           </main>
         </div>

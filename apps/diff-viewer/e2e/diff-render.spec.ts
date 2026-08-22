@@ -1,11 +1,12 @@
 // 验收用例 (issue 01): 临时目录脚本化创建 fixture 仓库 → 以启动参数指向它启动
 // Electron 应用 → 断言 diff 端到端渲染 → 切换 unified/split 布局。
 // issue 02 起无远程仓库的默认对比降级为 未提交改动 vs HEAD, 故先制造工作区改动。
-import { resolve } from "node:path";
+import { promises as fs } from "node:fs";
+import { join, resolve } from "node:path";
 
 import { test, expect, _electron as electron } from "@playwright/test";
 
-import { createFixtureRepo, makeWorkingTreeChange } from "../src/main/fixture-repo";
+import { createFixtureRepo, makeWorkingTreeChange, runFixtureGit } from "../src/main/fixture-repo";
 
 import { createIsolatedUserData } from "./isolated-user-data";
 
@@ -34,6 +35,42 @@ test("渲染 fixture 仓库的 diff 并可切换 unified/split", async () => {
 
     await window.getByRole("button", { name: "Split" }).click();
     await expect.poll(async () => changedRow.locator("td").count(), { timeout: 10_000 }).toBe(4);
+  } finally {
+    await app?.close();
+    await fixture.cleanup();
+    await userData.cleanup();
+  }
+});
+
+test("文件树可跳转到尚未挂载的靠后文件", async () => {
+  const fixture = await createFixtureRepo();
+  const userData = await createIsolatedUserData();
+  const fileCount = 100;
+  const lastFilePath = `bulk/file-${fileCount - 1}.txt`;
+  let app;
+  try {
+    await fs.mkdir(join(fixture.repoPath, "bulk"));
+    await Promise.all(
+      Array.from({ length: fileCount }, (_, index) =>
+        fs.writeFile(join(fixture.repoPath, `bulk/file-${index}.txt`), `before ${index}\n`),
+      ),
+    );
+    runFixtureGit(fixture.repoPath, ["add", "bulk"]);
+    runFixtureGit(fixture.repoPath, ["commit", "-m", "add bulk files"]);
+    await Promise.all(
+      Array.from({ length: fileCount }, (_, index) =>
+        fs.writeFile(join(fixture.repoPath, `bulk/file-${index}.txt`), `after ${index}\n`),
+      ),
+    );
+
+    app = await electron.launch({ args: [appPath, fixture.repoPath], env: userData.env });
+    const window = await app.firstWindow();
+    await expect(window.getByText(`Files changed (${fileCount})`)).toBeVisible({ timeout: 30_000 });
+
+    await window.getByTitle(lastFilePath).click();
+
+    await expect(window.locator(`[data-file-path="${lastFilePath}"]`)).toBeVisible();
+    await expect(window.locator('[data-file-path="bulk/file-0.txt"]')).toHaveCount(0);
   } finally {
     await app?.close();
     await fixture.cleanup();
