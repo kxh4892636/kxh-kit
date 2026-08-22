@@ -38,3 +38,8 @@ release
 **/.claude/skills/k2/
 .k2/
 .dsh
+
+# Loop X runtime state
+.loop
+.loop.lock
+.loop.*.tmp

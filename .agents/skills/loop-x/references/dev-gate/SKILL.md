@@ -12,8 +12,8 @@ description: 在进入 /implement 前, 使用 /grilling, /grill-with-docs 或 /t
 基于上下文及其引用产物, 进行不同路径的准入门禁检查;
 
 - `/grilling`: 决策树 **frontier** 清空;
-- `/grilling-with-docs`: `/grilling` 基础上, context.md 和 adr 维护正确;
-- `/to-issues`: `/grilling-with-docs` 基础上, spec 和 issues 文件存在, issues 依赖图正确, 下一步均为 `/implement`, 状态均为 pending;
+- `/grill-with-docs`: `/grilling` 基础上, `CONTEXT.md` 和 ADR 维护正确;
+- `/to-issues`: `/grill-with-docs` 基础上, spec 和 issues 文件存在, issues 依赖图正确, 下一步均为 `/implement`, 状态均为 `pending`, `/loop-x` 的 `script/check-domain.mjs` 校验通过;
 
 完成标准: 本次只指向一个路径, 路径的准入门禁检查通过.
 

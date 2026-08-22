@@ -5,33 +5,9 @@ description: 拷问设计, 并将确认的术语与决策就地写入领域文�
 
 运行一次 `/grilling` 会话, 并在会话期间主动构建并打磨项目的 domain model. 这是一项*主动*实践, 它会质疑术语, 构造 edge-case scenarios, 并在 glossary 和决策明确的那一刻将其写下.(仅仅为了 vocabulary 而*读取*领域文档并不属于本 skill, 那是任何 skill 都能做到的一行习惯. 本 skill 用于改变 domain model, 而不是只使用它.)
 
-## 文件结构
+## 定位业务域
 
-repos 默认采用 multi-context 布局. 根目录的 `CONTEXT-MAP.md` 索引业务域及其关系; 每个业务域在 `docs/{domain-name}/` 内封装自己的 glossary 和 ADRs:
-
-```text
-/
-├── CONTEXT-MAP.md
-├── docs/
-│   ├── ordering/
-│   │   ├── CONTEXT.md
-│   │   ├── adr/
-│   │   │   └── 0001-采用事件溯源订单.md
-│   │   └── plans/
-│   │       └── active/
-│   │           └── 0001-支持订单取消/
-│   │               ├── spec.md
-│   │               └── 01-取消接口.md
-│   └── billing/
-│       ├── CONTEXT.md
-│       ├── adr/
-│       └── plans/
-└── src/
-```
-
-先读取 `CONTEXT-MAP.md`, 再根据当前 topic 定位一个或多个业务域. 如果归属不清楚, 询问用户. `domain-name` 使用稳定、简短的 kebab-case 名称.
-
-创建新业务域时, 同时创建 `docs/{domain-name}/CONTEXT.md` 并加入 `CONTEXT-MAP.md`. `adr/` 惰性创建, 只在有 ADR 时创建. 跨业务域关系只在 map 中定义一次; 跨域决策归入拥有它的业务域, 其他业务域通过链接引用.
+先完整读取 `/loop-x` 根目录的 `DOMAIN.md`, 按其中的定位顺序和布局约束选择一个或多个业务域. 如果归属不清楚, 询问用户. 创建业务域、维护 map 和归属跨域决策时, 以该文件为单一事实源.
 
 ## 会话期间
 

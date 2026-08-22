@@ -9,7 +9,7 @@ disable-model-invocation: true
 
 用户故事集是一组带唯一编号的用户故事有序集合. 用户故事的 **3C**: 卡片(story.md), 对话(`/grilling`), 确认(验收). 本 skill 运行 `/grilling`, 把一个模糊想法打磨为用户故事.
 
-先读取根 `DOMAIN.md` 的「Plan 生命周期」, 再从 `CONTEXT-MAP.md` 定位业务域并读取该域 `CONTEXT.md`, ADR 和 Workflow. 新 plan 一律落在 `active/`;
+先读取 `/loop-x` 根目录 `DOMAIN.md` 的「Plan 生命周期」, 再从工作区根 `CONTEXT-MAP.md` 定位业务域并读取该域 `CONTEXT.md`, ADR 和 Workflow. 新 plan 一律落在 `active/`;
 
 ```text
 docs/{domain-name}/plans/active/YYYY-MM-DD-中文工作名/

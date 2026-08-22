@@ -6,6 +6,8 @@ argument-hint: "要拆分或推进什么工作?"
 
 # To Issues
 
+先完整读取 `/loop-x` 根目录的 `DOMAIN.md`, 以其中的领域布局和 Plan 生命周期为权威约束. 下文的「校验」均指在工作区根目录执行 `node <loop-x-skill-dir>/script/check-domain.mjs .`.
+
 两种调用方式:
 
 - **建立与维护**——由 `/grill-with-docs` skill 驱动, 访谈中确认的内容就地落为 spec 和 issue;
@@ -46,20 +48,32 @@ tracer-bullet 规则:
 - 让每个 issue 更容易实现的 prefactoring 排最前——"Make the change easy, then make the easy change";
 - 大范围机械重构是唯一例外: expand-contract 序列——expand → 按影响面分批 migrate, 每批一个 issue → contract 删除旧形态.
 
-**完成标准:** 工作范围无遗漏, 每项交付责任只有一个归属 issue; 依赖只记录直接依赖且写明消费的产物或契约; 依赖图至少有一个根 issue, 无自环, 无环; 所有 issue 决策已澄清, 下一步均为 `/implement`; 用户确认边界和依赖图.
+**完成标准:** 工作范围无遗漏, 每项交付责任只有一个归属 issue; 依赖只记录直接依赖且写明消费的产物或契约; 依赖图至少有一个根 issue, 无自环, 无环; 所有 issue 决策已澄清, 下一步均为 `/implement`, 状态均为 `pending`; 校验通过; 用户确认边界和依赖图.
 
 ## 推进
 
-一个会话可以推进多个 issue, 但**串行执行**——完成或阻塞当前 issue 后才回到第 1 步领取下一个.
+单个会话串行推进自己领取的 issue; 多个会话可以并行推进同一 Plan 中彼此独立且已满足直接依赖的不同 issue. 所有领取与状态流转必须经过 `/loop-x` 的 `script/flow.mjs`, 不直接手改运行中的 `status` 或 spec Issue 表.
 
-1. **定位 frontier**——读该域 `plans/active/` 下各 spec.md 的 issue 表, 找到 `pending` 且直接依赖全部 `completed` 的 issue; 多个可选时与用户确认优先级.
-2. **领取**——frontmatter `status` 改为 `in_progress`, 同步 spec 的 issue 表, 进入 `/implement`.
-3. **完成**——`status` 改为 `completed`, 记录交付物和验证证据链接, 同步 spec 的 issue 表. 全部 issue 完成后与用户确认参考价值, 按 `DOMAIN.md` 的生命周期约束将整个工作目录移入 `reference/` 或 `archived/`.
-4. **新发现的工作**——开新 issue 或记入 spec 的 `待定` 节, 不在本 issue 内扩张范围; 需澄清的新工作回到建立与维护的 rounds 批量询问.
+1. **定位 frontier**——读该域 `plans/active/` 下各 spec.md 的 issue 表, 找到 `pending` 且直接依赖全部 `completed` 的 issue; 多个可选时按用户已确认的优先级选择.
+2. **原子领取**——执行 `flow.mjs claim-issue --plan <plan-path> --issue <NN> --session <session-id>`. 成功后脚本同步 issue frontmatter 与 spec 视图并返回 `/implement`; 同一 issue 已被其他有效租约持有时领取失败.
+3. **按 receipt 推进**——只执行脚本返回的 `next_skill` 或 `next_action`, 完成后使用 `record-issue` 登记结果和证据. 长任务用 `heartbeat-issue` 续租; 主动暂停用 `release-issue`; 租约失效后的接管用 `resume-issue`.
+4. **完成或阻塞**——提交前先在 issue 的「交付记录」写入交付物和验证证据, 执行 `next_action: commit`, 再以 `--action commit --result committed` 登记; 脚本将 issue 标为 `completed` 并同步 spec. 真实障碍使用 `block-issue`, 记录原因与解除条件并释放租约. 当前 issue 完成或阻塞后, 本会话才领取下一项.
+5. **全部完成**——与用户确认参考价值, 按 `/loop-x` 根目录 `DOMAIN.md` 的生命周期约束将整个工作目录移入 `reference/` 或 `archived/`, 运行 `flow.mjs sync-plan`, 再运行领域文档校验.
+6. **新发现的工作**——开新 issue 或记入 spec 的 `待定` 节, 不在本 issue 内扩张范围; 需澄清的新工作回到建立与维护的 rounds 批量询问.
 
 ## 状态协议
 
-状态的唯一来源是 issue frontmatter 的 `status:`; spec.md 的 issue 表是从 frontmatter 推导的视图, 状态变更时同步更新. spec 自身的 `status:` 是聚合视图: 任一 issue 进行中即 `in_progress`, 全部 `completed` 即 `completed`.
+持久化执行状态的来源是 issue frontmatter 的 `status:`; `.loop` 只保存运行租约, skill 游标和 receipt; spec.md 的 issue 表是从 frontmatter 推导的视图. `flow.mjs` 负责同步三者. spec 自身的 `status:` 是全函数聚合视图: 所有 issue 均为 `pending` 时是 `pending`; 所有 issue 均为 `completed` 时是 `completed`; 其余组合, 包括存在 `blocked`, 均为 `in_progress`.
+
+### 流转
+
+```text
+pending ──领取──> in_progress ──交付物与验证证据齐备──> completed
+                         │
+                         └─真实障碍──> blocked ──障碍解除并恢复工作──> in_progress
+```
+
+每次流转由 `flow.mjs` 同时更新 issue frontmatter 和 spec Issue 表; spec 聚合状态随即重算. `completed` 是终态, 后续修正创建新 issue 并交叉链接.
 
 ### 状态
 
@@ -71,11 +85,13 @@ tracer-bullet 规则:
 ### 不变量
 
 - 可执行性由直接依赖的状态推导, 依赖完成只改变可执行性.
+- 同一 issue 同时至多有一个有效租约; 不同可执行 issue 的租约彼此独立.
 - 每个 issue 只使用一个上述状态.
 - `blocked` issue 带有障碍和解除条件.
 - `completed` issue 带有交付物和验证证据, 且内容冻结: 不原地修改, 后续修正开新 issue 并交叉链接.
 - spec 的决策不原地反转: 难逆转的决策按 `/grill-with-docs` 的标准写入该域 `adr/`, spec 中标注被取代链接; 事实性更新可直接修改.
-- 移动 plan 目录(生命周期转换)时不动 `status:`——两条生命周期相互独立, 约束见根 `DOMAIN.md`.
+- 移动 plan 目录(生命周期转换)时不动 `status:`——两条生命周期相互独立, 约束见 `/loop-x` 根目录的 `DOMAIN.md`.
+- 本协议只处理 Plan 内 issue 竞争, 不锁定或协调全局领域文件.
 
 ## spec.md 模板
 
@@ -162,6 +178,14 @@ blocked_by: []
 ## 下一步
 
 {决策已澄清: /implement; 仍需澄清: /grill-with-docs}
+
+## 阻塞记录
+
+{仅 status 为 blocked 时保留: 障碍与解除条件}
+
+## 交付记录
+
+{仅 status 为 completed 时保留: 交付物与验证证据链接}
 ```
 
 ## 模板扩展
