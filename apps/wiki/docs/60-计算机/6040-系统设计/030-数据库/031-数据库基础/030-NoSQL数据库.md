@@ -54,8 +54,3 @@ NoSQL 有哪些类型？各自适用场景和优缺点是什么？
 - 优点: 灵活、适合复杂项目、数据一致;
 - 缺点: 复杂、成熟度较低;
 - 示例: ArangoDB、Cosmos DB、Couchbase;
-
-## 参见
-
-- [40-database/30-mongodb教程/010-mongodb基础.md](../../../../00-中转/40-database/30-mongodb教程/010-mongodb基础.md)
-- [40-database/40-redis教程/010-基础.md](../../../../00-中转/40-database/40-redis教程/010-基础.md)

@@ -39,7 +39,3 @@ OAuth 2.0 解决什么问题？有哪些实体和流程？OIDC 如何在其上�
 - 定义: 在 OAuth 2.0 之上增加登录与用户资料信息的薄层;
 - 实体: Relying Party（当前应用）、OpenID Provider（提供一次性代码）、Token Endpoint（用 OTC 换 JWT）、UserInfo Endpoint（返回用户信息）;
 - 区别: OIDC token 使用 JWT，规范比基础 OAuth 更严格;
-
-## 参见
-
-- [90-工具链/810-认证和授权教程.md](../../../../00-中转/90-工具链/810-认证和授权教程.md)
