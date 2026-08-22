@@ -27,6 +27,22 @@ lifecycle 为 `active/`(进行中), `reference/`(可参考)或 `archived/`(已�
 
 spec 承载问题, 方案, 状态和依赖图; 决策细节在 issue 和 ADR 中.
 
+## 进入 Flow
+
+建立或维护时, 确定 Plan 路径后、运行访谈或写入 spec/issue 前执行 `enter-plan`; 不要求用户先调用 `/loop-x`. 从 `/to-story` 到达时复用它返回的 session, 脚本接续 story 路径; 直接调用时省略 session, 脚本初始化 issues 路径并返回新 session:
+
+```powershell
+node .agents/skills/loop-x/script/flow.mjs enter-plan --plan <plan-path> --skill /to-issues
+```
+
+调用 `/grill-with-docs` 时传递当前 flow context 并标明它是 `/to-issues` 的内部访谈, 使其不另建主路径. 达到下文完成标准后登记 `/to-issues=completed`, 再只执行返回的 `/dev-gate`:
+
+```powershell
+node .agents/skills/loop-x/script/flow.mjs record-plan --plan <plan> --session <session> --skill /to-issues --result completed --evidence <plan-path>/spec.md
+```
+
+推进已通过 `/dev-gate` 的 Plan 时直接使用 `claim-issue`; session 可省略并由脚本生成, 后续 Issue 步骤复用返回值.
+
 ## 建立与维护
 
 运行 `/grill-with-docs`, 每轮访谈确认的内容**就地**创建或更新文档:

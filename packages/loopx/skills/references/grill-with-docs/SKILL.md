@@ -5,33 +5,25 @@ description: 拷问设计, 并将确认的术语与决策就地写入领域文�
 
 运行一次 `/grilling` 会话, 并在会话期间主动构建并打磨项目的 domain model. 这是一项*主动*实践, 它会质疑术语, 构造 edge-case scenarios, 并在 glossary 和决策明确的那一刻将其写下.(仅仅为了 vocabulary 而*读取*领域文档并不属于本 skill, 那是任何 skill 都能做到的一行习惯. 本 skill 用于改变 domain model, 而不是只使用它.)
 
-## 文件结构
+## 进入 Flow
 
-repos 默认采用 multi-context 布局. 根目录的 `CONTEXT-MAP.md` 索引业务域及其关系; 每个业务域在 `docs/{domain-name}/` 内封装自己的 glossary 和 ADRs:
+作为顶层 skill 执行时, 在实质工作前进入 `/loop-x` 的运行态; 不要求用户先调用 `/loop-x`. 调用方传入 `plan` 或 `session` 时复用它们; 直接调用可同时省略, 此时主路径运行键为 `.` 且脚本生成 session. 保留命令返回的 `plan` 和 `session`:
 
-```text
-/
-├── CONTEXT-MAP.md
-├── docs/
-│   ├── ordering/
-│   │   ├── CONTEXT.md
-│   │   ├── adr/
-│   │   │   └── 0001-采用事件溯源订单.md
-│   │   └── plans/
-│   │       └── active/
-│   │           └── 0001-支持订单取消/
-│   │               ├── spec.md
-│   │               └── 01-取消接口.md
-│   └── billing/
-│       ├── CONTEXT.md
-│       ├── adr/
-│       └── plans/
-└── src/
+```powershell
+node .agents/skills/loop-x/script/flow.mjs enter-plan --skill /grill-with-docs
 ```
 
-先读取 `CONTEXT-MAP.md`, 再根据当前 topic 定位一个或多个业务域. 如果归属不清楚, 询问用户. `domain-name` 使用稳定、简短的 kebab-case 名称.
+由 `/to-issues` 作为内部访谈调用时, 继承其 flow context 并作为 `/to-issues` 的内部行为运行, 不建立主路径, 不单独登记 receipt.
 
-创建新业务域时, 同时创建 `docs/{domain-name}/CONTEXT.md` 并加入 `CONTEXT-MAP.md`. `adr/` 惰性创建, 只在有 ADR 时创建. 跨业务域关系只在 map 中定义一次; 跨域决策归入拥有它的业务域, 其他业务域通过链接引用.
+完成本 skill 的访谈与文档同步后, 顶层调用使用保留的上下文登记 `/grill-with-docs=completed` 和实际文档证据, 随后只执行脚本返回的 `next_skill`:
+
+```powershell
+node .agents/skills/loop-x/script/flow.mjs record-plan --plan <plan> --session <session> --skill /grill-with-docs --result completed --evidence <document-path>
+```
+
+## 定位业务域
+
+先完整读取 `/loop-x` 根目录的 `DOMAIN.md`, 按其中的定位顺序和布局约束选择一个或多个业务域. 如果归属不清楚, 询问用户. 创建业务域、维护 map 和归属跨域决策时, 以该文件为单一事实源.
 
 ## 会话期间
 

@@ -2,7 +2,6 @@
 name: to-story
 description: 把模糊想法打磨为带编号和验收、按 epic 或独立条目组织的用户故事集
 argument-hint: "要把什么想法打磨成用户故事?"
-disable-model-invocation: true
 ---
 
 # To Story
@@ -10,6 +9,12 @@ disable-model-invocation: true
 用户故事集是一组带唯一编号的用户故事有序集合. 用户故事的 **3C**: 卡片(story.md), 对话(`/grilling`), 确认(验收). 本 skill 运行 `/grilling`, 把一个模糊想法打磨为用户故事.
 
 先读取 `/loop-x` 根目录 `DOMAIN.md` 的「Plan 生命周期」, 再从工作区根 `CONTEXT-MAP.md` 定位业务域并读取该域 `CONTEXT.md`, ADR 和 Workflow. 新 plan 一律落在 `active/`;
+
+确定业务域和 Plan 路径后, 在访谈或写入 `story.md` 前进入 `/loop-x` 的运行态; 不要求用户先调用 `/loop-x`. 调用方传入 session 时复用; 直接调用时由脚本生成. 保留返回的 `plan` 和 `session`:
+
+```powershell
+node .agents/skills/loop-x/script/flow.mjs enter-plan --plan <plan-path> --skill /to-story
+```
 
 ```text
 docs/{domain-name}/plans/active/YYYY-MM-DD-中文工作名/
@@ -34,7 +39,11 @@ docs/{domain-name}/plans/active/YYYY-MM-DD-中文工作名/
 - 新发现的空白 → 「迷雾」节, 澄清后 graduate 为故事;
 - 调研与讨论中使用的已有产物 → 「上下文」节.
 
-**完成标准:** frontier 为空; 每条故事具有唯一有序编号和验收; 迷雾节清空, 或条目经用户确认接受; 用户确认故事集覆盖原始想法. 需要拆分为实现工作时, 带着 story.md 进入 `/to-issues`.
+**完成标准:** frontier 为空; 每条故事具有唯一有序编号和验收; 迷雾节清空, 或条目经用户确认接受; 用户确认故事集覆盖原始想法. 达标后使用保留的 flow context 登记 `/to-story=completed`, 以 `story.md` 为证据, 再把相同 `plan` 和 `session` 交给脚本返回的 `/to-issues`:
+
+```powershell
+node .agents/skills/loop-x/script/flow.mjs record-plan --plan <plan> --session <session> --skill /to-story --result completed --evidence <plan-path>/story.md
+```
 
 ## story.md 模板
 
