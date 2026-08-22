@@ -684,7 +684,10 @@ function App() {
   const cursorFilePath = cursor ? diffData?.files[cursor.fileIndex]?.path : undefined;
   useCursorFileMount({
     target: cursorFilePath
-      ? { key: `${diffDataVersion}:${cursorFilePath}`, filePath: cursorFilePath }
+      ? {
+          key: `${diffDataVersion}:${cursorFilePath}:${cursor?.chunkIndex}:${cursor?.lineIndex}:${cursor?.side}`,
+          filePath: cursorFilePath,
+        }
       : null,
     windowReady: !diffData || diffData.files.length === 0 || renderedFilePaths.size > 0,
     mounted: cursorFilePath ? renderedFilePaths.has(cursorFilePath) : false,
@@ -1641,7 +1644,7 @@ function App() {
                 {fileWindowPaddingTop > 0 && (
                   <div aria-hidden="true" style={{ height: fileWindowPaddingTop }} />
                 )}
-                {fileIndexes.map((fileIndex) => {
+                {fileIndexes.map((fileIndex: number): React.ReactNode => {
                   const file = diffData.files[fileIndex];
                   if (!file) return null;
                   const fileThreads = threadsByFile.get(file.path) ?? EMPTY_COMMENT_THREADS;
@@ -1658,10 +1661,10 @@ function App() {
                       data-index={fileIndex}
                       ref={measureFile}
                       className="pb-6"
-                      onMouseEnter={() => {
+                      onMouseEnter={(): void => {
                         hoveredFileIndexRef.current = fileIndex;
                       }}
-                      onMouseLeave={() => {
+                      onMouseLeave={(): void => {
                         if (hoveredFileIndexRef.current === fileIndex) {
                           hoveredFileIndexRef.current = null;
                         }

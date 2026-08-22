@@ -82,7 +82,9 @@ export function useLazyDiffRendering({
 
       const encodedPath = encodeURIComponent(file.path);
       fetch(`/api/generated-status/${encodedPath}?ref=${encodeURIComponent(ref)}`)
-        .then((response) => (response.ok ? response.json() : null))
+        .then((response: Response): Promise<{ isGenerated?: unknown }> | null =>
+          response.ok ? response.json() : null,
+        )
         .then((payload: { isGenerated?: unknown } | null): void => {
           if (!payload || payload.isGenerated !== true) return;
 
@@ -97,7 +99,7 @@ export function useLazyDiffRendering({
             }
 
             let changed = false;
-            const nextFiles = previous.files.map((candidate) => {
+            const nextFiles = previous.files.map((candidate): DiffResponse["files"][number] => {
               if (candidate.path !== file.path || candidate.isGenerated) return candidate;
               changed = true;
               return { ...candidate, isGenerated: true };

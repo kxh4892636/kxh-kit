@@ -25,7 +25,7 @@ const installLayoutMock = (): void => {
       bottom: top + height,
       width: 800,
       height,
-      toJSON: () => ({}),
+      toJSON: (): object => ({}),
     } as DOMRect;
   });
   Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
@@ -46,9 +46,9 @@ const installLayoutMock = (): void => {
       if (this.tagName !== "MAIN") return 0;
       const measuredFiles = this.querySelectorAll('[data-file-window-item="true"]').length;
       const spacerHeight = Array.from(this.querySelectorAll<HTMLElement>('[aria-hidden="true"]'))
-        .map((spacer) => Number.parseFloat(spacer.style.height))
+        .map((spacer: HTMLElement): number => Number.parseFloat(spacer.style.height))
         .filter(Number.isFinite)
-        .reduce((total, height) => total + height, 0);
+        .reduce((total: number, height: number): number => total + height, 0);
       return measuredFiles * FILE_HEIGHT + spacerHeight;
     },
   });
@@ -71,19 +71,22 @@ const installLayoutMock = (): void => {
 
 const FileWindowFixture = (): React.ReactNode => {
   const anchorRef = useRef<HTMLDivElement>(null);
-  const filePaths = Array.from({ length: FILE_COUNT }, (_, index) => `src/file-${index}.ts`);
+  const filePaths = Array.from(
+    { length: FILE_COUNT },
+    (_value: unknown, index: number): string => `src/file-${index}.ts`,
+  );
   const fileWindow = useFileWindow({ filePaths, anchorRef });
 
   return (
     <main className="overflow-y-auto">
-      <button type="button" onClick={() => fileWindow.ensureFileMounted(filePaths[90]!)}>
+      <button type="button" onClick={(): void => fileWindow.ensureFileMounted(filePaths[90]!)}>
         跳到靠后文件
       </button>
       <div ref={anchorRef}>
         {fileWindow.paddingTop > 0 && (
           <div aria-hidden="true" style={{ height: fileWindow.paddingTop }} />
         )}
-        {fileWindow.fileIndexes.map((fileIndex) => {
+        {fileWindow.fileIndexes.map((fileIndex: number): React.ReactNode => {
           const filePath = filePaths[fileIndex]!;
           return (
             <section
@@ -105,18 +108,18 @@ const FileWindowFixture = (): React.ReactNode => {
   );
 };
 
-describe("文件级虚拟列表", () => {
+describe("文件级虚拟列表", (): void => {
   beforeEach(installLayoutMock);
-  afterEach(() => {
+  afterEach((): void => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  it("滚动到底部后卸载远离视口的文件块", async () => {
+  it("滚动到底部后卸载远离视口的文件块", async (): Promise<void> => {
     const { container } = render(<FileWindowFixture />);
     const scrollContainer = container.querySelector("main")!;
 
-    await waitFor(() => {
+    await waitFor((): void => {
       expect(container.querySelector('[data-index="0"]')).not.toBeNull();
     });
     expect(container.querySelectorAll('[data-file-window-item="true"]').length).toBeLessThan(15);
@@ -124,27 +127,27 @@ describe("文件级虚拟列表", () => {
     scrollContainer.scrollTop = FILE_COUNT * 600 - VIEWPORT_HEIGHT;
     fireEvent.scroll(scrollContainer);
 
-    await waitFor(() => {
+    await waitFor((): void => {
       expect(container.querySelector(`[data-index="${FILE_COUNT - 1}"]`)).not.toBeNull();
     });
     expect(container.querySelector('[data-index="0"]')).toBeNull();
     expect(container.querySelectorAll('[data-file-window-item="true"]').length).toBeLessThan(15);
   });
 
-  it("导航会先挂载靠后文件再按 DOM id 定位", async () => {
+  it("导航会先挂载靠后文件再按 DOM id 定位", async (): Promise<void> => {
     const { container } = render(<FileWindowFixture />);
     const scrollContainer = container.querySelector("main")!;
-    await waitFor(() => {
+    await waitFor((): void => {
       expect(container.querySelector('[data-index="0"]')).not.toBeNull();
     });
 
     fireEvent.click(screen.getByRole("button", { name: "跳到靠后文件" }));
-    await waitFor(() => {
+    await waitFor((): void => {
       expect(scrollContainer.scrollTop).toBeGreaterThan(0);
     });
     fireEvent.scroll(scrollContainer);
 
-    await waitFor(() => {
+    await waitFor((): void => {
       expect(container.querySelector('[data-index="90"]')).not.toBeNull();
     });
     expect(container.querySelector('[data-index="0"]')).toBeNull();
