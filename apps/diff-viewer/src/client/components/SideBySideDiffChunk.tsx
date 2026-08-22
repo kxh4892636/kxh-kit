@@ -14,12 +14,14 @@ import {
   ESTIMATED_CODE_ROW_HEIGHT,
   ESTIMATED_COMMENT_FORM_HEIGHT,
   ESTIMATED_COMMENT_ROW_HEIGHT,
-} from "../constants/virtualization";
+  VIRTUALIZED_LINE_OVERSCAN,
+  VIRTUALIZED_LINE_THRESHOLD,
+} from "../virtualization/constants";
+import { useScrollVirtualizer } from "../virtualization/use-scroll-virtualizer";
 import { useFileLevelTokensLookup } from "../contexts/FileLevelTokensContext";
-import { useLineThreads } from "../hooks/diff-chunk/use-line-threads";
 import { type CursorPosition } from "../hooks/keyboardNavigation";
-import { useChunkVirtualizer } from "../hooks/useChunkVirtualizer";
-import { createWordDiffResolver } from "../utils/wordLevelDiff";
+import { createWordDiffResolver } from "../utils/word-level-diff";
+import { useLineThreads } from "../virtualization/use-line-threads";
 
 import { CommentButton } from "./CommentButton";
 import { CommentForm } from "./CommentForm";
@@ -555,12 +557,20 @@ export function SideBySideDiffChunk({
     },
     [flatRows],
   );
-  const { virtualized, virtualItems, paddingTop, paddingBottom, measureRow, scrollToRow } =
-    useChunkVirtualizer({
-      rowCount: flatRows.length,
-      estimateRowSize,
-      anchorRef,
-    });
+  const {
+    virtualized,
+    virtualItems,
+    paddingTop,
+    paddingBottom,
+    measureItem: measureRow,
+    ensureItemMounted,
+  } = useScrollVirtualizer({
+    itemCount: flatRows.length,
+    estimateItemSize: estimateRowSize,
+    anchorRef,
+    enabled: flatRows.length > VIRTUALIZED_LINE_THRESHOLD,
+    overscan: VIRTUALIZED_LINE_OVERSCAN,
+  });
 
   // cursor/评论跳转到未挂载行时, 先让虚拟器把目标行滚动进视口;
   // 已挂载时 align:"auto" 不会额外滚动, 既有 DOM 滚动逻辑照常接管
@@ -571,7 +581,10 @@ export function SideBySideDiffChunk({
         ? rowIndexByOldLineIndex.get(cursor.lineIndex)
         : rowIndexByNewLineIndex.get(cursor.lineIndex);
     if (rowIndex !== undefined) {
-      scrollToRow(rowIndex);
+      ensureItemMounted(
+        rowIndex,
+        `file-${fileIndex}-chunk-${chunkIndex}-line-${cursor.lineIndex}-${cursor.side}`,
+      );
     }
   }, [
     virtualized,
@@ -579,24 +592,22 @@ export function SideBySideDiffChunk({
     chunkIndex,
     rowIndexByOldLineIndex,
     rowIndexByNewLineIndex,
-    scrollToRow,
+    fileIndex,
+    ensureItemMounted,
   ]);
 
   const renderLineRow = (sideLineIndex: number, virtualItem?: VirtualItem) => {
     const sideLine = sideBySideLines[sideLineIndex];
     if (!sideLine) return null;
 
-    // Use the stored original indices
     const oldLineOriginalIndex = sideLine.oldLineOriginalIndex ?? -1;
     const newLineOriginalIndex = sideLine.newLineOriginalIndex ?? -1;
     const oldWordDiffSegments = wordDiffResolver(oldLineOriginalIndex);
     const newWordDiffSegments = wordDiffResolver(newLineOriginalIndex);
 
-    // Check if the current side's line matches the cursor position
     const isHighlighted = (() => {
       if (!cursor) return false;
 
-      // Only highlight the line on the current side
       if (cursor.side === "left" && oldLineOriginalIndex >= 0) {
         return cursor.chunkIndex === chunkIndex && cursor.lineIndex === oldLineOriginalIndex;
       } else if (cursor.side === "right" && newLineOriginalIndex >= 0) {
@@ -606,7 +617,6 @@ export function SideBySideDiffChunk({
       return false;
     })();
 
-    // Generate IDs for navigation with side suffix
     const oldLineNavId =
       oldLineOriginalIndex >= 0
         ? `file-${fileIndex}-chunk-${chunkIndex}-line-${oldLineOriginalIndex}-left`
@@ -616,7 +626,6 @@ export function SideBySideDiffChunk({
         ? `file-${fileIndex}-chunk-${chunkIndex}-line-${newLineOriginalIndex}-right`
         : undefined;
 
-    // Determine which cell to highlight
     const highlightOldCell = isHighlighted && cursor?.side === "left";
     const highlightNewCell = isHighlighted && cursor?.side === "right";
 
@@ -681,7 +690,6 @@ export function SideBySideDiffChunk({
           const isInNewSide =
             target.closest("td:nth-child(3)") || target.closest("td:nth-child(4)");
 
-          // Update hover state based on mouse position
           if (isInOldSide && sideLine.oldLineNumber) {
             if (hoveredLine?.side !== "old" || hoveredLine?.lineNumber !== sideLine.oldLineNumber) {
               setHoveredLine({
@@ -698,7 +706,6 @@ export function SideBySideDiffChunk({
             }
           }
 
-          // Handle dragging
           if (isDragging && startLine) {
             if (startLine.side === "old" && sideLine.oldLineNumber) {
               setEndLine({

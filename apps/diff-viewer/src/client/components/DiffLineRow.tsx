@@ -1,7 +1,7 @@
 import React from "react";
 
 import { type DiffLine, type ExpandedLine } from "../../types/diff";
-import { type DiffSegment } from "../utils/wordLevelDiff";
+import { type DiffSegment } from "../utils/word-level-diff";
 
 import { CommentButton } from "./CommentButton";
 import { DiffCodeLine } from "./DiffCodeLine";

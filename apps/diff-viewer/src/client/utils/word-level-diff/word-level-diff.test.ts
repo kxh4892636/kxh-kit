@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import type { DiffLine } from "../../types/diff";
+import type { DiffLine } from "../../../types/diff";
 
-import {
-  computeWordLevelDiff,
-  createWordDiffResolver,
-  findModifiedLinePairs,
-} from "./wordLevelDiff";
+import { computeWordLevelDiff, createWordDiffResolver, findModifiedLinePairs } from "./index";
 
 describe("findModifiedLinePairs", () => {
   it("pairs delete lines with following add lines by position", () => {

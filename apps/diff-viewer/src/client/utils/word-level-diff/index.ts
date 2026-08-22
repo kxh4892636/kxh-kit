@@ -1,6 +1,6 @@
 import { diffWords, diffWordsWithSpace } from "diff";
 
-import { type DiffLine } from "../../types/diff";
+import { type DiffLine } from "../../../types/diff";
 
 export interface DiffSegment {
   value: string;

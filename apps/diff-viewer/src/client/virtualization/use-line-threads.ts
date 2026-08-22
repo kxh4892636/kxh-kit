@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 
-import type { CommentThread, DiffSide } from "../../../types/diff";
+import type { CommentThread, DiffSide } from "../../types/diff";
 
 type GetThreadsForLine = (lineNumber: number, side: DiffSide) => CommentThread[];
 

@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 
-import { type DiffSegment } from "../utils/wordLevelDiff";
+import { type DiffSegment } from "../utils/word-level-diff";
 
 interface WordLevelDiffHighlighterProps {
   segments: DiffSegment[];

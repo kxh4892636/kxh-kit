@@ -2,15 +2,19 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { CommentThread, DiffChunk as DiffChunkData } from "../../types/diff";
+import type { CommentThread, DiffChunk as DiffChunkData, DiffFile } from "../../types/diff";
 import { WordHighlightProvider } from "../contexts/WordHighlightContext";
+import type { MergedChunk } from "../hooks/useExpandedLines";
+import { TextDiffViewer } from "../viewers/TextDiffViewer";
 
-import { DiffChunk } from "./DiffChunk";
-import { SideBySideDiffChunk } from "./SideBySideDiffChunk";
+import { DiffChunk } from "../components/DiffChunk";
+import { SideBySideDiffChunk } from "../components/SideBySideDiffChunk";
 
 const VIEWPORT_HEIGHT = 600;
 const ROW_HEIGHT = 21;
 const GIANT_LINE_COUNT = 20_000;
+const MANY_CHUNK_COUNT = 200;
+const LINES_PER_CHUNK = 100;
 
 const noop = (): void => {};
 const asyncNoop = async (): Promise<void> => {};
@@ -45,6 +49,22 @@ const buildThread = (line: number, body: string): CommentThread => ({
   ],
 });
 
+const buildManyChunks = (): MergedChunk[] =>
+  Array.from({ length: MANY_CHUNK_COUNT }, (_, chunkIndex): MergedChunk => {
+    const chunk = buildGiantChunk(LINES_PER_CHUNK);
+    return {
+      ...chunk,
+      header: `@@ chunk ${chunkIndex} @@`,
+      lines: chunk.lines.map((line, lineIndex) => ({
+        ...line,
+        newLineNumber: chunkIndex * LINES_PER_CHUNK + lineIndex + 1,
+      })),
+      originalIndices: [chunkIndex],
+      hiddenLinesBefore: chunkIndex === 0 ? 0 : 10,
+      hiddenLinesAfter: 0,
+    };
+  });
+
 const baseProps = {
   chunkIndex: 0,
   onAddComment: asyncNoop,
@@ -69,7 +89,12 @@ const installLayoutMock = (): void => {
     const el = this as HTMLElement;
     const isScroller = el.tagName === "MAIN";
     const scroller = isScroller ? null : el.closest("main");
-    const height = isScroller ? VIEWPORT_HEIGHT : ROW_HEIGHT;
+    const estimatedHeight = Number.parseFloat(el.dataset.estimatedHeight ?? "");
+    const height = isScroller
+      ? VIEWPORT_HEIGHT
+      : Number.isFinite(estimatedHeight)
+        ? estimatedHeight
+        : ROW_HEIGHT;
     const top = isScroller ? 0 : -(scroller?.scrollTop ?? 0);
     return {
       x: 0,
@@ -86,7 +111,9 @@ const installLayoutMock = (): void => {
   Object.defineProperty(HTMLElement.prototype, "offsetHeight", {
     configurable: true,
     get(this: HTMLElement) {
-      return this.tagName === "MAIN" ? VIEWPORT_HEIGHT : ROW_HEIGHT;
+      if (this.tagName === "MAIN") return VIEWPORT_HEIGHT;
+      const estimatedHeight = Number.parseFloat(this.dataset.estimatedHeight ?? "");
+      return Number.isFinite(estimatedHeight) ? estimatedHeight : ROW_HEIGHT;
     },
   });
   Object.defineProperty(HTMLElement.prototype, "clientHeight", {
@@ -105,6 +132,10 @@ const installLayoutMock = (): void => {
         const cell = tr.firstElementChild as HTMLElement | null;
         const explicit = Number.parseFloat(tr.style.height || cell?.style.height || "");
         total += Number.isFinite(explicit) ? explicit : ROW_HEIGHT;
+      });
+      this.querySelectorAll<HTMLElement>('div[aria-hidden="true"]').forEach((spacer) => {
+        const explicit = Number.parseFloat(spacer.style.height);
+        if (Number.isFinite(explicit)) total += explicit;
       });
       return total;
     },
@@ -163,7 +194,103 @@ describe("行级虚拟列表", () => {
     expect(rows.length).toBeLessThan(200);
   });
 
-  it("cursor 跳转到 unified 未挂载行时该行被挂载", async () => {
+  it("由大量小 chunk 组成的数万行文件仍只挂载视口附近 chunk 与展开按钮", async () => {
+    const mergedChunks = buildManyChunks();
+    const file: DiffFile = {
+      path: "src/many-hunks.ts",
+      status: "modified",
+      additions: MANY_CHUNK_COUNT * LINES_PER_CHUNK,
+      deletions: 0,
+      chunks: mergedChunks,
+    };
+    const { container } = renderChunk(
+      <TextDiffViewer
+        file={file}
+        threads={[]}
+        diffMode="unified"
+        mergedChunks={mergedChunks}
+        isExpandLoading={false}
+        expandHiddenLines={asyncNoop}
+        expandAllBetweenChunks={asyncNoop}
+        onAddComment={asyncNoop}
+        onGenerateThreadPrompt={() => ""}
+        onRemoveThread={noop}
+        onReplyToThread={asyncNoop}
+        onRemoveMessage={noop}
+        onUpdateMessage={noop}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector('[data-virtual-chunk="true"]')).not.toBeNull();
+    });
+
+    expect(container.querySelectorAll('[data-virtual-chunk="true"]').length).toBeLessThan(10);
+    expect(container.querySelectorAll('[data-diff-line-row="true"]').length).toBeLessThan(1_000);
+    expect(screen.queryAllByRole("button", { name: /Expand/ }).length).toBeLessThan(10);
+  });
+
+  it("跨 chunk 跳转会先挂载远端 chunk 再挂载目标行", async () => {
+    const mergedChunks = buildManyChunks();
+    const file: DiffFile = {
+      path: "src/many-hunks.ts",
+      status: "modified",
+      additions: MANY_CHUNK_COUNT * LINES_PER_CHUNK,
+      deletions: 0,
+      chunks: mergedChunks,
+    };
+    const { container, rerender } = renderChunk(
+      <TextDiffViewer
+        file={file}
+        threads={[]}
+        diffMode="unified"
+        mergedChunks={mergedChunks}
+        isExpandLoading={false}
+        expandHiddenLines={asyncNoop}
+        expandAllBetweenChunks={asyncNoop}
+        onAddComment={asyncNoop}
+        onGenerateThreadPrompt={() => ""}
+        onRemoveThread={noop}
+        onReplyToThread={asyncNoop}
+        onRemoveMessage={noop}
+        onUpdateMessage={noop}
+      />,
+    );
+    await waitFor(() => {
+      expect(container.querySelector('[data-virtual-chunk="true"]')).not.toBeNull();
+    });
+    expect(container.querySelector('[id="file-0-chunk-150-line-50"]')).toBeNull();
+
+    rerender(
+      <main className="overflow-y-auto">
+        <WordHighlightProvider>
+          <TextDiffViewer
+            file={file}
+            threads={[]}
+            diffMode="unified"
+            mergedChunks={mergedChunks}
+            isExpandLoading={false}
+            expandHiddenLines={asyncNoop}
+            expandAllBetweenChunks={asyncNoop}
+            onAddComment={asyncNoop}
+            onGenerateThreadPrompt={() => ""}
+            onRemoveThread={noop}
+            onReplyToThread={asyncNoop}
+            onRemoveMessage={noop}
+            onUpdateMessage={noop}
+            cursor={{ fileIndex: 0, chunkIndex: 150, lineIndex: 50, side: "right" }}
+          />
+        </WordHighlightProvider>
+      </main>,
+    );
+    fireEvent.scroll(container.querySelector("main")!);
+
+    await waitFor(() => {
+      expect(container.querySelector('[id="file-0-chunk-150-line-50"]')).not.toBeNull();
+    });
+  });
+
+  it("cursor 跳转到 unified 未挂载行时先挂载目标再执行 DOM-id 滚动", async () => {
     const chunk = buildGiantChunk(GIANT_LINE_COUNT);
     const { container, rerender } = renderChunk(
       <DiffChunk {...unifiedProps} chunk={chunk} threads={[]} cursor={null} />,
@@ -172,6 +299,18 @@ describe("行级虚拟列表", () => {
       expect(container.querySelector('[data-diff-line-row="true"]')).not.toBeNull();
     });
     expect(container.querySelector('[id="file-0-chunk-0-line-2500"]')).toBeNull();
+
+    const main = container.querySelector("main")!;
+    const assignedScrollTops: number[] = [];
+    let scrollTop = 0;
+    Object.defineProperty(main, "scrollTop", {
+      configurable: true,
+      get: (): number => scrollTop,
+      set: (value: number): void => {
+        scrollTop = value;
+        assignedScrollTops.push(value);
+      },
+    });
 
     rerender(
       <main className="overflow-y-auto">
@@ -186,10 +325,13 @@ describe("行级虚拟列表", () => {
       </main>,
     );
     // 浏览器中程序式滚动会异步派发 scroll 事件, happy-dom 需要手动补发
-    fireEvent.scroll(container.querySelector("main")!);
+    fireEvent.scroll(main);
 
     await waitFor(() => {
       expect(container.querySelector('[id="file-0-chunk-0-line-2500"]')).not.toBeNull();
+    });
+    await waitFor(() => {
+      expect(assignedScrollTops.length).toBeGreaterThan(1);
     });
   });
 

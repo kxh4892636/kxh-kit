@@ -16,11 +16,13 @@ import {
   ESTIMATED_CODE_ROW_HEIGHT,
   ESTIMATED_COMMENT_FORM_HEIGHT,
   ESTIMATED_COMMENT_ROW_HEIGHT,
-} from "../constants/virtualization";
+  VIRTUALIZED_LINE_OVERSCAN,
+  VIRTUALIZED_LINE_THRESHOLD,
+} from "../virtualization/constants";
+import { useScrollVirtualizer } from "../virtualization/use-scroll-virtualizer";
 import { type CursorPosition } from "../hooks/keyboardNavigation";
-import { useLineThreads } from "../hooks/diff-chunk/use-line-threads";
-import { useChunkVirtualizer } from "../hooks/useChunkVirtualizer";
-import { createWordDiffResolver } from "../utils/wordLevelDiff";
+import { createWordDiffResolver } from "../utils/word-level-diff";
+import { useLineThreads } from "../virtualization/use-line-threads";
 
 import { CommentForm } from "./CommentForm";
 import { CommentThreadCard } from "./CommentThreadCard";
@@ -320,7 +322,7 @@ export const DiffChunk = memo(function DiffChunk({
     return "";
   };
 
-  // word-level diff 惰性解析: 配对扫描是廉价的 O(n), 逐词 diff 只在实际挂载的
+  // 词级差异惰性解析: 配对扫描是廉价的 O(n), 逐词 diff 只在实际挂载的
   // 行上发生, 大 chunk 不再为视口外的行付 CPU (渲染结果与原全量预计算一致)
   const wordDiffResolver = useMemo(() => createWordDiffResolver(chunk.lines), [chunk.lines]);
 
@@ -344,8 +346,6 @@ export const DiffChunk = memo(function DiffChunk({
       indexes[index] = rows.length;
       rows.push({ kind: "line", lineIndex: index });
 
-      // Delete lines: use oldLineNumber and 'old' side
-      // Add/normal lines: use newLineNumber and 'new' side
       const commentLineNumber = line.type === "delete" ? line.oldLineNumber : line.newLineNumber;
       const commentSide: DiffSide = line.type === "delete" ? "old" : "new";
       if (commentLineNumber) {
@@ -376,12 +376,20 @@ export const DiffChunk = memo(function DiffChunk({
     },
     [flatRows],
   );
-  const { virtualized, virtualItems, paddingTop, paddingBottom, measureRow, scrollToRow } =
-    useChunkVirtualizer({
-      rowCount: flatRows.length,
-      estimateRowSize,
-      anchorRef,
-    });
+  const {
+    virtualized,
+    virtualItems,
+    paddingTop,
+    paddingBottom,
+    measureItem: measureRow,
+    ensureItemMounted,
+  } = useScrollVirtualizer({
+    itemCount: flatRows.length,
+    estimateItemSize: estimateRowSize,
+    anchorRef,
+    enabled: flatRows.length > VIRTUALIZED_LINE_THRESHOLD,
+    overscan: VIRTUALIZED_LINE_OVERSCAN,
+  });
 
   // cursor/评论跳转到未挂载行时, 先让虚拟器把目标行滚动进视口;
   // 已挂载时 align:"auto" 不会额外滚动, 既有 DOM 滚动逻辑照常接管
@@ -389,9 +397,9 @@ export const DiffChunk = memo(function DiffChunk({
     if (!virtualized || !cursor || cursor.chunkIndex !== chunkIndex) return;
     const rowIndex = lineRowIndexes[cursor.lineIndex];
     if (rowIndex !== undefined) {
-      scrollToRow(rowIndex);
+      ensureItemMounted(rowIndex, `file-${fileIndex}-chunk-${chunkIndex}-line-${cursor.lineIndex}`);
     }
-  }, [virtualized, cursor, chunkIndex, lineRowIndexes, scrollToRow]);
+  }, [virtualized, cursor, fileIndex, chunkIndex, lineRowIndexes, ensureItemMounted]);
 
   // Use side-by-side component for split mode
   if (mode === "split") {
@@ -423,12 +431,8 @@ export const DiffChunk = memo(function DiffChunk({
     const line = chunk.lines[lineIndex];
     if (!line) return null;
 
-    // Determine which line number and side to use for fetching comments
-    // Delete lines: use oldLineNumber and 'old' side
-    // Add/normal lines: use newLineNumber and 'new' side
     const commentLineNumber = line.type === "delete" ? line.oldLineNumber : line.newLineNumber;
     const commentSide: DiffSide = line.type === "delete" ? "old" : "new";
-    // Generate ID for all lines to match the format used in useKeyboardNavigation
     const lineId = `file-${fileIndex}-chunk-${chunkIndex}-line-${lineIndex}`;
     const isCurrentLine =
       cursor && cursor.chunkIndex === chunkIndex && cursor.lineIndex === lineIndex;
@@ -489,7 +493,6 @@ export const DiffChunk = memo(function DiffChunk({
         filename={filename}
         diffSegments={wordDiffResolver(lineIndex)}
         onClick={(e) => {
-          // Determine the side based on line type for unified mode
           const side = line.type === "delete" ? "left" : "right";
           if (e.shiftKey) {
             e.preventDefault();
