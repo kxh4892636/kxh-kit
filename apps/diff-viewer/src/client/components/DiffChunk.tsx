@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo, memo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, memo, type ReactNode } from "react";
+
+import { type VirtualItem } from "@tanstack/react-virtual";
 
 import {
   type DiffChunk as DiffChunkType,
@@ -10,12 +12,17 @@ import {
   type LineSelection,
 } from "../../types/diff";
 import { DEFAULT_DIFF_VIEW_MODE } from "../../utils/diffMode";
-import { type CursorPosition } from "../hooks/keyboardNavigation";
 import {
-  computeWordLevelDiff,
-  shouldComputeWordDiff,
-  type DiffSegment,
-} from "../utils/wordLevelDiff";
+  ESTIMATED_CODE_ROW_HEIGHT,
+  ESTIMATED_COMMENT_FORM_HEIGHT,
+  ESTIMATED_COMMENT_ROW_HEIGHT,
+} from "../virtualization/constants";
+import { useRowWindow } from "../virtualization/use-row-window";
+import { type CursorPosition } from "../hooks/keyboardNavigation";
+import { createWordDiffResolver } from "../utils/word-level-diff";
+import { useLineThreads } from "../virtualization/use-line-threads";
+import { createUnifiedRowModel } from "../virtualization/row-models";
+import { VirtualTableBody } from "../virtualization/virtual-table-body";
 
 import { CommentForm } from "./CommentForm";
 import { CommentThreadCard } from "./CommentThreadCard";
@@ -258,17 +265,7 @@ export const DiffChunk = memo(function DiffChunk({
     [commentingLine, onAddComment, getSelectedCodeContent],
   );
 
-  const getThreadsForLine = (lineNumber: number, side: DiffSide) => {
-    return threads
-      .filter((thread) => {
-        const lineMatches = Array.isArray(thread.line)
-          ? thread.line[1] === lineNumber
-          : thread.line === lineNumber;
-        const sideMatches = !thread.side || thread.side === side;
-        return lineMatches && sideMatches;
-      })
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  };
+  const getThreadsForLine = useLineThreads(threads);
 
   const getCommentLayout = (line: DiffLine): "left" | "right" | "full" => {
     // In unified mode, always use full width for comments
@@ -325,65 +322,42 @@ export const DiffChunk = memo(function DiffChunk({
     return "";
   };
 
-  // Compute word-level diff for unified mode
-  // Maps line index to diff segments for that line
-  const wordLevelDiffMap = useMemo(() => {
-    const map = new Map<number, DiffSegment[]>();
-    const lines = chunk.lines;
+  // 词级差异惰性解析: 配对扫描是廉价的 O(n), 逐词 diff 只在实际挂载的
+  // 行上发生, 大 chunk 不再为视口外的行付 CPU (渲染结果与原全量预计算一致)
+  const wordDiffResolver = useMemo(() => createWordDiffResolver(chunk.lines), [chunk.lines]);
 
-    let i = 0;
-    while (i < lines.length) {
-      const line = lines[i];
-      if (!line) {
-        i++;
-        continue;
-      }
+  // 压平行模型: 代码行 + 锚定其后的评论卡片行/评论表单行。行数低于阈值时逐行
+  // 渲染与原实现等价; 超过阈值时作为虚拟列表的行源
+  const { rows: flatRows, lineRowIndexes } = useMemo(
+    () => createUnifiedRowModel({ lines: chunk.lines, commentingLine, getThreadsForLine }),
+    [chunk.lines, getThreadsForLine, commentingLine],
+  );
 
-      if (line.type === "delete") {
-        // Look ahead for corresponding add lines
-        let j = i + 1;
-        while (j < lines.length && lines[j]?.type === "delete") {
-          j++;
-        }
-
-        const deleteLines = lines.slice(i, j);
-        const deleteStartIndex = i;
-        const addLines: { line: DiffLine; index: number }[] = [];
-
-        while (j < lines.length && lines[j]?.type === "add") {
-          const addLine = lines[j];
-          if (addLine) {
-            addLines.push({ line: addLine, index: j });
-          }
-          j++;
-        }
-
-        // Pair delete and add lines and compute word-level diff
-        const maxLines = Math.max(deleteLines.length, addLines.length);
-        for (let k = 0; k < maxLines; k++) {
-          const deleteLine = deleteLines[k];
-          const addLineInfo = addLines[k];
-
-          if (deleteLine && addLineInfo) {
-            if (shouldComputeWordDiff(deleteLine.content, addLineInfo.line.content)) {
-              const wordLevelDiff = computeWordLevelDiff(
-                deleteLine.content,
-                addLineInfo.line.content,
-              );
-              map.set(deleteStartIndex + k, wordLevelDiff.oldSegments);
-              map.set(addLineInfo.index, wordLevelDiff.newSegments);
-            }
-          }
-        }
-
-        i = j;
-      } else {
-        i++;
-      }
-    }
-
-    return map;
-  }, [chunk.lines]);
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const estimateRowSize = useCallback(
+    (rowIndex: number): number => {
+      const row = flatRows[rowIndex];
+      if (!row || row.kind === "line") return ESTIMATED_CODE_ROW_HEIGHT;
+      return row.kind === "thread" ? ESTIMATED_COMMENT_ROW_HEIGHT : ESTIMATED_COMMENT_FORM_HEIGHT;
+    },
+    [flatRows],
+  );
+  const {
+    virtualized,
+    virtualItems,
+    paddingTop,
+    paddingBottom,
+    measureItem: measureRow,
+  } = useRowWindow({
+    rowCount: flatRows.length,
+    estimateRowSize,
+    anchorRef,
+    targetRowIndex:
+      cursor?.chunkIndex === chunkIndex ? lineRowIndexes[cursor.lineIndex] : undefined,
+    targetElementId: cursor
+      ? `file-${fileIndex}-chunk-${chunkIndex}-line-${cursor.lineIndex}`
+      : undefined,
+  });
 
   // Use side-by-side component for split mode
   if (mode === "split") {
@@ -411,166 +385,187 @@ export const DiffChunk = memo(function DiffChunk({
     );
   }
 
+  const renderLineRow = (lineIndex: number, virtualItem?: VirtualItem): ReactNode => {
+    const line = chunk.lines[lineIndex];
+    if (!line) return null;
+
+    const commentLineNumber = line.type === "delete" ? line.oldLineNumber : line.newLineNumber;
+    const commentSide: DiffSide = line.type === "delete" ? "old" : "new";
+    const lineId = `file-${fileIndex}-chunk-${chunkIndex}-line-${lineIndex}`;
+    const isCurrentLine =
+      cursor && cursor.chunkIndex === chunkIndex && cursor.lineIndex === lineIndex;
+    const selection = commentLineNumber
+      ? { side: commentSide, lineNumber: commentLineNumber }
+      : null;
+
+    return (
+      <DiffLineRow
+        key={virtualItem ? virtualItem.key : `line-${lineIndex}`}
+        ref={virtualItem ? measureRow : undefined}
+        dataIndex={virtualItem?.index}
+        line={line}
+        index={lineIndex}
+        lineId={lineId}
+        isCurrentLine={isCurrentLine || false}
+        hoveredLineIndex={hoveredLine}
+        selectedLineStyle={getSelectedLineStyle(
+          line.newLineNumber || line.oldLineNumber,
+          line.type === "delete" ? "old" : "new",
+        )}
+        onMouseEnter={() => {
+          setHoveredLine(lineIndex);
+        }}
+        onMouseLeave={() => setHoveredLine(null)}
+        onMouseMove={() => {
+          if (isDragging && startLine) {
+            const lineNumber = line.newLineNumber || line.oldLineNumber;
+            if (lineNumber) {
+              setEndLine(lineNumber);
+            }
+          }
+        }}
+        onCommentButtonMouseDown={(e) => {
+          e.stopPropagation();
+          if (e.shiftKey) {
+            e.preventDefault();
+          }
+          handleCommentButtonMouseDown({
+            isShiftClick: e.shiftKey,
+            selection,
+          });
+        }}
+        onOpenInEditor={
+          onOpenInEditor &&
+          filename &&
+          line.type !== "delete" &&
+          (line.newLineNumber || line.oldLineNumber)
+            ? () => {
+                const lineNumber = line.newLineNumber || line.oldLineNumber;
+                if (!lineNumber) return;
+                if (!filename) return;
+                onOpenInEditor(filename, lineNumber);
+              }
+            : undefined
+        }
+        syntaxTheme={syntaxTheme}
+        filename={filename}
+        diffSegments={wordDiffResolver(lineIndex)}
+        onClick={(e) => {
+          const side = line.type === "delete" ? "left" : "right";
+          if (e.shiftKey) {
+            e.preventDefault();
+          }
+          handleRowClick({
+            isShiftClick: e.shiftKey,
+            lineIndex,
+            navigationSide: side,
+            selection,
+          });
+        }}
+      />
+    );
+  };
+
+  const renderThreadRow = (
+    thread: CommentThread,
+    anchorLine: DiffLine,
+    virtualItem?: VirtualItem,
+  ): ReactNode => {
+    const layout = getCommentLayout(anchorLine);
+    return (
+      <tr
+        key={virtualItem ? virtualItem.key : thread.id}
+        ref={virtualItem ? measureRow : undefined}
+        data-index={virtualItem?.index}
+        className="bg-github-bg-secondary"
+      >
+        <td colSpan={3} className="p-0 border-t border-github-border">
+          <div
+            className={`flex ${
+              layout === "left"
+                ? "justify-start"
+                : layout === "right"
+                  ? "justify-end"
+                  : "justify-center"
+            }`}
+          >
+            <div className={`${layout === "full" ? "w-full" : "w-1/2"} m-2 mx-4`}>
+              <CommentThreadCard
+                thread={thread}
+                showAuthorBadges={showAuthorBadges}
+                onGeneratePrompt={onGenerateThreadPrompt}
+                onRemoveThread={onRemoveThread}
+                onReplyToThread={onReplyToThread}
+                onRemoveMessage={onRemoveMessage}
+                onUpdateMessage={onUpdateMessage}
+                syntaxTheme={syntaxTheme}
+              />
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  const renderFormRow = (lineIndex: number, virtualItem?: VirtualItem): ReactNode => {
+    const line = chunk.lines[lineIndex];
+    if (!line) return null;
+
+    return (
+      <tr
+        key={virtualItem ? virtualItem.key : `form-${lineIndex}`}
+        ref={virtualItem ? measureRow : undefined}
+        data-index={virtualItem?.index}
+        className="bg-[var(--bg-secondary)]"
+      >
+        <td colSpan={3} className="p-0">
+          <div
+            className={`flex ${
+              getCommentLayout(line) === "left"
+                ? "justify-start"
+                : getCommentLayout(line) === "right"
+                  ? "justify-end"
+                  : "justify-center"
+            }`}
+          >
+            <div className={`${getCommentLayout(line) === "full" ? "w-full" : "w-1/2"}`}>
+              <CommentForm
+                onSubmit={handleSubmitComment}
+                onCancel={handleCancelComment}
+                selectedCode={getSelectedCodeContent()}
+                syntaxTheme={syntaxTheme}
+                filename={filename}
+              />
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  const renderRow = (row: (typeof flatRows)[number], virtualItem?: VirtualItem): ReactNode => {
+    if (row.kind === "line") {
+      return renderLineRow(row.lineIndex, virtualItem);
+    }
+    if (row.kind === "thread" && row.thread) {
+      const anchorLine = chunk.lines[row.lineIndex];
+      return anchorLine ? renderThreadRow(row.thread, anchorLine, virtualItem) : null;
+    }
+    return renderFormRow(row.lineIndex, virtualItem);
+  };
+
   return (
-    <div className="bg-github-bg-primary">
+    <div ref={anchorRef} className="bg-github-bg-primary">
       <table className="w-full table-fixed border-collapse font-mono text-sm leading-5">
-        <tbody>
-          {chunk.lines.map((line, index) => {
-            const currentLineNumber = line.newLineNumber || line.oldLineNumber || 0;
-            const currentLineSide: DiffSide = line.type === "delete" ? "old" : "new";
-            const formTargetLineNumber = commentingLine
-              ? Array.isArray(commentingLine.lineNumber)
-                ? commentingLine.lineNumber[1]
-                : commentingLine.lineNumber
-              : null;
-
-            // Determine which line number and side to use for fetching comments
-            // Delete lines: use oldLineNumber and 'old' side
-            // Add/normal lines: use newLineNumber and 'new' side
-            const commentLineNumber =
-              line.type === "delete" ? line.oldLineNumber : line.newLineNumber;
-            const commentSide: DiffSide = line.type === "delete" ? "old" : "new";
-            const lineThreads = commentLineNumber
-              ? getThreadsForLine(commentLineNumber, commentSide)
-              : [];
-            // Generate ID for all lines to match the format used in useKeyboardNavigation
-            const lineId = `file-${fileIndex}-chunk-${chunkIndex}-line-${index}`;
-            const isCurrentLine =
-              cursor && cursor.chunkIndex === chunkIndex && cursor.lineIndex === index;
-            const selection = commentLineNumber
-              ? { side: commentSide, lineNumber: commentLineNumber }
-              : null;
-
-            return (
-              <React.Fragment key={index}>
-                <DiffLineRow
-                  line={line}
-                  index={index}
-                  lineId={lineId}
-                  isCurrentLine={isCurrentLine || false}
-                  hoveredLineIndex={hoveredLine}
-                  selectedLineStyle={getSelectedLineStyle(
-                    line.newLineNumber || line.oldLineNumber,
-                    line.type === "delete" ? "old" : "new",
-                  )}
-                  onMouseEnter={() => {
-                    setHoveredLine(index);
-                  }}
-                  onMouseLeave={() => setHoveredLine(null)}
-                  onMouseMove={() => {
-                    if (isDragging && startLine) {
-                      const lineNumber = line.newLineNumber || line.oldLineNumber;
-                      if (lineNumber) {
-                        setEndLine(lineNumber);
-                      }
-                    }
-                  }}
-                  onCommentButtonMouseDown={(e) => {
-                    e.stopPropagation();
-                    if (e.shiftKey) {
-                      e.preventDefault();
-                    }
-                    handleCommentButtonMouseDown({
-                      isShiftClick: e.shiftKey,
-                      selection,
-                    });
-                  }}
-                  onOpenInEditor={
-                    onOpenInEditor &&
-                    filename &&
-                    line.type !== "delete" &&
-                    (line.newLineNumber || line.oldLineNumber)
-                      ? () => {
-                          const lineNumber = line.newLineNumber || line.oldLineNumber;
-                          if (!lineNumber) return;
-                          if (!filename) return;
-                          onOpenInEditor(filename, lineNumber);
-                        }
-                      : undefined
-                  }
-                  syntaxTheme={syntaxTheme}
-                  filename={filename}
-                  diffSegments={wordLevelDiffMap.get(index)}
-                  onClick={(e) => {
-                    // Determine the side based on line type for unified mode
-                    const side = line.type === "delete" ? "left" : "right";
-                    if (e.shiftKey) {
-                      e.preventDefault();
-                    }
-                    handleRowClick({
-                      isShiftClick: e.shiftKey,
-                      lineIndex: index,
-                      navigationSide: side,
-                      selection,
-                    });
-                  }}
-                />
-
-                {lineThreads.map((thread) => {
-                  const layout = getCommentLayout(line);
-                  return (
-                    <tr key={thread.id} className="bg-github-bg-secondary">
-                      <td colSpan={3} className="p-0 border-t border-github-border">
-                        <div
-                          className={`flex ${
-                            layout === "left"
-                              ? "justify-start"
-                              : layout === "right"
-                                ? "justify-end"
-                                : "justify-center"
-                          }`}
-                        >
-                          <div className={`${layout === "full" ? "w-full" : "w-1/2"} m-2 mx-4`}>
-                            <CommentThreadCard
-                              thread={thread}
-                              showAuthorBadges={showAuthorBadges}
-                              onGeneratePrompt={onGenerateThreadPrompt}
-                              onRemoveThread={onRemoveThread}
-                              onReplyToThread={onReplyToThread}
-                              onRemoveMessage={onRemoveMessage}
-                              onUpdateMessage={onUpdateMessage}
-                              syntaxTheme={syntaxTheme}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-
-                {commentingLine &&
-                  commentingLine.side === currentLineSide &&
-                  formTargetLineNumber === currentLineNumber && (
-                    <tr className="bg-[var(--bg-secondary)]">
-                      <td colSpan={3} className="p-0">
-                        <div
-                          className={`flex ${
-                            getCommentLayout(line) === "left"
-                              ? "justify-start"
-                              : getCommentLayout(line) === "right"
-                                ? "justify-end"
-                                : "justify-center"
-                          }`}
-                        >
-                          <div
-                            className={`${getCommentLayout(line) === "full" ? "w-full" : "w-1/2"}`}
-                          >
-                            <CommentForm
-                              onSubmit={handleSubmitComment}
-                              onCancel={handleCancelComment}
-                              selectedCode={getSelectedCodeContent()}
-                              syntaxTheme={syntaxTheme}
-                              filename={filename}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-              </React.Fragment>
-            );
-          })}
-        </tbody>
+        <VirtualTableBody
+          rows={flatRows}
+          virtualized={virtualized}
+          virtualItems={virtualItems}
+          paddingTop={paddingTop}
+          paddingBottom={paddingBottom}
+          colSpan={3}
+          renderRow={renderRow}
+        />
       </table>
     </div>
   );

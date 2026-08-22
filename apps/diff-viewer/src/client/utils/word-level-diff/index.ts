@@ -1,5 +1,7 @@
 import { diffWords, diffWordsWithSpace } from "diff";
 
+import { type DiffLine } from "../../../types/diff";
+
 export interface DiffSegment {
   value: string;
   type: "unchanged" | "added" | "removed";
@@ -70,3 +72,71 @@ export function shouldComputeWordDiff(oldContent: string, newContent: string): b
   const similarityRatio = unchangedLength / totalLength;
   return similarityRatio >= 0.2;
 }
+
+export interface ModifiedLinePair {
+  oldContent: string;
+  newContent: string;
+  side: "old" | "new";
+}
+
+/** 只扫描并配对相邻的删除/新增行；昂贵的词级差异留到对应行实际挂载时计算。 */
+export const findModifiedLinePairs = (lines: DiffLine[]): Map<number, ModifiedLinePair> => {
+  const pairs = new Map<number, ModifiedLinePair>();
+
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (!line || line.type !== "delete") {
+      i++;
+      continue;
+    }
+
+    let j = i + 1;
+    while (j < lines.length && lines[j]?.type === "delete") {
+      j++;
+    }
+    const deleteStartIndex = i;
+    const deleteCount = j - i;
+    const addStartIndex = j;
+    while (j < lines.length && lines[j]?.type === "add") {
+      j++;
+    }
+    const addCount = j - addStartIndex;
+
+    const pairCount = Math.min(deleteCount, addCount);
+    for (let k = 0; k < pairCount; k++) {
+      const oldContent = lines[deleteStartIndex + k]?.content ?? "";
+      const newContent = lines[addStartIndex + k]?.content ?? "";
+      pairs.set(deleteStartIndex + k, { oldContent, newContent, side: "old" });
+      pairs.set(addStartIndex + k, { oldContent, newContent, side: "new" });
+    }
+
+    i = j;
+  }
+
+  return pairs;
+};
+
+/** 虚拟列表只为实际挂载的行计算并缓存词级差异。 */
+export const createWordDiffResolver = (
+  lines: DiffLine[],
+): ((lineIndex: number) => DiffSegment[] | undefined) => {
+  const pairs = findModifiedLinePairs(lines);
+  const cache = new Map<number, DiffSegment[] | undefined>();
+
+  return (lineIndex) => {
+    if (cache.has(lineIndex)) {
+      return cache.get(lineIndex);
+    }
+
+    const pair = pairs.get(lineIndex);
+    let segments: DiffSegment[] | undefined;
+    if (pair && shouldComputeWordDiff(pair.oldContent, pair.newContent)) {
+      const result = computeWordLevelDiff(pair.oldContent, pair.newContent);
+      segments = pair.side === "old" ? result.oldSegments : result.newSegments;
+    }
+
+    cache.set(lineIndex, segments);
+    return segments;
+  };
+};

@@ -1,6 +1,6 @@
 import { type DiffLine, type ExpandedLine } from "../../types/diff";
 import { useFileLevelTokensLookup } from "../contexts/FileLevelTokensContext";
-import { type DiffSegment } from "../utils/wordLevelDiff";
+import { type DiffSegment } from "../utils/word-level-diff";
 
 import { EnhancedPrismSyntaxHighlighter } from "./EnhancedPrismSyntaxHighlighter";
 import type { AppearanceSettings } from "./SettingsModal";

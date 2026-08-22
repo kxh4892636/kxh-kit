@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 ---
 
 # 阅读体验优化
@@ -62,9 +62,9 @@ status: in_progress
 
 ## Issue
 
-| #   | Issue                                                         | 状态        | 阻塞于 | 下一步     |
-| --- | ------------------------------------------------------------- | ----------- | ------ | ---------- |
-| 01  | [ignore whitespace 重扫修复](01-ignore-whitespace重扫修复.md) | completed   | —      | /implement |
-| 02  | [默认浅色主题](02-默认浅色主题.md)                            | completed   | —      | /implement |
-| 03  | [行级虚拟列表](03-行级虚拟列表.md)                            | in_progress | —      | /implement |
-| 04  | [文件级虚拟列表](04-文件级虚拟列表.md)                        | pending     | 03     | /implement |
+| #   | Issue                                                         | 状态      | 阻塞于 | 下一步     |
+| --- | ------------------------------------------------------------- | --------- | ------ | ---------- |
+| 01  | [ignore whitespace 重扫修复](01-ignore-whitespace重扫修复.md) | completed | —      | /implement |
+| 02  | [默认浅色主题](02-默认浅色主题.md)                            | completed | —      | /implement |
+| 03  | [行级虚拟列表](03-行级虚拟列表.md)                            | completed | —      | /implement |
+| 04  | [文件级虚拟列表](04-文件级虚拟列表.md)                        | completed | 03     | /implement |

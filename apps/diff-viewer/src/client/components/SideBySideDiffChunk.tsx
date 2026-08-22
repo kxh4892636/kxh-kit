@@ -1,4 +1,6 @@
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
+
+import { type VirtualItem } from "@tanstack/react-virtual";
 
 import {
   type DiffChunk as DiffChunkType,
@@ -8,13 +10,18 @@ import {
   type LineNumber,
   type LineSelection,
 } from "../../types/diff";
-import { type CursorPosition } from "../hooks/keyboardNavigation";
 import {
-  computeWordLevelDiff,
-  shouldComputeWordDiff,
-  type WordLevelDiffResult,
-} from "../utils/wordLevelDiff";
+  ESTIMATED_CODE_ROW_HEIGHT,
+  ESTIMATED_COMMENT_FORM_HEIGHT,
+  ESTIMATED_COMMENT_ROW_HEIGHT,
+} from "../virtualization/constants";
+import { useRowWindow } from "../virtualization/use-row-window";
 import { useFileLevelTokensLookup } from "../contexts/FileLevelTokensContext";
+import { type CursorPosition } from "../hooks/keyboardNavigation";
+import { createWordDiffResolver } from "../utils/word-level-diff";
+import { useLineThreads } from "../virtualization/use-line-threads";
+import { createSplitRowModel } from "../virtualization/row-models";
+import { VirtualTableBody } from "../virtualization/virtual-table-body";
 
 import { CommentButton } from "./CommentButton";
 import { CommentForm } from "./CommentForm";
@@ -66,7 +73,6 @@ interface SideBySideLine {
   newLineNumber?: number;
   oldLineOriginalIndex?: number;
   newLineOriginalIndex?: number;
-  wordLevelDiff?: WordLevelDiffResult;
 }
 
 interface ClickedLineTarget {
@@ -138,6 +144,82 @@ const getClickedLineTarget = (
     lineIndex: sideLine.newLineOriginalIndex,
     navigationSide: "right",
   };
+};
+
+type ThreadCardActions = Pick<
+  SideBySideDiffChunkProps,
+  | "showAuthorBadges"
+  | "onGenerateThreadPrompt"
+  | "onRemoveThread"
+  | "onReplyToThread"
+  | "onRemoveMessage"
+  | "onUpdateMessage"
+  | "syntaxTheme"
+>;
+
+interface SplitThreadsRowProps {
+  sideLine: SideBySideLine;
+  virtualItem?: VirtualItem;
+  measureRow: (node: HTMLElement | null) => void;
+  getThreadsForLine: (lineNumber: number, side: DiffSide) => CommentThread[];
+  getCommentLayout: (sideLine: SideBySideLine) => "left" | "right" | "full";
+  actions: ThreadCardActions;
+}
+
+const SplitThreadsRow = (props: SplitThreadsRowProps): ReactNode => {
+  const { sideLine, virtualItem, measureRow, getThreadsForLine, getCommentLayout, actions } = props;
+  const oldThreads = sideLine.oldLineNumber ? getThreadsForLine(sideLine.oldLineNumber, "old") : [];
+  const newThreads = sideLine.newLineNumber ? getThreadsForLine(sideLine.newLineNumber, "new") : [];
+  const allThreads = [...oldThreads, ...newThreads];
+  if (allThreads.length === 0) return null;
+
+  return (
+    <tr
+      ref={virtualItem ? measureRow : undefined}
+      data-index={virtualItem?.index}
+      className="bg-github-bg-secondary"
+    >
+      <td colSpan={4} className="p-0 border-t border-github-border">
+        {allThreads.map((thread): ReactNode => {
+          const threadSide = thread.side || "new";
+          const layout =
+            threadSide === "old" && sideLine.oldLineNumber
+              ? "left"
+              : threadSide === "new" && sideLine.newLineNumber
+                ? "right"
+                : getCommentLayout(sideLine);
+
+          return (
+            <div
+              key={thread.id}
+              className={`flex ${
+                layout === "left"
+                  ? "justify-start"
+                  : layout === "right"
+                    ? "justify-end"
+                    : "justify-center"
+              }`}
+            >
+              <div className={layout === "full" ? "w-full" : "w-1/2"}>
+                <div className="m-2 mx-3">
+                  <CommentThreadCard
+                    thread={thread}
+                    showAuthorBadges={actions.showAuthorBadges}
+                    onGeneratePrompt={actions.onGenerateThreadPrompt}
+                    onRemoveThread={actions.onRemoveThread}
+                    onReplyToThread={actions.onReplyToThread}
+                    onRemoveMessage={actions.onRemoveMessage}
+                    onUpdateMessage={actions.onUpdateMessage}
+                    syntaxTheme={actions.syntaxTheme}
+                  />
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </td>
+    </tr>
+  );
 };
 
 export function SideBySideDiffChunk({
@@ -340,17 +422,7 @@ export function SideBySideDiffChunk({
     [],
   );
 
-  const getThreadsForLine = (lineNumber: number, side: DiffSide) => {
-    return threads
-      .filter((thread) => {
-        const lineMatches = Array.isArray(thread.line)
-          ? thread.line[1] === lineNumber
-          : thread.line === lineNumber;
-        const sideMatches = !thread.side || thread.side === side;
-        return lineMatches && sideMatches;
-      })
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  };
+  const getThreadsForLine = useLineThreads(threads);
 
   const getCommentLayout = (sideLine: SideBySideLine): "left" | "right" | "full" => {
     // サイドバイサイドでは、削除行側（左）にコメントがある場合は左半分、
@@ -464,14 +536,6 @@ export function SideBySideDiffChunk({
             const deleteLine = deleteLines[k];
             const addLine = addLines[k];
 
-            // Compute word-level diff if both lines exist
-            let wordLevelDiff: WordLevelDiffResult | undefined;
-            if (deleteLine && addLine) {
-              if (shouldComputeWordDiff(deleteLine.content, addLine.content)) {
-                wordLevelDiff = computeWordLevelDiff(deleteLine.content, addLine.content);
-              }
-            }
-
             result.push({
               oldLine: deleteLine,
               newLine: addLine,
@@ -479,7 +543,6 @@ export function SideBySideDiffChunk({
               newLineNumber: addLine ? (addLine.newLineNumber ?? newLineNum + k) : undefined,
               oldLineOriginalIndex: deleteLine ? deleteStartIndex + k : undefined,
               newLineOriginalIndex: addLine ? addStartIndex + k : undefined,
-              wordLevelDiff,
             });
           }
 
@@ -507,363 +570,384 @@ export function SideBySideDiffChunk({
     [chunk.lines, convertToSideBySide],
   );
 
-  return (
-    <div className="bg-github-bg-primary overflow-hidden">
-      <table className="w-full table-fixed border-collapse font-mono text-sm leading-5">
-        <tbody>
-          {sideBySideLines.map((sideLine, index) => {
-            const oldThreads = sideLine.oldLineNumber
-              ? getThreadsForLine(sideLine.oldLineNumber, "old")
-              : [];
-            const newThreads = sideLine.newLineNumber
-              ? getThreadsForLine(sideLine.newLineNumber, "new")
-              : [];
-            const allThreads = [...oldThreads, ...newThreads];
+  const wordDiffResolver = useMemo(() => createWordDiffResolver(chunk.lines), [chunk.lines]);
 
-            // Use the stored original indices
-            const oldLineOriginalIndex = sideLine.oldLineOriginalIndex ?? -1;
-            const newLineOriginalIndex = sideLine.newLineOriginalIndex ?? -1;
+  // 压平行模型: 代码行 + 锚定其后的评论卡片行/评论表单行 (评论卡片按原渲染
+  // 结构一组合一行)。行数低于阈值时逐行渲染与原实现等价; 超过阈值时作为
+  // 虚拟列表的行源
+  const {
+    rows: flatRows,
+    rowIndexByOldLineIndex,
+    rowIndexByNewLineIndex,
+  } = useMemo(
+    () =>
+      createSplitRowModel({
+        sideLines: sideBySideLines,
+        commentingLine,
+        getThreadsForLine,
+      }),
+    [sideBySideLines, getThreadsForLine, commentingLine],
+  );
 
-            // Check if the current side's line matches the cursor position
-            const isHighlighted = (() => {
-              if (!cursor) return false;
+  const anchorRef = useRef<HTMLDivElement | null>(null);
+  const estimateRowSize = useCallback(
+    (rowIndex: number): number => {
+      const row = flatRows[rowIndex];
+      if (!row || row.kind === "line") return ESTIMATED_CODE_ROW_HEIGHT;
+      return row.kind === "threads" ? ESTIMATED_COMMENT_ROW_HEIGHT : ESTIMATED_COMMENT_FORM_HEIGHT;
+    },
+    [flatRows],
+  );
+  const {
+    virtualized,
+    virtualItems,
+    paddingTop,
+    paddingBottom,
+    measureItem: measureRow,
+  } = useRowWindow({
+    rowCount: flatRows.length,
+    estimateRowSize,
+    anchorRef,
+    targetRowIndex: cursor
+      ? cursor.side === "left"
+        ? rowIndexByOldLineIndex.get(cursor.lineIndex)
+        : rowIndexByNewLineIndex.get(cursor.lineIndex)
+      : undefined,
+    targetElementId: cursor
+      ? `file-${fileIndex}-chunk-${chunkIndex}-line-${cursor.lineIndex}-${cursor.side}`
+      : undefined,
+  });
 
-              // Only highlight the line on the current side
-              if (cursor.side === "left" && oldLineOriginalIndex >= 0) {
-                return (
-                  cursor.chunkIndex === chunkIndex && cursor.lineIndex === oldLineOriginalIndex
-                );
-              } else if (cursor.side === "right" && newLineOriginalIndex >= 0) {
-                return (
-                  cursor.chunkIndex === chunkIndex && cursor.lineIndex === newLineOriginalIndex
-                );
-              }
+  const renderLineRow = (sideLineIndex: number, virtualItem?: VirtualItem): ReactNode => {
+    const sideLine = sideBySideLines[sideLineIndex];
+    if (!sideLine) return null;
 
-              return false;
-            })();
+    const oldLineOriginalIndex = sideLine.oldLineOriginalIndex ?? -1;
+    const newLineOriginalIndex = sideLine.newLineOriginalIndex ?? -1;
+    const oldWordDiffSegments = wordDiffResolver(oldLineOriginalIndex);
+    const newWordDiffSegments = wordDiffResolver(newLineOriginalIndex);
 
-            // Generate IDs for navigation with side suffix
-            const oldLineNavId =
-              oldLineOriginalIndex >= 0
-                ? `file-${fileIndex}-chunk-${chunkIndex}-line-${oldLineOriginalIndex}-left`
-                : undefined;
-            const newLineNavId =
-              newLineOriginalIndex >= 0
-                ? `file-${fileIndex}-chunk-${chunkIndex}-line-${newLineOriginalIndex}-right`
-                : undefined;
+    const isHighlighted = (() => {
+      if (!cursor) return false;
 
-            // Determine which cell to highlight
-            const highlightOldCell = isHighlighted && cursor?.side === "left";
-            const highlightNewCell = isHighlighted && cursor?.side === "right";
+      if (cursor.side === "left" && oldLineOriginalIndex >= 0) {
+        return cursor.chunkIndex === chunkIndex && cursor.lineIndex === oldLineOriginalIndex;
+      } else if (cursor.side === "right" && newLineOriginalIndex >= 0) {
+        return cursor.chunkIndex === chunkIndex && cursor.lineIndex === newLineOriginalIndex;
+      }
 
-            const cellHighlightClass = "keyboard-cursor";
-            const oldSelection = sideLine.oldLineNumber
-              ? {
-                  side: "old" as const,
-                  lineNumber: sideLine.oldLineNumber,
-                }
-              : null;
-            const newSelection = sideLine.newLineNumber
-              ? {
-                  side: "new" as const,
-                  lineNumber: sideLine.newLineNumber,
-                }
-              : null;
+      return false;
+    })();
 
-            return (
-              <React.Fragment key={index}>
-                <tr
-                  data-diff-line-row="true"
-                  className="group cursor-pointer"
-                  onClick={(e) => {
-                    const target = e.target;
-                    if (!(target instanceof HTMLElement)) return;
-                    if (e.shiftKey) {
-                      e.preventDefault();
-                    }
-                    handleRowClick({
-                      isShiftClick: e.shiftKey,
-                      target,
-                      sideLine,
-                    });
-                  }}
-                  onMouseEnter={(e) => {
-                    const target = e.target;
-                    if (!(target instanceof HTMLElement)) return;
-                    const isInOldSide =
-                      target.closest("td:nth-child(1)") || target.closest("td:nth-child(2)");
-                    const isInNewSide =
-                      target.closest("td:nth-child(3)") || target.closest("td:nth-child(4)");
+    const oldLineNavId =
+      oldLineOriginalIndex >= 0
+        ? `file-${fileIndex}-chunk-${chunkIndex}-line-${oldLineOriginalIndex}-left`
+        : undefined;
+    const newLineNavId =
+      newLineOriginalIndex >= 0
+        ? `file-${fileIndex}-chunk-${chunkIndex}-line-${newLineOriginalIndex}-right`
+        : undefined;
 
-                    if (isInOldSide && sideLine.oldLineNumber) {
-                      setHoveredLine({
-                        side: "old",
-                        lineNumber: sideLine.oldLineNumber,
-                      });
-                    } else if (isInNewSide && sideLine.newLineNumber) {
-                      setHoveredLine({
-                        side: "new",
-                        lineNumber: sideLine.newLineNumber,
-                      });
-                    }
-                  }}
-                  onMouseMove={(e) => {
-                    const target = e.target;
-                    if (!(target instanceof HTMLElement)) return;
-                    const isInOldSide =
-                      target.closest("td:nth-child(1)") || target.closest("td:nth-child(2)");
-                    const isInNewSide =
-                      target.closest("td:nth-child(3)") || target.closest("td:nth-child(4)");
+    const highlightOldCell = isHighlighted && cursor?.side === "left";
+    const highlightNewCell = isHighlighted && cursor?.side === "right";
 
-                    // Update hover state based on mouse position
-                    if (isInOldSide && sideLine.oldLineNumber) {
-                      if (
-                        hoveredLine?.side !== "old" ||
-                        hoveredLine?.lineNumber !== sideLine.oldLineNumber
-                      ) {
-                        setHoveredLine({
-                          side: "old",
-                          lineNumber: sideLine.oldLineNumber,
-                        });
-                      }
-                    } else if (isInNewSide && sideLine.newLineNumber) {
-                      if (
-                        hoveredLine?.side !== "new" ||
-                        hoveredLine?.lineNumber !== sideLine.newLineNumber
-                      ) {
-                        setHoveredLine({
-                          side: "new",
-                          lineNumber: sideLine.newLineNumber,
-                        });
-                      }
-                    }
+    const cellHighlightClass = "keyboard-cursor";
+    const oldSelection = sideLine.oldLineNumber
+      ? {
+          side: "old" as const,
+          lineNumber: sideLine.oldLineNumber,
+        }
+      : null;
+    const newSelection = sideLine.newLineNumber
+      ? {
+          side: "new" as const,
+          lineNumber: sideLine.newLineNumber,
+        }
+      : null;
 
-                    // Handle dragging
-                    if (isDragging && startLine) {
-                      if (startLine.side === "old" && sideLine.oldLineNumber) {
-                        setEndLine({
-                          side: "old",
-                          lineNumber: sideLine.oldLineNumber,
-                        });
-                      } else if (startLine.side === "new" && sideLine.newLineNumber) {
-                        setEndLine({
-                          side: "new",
-                          lineNumber: sideLine.newLineNumber,
-                        });
-                      }
-                    }
-                  }}
-                  onMouseLeave={() => setHoveredLine(null)}
-                >
-                  {/* Old side */}
-                  <td
-                    id={oldLineNavId}
-                    className={`w-[var(--line-number-width)] min-w-[var(--line-number-width)] max-w-[var(--line-number-width)] px-2 text-right text-github-text-muted bg-github-bg-secondary border-r border-github-border select-none align-top relative overflow-visible ${highlightOldCell ? cellHighlightClass : ""}`}
-                  >
-                    <span>{sideLine.oldLineNumber || ""}</span>
-                    {hoveredLine?.side === "old" &&
-                      hoveredLine?.lineNumber === sideLine.oldLineNumber && (
-                        <>
-                          {onOpenInEditor &&
-                            filename &&
-                            sideLine.oldLine?.type !== "delete" &&
-                            sideLine.newLineNumber !== undefined && (
-                              <OpenInEditorButton
-                                onClick={() => {
-                                  const lineNumber = sideLine.newLineNumber;
-                                  if (!filename || lineNumber === undefined) return;
-                                  onOpenInEditor(filename, lineNumber);
-                                }}
-                              />
-                            )}
-                          <CommentButton
-                            onMouseDown={(e) => {
-                              e.stopPropagation();
-                              if (e.shiftKey) {
-                                e.preventDefault();
-                              }
-                              handleCommentButtonMouseDown({
-                                isShiftClick: e.shiftKey,
-                                selection: oldSelection,
-                              });
-                            }}
-                          />
-                        </>
-                      )}
-                  </td>
-                  <td
-                    className={`w-1/2 p-0 align-top border-r border-github-border relative ${getSideBySideLineClass(sideLine.oldLine, isExpandedLine(sideLine.oldLine))} ${getSelectedLineStyle("old", sideLine)} ${highlightOldCell ? cellHighlightClass : ""}`}
-                  >
-                    {sideLine.oldLine && (
-                      <div className="flex items-center relative min-h-[20px] px-3">
-                        {sideLine.wordLevelDiff ? (
-                          <WordLevelDiffHighlighter
-                            segments={sideLine.wordLevelDiff.oldSegments}
-                            className="flex-1 text-github-text-primary whitespace-pre-wrap break-all overflow-wrap-break-word select-text"
-                          />
-                        ) : (
-                          <EnhancedPrismSyntaxHighlighter
-                            code={sideLine.oldLine.content}
-                            className="flex-1 text-github-text-primary whitespace-pre-wrap break-all overflow-wrap-break-word select-text [&_pre]:m-0 [&_pre]:p-0 [&_pre]:!bg-transparent [&_pre]:font-inherit [&_pre]:text-inherit [&_pre]:leading-inherit [&_code]:!bg-transparent [&_code]:font-inherit [&_code]:text-inherit [&_code]:leading-inherit"
-                            syntaxTheme={syntaxTheme}
-                            filename={filename}
-                            precomputedTokens={getProcomputedTokens(
-                              getOldTokens,
-                              sideLine.oldLine.oldLineNumber,
-                            )}
-                          />
-                        )}
-                      </div>
-                    )}
-                  </td>
+    return (
+      <tr
+        key={virtualItem ? virtualItem.key : `line-${sideLineIndex}`}
+        ref={virtualItem ? measureRow : undefined}
+        data-index={virtualItem?.index}
+        data-diff-line-row="true"
+        className="group cursor-pointer"
+        onClick={(e) => {
+          const target = e.target;
+          if (!(target instanceof HTMLElement)) return;
+          if (e.shiftKey) {
+            e.preventDefault();
+          }
+          handleRowClick({
+            isShiftClick: e.shiftKey,
+            target,
+            sideLine,
+          });
+        }}
+        onMouseEnter={(e) => {
+          const target = e.target;
+          if (!(target instanceof HTMLElement)) return;
+          const isInOldSide =
+            target.closest("td:nth-child(1)") || target.closest("td:nth-child(2)");
+          const isInNewSide =
+            target.closest("td:nth-child(3)") || target.closest("td:nth-child(4)");
 
-                  {/* New side */}
-                  <td
-                    id={newLineNavId}
-                    className={`w-[var(--line-number-width)] min-w-[var(--line-number-width)] max-w-[var(--line-number-width)] px-2 text-right text-github-text-muted bg-github-bg-secondary border-r border-github-border select-none align-top relative overflow-visible ${highlightNewCell ? cellHighlightClass : ""}`}
-                  >
-                    <span>{sideLine.newLineNumber || ""}</span>
-                    {hoveredLine?.side === "new" &&
-                      hoveredLine?.lineNumber === sideLine.newLineNumber && (
-                        <>
-                          {onOpenInEditor && filename && sideLine.newLineNumber !== undefined && (
-                            <OpenInEditorButton
-                              onClick={() => {
-                                const lineNumber = sideLine.newLineNumber;
-                                if (!filename || lineNumber === undefined) return;
-                                onOpenInEditor(filename, lineNumber);
-                              }}
-                            />
-                          )}
-                          <CommentButton
-                            onMouseDown={(e) => {
-                              e.stopPropagation();
-                              if (e.shiftKey) {
-                                e.preventDefault();
-                              }
-                              handleCommentButtonMouseDown({
-                                isShiftClick: e.shiftKey,
-                                selection: newSelection,
-                              });
-                            }}
-                          />
-                        </>
-                      )}
-                  </td>
-                  <td
-                    className={`w-1/2 p-0 align-top relative ${getSideBySideLineClass(sideLine.newLine, isExpandedLine(sideLine.newLine))} ${getSelectedLineStyle("new", sideLine)} ${highlightNewCell ? cellHighlightClass : ""}`}
-                  >
-                    {sideLine.newLine && (
-                      <div className="flex items-center relative min-h-[20px] px-3">
-                        {sideLine.wordLevelDiff ? (
-                          <WordLevelDiffHighlighter
-                            segments={sideLine.wordLevelDiff.newSegments}
-                            className="flex-1 text-github-text-primary whitespace-pre-wrap break-all overflow-wrap-break-word select-text"
-                          />
-                        ) : (
-                          <EnhancedPrismSyntaxHighlighter
-                            code={sideLine.newLine.content}
-                            className="flex-1 text-github-text-primary whitespace-pre-wrap break-all overflow-wrap-break-word select-text [&_pre]:m-0 [&_pre]:p-0 [&_pre]:!bg-transparent [&_pre]:font-inherit [&_pre]:text-inherit [&_pre]:leading-inherit [&_code]:!bg-transparent [&_code]:font-inherit [&_code]:text-inherit [&_code]:leading-inherit"
-                            syntaxTheme={syntaxTheme}
-                            filename={filename}
-                            precomputedTokens={getProcomputedTokens(
-                              getNewTokens,
-                              sideLine.newLine.newLineNumber,
-                            )}
-                          />
-                        )}
-                      </div>
-                    )}
-                  </td>
-                </tr>
+          if (isInOldSide && sideLine.oldLineNumber) {
+            setHoveredLine({
+              side: "old",
+              lineNumber: sideLine.oldLineNumber,
+            });
+          } else if (isInNewSide && sideLine.newLineNumber) {
+            setHoveredLine({
+              side: "new",
+              lineNumber: sideLine.newLineNumber,
+            });
+          }
+        }}
+        onMouseMove={(e) => {
+          const target = e.target;
+          if (!(target instanceof HTMLElement)) return;
+          const isInOldSide =
+            target.closest("td:nth-child(1)") || target.closest("td:nth-child(2)");
+          const isInNewSide =
+            target.closest("td:nth-child(3)") || target.closest("td:nth-child(4)");
 
-                {/* Comment threads row */}
-                {allThreads.length > 0 && (
-                  <tr className="bg-github-bg-secondary">
-                    <td colSpan={4} className="p-0 border-t border-github-border">
-                      {allThreads.map((thread) => {
-                        const threadSide = thread.side || "new";
-                        let layout: "left" | "right" | "full";
+          if (isInOldSide && sideLine.oldLineNumber) {
+            if (hoveredLine?.side !== "old" || hoveredLine?.lineNumber !== sideLine.oldLineNumber) {
+              setHoveredLine({
+                side: "old",
+                lineNumber: sideLine.oldLineNumber,
+              });
+            }
+          } else if (isInNewSide && sideLine.newLineNumber) {
+            if (hoveredLine?.side !== "new" || hoveredLine?.lineNumber !== sideLine.newLineNumber) {
+              setHoveredLine({
+                side: "new",
+                lineNumber: sideLine.newLineNumber,
+              });
+            }
+          }
 
-                        if (threadSide === "old" && sideLine.oldLineNumber) {
-                          layout = "left";
-                        } else if (threadSide === "new" && sideLine.newLineNumber) {
-                          layout = "right";
-                        } else {
-                          layout = getCommentLayout(sideLine);
-                        }
-
-                        return (
-                          <div
-                            key={thread.id}
-                            className={`flex ${
-                              layout === "left"
-                                ? "justify-start"
-                                : layout === "right"
-                                  ? "justify-end"
-                                  : "justify-center"
-                            }`}
-                          >
-                            <div className={`${layout === "full" ? "w-full" : "w-1/2"}`}>
-                              <div className="m-2 mx-3">
-                                <CommentThreadCard
-                                  thread={thread}
-                                  showAuthorBadges={showAuthorBadges}
-                                  onGeneratePrompt={onGenerateThreadPrompt}
-                                  onRemoveThread={onRemoveThread}
-                                  onReplyToThread={onReplyToThread}
-                                  onRemoveMessage={onRemoveMessage}
-                                  onUpdateMessage={onUpdateMessage}
-                                  syntaxTheme={syntaxTheme}
-                                />
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </td>
-                  </tr>
+          if (isDragging && startLine) {
+            if (startLine.side === "old" && sideLine.oldLineNumber) {
+              setEndLine({
+                side: "old",
+                lineNumber: sideLine.oldLineNumber,
+              });
+            } else if (startLine.side === "new" && sideLine.newLineNumber) {
+              setEndLine({
+                side: "new",
+                lineNumber: sideLine.newLineNumber,
+              });
+            }
+          }
+        }}
+        onMouseLeave={() => setHoveredLine(null)}
+      >
+        {/* Old side */}
+        <td
+          id={oldLineNavId}
+          className={`w-[var(--line-number-width)] min-w-[var(--line-number-width)] max-w-[var(--line-number-width)] px-2 text-right text-github-text-muted bg-github-bg-secondary border-r border-github-border select-none align-top relative overflow-visible ${highlightOldCell ? cellHighlightClass : ""}`}
+        >
+          <span>{sideLine.oldLineNumber || ""}</span>
+          {hoveredLine?.side === "old" && hoveredLine?.lineNumber === sideLine.oldLineNumber && (
+            <>
+              {onOpenInEditor &&
+                filename &&
+                sideLine.oldLine?.type !== "delete" &&
+                sideLine.newLineNumber !== undefined && (
+                  <OpenInEditorButton
+                    onClick={() => {
+                      const lineNumber = sideLine.newLineNumber;
+                      if (!filename || lineNumber === undefined) return;
+                      onOpenInEditor(filename, lineNumber);
+                    }}
+                  />
                 )}
-
-                {/* Comment form row */}
-                {commentingLine &&
-                  ((commentingLine.side === "old" &&
-                    commentingLine.lineNumber === sideLine.oldLineNumber) ||
-                    (commentingLine.side === "new" &&
-                      commentingLine.lineNumber === sideLine.newLineNumber) ||
-                    (Array.isArray(commentingLine.lineNumber) &&
-                      ((commentingLine.side === "new" &&
-                        commentingLine.lineNumber[1] === sideLine.newLineNumber) ||
-                        (commentingLine.side === "old" &&
-                          commentingLine.lineNumber[1] === sideLine.oldLineNumber)))) && (
-                    <tr className="bg-github-bg-secondary">
-                      <td colSpan={4} className="p-0">
-                        <div
-                          className={`flex ${
-                            commentingLine.side === "old"
-                              ? "justify-start"
-                              : commentingLine.side === "new"
-                                ? "justify-end"
-                                : "justify-center"
-                          }`}
-                        >
-                          <div className={`w-1/2`}>
-                            <CommentForm
-                              onSubmit={handleSubmitComment}
-                              onCancel={handleCancelComment}
-                              selectedCode={getSelectedCodeContent()}
-                              syntaxTheme={syntaxTheme}
-                              filename={filename}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                    </tr>
+              <CommentButton
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  if (e.shiftKey) {
+                    e.preventDefault();
+                  }
+                  handleCommentButtonMouseDown({
+                    isShiftClick: e.shiftKey,
+                    selection: oldSelection,
+                  });
+                }}
+              />
+            </>
+          )}
+        </td>
+        <td
+          className={`w-1/2 p-0 align-top border-r border-github-border relative ${getSideBySideLineClass(sideLine.oldLine, isExpandedLine(sideLine.oldLine))} ${getSelectedLineStyle("old", sideLine)} ${highlightOldCell ? cellHighlightClass : ""}`}
+        >
+          {sideLine.oldLine && (
+            <div className="flex items-center relative min-h-[20px] px-3">
+              {oldWordDiffSegments ? (
+                <WordLevelDiffHighlighter
+                  segments={oldWordDiffSegments}
+                  className="flex-1 text-github-text-primary whitespace-pre-wrap break-all overflow-wrap-break-word select-text"
+                />
+              ) : (
+                <EnhancedPrismSyntaxHighlighter
+                  code={sideLine.oldLine.content}
+                  className="flex-1 text-github-text-primary whitespace-pre-wrap break-all overflow-wrap-break-word select-text [&_pre]:m-0 [&_pre]:p-0 [&_pre]:!bg-transparent [&_pre]:font-inherit [&_pre]:text-inherit [&_pre]:leading-inherit [&_code]:!bg-transparent [&_code]:font-inherit [&_code]:text-inherit [&_code]:leading-inherit"
+                  syntaxTheme={syntaxTheme}
+                  filename={filename}
+                  precomputedTokens={getProcomputedTokens(
+                    getOldTokens,
+                    sideLine.oldLine.oldLineNumber,
                   )}
-              </React.Fragment>
-            );
-          })}
-        </tbody>
+                />
+              )}
+            </div>
+          )}
+        </td>
+
+        {/* New side */}
+        <td
+          id={newLineNavId}
+          className={`w-[var(--line-number-width)] min-w-[var(--line-number-width)] max-w-[var(--line-number-width)] px-2 text-right text-github-text-muted bg-github-bg-secondary border-r border-github-border select-none align-top relative overflow-visible ${highlightNewCell ? cellHighlightClass : ""}`}
+        >
+          <span>{sideLine.newLineNumber || ""}</span>
+          {hoveredLine?.side === "new" && hoveredLine?.lineNumber === sideLine.newLineNumber && (
+            <>
+              {onOpenInEditor && filename && sideLine.newLineNumber !== undefined && (
+                <OpenInEditorButton
+                  onClick={() => {
+                    const lineNumber = sideLine.newLineNumber;
+                    if (!filename || lineNumber === undefined) return;
+                    onOpenInEditor(filename, lineNumber);
+                  }}
+                />
+              )}
+              <CommentButton
+                onMouseDown={(e) => {
+                  e.stopPropagation();
+                  if (e.shiftKey) {
+                    e.preventDefault();
+                  }
+                  handleCommentButtonMouseDown({
+                    isShiftClick: e.shiftKey,
+                    selection: newSelection,
+                  });
+                }}
+              />
+            </>
+          )}
+        </td>
+        <td
+          className={`w-1/2 p-0 align-top relative ${getSideBySideLineClass(sideLine.newLine, isExpandedLine(sideLine.newLine))} ${getSelectedLineStyle("new", sideLine)} ${highlightNewCell ? cellHighlightClass : ""}`}
+        >
+          {sideLine.newLine && (
+            <div className="flex items-center relative min-h-[20px] px-3">
+              {newWordDiffSegments ? (
+                <WordLevelDiffHighlighter
+                  segments={newWordDiffSegments}
+                  className="flex-1 text-github-text-primary whitespace-pre-wrap break-all overflow-wrap-break-word select-text"
+                />
+              ) : (
+                <EnhancedPrismSyntaxHighlighter
+                  code={sideLine.newLine.content}
+                  className="flex-1 text-github-text-primary whitespace-pre-wrap break-all overflow-wrap-break-word select-text [&_pre]:m-0 [&_pre]:p-0 [&_pre]:!bg-transparent [&_pre]:font-inherit [&_pre]:text-inherit [&_pre]:leading-inherit [&_code]:!bg-transparent [&_code]:font-inherit [&_code]:text-inherit [&_code]:leading-inherit"
+                  syntaxTheme={syntaxTheme}
+                  filename={filename}
+                  precomputedTokens={getProcomputedTokens(
+                    getNewTokens,
+                    sideLine.newLine.newLineNumber,
+                  )}
+                />
+              )}
+            </div>
+          )}
+        </td>
+      </tr>
+    );
+  };
+
+  const renderThreadsRow = (sideLineIndex: number, virtualItem?: VirtualItem): ReactNode => {
+    const sideLine = sideBySideLines[sideLineIndex];
+    if (!sideLine) return null;
+    return (
+      <SplitThreadsRow
+        key={virtualItem ? virtualItem.key : `threads-${sideLineIndex}`}
+        sideLine={sideLine}
+        virtualItem={virtualItem}
+        measureRow={measureRow}
+        getThreadsForLine={getThreadsForLine}
+        getCommentLayout={getCommentLayout}
+        actions={{
+          showAuthorBadges,
+          onGenerateThreadPrompt,
+          onRemoveThread,
+          onReplyToThread,
+          onRemoveMessage,
+          onUpdateMessage,
+          syntaxTheme,
+        }}
+      />
+    );
+  };
+
+  const renderFormRow = (sideLineIndex: number, virtualItem?: VirtualItem): ReactNode => {
+    const sideLine = sideBySideLines[sideLineIndex];
+    if (!sideLine || !commentingLine) return null;
+
+    return (
+      <tr
+        key={virtualItem ? virtualItem.key : `form-${sideLineIndex}`}
+        ref={virtualItem ? measureRow : undefined}
+        data-index={virtualItem?.index}
+        className="bg-github-bg-secondary"
+      >
+        <td colSpan={4} className="p-0">
+          <div
+            className={`flex ${
+              commentingLine.side === "old"
+                ? "justify-start"
+                : commentingLine.side === "new"
+                  ? "justify-end"
+                  : "justify-center"
+            }`}
+          >
+            <div className={`w-1/2`}>
+              <CommentForm
+                onSubmit={handleSubmitComment}
+                onCancel={handleCancelComment}
+                selectedCode={getSelectedCodeContent()}
+                syntaxTheme={syntaxTheme}
+                filename={filename}
+              />
+            </div>
+          </div>
+        </td>
+      </tr>
+    );
+  };
+
+  const renderSplitRow = (row: (typeof flatRows)[number], virtualItem?: VirtualItem): ReactNode => {
+    if (row.kind === "line") {
+      return renderLineRow(row.sideLineIndex, virtualItem);
+    }
+    if (row.kind === "threads") {
+      return renderThreadsRow(row.sideLineIndex, virtualItem);
+    }
+    return renderFormRow(row.sideLineIndex, virtualItem);
+  };
+
+  return (
+    <div ref={anchorRef} className="bg-github-bg-primary overflow-hidden">
+      <table className="w-full table-fixed border-collapse font-mono text-sm leading-5">
+        <VirtualTableBody
+          rows={flatRows}
+          virtualized={virtualized}
+          virtualItems={virtualItems}
+          paddingTop={paddingTop}
+          paddingBottom={paddingBottom}
+          colSpan={4}
+          renderRow={renderSplitRow}
+        />
       </table>
     </div>
   );

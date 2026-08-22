@@ -12,6 +12,7 @@
     "pack": "pnpm run build && electron-builder"
   },
   "dependencies": {
+    "@tanstack/react-virtual": "catalog:",
     "js-yaml": "^4.3.0",
     "simple-git": "^3.28.0"
   },
