@@ -1,3 +1,8 @@
+---
+name: tdd
+description: Test-driven development. 当用户想以 test-first 方式构建 features 或修复 bugs, 提到 "red-green-refactor", 或需要 integration tests 时使用.
+---
+
 # Test-Driven Development
 
 TDD 是 red → green loop. 本 skill 是让该 loop 产出值得保留的测试的 reference: 什么是良好的测试, 测试应放在哪里, anti-patterns, 以及 loop 的规则. 每个章节都适用于每次循环, 在 loop 开始前和进行期间查阅, 而不是事后查阅.

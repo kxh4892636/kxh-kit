@@ -8,6 +8,7 @@ description: Loop-X-Flow.
 # Loop-X-Flow
 
 **Loop-X-Flow**是一条贯穿多个 skill 的路径。多数路径沿主流程推进，由接入路径汇入。其余内容要么独立运行，要么作为底层词汇层存在。
+下面所有的 SKILL 全部通过 **`/loop-x`** 路由;
 
 ## 主流程：想法 → 交付
 
@@ -118,4 +119,3 @@ plan 生命周期与 plan 内 spec/issue 的状态协议相互独立：目录位
 > _与 ADR-0007（event-sourced orders）冲突——但值得重新讨论，因为……_
 
 <!-- PROJECT RULES END -->
-

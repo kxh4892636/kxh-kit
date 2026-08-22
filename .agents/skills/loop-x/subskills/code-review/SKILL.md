@@ -1,3 +1,8 @@
+---
+name: code-review
+description: 沿两个轴审查自 fixed point(commit, branch, tag 或 merge-base)以来的变更 - Standards(代码是否遵循此仓库记录的编码规范?)和 Spec(代码是否符合原始 issue/spec 的要求?). 使用并行 sub-agents 运行两项审查, 并并列报告结果. 当用户想审查 branch, PR, work-in-progress 变更, 或要求 "review since X" 时使用.
+---
+
 沿两个轴审查 `HEAD` 与用户提供的 fixed point 之间的 diff:
 
 - **Standards** - 代码是否符合此仓库记录的编码规范?
