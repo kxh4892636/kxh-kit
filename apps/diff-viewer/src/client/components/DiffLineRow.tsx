@@ -24,6 +24,9 @@ interface DiffLineRowProps {
   onClick?: (e: React.MouseEvent<HTMLTableRowElement>) => void;
   filename?: string;
   diffSegments?: DiffSegment[];
+  /** React 19: ref 作为普通 prop 透传到 <tr>, 虚拟列表用于动态测量行高 */
+  ref?: React.Ref<HTMLTableRowElement>;
+  dataIndex?: number;
 }
 
 const getLineClass = (line: DiffLine | ExpandedLine) => {
@@ -58,6 +61,8 @@ export const DiffLineRow: React.FC<DiffLineRowProps> = React.memo(
     onClick,
     filename,
     diffSegments,
+    ref,
+    dataIndex,
   }) => {
     const lineNumber = line.newLineNumber || line.oldLineNumber;
     const showLineActions = hoveredLineIndex === index && lineNumber;
@@ -66,6 +71,8 @@ export const DiffLineRow: React.FC<DiffLineRowProps> = React.memo(
 
     return (
       <tr
+        ref={ref}
+        data-index={dataIndex}
         id={lineId}
         data-diff-line-row="true"
         className={`group ${getLineClass(line)} relative ${selectedLineStyle} ${highlightClass} cursor-pointer`}
