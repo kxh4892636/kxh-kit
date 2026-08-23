@@ -64,8 +64,47 @@ describe("self skill query interface", (): void => {
   test("lists packaged skills without writing the target", async (): Promise<void> => {
     const target = await createTarget();
     const result = await invoke(target, ["list", "--dry-run"]);
-    expect(result).toMatchObject({
-      skills: [{ name: "loop-x", status: "not_installed", target: path.join(target, "loop-x") }],
+    expect(result).toEqual({
+      skills: ["loop-x", "loop-x-cli"].map(
+        (name: string): Record<string, string> => ({
+          name,
+          status: "not_installed",
+          target: path.join(target, name),
+          version: "0.1.0",
+        }),
+      ),
+    });
+  });
+
+  test("installs, checks, and uninstalls loop-x-cli", async (): Promise<void> => {
+    const target = await createTarget();
+    await invoke(target, ["install", "--name", "loop-x-cli"]);
+    expect(await invoke(target, ["check", "--name", "loop-x-cli"])).toMatchObject({
+      name: "loop-x-cli",
+      status: "current",
+    });
+    await invoke(target, ["uninstall", "--name", "loop-x-cli"]);
+    expect(await invoke(target, ["check", "--name", "loop-x-cli"])).toMatchObject({
+      name: "loop-x-cli",
+      status: "not_installed",
+    });
+  });
+
+  test("installs and uninstalls every packaged skill", async (): Promise<void> => {
+    const target = await createTarget();
+    await invoke(target, ["install", "--all"]);
+    expect(await invoke(target, ["list"])).toMatchObject({
+      skills: [
+        { name: "loop-x", status: "current" },
+        { name: "loop-x-cli", status: "current" },
+      ],
+    });
+    await invoke(target, ["uninstall", "--all"]);
+    expect(await invoke(target, ["list"])).toMatchObject({
+      skills: [
+        { name: "loop-x", status: "not_installed" },
+        { name: "loop-x-cli", status: "not_installed" },
+      ],
     });
   });
 
