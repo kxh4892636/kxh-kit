@@ -1,0 +1,45 @@
+{
+  "name": "@kxh4892636/loopx",
+  "version": "0.1.0",
+  "description": "LoopX unified command line interface",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kxh4892636/kxh-kit.git",
+    "directory": "packages/loopx"
+  },
+  "bin": {
+    "loopx": "dist/main.mjs"
+  },
+  "files": [
+    "dist",
+    "skills"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/main.mjs",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "vp pack src/main.ts",
+    "test": "vp test src",
+    "check": "vp check",
+    "prepublishOnly": "vp run build"
+  },
+  "dependencies": {
+    "commander": "^15.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@typescript/native": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

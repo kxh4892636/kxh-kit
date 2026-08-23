@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in_progress
 blocked_by: []
 ---
 
@@ -24,10 +24,10 @@ blocked_by: []
 
 ## 验收
 
-- [ ] interface 级测试证明：命名 option 解析和互斥/必填校验、各级 help、query 预演、mutation 零 commit 预演、JSON 事件流、错误 JSON 与 0/1/2 退出码均通过。
-- [ ] 无效命令定义（重复路径、保留 option、mutation 缺阶段）在外部 adapter 建立前 fail fast。
-- [ ] 从本地 `.tgz` 安装到临时 npm prefix 后，`loopx --help`、fixture 各级 `--help` 和 fixture 预演均给出约定结果。
-- [ ] `vp run @kxh4892636/loopx#test`、`vp run @kxh4892636/loopx#build` 和 `vp check` 通过。
+- [x] interface 级测试证明：命名 option 解析和互斥/必填校验、各级 help、query 预演、mutation 零 commit 预演、JSON 事件流、错误 JSON 与 0/1/2 退出码均通过。
+- [x] 无效命令定义（重复路径、保留 option、mutation 缺阶段）在外部 adapter 建立前 fail fast。
+- [x] 从本地 `.tgz` 安装到临时 npm prefix 后，`loopx --help`、fixture 各级 `--help` 和 fixture 预演均给出约定结果。
+- [x] `vp run @kxh4892636/loopx#test`、`vp run @kxh4892636/loopx#build` 和 `vp check` 通过。
 
 ## 上下文
 
@@ -43,4 +43,8 @@ blocked_by: []
 
 ## 交付记录
 
-待交付。
+- 交付物：`packages/loopx/package.json`、`packages/loopx/src/cli/`、build-time builtin discovery、fixture builtin 与可执行 `dist/main.mjs`。
+- TDD：`vp run @kxh4892636/loopx#test`，13 个 interface 测试通过。
+- 静态门禁：`vp run @kxh4892636/loopx#build` 与 `vp check` 通过；全仓仅保留既有 warning。
+- 运行态门禁：本地 `.tgz` 安装到临时 npm prefix 后，root/group/leaf help、全局 options 与 compact dry-run mutation 均通过。
+- 审查：相对 `6b071c1` 的 Standards/Spec 双轴复审均无阻断项。
