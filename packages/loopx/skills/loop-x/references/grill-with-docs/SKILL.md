@@ -7,19 +7,9 @@ description: 拷问设计, 并将确认的术语与决策就地写入领域文�
 
 ## 进入 Flow
 
-作为顶层 skill 执行时, 在实质工作前进入 `/loop-x` 的运行态; 不要求用户先调用 `/loop-x`. 调用方传入 `plan` 或 `session` 时复用它们; 直接调用可同时省略, 此时主路径运行键为 `.` 且脚本生成 session. 保留命令返回的 `plan` 和 `session`:
-
-```powershell
-node .agents/skills/loop-x/script/flow.mjs enter-plan --skill /grill-with-docs
-```
+完整读取 [`FLOW.md`](../../FLOW.md). 作为顶层 skill 直接调用时, 在实质工作前按共享协议自动进入固定的 `main` 路径; 接收到 `/loop-x` 传递的 flow context 时直接复用. 完成访谈与文档同步后, 以实际维护的领域文档为证据登记结果.
 
 由 `/to-issues` 作为内部访谈调用时, 继承其 flow context 并作为 `/to-issues` 的内部行为运行, 不建立主路径, 不单独登记 receipt.
-
-完成本 skill 的访谈与文档同步后, 顶层调用使用保留的上下文登记 `/grill-with-docs=completed` 和实际文档证据, 随后只执行脚本返回的 `next_skill`:
-
-```powershell
-node .agents/skills/loop-x/script/flow.mjs record-plan --plan <plan> --session <session> --skill /grill-with-docs --result completed --evidence <document-path>
-```
 
 ## 定位业务域
 
