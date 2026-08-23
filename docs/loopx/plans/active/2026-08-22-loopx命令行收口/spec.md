@@ -168,6 +168,6 @@ type JsonOutput = JsonValue | AsyncIterable<JsonValue>;
 | 07  | [Anki 卡片与复习操作](07-Anki卡片与复习操作.md)         | completed | 05                         | /implement |
 | 08  | [Anki 标签媒体与统计操作](08-Anki标签媒体与统计操作.md) | completed | 05                         | /implement |
 | 09  | [Anki GUI 操作](09-Anki-GUI操作.md)                     | completed | 05                         | /implement |
-| 10  | [loop-x-cli 路由 skill](10-loop-x-cli路由skill.md)      | pending   | 03, 04, 05, 06, 07, 08, 09 | /implement |
+| 10  | [loop-x-cli 路由 skill](10-loop-x-cli路由skill.md)      | completed | 03, 04, 05, 06, 07, 08, 09 | /implement |
 | 11  | [删除旧 Anki 形态](11-删除旧Anki形态.md)                | pending   | 10                         | /implement |
 | 12  | [本地包全链路验收](12-本地包全链路验收.md)              | pending   | 04, 11                     | /implement |

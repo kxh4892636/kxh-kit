@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 blocked_by: ["03", "04", "05", "06", "07", "08", "09"]
 ---
 
@@ -29,10 +29,10 @@ blocked_by: ["03", "04", "05", "06", "07", "08", "09"]
 
 ## 验收
 
-- [ ] skill 路由表覆盖 `self`、牌组、笔记、笔记类型、卡片/复习、标签、媒体、统计和 GUI，所有示例只使用命名 options 和 `loopx` bin。
-- [ ] `/writing-for-agents` 验证触发、导航、安全与上下文层级，且不复制 CLI `--help` 可生成的完整参考。
-- [ ] 打包后 `skill list` 同时列出 `loop-x` 和 `loop-x-cli`；临时工作区中单个/全部安装、check 和卸载均通过。
-- [ ] `vp run @kxh4892636/loopx#test`、`vp run @kxh4892636/loopx#build` 和 `vp check` 通过。
+- [x] skill 路由表覆盖 `self`、牌组、笔记、笔记类型、卡片/复习、标签、媒体、统计和 GUI，所有示例只使用命名 options 和 `loopx` bin。
+- [x] `/writing-for-agents` 验证触发、导航、安全与上下文层级，且不复制 CLI `--help` 可生成的完整参考。
+- [x] 打包后 `skill list` 同时列出 `loop-x` 和 `loop-x-cli`；临时工作区中单个/全部安装、check 和卸载均通过。
+- [x] `vp run @kxh4892636/loopx#test`、`vp run @kxh4892636/loopx#build` 和 `vp check` 通过。
 
 ## 上下文
 
@@ -47,4 +47,6 @@ blocked_by: ["03", "04", "05", "06", "07", "08", "09"]
 
 ## 交付记录
 
-待交付。
+交付物：受管 `loop-x-cli` skill 已按 self/Anki 两个 branch 渐进披露，覆盖 CLI 自管理、全部 Anki 命令族、安全边界和结果契约；build-time catalog 自动发现并管理两个 skills。
+
+验证证据：skill `quick_validate` 通过；177 个 LoopX 测试、LoopX 构建和全仓 `vp check` 通过（31 个既有 warning）；dangling commit `94383ad117a374f7bc69dfaee01f452ab785ecb8` 的 Standards/Spec 双轴复审均无 blocker。
