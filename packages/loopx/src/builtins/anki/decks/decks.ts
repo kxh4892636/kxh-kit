@@ -1,7 +1,7 @@
-import type { JsonValue } from "../../cli/types";
-import { AnkiOperationError } from "./errors";
-import type { Logger } from "./logger";
-import type { AnkiPort } from "./port";
+import type { JsonValue } from "../../../cli/types";
+import { AnkiOperationError } from "../errors";
+import type { Logger } from "../logger";
+import type { AnkiPort } from "../port";
 
 const stringArray = (value: unknown, action: string): readonly string[] => {
   if (

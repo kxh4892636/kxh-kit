@@ -7,13 +7,19 @@ const readLine = async (): Promise<null | string> => {
   return null;
 };
 
+const readAll = async (): Promise<string> => {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks).toString("utf8");
+};
+
 process.exitCode = await runCli(
   {
     argv: process.argv.slice(2),
     cwd: process.cwd(),
     env: process.env,
     signal: new AbortController().signal,
-    stdin: { readLine },
+    stdin: { readAll, readLine },
     stdout: {
       write: (chunk: string): void => {
         process.stdout.write(chunk);

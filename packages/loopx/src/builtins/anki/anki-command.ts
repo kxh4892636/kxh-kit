@@ -3,22 +3,20 @@ import { CliUsageError } from "../../cli/errors";
 import type {
   BuiltinCommand,
   InvocationContext,
-  JsonValue,
   JsonOutput,
   OptionValues,
   PreparedMutation,
   ValuesFromOptions,
 } from "../../cli/types";
-import { loadAnkiConfig, type AnkiConfig } from "./config";
-import { deckStats } from "./deck-stats";
-import { createDeck, listDecks, moveCards, validateDeckName } from "./decks";
-import { ReadOnlyModeError } from "./errors";
-import { createLogger, type Logger } from "./logger";
+import { deckStats } from "./decks/deck-stats";
+import { createDeck, listDecks, moveCards, validateDeckName } from "./decks/decks";
+import type { Logger } from "./logger";
+import { createModelsGroup } from "./models";
+import { createNotesGroup } from "./notes";
 import type { AnkiPort } from "./port";
+import { connection, mutation, type AnkiDependencies } from "./runtime";
 
-export interface AnkiDependencies {
-  connect(config: AnkiConfig, logger: Logger): AnkiPort;
-}
+export type { AnkiDependencies } from "./runtime";
 
 const ankiOptions = [
   option.string("anki-connect", "AnkiConnect URL", {}),
@@ -61,38 +59,6 @@ const cardIds = (value: OptionValues[string]): readonly number[] => {
     throw new CliUsageError("--card-id values must be positive integers");
   }
   return ids;
-};
-
-const connection = (
-  dependencies: AnkiDependencies,
-  options: OptionValues,
-  context: InvocationContext,
-): { config: AnkiConfig; port: AnkiPort } => {
-  const config = loadAnkiConfig(options, context);
-  return {
-    config,
-    port: dependencies.connect(config, createLogger(config.logLevel)),
-  };
-};
-
-const mutation = (
-  action: string,
-  options: OptionValues,
-  context: InvocationContext,
-  dependencies: AnkiDependencies,
-  params: Readonly<Record<string, JsonValue>>,
-  run: (port: AnkiPort, logger: Logger) => ReturnType<PreparedMutation["commit"]>,
-): PreparedMutation => {
-  const config = loadAnkiConfig(options, context);
-  return {
-    preview: { success: true, actions: [{ action, params }] },
-    commit: async (): Promise<JsonOutput> => {
-      if (config.readOnly) throw new ReadOnlyModeError(action);
-      const logger = createLogger(config.logLevel);
-      const port = dependencies.connect(config, logger);
-      return run(port, logger);
-    },
-  };
 };
 
 export const createAnkiCommand = (dependencies: AnkiDependencies): BuiltinCommand =>
@@ -158,6 +124,8 @@ export const createAnkiCommand = (dependencies: AnkiDependencies): BuiltinComman
           },
         }),
       ]),
+      createNotesGroup(dependencies),
+      createModelsGroup(dependencies),
     ],
     ankiOptions,
   );

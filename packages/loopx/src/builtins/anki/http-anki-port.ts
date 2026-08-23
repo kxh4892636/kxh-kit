@@ -104,6 +104,9 @@ export class HttpAnkiPort implements AnkiPort {
         return result;
       });
     } catch (error) {
+      this.logger.warn(
+        `AnkiConnect action failed: ${action}: ${error instanceof Error ? error.message : String(error)}`,
+      );
       if (error instanceof AnkiOperationError) throw error;
       if (error instanceof HTTPError) {
         const message =

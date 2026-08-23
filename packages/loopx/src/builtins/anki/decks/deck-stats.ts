@@ -1,7 +1,7 @@
-import type { JsonValue } from "../../cli/types";
+import type { JsonValue } from "../../../cli/types";
 import { computeDistribution, deckScopeQuery } from "./deck-metrics";
-import { AnkiOperationError } from "./errors";
-import type { AnkiPort } from "./port";
+import { AnkiOperationError } from "../errors";
+import type { AnkiPort } from "../port";
 
 interface DeckStatsResponse {
   readonly learn_count?: number;

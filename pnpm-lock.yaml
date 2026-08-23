@@ -320,12 +320,21 @@ importers:
       commander:
         specifier: ^15.0.0
         version: 15.0.0
+      ipaddr.js:
+        specifier: ^2.5.0
+        version: 2.5.0
       ky:
         specifier: ^2.0.2
         version: 2.0.2
+      mime:
+        specifier: ^4.1.0
+        version: 4.1.0
       semver:
         specifier: ^7.8.1
         version: 7.8.1
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

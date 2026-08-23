@@ -1,4 +1,4 @@
-import type { JsonValue } from "../../cli/types";
+import type { JsonValue } from "../../../cli/types";
 
 const formatNumber = (value: number): string =>
   Number.isInteger(value) ? value.toString() : value.toFixed(1);

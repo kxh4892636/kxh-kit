@@ -6,6 +6,7 @@ export type JsonValue =
 export type JsonOutput = JsonValue | AsyncIterable<JsonValue>;
 
 export interface TextReader {
+  readAll?(): Promise<string>;
   readLine(): Promise<null | string>;
 }
 

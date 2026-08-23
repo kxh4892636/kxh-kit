@@ -158,7 +158,11 @@ const addOptions = (target: Command, definitions: readonly CommandOption[]): voi
       definition.kind === "string"
         ? ` <${definition.placeholder ?? "value"}${definition.multiple === true ? "..." : ""}>`
         : "";
-    const commanderOption = new Option(`--${definition.name}${value}`, definition.description);
+    const description =
+      definition.required === true
+        ? `${definition.description} (required)`
+        : definition.description;
+    const commanderOption = new Option(`--${definition.name}${value}`, description);
     if (definition.required === true) commanderOption.makeOptionMandatory();
     if (definition.conflicts !== undefined) {
       commanderOption.conflicts(definition.conflicts.map(optionKey));
