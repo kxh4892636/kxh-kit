@@ -6,7 +6,7 @@ argument-hint: "要拆分或推进什么工作?"
 
 # To Issues
 
-先完整读取 `/loop-x` 根目录的 `DOMAIN.md`, 以其中的领域布局和 Plan 生命周期为权威约束. 下文的「校验」均指在工作区根目录执行 `node <loop-x-skill-dir>/script/check-domain.mjs .`.
+先完整读取 `/loop-x` 及其根目录的 `DOMAIN.md`, 以其中的领域布局和 Plan 生命周期为权威约束. 下文的「校验」均指在工作区根目录执行 `node <loop-x-skill-dir>/script/check-domain.mjs .`.
 
 两种调用方式:
 
@@ -44,6 +44,8 @@ node .agents/skills/loop-x/script/flow.mjs record-plan --plan <plan> --session <
 推进已通过 `/dev-gate` 的 Plan 时直接使用 `claim-issue`; session 可省略并由脚本生成, 后续 Issue 步骤复用返回值.
 
 ## 建立与维护
+
+写入 spec 或 issue 前完整读取 [`TEMPLATE.md`](TEMPLATE.md), 以其中的模板和扩展规则为单一真源.
 
 运行 `/grill-with-docs`, 每轮访谈确认的内容**就地**创建或更新文档:
 
@@ -108,107 +110,3 @@ pending ──领取──> in_progress ──交付物与验证证据齐备─�
 - spec 的决策不原地反转: 难逆转的决策按 `/grill-with-docs` 的标准写入该域 `adr/`, spec 中标注被取代链接; 事实性更新可直接修改.
 - 移动 plan 目录(生命周期转换)时不动 `status:`——两条生命周期相互独立, 约束见 `/loop-x` 根目录的 `DOMAIN.md`.
 - 本协议只处理 Plan 内 issue 竞争, 不锁定或协调全局领域文件.
-
-## spec.md 模板
-
-```markdown
----
-status: pending
----
-
-# {工作名}
-
-## 问题
-
-{用户要得到的结果, 已知约束}
-
-## 方案
-
-{保持在设计层级}
-
-## 已排除的备选
-
-- {方案}: {拒绝理由}
-
-## 实施决策
-
-{模块, 接口, schema, 契约等设计层级内容; 决策密度高的片段(state machine, schema, type shape)可内联并注明出处}
-
-## 工作环境
-
-{执行该工作所需的环境信息: 例如项目管理工具, 本地开发环境, CI/CD 流水线, 运行时环境, 三方服务等}
-
-## 范围
-
-{做什么}
-
-## 非范围
-
-{不做什么}
-
-## 待定
-
-{尚不能精确表述为 issue 的部分; 澄清后 graduate 为 issue}
-
-## 上下文
-
-{通过路径或 URL 引用已有产物: PRD, story, spec, ADR, workflow, commit, diff 等; 域内文档使用 ../../ 相对路径}
-
-## Issue
-
-| #   | Issue                  | 状态    | 阻塞于 | 下一步     |
-| --- | ---------------------- | ------- | ------ | ---------- |
-| 01  | [{标题}](01-{标题}.md) | pending | —      | /implement |
-```
-
-## issue 模板
-
-```markdown
----
-status: pending
-blocked_by: []
----
-
-# {标题}
-
-## 交付
-
-{用户可感知的结果}
-
-## 范围
-
-{做什么, 不做什么}
-
-## 直接依赖
-
-- {NN}: {原因}; 消费其 {产物或契约}
-
-## 验收
-
-- [ ] {可独立判定的最小结果}
-
-## 上下文
-
-- {通过路径或 URL 引用相关产物: PRD, story, spec, ADR, workflow, commit, diff 等; 域内文档一律 ../../ 相对路径}
-
-## 下一步
-
-{决策已澄清: /implement; 仍需澄清: /grill-with-docs}
-
-## 阻塞记录
-
-{仅 status 为 blocked 时保留: 障碍与解除条件}
-
-## 交付记录
-
-{仅 status 为 completed 时保留: 交付物与验证证据链接}
-```
-
-## 模板扩展
-
-模板章节是最小集合, 不是封闭集合. 允许根据工作的性质添加模板未固定的章节, 但新增章节必须**真正独特且必要**:
-
-- **独特**——内容无法归入任何现有章节, 语义不重叠;
-- **必要**——缺少它, 该工作的执行或验收会缺失关键信息.
-
-两条同时满足才添加, 章节标题使用中文; 否则归入现有章节或省略.
