@@ -100,4 +100,4 @@ repositories:
 | 02  | [添加与移除仓库](02-添加与移除仓库.md)  | completed   | 01     | /implement |
 | 03  | [拉取与物化](03-拉取与物化.md)          | completed   | 01     | /implement |
 | 04  | [列表与状态](04-列表与状态.md)          | in_progress | 03     | /implement |
-| 05  | [Worktree 子命令](05-worktree子命令.md) | in_progress | 03     | /implement |
+| 05  | [Worktree 子命令](05-worktree子命令.md) | completed   | 03     | /implement |
