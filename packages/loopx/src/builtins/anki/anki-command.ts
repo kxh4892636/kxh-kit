@@ -13,11 +13,14 @@ import { createDeck, listDecks, moveCards, validateDeckName } from "./decks/deck
 import { createCardsGroup } from "./cards";
 import type { Logger } from "./logger";
 import { createModelsGroup } from "./models";
+import { createMediaGroup } from "./media";
 import { createNotesGroup } from "./notes";
 import type { AnkiPort } from "./port";
 import { connection, mutation, type AnkiDependencies } from "./runtime";
 import { createReviewCommand } from "./review";
 import { createSyncCommand } from "./sync";
+import { createStatsGroup } from "./stats";
+import { createTagsGroup } from "./tags";
 
 export type { AnkiDependencies } from "./runtime";
 
@@ -132,6 +135,9 @@ export const createAnkiCommand = (dependencies: AnkiDependencies): BuiltinComman
       createCardsGroup(dependencies),
       createSyncCommand(dependencies),
       createReviewCommand(dependencies),
+      createTagsGroup(dependencies),
+      createMediaGroup(dependencies),
+      createStatsGroup(dependencies),
     ],
     ankiOptions,
   );

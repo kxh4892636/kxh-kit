@@ -64,6 +64,9 @@ export const cardScheduleArrayResponse = z.array(
     .passthrough(),
 );
 export const booleanResponse = z.boolean();
+export const stringResponse = z.string().min(1);
+export const stringOrFalseResponse = z.union([z.string(), z.literal(false)]);
+export const base64OrFalseResponse = z.union([z.base64(), z.literal(false)]);
 
 export const parseResponse = <Result>(
   action: string,

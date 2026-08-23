@@ -4,11 +4,7 @@ import { JsonError } from "../errors";
 import type { Logger } from "../logger";
 import type { AnkiPort } from "../port";
 import { noteUpdateArrayResponse, nullResponse, parseResponse } from "../responses";
-import {
-  getMediaUrlConfigFromEnv,
-  sanitizeMediaFilename,
-  validateMediaUrl,
-} from "./media-validation";
+import { mediaUrlConfig, sanitizeMediaFilename, validateMediaUrl } from "../media/media-validation";
 
 export const updateNoteFieldsParamsSchema = z.object({
   note: z.object({
@@ -74,7 +70,7 @@ export const runUpdateNoteFields = async (
     }
 
     if (note.audio !== undefined) {
-      const urlConfig = getMediaUrlConfigFromEnv(env);
+      const urlConfig = mediaUrlConfig(env);
       for (const audioItem of note.audio) {
         await validateMediaUrl(audioItem.url, urlConfig, logger);
         audioItem.filename = sanitizeMediaFilename(audioItem.filename);
@@ -82,7 +78,7 @@ export const runUpdateNoteFields = async (
     }
 
     if (note.picture !== undefined) {
-      const urlConfig = getMediaUrlConfigFromEnv(env);
+      const urlConfig = mediaUrlConfig(env);
       for (const pictureItem of note.picture) {
         await validateMediaUrl(pictureItem.url, urlConfig, logger);
         pictureItem.filename = sanitizeMediaFilename(pictureItem.filename);

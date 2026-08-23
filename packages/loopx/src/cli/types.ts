@@ -72,7 +72,14 @@ export interface MutationOperation {
   prepare(options: OptionValues, context: InvocationContext): Promise<PreparedMutation>;
 }
 
-export type Operation = MutationOperation | QueryOperation;
+export interface ConditionalOperation {
+  readonly kind: "conditional";
+  mode(options: OptionValues): "mutation" | "query";
+  prepare(options: OptionValues, context: InvocationContext): Promise<PreparedMutation>;
+  run(options: OptionValues, context: InvocationContext): Promise<JsonOutput>;
+}
+
+export type Operation = ConditionalOperation | MutationOperation | QueryOperation;
 
 export interface LeafCommand {
   readonly kind: "command";

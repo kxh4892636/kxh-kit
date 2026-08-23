@@ -13,9 +13,12 @@ import type { AnkiPort } from "./port";
 const readOnlyAllowedActions = new Set(["answerCards", "review", "sync"]);
 
 export interface AnkiDependencies {
+  accessFile?(path: string): Promise<void>;
   connect(config: AnkiConfig, logger: Logger): AnkiPort;
+  removeFile?(path: string): Promise<void>;
   now?(): Date;
   readText?(source: string, context: InvocationContext): Promise<string>;
+  writeFile?(path: string, data: Uint8Array): Promise<void>;
 }
 
 export const loggerFor = (options: OptionValues, context: InvocationContext): Logger =>

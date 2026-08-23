@@ -1,5 +1,6 @@
 import type {
   BooleanOption,
+  ConditionalOperation,
   CommandGroup,
   CommandNode,
   LeafCommand,
@@ -58,13 +59,23 @@ export const command = <const Options extends readonly (BooleanOption | StringOp
           options: ValuesFromOptions<Options>,
           context: Parameters<QueryOperation["run"]>[1],
         ): ReturnType<QueryOperation["run"]>;
+      })
+    | (Omit<ConditionalOperation, "prepare" | "run"> & {
+        prepare(
+          options: ValuesFromOptions<Options>,
+          context: Parameters<ConditionalOperation["prepare"]>[1],
+        ): ReturnType<ConditionalOperation["prepare"]>;
+        run(
+          options: ValuesFromOptions<Options>,
+          context: Parameters<ConditionalOperation["run"]>[1],
+        ): ReturnType<ConditionalOperation["run"]>;
       }),
 ): LeafCommand => ({
   kind: "command",
   name,
   description,
   options,
-  operation: operation as unknown as MutationOperation | QueryOperation,
+  operation: operation as unknown as ConditionalOperation | MutationOperation | QueryOperation,
 });
 
 export const group = (

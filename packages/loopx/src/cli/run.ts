@@ -11,6 +11,7 @@ import type {
   LeafCommand,
   CommandOption,
   OptionValues,
+  QueryOperation,
   TextReader,
   TextWriter,
 } from "./types";
@@ -138,7 +139,19 @@ const validateChildren = (
       if (operation.kind === "mutation" && typeof operation.prepare !== "function") {
         throw new DefinitionError(`Mutation is missing prepare stage: ${path}`);
       }
-      if (operation.kind !== "query" && operation.kind !== "mutation") {
+      if (
+        operation.kind === "conditional" &&
+        (typeof operation.prepare !== "function" ||
+          typeof operation.run !== "function" ||
+          typeof operation.mode !== "function")
+      ) {
+        throw new DefinitionError(`Conditional operation is incomplete: ${path}`);
+      }
+      if (
+        operation.kind !== "query" &&
+        operation.kind !== "mutation" &&
+        operation.kind !== "conditional"
+      ) {
         throw new DefinitionError(`Unknown operation at: ${path}`);
       }
     }
@@ -247,9 +260,12 @@ const addNode = (
       debug: globals.debug,
       dryRun: globals.dryRun,
     };
-    if (node.operation.kind === "query") {
+    const queryMode =
+      node.operation.kind === "query" ||
+      (node.operation.kind === "conditional" && node.operation.mode(options) === "query");
+    if (queryMode) {
       await writeOutput(
-        await node.operation.run(options, context),
+        await (node.operation as QueryOperation).run(options, context),
         request.stdout,
         globals.compact,
       );

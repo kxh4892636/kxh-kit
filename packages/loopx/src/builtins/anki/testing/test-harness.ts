@@ -33,12 +33,16 @@ export const invokeAnki = async (
   argv: readonly string[],
   handler: InvokeHandler = (): undefined => undefined,
   options: {
+    readonly accessFile?: AnkiDependencies["accessFile"];
+    readonly cwd?: string;
     readonly env?: Readonly<Record<string, string | undefined>>;
     readonly lines?: readonly (null | string)[];
     readonly now?: AnkiDependencies["now"];
     readonly readLine?: () => Promise<null | string>;
     readonly readText?: AnkiDependencies["readText"];
+    readonly removeFile?: AnkiDependencies["removeFile"];
     readonly signal?: AbortSignal;
+    readonly writeFile?: AnkiDependencies["writeFile"];
   } = {},
 ): Promise<{
   readonly code: number;
@@ -51,13 +55,16 @@ export const invokeAnki = async (
   const invocations: Invocation[] = [];
   const dependencies: AnkiDependencies = {
     connect: (_config: AnkiConfig, _logger: Logger): AnkiPort => scriptedPort(handler, invocations),
+    ...(options.accessFile === undefined ? {} : { accessFile: options.accessFile }),
     ...(options.readText === undefined ? {} : { readText: options.readText }),
+    ...(options.removeFile === undefined ? {} : { removeFile: options.removeFile }),
+    ...(options.writeFile === undefined ? {} : { writeFile: options.writeFile }),
     ...(options.now === undefined ? {} : { now: options.now }),
   };
   const lines = [...(options.lines ?? [])];
   const request: CliRequest = {
     argv: ["anki", ...argv, "--compact"],
-    cwd: process.cwd(),
+    cwd: options.cwd ?? process.cwd(),
     env: options.env ?? {},
     signal: options.signal ?? new AbortController().signal,
     stdin: {

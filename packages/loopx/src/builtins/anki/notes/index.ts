@@ -20,11 +20,7 @@ import { readTextInput } from "../input";
 import type { Logger } from "../logger";
 import type { AnkiPort } from "../port";
 import { connection, loggerFor, mutation, toJson, type AnkiDependencies } from "../runtime";
-import {
-  getMediaUrlConfigFromEnv,
-  sanitizeMediaFilename,
-  validateMediaUrl,
-} from "./media-validation";
+import { mediaUrlConfig, sanitizeMediaFilename, validateMediaUrl } from "../media/media-validation";
 
 type MediaItem = { url: string; filename: string; fields: string[] };
 type BatchNote = { fields: Record<string, string>; tags?: string[] };
@@ -101,7 +97,7 @@ const prepareMedia = async (
 ): Promise<MediaItem[] | undefined> => {
   const items = media(value, flag);
   if (items === undefined) return undefined;
-  const config = getMediaUrlConfigFromEnv(context.env);
+  const config = mediaUrlConfig(context.env);
   for (const item of items) {
     await validateMediaUrl(item.url, config, logger);
     item.filename = sanitizeMediaFilename(item.filename);
