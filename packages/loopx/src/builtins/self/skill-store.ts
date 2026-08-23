@@ -54,7 +54,7 @@ const writeSkillTree = async (directory: string, skill: ManagedSkill): Promise<v
 
 const validateChange = (change: PlannedChange, force: boolean): void => {
   const { action, managed, state } = change;
-  if (action === "install" && state.status === "not_installed") return;
+  if (action === "install") return;
   if (action === "update" && (state.status === "current" || state.status === "outdated")) return;
   if (action === "uninstall" && state.status !== "not_installed" && managed) {
     if (state.status !== "modified" || force) return;
@@ -101,7 +101,6 @@ const commitChanges = async (
       }
     }
     for (const change of changes) {
-      await dependencies.beforeReplace?.(change.skill.name);
       const applied: AppliedChange = { change, backupMoved: false, targetInstalled: false };
       appliedChanges.push(applied);
       if (change.state.status !== "not_installed") {
@@ -109,6 +108,7 @@ const commitChanges = async (
         await rename(change.state.target, path.join(backupRoot, change.skill.name));
         applied.backupMoved = true;
       }
+      await dependencies.beforeReplace?.(change.skill.name);
       if (change.action !== "uninstall") {
         await rename(path.join(stagedRoot, change.skill.name), change.state.target);
         applied.targetInstalled = true;

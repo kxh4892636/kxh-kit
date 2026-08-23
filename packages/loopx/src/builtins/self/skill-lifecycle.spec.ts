@@ -150,13 +150,37 @@ describe("managed skill lifecycle", (): void => {
     expect(hashSkillFiles(await readSkillFiles(target))).toBe(before);
   });
 
-  test("protects unmanaged and modified directories unless safely forced", async (): Promise<void> => {
+  test("install always removes the target before reinstalling packaged files", async (): Promise<void> => {
     const target = await createTarget();
     const catalog = [skill("alpha"), skill("beta")];
     await mkdir(path.join(target, "beta"));
     await writeFile(path.join(target, "beta", "SKILL.md"), "foreign", "utf8");
-    expect((await invoke(catalog, target, ["install", "--name", "beta", "--force"])).code).toBe(1);
-    expect(await readFile(path.join(target, "beta", "SKILL.md"), "utf8")).toBe("foreign");
+    let replacements = 0;
+    const dependencies: SkillStoreDependencies = {
+      beforeReplace: async (name: string): Promise<void> => {
+        replacements += 1;
+        expect(await exists(path.join(target, name))).toBe(false);
+      },
+    };
+    expect((await invoke(catalog, target, ["install", "--name", "beta"], dependencies)).code).toBe(
+      0,
+    );
+    expect(await readFile(path.join(target, "beta", "SKILL.md"), "utf8")).toBe("# beta");
+    await invoke(catalog, target, ["install", "--name", "alpha"]);
+    await writeFile(path.join(target, "alpha", "SKILL.md"), "local", "utf8");
+    expect((await invoke(catalog, target, ["install", "--name", "alpha"], dependencies)).code).toBe(
+      0,
+    );
+    expect(await readFile(path.join(target, "alpha", "SKILL.md"), "utf8")).toBe("# alpha");
+    expect((await invoke(catalog, target, ["install", "--name", "alpha"], dependencies)).code).toBe(
+      0,
+    );
+    expect(replacements).toBe(3);
+  });
+
+  test("update still protects locally modified managed directories unless forced", async (): Promise<void> => {
+    const target = await createTarget();
+    const catalog = [skill("alpha")];
     await invoke(catalog, target, ["install", "--name", "alpha"]);
     await writeFile(path.join(target, "alpha", "SKILL.md"), "local", "utf8");
     expect((await invoke(catalog, target, ["update", "--name", "alpha"])).code).toBe(1);
@@ -179,14 +203,14 @@ describe("managed skill lifecycle", (): void => {
     await expect((await import("node:fs/promises")).readdir(target)).resolves.toEqual([]);
   });
 
-  test("preflights the whole batch before creating any target", async (): Promise<void> => {
+  test("install --all replaces existing unmanaged targets", async (): Promise<void> => {
     const target = await createTarget();
     const catalog = [skill("alpha"), skill("beta")];
     await mkdir(path.join(target, "beta"));
     await writeFile(path.join(target, "beta", "SKILL.md"), "foreign", "utf8");
     const result = await invoke(catalog, target, ["install", "--all"]);
-    expect(result.code).toBe(1);
-    expect(await exists(path.join(target, "alpha"))).toBe(false);
-    expect(await readFile(path.join(target, "beta", "SKILL.md"), "utf8")).toBe("foreign");
+    expect(result.code).toBe(0);
+    expect(await readFile(path.join(target, "alpha", "SKILL.md"), "utf8")).toBe("# alpha");
+    expect(await readFile(path.join(target, "beta", "SKILL.md"), "utf8")).toBe("# beta");
   });
 });
