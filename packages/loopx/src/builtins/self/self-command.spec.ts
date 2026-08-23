@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
+import packageMetadata from "../../../package.json" with { type: "json" };
 import { runCli, type CliRequest } from "../../cli/run";
 import type { BuiltinCommand } from "../../cli/types";
 import { generatedSkills } from "./generated-skill-manifest";
@@ -70,7 +71,7 @@ describe("self skill query interface", (): void => {
           name,
           status: "not_installed",
           target: path.join(target, name),
-          version: "0.1.0",
+          version: packageMetadata.version,
         }),
       ),
     });
