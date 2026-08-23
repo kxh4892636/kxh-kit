@@ -14,6 +14,7 @@ import { createCardsGroup } from "./cards";
 import type { Logger } from "./logger";
 import { createModelsGroup } from "./models";
 import { createMediaGroup } from "./media";
+import { createGuiGroup } from "./gui";
 import { createNotesGroup } from "./notes";
 import type { AnkiPort } from "./port";
 import { connection, mutation, type AnkiDependencies } from "./runtime";
@@ -138,6 +139,7 @@ export const createAnkiCommand = (dependencies: AnkiDependencies): BuiltinComman
       createTagsGroup(dependencies),
       createMediaGroup(dependencies),
       createStatsGroup(dependencies),
+      createGuiGroup(dependencies),
     ],
     ankiOptions,
   );
