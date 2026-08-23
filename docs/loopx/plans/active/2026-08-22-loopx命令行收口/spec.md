@@ -157,17 +157,17 @@ type JsonOutput = JsonValue | AsyncIterable<JsonValue>;
 
 ## Issue
 
-| #   | Issue                                                   | 状态      | 阻塞于                     | 下一步     |
-| --- | ------------------------------------------------------- | --------- | -------------------------- | ---------- |
-| 01  | [CLI kernel 与本地 npm 包](01-CLI-kernel与本地npm包.md) | completed | —                          | /implement |
-| 02  | [Skill 目录与版本检测](02-Skill目录与版本检测.md)       | completed | 01                         | /implement |
-| 03  | [Skill 安装生命周期](03-Skill安装生命周期.md)           | completed | 02                         | /implement |
-| 04  | [从 npm 更新 loopx](04-从npm更新loopx.md)               | pending   | 03                         | /implement |
-| 05  | [Anki 纵切与牌组操作](05-Anki纵切与牌组操作.md)         | pending   | 01                         | /implement |
-| 06  | [Anki 笔记与笔记类型操作](06-Anki笔记与笔记类型操作.md) | pending   | 05                         | /implement |
-| 07  | [Anki 卡片与复习操作](07-Anki卡片与复习操作.md)         | pending   | 05                         | /implement |
-| 08  | [Anki 标签媒体与统计操作](08-Anki标签媒体与统计操作.md) | pending   | 05                         | /implement |
-| 09  | [Anki GUI 操作](09-Anki-GUI操作.md)                     | pending   | 05                         | /implement |
-| 10  | [loop-x-cli 路由 skill](10-loop-x-cli路由skill.md)      | pending   | 03, 04, 05, 06, 07, 08, 09 | /implement |
-| 11  | [删除旧 Anki 形态](11-删除旧Anki形态.md)                | pending   | 10                         | /implement |
-| 12  | [本地包全链路验收](12-本地包全链路验收.md)              | pending   | 04, 11                     | /implement |
+| #   | Issue                                                   | 状态        | 阻塞于                     | 下一步     |
+| --- | ------------------------------------------------------- | ----------- | -------------------------- | ---------- |
+| 01  | [CLI kernel 与本地 npm 包](01-CLI-kernel与本地npm包.md) | completed   | —                          | /implement |
+| 02  | [Skill 目录与版本检测](02-Skill目录与版本检测.md)       | completed   | 01                         | /implement |
+| 03  | [Skill 安装生命周期](03-Skill安装生命周期.md)           | completed   | 02                         | /implement |
+| 04  | [从 npm 更新 loopx](04-从npm更新loopx.md)               | in_progress | 03                         | /implement |
+| 05  | [Anki 纵切与牌组操作](05-Anki纵切与牌组操作.md)         | pending     | 01                         | /implement |
+| 06  | [Anki 笔记与笔记类型操作](06-Anki笔记与笔记类型操作.md) | pending     | 05                         | /implement |
+| 07  | [Anki 卡片与复习操作](07-Anki卡片与复习操作.md)         | pending     | 05                         | /implement |
+| 08  | [Anki 标签媒体与统计操作](08-Anki标签媒体与统计操作.md) | pending     | 05                         | /implement |
+| 09  | [Anki GUI 操作](09-Anki-GUI操作.md)                     | pending     | 05                         | /implement |
+| 10  | [loop-x-cli 路由 skill](10-loop-x-cli路由skill.md)      | pending     | 03, 04, 05, 06, 07, 08, 09 | /implement |
+| 11  | [删除旧 Anki 形态](11-删除旧Anki形态.md)                | pending     | 10                         | /implement |
+| 12  | [本地包全链路验收](12-本地包全链路验收.md)              | pending     | 04, 11                     | /implement |

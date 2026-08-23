@@ -15,6 +15,12 @@ import {
   type SkillStoreDependencies,
 } from "./skill-store";
 import { inspectSkill } from "./skill-state";
+import { prepareSelfUpdate, type PackageManagerPort } from "./self-updater";
+
+export interface SelfCommandDependencies extends SkillStoreDependencies {
+  readonly packageManager?: PackageManagerPort;
+  readonly currentVersion?: string;
+}
 
 const listOptions = [option.string("target", "Managed skill root", {})] as const;
 type ListOptions = ValuesFromOptions<typeof listOptions>;
@@ -36,6 +42,11 @@ const updateOptions = [
   option.boolean("force", "Replace a locally modified managed skill", {}),
 ] as const;
 type UpdateOptions = ValuesFromOptions<typeof updateOptions>;
+const selfUpdateOptions = [
+  option.string("version", "npm semver or tag", {}),
+  option.string("target", "Managed skill root", {}),
+] as const;
+type SelfUpdateOptions = ValuesFromOptions<typeof selfUpdateOptions>;
 
 const targetRoot = (target: string | undefined, context: InvocationContext): string =>
   path.resolve(target ?? path.join(context.cwd, ".agents", "skills"));
@@ -73,7 +84,7 @@ const prepareChange = async (
 
 export const createSelfCommand = (
   catalog: readonly ManagedSkill[],
-  dependencies: SkillStoreDependencies = {},
+  dependencies: SelfCommandDependencies = {},
 ): BuiltinCommand =>
   group("self", "Manage LoopX itself", [
     group("skill", "Manage LoopX skills", [
@@ -153,4 +164,28 @@ export const createSelfCommand = (
           ),
       }),
     ]),
+    command("update", "Update LoopX from npm", selfUpdateOptions, {
+      kind: "mutation",
+      prepare: async (
+        options: SelfUpdateOptions,
+        context: InvocationContext,
+      ): Promise<PreparedMutation> => {
+        if (
+          dependencies.packageManager === undefined ||
+          dependencies.currentVersion === undefined
+        ) {
+          throw new Error("LoopX package manager is not configured");
+        }
+        return prepareSelfUpdate(
+          dependencies.currentVersion,
+          catalog,
+          dependencies.packageManager,
+          {
+            selector: options.version ?? "latest",
+            targetRoot: targetRoot(options.target, context),
+          },
+          dependencies,
+        );
+      },
+    }),
   ]);

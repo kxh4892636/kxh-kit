@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in_progress
 blocked_by: ["03"]
 ---
 
@@ -23,10 +23,10 @@ blocked_by: ["03"]
 
 ## 验收
 
-- [ ] scripted PackageManagerPort 测试覆盖 `latest`、指定 semver/tag、排除 prerelease、无更新、查询失败、安装失败和 skill 同步失败。
-- [ ] 各失败路径后 CLI 版本与已安装 skill 文件树均等于更新前快照。
-- [ ] `--dry-run` 不调用 PackageManagerPort 的安装方法或 SkillStore 写方法，但返回完整 JSON 计划。
-- [ ] `vp run @kxh4892636/loopx#test`、`vp run @kxh4892636/loopx#build` 和 `vp check` 通过。
+- [x] scripted PackageManagerPort 测试覆盖 `latest`、指定 semver/tag、排除 prerelease、无更新、查询失败、安装失败和 skill 同步失败。
+- [x] 各失败路径后 CLI 版本与已安装 skill 文件树均等于更新前快照。
+- [x] `--dry-run` 不调用 PackageManagerPort 的安装方法或 SkillStore 写方法，但返回完整 JSON 计划。
+- [x] `vp run @kxh4892636/loopx#test`、`vp run @kxh4892636/loopx#build` 和 `vp check` 通过。
 
 ## 上下文
 
@@ -40,4 +40,6 @@ blocked_by: ["03"]
 
 ## 交付记录
 
-待交付。
+交付物：`self update` 编排、真实 npm tgz 候选 skill 解析、Windows npm adapter、CLI/skill 回滚与 semver selector。
+
+验证证据：31 个 LoopX 测试通过；包构建通过；全仓 `vp check` 为 0 error（31 个既有 warning）；本机 Node 直启 npm CLI 返回 11.6.2；Standards/Spec 双轴审查均无 blocker。

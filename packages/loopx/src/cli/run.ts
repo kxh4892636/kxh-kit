@@ -35,7 +35,7 @@ interface ScannedArguments {
   readonly globals: GlobalOptions;
 }
 
-const reservedOptions = new Set(["compact", "debug", "dry-run", "help", "version"]);
+const reservedOptions = new Set(["compact", "debug", "dry-run", "help"]);
 const validName = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/u;
 
 const scanGlobals = (argv: readonly string[]): ScannedArguments => {
@@ -149,7 +149,7 @@ const addNode = (
   request: CliRequest,
   globals: GlobalOptions,
 ): void => {
-  const target = parent.command(node.name).description(node.description);
+  const target = parent.command(node.name).description(node.description).enablePositionalOptions();
   addGlobalHelpOptions(target);
   if (node.kind === "group") {
     for (const child of node.children) addNode(target, child, request, globals);
@@ -200,6 +200,7 @@ const createProgram = (
   const program = new Command()
     .name("loopx")
     .description("LoopX unified command line interface")
+    .enablePositionalOptions()
     .version(packageMetadata.version, "--version");
   addGlobalHelpOptions(program);
   program.configureOutput({
