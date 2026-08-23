@@ -354,13 +354,15 @@ const verifyAnkiOperations = async (fixture: DistributionFixture): Promise<void>
       "decks",
       "create",
       "--name",
-      "Distribution",
+      "Distribution::Nested::Leaf",
       "--dry-run",
       "--compact",
     ]);
     expect(preview).toMatchObject({
       dryRun: true,
-      preview: { actions: [{ action: "createDeck" }] },
+      preview: {
+        actions: [{ action: "createDeck", params: { deck: "Distribution::Nested::Leaf" } }],
+      },
     });
     expect(server.actions).toEqual(["deckNames"]);
     const mutation = await invokeJson(fixture, [
@@ -370,11 +372,19 @@ const verifyAnkiOperations = async (fixture: DistributionFixture): Promise<void>
       "decks",
       "create",
       "--name",
-      "Distribution",
+      "Distribution::Nested::Leaf",
       "--compact",
     ]);
-    expect(mutation).toMatchObject({ success: true, created: true, deckId: 42 });
-    expect(server.actions).toEqual(["deckNames", "createDeck"]);
+    expect(mutation).toMatchObject({
+      success: true,
+      created: true,
+      deckId: 42,
+      deckName: "Distribution::Nested::Leaf",
+      parentDeck: "Distribution::Nested",
+      childDeck: "Leaf",
+      parentExisted: false,
+    });
+    expect(server.actions).toEqual(["deckNames", "deckNames", "createDeck"]);
   } finally {
     await server.close();
   }

@@ -218,10 +218,11 @@ describe("loopx anki decks", (): void => {
     ]);
   });
 
-  test("preserves hierarchical create output and rejects invalid dry-run input", async (): Promise<void> => {
+  test("creates arbitrary-depth decks and reports the direct parent", async (): Promise<void> => {
     const invocations: Invocation[] = [];
     const dependencies = {
-      connect: (): AnkiPort => scriptedPort({ deckNames: ["Root"], createDeck: 42 }, invocations),
+      connect: (): AnkiPort =>
+        scriptedPort({ deckNames: ["Root", "Root::Child"], createDeck: 42 }, invocations),
     };
     const result = await invoke(["decks", "create", "--name", "Root::Child"], dependencies);
     expect(JSON.parse(result.stdout)).toMatchObject({
@@ -230,9 +231,34 @@ describe("loopx anki decks", (): void => {
       parentExisted: true,
       message: 'Found existing parent deck "Root"; created child deck "Child"',
     });
-    expect(
-      (await invoke(["decks", "create", "--name", "A::B::C", "--dry-run"], dependencies)).code,
-    ).toBe(2);
+    const nested = await invoke(["decks", "create", "--name", "Root::Child::Leaf"], dependencies);
+    expect(nested.code).toBe(0);
+    expect(JSON.parse(nested.stdout)).toMatchObject({
+      parentDeck: "Root::Child",
+      childDeck: "Leaf",
+      parentExisted: true,
+      message: 'Found existing parent deck "Root::Child"; created child deck "Leaf"',
+    });
+    expect(invocations).toContainEqual({
+      action: "createDeck",
+      params: { deck: "Root::Child::Leaf" },
+    });
+  });
+
+  test("rejects empty hierarchy segments before connecting", async (): Promise<void> => {
+    let connections = 0;
+    const result = await invoke(["decks", "create", "--name", "Root::Child::::Leaf"], {
+      connect: (): AnkiPort => {
+        connections += 1;
+        return scriptedPort({}, []);
+      },
+    });
+    expect(result.code).toBe(2);
+    expect(JSON.parse(result.stderr)).toMatchObject({
+      success: false,
+      error: "Deck name parts cannot be empty",
+    });
+    expect(connections).toBe(0);
   });
 
   test("diagnoses a failed best-effort parent-deck lookup", async (): Promise<void> => {
