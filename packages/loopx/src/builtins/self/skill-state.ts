@@ -3,7 +3,7 @@ import path from "node:path";
 import type { ManagedSkill, SkillState } from "./skill-catalog";
 import { hashSkillFiles, managedMarkerName, readSkillFiles } from "./skill-files";
 
-interface ManagedMarker {
+export interface ManagedMarker {
   readonly name: string;
   readonly version: string;
   readonly contentHash: string;
@@ -12,7 +12,7 @@ interface ManagedMarker {
 const isMissing = (error: unknown): boolean =>
   error instanceof Error && "code" in error && error.code === "ENOENT";
 
-const readMarker = async (directory: string): Promise<ManagedMarker | null> => {
+export const readManagedMarker = async (directory: string): Promise<ManagedMarker | null> => {
   try {
     const value: unknown = JSON.parse(
       await readFile(path.join(directory, managedMarkerName), "utf8"),
@@ -49,7 +49,7 @@ export const inspectSkill = async (
       return { name: skill.name, version: skill.version, target, status: "not_installed" };
     throw new Error(`Unable to inspect skill at ${target}`, { cause: error });
   }
-  const marker = await readMarker(target);
+  const marker = await readManagedMarker(target);
   const actualHash = hashSkillFiles(files);
   if (marker === null || marker.name !== skill.name || marker.contentHash !== actualHash) {
     return { name: skill.name, version: skill.version, target, status: "modified" };

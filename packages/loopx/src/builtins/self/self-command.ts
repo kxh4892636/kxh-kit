@@ -5,9 +5,15 @@ import type {
   BuiltinCommand,
   InvocationContext,
   JsonOutput,
+  PreparedMutation,
   ValuesFromOptions,
 } from "../../cli/types";
 import type { ManagedSkill, SkillState } from "./skill-catalog";
+import {
+  prepareSkillChange,
+  type SkillChangeKind,
+  type SkillStoreDependencies,
+} from "./skill-store";
 import { inspectSkill } from "./skill-state";
 
 const listOptions = [option.string("target", "Managed skill root", {})] as const;
@@ -17,11 +23,58 @@ const checkOptions = [
   option.string("target", "Managed skill root", {}),
 ] as const;
 type CheckOptions = ValuesFromOptions<typeof checkOptions>;
+const batchOptions = [
+  option.string("name", "Managed skill name", { conflicts: ["all"] }),
+  option.boolean("all", "Select every packaged skill", { conflicts: ["name"] }),
+  option.string("target", "Managed skill root", {}),
+  option.boolean("force", "Replace locally modified managed skills", {}),
+] as const;
+type BatchOptions = ValuesFromOptions<typeof batchOptions>;
+const updateOptions = [
+  option.string("name", "Managed skill name", { required: true }),
+  option.string("target", "Managed skill root", {}),
+  option.boolean("force", "Replace a locally modified managed skill", {}),
+] as const;
+type UpdateOptions = ValuesFromOptions<typeof updateOptions>;
 
 const targetRoot = (target: string | undefined, context: InvocationContext): string =>
   path.resolve(target ?? path.join(context.cwd, ".agents", "skills"));
 
-export const createSelfCommand = (catalog: readonly ManagedSkill[]): BuiltinCommand =>
+const selectBatch = (
+  options: BatchOptions,
+  catalog: readonly ManagedSkill[],
+): readonly string[] => {
+  const hasName = options.name !== undefined;
+  const hasAll = options.all === true;
+  if (hasName === hasAll) throw new CliUsageError("Provide exactly one of --name or --all");
+  return hasAll ? catalog.map((skill: ManagedSkill): string => skill.name) : [options.name ?? ""];
+};
+
+interface PreparedChangeInput {
+  readonly kind: SkillChangeKind;
+  readonly names: readonly string[];
+  readonly target: string | undefined;
+  readonly force: boolean | undefined;
+  readonly context: InvocationContext;
+}
+
+const prepareChange = async (
+  input: PreparedChangeInput,
+  catalog: readonly ManagedSkill[],
+  dependencies: SkillStoreDependencies,
+): Promise<PreparedMutation> => {
+  const { context, force, kind, names, target } = input;
+  return prepareSkillChange(
+    catalog,
+    { kind, names, targetRoot: targetRoot(target, context), force: force === true },
+    dependencies,
+  );
+};
+
+export const createSelfCommand = (
+  catalog: readonly ManagedSkill[],
+  dependencies: SkillStoreDependencies = {},
+): BuiltinCommand =>
   group("self", "Manage LoopX itself", [
     group("skill", "Manage LoopX skills", [
       command("list", "List packaged skills", listOptions, {
@@ -44,6 +97,60 @@ export const createSelfCommand = (catalog: readonly ManagedSkill[]): BuiltinComm
             throw new CliUsageError(`Unknown managed skill: ${options.name}`);
           return inspectSkill(skill, targetRoot(options.target, context));
         },
+      }),
+      command("install", "Install managed skills", batchOptions, {
+        kind: "mutation",
+        prepare: async (
+          options: BatchOptions,
+          context: InvocationContext,
+        ): Promise<PreparedMutation> =>
+          prepareChange(
+            {
+              kind: "install",
+              names: selectBatch(options, catalog),
+              target: options.target,
+              force: options.force,
+              context,
+            },
+            catalog,
+            dependencies,
+          ),
+      }),
+      command("update", "Update a managed skill", updateOptions, {
+        kind: "mutation",
+        prepare: async (
+          options: UpdateOptions,
+          context: InvocationContext,
+        ): Promise<PreparedMutation> =>
+          prepareChange(
+            {
+              kind: "update",
+              names: [options.name],
+              target: options.target,
+              force: options.force,
+              context,
+            },
+            catalog,
+            dependencies,
+          ),
+      }),
+      command("uninstall", "Uninstall managed skills", batchOptions, {
+        kind: "mutation",
+        prepare: async (
+          options: BatchOptions,
+          context: InvocationContext,
+        ): Promise<PreparedMutation> =>
+          prepareChange(
+            {
+              kind: "uninstall",
+              names: selectBatch(options, catalog),
+              target: options.target,
+              force: options.force,
+              context,
+            },
+            catalog,
+            dependencies,
+          ),
       }),
     ]),
   ]);

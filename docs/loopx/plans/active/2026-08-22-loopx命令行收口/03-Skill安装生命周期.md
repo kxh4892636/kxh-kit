@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in_progress
 blocked_by: ["02"]
 ---
 
@@ -23,10 +23,10 @@ blocked_by: ["02"]
 
 ## 验收
 
-- [ ] 临时工作区端到端测试覆盖单个/全部安装、更新、单个/全部卸载，每次后 `check` 状态正确。
-- [ ] 本地修改、非受管同名目录和人工注入的中途失败均证明默认不覆盖、不部分完成；`--force` 只放宽已确认的本地修改保护。
-- [ ] 所有写命令的 `--dry-run` 输出可判定 JSON 计划，目标文件树哈希前后一致。
-- [ ] `vp run @kxh4892636/loopx#test`、`vp run @kxh4892636/loopx#build` 和 `vp check` 通过。
+- [x] 临时工作区端到端测试覆盖单个/全部安装、更新、单个/全部卸载，每次后 `check` 状态正确。
+- [x] 本地修改、非受管同名目录和人工注入的中途失败均证明默认不覆盖、不部分完成；`--force` 只放宽已确认的本地修改保护。
+- [x] 所有写命令的 `--dry-run` 输出可判定 JSON 计划，目标文件树哈希前后一致。
+- [x] `vp run @kxh4892636/loopx#test`、`vp run @kxh4892636/loopx#build` 和 `vp check` 通过。
 
 ## 上下文
 
@@ -40,4 +40,6 @@ blocked_by: ["02"]
 
 ## 交付记录
 
-待交付。
+- 交付物：deep SkillStore、install/update/uninstall 命令、全量预检、同父 transaction tree、校验与逆序回滚。
+- 验证证据：24 个测试通过；本地 `.tgz` install/check/dry-run/uninstall 通过，三类 dry-run 树哈希不变，故障与冲突批次零部分结果。
+- 审查：相对 `ab33eed` 的 Standards/Spec 双轴复审均无阻断项。
