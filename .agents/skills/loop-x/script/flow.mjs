@@ -89,8 +89,9 @@ const normalizePlanPath = (workspace, planInput) => {
 };
 
 const statePaths = (workspace) => ({
-  lock: path.join(workspace, ".loop.lock"),
-  state: path.join(workspace, ".loop"),
+  dir: path.join(workspace, ".loop"),
+  lock: path.join(workspace, ".loop", "state.lock"),
+  state: path.join(workspace, ".loop", "state.json"),
 });
 
 const emptyState = () => ({
@@ -109,7 +110,7 @@ const validateState = (state) => {
     typeof state.plans !== "object" ||
     Array.isArray(state.plans)
   ) {
-    fail(".loop 格式无效或版本不受支持");
+    fail(".loop/state.json 格式无效或版本不受支持");
   }
   return state;
 };
@@ -198,6 +199,7 @@ const releaseLock = async (lockPath, nonce) => {
 
 const withStateTransaction = async (workspace, now, action) => {
   const paths = statePaths(workspace);
+  await fs.mkdir(paths.dir, { recursive: true });
   const nonce = await acquireLock(paths.lock, now);
   try {
     const state = await readState(paths.state);

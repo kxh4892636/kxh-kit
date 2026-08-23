@@ -30,9 +30,6 @@ release
 *.sln
 *.sw?
 
-# AI agent worktrees
-.claude/worktrees/
-
 # k2 injected: managed agent directories
 **/.codex/skills/k2/
 **/.claude/skills/k2/
@@ -41,5 +38,3 @@ release
 
 # Loop X runtime state
 .loop
-.loop.lock
-.loop.*.tmp

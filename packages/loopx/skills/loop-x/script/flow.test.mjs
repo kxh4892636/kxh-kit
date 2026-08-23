@@ -270,7 +270,7 @@ test("loop-x 必须选择规定的入口 skill", async () => {
       }),
       /\/to-story 进入流程前必须提供 --plan/,
     );
-    await assert.rejects(fs.access(path.join(workspace, ".loop")), {
+    await assert.rejects(fs.access(path.join(workspace, ".loop", "state.json")), {
       code: "ENOENT",
     });
   } finally {
@@ -310,7 +310,7 @@ test("loop-x 只能接入已有流程当前期待的入口", async () => {
     });
     assert.equal(repeated.revision, entered.revision);
 
-    const statePath = path.join(workspace, ".loop");
+    const statePath = path.join(workspace, ".loop", "state.json");
     const stateBeforeMismatch = await fs.readFile(statePath, "utf8");
     await assert.rejects(
       command(workspace, "enter-plan", {
@@ -517,7 +517,9 @@ test("Issue 按完整 skill 序列完成并同步 Plan 状态", async () => {
     await addDeliveryEvidence(workspace, "01");
     const result = await recordIssue(workspace, "01", "issue-a", "commit", "committed");
     assert.equal(result.status, "completed");
-    const state = JSON.parse(await fs.readFile(path.join(workspace, ".loop"), "utf8"));
+    const state = JSON.parse(
+      await fs.readFile(path.join(workspace, ".loop", "state.json"), "utf8"),
+    );
     assert.equal(state.plans[PLAN_PATH].issues["01"].status, "completed");
     const spec = await fs.readFile(path.join(workspace, PLAN_PATH, "spec.md"), "utf8");
     assert.match(spec, /^status: completed$/m);
@@ -542,7 +544,9 @@ test("sync-plan 从 Issue 文档恢复完成状态", async () => {
 
     await command(workspace, "sync-plan", { plan: PLAN_PATH });
 
-    const state = JSON.parse(await fs.readFile(path.join(workspace, ".loop"), "utf8"));
+    const state = JSON.parse(
+      await fs.readFile(path.join(workspace, ".loop", "state.json"), "utf8"),
+    );
     assert.equal(state.plans[PLAN_PATH].issues["01"].status, "completed");
     const spec = await fs.readFile(path.join(workspace, PLAN_PATH, "spec.md"), "utf8");
     assert.match(spec, /^status: completed$/m);
@@ -598,7 +602,7 @@ test("CLI 可脱离工作区 package 配置直接运行", async () => {
     const result = JSON.parse(stdout);
     assert.equal(result.next_skill, "/to-issues");
     assert.equal(result.success, true);
-    await fs.access(path.join(workspace, ".loop"));
+    await fs.access(path.join(workspace, ".loop", "state.json"));
 
     const loopxWorkspace = path.join(workspace, "loopx-entry");
     await fs.mkdir(loopxWorkspace);
@@ -618,7 +622,7 @@ test("CLI 可脱离工作区 package 配置直接运行", async () => {
     assert.equal(loopxResult.next_skill, "/to-issues");
     assert.equal(loopxResult.route, "issues");
     assert.equal(loopxResult.success, true);
-    await fs.access(path.join(loopxWorkspace, ".loop"));
+    await fs.access(path.join(loopxWorkspace, ".loop", "state.json"));
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }
