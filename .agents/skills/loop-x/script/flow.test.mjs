@@ -517,7 +517,9 @@ test("Issue 按完整 skill 序列完成并同步 Plan 状态", async () => {
     await addDeliveryEvidence(workspace, "01");
     const result = await recordIssue(workspace, "01", "issue-a", "commit", "committed");
     assert.equal(result.status, "completed");
-    const state = JSON.parse(await fs.readFile(path.join(workspace, ".loop", "state.json"), "utf8"));
+    const state = JSON.parse(
+      await fs.readFile(path.join(workspace, ".loop", "state.json"), "utf8"),
+    );
     assert.equal(state.plans[PLAN_PATH].issues["01"].status, "completed");
     const spec = await fs.readFile(path.join(workspace, PLAN_PATH, "spec.md"), "utf8");
     assert.match(spec, /^status: completed$/m);
@@ -542,7 +544,9 @@ test("sync-plan 从 Issue 文档恢复完成状态", async () => {
 
     await command(workspace, "sync-plan", { plan: PLAN_PATH });
 
-    const state = JSON.parse(await fs.readFile(path.join(workspace, ".loop", "state.json"), "utf8"));
+    const state = JSON.parse(
+      await fs.readFile(path.join(workspace, ".loop", "state.json"), "utf8"),
+    );
     assert.equal(state.plans[PLAN_PATH].issues["01"].status, "completed");
     const spec = await fs.readFile(path.join(workspace, PLAN_PATH, "spec.md"), "utf8");
     assert.match(spec, /^status: completed$/m);
