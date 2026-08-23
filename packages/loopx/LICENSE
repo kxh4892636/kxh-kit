@@ -2,8 +2,8 @@ MIT License
 
 Copyright (c) 2026 kxh4892636
 
-本包的部分代码移植自 anki-mcp-server(https://github.com/ankimcp/anki-mcp-server),
-其版权如下:
+This package includes code adapted from anki-mcp-server
+(https://github.com/ankimcp/anki-mcp-server), with the following copyright:
 
 Copyright (c) 2026 Anatoly Tarnavsky
 

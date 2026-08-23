@@ -13,7 +13,9 @@
   },
   "files": [
     "dist",
-    "skills"
+    "skills",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "type": "module",
   "exports": {
