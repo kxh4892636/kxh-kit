@@ -24,7 +24,7 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vp pack src/main.ts",
+    "build": "node script/generate-skill-manifest.mjs && vp pack src/main.ts",
     "test": "vp test src",
     "check": "vp check",
     "prepublishOnly": "vp run build"

@@ -7,6 +7,13 @@ export class DefinitionError extends Error {
   }
 }
 
+export class CliUsageError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CliUsageError";
+  }
+}
+
 export const toErrorJson = (error: unknown, debug: boolean): Record<string, false | string> => {
   const payload: Record<string, false | string> = {
     success: false,
@@ -18,4 +25,5 @@ export const toErrorJson = (error: unknown, debug: boolean): Record<string, fals
   return payload;
 };
 
-export const isUsageError = (error: unknown): boolean => error instanceof CommanderError;
+export const isUsageError = (error: unknown): boolean =>
+  error instanceof CommanderError || error instanceof CliUsageError;

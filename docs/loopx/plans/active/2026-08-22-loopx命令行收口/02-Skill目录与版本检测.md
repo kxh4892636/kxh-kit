@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in_progress
 blocked_by: ["01"]
 ---
 
@@ -23,10 +23,10 @@ blocked_by: ["01"]
 
 ## 验收
 
-- [ ] 从已打包产物运行 `skill list`，JSON 至少列出 `loop-x`、CLI 版本、目标路径和安装状态。
-- [ ] 临时工作区测试覆盖四种状态；改动一个受管文件后稳定返回 `modified`。
-- [ ] `list` / `check` 是 query，传入 `--dry-run` 仍执行查询且不写目标。
-- [ ] `vp run @kxh4892636/loopx#test`、`vp run @kxh4892636/loopx#build` 和 `vp check` 通过。
+- [x] 从已打包产物运行 `skill list`，JSON 至少列出 `loop-x`、CLI 版本、目标路径和安装状态。
+- [x] 临时工作区测试覆盖四种状态；改动一个受管文件后稳定返回 `modified`。
+- [x] `list` / `check` 是 query，传入 `--dry-run` 仍执行查询且不写目标。
+- [x] `vp run @kxh4892636/loopx#test`、`vp run @kxh4892636/loopx#build` 和 `vp check` 通过。
 
 ## 上下文
 
@@ -40,4 +40,6 @@ blocked_by: ["01"]
 
 ## 交付记录
 
-待交付。
+- 交付物：`skills/loop-x/` 完整树、build-time manifest 生成器、`self skill list/check` 与四态检测模块。
+- 验证证据：17 个 CLI/interface 测试、构建与 `vp check` 通过；本地 `.tgz` 的 dry-run list 返回 `loop-x@0.1.0` 且未创建目标目录。
+- 审查：相对 `4907b13` 的 Standards/Spec 双轴复审均无阻断项。
