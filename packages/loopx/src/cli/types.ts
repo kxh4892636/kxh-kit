@@ -1,0 +1,102 @@
+export type JsonPrimitive = boolean | null | number | string;
+export type JsonValue =
+  | JsonPrimitive
+  | readonly JsonValue[]
+  | { readonly [key: string]: JsonValue };
+export type JsonOutput = JsonValue | AsyncIterable<JsonValue>;
+
+export interface TextReader {
+  readAll?(): Promise<string>;
+  readLine(): Promise<null | string>;
+}
+
+export interface TextWriter {
+  write(chunk: string): void;
+}
+
+export interface InvocationContext {
+  readonly cwd: string;
+  readonly env: Readonly<Record<string, string | undefined>>;
+  readonly signal: AbortSignal;
+  readonly stdin: TextReader;
+  readonly debug: boolean;
+  readonly dryRun: boolean;
+}
+
+export type OptionValue = boolean | readonly string[] | string | undefined;
+export type OptionValues = Readonly<Record<string, OptionValue>>;
+
+interface BaseOption {
+  readonly name: string;
+  readonly description: string;
+  readonly conflicts?: readonly string[];
+  readonly required?: boolean;
+}
+
+export interface BooleanOption extends BaseOption {
+  readonly kind: "boolean";
+}
+
+export interface StringOption extends BaseOption {
+  readonly kind: "string";
+  readonly multiple?: boolean;
+  readonly placeholder?: string;
+}
+
+export type CommandOption = BooleanOption | StringOption;
+
+type DefinedOptionValue<Definition extends CommandOption> = Definition extends StringOption
+  ? Definition["multiple"] extends true
+    ? readonly string[]
+    : string
+  : boolean;
+
+export type ValuesFromOptions<Definitions extends readonly CommandOption[]> = Readonly<{
+  [Definition in Definitions[number] as Definition["name"]]: Definition["required"] extends true
+    ? DefinedOptionValue<Definition>
+    : DefinedOptionValue<Definition> | undefined;
+}>;
+
+export interface QueryOperation {
+  readonly kind: "query";
+  run(options: OptionValues, context: InvocationContext): Promise<JsonOutput>;
+}
+
+export interface PreparedMutation {
+  readonly preview: JsonValue;
+  commit(): Promise<JsonOutput>;
+}
+
+export interface MutationOperation {
+  readonly kind: "mutation";
+  prepare(options: OptionValues, context: InvocationContext): Promise<PreparedMutation>;
+}
+
+export interface ConditionalOperation {
+  readonly kind: "conditional";
+  mode(options: OptionValues): "mutation" | "query";
+  prepare(options: OptionValues, context: InvocationContext): Promise<PreparedMutation>;
+  run(options: OptionValues, context: InvocationContext): Promise<JsonOutput>;
+}
+
+export type Operation = ConditionalOperation | MutationOperation | QueryOperation;
+
+export interface LeafCommand {
+  readonly kind: "command";
+  readonly name: string;
+  readonly description: string;
+  readonly options: readonly CommandOption[];
+  readonly operation: Operation;
+}
+
+export interface CommandGroup {
+  readonly kind: "group";
+  readonly name: string;
+  readonly description: string;
+  readonly options: readonly CommandOption[];
+  readonly children: readonly CommandNode[];
+}
+
+export type CommandNode = CommandGroup | LeafCommand;
+export type BuiltinCommand = CommandGroup;
+export type BuiltinModuleFactory = () => BuiltinCommand;

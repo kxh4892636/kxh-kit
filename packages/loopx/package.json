@@ -1,0 +1,56 @@
+{
+  "name": "@kxh4892636/loopx",
+  "version": "0.1.0",
+  "description": "LoopX unified command line interface",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/kxh4892636/kxh-kit.git",
+    "directory": "packages/loopx"
+  },
+  "bin": {
+    "loopx": "dist/main.mjs"
+  },
+  "files": [
+    "dist",
+    "skills",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "README.md"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./dist/main.mjs",
+    "./package.json": "./package.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node script/generate-skill-manifest.mjs && vp pack src/main.ts",
+    "test": "vp test src",
+    "test:distribution": "vp run build && vp test test/distribution.spec.ts",
+    "check": "vp check",
+    "prepublishOnly": "vp run build"
+  },
+  "dependencies": {
+    "async-mutex": "^0.5.0",
+    "commander": "^15.0.0",
+    "ipaddr.js": "^2.5.0",
+    "ky": "^2.0.2",
+    "mime": "^4.1.0",
+    "semver": "^7.8.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/semver": "^7.8.0",
+    "@typescript/native": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

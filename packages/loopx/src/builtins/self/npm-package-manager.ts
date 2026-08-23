@@ -1,0 +1,130 @@
+import { execFile } from "node:child_process";
+import type { Dirent } from "node:fs";
+import { mkdir, mkdtemp, readdir, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { promisify } from "node:util";
+import { compare, prerelease, valid } from "semver";
+import type { ManagedSkill } from "./skill-catalog";
+import type { ManagedSkillFile } from "./skill-catalog";
+import { hashSkillFiles, readSkillFiles } from "./skill-files";
+import type { PackageManagerPort, ResolvedLoopxPackage } from "./self-updater";
+
+const execFileAsync = promisify(execFile);
+const packageName = "@kxh4892636/loopx";
+
+const executeNpm = async (arguments_: readonly string[]): Promise<{ stdout: string }> => {
+  if (process.platform === "win32") {
+    const npmCli = path.join(
+      path.dirname(process.execPath),
+      "node_modules",
+      "npm",
+      "bin",
+      "npm-cli.js",
+    );
+    return execFileAsync(process.execPath, [npmCli, ...arguments_]);
+  }
+  return execFileAsync("npm", arguments_);
+};
+
+const parseVersions = (stdout: string): readonly string[] => {
+  const value: unknown = JSON.parse(stdout);
+  const versions = typeof value === "string" ? [value] : value;
+  if (
+    Array.isArray(versions) &&
+    versions.every(
+      (entry: unknown): entry is string => typeof entry === "string" && valid(entry) === entry,
+    )
+  ) {
+    return versions;
+  }
+  throw new Error("npm returned an invalid LoopX version response");
+};
+
+const parsePackFilename = (stdout: string): string => {
+  const value: unknown = JSON.parse(stdout);
+  if (
+    !Array.isArray(value) ||
+    value.length !== 1 ||
+    typeof value[0] !== "object" ||
+    value[0] === null ||
+    !("filename" in value[0]) ||
+    typeof value[0].filename !== "string"
+  ) {
+    throw new Error("npm returned an invalid pack response");
+  }
+  return path.basename(value[0].filename);
+};
+
+const retrieveSkills = async (version: string): Promise<readonly ManagedSkill[]> => {
+  const temporaryRoot = await mkdtemp(path.join(tmpdir(), "loopx-package-"));
+  try {
+    const { stdout } = await executeNpm([
+      "pack",
+      `${packageName}@${version}`,
+      "--pack-destination",
+      temporaryRoot,
+      "--json",
+    ]);
+    const archive = path.join(temporaryRoot, parsePackFilename(stdout));
+    const extracted = path.join(temporaryRoot, "extracted");
+    await mkdir(extracted);
+    await execFileAsync("tar", ["-xf", archive, "-C", extracted]);
+    const skillsRoot = path.join(extracted, "package", "skills");
+    const entries = await readdir(skillsRoot, { withFileTypes: true });
+    return Promise.all(
+      entries
+        .filter((entry: Dirent): boolean => entry.isDirectory())
+        .sort((left: Dirent, right: Dirent): number => left.name.localeCompare(right.name))
+        .map(async (entry: Dirent): Promise<ManagedSkill> => {
+          const files = await readSkillFiles(path.join(skillsRoot, entry.name));
+          if (!files.some((file: ManagedSkillFile): boolean => file.path === "SKILL.md")) {
+            throw new Error(`Packaged skill is missing SKILL.md: ${entry.name}`);
+          }
+          return {
+            name: entry.name,
+            version,
+            contentHash: hashSkillFiles(files),
+            files,
+          };
+        }),
+    );
+  } finally {
+    await rm(temporaryRoot, { force: true, recursive: true });
+  }
+};
+
+export const createNpmPackageManager = (): PackageManagerPort => ({
+  resolve: async (selector: string, includePrerelease: boolean): Promise<ResolvedLoopxPackage> => {
+    try {
+      const { stdout } = await executeNpm([
+        "view",
+        `${packageName}@${selector}`,
+        "version",
+        "--json",
+      ]);
+      const versions = parseVersions(stdout)
+        .filter((version: string): boolean => includePrerelease || prerelease(version) === null)
+        .sort(compare);
+      const version = versions.at(-1);
+      if (version === undefined) throw new Error(`No stable LoopX version matches ${selector}`);
+      return { version, skills: await retrieveSkills(version) };
+    } catch (error) {
+      throw new Error(`Unable to resolve ${packageName}@${selector}`, { cause: error });
+    }
+  },
+  install: async (version: string): Promise<void> => {
+    try {
+      await executeNpm(["install", "--global", `${packageName}@${version}`]);
+    } catch (error) {
+      throw new Error(`Unable to install ${packageName}@${version}`, { cause: error });
+    }
+  },
+  rollback: async (version: string): Promise<void> => {
+    try {
+      await executeNpm(["install", "--global", `${packageName}@${version}`]);
+    } catch (error) {
+      throw new Error(`Unable to restore ${packageName}@${version}`, { cause: error });
+    }
+  },
+});

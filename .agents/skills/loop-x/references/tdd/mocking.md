@@ -43,7 +43,7 @@ function processPayment(order) {
 const api = {
   getUser: (id) => fetch(`/users/${id}`),
   getOrders: (userId) => fetch(`/users/${userId}/orders`),
-  createOrder: (data) => fetch('/orders', { method: 'POST', body: data }),
+  createOrder: (data) => fetch("/orders", { method: "POST", body: data }),
 };
 
 // BAD: Mocking 要求 mock 内部存在 conditional logic
