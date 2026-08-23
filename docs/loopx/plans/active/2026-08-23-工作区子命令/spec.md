@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in_progress
 ---
 
 # 工作区子命令
@@ -94,10 +94,10 @@ repositories:
 
 ## Issue
 
-| #   | Issue                                   | 状态    | 阻塞于 | 下一步     |
-| --- | --------------------------------------- | ------- | ------ | ---------- |
-| 01  | [配置模型与定位](01-配置模型与定位.md)  | pending | —      | /implement |
-| 02  | [添加与移除仓库](02-添加与移除仓库.md)  | pending | 01     | /implement |
-| 03  | [拉取与物化](03-拉取与物化.md)          | pending | 01     | /implement |
-| 04  | [列表与状态](04-列表与状态.md)          | pending | 03     | /implement |
-| 05  | [Worktree 子命令](05-worktree子命令.md) | pending | 03     | /implement |
+| #   | Issue                                   | 状态        | 阻塞于 | 下一步     |
+| --- | --------------------------------------- | ----------- | ------ | ---------- |
+| 01  | [配置模型与定位](01-配置模型与定位.md)  | in_progress | —      | /implement |
+| 02  | [添加与移除仓库](02-添加与移除仓库.md)  | pending     | 01     | /implement |
+| 03  | [拉取与物化](03-拉取与物化.md)          | pending     | 01     | /implement |
+| 04  | [列表与状态](04-列表与状态.md)          | pending     | 03     | /implement |
+| 05  | [Worktree 子命令](05-worktree子命令.md) | pending     | 03     | /implement |
