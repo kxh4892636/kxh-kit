@@ -111,7 +111,7 @@ type JsonOutput = JsonValue | AsyncIterable<JsonValue>;
 - 只有在所有 Anki 命令、测试和路由均已迁移后，才删除 `packages/anki-cli`、`anki-cli` bin 和 `.agents/skills/anki-cli`。
 - 更新 README、冒烟清单、workspace/lockfile 和全仓引用；不保留兼容别名。
 
-## 工作环境
+## 立项时工作环境
 
 - Windows 10 / pwsh7，Node >=22.12，pnpm 11.22，Vite Plus 0.2.6，vitest 4.1，Commander 15，zod 4.4。
 - workspace 已覆盖 `packages/*`；`packages/loopx` 当前只有 Loop Kit skill 分发副本，尚无 `package.json` 或 CLI 代码。
@@ -152,8 +152,7 @@ type JsonOutput = JsonValue | AsyncIterable<JsonValue>;
 - [以单一 CLI 收口内建子命令](../../../adr/0002-以单一cli收口内建子命令.md)
 - [CLI 与受管 skill 同版发布](../../../adr/0003-cli与受管skill同版发布.md)
 - [Anki MCP 迁移为 CLI 的参考 plan](../../reference/2026-08-20-mcp迁移为cli/spec.md)
-- [`packages/anki-cli`](../../../../../packages/anki-cli/package.json)
-- [`packages/loopx` skill 分发源](../../../../../packages/loopx/skills/SKILL.md)
+- [`packages/loopx` skill 分发源](../../../../../packages/loopx/skills/loop-x/SKILL.md)
 
 ## Issue
 
@@ -169,5 +168,5 @@ type JsonOutput = JsonValue | AsyncIterable<JsonValue>;
 | 08  | [Anki 标签媒体与统计操作](08-Anki标签媒体与统计操作.md) | completed | 05                         | /implement |
 | 09  | [Anki GUI 操作](09-Anki-GUI操作.md)                     | completed | 05                         | /implement |
 | 10  | [loop-x-cli 路由 skill](10-loop-x-cli路由skill.md)      | completed | 03, 04, 05, 06, 07, 08, 09 | /implement |
-| 11  | [删除旧 Anki 形态](11-删除旧Anki形态.md)                | pending   | 10                         | /implement |
+| 11  | [删除旧 Anki 形态](11-删除旧Anki形态.md)                | completed | 10                         | /implement |
 | 12  | [本地包全链路验收](12-本地包全链路验收.md)              | pending   | 04, 11                     | /implement |

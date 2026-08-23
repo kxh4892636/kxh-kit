@@ -33,7 +33,7 @@ blocked_by: ["01"]
 - [spec](spec.md)
 - [Anki 领域术语](../../../CONTEXT.md)
 - [Anki 参考 plan 的牌组命令](../../reference/2026-08-20-mcp迁移为cli/02-牌组命令组.md)
-- [`packages/anki-cli` 命令注册](../../../../../packages/anki-cli/src/cli/program.ts)
+- [迁移前 Anki CLI 参考 plan](../../reference/2026-08-20-mcp迁移为cli/spec.md)
 
 ## 下一步
 

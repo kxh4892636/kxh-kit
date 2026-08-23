@@ -38,7 +38,7 @@ blocked_by: ["03", "04", "05", "06", "07", "08", "09"]
 
 - [spec](spec.md)
 - [LoopX 领域术语](../../../CONTEXT.md)
-- [当前 Anki agent skill](../../../../../.agents/skills/anki-cli/SKILL.md)
+- [loop-x-cli Anki 路由](../../../../../packages/loopx/skills/loop-x-cli/references/anki.md)
 - [Skill 安装生命周期](03-Skill安装生命周期.md)
 
 ## 下一步

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 blocked_by: ["10"]
 ---
 
@@ -23,10 +23,10 @@ Anki CLI 只保留 `loopx anki` 一个可执行入口和 `loop-x-cli` 一个 age
 
 ## 验收
 
-- [ ] `packages/anki-cli`、`.agents/skills/anki-cli`、`anki-cli` bin 与 lockfile package entry 不存在，且没有兼容 shim。
-- [ ] 除 reference plan、story 原始想法和迁移说明外，全仓检索不再将 `anki-cli` / `@kxh4892636/anki-cli` 作为当前命令、包或 skill 引用。
-- [ ] `loopx anki` 的全部自动化测试仍通过，上游归属与 MIT license 存在于最终包源/产物。
-- [ ] `node .agents/skills/loop-x/script/check-domain.mjs .`、`vp run @kxh4892636/loopx#test`、`vp run @kxh4892636/loopx#build` 和 `vp check` 通过。
+- [x] `packages/anki-cli`、`.agents/skills/anki-cli`、`anki-cli` bin 与 lockfile package entry 不存在，且没有兼容 shim。
+- [x] 除 reference plan、story 原始想法和迁移说明外，全仓检索不再将 `anki-cli` / `@kxh4892636/anki-cli` 作为当前命令、包或 skill 引用。
+- [x] `loopx anki` 的全部自动化测试仍通过，上游归属与 MIT license 存在于最终包源/产物。
+- [x] `node .agents/skills/loop-x/script/check-domain.mjs .`、`vp run @kxh4892636/loopx#test`、`vp run @kxh4892636/loopx#build` 和 `vp check` 通过。
 
 ## 上下文
 
@@ -41,4 +41,6 @@ Anki CLI 只保留 `loopx anki` 一个可执行入口和 `loop-x-cli` 一个 age
 
 ## 交付记录
 
-待交付。
+交付物：旧 `packages/anki-cli`、独立 `anki-cli` bin、`.agents/skills/anki-cli` 与 lock importer 已删除；当前冒烟清单改用 `loopx anki`，LoopX 源与 npm 产物保留上游 MIT license 和可追溯安全设计说明。删除内容仍可从 Git 历史恢复。
+
+验证证据：路径/lock contract、domain check、177 个 LoopX 测试与构建通过；npm pack dry-run 包含 `LICENSE` 和 `THIRD_PARTY_NOTICES.md`；全仓 `vp check` 0 error（31 个既有 warning）；dangling commit `fb0d42f14902b9fe258d48bfa7b0bc72774f36c6` 的 Standards/Spec 双轴复审均无 blocker。

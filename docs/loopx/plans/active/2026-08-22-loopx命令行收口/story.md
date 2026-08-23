@@ -165,6 +165,5 @@
 - [CLI 与受管 skill 同版发布](../../../adr/0003-cli与受管skill同版发布.md)
 - [Anki MCP 迁移为 CLI 的已完成 plan](../../reference/2026-08-20-mcp迁移为cli/spec.md)
 - [`loop-x` skill](../../../../../.agents/skills/loop-x/SKILL.md)
-- [`anki-cli` 当前 npm 包](../../../../../packages/anki-cli/package.json)
-- [`anki-cli` 当前命令自动发现入口](../../../../../packages/anki-cli/src/cli/program.ts)
+- [迁移前 Anki CLI 参考 plan](../../reference/2026-08-20-mcp迁移为cli/spec.md)
 - [`loop-x` 当前包内分发源](../../../../../packages/loopx/skills/SKILL.md)
