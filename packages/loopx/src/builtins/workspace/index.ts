@@ -8,6 +8,7 @@ import type {
   JsonOutput,
   JsonValue,
   PreparedMutation,
+  ValuesFromOptions,
 } from "../../cli/types";
 import {
   prepareRemoveRepository,
@@ -17,6 +18,12 @@ import {
   WorkspaceConfigError,
 } from "./workspace-config";
 import { prepareWorkspacePull } from "./workspace-pull";
+import {
+  listWorkspaceWorktrees,
+  prepareWorkspacePrune,
+  prepareWorkspaceRemove,
+  prepareWorkspaceSwitch,
+} from "./workspace-worktree";
 
 const exists = async (target: string): Promise<boolean> => {
   try {
@@ -74,6 +81,27 @@ const pullOptions = [
       placeholder: "branch",
     },
   ),
+] as const;
+
+const worktreeListOptions = [
+  option.string("name", "Repository to list; repeat to list several; defaults to all", {
+    multiple: true,
+    placeholder: "name",
+  }),
+] as const;
+
+const worktreeSwitchOptions = [
+  option.string("name", "Repository containing the worktree", { required: true }),
+  option.string("path", "Worktree path relative to the workspace root", { required: true }),
+  option.string("branch", "Branch to switch to or create", { required: true }),
+  option.string("base", "Base for a newly created branch; defaults to the configured branch", {}),
+] as const;
+
+const worktreeRemoveOptions = [
+  option.string("name", "Repository containing the worktree", { required: true }),
+  option.string("path", "Worktree path relative to the workspace root", { required: true }),
+  option.boolean("force", "Remove a dirty worktree", {}),
+  option.boolean("delete-branch", "Delete the worktree branch after removal", {}),
 ] as const;
 
 const workspaceCommand: BuiltinCommand = group("workspace", "Manage multi-repository workspaces", [
@@ -157,6 +185,54 @@ const workspaceCommand: BuiltinCommand = group("workspace", "Manage multi-reposi
         ),
     },
   ),
+  group("worktree", "Manage repository worktrees", [
+    command("list", "List registered worktrees", worktreeListOptions, {
+      kind: "query",
+      run: async (
+        options: ValuesFromOptions<typeof worktreeListOptions>,
+        context: InvocationContext,
+      ): Promise<JsonOutput> => listWorkspaceWorktrees(options.name ?? [], context),
+    }),
+    command("switch", "Switch a registered worktree to a branch", worktreeSwitchOptions, {
+      kind: "mutation",
+      prepare: async (
+        options: ValuesFromOptions<typeof worktreeSwitchOptions>,
+        context: InvocationContext,
+      ): Promise<PreparedMutation> =>
+        prepareWorkspaceSwitch(
+          {
+            name: options.name,
+            path: options.path,
+            branch: options.branch,
+            base: options.base,
+          },
+          context,
+        ),
+    }),
+    command("remove", "Remove a registered worktree", worktreeRemoveOptions, {
+      kind: "mutation",
+      prepare: async (
+        options: ValuesFromOptions<typeof worktreeRemoveOptions>,
+        context: InvocationContext,
+      ): Promise<PreparedMutation> =>
+        prepareWorkspaceRemove(
+          {
+            name: options.name,
+            path: options.path,
+            force: options.force ?? false,
+            deleteBranch: options["delete-branch"] ?? false,
+          },
+          context,
+        ),
+    }),
+    command("prune", "Prune stale worktree registrations", worktreeListOptions, {
+      kind: "mutation",
+      prepare: async (
+        options: ValuesFromOptions<typeof worktreeListOptions>,
+        context: InvocationContext,
+      ): Promise<PreparedMutation> => prepareWorkspacePrune(options.name ?? [], context),
+    }),
+  ]),
 ]);
 
 export default workspaceCommand;
