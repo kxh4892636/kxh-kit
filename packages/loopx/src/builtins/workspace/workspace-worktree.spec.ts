@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, test } from "vitest";
 import { runCli, type CliRequest } from "../../cli/run";
+import type { BuiltinCommand } from "../../cli/types";
 import workspaceCommand from "./index";
 import { WORKSPACE_CONFIG_FILE, WORKSPACE_LOCAL_FILE } from "./workspace-config";
 
@@ -98,7 +99,7 @@ const invoke = async (cwd: string, argv: readonly string[]): Promise<CliResult> 
     stdout: { write: (chunk: string): void => void (stdout += chunk) },
     stderr: { write: (chunk: string): void => void (stderr += chunk) },
   };
-  const code = await runCli(request, [() => workspaceCommand]);
+  const code = await runCli(request, [(): BuiltinCommand => workspaceCommand]);
   return { code, stderr, stdout };
 };
 
@@ -288,6 +289,29 @@ describe("workspace worktree (git integration)", (): void => {
     expect(
       (await git(["-C", fixture.clonePath, "branch", "--list", "worktree/wiki-main"])).trim(),
     ).toContain("worktree/wiki-main");
+  }, 30000);
+
+  test("remove can clean a worktree after the repository entry becomes an orphan", async (): Promise<void> => {
+    const fixture = await createWorkspace();
+    const removed = await invoke(fixture.root, ["remove", "--name", "wiki"]);
+    expect(removed.code).toBe(0);
+
+    const result = await invoke(fixture.root, [
+      "worktree",
+      "remove",
+      "--name",
+      "wiki",
+      "--path",
+      "apps/wiki",
+    ]);
+
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      success: true,
+      action: "remove-worktree",
+      name: "wiki",
+    });
+    expect(await isMissing(fixture.mainPath)).toBe(true);
   }, 30000);
 
   test("a preserved branch can be reused by switching another registered worktree", async (): Promise<void> => {

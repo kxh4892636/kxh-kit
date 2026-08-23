@@ -3,6 +3,7 @@ import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import { runCli, type CliRequest } from "../../cli/run";
+import type { BuiltinCommand } from "../../cli/types";
 import workspaceCommand from "./index";
 import { WORKSPACE_CONFIG_FILE, WORKSPACE_LOCAL_FILE } from "./workspace-config";
 
@@ -48,7 +49,7 @@ const invoke = async (cwd: string, argv: readonly string[]): Promise<CliResult> 
       },
     },
   };
-  const code = await runCli(request, [() => workspaceCommand]);
+  const code = await runCli(request, [(): BuiltinCommand => workspaceCommand]);
   return { code, stderr, stdout };
 };
 

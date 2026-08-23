@@ -9,8 +9,10 @@ import type { InvocationContext, JsonOutput, JsonValue, PreparedMutation } from 
 import {
   isWorkspaceRelativePath,
   loadWorkspaceConfig,
+  loadWorkspaceConfigurationView,
   WORKSPACE_CONFIG_FILE,
   WorkspaceConfigError,
+  type WorkspaceLocalRepository,
   type WorkspaceRepository,
 } from "./workspace-config";
 
@@ -173,7 +175,8 @@ export const listWorkspaceWorktrees = async (
 
 interface WorktreeTarget {
   readonly clonePath: string;
-  readonly repository: WorkspaceRepository;
+  readonly name: string;
+  readonly repository?: WorkspaceRepository | undefined;
   readonly root: string;
   readonly worktree: GitWorktree;
   readonly worktreePath: string;
@@ -183,18 +186,27 @@ const resolveWorktreeTarget = async (
   context: InvocationContext,
   name: string,
   requestedPath: string,
+  allowOrphan: boolean = false,
 ): Promise<WorktreeTarget> => {
   if (!isWorkspaceRelativePath(requestedPath)) {
     throw new CliUsageError(
       "--path must be relative to the workspace root and must not contain '..'",
     );
   }
-  const config = await loadWorkspaceConfig(context.cwd);
-  const repository = selectRepositories(config.repositories, [name])[0];
-  if (repository === undefined) {
+  const config = await loadWorkspaceConfigurationView(context.cwd);
+  const repository = config.repositories.find(
+    (entry: WorkspaceRepository): boolean => entry.name === name,
+  );
+  const orphan = config.localRepositories.find(
+    (entry: WorkspaceLocalRepository): boolean => entry.name === name,
+  );
+  if (repository === undefined && (!allowOrphan || orphan === undefined)) {
     throw new WorkspaceConfigError(`Repository not found in ${WORKSPACE_CONFIG_FILE}: ${name}`, {});
   }
-  const clonePath = clonePathFor(repository);
+  const clonePath = repository === undefined ? orphan?.clonePath : clonePathFor(repository);
+  if (clonePath === undefined) {
+    throw new WorkspaceConfigError(`Repository not found in ${WORKSPACE_CONFIG_FILE}: ${name}`, {});
+  }
   if (!(await exists(clonePath))) {
     throw new WorkspaceConfigError(`Repository is not materialized: ${name}`, {
       details: { name, clonePath },
@@ -219,7 +231,7 @@ const resolveWorktreeTarget = async (
       details: { name, path: worktreePath },
     });
   }
-  return { clonePath, repository, root: config.root, worktree, worktreePath };
+  return { clonePath, name, repository, root: config.root, worktree, worktreePath };
 };
 
 export interface WorkspaceSwitchSelection {
@@ -234,6 +246,12 @@ export const prepareWorkspaceSwitch = async (
   context: InvocationContext,
 ): Promise<PreparedMutation> => {
   const target = await resolveWorktreeTarget(context, selection.name, selection.path);
+  if (target.repository === undefined) {
+    throw new WorkspaceConfigError(
+      `Repository not found in ${WORKSPACE_CONFIG_FILE}: ${selection.name}`,
+      {},
+    );
+  }
   const reference = `refs/heads/${selection.branch}`;
   const branchExists = await gitSucceeds([
     "-C",
@@ -247,7 +265,7 @@ export const prepareWorkspaceSwitch = async (
   const base = selection.base ?? target.repository.branch;
   const preview: JsonValue = {
     action: "switch-worktree",
-    name: target.repository.name,
+    name: target.name,
     path: target.worktreePath,
     branch: selection.branch,
     created,
@@ -263,7 +281,7 @@ export const prepareWorkspaceSwitch = async (
       return {
         success: true,
         action: "switch-worktree",
-        name: target.repository.name,
+        name: target.name,
         path: target.worktreePath,
         branch: selection.branch,
         created,
@@ -284,17 +302,17 @@ export const prepareWorkspaceRemove = async (
   selection: WorkspaceRemoveSelection,
   context: InvocationContext,
 ): Promise<PreparedMutation> => {
-  const target = await resolveWorktreeTarget(context, selection.name, selection.path);
+  const target = await resolveWorktreeTarget(context, selection.name, selection.path, true);
   const branch = target.worktree.branch;
   if (selection.deleteBranch && branch === undefined) {
     throw new WorkspaceConfigError(
       `Cannot delete a branch for detached worktree: ${target.worktreePath}`,
-      { details: { name: target.repository.name, path: target.worktreePath } },
+      { details: { name: target.name, path: target.worktreePath } },
     );
   }
   const preview: JsonValue = {
     action: "remove-worktree",
-    name: target.repository.name,
+    name: target.name,
     path: target.worktreePath,
     ...(branch === undefined ? {} : { branch }),
     force: selection.force,
@@ -317,7 +335,7 @@ export const prepareWorkspaceRemove = async (
       return {
         success: true,
         action: "remove-worktree",
-        name: target.repository.name,
+        name: target.name,
         path: target.worktreePath,
         ...(branch === undefined ? {} : { branch }),
         branchDeleted: selection.deleteBranch,

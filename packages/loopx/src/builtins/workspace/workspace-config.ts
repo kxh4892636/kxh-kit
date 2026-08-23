@@ -1,8 +1,14 @@
 import { access, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { channel } from "node:diagnostics_channel";
 import path from "node:path";
 import { isMap, isSeq, parse as parseYaml, parseDocument, type Document, type YAMLSeq } from "yaml";
 import { z } from "zod";
 import type { JsonValue } from "../../cli/types";
+
+const workspaceDiagnostics = channel("loopx.workspace");
+
+const errorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
 
 export const WORKSPACE_CONFIG_FILE = "workspace.yaml";
 export const WORKSPACE_LOCAL_FILE = "workspace.local.yaml";
@@ -80,27 +86,29 @@ const workspaceFileSchema = z
     ): void => {
       const names = new Set<string>();
       const paths = new Set<string>();
-      config.repositories.forEach((repository, index): void => {
-        if (names.has(repository.name)) {
-          context.addIssue({
-            code: "custom",
-            message: `duplicate repository name: ${repository.name}`,
-            path: ["repositories", index, "name"],
-          });
-          return;
-        }
-        names.add(repository.name);
-        const normalizedPath = normalizeRepositoryPath(repository.path);
-        if (paths.has(normalizedPath)) {
-          context.addIssue({
-            code: "custom",
-            message: `duplicate repository path: ${repository.path}`,
-            path: ["repositories", index, "path"],
-          });
-          return;
-        }
-        paths.add(normalizedPath);
-      });
+      config.repositories.forEach(
+        (repository: { name: string; path: string }, index: number): void => {
+          if (names.has(repository.name)) {
+            context.addIssue({
+              code: "custom",
+              message: `duplicate repository name: ${repository.name}`,
+              path: ["repositories", index, "name"],
+            });
+            return;
+          }
+          names.add(repository.name);
+          const normalizedPath = normalizeRepositoryPath(repository.path);
+          if (paths.has(normalizedPath)) {
+            context.addIssue({
+              code: "custom",
+              message: `duplicate repository path: ${repository.path}`,
+              path: ["repositories", index, "path"],
+            });
+            return;
+          }
+          paths.add(normalizedPath);
+        },
+      );
     },
   );
 
@@ -125,8 +133,12 @@ const exists = async (target: string): Promise<boolean> => {
   try {
     await access(target);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
+      return false;
+    }
+    workspaceDiagnostics.publish({ level: "error", message: errorMessage(error) });
+    throw error;
   }
 };
 
@@ -180,11 +192,16 @@ export const loadWorkspaceConfigurationView = async (
     ? await parseConfigFile(localFile, localFileSchema)
     : { repositories: [] };
   const clonePaths = new Map(
-    local.repositories.map((record): readonly [string, string] => [record.name, record.clone_path]),
+    local.repositories.map(
+      (record: { clone_path: string; name: string }): readonly [string, string] => [
+        record.name,
+        record.clone_path,
+      ],
+    ),
   );
   return {
     root,
-    repositories: config.repositories.map((repository): WorkspaceRepository => {
+    repositories: config.repositories.map((repository: RepositoryDraft): WorkspaceRepository => {
       const clonePath = clonePaths.get(repository.name);
       return { ...repository, ...(clonePath === undefined ? {} : { clonePath }) };
     }),

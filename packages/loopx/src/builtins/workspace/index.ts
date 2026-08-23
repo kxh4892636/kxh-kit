@@ -1,4 +1,5 @@
 import { access, writeFile } from "node:fs/promises";
+import { channel } from "node:diagnostics_channel";
 import path from "node:path";
 import { stringify } from "yaml";
 import { command, group, option } from "../../cli/definition";
@@ -26,12 +27,21 @@ import {
   prepareWorkspaceSwitch,
 } from "./workspace-worktree";
 
+const workspaceDiagnostics = channel("loopx.workspace");
+
+const errorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
 const exists = async (target: string): Promise<boolean> => {
   try {
     await access(target);
     return true;
-  } catch {
-    return false;
+  } catch (error) {
+    if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
+      return false;
+    }
+    workspaceDiagnostics.publish({ level: "error", message: errorMessage(error) });
+    throw error;
   }
 };
 
@@ -112,7 +122,10 @@ const workspaceCommand: BuiltinCommand = group("workspace", "Manage multi-reposi
   }),
   command("add", "Add or update a repository entry in workspace.yaml", addOptions, {
     kind: "mutation",
-    prepare: async (options, context): Promise<PreparedMutation> => {
+    prepare: async (
+      options: ValuesFromOptions<typeof addOptions>,
+      context: InvocationContext,
+    ): Promise<PreparedMutation> => {
       const prepared = await prepareUpsertRepository(context.cwd, {
         name: options.name,
         url: options.url,
@@ -141,7 +154,10 @@ const workspaceCommand: BuiltinCommand = group("workspace", "Manage multi-reposi
   }),
   command("remove", "Remove a repository entry from workspace.yaml", removeOptions, {
     kind: "mutation",
-    prepare: async (options, context): Promise<PreparedMutation> => {
+    prepare: async (
+      options: ValuesFromOptions<typeof removeOptions>,
+      context: InvocationContext,
+    ): Promise<PreparedMutation> => {
       const prepared = await prepareRemoveRepository(context.cwd, options.name);
       const residual =
         prepared.residualClonePath === undefined
@@ -175,7 +191,10 @@ const workspaceCommand: BuiltinCommand = group("workspace", "Manage multi-reposi
     pullOptions,
     {
       kind: "mutation",
-      prepare: async (options, context): Promise<PreparedMutation> =>
+      prepare: async (
+        options: ValuesFromOptions<typeof pullOptions>,
+        context: InvocationContext,
+      ): Promise<PreparedMutation> =>
         prepareWorkspacePull(
           {
             names: options.name ?? [],
