@@ -8,12 +8,12 @@
 
 一次路径进入只由发起者执行一次 `enter-plan`：
 
-| 发起者 | 选择入口 |
-| --- | --- |
-| `/loop-x` | 根据用户输入推荐 `/grill-with-docs`、`/to-story` 或 `/to-issues`，说明理由并等待用户明确确认；确认后以自身为发起者、推荐结果为入口执行 `enter-plan` |
-| 直接调用 `/grill-with-docs` | 固定进入 `main` 路径，自动执行 `enter-plan` |
-| 直接调用 `/to-story` | 固定进入 `story` 路径，自动执行 `enter-plan` |
-| 直接调用 `/to-issues` | 固定进入 `issues` 路径，自动执行 `enter-plan` |
+| 发起者                      | 选择入口                                                                                                                                            |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/loop-x`                   | 根据用户输入推荐 `/grill-with-docs`、`/to-story` 或 `/to-issues`，说明理由并等待用户明确确认；确认后以自身为发起者、推荐结果为入口执行 `enter-plan` |
+| 直接调用 `/grill-with-docs` | 固定进入 `main` 路径，自动执行 `enter-plan`                                                                                                         |
+| 直接调用 `/to-story`        | 固定进入 `story` 路径，自动执行 `enter-plan`                                                                                                        |
+| 直接调用 `/to-issues`       | 固定进入 `issues` 路径，自动执行 `enter-plan`                                                                                                       |
 
 ```powershell
 node .agents/skills/loop-x/script/flow.mjs enter-plan --skill /loop-x --entry /<entry-skill> --plan <plan-path> --session <session-id>
@@ -41,11 +41,11 @@ node .agents/skills/loop-x/script/flow.mjs record-issue --plan <plan-path> --iss
 
 Plan 路径的 receipt 链：
 
-| 路径 | 顺序 | 终点 |
-| --- | --- | --- |
-| `main` | `/grill-with-docs=completed` → `/dev-gate=ready` → 完整交付链 | `completed` |
-| `story` | `/to-story=completed` → `/to-issues=completed` → `/dev-gate=ready` | `ready` |
-| `issues` | `/to-issues=completed` → `/dev-gate=ready` | `ready` |
+| 路径     | 顺序                                                               | 终点        |
+| -------- | ------------------------------------------------------------------ | ----------- |
+| `main`   | `/grill-with-docs=completed` → `/dev-gate=ready` → 完整交付链      | `completed` |
+| `story`  | `/to-story=completed` → `/to-issues=completed` → `/dev-gate=ready` | `ready`     |
+| `issues` | `/to-issues=completed` → `/dev-gate=ready`                         | `ready`     |
 
 入口 skill 使用对应产物作为完成证据：`/grill-with-docs` 使用实际维护的领域文档，`/to-story` 使用 `story.md`，`/to-issues` 使用 `spec.md`。`record-plan` 拒绝缺项、乱序和错误结果。
 
