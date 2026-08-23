@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 blocked_by: ["05"]
 ---
 
@@ -22,10 +22,10 @@ blocked_by: ["05"]
 
 ## 验收
 
-- [ ] 假 AnkiConnect 的 CLI interface 测试覆盖全部笔记/笔记类型操作、复杂输入、部分成功、破坏性确认、结果 shape 和错误 hint。
-- [ ] 每个旧 positional input 的对应新 option 有正向测试，旧写法有退出码 2 的反向测试；各级 `--help` 列出必填性。
-- [ ] 所有写操作预演的 AnkiConnect 写 action 和本地文件写入数均为 0，preview 包含 action/params 或文件计划。
-- [ ] `vp run @kxh4892636/loopx#test`、`vp run @kxh4892636/loopx#build` 和 `vp check` 通过，原 `@kxh4892636/anki-cli` 测试仍通过。
+- [x] 假 AnkiConnect 的 CLI interface 测试覆盖全部笔记/笔记类型操作、复杂输入、部分成功、破坏性确认、结果 shape 和错误 hint。
+- [x] 每个旧 positional input 的对应新 option 有正向测试，旧写法有退出码 2 的反向测试；各级 `--help` 列出必填性。
+- [x] 所有写操作预演的 AnkiConnect 写 action 和本地文件写入数均为 0，preview 包含 action/params 或文件计划。
+- [x] `vp run @kxh4892636/loopx#test`、`vp run @kxh4892636/loopx#build` 和 `vp check` 通过，原 `@kxh4892636/anki-cli` 测试仍通过。
 
 ## 上下文
 
@@ -39,4 +39,6 @@ blocked_by: ["05"]
 
 ## 交付记录
 
-待交付。
+交付物：迁移 6 个 notes 与 11 个 models 命令，统一命名 option、prepare 校验、文件/stdin seam、AnkiConnect 响应 schema 和结构化错误。
+
+验证证据：LoopX 97/97、旧 anki-cli 168/168；LoopX build/check 通过，全仓 check 0 error（31 个既有 warning）；dangling commit `bcac23237a4b246d482a635a5809d275a0d76f82` 的 Standards/Spec 双轴复审均无 blocker。
