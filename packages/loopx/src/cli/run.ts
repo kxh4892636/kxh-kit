@@ -152,6 +152,16 @@ const validateBuiltins = (builtins: readonly BuiltinCommand[]): void => {
 const optionKey = (name: string): string =>
   name.replace(/-([a-z0-9])/gu, (_match: string, value: string): string => value.toUpperCase());
 
+const runtimeOptionValue = (
+  definition: CommandOption,
+  values: Readonly<Record<string, boolean | readonly string[] | string | undefined>>,
+): boolean | readonly string[] | string | undefined => {
+  if (definition.kind === "boolean" && definition.name.startsWith("no-")) {
+    return values[optionKey(definition.name.slice(3))] === false ? true : undefined;
+  }
+  return values[optionKey(definition.name)];
+};
+
 const addOptions = (target: Command, definitions: readonly CommandOption[]): void => {
   for (const definition of definitions) {
     const value =
@@ -225,7 +235,7 @@ const addNode = (
           definition.name,
           Object.hasOwn(scopedValues, definition.name)
             ? scopedValues[definition.name]
-            : rawOptions[optionKey(definition.name)],
+            : runtimeOptionValue(definition, rawOptions),
         ],
       ),
     );
@@ -235,6 +245,7 @@ const addNode = (
       signal: request.signal,
       stdin: request.stdin,
       debug: globals.debug,
+      dryRun: globals.dryRun,
     };
     if (node.operation.kind === "query") {
       await writeOutput(

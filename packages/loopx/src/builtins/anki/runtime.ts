@@ -10,8 +10,11 @@ import { AnkiOperationError, ReadOnlyModeError } from "./errors";
 import { createLogger, type Logger } from "./logger";
 import type { AnkiPort } from "./port";
 
+const readOnlyAllowedActions = new Set(["answerCards", "review", "sync"]);
+
 export interface AnkiDependencies {
   connect(config: AnkiConfig, logger: Logger): AnkiPort;
+  now?(): Date;
   readText?(source: string, context: InvocationContext): Promise<string>;
 }
 
@@ -22,11 +25,13 @@ export const connection = (
   dependencies: AnkiDependencies,
   options: OptionValues,
   context: InvocationContext,
-): { config: AnkiConfig; port: AnkiPort } => {
+): { config: AnkiConfig; logger: Logger; port: AnkiPort } => {
   const config = loadAnkiConfig(options, context);
+  const logger = createLogger(config.logLevel);
   return {
     config,
-    port: dependencies.connect(config, createLogger(config.logLevel)),
+    logger,
+    port: dependencies.connect(config, logger),
   };
 };
 
@@ -42,7 +47,8 @@ export const mutation = (
   return {
     preview: { success: true, actions: [{ action, params }] },
     commit: async (): Promise<JsonOutput> => {
-      if (config.readOnly) throw new ReadOnlyModeError(action);
+      if (config.readOnly && !readOnlyAllowedActions.has(action))
+        throw new ReadOnlyModeError(action);
       const logger = createLogger(config.logLevel);
       const port = dependencies.connect(config, logger);
       return run(port, logger);

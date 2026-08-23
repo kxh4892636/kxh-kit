@@ -34,6 +34,36 @@ export const noteUpdateArrayResponse = z.array(
 export const noteDeleteArrayResponse = z.array(
   z.object({ noteId: z.number().optional(), cards: z.array(z.number()).optional() }).passthrough(),
 );
+export const ankiCardResponse = z
+  .object({
+    answer: z.string(),
+    cardId: z.number(),
+    deckName: z.string(),
+    factor: z.number().optional(),
+    interval: z.number().optional(),
+    lapses: z.number().optional(),
+    modelName: z.string(),
+    note: z.number(),
+    question: z.string(),
+    reps: z.number().optional(),
+    tags: z.array(z.string()).optional(),
+    type: z.number(),
+    due: z.number().optional(),
+  })
+  .passthrough();
+export const ankiCardArrayResponse = z.array(ankiCardResponse);
+export const cardPresenceArrayResponse = z.array(z.object({ cardId: z.number() }).passthrough());
+export const cardScheduleArrayResponse = z.array(
+  z
+    .object({
+      cardId: z.number(),
+      due: z.number().optional(),
+      factor: z.number().optional(),
+      interval: z.number().optional(),
+    })
+    .passthrough(),
+);
+export const booleanResponse = z.boolean();
 
 export const parseResponse = <Result>(
   action: string,

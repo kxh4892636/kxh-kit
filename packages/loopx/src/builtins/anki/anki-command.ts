@@ -10,11 +10,14 @@ import type {
 } from "../../cli/types";
 import { deckStats } from "./decks/deck-stats";
 import { createDeck, listDecks, moveCards, validateDeckName } from "./decks/decks";
+import { createCardsGroup } from "./cards";
 import type { Logger } from "./logger";
 import { createModelsGroup } from "./models";
 import { createNotesGroup } from "./notes";
 import type { AnkiPort } from "./port";
 import { connection, mutation, type AnkiDependencies } from "./runtime";
+import { createReviewCommand } from "./review";
+import { createSyncCommand } from "./sync";
 
 export type { AnkiDependencies } from "./runtime";
 
@@ -126,6 +129,9 @@ export const createAnkiCommand = (dependencies: AnkiDependencies): BuiltinComman
       ]),
       createNotesGroup(dependencies),
       createModelsGroup(dependencies),
+      createCardsGroup(dependencies),
+      createSyncCommand(dependencies),
+      createReviewCommand(dependencies),
     ],
     ankiOptions,
   );

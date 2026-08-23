@@ -34,7 +34,11 @@ export const invokeAnki = async (
   handler: InvokeHandler = (): undefined => undefined,
   options: {
     readonly env?: Readonly<Record<string, string | undefined>>;
+    readonly lines?: readonly (null | string)[];
+    readonly now?: AnkiDependencies["now"];
+    readonly readLine?: () => Promise<null | string>;
     readonly readText?: AnkiDependencies["readText"];
+    readonly signal?: AbortSignal;
   } = {},
 ): Promise<{
   readonly code: number;
@@ -48,13 +52,17 @@ export const invokeAnki = async (
   const dependencies: AnkiDependencies = {
     connect: (_config: AnkiConfig, _logger: Logger): AnkiPort => scriptedPort(handler, invocations),
     ...(options.readText === undefined ? {} : { readText: options.readText }),
+    ...(options.now === undefined ? {} : { now: options.now }),
   };
+  const lines = [...(options.lines ?? [])];
   const request: CliRequest = {
     argv: ["anki", ...argv, "--compact"],
     cwd: process.cwd(),
     env: options.env ?? {},
-    signal: new AbortController().signal,
-    stdin: { readLine: async (): Promise<null> => null },
+    signal: options.signal ?? new AbortController().signal,
+    stdin: {
+      readLine: options.readLine ?? (async (): Promise<null | string> => lines.shift() ?? null),
+    },
     stdout: { write: (chunk: string): void => void (stdout += chunk) },
     stderr: { write: (chunk: string): void => void (stderr += chunk) },
   };

@@ -20,6 +20,7 @@ export interface InvocationContext {
   readonly signal: AbortSignal;
   readonly stdin: TextReader;
   readonly debug: boolean;
+  readonly dryRun: boolean;
 }
 
 export type OptionValue = boolean | readonly string[] | string | undefined;
