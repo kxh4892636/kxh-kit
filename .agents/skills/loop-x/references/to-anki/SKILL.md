@@ -78,9 +78,11 @@ disable-model-invocation: true
 
 ## 5. 创建
 
+写入 Anki 一律使用 `loopx anki` 命令(经 AnkiConnect 操作本机 Anki), 不直接读写 Anki 数据库或 collection 文件; 具体命令与 option 以 `/loop-x-cli` 的 Anki 路由和现场 `loopx anki --help` 为事实来源.
+
 创建并写入 anki 卡片:
 
-1. 创建缺失的目标牌组, 并按确认预览逐条创建;
+1. 以 `loopx anki decks create` 创建缺失的目标牌组, 并按确认预览逐条以 `loopx anki notes add`(单张)或 `loopx anki notes add-batch`(批量, stdin 提供 JSON)创建;
 2. 导出时, 按确认的字段顺序生成 UTF-8 TSV/CSV, 按格式引用含分隔符或换行的字段, 并原样保留 HTML;
 3. 若实际模板, 字段或目标状态与预览不一致, 返回预览步骤生成新版本.
 
@@ -88,7 +90,7 @@ disable-model-invocation: true
 
 ## 6. 核验交付
 
-写入后, 从 Anki 重新读取目标笔记, 逐项核对牌组, 笔记类型和关键字段, 最终报告:
+写入后, 使用 `loopx anki notes find` 与 `loopx anki notes info --note-id <id>` 从 Anki 重新读取目标笔记, 逐项核对牌组, 笔记类型和关键字段, 最终报告:
 
 - 已确认的预览版本和候选总数;
 - 每个牌组的创建或导出数量;
