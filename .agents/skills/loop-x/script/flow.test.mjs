@@ -229,6 +229,117 @@ test("直接进入 grill-with-docs 会初始化主路径", async () => {
 	}
 });
 
+for (const { entry, plan, route } of [
+	{ entry: "/grill-with-docs", plan: ".", route: "main" },
+	{ entry: "/to-story", plan: PLAN_PATH, route: "story" },
+	{ entry: "/to-issues", plan: PLAN_PATH, route: "issues" },
+]) {
+	test(`loop-x 选择 ${entry} 会原子进入 ${route} 路径`, async () => {
+		const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
+		try {
+			const entered = await command(workspace, "enter-plan", {
+				entry,
+				...(plan === "." ? {} : { plan }),
+				skill: "/loop-x",
+			});
+			assert.equal(entered.next_skill, entry);
+			assert.equal(entered.plan, plan);
+			assert.equal(entered.route, route);
+			assert.match(entered.session, /^[0-9a-f-]{36}$/);
+		} finally {
+			await fs.rm(workspace, { force: true, recursive: true });
+		}
+	});
+}
+
+test("loop-x 必须选择规定的入口 skill", async () => {
+	const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
+	try {
+		await assert.rejects(
+			command(workspace, "enter-plan", { skill: "/loop-x" }),
+			/缺少 --entry/,
+		);
+		await assert.rejects(
+			command(workspace, "enter-plan", {
+				entry: "/implement",
+				skill: "/loop-x",
+			}),
+			/--entry 必须是 \/grill-with-docs \| \/to-story \| \/to-issues/,
+		);
+		await assert.rejects(
+			command(workspace, "enter-plan", {
+				entry: "/to-story",
+				skill: "/loop-x",
+			}),
+			/\/to-story 进入流程前必须提供 --plan/,
+		);
+		await assert.rejects(fs.access(path.join(workspace, ".loop")), {
+			code: "ENOENT",
+		});
+	} finally {
+		await fs.rm(workspace, { force: true, recursive: true });
+	}
+});
+
+test("固定入口 skill 不能代理选择其他入口", async () => {
+	const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
+	try {
+		await assert.rejects(
+			command(workspace, "enter-plan", {
+				entry: "/to-story",
+				skill: "/grill-with-docs",
+			}),
+			/只有 \/loop-x 可以指定 --entry/,
+		);
+	} finally {
+		await fs.rm(workspace, { force: true, recursive: true });
+	}
+});
+
+test("loop-x 只能接入已有流程当前期待的入口", async () => {
+	const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
+	try {
+		const entered = await command(workspace, "enter-plan", {
+			entry: "/to-story",
+			plan: PLAN_PATH,
+			session: "loopx-session",
+			skill: "/loop-x",
+		});
+		const repeated = await command(workspace, "enter-plan", {
+			entry: "/to-story",
+			plan: PLAN_PATH,
+			session: entered.session,
+			skill: "/loop-x",
+		});
+		assert.equal(repeated.revision, entered.revision);
+
+		const statePath = path.join(workspace, ".loop");
+		const stateBeforeMismatch = await fs.readFile(statePath, "utf8");
+		await assert.rejects(
+			command(workspace, "enter-plan", {
+				entry: "/to-issues",
+				plan: PLAN_PATH,
+				session: entered.session,
+				skill: "/loop-x",
+			}),
+			/当前期望 \/to-story/,
+		);
+		assert.equal(await fs.readFile(statePath, "utf8"), stateBeforeMismatch);
+
+		await recordPlan(workspace, entered.session, "to-story", "completed");
+		const advanced = await command(workspace, "enter-plan", {
+			entry: "/to-issues",
+			plan: PLAN_PATH,
+			session: entered.session,
+			skill: "/loop-x",
+		});
+		assert.equal(advanced.next_skill, "/to-issues");
+		assert.equal(advanced.route, "story");
+	} finally {
+		await fs.rm(workspace, { force: true, recursive: true });
+	}
+});
+
 test("直接入口可以初始化并接续 story 路径", async () => {
 	const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
 	try {
@@ -516,6 +627,26 @@ test("CLI 可脱离工作区 package 配置直接运行", async () => {
 		assert.equal(result.next_skill, "/to-issues");
 		assert.equal(result.success, true);
 		await fs.access(path.join(workspace, ".loop"));
+
+		const loopxWorkspace = path.join(workspace, "loopx-entry");
+		await fs.mkdir(loopxWorkspace);
+		const { stdout: loopxStdout } = await execFileAsync(process.execPath, [
+			FLOW_PATH,
+			"enter-plan",
+			"--skill",
+			"/loop-x",
+			"--entry",
+			"/to-issues",
+			"--plan",
+			PLAN_PATH,
+			"--workspace",
+			loopxWorkspace,
+		]);
+		const loopxResult = JSON.parse(loopxStdout);
+		assert.equal(loopxResult.next_skill, "/to-issues");
+		assert.equal(loopxResult.route, "issues");
+		assert.equal(loopxResult.success, true);
+		await fs.access(path.join(loopxWorkspace, ".loop"));
 	} finally {
 		await fs.rm(workspace, { force: true, recursive: true });
 	}

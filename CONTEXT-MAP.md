@@ -3,6 +3,7 @@
 ## Contexts
 
 - [common](./docs/common/CONTEXT.md) - 由多个业务域共同贡献的基础业务域。
+- [loopx](./docs/loopx/CONTEXT.md) - Loop Kit 业务域：从想法路由到经门禁验证交付的 Flow。
 - [diff-viewer](./docs/diff-viewer/CONTEXT.md) - Diff Viewer 业务域：Electron 桌面的多仓库 git diff 阅读工具。
 - [anki-cli](./docs/anki-cli/CONTEXT.md) - Anki CLI 业务域：通过 AnkiConnect 以命令行控制 Anki 的 CLI 工具。
 

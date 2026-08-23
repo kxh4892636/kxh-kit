@@ -23,7 +23,7 @@ node .agents/skills/loop-x/script/check-domain.mjs .
 
 1. 根据用户输入只推荐一条入口路径，并说明选择理由：设计或领域理解仍需打磨时选择 `/grill-with-docs`；角色、需求或收益仍模糊时选择 `/to-story`；目标明确但工作大到一次上下文无法安全完成时选择 `/to-issues`。
 2. 等待用户明确确认推荐路径。未确认时继续澄清或调整推荐，不进入 Flow。
-3. 确认后由 `/loop-x` 按共享协议执行 `enter-plan`，保留返回的 flow context，再只调用返回的入口 skill。
+3. 确认后由 `/loop-x` 按共享协议以自身为 Flow 发起者、确认结果为入口执行 `enter-plan`，保留返回的 flow context，再只调用返回的入口 skill。
 
 入口 skill 接收 `/loop-x` 传递的 context 后直接执行自身工作；直接调用入口 skill 时，则由入口 skill 按共享协议自动进入其固定路径。
 

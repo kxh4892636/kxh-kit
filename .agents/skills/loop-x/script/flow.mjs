@@ -449,14 +449,23 @@ const handleInit = (state, workspace, options, now) => {
 };
 
 const handleEnterPlan = (state, workspace, options, now) => {
-	const skill = normalizeSkill(requireOption(options, "skill"));
-	const entryRoute = ENTRY_ROUTES[skill];
-	if (!entryRoute) {
-		fail("--skill 必须是 /grill-with-docs | /to-story | /to-issues");
+	const initiator = normalizeSkill(requireOption(options, "skill"));
+	if (initiator !== "loop-x" && options.entry !== undefined) {
+		fail("只有 /loop-x 可以指定 --entry");
 	}
-	const defaultPlan = skill === "grill-with-docs" ? "." : null;
+	const entrySkill = initiator === "loop-x"
+		? normalizeSkill(requireOption(options, "entry"))
+		: initiator;
+	const entryRoute = ENTRY_ROUTES[entrySkill];
+	if (!entryRoute) {
+		if (initiator === "loop-x") {
+			fail("/loop-x 的 --entry 必须是 /grill-with-docs | /to-story | /to-issues");
+		}
+		fail("--skill 必须是 /loop-x | /grill-with-docs | /to-story | /to-issues");
+	}
+	const defaultPlan = entrySkill === "grill-with-docs" ? "." : null;
 	const planInput = options.plan === undefined ? defaultPlan : requireOption(options, "plan");
-	if (!planInput) fail(`/${skill} 进入流程前必须提供 --plan`);
+	if (!planInput) fail(`/${entrySkill} 进入流程前必须提供 --plan`);
 	const planKey = normalizePlanPath(workspace, planInput);
 	let plan = state.plans[planKey];
 	if (plan?.setup.status === "completed" && entryRoute === "main") {
@@ -473,9 +482,9 @@ const handleEnterPlan = (state, workspace, options, now) => {
 		);
 	}
 	const expected = nextStep(PLAN_ROUTES[plan.route], plan.setup.cursor);
-	if (!expected || expected.skill !== skill) {
+	if (!expected || expected.skill !== entrySkill) {
 		fail(
-			`Plan ${planKey} 当前期望 ${expected ? stepLabel(expected) : "无后续 skill"}，不能进入 /${skill}`,
+			`Plan ${planKey} 当前期望 ${expected ? stepLabel(expected) : "无后续 skill"}，不能进入 /${entrySkill}`,
 		);
 	}
 	const requestedSession = options.session?.trim();
@@ -751,6 +760,7 @@ const parseCli = (argumentsList) => {
 
 const usage = `用法:
   flow.mjs init --plan <path> --route <main|story|issues> --session <id>
+  flow.mjs enter-plan [--plan <path>] --skill /loop-x --entry </grill-with-docs|/to-story|/to-issues> [--session <id>]
   flow.mjs enter-plan [--plan <path>] --skill </grill-with-docs|/to-story|/to-issues> [--session <id>]
   flow.mjs record-plan --plan <path> --session <id> (--skill </skill>|--action <action>) --result <result> --evidence <ref>
   flow.mjs claim-issue --plan <path> --issue <NN> [--session <id>]

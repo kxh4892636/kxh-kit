@@ -10,15 +10,17 @@
 
 | 发起者 | 选择入口 |
 | --- | --- |
-| `/loop-x` | 根据用户输入推荐 `/grill-with-docs`、`/to-story` 或 `/to-issues`，说明理由并等待用户明确确认；确认后执行 `enter-plan` |
+| `/loop-x` | 根据用户输入推荐 `/grill-with-docs`、`/to-story` 或 `/to-issues`，说明理由并等待用户明确确认；确认后以自身为发起者、推荐结果为入口执行 `enter-plan` |
 | 直接调用 `/grill-with-docs` | 固定进入 `main` 路径，自动执行 `enter-plan` |
 | 直接调用 `/to-story` | 固定进入 `story` 路径，自动执行 `enter-plan` |
 | 直接调用 `/to-issues` | 固定进入 `issues` 路径，自动执行 `enter-plan` |
 
 ```powershell
+node .agents/skills/loop-x/script/flow.mjs enter-plan --skill /loop-x --entry /<entry-skill> --plan <plan-path> --session <session-id>
 node .agents/skills/loop-x/script/flow.mjs enter-plan --skill /<entry-skill> --plan <plan-path> --session <session-id>
 ```
 
+- `/loop-x` 只能通过 `--entry` 选择 `/grill-with-docs`、`/to-story` 或 `/to-issues`；脚本在同一事务中由入口推导并进入 `main`、`story` 或 `issues` 路径。直接调用固定入口时不得指定 `--entry`。
 - `/grill-with-docs` 可省略 `--plan`，运行键默认为 `.`；`/to-story` 和 `/to-issues` 使用实际 Plan 路径。
 - 首次进入可省略 `--session`，脚本生成会话 ID。保留返回的 `plan` 和 `session`，后续步骤全部复用。
 - 已有运行态时，`enter-plan` 只允许接入当前期待的入口 skill。
