@@ -1,10 +1,10 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import { runCli, type CliRequest } from "../../cli/run";
 import workspaceCommand from "./index";
-import { WORKSPACE_CONFIG_FILE } from "./workspace-config";
+import { WORKSPACE_CONFIG_FILE, WORKSPACE_LOCAL_FILE } from "./workspace-config";
 
 const temporaryDirectories: string[] = [];
 
@@ -88,5 +88,190 @@ describe("workspace init", (): void => {
       preview: { action: "init", config: path.join(cwd, WORKSPACE_CONFIG_FILE) },
     });
     await expect(readFile(path.join(cwd, WORKSPACE_CONFIG_FILE), "utf8")).rejects.toThrow();
+  });
+});
+
+const ADD_WIKI = [
+  "add",
+  "--name",
+  "wiki",
+  "--url",
+  "https://github.com/kxh4892636/wiki.git",
+  "--path",
+  "apps/wiki",
+  "--branch",
+  "main",
+] as const;
+
+const initWorkspace = async (): Promise<string> => {
+  const cwd = await createDirectory();
+  await invoke(cwd, ["init"]);
+  return cwd;
+};
+
+describe("workspace add", (): void => {
+  test("appends a new repository entry", async (): Promise<void> => {
+    const cwd = await initWorkspace();
+    const result = await invoke(cwd, ADD_WIKI);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      success: true,
+      change: "added",
+      repository: {
+        name: "wiki",
+        url: "https://github.com/kxh4892636/wiki.git",
+        path: "apps/wiki",
+        branch: "main",
+      },
+      config: path.join(cwd, WORKSPACE_CONFIG_FILE),
+    });
+    const document = await readFile(path.join(cwd, WORKSPACE_CONFIG_FILE), "utf8");
+    expect(document).toContain("- name: wiki");
+    expect(document).toContain("branch: main");
+  });
+
+  test("updates url, path and branch when the name already exists", async (): Promise<void> => {
+    const cwd = await initWorkspace();
+    await invoke(cwd, ADD_WIKI);
+    const result = await invoke(cwd, [
+      "add",
+      "--name",
+      "wiki",
+      "--url",
+      "git@github.com:kxh4892636/wiki.git",
+      "--path",
+      "packages/wiki",
+      "--branch",
+      "dev",
+    ]);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({ success: true, change: "updated" });
+    const document = await readFile(path.join(cwd, WORKSPACE_CONFIG_FILE), "utf8");
+    expect(document.match(/- name: wiki/gu)).toHaveLength(1);
+    expect(document).toContain("packages/wiki");
+    expect(document).toContain("branch: dev");
+  });
+
+  test("fails with a JSON error when the path is used by another repository", async (): Promise<void> => {
+    const cwd = await initWorkspace();
+    await invoke(cwd, ADD_WIKI);
+    const result = await invoke(cwd, [
+      "add",
+      "--name",
+      "docs",
+      "--url",
+      "https://github.com/kxh4892636/docs.git",
+      "--path",
+      "apps/wiki",
+      "--branch",
+      "main",
+    ]);
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(JSON.parse(result.stderr)).toMatchObject({
+      success: false,
+      error: expect.stringContaining("apps/wiki"),
+      conflict: "wiki",
+    });
+    const document = await readFile(path.join(cwd, WORKSPACE_CONFIG_FILE), "utf8");
+    expect(document).not.toContain("docs");
+  });
+
+  test("fails with a usage error when an option is missing", async (): Promise<void> => {
+    const cwd = await initWorkspace();
+    const result = await invoke(cwd, ["add", "--name", "wiki", "--url", "https://x/y.git"]);
+    expect(result.code).toBe(2);
+    expect(JSON.parse(result.stderr)).toMatchObject({ success: false });
+  });
+
+  test("--dry-run reports the plan without writing", async (): Promise<void> => {
+    const cwd = await initWorkspace();
+    const result = await invoke(cwd, [...ADD_WIKI, "--dry-run"]);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      success: true,
+      dryRun: true,
+      preview: {
+        action: "add",
+        change: "added",
+        repository: {
+          name: "wiki",
+          url: "https://github.com/kxh4892636/wiki.git",
+          path: "apps/wiki",
+          branch: "main",
+        },
+        config: path.join(cwd, WORKSPACE_CONFIG_FILE),
+      },
+    });
+    const document = await readFile(path.join(cwd, WORKSPACE_CONFIG_FILE), "utf8");
+    expect(document).toContain("repositories: []");
+  });
+});
+
+describe("workspace remove", (): void => {
+  test("removes the entry", async (): Promise<void> => {
+    const cwd = await initWorkspace();
+    await invoke(cwd, ADD_WIKI);
+    const result = await invoke(cwd, ["remove", "--name", "wiki"]);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      success: true,
+      removed: {
+        name: "wiki",
+        url: "https://github.com/kxh4892636/wiki.git",
+        path: "apps/wiki",
+        branch: "main",
+      },
+      config: path.join(cwd, WORKSPACE_CONFIG_FILE),
+    });
+    const document = await readFile(path.join(cwd, WORKSPACE_CONFIG_FILE), "utf8");
+    expect(document).not.toContain("wiki");
+  });
+
+  test("reports a residual clone_path recorded in workspace.local.yaml", async (): Promise<void> => {
+    const cwd = await initWorkspace();
+    await invoke(cwd, ADD_WIKI);
+    await writeFile(
+      path.join(cwd, WORKSPACE_LOCAL_FILE),
+      `repositories:
+  - name: wiki
+    clone_path: C:/Users/kxh/workspaces/wiki
+`,
+      "utf8",
+    );
+    const result = await invoke(cwd, ["remove", "--name", "wiki"]);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      success: true,
+      residualClonePath: "C:/Users/kxh/workspaces/wiki",
+      hint: expect.stringContaining(WORKSPACE_LOCAL_FILE),
+    });
+    const local = await readFile(path.join(cwd, WORKSPACE_LOCAL_FILE), "utf8");
+    expect(local).toContain("clone_path");
+  });
+
+  test("fails with a JSON error when the name does not exist", async (): Promise<void> => {
+    const cwd = await initWorkspace();
+    const result = await invoke(cwd, ["remove", "--name", "ghost"]);
+    expect(result.code).toBe(1);
+    expect(result.stdout).toBe("");
+    expect(JSON.parse(result.stderr)).toMatchObject({
+      success: false,
+      error: expect.stringContaining("ghost"),
+    });
+  });
+
+  test("--dry-run reports the plan without writing", async (): Promise<void> => {
+    const cwd = await initWorkspace();
+    await invoke(cwd, ADD_WIKI);
+    const result = await invoke(cwd, ["remove", "--name", "wiki", "--dry-run"]);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      success: true,
+      dryRun: true,
+      preview: { action: "remove", removed: { name: "wiki" } },
+    });
+    const document = await readFile(path.join(cwd, WORKSPACE_CONFIG_FILE), "utf8");
+    expect(document).toContain("- name: wiki");
   });
 });
