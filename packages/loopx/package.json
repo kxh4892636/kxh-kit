@@ -15,7 +15,8 @@
     "dist",
     "skills",
     "LICENSE",
-    "THIRD_PARTY_NOTICES.md"
+    "THIRD_PARTY_NOTICES.md",
+    "README.md"
   ],
   "type": "module",
   "exports": {
@@ -28,6 +29,7 @@
   "scripts": {
     "build": "node script/generate-skill-manifest.mjs && vp pack src/main.ts",
     "test": "vp test src",
+    "test:distribution": "vp run build && vp test test/distribution.spec.ts",
     "check": "vp check",
     "prepublishOnly": "vp run build"
   },
