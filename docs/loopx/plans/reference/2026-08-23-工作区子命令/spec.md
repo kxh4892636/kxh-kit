@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 ---
 
 # 工作区子命令
@@ -51,10 +51,10 @@ repositories:
 
 - `init`：在 cwd 创建含空 `repositories` 的 `workspace.yaml`；已存在则报错。
 - `add --name --url --path --branch`：向 `workspace.yaml` 追加条目；name 已存在时更新该条目的 url/path/branch（upsert）；path 被其他子仓占用时报错；不触碰仓库。
-- `remove --name`：从 `workspace.yaml` 移除条目；不删除 worktree 与本机克隆。
+- `remove --name`：从 `workspace.yaml` 移除条目；不删除 worktree 与本机克隆；输出中报告该子仓残留的 clone_path 记录与清理提示（先 `worktree remove` 再手动清理克隆），残留记录由 `pull` 忽略未知 name 处理。
 - `list`：配置视图——每个子仓的 name/url/path/branch 与本机 clone_path（若已记录）。
-- `status`：运行态视图——克隆是否存在、每个已注册 worktree（路径、当前分支、是否 dirty、能否 fast-forward 到基准分支、是否主 worktree）。
-- `pull [--name <name>...] [--path <path>] [--worktree-branch <branch>]`：对每个目标子仓依次执行——克隆缺失则 `git clone --depth 1 --branch <branch>` 到克隆存储并记录 `clone_path`；目标 worktree（`--path` 指定，相对工作区根，默认配置 path）缺失则以工作分支（`--worktree-branch` 指定，默认 `worktree/<name>-<yyyymmddhhmmss>`）从基准分支创建检出，已存在时忽略 `--worktree-branch`；然后 fetch 基准分支（`--depth 1`）并对 worktree 当前分支 `merge --ff-only <branch>`。脏 worktree 或不可快进时该项报告 skipped，其余子仓继续。未指定 `--name` 时处理全部子仓；`--path` 与 `--worktree-branch` 仅在指定单个 `--name` 时可用。
+- `status`：运行态视图——克隆是否存在、每个已注册 worktree（路径、当前分支、是否 dirty、能否 fast-forward 到基准分支、是否主 worktree）；fast-forward 判断基于本地已有 refs，不隐式 fetch。
+- `pull [--name <name>...] [--path <path>] [--worktree-branch <branch>]`：对每个目标子仓依次执行——克隆缺失则 `git clone --depth 1 --branch <branch>` 到克隆存储并记录 `clone_path`；目标 worktree（`--path` 指定，相对工作区根，默认配置 path）缺失则以工作分支（`--worktree-branch` 指定，默认 `worktree/<name>-<yyyymmddhhmmss>`）从基准分支创建检出，已存在时忽略 `--worktree-branch`；然后 fetch 基准分支（`--depth 1`）并对 worktree 当前分支 `merge --ff-only <branch>`。脏 worktree 或不可快进时该项报告 skipped，其余子仓继续。未指定 `--name` 时处理全部子仓；`--path` 与 `--worktree-branch` 仅在指定单个 `--name` 时可用。`workspace.local.yaml` 中记录的 `clone_path` 已失效（目录不存在）时报错并提示修正或删除记录，不自动换路径重克隆。
 - `worktree list [--name <name>...]`：聚合各子仓 `git worktree list --porcelain`——路径、分支、HEAD commit、是否主 worktree、是否 locked；未物化子仓标注。
 - `worktree switch --name <repo> --path <path> --branch <branch> [--base <branch>]`：将指定 worktree 切换到目标分支；目标分支不存在时从 `--base`（默认配置 branch）创建；worktree 不存在、目标分支已被其他 worktree 检出、dirty 导致切换冲突时透传 git 报错。
 - `worktree remove --name <repo> --path <path> [--force] [--delete-branch]`：移除指定 worktree（删目录 + 清注册）；主 worktree 允许移除，下次 `pull` 按配置重建；dirty 时必须 `--force`；默认保留工作分支，`--delete-branch` 时以 `git branch -d` 删除（未合并的分支由 git 拒绝并报错）。
@@ -94,10 +94,11 @@ repositories:
 
 ## Issue
 
-| #   | Issue                                   | 状态    | 阻塞于 | 下一步     |
-| --- | --------------------------------------- | ------- | ------ | ---------- |
-| 01  | [配置模型与定位](01-配置模型与定位.md)  | pending | —      | /implement |
-| 02  | [添加与移除仓库](02-添加与移除仓库.md)  | pending | 01     | /implement |
-| 03  | [拉取与物化](03-拉取与物化.md)          | pending | 01     | /implement |
-| 04  | [列表与状态](04-列表与状态.md)          | pending | 03     | /implement |
-| 05  | [Worktree 子命令](05-worktree子命令.md) | pending | 03     | /implement |
+| #   | Issue                                        | 状态      | 阻塞于 | 下一步     |
+| --- | -------------------------------------------- | --------- | ------ | ---------- |
+| 01  | [配置模型与定位](01-配置模型与定位.md)       | completed | —      | /implement |
+| 02  | [添加与移除仓库](02-添加与移除仓库.md)       | completed | 01     | /implement |
+| 03  | [拉取与物化](03-拉取与物化.md)               | completed | 01     | /implement |
+| 04  | [列表与状态](04-列表与状态.md)               | completed | 03     | /implement |
+| 05  | [Worktree 子命令](05-worktree子命令.md)      | completed | 03     | /implement |
+| 06  | [孤儿 Worktree 清理](06-孤儿worktree清理.md) | completed | 02, 05 | /implement |

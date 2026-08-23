@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 blocked_by: ["03"]
 ---
 
@@ -24,12 +24,12 @@ blocked_by: ["03"]
 
 ## 验收
 
-- [ ] `worktree switch` 将指定 worktree 切到已存在分支；目标分支不存在时从基准（或 `--base`）分支创建；分支被其他 worktree 占用时透传 git 报错
-- [ ] `worktree list` 正确区分主 worktree 与额外 worktree 并标注 locked
-- [ ] `worktree remove`：默认保留工作分支且可经 switch 重新利用；dirty 无 `--force` 时报错；`--delete-branch` 删除已合并分支、未合并分支被拒绝
-- [ ] 手动删除 worktree 目录后 `worktree prune` 清掉失效注册并在结果中报告
-- [ ] 写命令 `--dry-run` 均无副作用且返回计划
-- [ ] `pnpm --filter @kxh4892636/loopx check` 与 `pnpm --filter @kxh4892636/loopx test` 通过
+- [x] `worktree switch` 将指定 worktree 切到已存在分支；目标分支不存在时从基准（或 `--base`）分支创建；分支被其他 worktree 占用时透传 git 报错
+- [x] `worktree list` 正确区分主 worktree 与额外 worktree 并标注 locked
+- [x] `worktree remove`：默认保留工作分支且可经 switch 重新利用；dirty 无 `--force` 时报错；`--delete-branch` 删除已合并分支、未合并分支被拒绝
+- [x] 手动删除 worktree 目录后 `worktree prune` 清掉失效注册并在结果中报告
+- [x] 写命令 `--dry-run` 均无副作用且返回计划
+- [x] `pnpm --filter @kxh4892636/loopx check` 与 `pnpm --filter @kxh4892636/loopx test` 通过
 
 ## 上下文
 
@@ -39,3 +39,9 @@ blocked_by: ["03"]
 ## 下一步
 
 /implement
+
+## 交付记录
+
+交付物：`workspace-worktree.ts` 实现 `worktree list`、`switch`、`remove`、`prune` 及 JSON-only / 预演契约；`index.ts` 注册四个子命令；`workspace-worktree.spec.ts` 使用真实临时 Git 仓库覆盖 13 个生命周期场景。
+
+证据：目标集成测试 13 passed；`pnpm --filter @kxh4892636/loopx check` 通过（151 files，0 warning/error）；`pnpm --filter @kxh4892636/loopx test` 246 passed；`pnpm --filter @kxh4892636/loopx build` 通过。code-review 两轴无阻断：缺失参数类型与越界 `lockReason` 已修复；共享 Git/fixture 重复作为集成后再判断的非阻断项保留。
