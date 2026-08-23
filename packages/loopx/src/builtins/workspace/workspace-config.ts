@@ -20,6 +20,15 @@ export interface WorkspaceConfig {
   readonly repositories: readonly WorkspaceRepository[];
 }
 
+export interface WorkspaceLocalRepository {
+  readonly name: string;
+  readonly clonePath: string;
+}
+
+export interface WorkspaceConfigurationView extends WorkspaceConfig {
+  readonly localRepositories: readonly WorkspaceLocalRepository[];
+}
+
 export class WorkspaceConfigError extends Error {
   readonly hint: string | undefined;
   readonly details: Readonly<Record<string, JsonValue>> | undefined;
@@ -161,7 +170,9 @@ const parseConfigFile = async <Schema extends z.ZodType>(
   return parsed.data;
 };
 
-export const loadWorkspaceConfig = async (cwd: string): Promise<WorkspaceConfig> => {
+export const loadWorkspaceConfigurationView = async (
+  cwd: string,
+): Promise<WorkspaceConfigurationView> => {
   const root = await findWorkspaceRoot(cwd);
   const config = await parseConfigFile(path.join(root, WORKSPACE_CONFIG_FILE), workspaceFileSchema);
   const localFile = path.join(root, WORKSPACE_LOCAL_FILE);
@@ -177,7 +188,21 @@ export const loadWorkspaceConfig = async (cwd: string): Promise<WorkspaceConfig>
       const clonePath = clonePaths.get(repository.name);
       return { ...repository, ...(clonePath === undefined ? {} : { clonePath }) };
     }),
+    localRepositories: local.repositories.map(
+      (record: {
+        readonly clone_path: string;
+        readonly name: string;
+      }): WorkspaceLocalRepository => ({
+        name: record.name,
+        clonePath: record.clone_path,
+      }),
+    ),
   };
+};
+
+export const loadWorkspaceConfig = async (cwd: string): Promise<WorkspaceConfig> => {
+  const config = await loadWorkspaceConfigurationView(cwd);
+  return { root: config.root, repositories: config.repositories };
 };
 
 export type RepositoryDraft = {

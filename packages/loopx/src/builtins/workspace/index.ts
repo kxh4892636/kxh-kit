@@ -17,6 +17,7 @@ import {
   WorkspaceConfigError,
 } from "./workspace-config";
 import { prepareWorkspacePull } from "./workspace-pull";
+import { listWorkspace, statusWorkspace } from "./workspace-query";
 
 const exists = async (target: string): Promise<boolean> => {
   try {
@@ -157,6 +158,20 @@ const workspaceCommand: BuiltinCommand = group("workspace", "Manage multi-reposi
         ),
     },
   ),
+  command("list", "List configured repositories and local clone paths", [], {
+    kind: "query",
+    run: async (
+      _options: Readonly<Record<string, never>>,
+      context: InvocationContext,
+    ): Promise<JsonOutput> => listWorkspace(context),
+  }),
+  command("status", "Inspect clones and registered worktrees without fetching", [], {
+    kind: "query",
+    run: async (
+      _options: Readonly<Record<string, never>>,
+      context: InvocationContext,
+    ): Promise<JsonOutput> => statusWorkspace(context),
+  }),
 ]);
 
 export default workspaceCommand;
