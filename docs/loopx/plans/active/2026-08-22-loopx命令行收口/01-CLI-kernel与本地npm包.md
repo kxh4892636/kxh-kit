@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 blocked_by: []
 ---
 
@@ -44,7 +44,7 @@ blocked_by: []
 ## 交付记录
 
 - 交付物：`packages/loopx/package.json`、`packages/loopx/src/cli/`、build-time builtin discovery、fixture builtin 与可执行 `dist/main.mjs`。
-- TDD：`vp run @kxh4892636/loopx#test`，13 个 interface 测试通过。
+- 验证证据：`vp run @kxh4892636/loopx#test`，13 个 interface 测试通过。
 - 静态门禁：`vp run @kxh4892636/loopx#build` 与 `vp check` 通过；全仓仅保留既有 warning。
 - 运行态门禁：本地 `.tgz` 安装到临时 npm prefix 后，root/group/leaf help、全局 options 与 compact dry-run mutation 均通过。
 - 审查：相对 `6b071c1` 的 Standards/Spec 双轴复审均无阻断项。
