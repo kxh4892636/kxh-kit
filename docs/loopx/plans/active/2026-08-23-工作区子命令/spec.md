@@ -97,7 +97,7 @@ repositories:
 | #   | Issue                                   | 状态        | 阻塞于 | 下一步     |
 | --- | --------------------------------------- | ----------- | ------ | ---------- |
 | 01  | [配置模型与定位](01-配置模型与定位.md)  | completed   | —      | /implement |
-| 02  | [添加与移除仓库](02-添加与移除仓库.md)  | in_progress | 01     | /implement |
-| 03  | [拉取与物化](03-拉取与物化.md)          | pending     | 01     | /implement |
+| 02  | [添加与移除仓库](02-添加与移除仓库.md)  | completed   | 01     | /implement |
+| 03  | [拉取与物化](03-拉取与物化.md)          | in_progress | 01     | /implement |
 | 04  | [列表与状态](04-列表与状态.md)          | pending     | 03     | /implement |
 | 05  | [Worktree 子命令](05-worktree子命令.md) | pending     | 03     | /implement |

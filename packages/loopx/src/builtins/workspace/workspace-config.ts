@@ -35,12 +35,13 @@ export class WorkspaceConfigError extends Error {
   }
 }
 
-const repositoryUrl = /^(?:git@[a-zA-Z0-9.-]+:[^\s]+|ssh:\/\/[^\s]+|https?:\/\/[^\s]+)$/u;
+const repositoryUrl =
+  /^(?:git@[a-zA-Z0-9.-]+:[^\s]+|ssh:\/\/[^\s]+|https?:\/\/[^\s]+|file:\/\/[^\s]+)$/u;
 
-const isRelativeRepositoryPath = (value: string): boolean => {
+export const isWorkspaceRelativePath = (value: string): boolean => {
   if (value.length === 0) return false;
   if (value.startsWith("/") || value.startsWith("\\")) return false;
-  if (/^[a-zA-Z]:[\\/]/u.test(value)) return false;
+  if (/^[a-zA-Z]:/u.test(value)) return false;
   return !value.split(/[\\/]/u).includes("..");
 };
 
@@ -48,11 +49,11 @@ const repositorySchema = z.object({
   name: z.string().min(1),
   url: z
     .string()
-    .regex(repositoryUrl, "url must be an ssh (git@host:path or ssh://) or http(s) url"),
+    .regex(repositoryUrl, "url must be an ssh (git@host:path or ssh://), http(s) or file url"),
   path: z
     .string()
     .refine(
-      isRelativeRepositoryPath,
+      isWorkspaceRelativePath,
       "path must be relative to the workspace root and must not contain '..'",
     ),
   branch: z.string().min(1),
@@ -253,12 +254,12 @@ const assertValidDocument = (document: Document, config: string): void => {
   if (!parsed.success) throw invalidConfigError(config, parsed.error);
 };
 
-const repositorySequence = (document: Document): YAMLSeq => {
+const repositorySequence = (document: Document, file: string): YAMLSeq => {
   const existing = document.get("repositories", true);
   if (isSeq(existing)) return existing;
   const created = document.createNode([]);
   if (!isSeq(created)) {
-    throw new WorkspaceConfigError(`Failed to edit ${WORKSPACE_CONFIG_FILE}`, {});
+    throw new WorkspaceConfigError(`Failed to edit ${file}`, {});
   }
   document.set("repositories", created);
   return created;
@@ -300,7 +301,7 @@ export const prepareUpsertRepository = async (
   const config = path.join(root, WORKSPACE_CONFIG_FILE);
   const { document, repositories } = await readWorkspaceDocument(config);
   const plan = planUpsert(repositories, draft);
-  const sequence = repositorySequence(document);
+  const sequence = repositorySequence(document, config);
   if (plan.change === "added") {
     sequence.flow = false;
     sequence.add(
@@ -352,7 +353,7 @@ export const prepareRemoveRepository = async (
   if (removed === undefined) {
     throw new WorkspaceConfigError(`Failed to edit ${config}: entry '${name}'`, {});
   }
-  repositorySequence(document).delete(plan.index);
+  repositorySequence(document, config).delete(plan.index);
   assertValidDocument(document, config);
   const localFile = path.join(root, WORKSPACE_LOCAL_FILE);
   const local = (await exists(localFile))
@@ -370,4 +371,49 @@ export const prepareRemoveRepository = async (
       await writeConfigAtomically(config, document.toString());
     },
   };
+};
+
+export const recordClonePath = async (
+  root: string,
+  name: string,
+  clonePath: string,
+): Promise<void> => {
+  const localFile = path.join(root, WORKSPACE_LOCAL_FILE);
+  let document: Document;
+  if (await exists(localFile)) {
+    let text: string;
+    try {
+      text = await readFile(localFile, "utf8");
+    } catch (error) {
+      throw new WorkspaceConfigError(
+        `Failed to read ${localFile}: ${error instanceof Error ? error.message : String(error)}`,
+        {},
+      );
+    }
+    document = parseDocument(text);
+    if (document.errors.length > 0) {
+      throw new WorkspaceConfigError(
+        `Failed to read ${localFile}: ${document.errors[0]?.message}`,
+        {},
+      );
+    }
+  } else {
+    document = parseDocument("");
+  }
+  const sequence = repositorySequence(document, localFile);
+  const item = sequence.items.find(
+    (entry: unknown): boolean => isMap(entry) && entry.get("name") === name,
+  );
+  if (item === undefined) {
+    sequence.flow = false;
+    sequence.add(document.createNode({ name, clone_path: clonePath }));
+  } else {
+    if (!isMap(item)) {
+      throw new WorkspaceConfigError(`Failed to edit ${localFile}: entry '${name}'`, {});
+    }
+    item.set("clone_path", clonePath);
+  }
+  const parsed = localFileSchema.safeParse(document.toJS() ?? {});
+  if (!parsed.success) throw invalidConfigError(localFile, parsed.error);
+  await writeConfigAtomically(localFile, document.toString());
 };

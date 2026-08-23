@@ -16,6 +16,7 @@ import {
   WORKSPACE_LOCAL_FILE,
   WorkspaceConfigError,
 } from "./workspace-config";
+import { prepareWorkspacePull } from "./workspace-pull";
 
 const exists = async (target: string): Promise<boolean> => {
   try {
@@ -52,6 +53,27 @@ const addOptions = [
 
 const removeOptions = [
   option.string("name", "Name of the repository entry to remove", { required: true }),
+] as const;
+
+const pullOptions = [
+  option.string("name", "Repository to pull; repeat to pull several; defaults to all", {
+    multiple: true,
+    placeholder: "name",
+  }),
+  option.string(
+    "path",
+    "Worktree path relative to the workspace root; requires exactly one --name",
+    {
+      placeholder: "path",
+    },
+  ),
+  option.string(
+    "worktree-branch",
+    "Branch for a newly created worktree; requires exactly one --name",
+    {
+      placeholder: "branch",
+    },
+  ),
 ] as const;
 
 const workspaceCommand: BuiltinCommand = group("workspace", "Manage multi-repository workspaces", [
@@ -118,6 +140,23 @@ const workspaceCommand: BuiltinCommand = group("workspace", "Manage multi-reposi
       };
     },
   }),
+  command(
+    "pull",
+    "Materialize configured repositories and fast-forward them to their base branch",
+    pullOptions,
+    {
+      kind: "mutation",
+      prepare: async (options, context): Promise<PreparedMutation> =>
+        prepareWorkspacePull(
+          {
+            names: options.name ?? [],
+            path: options.path,
+            worktreeBranch: options["worktree-branch"],
+          },
+          context,
+        ),
+    },
+  ),
 ]);
 
 export default workspaceCommand;

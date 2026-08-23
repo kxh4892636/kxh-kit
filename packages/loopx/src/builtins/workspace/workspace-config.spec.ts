@@ -195,6 +195,15 @@ describe("loadWorkspaceConfig", (): void => {
     branch: main
 `,
     },
+    {
+      title: "drive-relative path",
+      document: `repositories:
+  - name: kxh-kit
+    url: git@github.com:kxh4892636/kxh-kit.git
+    path: C:outside
+    branch: main
+`,
+    },
   ])("rejects a config with $title", async ({ document }: { document: string }): Promise<void> => {
     const root = await createDirectory();
     await writeFile(path.join(root, WORKSPACE_CONFIG_FILE), document, "utf8");
