@@ -146,6 +146,7 @@ describe("CLI public interface", (): void => {
       kind: "group",
       name: "adapter",
       description: "adapter fixture",
+      options: [],
       children: [
         {
           kind: "command",

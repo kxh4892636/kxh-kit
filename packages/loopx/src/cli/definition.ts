@@ -15,6 +15,7 @@ interface OptionSettings {
 }
 
 interface StringOptionSettings extends OptionSettings {
+  readonly multiple?: boolean;
   readonly placeholder?: string;
 }
 
@@ -70,4 +71,5 @@ export const group = (
   name: string,
   description: string,
   children: readonly CommandNode[],
-): CommandGroup => ({ kind: "group", name, description, children });
+  options: readonly (BooleanOption | StringOption)[] = [],
+): CommandGroup => ({ kind: "group", name, description, children, options });

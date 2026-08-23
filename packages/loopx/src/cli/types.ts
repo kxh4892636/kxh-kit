@@ -21,7 +21,8 @@ export interface InvocationContext {
   readonly debug: boolean;
 }
 
-export type OptionValues = Readonly<Record<string, boolean | string | undefined>>;
+export type OptionValue = boolean | readonly string[] | string | undefined;
+export type OptionValues = Readonly<Record<string, OptionValue>>;
 
 interface BaseOption {
   readonly name: string;
@@ -36,13 +37,16 @@ export interface BooleanOption extends BaseOption {
 
 export interface StringOption extends BaseOption {
   readonly kind: "string";
+  readonly multiple?: boolean;
   readonly placeholder?: string;
 }
 
 export type CommandOption = BooleanOption | StringOption;
 
 type DefinedOptionValue<Definition extends CommandOption> = Definition extends StringOption
-  ? string
+  ? Definition["multiple"] extends true
+    ? readonly string[]
+    : string
   : boolean;
 
 export type ValuesFromOptions<Definitions extends readonly CommandOption[]> = Readonly<{
@@ -80,6 +84,7 @@ export interface CommandGroup {
   readonly kind: "group";
   readonly name: string;
   readonly description: string;
+  readonly options: readonly CommandOption[];
   readonly children: readonly CommandNode[];
 }
 

@@ -1,6 +1,6 @@
 import { Command, CommanderError, Option } from "commander";
 import packageMetadata from "../../package.json" with { type: "json" };
-import { DefinitionError, isUsageError, toErrorJson } from "./errors";
+import { CliUsageError, DefinitionError, isUsageError, toErrorJson } from "./errors";
 import type {
   BuiltinCommand,
   BuiltinModuleFactory,
@@ -9,6 +9,7 @@ import type {
   JsonOutput,
   JsonValue,
   LeafCommand,
+  CommandOption,
   OptionValues,
   TextReader,
   TextWriter,
@@ -33,6 +34,7 @@ interface GlobalOptions {
 interface ScannedArguments {
   readonly argv: readonly string[];
   readonly globals: GlobalOptions;
+  readonly scoped: OptionValues;
 }
 
 const reservedOptions = new Set(["compact", "debug", "dry-run", "help"]);
@@ -49,12 +51,49 @@ const scanGlobals = (argv: readonly string[]): ScannedArguments => {
     else if (argument === "--dry-run") dryRun = true;
     else rest.push(argument);
   }
-  return { argv: rest, globals: { compact, debug, dryRun } };
+  return { argv: rest, globals: { compact, debug, dryRun }, scoped: {} };
 };
 
-const validateOptions = (node: LeafCommand, path: string): void => {
+const scanScopedOptions = (
+  scanned: ScannedArguments,
+  builtins: readonly BuiltinCommand[],
+): ScannedArguments => {
+  const rootName = scanned.argv[0];
+  const definitions =
+    builtins.find((builtin: BuiltinCommand): boolean => builtin.name === rootName)?.options ?? [];
+  if (definitions.length === 0) return scanned;
+  const byFlag = new Map(
+    definitions.map((definition): [string, CommandOption] => [`--${definition.name}`, definition]),
+  );
+  const argv: string[] = [];
+  const scoped: Record<string, boolean | readonly string[] | string | undefined> = {};
+  for (let index = 0; index < scanned.argv.length; index += 1) {
+    const argument = scanned.argv[index];
+    if (argument === undefined) continue;
+    const separator = argument.indexOf("=");
+    const flag = separator === -1 ? argument : argument.slice(0, separator);
+    const definition = byFlag.get(flag);
+    if (definition === undefined) {
+      argv.push(argument);
+      continue;
+    }
+    if (definition.kind === "boolean") {
+      if (separator !== -1) throw new CliUsageError(`${flag} does not accept a value`);
+      scoped[definition.name] = true;
+      continue;
+    }
+    const value = separator === -1 ? scanned.argv[index + 1] : argument.slice(separator + 1);
+    if (value === undefined || value.startsWith("-"))
+      throw new CliUsageError(`${flag} requires a value`);
+    scoped[definition.name] = value;
+    if (separator === -1) index += 1;
+  }
+  return { ...scanned, argv, scoped };
+};
+
+const validateOptions = (definitions: readonly CommandOption[], path: string): void => {
   const names = new Set<string>();
-  for (const definition of node.options) {
+  for (const definition of definitions) {
     if (!validName.test(definition.name)) {
       throw new DefinitionError(`Invalid option name at ${path}: ${definition.name}`);
     }
@@ -66,7 +105,7 @@ const validateOptions = (node: LeafCommand, path: string): void => {
     }
     names.add(definition.name);
   }
-  for (const definition of node.options) {
+  for (const definition of definitions) {
     for (const conflict of definition.conflicts ?? []) {
       if (!names.has(conflict)) {
         throw new DefinitionError(`Unknown conflict at ${path}: --${conflict}`);
@@ -75,7 +114,11 @@ const validateOptions = (node: LeafCommand, path: string): void => {
   }
 };
 
-const validateChildren = (children: readonly CommandNode[], parent: string): void => {
+const validateChildren = (
+  children: readonly CommandNode[],
+  parent: string,
+  inheritedOptions: readonly CommandOption[] = [],
+): void => {
   const names = new Set<string>();
   for (const child of children) {
     const path = `${parent} ${child.name}`.trim();
@@ -84,9 +127,10 @@ const validateChildren = (children: readonly CommandNode[], parent: string): voi
     names.add(child.name);
     if (child.kind === "group") {
       if (child.children.length === 0) throw new DefinitionError(`Empty command group: ${path}`);
-      validateChildren(child.children, path);
+      validateOptions([...inheritedOptions, ...child.options], path);
+      validateChildren(child.children, path, [...inheritedOptions, ...child.options]);
     } else {
-      validateOptions(child, path);
+      validateOptions([...inheritedOptions, ...child.options], path);
       const operation = child.operation as Partial<LeafCommand["operation"]>;
       if (operation.kind === "query" && typeof operation.run !== "function") {
         throw new DefinitionError(`Query is missing run stage: ${path}`);
@@ -108,9 +152,12 @@ const validateBuiltins = (builtins: readonly BuiltinCommand[]): void => {
 const optionKey = (name: string): string =>
   name.replace(/-([a-z0-9])/gu, (_match: string, value: string): string => value.toUpperCase());
 
-const addOptions = (target: Command, node: LeafCommand): void => {
-  for (const definition of node.options) {
-    const value = definition.kind === "string" ? ` <${definition.placeholder ?? "value"}>` : "";
+const addOptions = (target: Command, definitions: readonly CommandOption[]): void => {
+  for (const definition of definitions) {
+    const value =
+      definition.kind === "string"
+        ? ` <${definition.placeholder ?? "value"}${definition.multiple === true ? "..." : ""}>`
+        : "";
     const commanderOption = new Option(`--${definition.name}${value}`, definition.description);
     if (definition.required === true) commanderOption.makeOptionMandatory();
     if (definition.conflicts !== undefined) {
@@ -148,21 +195,35 @@ const addNode = (
   node: CommandNode,
   request: CliRequest,
   globals: GlobalOptions,
+  scopedValues: OptionValues,
+  inheritedOptions: readonly CommandOption[] = [],
 ): void => {
-  const target = parent.command(node.name).description(node.description).enablePositionalOptions();
+  const target = parent.command(node.name).description(node.description);
   addGlobalHelpOptions(target);
   if (node.kind === "group") {
-    for (const child of node.children) addNode(target, child, request, globals);
+    addOptions(target, node.options);
+    const scopedOptions = [...inheritedOptions, ...node.options];
+    for (const child of node.children)
+      addNode(target, child, request, globals, scopedValues, scopedOptions);
     return;
   }
 
-  addOptions(target, node);
-  target.action(async (rawOptions: Record<string, boolean | string | undefined>): Promise<void> => {
+  addOptions(target, node.options);
+  target.action(async (): Promise<void> => {
+    const rawOptions =
+      target.optsWithGlobals<Record<string, boolean | readonly string[] | string | undefined>>();
+    const definitions = [...inheritedOptions, ...node.options];
     const options: OptionValues = Object.fromEntries(
-      node.options.map((definition): readonly [string, boolean | string | undefined] => [
-        definition.name,
-        rawOptions[optionKey(definition.name)],
-      ]),
+      definitions.map(
+        (
+          definition: CommandOption,
+        ): readonly [string, boolean | readonly string[] | string | undefined] => [
+          definition.name,
+          Object.hasOwn(scopedValues, definition.name)
+            ? scopedValues[definition.name]
+            : rawOptions[optionKey(definition.name)],
+        ],
+      ),
     );
     const context: InvocationContext = {
       cwd: request.cwd,
@@ -196,6 +257,7 @@ const createProgram = (
   request: CliRequest,
   globals: GlobalOptions,
   builtins: readonly BuiltinCommand[],
+  scopedValues: OptionValues,
 ): Command => {
   const program = new Command()
     .name("loopx")
@@ -207,7 +269,7 @@ const createProgram = (
     writeOut: (chunk: string): void => request.stdout.write(chunk),
     writeErr: (): void => undefined,
   });
-  for (const builtin of builtins) addNode(program, builtin, request, globals);
+  for (const builtin of builtins) addNode(program, builtin, request, globals, scopedValues);
   applyExitOverride(program);
   return program;
 };
@@ -216,15 +278,16 @@ export const runCli = async (
   request: CliRequest,
   modules: readonly BuiltinModuleFactory[],
 ): Promise<number> => {
-  const scanned = scanGlobals(request.argv);
   try {
     const builtins = modules.map((factory: BuiltinModuleFactory): BuiltinCommand => factory());
     validateBuiltins(builtins);
-    const program = createProgram(request, scanned.globals, builtins);
+    const scanned = scanScopedOptions(scanGlobals(request.argv), builtins);
+    const program = createProgram(request, scanned.globals, builtins, scanned.scoped);
     await program.parseAsync(scanned.argv, { from: "user" });
     return 0;
   } catch (error) {
     if (error instanceof CommanderError && error.exitCode === 0) return 0;
+    const scanned = scanGlobals(request.argv);
     const code = isUsageError(error) ? 2 : 1;
     request.stderr.write(
       `${JSON.stringify(toErrorJson(error, scanned.globals.debug), null, scanned.globals.compact ? 0 : 2)}\n`,
