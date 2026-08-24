@@ -24,6 +24,7 @@ export interface ResumeAgentOptions {
   now?: () => number;
   socketPath: string;
   stateDir: string;
+  signal?: AbortSignal;
   trigger: DiagnosticTrigger;
 }
 
@@ -113,13 +114,43 @@ const processCurrentAgent = async (
   if (!isStillCurrent(agent, current, read)) {
     return { ...emptyResult(), scanned: 1, skipped: 1 };
   }
+  if (options.signal?.aborted === true) {
+    return { ...emptyResult(), scanned: 1, skipped: 1 };
+  }
   if (path === "pane_input") {
     await options.herdr.sendPaneInput(agent.pane_id, "go on", ["enter"]);
   } else {
     await options.herdr.promptAgent(agent.pane_id, "go on");
   }
   await state.record(agent.terminal_id, fingerprint);
+  await recordUnchangedState(agent, fingerprint, options);
   return { ...emptyResult(), resumed: 1, scanned: 1 };
+};
+
+const recordUnchangedState = async (
+  before: AgentInfo,
+  fingerprint: string,
+  options: ResumeAgentOptions,
+): Promise<void> => {
+  try {
+    const after = await options.herdr.getAgent(before.pane_id);
+    if (isSameStateCycle(before, after)) {
+      await options.diagnostics.unchanged(
+        before.pane_id,
+        before.terminal_id,
+        options.trigger,
+        fingerprint,
+      );
+    }
+  } catch {
+    await options.diagnostics.failure(
+      before.pane_id,
+      before.terminal_id,
+      "agent_operation_failed",
+      options.trigger,
+      fingerprint,
+    );
+  }
 };
 
 const deliveryPath = (agent: AgentInfo): DeliveryPath | undefined =>

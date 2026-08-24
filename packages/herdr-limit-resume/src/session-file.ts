@@ -7,6 +7,8 @@ export const sessionFile = (
   name: string,
   extension: string,
 ): string => {
-  const sessionHash = createHash("sha256").update(socketPath).digest("hex").slice(0, 16);
-  return join(stateDir, `${name}-${sessionHash}.${extension}`);
+  return join(stateDir, `${name}-${sessionShard(socketPath)}.${extension}`);
 };
+
+export const sessionShard = (socketPath: string): string =>
+  createHash("sha256").update(socketPath).digest("hex").slice(0, 16);

@@ -104,6 +104,24 @@ export class HerdrSocket implements HerdrPort {
     return parseAgent(result["agent"]);
   }
 
+  public async isPluginEnabled(pluginId: string): Promise<boolean> {
+    const result = await this.#request("plugin.list", { plugin_id: pluginId });
+    if (
+      !isRecord(result) ||
+      result["type"] !== "plugin_list" ||
+      !Array.isArray(result["plugins"])
+    ) {
+      throw new Error("Herdr response has invalid plugin_list result");
+    }
+    return result["plugins"].some((value: unknown): boolean => {
+      if (!isRecord(value)) throw new Error("Herdr response has invalid plugin");
+      const enabled = value["enabled"];
+      if (typeof enabled !== "boolean")
+        throw new Error("Herdr response has invalid plugin enabled");
+      return readString(value, "plugin_id") === pluginId && enabled;
+    });
+  }
+
   public async readDetection(target: string): Promise<AgentRead> {
     const result = await this.#request("agent.read", {
       format: "text",

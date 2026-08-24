@@ -40,6 +40,22 @@ test("a done rate-limit stall is resumed once across all workspaces", async (): 
   ]);
 });
 
+test("an accepted input with unchanged state records its region hash", async (): Promise<void> => {
+  const stateDir = await mkdtemp(join(tmpdir(), "herdr-limit-resume-state-"));
+  resources.push(async (): Promise<void> => rm(stateDir, { force: true, recursive: true }));
+  const { socketPath } = await listen(responseFor(agent));
+
+  await runScanNow({ socketPath, stateDir });
+
+  const diagnosticName = (await readdir(stateDir)).find((name: string): boolean =>
+    name.endsWith(".jsonl"),
+  );
+  const diagnostic = await readFile(join(stateDir, diagnosticName ?? "missing"), "utf8");
+  expect(diagnostic).toContain('"reason":"state_unchanged_after_send"');
+  expect(diagnostic).toMatch(/"region_hash":"[a-f0-9]{64}"/u);
+  expect(diagnostic).not.toContain("Please retry");
+});
+
 test("an idle rate-limit stall is resumed through the prompt interface", async (): Promise<void> => {
   const stateDir = await mkdtemp(join(tmpdir(), "herdr-limit-resume-state-"));
   resources.push(async (): Promise<void> => rm(stateDir, { force: true, recursive: true }));
@@ -187,6 +203,28 @@ test("rate-limit tokens outside the latest 55 characters do not resume", async (
   expect(requests.some(({ method }: SocketRequest): boolean => method === "agent.prompt")).toBe(
     false,
   );
+});
+
+test("an abort observed immediately before delivery suppresses input", async (): Promise<void> => {
+  const stateDir = await mkdtemp(join(tmpdir(), "herdr-limit-resume-state-"));
+  resources.push(async (): Promise<void> => rm(stateDir, { force: true, recursive: true }));
+  const controller = new AbortController();
+  let getCount = 0;
+  const responder = (request: SocketRequest): Record<string, unknown> => {
+    if (request.method === "agent.get") {
+      getCount += 1;
+      if (getCount === 2) controller.abort();
+    }
+    return responseFor(agent)(request);
+  };
+  const { requests, socketPath } = await listen(responder);
+
+  const result = await runScanNow({ signal: controller.signal, socketPath, stateDir });
+
+  expect(result.resumed).toBe(0);
+  expect(
+    requests.some((request: SocketRequest): boolean => request.method === "agent.prompt"),
+  ).toBe(false);
 });
 
 test("a changed terminal revision prevents stale input", async (): Promise<void> => {

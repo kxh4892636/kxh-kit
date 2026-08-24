@@ -20,3 +20,6 @@ command = ["node", "dist/main.mjs", "scan-now"]
 [[events]]
 on = "pane.agent_status_changed"
 command = ["node", "dist/main.mjs", "handle-event"]
+
+[[startup]]
+command = ["node", "dist/main.mjs", "worker"]
