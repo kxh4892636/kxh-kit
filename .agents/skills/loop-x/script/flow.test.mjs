@@ -122,13 +122,7 @@ const readyPlan = async (workspace, session = "plan-session") => {
     route: "issues",
     session,
   });
-  await command(workspace, "record-plan", {
-    evidence: ["spec.md"],
-    plan: PLAN_PATH,
-    result: "completed",
-    session,
-    skill: "/to-issues",
-  });
+  await completeRequiredPlanStep(workspace, session, "to-issues", "grill-with-docs");
   return command(workspace, "record-plan", {
     evidence: ["用户确认基线"],
     plan: PLAN_PATH,
@@ -147,6 +141,12 @@ const recordPlan = (workspace, session, step, result, extra = {}) =>
     session,
     ...extra,
   });
+
+const completeRequiredPlanStep = async (workspace, session, parent, child) => {
+  await recordPlan(workspace, session, parent, "started");
+  await recordPlan(workspace, session, child, "completed");
+  return recordPlan(workspace, session, parent, "completed");
+};
 
 const recordIssue = (workspace, issue, session, skill, result, extra = {}) =>
   command(workspace, "record-issue", {
@@ -186,14 +186,142 @@ test("按路由顺序记录 Plan skill", async () => {
       }),
       /期望 \/to-story/,
     );
-    const result = await command(workspace, "record-plan", {
-      evidence: ["story.md"],
-      plan: PLAN_PATH,
-      result: "completed",
-      session: "s1",
-      skill: "/to-story",
-    });
+    const result = await completeRequiredPlanStep(workspace, "s1", "to-story", "grilling");
     assert.equal(result.next_skill, "/to-issues");
+    const issues = await completeRequiredPlanStep(workspace, "s1", "to-issues", "grill-with-docs");
+    assert.equal(issues.next_skill, "/dev-gate");
+  } finally {
+    await fs.rm(workspace, { force: true, recursive: true });
+  }
+});
+
+test("story 路径强制 to-story 调用 grilling", async () => {
+  const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
+  try {
+    await command(workspace, "init", {
+      plan: PLAN_PATH,
+      route: "story",
+      session: "story-session",
+    });
+    await assert.rejects(
+      recordPlan(workspace, "story-session", "to-story", "completed"),
+      /必须先登记 \/to-story=started/,
+    );
+
+    const started = await recordPlan(workspace, "story-session", "to-story", "started");
+    assert.equal(started.next_skill, "/grilling");
+    await assert.rejects(
+      recordPlan(workspace, "story-session", "to-story", "completed"),
+      /期望 \/grilling/,
+    );
+
+    const grilled = await recordPlan(workspace, "story-session", "grilling", "completed");
+    assert.equal(grilled.next_skill, "/to-story");
+    const completed = await recordPlan(workspace, "story-session", "to-story", "completed");
+    assert.equal(completed.next_skill, "/to-issues");
+  } finally {
+    await fs.rm(workspace, { force: true, recursive: true });
+  }
+});
+
+test("issues 路径强制 to-issues 调用 grill-with-docs", async () => {
+  const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
+  try {
+    await command(workspace, "init", {
+      plan: PLAN_PATH,
+      route: "issues",
+      session: "issues-session",
+    });
+
+    const started = await recordPlan(workspace, "issues-session", "to-issues", "started");
+    assert.equal(started.next_skill, "/grill-with-docs");
+    const grilled = await recordPlan(workspace, "issues-session", "grill-with-docs", "completed");
+    assert.equal(grilled.next_skill, "/to-issues");
+    const completed = await recordPlan(workspace, "issues-session", "to-issues", "completed");
+    assert.equal(completed.next_skill, "/dev-gate");
+  } finally {
+    await fs.rm(workspace, { force: true, recursive: true });
+  }
+});
+
+test("Plan 恢复时返回未完成的 required child", async () => {
+  const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
+  try {
+    await command(workspace, "init", {
+      plan: PLAN_PATH,
+      route: "story",
+      session: "first-session",
+    });
+    await recordPlan(workspace, "first-session", "to-story", "started");
+    await command(workspace, "release-plan", {
+      plan: PLAN_PATH,
+      session: "first-session",
+    });
+
+    const resumed = await command(workspace, "claim-plan", {
+      plan: PLAN_PATH,
+      session: "second-session",
+    });
+    assert.equal(resumed.next_skill, "/grilling");
+    const grilled = await recordPlan(workspace, "second-session", "grilling", "completed");
+    assert.equal(grilled.next_skill, "/to-story");
+  } finally {
+    await fs.rm(workspace, { force: true, recursive: true });
+  }
+});
+
+test("v1 状态迁移后保留已完成步骤并约束当前步骤", async () => {
+  const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
+  try {
+    const stateDirectory = path.join(workspace, ".loop");
+    await fs.mkdir(stateDirectory);
+    await fs.writeFile(
+      path.join(stateDirectory, "state.json"),
+      `${JSON.stringify(
+        {
+          plans: {
+            [PLAN_PATH]: {
+              issues: {},
+              plan_path: PLAN_PATH,
+              route: "story",
+              setup: {
+                cursor: 1,
+                lease: {
+                  expires_at: "2999-01-01T00:00:00.000Z",
+                  owner_session: "migration-session",
+                },
+                receipts: [
+                  {
+                    evidence: ["legacy-story.md"],
+                    kind: "skill",
+                    reason: null,
+                    recorded_at: "2026-08-25T00:00:00.000Z",
+                    result: "completed",
+                    step: "/to-story",
+                  },
+                ],
+                status: "active",
+              },
+            },
+          },
+          revision: 4,
+          schema_version: 1,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    await command(workspace, "status", { plan: PLAN_PATH });
+    const migrated = JSON.parse(await fs.readFile(path.join(stateDirectory, "state.json"), "utf8"));
+    assert.equal(migrated.schema_version, 2);
+    assert.equal(migrated.revision, 5);
+    assert.equal(migrated.plans[PLAN_PATH].setup.cursor, 1);
+    assert.equal(migrated.plans[PLAN_PATH].setup.receipts.length, 1);
+    await assert.rejects(
+      recordPlan(workspace, "migration-session", "to-issues", "completed"),
+      /必须先登记 \/to-issues=started/,
+    );
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }
@@ -323,7 +451,7 @@ test("loop-x 只能接入已有流程当前期待的入口", async () => {
     );
     assert.equal(await fs.readFile(statePath, "utf8"), stateBeforeMismatch);
 
-    await recordPlan(workspace, entered.session, "to-story", "completed");
+    await completeRequiredPlanStep(workspace, entered.session, "to-story", "grilling");
     const advanced = await command(workspace, "enter-plan", {
       entry: "/to-issues",
       plan: PLAN_PATH,
@@ -345,7 +473,7 @@ test("直接入口可以初始化并接续 story 路径", async () => {
       skill: "/to-story",
     });
     assert.equal(story.route, "story");
-    await recordPlan(workspace, story.session, "to-story", "completed");
+    await completeRequiredPlanStep(workspace, story.session, "to-story", "grilling");
     const issues = await command(workspace, "enter-plan", {
       plan: PLAN_PATH,
       session: story.session,

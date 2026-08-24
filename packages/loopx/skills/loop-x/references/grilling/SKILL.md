@@ -22,3 +22,5 @@ description: 持续拷问用户的计划, 决策或想法. 当用户想要 stres
 frontier 为空时, 本次会话才算完成: design tree 的每个分支都已访问, 没有留下任何未经说明的假设. 在用户确认你们已经达成共同理解之前, 不要据此采取行动.
 
 对于具有90%以上的把握的问题, 自行回答并显式说明, 无需询问用户.
+
+由 `/to-story` 作为 required child 调用并收到 flow context 时, 不另建 Flow. frontier 清空且用户确认共同理解后, 使用该 context 登记 `/grilling=completed`, 再只恢复脚本返回的 `/to-story`.

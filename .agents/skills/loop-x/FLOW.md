@@ -41,13 +41,25 @@ node .agents/skills/loop-x/script/flow.mjs record-issue --plan <plan-path> --iss
 
 Plan 路径的 receipt 链：
 
-| 路径     | 顺序                                                               | 终点        |
-| -------- | ------------------------------------------------------------------ | ----------- |
-| `main`   | `/grill-with-docs=completed` → `/dev-gate=ready` → 完整交付链      | `completed` |
-| `story`  | `/to-story=completed` → `/to-issues=completed` → `/dev-gate=ready` | `ready`     |
-| `issues` | `/to-issues=completed` → `/dev-gate=ready`                         | `ready`     |
+| 路径     | 顺序                                                                                                                                                                   | 终点        |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `main`   | `/grill-with-docs=completed` → `/dev-gate=ready` → 完整交付链                                                                                                          | `completed` |
+| `story`  | `/to-story=started` → `/grilling=completed` → `/to-story=completed` → `/to-issues=started` → `/grill-with-docs=completed` → `/to-issues=completed` → `/dev-gate=ready` | `ready`     |
+| `issues` | `/to-issues=started` → `/grill-with-docs=completed` → `/to-issues=completed` → `/dev-gate=ready`                                                                       | `ready`     |
 
 入口 skill 使用对应产物作为完成证据：`/grill-with-docs` 使用实际维护的领域文档，`/to-story` 使用 `story.md`，`/to-issues` 使用 `spec.md`。`record-plan` 拒绝缺项、乱序和错误结果。
+
+### Plan 步骤的 required child
+
+`story` 路径的 `/to-story` 和两条 Plan 路径中的 `/to-issues` 带有 required child。父 skill 收到 flow context 后先登记 `started`；脚本将 required child 作为唯一 `next_skill` 返回。子 skill 完成并登记 receipt 后，脚本返回父 skill；父 skill 复用同一 context 恢复工作并登记 `completed`。缺少 required child receipt 时，父 skill 不能完成：
+
+```powershell
+node .agents/skills/loop-x/script/flow.mjs record-plan --plan <plan-path> --session <session-id> --skill /to-story --result started --evidence <flow-context>
+node .agents/skills/loop-x/script/flow.mjs record-plan --plan <plan-path> --session <session-id> --skill /grilling --result completed --evidence <session-result>
+node .agents/skills/loop-x/script/flow.mjs record-plan --plan <plan-path> --session <session-id> --skill /to-story --result completed --evidence <story.md>
+```
+
+`/to-issues` 使用相同协议调用 `/grill-with-docs`。约束属于 `PLAN_ROUTES` 中的具体 setup 步骤；`claim-issue`、`resume-issue` 和 `ISSUE_FLOW` 不触发 `/grill-with-docs`。required child 本身不递归展开其他调用要求。
 
 `main` 路径和每个已领取 issue 的完整交付链为：
 
@@ -75,6 +87,8 @@ Plan 路径的 receipt 链：
 ## 状态与持久化
 
 `.loop/state.json` 保存租约、skill 游标与 receipt；`.loop/state.lock` 只在单次运行态及 Plan 视图更新事务内短暂持有。二者不是领域文档，不参与版本控制。issue frontmatter 的 `status:` 是持久化执行状态的来源，spec 的状态与 Issue 表是派生视图，`flow.mjs` 在同一事务中协调三者。
+
+状态 schema v2 为 Plan setup 保存当前 required child 阶段。读取 v1 状态时脚本原子迁移到 v2：保留 cursor 与历史 receipt，已经越过的父步骤不追溯；迁移时尚未完成以及未来的 required-child 步骤使用新协议。
 
 ```text
 pending ──领取──> in_progress ──交付物与验证证据齐备──> completed

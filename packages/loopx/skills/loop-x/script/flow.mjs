@@ -6,7 +6,7 @@ import process from "node:process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 const DEFAULT_LEASE_SECONDS = 1800;
 const LOCK_STALE_MS = 30000;
 const LOCK_RETRIES = 50;
@@ -28,12 +28,12 @@ const PLAN_ROUTES = {
     ...DELIVERY_FLOW,
   ],
   story: [
-    { skill: "to-story", results: ["completed"] },
-    { skill: "to-issues", results: ["completed"] },
+    { required_child: "grilling", skill: "to-story", results: ["completed"] },
+    { required_child: "grill-with-docs", skill: "to-issues", results: ["completed"] },
     { skill: "dev-gate", results: ["ready"] },
   ],
   issues: [
-    { skill: "to-issues", results: ["completed"] },
+    { required_child: "grill-with-docs", skill: "to-issues", results: ["completed"] },
     { skill: "dev-gate", results: ["ready"] },
   ],
 };
@@ -100,11 +100,11 @@ const emptyState = () => ({
   schema_version: SCHEMA_VERSION,
 });
 
-const validateState = (state) => {
+const validateState = (state, supportedVersions = [SCHEMA_VERSION]) => {
   if (
     state === null ||
     typeof state !== "object" ||
-    state.schema_version !== SCHEMA_VERSION ||
+    !supportedVersions.includes(state.schema_version) ||
     !Number.isInteger(state.revision) ||
     state.plans === null ||
     typeof state.plans !== "object" ||
@@ -113,6 +113,18 @@ const validateState = (state) => {
     fail(".loop/state.json 格式无效或版本不受支持");
   }
   return state;
+};
+
+const migrateState = (state) => {
+  validateState(state, [1, SCHEMA_VERSION]);
+  if (state.schema_version === SCHEMA_VERSION) return { migrated: false, state };
+  state.schema_version = SCHEMA_VERSION;
+  for (const plan of Object.values(state.plans)) {
+    if (plan?.setup && plan.setup.active_step === undefined) {
+      plan.setup.active_step = null;
+    }
+  }
+  return { migrated: true, state };
 };
 
 const readText = async (targetPath, allowMissing = false) => {
@@ -126,9 +138,9 @@ const readText = async (targetPath, allowMissing = false) => {
 
 const readState = async (statePath) => {
   const content = await readText(statePath, true);
-  if (content === null) return emptyState();
+  if (content === null) return { migrated: false, state: emptyState() };
   try {
-    return validateState(JSON.parse(content));
+    return migrateState(JSON.parse(content));
   } catch (error) {
     if (error instanceof SyntaxError) fail(`解析 ${statePath} 失败: ${error.message}`);
     throw error;
@@ -202,9 +214,9 @@ const withStateTransaction = async (workspace, now, action) => {
   await fs.mkdir(paths.dir, { recursive: true });
   const nonce = await acquireLock(paths.lock, now);
   try {
-    const state = await readState(paths.state);
+    const { migrated, state } = await readState(paths.state);
     const transaction = await action(state);
-    if (transaction.changed) {
+    if (transaction.changed || migrated) {
       state.revision += 1;
       await atomicWrite(paths.state, `${JSON.stringify(state, null, 2)}\n`);
     }
@@ -230,6 +242,25 @@ const requireLease = (subject, session, now) => {
 };
 
 const nextStep = (sequence, cursor) => sequence[cursor] ?? null;
+
+const currentPlanStep = (plan) => {
+  const parent = nextStep(PLAN_ROUTES[plan.route], plan.setup.cursor);
+  const active = plan.setup.active_step;
+  if (!active) return parent;
+  if (
+    !parent ||
+    active.parent_cursor !== plan.setup.cursor ||
+    active.parent_skill !== parent.skill ||
+    active.child_skill !== parent.required_child
+  ) {
+    fail(".loop/state.json 的 active_step 与当前 Plan 步骤不一致");
+  }
+  if (active.phase === "child") {
+    return { skill: active.child_skill, results: ["completed"] };
+  }
+  if (active.phase === "resume") return parent;
+  fail(".loop/state.json 的 active_step phase 无效");
+};
 
 const stepLabel = (step) => (step.skill ? `/${step.skill}` : step.action);
 
@@ -380,29 +411,7 @@ const hasDeliveryEvidence = (content) => {
 const recordReceipt = (subject, sequence, options, now) => {
   const expected = nextStep(sequence, subject.cursor);
   if (!expected) fail("当前流程已经没有待执行 skill");
-  const actual = expected.skill
-    ? `/${normalizeSkill(requireOption(options, "skill"))}`
-    : requireOption(options, "action");
-  if (actual !== stepLabel(expected)) {
-    fail(`步骤顺序错误: 期望 ${stepLabel(expected)}, 实际 ${actual}`);
-  }
-  const result = requireOption(options, "result");
-  if (!expected.results.includes(result)) {
-    fail(`${stepLabel(expected)} 的 result 必须是 ${expected.results.join(" | ")}`);
-  }
-  const evidence = optionValues(options, "evidence").filter(Boolean);
-  if (evidence.length === 0) fail(`${stepLabel(expected)} 至少需要一个 --evidence`);
-  if (expected.skill === "tdd" && result === "skipped" && !options.reason) {
-    fail("跳过 /tdd 必须提供 --reason");
-  }
-  subject.receipts.push({
-    evidence,
-    kind: expected.skill ? "skill" : "action",
-    reason: options.reason ?? null,
-    recorded_at: now.toISOString(),
-    result,
-    step: stepLabel(expected),
-  });
+  recordStepReceipt(subject, expected, options, now);
   subject.cursor += 1;
   return nextStep(sequence, subject.cursor);
 };
@@ -419,6 +428,7 @@ const handleInit = (state, workspace, options, now) => {
     plan_path: planKey,
     route,
     setup: {
+      active_step: null,
       cursor: 0,
       lease: makeLease(session, leaseSeconds(options), now),
       receipts: [],
@@ -469,7 +479,7 @@ const handleEnterPlan = (state, workspace, options, now) => {
       now,
     );
   }
-  const expected = nextStep(PLAN_ROUTES[plan.route], plan.setup.cursor);
+  const expected = currentPlanStep(plan);
   if (!expected || expected.skill !== entrySkill) {
     fail(
       `Plan ${planKey} 当前期望 ${expected ? stepLabel(expected) : "无后续 skill"}，不能进入 /${entrySkill}`,
@@ -505,13 +515,72 @@ const handleEnterPlan = (state, workspace, options, now) => {
   };
 };
 
+const recordStepReceipt = (subject, expected, options, now) => {
+  const actual = expected.skill
+    ? `/${normalizeSkill(requireOption(options, "skill"))}`
+    : requireOption(options, "action");
+  if (actual !== stepLabel(expected)) {
+    fail(`步骤顺序错误: 期望 ${stepLabel(expected)}, 实际 ${actual}`);
+  }
+  const result = requireOption(options, "result");
+  if (!expected.results.includes(result)) {
+    fail(`${stepLabel(expected)} 的 result 必须是 ${expected.results.join(" | ")}`);
+  }
+  const evidence = optionValues(options, "evidence").filter(Boolean);
+  if (evidence.length === 0) fail(`${stepLabel(expected)} 至少需要一个 --evidence`);
+  if (expected.skill === "tdd" && result === "skipped" && !options.reason) {
+    fail("跳过 /tdd 必须提供 --reason");
+  }
+  subject.receipts.push({
+    evidence,
+    kind: expected.skill ? "skill" : "action",
+    reason: options.reason ?? null,
+    recorded_at: now.toISOString(),
+    result,
+    step: stepLabel(expected),
+  });
+};
+
+const recordRequiredPlanStep = (setup, sequence, parent, options, now) => {
+  const active = setup.active_step;
+  if (!active) {
+    const actualSkill = normalizeSkill(options.skill);
+    if (actualSkill === parent.skill && options.result === "completed") {
+      fail(`/${parent.skill} 必须先登记 /${parent.skill}=started`);
+    }
+    recordStepReceipt(setup, { skill: parent.skill, results: ["started"] }, options, now);
+    setup.active_step = {
+      child_skill: parent.required_child,
+      parent_cursor: setup.cursor,
+      parent_skill: parent.skill,
+      phase: "child",
+    };
+    return { skill: parent.required_child, results: ["completed"] };
+  }
+  if (active.phase === "child") {
+    recordStepReceipt(setup, { skill: active.child_skill, results: ["completed"] }, options, now);
+    active.phase = "resume";
+    return parent;
+  }
+  recordStepReceipt(setup, parent, options, now);
+  setup.active_step = null;
+  setup.cursor += 1;
+  return nextStep(sequence, setup.cursor);
+};
+
 const handleRecordPlan = (state, workspace, options, now) => {
   const planKey = normalizePlanPath(workspace, requireOption(options, "plan"));
   const plan = state.plans[planKey];
   if (!plan) fail(`Plan ${planKey} 尚未初始化`);
   const session = requireOption(options, "session");
   requireLease(plan.setup, session, now);
-  const next = recordReceipt(plan.setup, PLAN_ROUTES[plan.route], options, now);
+  const sequence = PLAN_ROUTES[plan.route];
+  const parent = nextStep(sequence, plan.setup.cursor);
+  if (!parent) fail("当前流程已经没有待执行 skill");
+  currentPlanStep(plan);
+  const next = parent.required_child
+    ? recordRequiredPlanStep(plan.setup, sequence, parent, options, now)
+    : recordReceipt(plan.setup, sequence, options, now);
   if (next) {
     plan.setup.lease = makeLease(session, leaseSeconds(options), now);
   } else {
@@ -636,7 +705,7 @@ const handleLeaseCommand = (state, workspace, command, options, now) => {
     if (isIssue) subject.status = "active";
   }
   const sequence = isIssue ? ISSUE_FLOW : PLAN_ROUTES[plan.route];
-  const next = nextStep(sequence, subject.cursor);
+  const next = isIssue ? nextStep(sequence, subject.cursor) : currentPlanStep(plan);
   return {
     changed: true,
     output: { issue: issueId, ...stepOutput(next), plan: planKey, status: subject.status },

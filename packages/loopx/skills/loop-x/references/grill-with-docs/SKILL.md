@@ -9,7 +9,7 @@ description: 拷问设计, 并将确认的术语与决策就地写入领域文�
 
 完整读取 [`FLOW.md`](../../FLOW.md). 作为顶层 skill 直接调用时, 在实质工作前按共享协议自动进入固定的 `main` 路径; 接收到 `/loop-x` 传递的 flow context 时直接复用. 完成访谈与文档同步后, 以实际维护的领域文档为证据登记结果.
 
-由 `/to-issues` 作为内部访谈调用时, 继承其 flow context 并作为 `/to-issues` 的内部行为运行, 不建立主路径, 不单独登记 receipt.
+由 `/to-issues` 作为 required child 调用时, 继承其 flow context 并作为 `/to-issues` 的内部行为运行, 不建立主路径. 完成访谈与文档同步后, 使用该 context 登记 `/grill-with-docs=completed`, 再只恢复脚本返回的 `/to-issues`.
 
 ## 定位业务域
 

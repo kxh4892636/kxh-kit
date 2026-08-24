@@ -29,9 +29,9 @@ spec 承载问题, 方案, 状态和依赖图; 决策细节在 issue 和 ADR 中
 
 ## 进入 Flow
 
-完整读取 [`FLOW.md`](../../FLOW.md). 建立或维护时, 作为顶层 skill 直接调用便在确定 Plan 路径后、运行访谈或写入 spec/issue 前按共享协议自动进入固定的 `issues` 路径; 从 `/loop-x` 或 `/to-story` 接收到 flow context 时直接复用. 达到下文完成标准后, 以 `spec.md` 为证据登记结果, 再只执行脚本返回的下一步.
+完整读取 [`FLOW.md`](../../FLOW.md). 建立或维护时, 作为顶层 skill 直接调用便在确定 Plan 路径后、运行访谈或写入 spec/issue 前按共享协议自动进入固定的 `issues` 路径; 从 `/loop-x` 或 `/to-story` 接收到 flow context 时直接复用. 进入 Plan setup 步骤后先登记 `/to-issues=started`, 再只调用脚本返回的 `/grill-with-docs`; 子 skill 登记完成并返回本 skill 后, 复用同一 context 恢复工作. 达到下文完成标准后, 以 `spec.md` 为证据登记 `/to-issues=completed`, 再只执行脚本返回的下一步.
 
-调用 `/grill-with-docs` 时传递当前 flow context 并标明它是 `/to-issues` 的内部访谈, 使其不另建主路径. 推进已通过 `/dev-gate` 的 Plan 时按共享协议领取 issue.
+调用 `/grill-with-docs` 时传递当前 flow context 并标明它是 `/to-issues` 的 required child, 使其登记子步骤 receipt 而不另建主路径. 推进已通过 `/dev-gate` 的 Plan 时按共享协议领取 issue; `claim-issue` 与 `resume-issue` 直接进入 `ISSUE_FLOW`, 不触发 required child.
 
 ## 建立与维护
 
