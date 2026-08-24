@@ -34,6 +34,7 @@ export interface HerdrPort {
   listAgents(): Promise<AgentListEntry[]>;
   promptAgent(target: string, text: string): Promise<void>;
   readDetection(target: string): Promise<AgentRead>;
+  sendPaneInput(paneId: string, text: string, keys: string[]): Promise<void>;
 }
 
 interface SocketSuccess {
@@ -86,7 +87,7 @@ export class HerdrSocket implements HerdrPort {
     if (!isRecord(result) || result["type"] !== "agent_list" || !Array.isArray(result["agents"])) {
       throw new Error("Herdr response has invalid agent_list result");
     }
-    return result["agents"].map((value, index): AgentListEntry => {
+    return result["agents"].map((value: unknown, index: number): AgentListEntry => {
       try {
         return { agent: parseAgent(value), ok: true };
       } catch {
@@ -123,6 +124,13 @@ export class HerdrSocket implements HerdrPort {
     const result = await this.#request("agent.prompt", { target, text });
     if (!isRecord(result) || result["type"] !== "agent_prompted") {
       throw new Error("Herdr response has invalid agent_prompted result");
+    }
+  }
+
+  public async sendPaneInput(paneId: string, text: string, keys: string[]): Promise<void> {
+    const result = await this.#request("pane.send_input", { keys, pane_id: paneId, text });
+    if (!isRecord(result) || result["type"] !== "ok") {
+      throw new Error("Herdr response has invalid pane.send_input result");
     }
   }
 

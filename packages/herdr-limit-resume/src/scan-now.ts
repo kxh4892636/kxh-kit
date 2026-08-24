@@ -1,8 +1,8 @@
 import {
-  AGENT_STATUS,
   HerdrSocket,
   type AgentInfo,
   type AgentRead,
+  type AgentStatus,
   type HerdrPort,
 } from "./herdr-socket.js";
 import { createHash } from "node:crypto";
@@ -33,14 +33,24 @@ const isRateLimitRegion = (text: string): boolean => {
 const fingerprintFor = (region: string): string =>
   createHash("sha256").update(region).digest("hex");
 
+type DeliveryPath = "pane_input" | "prompt";
+
+const DELIVERY_PATH = {
+  blocked: "pane_input",
+  done: "prompt",
+  idle: "prompt",
+  unknown: undefined,
+  working: undefined,
+} as const satisfies Record<AgentStatus, DeliveryPath | undefined>;
+
+const deliveryPath = (agent: AgentInfo): DeliveryPath | undefined =>
+  DELIVERY_PATH[agent.agent_status];
+
 const isStillCurrent = (before: AgentInfo, current: AgentInfo, read: AgentRead): boolean =>
   current.terminal_id === before.terminal_id &&
-  isPromptable(current) &&
+  deliveryPath(current) === deliveryPath(before) &&
   current.state_change_seq === before.state_change_seq &&
   current.revision === read.revision;
-
-const isPromptable = (agent: AgentInfo): boolean =>
-  agent.agent_status === AGENT_STATUS.idle || agent.agent_status === AGENT_STATUS.done;
 
 export const runScanNow = async (options: ScanNowOptions): Promise<ScanNowResult> => {
   const herdr: HerdrPort = new HerdrSocket(options.socketPath, options.requestTimeoutMs);
@@ -61,14 +71,11 @@ export const runScanNow = async (options: ScanNowOptions): Promise<ScanNowResult
     }
     const { agent } = entry;
     try {
-      if (
-        agent.agent_status === AGENT_STATUS.working ||
-        agent.agent_status === AGENT_STATUS.unknown
-      ) {
+      const path = deliveryPath(agent);
+      if (path === undefined) {
         await state.clear(agent.terminal_id);
         continue;
       }
-      if (!isPromptable(agent)) continue;
       result.scanned += 1;
       const read = await herdr.readDetection(agent.pane_id);
       const region = messageRegion(read.text);
@@ -86,12 +93,16 @@ export const runScanNow = async (options: ScanNowOptions): Promise<ScanNowResult
         result.skipped += 1;
         continue;
       }
-      await herdr.promptAgent(agent.pane_id, "go on");
+      if (path === "pane_input") {
+        await herdr.sendPaneInput(agent.pane_id, "go on", ["enter"]);
+      } else {
+        await herdr.promptAgent(agent.pane_id, "go on");
+      }
       await state.record(agent.terminal_id, fingerprint);
       result.resumed += 1;
     } catch {
       result.failed += 1;
-      const reason: DiagnosticReason = isPromptable(agent)
+      const reason: DiagnosticReason = deliveryPath(agent)
         ? "agent_operation_failed"
         : "state_update_failed";
       await recordFailure(diagnostics, agent.pane_id, agent.terminal_id, reason);

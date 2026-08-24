@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in_progress
 blocked_by: ["01"]
 ---
 
@@ -23,12 +23,12 @@ blocked_by: ["01"]
 
 ## 验收
 
-- [ ] fake socket 精确收到单个 `pane.send_input` 请求，参数为 matching pane、`text: "go on"`、`keys: ["enter"]`。
-- [ ] agent label/kind 参数化测试证明所有已识别类型使用相同路径，且不存在隐式 allowlist。
-- [ ] terminal、状态、`state_change_seq` 或 read revision 任一变化均零输入；缺 token 与非 `blocked` 候选不进入该路径。
-- [ ] Herdr error、断连与超时只记录失败，不落成功指纹；后续手工扫描仍可重试。
-- [ ] `corepack pnpm --filter @kxh4892636/herdr-limit-resume check`、`test`、`build` 通过。
-- [ ] `node .agents/skills/loop-x/script/check-domain.mjs .` 通过。
+- [x] fake socket 精确收到单个 `pane.send_input` 请求，参数为 matching pane、`text: "go on"`、`keys: ["enter"]`。
+- [x] agent label/kind 参数化测试证明所有已识别类型使用相同路径，且不存在隐式 allowlist。
+- [x] terminal、状态、`state_change_seq` 或 read revision 任一变化均零输入；缺 token 与非 `blocked` 候选不进入该路径。
+- [x] Herdr error、断连与超时只记录失败，不落成功指纹；后续手工扫描仍可重试。
+- [x] `corepack pnpm --filter @kxh4892636/herdr-limit-resume check`、`test`、`build` 通过。
+- [x] `node .agents/skills/loop-x/script/check-domain.mjs .` 通过。
 
 ## 上下文
 
@@ -46,4 +46,5 @@ blocked_by: ["01"]
 
 ## 交付记录
 
-待交付。
+- 交付物: Herdr socket 新增原子 `pane.send_input`，扫描器为所有 label/kind 的 matching `blocked` 候选发送严格 `go on` 与单个 `enter`，并在发送前守住 occupant、blocked 传输状态、状态序列和 read revision。
+- 验证证据: 官方 Herdr v0.8.2 源码确认成功响应为 `{type:"ok"}`；包级 `check`、32 个 fake-socket 集成测试、`build` 与领域校验通过；失败发送后重试测试证明不落成功指纹。
