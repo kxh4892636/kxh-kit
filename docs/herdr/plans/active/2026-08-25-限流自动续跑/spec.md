@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 ---
 
 # 限流自动续跑
@@ -109,9 +109,9 @@ status: in_progress
 
 ## Issue
 
-| #   | Issue                                                             | 状态        | 阻塞于 | 下一步     |
-| --- | ----------------------------------------------------------------- | ----------- | ------ | ---------- |
-| 01  | [`idle`/`done` 限流停顿续跑纵切](01-idle-done限流停顿续跑纵切.md) | completed   | —      | /implement |
-| 02  | [`blocked` 限流停顿续跑](02-blocked限流停顿续跑.md)               | completed   | 01     | /implement |
-| 03  | [状态事件自动续跑](03-状态事件自动续跑.md)                        | completed   | 02     | /implement |
-| 04  | [补偿扫描与插件生命周期](04-补偿扫描与插件生命周期.md)            | in_progress | 03     | /implement |
+| #   | Issue                                                             | 状态      | 阻塞于 | 下一步     |
+| --- | ----------------------------------------------------------------- | --------- | ------ | ---------- |
+| 01  | [`idle`/`done` 限流停顿续跑纵切](01-idle-done限流停顿续跑纵切.md) | completed | —      | /implement |
+| 02  | [`blocked` 限流停顿续跑](02-blocked限流停顿续跑.md)               | completed | 01     | /implement |
+| 03  | [状态事件自动续跑](03-状态事件自动续跑.md)                        | completed | 02     | /implement |
+| 04  | [补偿扫描与插件生命周期](04-补偿扫描与插件生命周期.md)            | completed | 03     | /implement |
