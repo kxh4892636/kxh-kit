@@ -6,13 +6,15 @@ export type DiagnosticReason =
   | "invalid_agent_response"
   | "state_update_failed";
 
+export type DiagnosticTrigger = "event" | "manual" | "worker";
+
 interface FailureDiagnostic {
   pane_id: string;
   reason: DiagnosticReason;
   result: "failed";
   terminal_id: string;
   timestamp: string;
-  trigger: "manual";
+  trigger: DiagnosticTrigger;
 }
 
 export class DiagnosticLog {
@@ -31,6 +33,7 @@ export class DiagnosticLog {
     paneId: string,
     terminalId: string,
     reason: DiagnosticReason,
+    trigger: DiagnosticTrigger,
   ): Promise<void> {
     const diagnostic: FailureDiagnostic = {
       pane_id: paneId,
@@ -38,8 +41,13 @@ export class DiagnosticLog {
       result: "failed",
       terminal_id: terminalId,
       timestamp: new Date().toISOString(),
-      trigger: "manual",
+      trigger,
     };
-    await appendFile(this.#filePath, `${JSON.stringify(diagnostic)}\n`, "utf8");
+    try {
+      await appendFile(this.#filePath, `${JSON.stringify(diagnostic)}\n`, "utf8");
+    } catch (error: unknown) {
+      const kind = error instanceof Error ? error.name : "UnknownError";
+      process.stderr.write(`Limit Resume could not write diagnostics: ${kind}\n`);
+    }
   }
 }

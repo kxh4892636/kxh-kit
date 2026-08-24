@@ -9,13 +9,15 @@ import {
   listen,
   responseFor,
   type SocketRequest,
-} from "./fake-herdr.test-support.js";
+} from "../fake-herdr.test-support.js";
 import { runScanNow } from "./scan-now.js";
 
 const resources: Array<() => Promise<void>> = [];
 
 afterEach(async (): Promise<void> => {
-  await Promise.all(resources.splice(0).map(async (close): Promise<void> => close()));
+  await Promise.all(
+    resources.splice(0).map(async (close: () => Promise<void>): Promise<void> => close()),
+  );
   await closeFakeHerdrServers();
 });
 
@@ -27,7 +29,9 @@ test("a done rate-limit stall is resumed once across all workspaces", async (): 
   const result = await runScanNow({ socketPath, stateDir });
 
   expect(result).toEqual({ failed: 0, resumed: 1, scanned: 1, skipped: 0 });
-  expect(requests.filter(({ method }): boolean => method === "agent.prompt")).toEqual([
+  expect(
+    requests.filter(({ method }: SocketRequest): boolean => method === "agent.prompt"),
+  ).toEqual([
     {
       id: expect.any(String) as string,
       method: "agent.prompt",
@@ -52,7 +56,9 @@ test("an idle rate-limit stall is resumed through the prompt interface", async (
   const result = await runScanNow({ socketPath, stateDir });
 
   expect(result.resumed).toBe(1);
-  expect(requests.some(({ method }): boolean => method === "agent.prompt")).toBe(true);
+  expect(requests.some(({ method }: SocketRequest): boolean => method === "agent.prompt")).toBe(
+    true,
+  );
 });
 
 test("the same terminal and message region are not resumed twice", async (): Promise<void> => {
@@ -64,7 +70,9 @@ test("the same terminal and message region are not resumed twice", async (): Pro
   const second = await runScanNow({ socketPath, stateDir });
 
   expect(second.resumed).toBe(0);
-  expect(requests.filter(({ method }): boolean => method === "agent.prompt")).toHaveLength(1);
+  expect(
+    requests.filter(({ method }: SocketRequest): boolean => method === "agent.prompt"),
+  ).toHaveLength(1);
 });
 
 test("a done to idle transition does not resume the same stall twice", async (): Promise<void> => {
@@ -87,7 +95,9 @@ test("a done to idle transition does not resume the same stall twice", async ():
   const second = await runScanNow({ socketPath, stateDir });
 
   expect(second.resumed).toBe(0);
-  expect(requests.filter(({ method }): boolean => method === "agent.prompt")).toHaveLength(1);
+  expect(
+    requests.filter(({ method }: SocketRequest): boolean => method === "agent.prompt"),
+  ).toHaveLength(1);
 });
 
 test("a malformed agent response is isolated and diagnosed without terminal text", async (): Promise<void> => {
@@ -102,7 +112,9 @@ test("a malformed agent response is isolated and diagnosed without terminal text
   const result = await runScanNow({ socketPath, stateDir });
 
   expect(result).toEqual({ failed: 1, resumed: 0, scanned: 1, skipped: 0 });
-  const diagnosticName = (await readdir(stateDir)).find((name): boolean => name.endsWith(".jsonl"));
+  const diagnosticName = (await readdir(stateDir)).find((name: string): boolean =>
+    name.endsWith(".jsonl"),
+  );
   expect(diagnosticName).toBeDefined();
   const diagnostic = await readFile(join(stateDir, diagnosticName ?? "missing"), "utf8");
   expect(diagnostic).toContain('"result":"failed"');
@@ -123,7 +135,9 @@ test("a malformed list entry does not stop another agent", async (): Promise<voi
   const result = await runScanNow({ socketPath, stateDir });
 
   expect(result).toEqual({ failed: 1, resumed: 1, scanned: 1, skipped: 0 });
-  expect(requests.filter(({ method }): boolean => method === "agent.prompt")).toHaveLength(1);
+  expect(
+    requests.filter(({ method }: SocketRequest): boolean => method === "agent.prompt"),
+  ).toHaveLength(1);
 });
 
 test("Herdr error text is not persisted in diagnostics", async (): Promise<void> => {
@@ -139,7 +153,9 @@ test("Herdr error text is not persisted in diagnostics", async (): Promise<void>
 
   await runScanNow({ socketPath, stateDir });
 
-  const diagnosticName = (await readdir(stateDir)).find((name): boolean => name.endsWith(".jsonl"));
+  const diagnosticName = (await readdir(stateDir)).find((name: string): boolean =>
+    name.endsWith(".jsonl"),
+  );
   const diagnostic = await readFile(join(stateDir, diagnosticName ?? "missing"), "utf8");
   expect(diagnostic).toContain('"reason":"agent_operation_failed"');
   expect(diagnostic).not.toContain("secret terminal output");
@@ -154,7 +170,9 @@ test("the latest region is exactly 55 Unicode code points", async (): Promise<vo
   const result = await runScanNow({ socketPath, stateDir });
 
   expect(result.resumed).toBe(1);
-  expect(requests.filter(({ method }): boolean => method === "agent.prompt")).toHaveLength(1);
+  expect(
+    requests.filter(({ method }: SocketRequest): boolean => method === "agent.prompt"),
+  ).toHaveLength(1);
 });
 
 test("rate-limit tokens outside the latest 55 characters do not resume", async (): Promise<void> => {
@@ -166,7 +184,9 @@ test("rate-limit tokens outside the latest 55 characters do not resume", async (
   const result = await runScanNow({ socketPath, stateDir });
 
   expect(result.skipped).toBe(1);
-  expect(requests.some(({ method }): boolean => method === "agent.prompt")).toBe(false);
+  expect(requests.some(({ method }: SocketRequest): boolean => method === "agent.prompt")).toBe(
+    false,
+  );
 });
 
 test("a changed terminal revision prevents stale input", async (): Promise<void> => {
@@ -182,7 +202,9 @@ test("a changed terminal revision prevents stale input", async (): Promise<void>
   const result = await runScanNow({ socketPath, stateDir });
 
   expect(result.skipped).toBe(1);
-  expect(requests.some(({ method }): boolean => method === "agent.prompt")).toBe(false);
+  expect(requests.some(({ method }: SocketRequest): boolean => method === "agent.prompt")).toBe(
+    false,
+  );
 });
 
 test("a candidate status transition with the same state sequence remains promptable", async (): Promise<void> => {
@@ -199,42 +221,51 @@ test("a candidate status transition with the same state sequence remains prompta
   const result = await runScanNow({ socketPath, stateDir });
 
   expect(result.resumed).toBe(1);
-  expect(requests.filter(({ method }): boolean => method === "agent.prompt")).toHaveLength(1);
+  expect(
+    requests.filter(({ method }: SocketRequest): boolean => method === "agent.prompt"),
+  ).toHaveLength(1);
 });
 
 test.each([
   ["terminal identity", { terminal_id: "term_replaced" }],
   ["state change sequence", { state_change_seq: agent.state_change_seq + 1 }],
-] as const)("a changed %s prevents stale input", async (_label, change): Promise<void> => {
-  const stateDir = await mkdtemp(join(tmpdir(), "herdr-limit-resume-state-"));
-  resources.push(async (): Promise<void> => rm(stateDir, { force: true, recursive: true }));
-  const staleResponder = (request: SocketRequest): Record<string, unknown> => {
-    if (request.method === "agent.get") {
-      return { agent: { ...agent, ...change }, type: "agent_info" };
-    }
-    return responseFor(agent)(request);
-  };
-  const { requests, socketPath } = await listen(staleResponder);
+] as const)(
+  "a changed %s prevents stale input",
+  async (_label: string, change: Partial<FakeAgent>): Promise<void> => {
+    const stateDir = await mkdtemp(join(tmpdir(), "herdr-limit-resume-state-"));
+    resources.push(async (): Promise<void> => rm(stateDir, { force: true, recursive: true }));
+    const staleResponder = (request: SocketRequest): Record<string, unknown> => {
+      if (request.method === "agent.get") {
+        return { agent: { ...agent, ...change }, type: "agent_info" };
+      }
+      return responseFor(agent)(request);
+    };
+    const { requests, socketPath } = await listen(staleResponder);
 
-  const result = await runScanNow({ socketPath, stateDir });
+    const result = await runScanNow({ socketPath, stateDir });
 
-  expect(result.skipped).toBe(1);
-  expect(requests.some(({ method }): boolean => method === "agent.prompt")).toBe(false);
-});
+    expect(result.skipped).toBe(1);
+    expect(requests.some(({ method }: SocketRequest): boolean => method === "agent.prompt")).toBe(
+      false,
+    );
+  },
+);
 
 test("working activity allows the same rate-limit text to form a new stall", async (): Promise<void> => {
   const stateDir = await mkdtemp(join(tmpdir(), "herdr-limit-resume-state-"));
   resources.push(async (): Promise<void> => rm(stateDir, { force: true, recursive: true }));
   let listCount = 0;
+  let currentAgent: FakeAgent = agent;
   const responder = (request: SocketRequest): Record<string, unknown> => {
     if (request.method === "agent.list") {
       listCount += 1;
+      currentAgent = { ...agent, agent_status: listCount === 2 ? "working" : "done" };
       return {
-        agents: [{ ...agent, agent_status: listCount === 2 ? "working" : "done" }],
+        agents: [currentAgent],
         type: "agent_list",
       };
     }
-    return responseFor(agent)(request);
+    return responseFor(currentAgent)(request);
   };
   const { requests, socketPath } = await listen(responder);
 
@@ -242,7 +273,9 @@ test("working activity allows the same rate-limit text to form a new stall", asy
   await runScanNow({ socketPath, stateDir });
   await runScanNow({ socketPath, stateDir });
 
-  expect(requests.filter(({ method }): boolean => method === "agent.prompt")).toHaveLength(2);
+  expect(
+    requests.filter(({ method }: SocketRequest): boolean => method === "agent.prompt"),
+  ).toHaveLength(2);
 });
 
 test("one agent failure does not stop another workspace from resuming", async (): Promise<void> => {
@@ -262,31 +295,37 @@ test("one agent failure does not stop another workspace from resuming", async ()
     if (request.method === "agent.read" && request.params["target"] === brokenAgent.pane_id) {
       return { type: "unexpected" };
     }
-    return responseFor(agent)(request);
+    const target = request.params["target"] === brokenAgent.pane_id ? brokenAgent : agent;
+    return responseFor(target)(request);
   };
   const { requests, socketPath } = await listen(responder);
 
   const result = await runScanNow({ socketPath, stateDir });
 
   expect(result).toEqual({ failed: 1, resumed: 1, scanned: 2, skipped: 0 });
-  expect(requests.filter(({ method }): boolean => method === "agent.prompt")).toHaveLength(1);
+  expect(
+    requests.filter(({ method }: SocketRequest): boolean => method === "agent.prompt"),
+  ).toHaveLength(1);
 });
 
 test.each([
   ["Herdr error", { __error: "upstream failed" }],
   ["disconnect", { __disconnect: true }],
   ["timeout", { __noResponse: true }],
-] as const)("%s is isolated as an agent failure", async (_label, socketFailure): Promise<void> => {
-  const stateDir = await mkdtemp(join(tmpdir(), "herdr-limit-resume-state-"));
-  resources.push(async (): Promise<void> => rm(stateDir, { force: true, recursive: true }));
-  const responder = (request: SocketRequest): Record<string, unknown> => {
-    if (request.method === "agent.read") return socketFailure;
-    return responseFor(agent)(request);
-  };
-  const { socketPath } = await listen(responder);
+] as const)(
+  "%s is isolated as an agent failure",
+  async (_label: string, socketFailure: Record<string, unknown>): Promise<void> => {
+    const stateDir = await mkdtemp(join(tmpdir(), "herdr-limit-resume-state-"));
+    resources.push(async (): Promise<void> => rm(stateDir, { force: true, recursive: true }));
+    const responder = (request: SocketRequest): Record<string, unknown> => {
+      if (request.method === "agent.read") return socketFailure;
+      return responseFor(agent)(request);
+    };
+    const { socketPath } = await listen(responder);
 
-  const result = await runScanNow({ requestTimeoutMs: 25, socketPath, stateDir });
+    const result = await runScanNow({ requestTimeoutMs: 25, socketPath, stateDir });
 
-  expect(result.failed).toBe(1);
-  expect(result.resumed).toBe(0);
-});
+    expect(result.failed).toBe(1);
+    expect(result.resumed).toBe(0);
+  },
+);

@@ -9,7 +9,7 @@ import {
   listen,
   responseFor,
   type SocketRequest,
-} from "./fake-herdr.test-support.js";
+} from "../fake-herdr.test-support.js";
 import { runScanNow } from "./scan-now.js";
 
 const stateDirs: string[] = [];

@@ -12,6 +12,7 @@
   "scripts": {
     "build": "vp pack",
     "check": "vp check",
+    "pretest": "vp pack",
     "test": "vp test src",
     "prepublishOnly": "vp run build"
   },

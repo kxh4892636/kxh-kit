@@ -11,7 +11,7 @@ export interface SocketRequest {
 
 export interface FakeAgent {
   agent: string;
-  agent_status: "blocked" | "done" | "idle" | "working";
+  agent_status: "blocked" | "done" | "idle" | "unknown" | "working";
   focused: boolean;
   pane_id: string;
   revision: number;

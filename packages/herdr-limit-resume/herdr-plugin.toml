@@ -16,3 +16,7 @@ id = "scan-now"
 title = "Scan rate-limited agents now"
 contexts = ["workspace"]
 command = ["node", "dist/main.mjs", "scan-now"]
+
+[[events]]
+on = "pane.agent_status_changed"
+command = ["node", "dist/main.mjs", "handle-event"]
