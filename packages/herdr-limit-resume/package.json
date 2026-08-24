@@ -1,0 +1,28 @@
+{
+  "name": "@kxh4892636/herdr-limit-resume",
+  "version": "0.1.0",
+  "description": "Resume Herdr agents after upstream rate limits.",
+  "license": "MIT",
+  "files": [
+    "dist",
+    "herdr-plugin.toml",
+    "README.md"
+  ],
+  "type": "module",
+  "scripts": {
+    "build": "vp pack",
+    "check": "vp check",
+    "test": "vp test src",
+    "prepublishOnly": "vp run build"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@typescript/native": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

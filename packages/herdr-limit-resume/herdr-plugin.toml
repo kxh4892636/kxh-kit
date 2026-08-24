@@ -1,0 +1,18 @@
+id = "kxh.limit-resume"
+name = "Limit Resume"
+version = "0.1.0"
+min_herdr_version = "0.8.2"
+description = "Resume agents whose latest terminal region shows an upstream rate limit"
+platforms = ["linux", "macos", "windows"]
+
+[[build]]
+command = ["corepack", "pnpm", "install", "--frozen-lockfile"]
+
+[[build]]
+command = ["corepack", "pnpm", "--filter", "@kxh4892636/herdr-limit-resume", "build"]
+
+[[actions]]
+id = "scan-now"
+title = "Scan rate-limited agents now"
+contexts = ["workspace"]
+command = ["node", "dist/main.mjs", "scan-now"]

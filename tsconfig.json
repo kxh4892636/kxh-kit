@@ -5,6 +5,7 @@
     { "path": "./apps/diff-viewer" },
     { "path": "./apps/wiki" },
     { "path": "./packages/docusaurus-plugin-link" },
+    { "path": "./packages/herdr-limit-resume" },
     { "path": "./packages/loop-kit" }
   ]
 }
