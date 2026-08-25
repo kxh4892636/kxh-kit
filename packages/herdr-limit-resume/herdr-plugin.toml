@@ -1,6 +1,6 @@
 id = "kxh.limit-resume"
 name = "Limit Resume"
-version = "0.1.0"
+version = "0.1.1"
 min_herdr_version = "0.8.2"
 description = "Resume agents whose latest terminal region shows an upstream rate limit"
 platforms = ["linux", "macos", "windows"]

@@ -1,6 +1,6 @@
 {
   "name": "@kxh4892636/herdr-limit-resume",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Resume Herdr agents after upstream rate limits.",
   "license": "MIT",
   "files": [
