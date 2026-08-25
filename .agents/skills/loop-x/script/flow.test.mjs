@@ -168,6 +168,15 @@ const addDeliveryEvidence = async (workspace, issueId) => {
   );
 };
 
+const legacyReceipt = (step, result) => ({
+  evidence: [`legacy-${step}`],
+  kind: step === "commit" ? "action" : "skill",
+  reason: null,
+  recorded_at: "2026-08-25T00:00:00.000Z",
+  result,
+  step: step === "commit" ? step : `/${step}`,
+});
+
 test("按路由顺序记录 Plan skill", async () => {
   const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
   try {
@@ -314,7 +323,7 @@ test("v1 状态迁移后保留已完成步骤并约束当前步骤", async () =>
 
     await command(workspace, "status", { plan: PLAN_PATH });
     const migrated = JSON.parse(await fs.readFile(path.join(stateDirectory, "state.json"), "utf8"));
-    assert.equal(migrated.schema_version, 2);
+    assert.equal(migrated.schema_version, 3);
     assert.equal(migrated.revision, 5);
     assert.equal(migrated.plans[PLAN_PATH].setup.cursor, 1);
     assert.equal(migrated.plans[PLAN_PATH].setup.receipts.length, 1);
@@ -327,14 +336,150 @@ test("v1 状态迁移后保留已完成步骤并约束当前步骤", async () =>
   }
 });
 
+test("v2 主路径中途状态迁移后直接等待提交", async () => {
+  const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
+  const flowIdentifier = "2026-08-25-flow优化";
+  try {
+    const stateDirectory = path.join(workspace, ".loop");
+    await fs.mkdir(stateDirectory);
+    await fs.writeFile(
+      path.join(stateDirectory, "state.json"),
+      `${JSON.stringify(
+        {
+          plans: {
+            [flowIdentifier]: {
+              issues: {},
+              plan_path: flowIdentifier,
+              route: "main",
+              setup: {
+                active_step: null,
+                cursor: 5,
+                lease: {
+                  expires_at: "2999-01-01T00:00:00.000Z",
+                  owner_session: "migration-session",
+                },
+                receipts: [
+                  legacyReceipt("grill-with-docs", "completed"),
+                  legacyReceipt("dev-gate", "ready"),
+                  legacyReceipt("implement", "started"),
+                  legacyReceipt("tdd", "completed"),
+                  legacyReceipt("verifying", "passed"),
+                ],
+                status: "active",
+              },
+            },
+          },
+          revision: 8,
+          schema_version: 2,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    const completed = await command(workspace, "record-plan", {
+      action: "commit",
+      evidence: ["abc1234"],
+      plan: flowIdentifier,
+      result: "committed",
+      session: "migration-session",
+    });
+
+    assert.equal(completed.status, "completed");
+    const migrated = JSON.parse(await fs.readFile(path.join(stateDirectory, "state.json"), "utf8"));
+    assert.equal(migrated.schema_version, 3);
+    assert.equal(migrated.plans[flowIdentifier].setup.cursor, 4);
+  } finally {
+    await fs.rm(workspace, { force: true, recursive: true });
+  }
+});
+
+test("v2 Issue 中途状态迁移后保留交付证据门禁", async () => {
+  const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
+  try {
+    await addDeliveryEvidence(workspace, "01");
+    const stateDirectory = path.join(workspace, ".loop");
+    await fs.mkdir(stateDirectory);
+    await fs.writeFile(
+      path.join(stateDirectory, "state.json"),
+      `${JSON.stringify(
+        {
+          plans: {
+            [PLAN_PATH]: {
+              issues: {
+                "01": {
+                  cursor: 4,
+                  lease: {
+                    expires_at: "2999-01-01T00:00:00.000Z",
+                    owner_session: "issue-migration-session",
+                  },
+                  receipts: [
+                    legacyReceipt("implement", "started"),
+                    legacyReceipt("tdd", "completed"),
+                    legacyReceipt("verifying", "passed"),
+                    legacyReceipt("code-review", "reviewed"),
+                  ],
+                  status: "active",
+                },
+              },
+              plan_path: PLAN_PATH,
+              route: "issues",
+              setup: {
+                active_step: null,
+                cursor: 2,
+                lease: null,
+                receipts: [],
+                status: "ready",
+              },
+            },
+          },
+          revision: 13,
+          schema_version: 2,
+        },
+        null,
+        2,
+      )}\n`,
+    );
+
+    const completed = await recordIssue(
+      workspace,
+      "01",
+      "issue-migration-session",
+      "commit",
+      "committed",
+    );
+
+    assert.equal(completed.status, "completed");
+    const migrated = JSON.parse(await fs.readFile(path.join(stateDirectory, "state.json"), "utf8"));
+    assert.equal(migrated.schema_version, 3);
+    assert.equal(migrated.plans[PLAN_PATH].issues["01"].cursor, 2);
+  } finally {
+    await fs.rm(workspace, { force: true, recursive: true });
+  }
+});
+
 test("直接进入 grill-with-docs 会初始化主路径", async () => {
   const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
   try {
+    await assert.rejects(
+      command(workspace, "enter-plan", {
+        skill: "/grill-with-docs",
+      }),
+      /进入流程前必须提供 --plan/,
+    );
+    await assert.rejects(
+      command(workspace, "enter-plan", {
+        plan: "flow优化",
+        skill: "/grill-with-docs",
+      }),
+      /YYYY-MM-DD-\{name\}/,
+    );
     const entered = await command(workspace, "enter-plan", {
+      plan: "2026-08-25-flow优化",
       skill: "/grill-with-docs",
     });
     assert.equal(entered.next_skill, "/grill-with-docs");
-    assert.equal(entered.plan, ".");
+    assert.equal(entered.plan, "2026-08-25-flow优化");
     assert.equal(entered.route, "main");
     assert.match(entered.session, /^[0-9a-f-]{36}$/);
     const repeated = await command(workspace, "enter-plan", {
@@ -357,8 +502,34 @@ test("直接进入 grill-with-docs 会初始化主路径", async () => {
   }
 });
 
+test("不同 Flow 标识的 grill-with-docs 使用独立运行态", async () => {
+  const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
+  try {
+    const [first, second] = await Promise.all([
+      command(workspace, "enter-plan", {
+        plan: "2026-08-25-支付边界",
+        skill: "/grill-with-docs",
+      }),
+      command(workspace, "enter-plan", {
+        plan: "2026-08-25-订单边界",
+        skill: "/grill-with-docs",
+      }),
+    ]);
+
+    assert.notEqual(first.plan, second.plan);
+    assert.notEqual(first.session, second.session);
+    const state = JSON.parse(
+      await fs.readFile(path.join(workspace, ".loop", "state.json"), "utf8"),
+    );
+    assert.ok(state.plans[first.plan]);
+    assert.ok(state.plans[second.plan]);
+  } finally {
+    await fs.rm(workspace, { force: true, recursive: true });
+  }
+});
+
 for (const { entry, plan, route } of [
-  { entry: "/grill-with-docs", plan: ".", route: "main" },
+  { entry: "/grill-with-docs", plan: "2026-08-25-flow优化", route: "main" },
   { entry: "/to-story", plan: PLAN_PATH, route: "story" },
   { entry: "/to-issues", plan: PLAN_PATH, route: "issues" },
 ]) {
@@ -367,7 +538,7 @@ for (const { entry, plan, route } of [
     try {
       const entered = await command(workspace, "enter-plan", {
         entry,
-        ...(plan === "." ? {} : { plan }),
+        plan,
         skill: "/loop-x",
       });
       assert.equal(entered.next_skill, entry);
@@ -502,7 +673,7 @@ test("直接进入 to-issues 会初始化 issues 路径", async () => {
   }
 });
 
-test("主路径在 dev-gate 后继续完整交付序列", async () => {
+test("主路径在 implement 后只固定提交", async () => {
   const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
   try {
     await command(workspace, "init", {
@@ -514,13 +685,9 @@ test("主路径在 dev-gate 后继续完整交付序列", async () => {
     const gated = await recordPlan(workspace, "main-session", "dev-gate", "ready");
     assert.equal(gated.next_skill, "/implement");
     assert.equal(gated.status, "active");
-    await recordPlan(workspace, "main-session", "implement", "started");
-    await recordPlan(workspace, "main-session", "tdd", "skipped", {
-      reason: "仅文档变更",
-    });
-    await recordPlan(workspace, "main-session", "verifying", "passed");
-    const reviewed = await recordPlan(workspace, "main-session", "code-review", "reviewed");
-    assert.equal(reviewed.next_action, "commit");
+    const implemented = await recordPlan(workspace, "main-session", "implement", "started");
+    assert.equal(implemented.next_skill, null);
+    assert.equal(implemented.next_action, "commit");
     const completed = await recordPlan(workspace, "main-session", "commit", "committed");
     assert.equal(completed.status, "completed");
     assert.equal(completed.next_skill, null);
@@ -617,7 +784,7 @@ test("Issue 必须等待直接依赖完成", async () => {
   }
 });
 
-test("Issue 按完整 skill 序列完成并同步 Plan 状态", async () => {
+test("Issue 在 implement 后只固定提交并保留交付证据门禁", async () => {
   const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
   try {
     await readyPlan(workspace);
@@ -630,14 +797,9 @@ test("Issue 按完整 skill 序列完成并同步 Plan 状态", async () => {
       recordIssue(workspace, "01", "issue-a", "verifying", "passed"),
       /期望 \/implement/,
     );
-    await recordIssue(workspace, "01", "issue-a", "implement", "started");
-    await recordIssue(workspace, "01", "issue-a", "tdd", "skipped", {
-      reason: "仅文档变更",
-    });
-    await recordIssue(workspace, "01", "issue-a", "verifying", "passed");
-    const reviewed = await recordIssue(workspace, "01", "issue-a", "code-review", "reviewed");
-    assert.equal(reviewed.next_skill, null);
-    assert.equal(reviewed.next_action, "commit");
+    const implemented = await recordIssue(workspace, "01", "issue-a", "implement", "started");
+    assert.equal(implemented.next_skill, null);
+    assert.equal(implemented.next_action, "commit");
     await assert.rejects(
       recordIssue(workspace, "01", "issue-a", "commit", "committed"),
       /交付物与验证证据/,

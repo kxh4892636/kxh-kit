@@ -16,12 +16,12 @@
 | 直接调用 `/to-issues`       | 固定进入 `issues` 路径，自动执行 `enter-plan`                                                                                                       |
 
 ```powershell
-node .agents/skills/loop-x/script/flow.mjs enter-plan --skill /loop-x --entry /<entry-skill> --plan <plan-path> --session <session-id>
-node .agents/skills/loop-x/script/flow.mjs enter-plan --skill /<entry-skill> --plan <plan-path> --session <session-id>
+node .agents/skills/loop-x/script/flow.mjs enter-plan --skill /loop-x --entry /<entry-skill> --plan <plan-or-flow-identifier> --session <session-id>
+node .agents/skills/loop-x/script/flow.mjs enter-plan --skill /<entry-skill> --plan <plan-or-flow-identifier> --session <session-id>
 ```
 
 - `/loop-x` 只能通过 `--entry` 选择 `/grill-with-docs`、`/to-story` 或 `/to-issues`；脚本在同一事务中由入口推导并进入 `main`、`story` 或 `issues` 路径。直接调用固定入口时不得指定 `--entry`。
-- `/grill-with-docs` 可省略 `--plan`，运行键默认为 `.`；`/to-story` 和 `/to-issues` 使用实际 Plan 路径。
+- 三个入口均必须指定 `--plan`。`/grill-with-docs` 使用 `YYYY-MM-DD-{name}` Flow 标识，它不是文件系统目录；`/to-story` 和 `/to-issues` 使用实际 Plan 路径。
 - 首次进入可省略 `--session`，脚本生成会话 ID。保留返回的 `plan` 和 `session`，后续步骤全部复用。
 - 已有运行态时，`enter-plan` 只允许接入当前期待的入口 skill。
 - `/loop-x` 完成 `enter-plan` 后，将返回的 flow context 传给入口 skill；入口 skill 直接继续，不重复进入。固定入口从上一步接收到 flow context 时同样直接继续。
@@ -32,8 +32,8 @@ node .agents/skills/loop-x/script/flow.mjs enter-plan --skill /<entry-skill> --p
 命令成功返回的 `next_skill` 或 `next_action` 是唯一允许执行的下一步。完成当前步骤后登记结果与至少一项实际证据，登记成功后才执行新返回值：
 
 ```powershell
-node .agents/skills/loop-x/script/flow.mjs record-plan --plan <plan-path> --session <session-id> --skill /<skill> --result <result> --evidence <path-or-result>
-node .agents/skills/loop-x/script/flow.mjs record-plan --plan <plan-path> --session <session-id> --action commit --result committed --evidence <commit-id>
+node .agents/skills/loop-x/script/flow.mjs record-plan --plan <plan-or-flow-identifier> --session <session-id> --skill /<skill> --result <result> --evidence <path-or-result>
+node .agents/skills/loop-x/script/flow.mjs record-plan --plan <plan-or-flow-identifier> --session <session-id> --action commit --result committed --evidence <commit-id>
 node .agents/skills/loop-x/script/flow.mjs claim-issue --plan <plan-path> --issue <NN> --session <session-id>
 node .agents/skills/loop-x/script/flow.mjs record-issue --plan <plan-path> --issue <NN> --session <session-id> --skill /<skill> --result <result> --evidence <path-or-result>
 node .agents/skills/loop-x/script/flow.mjs record-issue --plan <plan-path> --issue <NN> --session <session-id> --action commit --result committed --evidence <commit-id>
@@ -43,7 +43,7 @@ Plan 路径的 receipt 链：
 
 | 路径     | 顺序                                                                                                                                                                   | 终点        |
 | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `main`   | `/grill-with-docs=completed` → `/dev-gate=ready` → 完整交付链                                                                                                          | `completed` |
+| `main`   | `/grill-with-docs=completed` → `/dev-gate=ready` → `/implement=started` → `commit=committed`                                                                           | `completed` |
 | `story`  | `/to-story=started` → `/grilling=completed` → `/to-story=completed` → `/to-issues=started` → `/grill-with-docs=completed` → `/to-issues=completed` → `/dev-gate=ready` | `ready`     |
 | `issues` | `/to-issues=started` → `/grill-with-docs=completed` → `/to-issues=completed` → `/dev-gate=ready`                                                                       | `ready`     |
 
@@ -71,9 +71,10 @@ node .agents/skills/loop-x/script/flow.mjs record-plan --plan <plan-path> --sess
   -> commit=committed
 ```
 
-- `/tdd` 即使不适用也必须执行，由它给出 `skipped`；登记时提供 `--reason`。
 - `commit` 是 `next_action`，不是 skill。Issue 提交前，其「交付记录」必须包含交付物与验证证据。
 - `story` 和 `issues` 路径到达 `ready` 后，使用 `claim-issue` 领取依赖已满足的 issue；首次领取可省略 `--session` 并由脚本生成，成功后保留返回的 `issue`、`plan` 和 `session`。脚本同步状态并返回 `/implement`。
+
+脚本返回 `/dev-gate` 时，调用者必须在执行该 skill 前完整读取 [`QUESTIONS.md`](QUESTIONS.md)，以用户输入和当前上下文筛选并询问相关问题。直接调用 `/dev-gate` 时由该 skill 的第一步执行同一契约；不额外登记已阅读 receipt。
 
 ## 租约与恢复
 
@@ -82,13 +83,12 @@ node .agents/skills/loop-x/script/flow.mjs record-plan --plan <plan-path> --sess
 - 真实障碍使用 `block-issue --reason <原因> --release-condition <解除条件>`，记录阻塞并释放租约。
 - 异常退出或移动 Plan 后使用 `sync-plan --plan <plan-path>`，从 issue frontmatter 重建 spec 派生视图。
 
-并发边界只到 issue：同一 Plan 中直接依赖均已 `completed` 的不同 issue 可以由不同会话领取；同一 issue 同时只有一个有效租约。协议不锁定 `CONTEXT-MAP.md`、`CONTEXT.md`、ADR 或其他全局领域文件。
+并发边界到 Flow 标识和 issue：不同 Flow 标识的 `/grill-with-docs` 运行可以并发；同一 Plan 中直接依赖均已 `completed` 的不同 issue 可以由不同会话领取；同一 Flow 标识或 issue 同时只有一个有效租约。协议不锁定 `CONTEXT-MAP.md`、`CONTEXT.md`、ADR 或其他全局领域文件。
 
 ## 状态与持久化
 
-`.loop/state.json` 保存租约、skill 游标与 receipt；`.loop/state.lock` 只在单次运行态及 Plan 视图更新事务内短暂持有。二者不是领域文档，不参与版本控制。issue frontmatter 的 `status:` 是持久化执行状态的来源，spec 的状态与 Issue 表是派生视图，`flow.mjs` 在同一事务中协调三者。
+`.loop/state.json` 以 Flow 标识或 Plan 路径保存租约、skill 游标与 receipt；`.loop/state.lock` 只在单次运行态及 Plan 视图更新事务内短暂持有。二者不是领域文档，不参与版本控制。issue frontmatter 的 `status:` 是持久化执行状态的来源，spec 的状态与 Issue 表是派生视图，`flow.mjs` 在同一事务中协调三者。
 
-状态 schema v2 为 Plan setup 保存当前 required child 阶段。读取 v1 状态时脚本原子迁移到 v2：保留 cursor 与历史 receipt，已经越过的父步骤不追溯；迁移时尚未完成以及未来的 required-child 步骤使用新协议。
 
 ```text
 pending ──领取──> in_progress ──交付物与验证证据齐备──> completed

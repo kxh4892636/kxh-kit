@@ -18,6 +18,10 @@ _避免使用_：next skill
 与入口 skill 一一对应的有序卡点与交付 receipt 链，分为 `main`、`story` 和 `issues`。
 _避免使用_：模式
 
+**Flow 标识**：
+`YYYY-MM-DD-{name}` 形态的可读标识，用于区分不依附领域 Plan 的 `/grill-with-docs` 运行；它不是文件系统目录。
+_避免使用_：Plan 路径、flow ID
+
 ### CLI
 
 **loopx**:

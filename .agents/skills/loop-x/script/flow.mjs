@@ -6,7 +6,7 @@ import process from "node:process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 const DEFAULT_LEASE_SECONDS = 1800;
 const LOCK_STALE_MS = 30000;
 const LOCK_RETRIES = 50;
@@ -15,9 +15,6 @@ const ISSUE_STATUSES = new Set(["pending", "in_progress", "blocked", "completed"
 
 const DELIVERY_FLOW = [
   { skill: "implement", results: ["started"] },
-  { skill: "tdd", results: ["completed", "skipped"] },
-  { skill: "verifying", results: ["passed"] },
-  { skill: "code-review", results: ["reviewed"] },
   { action: "commit", results: ["committed"] },
 ];
 
@@ -88,6 +85,13 @@ const normalizePlanPath = (workspace, planInput) => {
   return relativePath === "" ? "." : relativePath.replaceAll("\\", "/");
 };
 
+const normalizeFlowIdentifier = (planInput) => {
+  if (!/^\d{4}-\d{2}-\d{2}-[^/\\]+$/u.test(planInput)) {
+    fail("/grill-with-docs 的 --plan 必须是 YYYY-MM-DD-{name} Flow 标识");
+  }
+  return planInput;
+};
+
 const statePaths = (workspace) => ({
   dir: path.join(workspace, ".loop"),
   lock: path.join(workspace, ".loop", "state.lock"),
@@ -115,15 +119,37 @@ const validateState = (state, supportedVersions = [SCHEMA_VERSION]) => {
   return state;
 };
 
+const migratedCursor = (sequence, receipts, status) => {
+  if (status === "completed") return sequence.length;
+  let cursor = 0;
+  for (const step of sequence) {
+    const label = stepLabel(step);
+    const receipt = receipts.find((item) => item.step === label);
+    if (!receipt || !step.results.includes(receipt.result)) break;
+    cursor += 1;
+  }
+  return cursor;
+};
+
 const migrateState = (state) => {
-  validateState(state, [1, SCHEMA_VERSION]);
+  validateState(state, [1, 2, SCHEMA_VERSION]);
   if (state.schema_version === SCHEMA_VERSION) return { migrated: false, state };
-  state.schema_version = SCHEMA_VERSION;
   for (const plan of Object.values(state.plans)) {
     if (plan?.setup && plan.setup.active_step === undefined) {
       plan.setup.active_step = null;
     }
+    if (plan?.route === "main") {
+      plan.setup.cursor = migratedCursor(
+        PLAN_ROUTES.main,
+        plan.setup.receipts ?? [],
+        plan.setup.status,
+      );
+    }
+    for (const issue of Object.values(plan?.issues ?? {})) {
+      issue.cursor = migratedCursor(ISSUE_FLOW, issue.receipts ?? [], issue.status);
+    }
   }
+  state.schema_version = SCHEMA_VERSION;
   return { migrated: true, state };
 };
 
@@ -461,10 +487,12 @@ const handleEnterPlan = (state, workspace, options, now) => {
     }
     fail("--skill 必须是 /loop-x | /grill-with-docs | /to-story | /to-issues");
   }
-  const defaultPlan = entrySkill === "grill-with-docs" ? "." : null;
-  const planInput = options.plan === undefined ? defaultPlan : requireOption(options, "plan");
-  if (!planInput) fail(`/${entrySkill} 进入流程前必须提供 --plan`);
-  const planKey = normalizePlanPath(workspace, planInput);
+  if (options.plan === undefined) fail(`/${entrySkill} 进入流程前必须提供 --plan`);
+  const planInput = requireOption(options, "plan");
+  const planKey =
+    entrySkill === "grill-with-docs"
+      ? normalizeFlowIdentifier(planInput)
+      : normalizePlanPath(workspace, planInput);
   let plan = state.plans[planKey];
   if (plan?.setup.status === "completed" && entryRoute === "main") {
     delete state.plans[planKey];
@@ -528,9 +556,6 @@ const recordStepReceipt = (subject, expected, options, now) => {
   }
   const evidence = optionValues(options, "evidence").filter(Boolean);
   if (evidence.length === 0) fail(`${stepLabel(expected)} 至少需要一个 --evidence`);
-  if (expected.skill === "tdd" && result === "skipped" && !options.reason) {
-    fail("跳过 /tdd 必须提供 --reason");
-  }
   subject.receipts.push({
     evidence,
     kind: expected.skill ? "skill" : "action",
@@ -814,8 +839,8 @@ const parseCli = (argumentsList) => {
 
 const usage = `用法:
   flow.mjs init --plan <path> --route <main|story|issues> --session <id>
-  flow.mjs enter-plan [--plan <path>] --skill /loop-x --entry </grill-with-docs|/to-story|/to-issues> [--session <id>]
-  flow.mjs enter-plan [--plan <path>] --skill </grill-with-docs|/to-story|/to-issues> [--session <id>]
+  flow.mjs enter-plan --plan <path-or-flow-id> --skill /loop-x --entry </grill-with-docs|/to-story|/to-issues> [--session <id>]
+  flow.mjs enter-plan --plan <path-or-flow-id> --skill </grill-with-docs|/to-story|/to-issues> [--session <id>]
   flow.mjs record-plan --plan <path> --session <id> (--skill </skill>|--action <action>) --result <result> --evidence <ref>
   flow.mjs claim-issue --plan <path> --issue <NN> [--session <id>]
   flow.mjs record-issue --plan <path> --issue <NN> --session <id> (--skill </skill>|--action <action>) --result <result> --evidence <ref>
