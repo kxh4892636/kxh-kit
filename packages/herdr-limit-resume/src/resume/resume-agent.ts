@@ -38,6 +38,8 @@ const DELIVERY_PATH = {
   working: undefined,
 } as const satisfies Record<AgentStatus, DeliveryPath | undefined>;
 
+const DETECTION_REGION_CODE_POINTS = 233;
+
 export const resumeAgent = async (
   initial: AgentInfo,
   options: ResumeAgentOptions,
@@ -171,7 +173,7 @@ const isSameStateCycle = (before: AgentInfo, current: AgentInfo): boolean =>
   current.state_change_seq === before.state_change_seq;
 
 const messageRegion = (text: string): string =>
-  Array.from(text.replace(/\s+/gu, " ").trim()).slice(-55).join("");
+  Array.from(text.replace(/\s+/gu, " ").trim()).slice(-DETECTION_REGION_CODE_POINTS).join("");
 
 const isRateLimitRegion = (text: string): boolean => {
   const region = messageRegion(text);

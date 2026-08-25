@@ -177,10 +177,10 @@ test("Herdr error text is not persisted in diagnostics", async (): Promise<void>
   expect(diagnostic).not.toContain("secret terminal output");
 });
 
-test("the latest region is exactly 55 Unicode code points", async (): Promise<void> => {
+test("the latest region is exactly 233 Unicode code points", async (): Promise<void> => {
   const stateDir = await mkdtemp(join(tmpdir(), "herdr-limit-resume-state-"));
   resources.push(async (): Promise<void> => rm(stateDir, { force: true, recursive: true }));
-  const message = `old output ${"🙂".repeat(10)} 429\nLiMiT ${"🙂".repeat(45)}`;
+  const message = `old output ${"🙂".repeat(10)} 429\nLiMiT ${"🙂".repeat(223)}`;
   const { requests, socketPath } = await listen(responseFor(agent, message));
 
   const result = await runScanNow({ socketPath, stateDir });
@@ -191,10 +191,10 @@ test("the latest region is exactly 55 Unicode code points", async (): Promise<vo
   ).toHaveLength(1);
 });
 
-test("rate-limit tokens outside the latest 55 characters do not resume", async (): Promise<void> => {
+test("rate-limit tokens outside the latest 233 characters do not resume", async (): Promise<void> => {
   const stateDir = await mkdtemp(join(tmpdir(), "herdr-limit-resume-state-"));
   resources.push(async (): Promise<void> => rm(stateDir, { force: true, recursive: true }));
-  const message = `429 limit ${"x".repeat(56)}`;
+  const message = `429 limit ${"x".repeat(234)}`;
   const { requests, socketPath } = await listen(responseFor(agent, message));
 
   const result = await runScanNow({ socketPath, stateDir });
