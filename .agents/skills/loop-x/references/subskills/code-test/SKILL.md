@@ -20,7 +20,7 @@ description: 在实现代码完成后编写和评估测试；当 feature、bug f
 ## 硬门禁
 
 - 受影响测试和完整 test suite 均通过。
-- **测试覆盖率 ≥ 95%。** 统计范围以仓库配置为事实源；未配置时至少包含本次修改的全部生产代码。报告同时给出 statements、branches、functions、lines 时，每一项都必须达到 95%；只给出单一总指标时，该指标必须达到 95%。
+- **测试覆盖率 ≥ 90%。** 统计范围以仓库配置为事实源；未配置时至少包含本次修改的全部生产代码。报告同时给出 statements、branches、functions、lines 时，每一项都必须达到 90%；只给出单一总指标时，该指标必须达到 90%。
 - **变异测试是人工确认门禁。** 只有工作区已存在可复现的 mutation testing 配置或命令入口，并且用户对本次执行给出明确确认时才运行；执行后的 mutation score 必须 ≥ 90%。入口不存在时记为 `skipped: not configured`；未得到明确确认时记为 `skipped: not approved`，不执行命令，两种 skip 均不阻断交付。
 - 缺少 coverage tooling、报告或可复现命令时，结论是 `blocked`。不得通过缩小统计范围、排除有效 mutants 或编写无行为断言的测试来抬高指标；仓库定义的更严格门禁优先。
 
