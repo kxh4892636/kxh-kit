@@ -45,6 +45,7 @@ export const responseFor =
   (
     targetAgent: FakeAgent,
     readText: FakeReadText = "Please retry: HTTP 429 RATE LIMIT reached",
+    readRevision = targetAgent.revision,
   ): ((request: SocketRequest) => Record<string, unknown>) =>
   (request: SocketRequest): Record<string, unknown> => {
     if (request.method === "agent.list") {
@@ -56,7 +57,7 @@ export const responseFor =
         read: {
           format: "text",
           pane_id: targetAgent.pane_id,
-          revision: targetAgent.revision,
+          revision: readRevision,
           source,
           tab_id: targetAgent.tab_id,
           text: textForSource(readText, source),

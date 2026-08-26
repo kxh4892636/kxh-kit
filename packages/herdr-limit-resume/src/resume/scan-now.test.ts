@@ -70,6 +70,45 @@ test("latest terminal text drives detection even when the detection snapshot is 
   ).toHaveLength(1);
 });
 
+test("a zero read revision is treated as an unknown revision and can still resume", async (): Promise<void> => {
+  const stateDir = await mkdtemp(join(tmpdir(), "herdr-limit-resume-state-"));
+  resources.push(async (): Promise<void> => rm(stateDir, { force: true, recursive: true }));
+  const { requests, socketPath } = await listen(responseFor(agent, undefined, 0));
+
+  const result = await runScanNow({ socketPath, stateDir });
+
+  expect(result.resumed).toBe(1);
+  expect(
+    requests.filter(({ method }: SocketRequest): boolean => method === "agent.read"),
+  ).toHaveLength(2);
+  expect(
+    requests.filter(({ method }: SocketRequest): boolean => method === "agent.prompt"),
+  ).toHaveLength(1);
+});
+
+test("an unknown read revision requires the matching latest text to remain stable", async (): Promise<void> => {
+  const stateDir = await mkdtemp(join(tmpdir(), "herdr-limit-resume-state-"));
+  resources.push(async (): Promise<void> => rm(stateDir, { force: true, recursive: true }));
+  let readCount = 0;
+  const responder = (request: SocketRequest): Record<string, unknown> => {
+    if (request.method !== "agent.read") return responseFor(agent)(request);
+    readCount += 1;
+    return responseFor(
+      agent,
+      readCount === 1 ? "HTTP 429 rate limit" : "latest text moved on",
+      0,
+    )(request);
+  };
+  const { requests, socketPath } = await listen(responder);
+
+  const result = await runScanNow({ socketPath, stateDir });
+
+  expect(result.skipped).toBe(1);
+  expect(
+    requests.filter(({ method }: SocketRequest): boolean => method === "agent.prompt"),
+  ).toHaveLength(0);
+});
+
 test("an accepted input with unchanged state records its region hash", async (): Promise<void> => {
   const stateDir = await mkdtemp(join(tmpdir(), "herdr-limit-resume-state-"));
   resources.push(async (): Promise<void> => rm(stateDir, { force: true, recursive: true }));

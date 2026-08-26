@@ -39,6 +39,7 @@ const DELIVERY_PATH = {
 } as const satisfies Record<AgentStatus, DeliveryPath | undefined>;
 
 const DETECTION_REGION_CODE_POINTS = 233;
+const UNKNOWN_READ_REVISION = 0;
 
 export const resumeAgent = async (
   initial: AgentInfo,
@@ -116,6 +117,9 @@ const processCurrentAgent = async (
   if (!isStillCurrent(agent, current, read)) {
     return { ...emptyResult(), scanned: 1, skipped: 1 };
   }
+  if (!(await isReadStableWhenRevisionUnknown(agent, fingerprint, state, read, options))) {
+    return { ...emptyResult(), scanned: 1, skipped: 1 };
+  }
   if (options.signal?.aborted === true) {
     return { ...emptyResult(), scanned: 1, skipped: 1 };
   }
@@ -165,7 +169,24 @@ const isStillCurrent = (before: AgentInfo, current: AgentInfo, read: AgentRead):
   current.terminal_id === before.terminal_id &&
   deliveryPath(current) === deliveryPath(before) &&
   current.state_change_seq === before.state_change_seq &&
-  current.revision === read.revision;
+  (read.revision === UNKNOWN_READ_REVISION || current.revision === read.revision);
+
+const isReadStableWhenRevisionUnknown = async (
+  agent: AgentInfo,
+  fingerprint: string,
+  state: ResumeState,
+  read: AgentRead,
+  options: ResumeAgentOptions,
+): Promise<boolean> => {
+  if (read.revision !== UNKNOWN_READ_REVISION) return true;
+  const currentRead = await options.herdr.readLatest(agent.pane_id);
+  const currentRegion = messageRegion(currentRead.text);
+  const currentFingerprint = fingerprintFor(currentRegion);
+  if (!isRateLimitRegion(currentRegion) || currentFingerprint !== fingerprint) return false;
+  if (state.isHandled(agent.terminal_id, currentFingerprint)) return false;
+  const currentAgent = await options.herdr.getAgent(agent.pane_id);
+  return isSameStateCycle(agent, currentAgent);
+};
 
 const isSameStateCycle = (before: AgentInfo, current: AgentInfo): boolean =>
   current.terminal_id === before.terminal_id &&
