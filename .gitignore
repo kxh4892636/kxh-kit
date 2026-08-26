@@ -38,3 +38,7 @@ release
 
 # Loop X runtime state
 .loop
+
+# Mutation test reports
+**/reports/mutation/
+**/.stryker-tmp/

@@ -202,8 +202,11 @@ describe.skipIf(!gitAvailable)("workspace repository (git integration)", (): voi
     await advanceRemote(remote, "remote v2\n");
 
     const result = await invoke(root, ["repository", "status", "--name", "wiki"]);
-    const repository = JSON.parse(result.stdout).repositories[0];
+    const output = JSON.parse(result.stdout);
+    const repository = output.repositories[0];
 
+    expect(result.code).toBe(0);
+    expect(output).toMatchObject({ success: true, action: "status-repositories" });
     expect(repository).toMatchObject({
       name: "wiki",
       path: repositoryPath,
@@ -216,6 +219,41 @@ describe.skipIf(!gitAvailable)("workspace repository (git integration)", (): voi
     });
     expect(repository.worktrees).toHaveLength(1);
     expect((await git(["-C", repositoryPath, "rev-parse", "origin/main"])).trim()).toBe(before);
+  }, 30000);
+
+  test("status lists all configured repositories or only the selected name", async (): Promise<void> => {
+    const directory = await createDirectory();
+    const wiki = await createRemote(directory, "wiki");
+    const docs = await createRemote(directory, "docs");
+    const root = await createWorkspace([
+      { name: "wiki", url: wiki.url },
+      { name: "docs", url: docs.url },
+    ]);
+    await invoke(root, ["repository", "clone", "--name", "wiki"]);
+
+    const allResult = await invoke(root, ["repository", "status"]);
+    const selectedResult = await invoke(root, ["repository", "status", "--name", "docs"]);
+    const all = JSON.parse(allResult.stdout);
+    const selected = JSON.parse(selectedResult.stdout);
+
+    expect(allResult.code).toBe(0);
+    expect(selectedResult.code).toBe(0);
+    expect(all.repositories.map((repository: { name: string }): string => repository.name)).toEqual(
+      ["wiki", "docs"],
+    );
+    expect(all.repositories[0].status).toBe("materialized");
+    expect(all.repositories[1]).toEqual({
+      name: "docs",
+      path: path.join(root, "repositories/docs"),
+      baseBranch: "main",
+      status: "not-materialized",
+      worktrees: [],
+    });
+    expect(selected).toEqual({
+      success: true,
+      action: "status-repositories",
+      repositories: [all.repositories[1]],
+    });
   }, 30000);
 
   test("status reports dirty and diverged local state after an explicit pull fetch", async (): Promise<void> => {
@@ -254,7 +292,18 @@ describe.skipIf(!gitAvailable)("workspace repository (git integration)", (): voi
 
     const result = await invoke(root, ["repository", "pull"]);
 
-    expect(JSON.parse(result.stdout).repositories[0].status).toBe("pulled");
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      success: true,
+      action: "pull-repositories",
+      repositories: [
+        {
+          name: "wiki",
+          path: repositoryPath,
+          status: "pulled",
+        },
+      ],
+    });
     expect(await readFile(path.join(repositoryPath, "README.md"), "utf8")).toMatch(/remote v2/u);
     expect((await git(["-C", worktreePath, "rev-parse", "HEAD"])).trim()).toBe(worktreeHead);
     expect((await git(["-C", repositoryPath, "rev-parse", "--is-shallow-repository"])).trim()).toBe(
@@ -384,6 +433,13 @@ describe.skipIf(!gitAvailable)("workspace repository (git integration)", (): voi
       "--force",
     ]);
     expect(removed.code).toBe(0);
+    expect(JSON.parse(removed.stdout)).toEqual({
+      success: true,
+      action: "remove-repository",
+      name: "wiki",
+      path: repositoryPath,
+      force: true,
+    });
     expect(await isMissing(repositoryPath)).toBe(true);
     expect(await readFile(path.join(root, WORKSPACE_CONFIG_FILE), "utf8")).toContain("name: wiki");
   }, 30000);
@@ -398,6 +454,13 @@ describe.skipIf(!gitAvailable)("workspace repository (git integration)", (): voi
     const result = await invoke(root, ["repository", "remove", "--name", "wiki", "--yes"]);
 
     expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      success: true,
+      action: "remove-repository",
+      name: "wiki",
+      path: repositoryPath,
+      force: false,
+    });
     expect(await isMissing(repositoryPath)).toBe(true);
     expect(await readFile(path.join(root, WORKSPACE_CONFIG_FILE), "utf8")).toContain("name: wiki");
   }, 30000);

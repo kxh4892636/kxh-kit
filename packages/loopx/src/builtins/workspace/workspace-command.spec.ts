@@ -191,9 +191,16 @@ describe("workspace config add and update", (): void => {
       "dev",
     ]);
     expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
+    expect(JSON.parse(result.stdout)).toEqual({
       success: true,
-      repository: { name: "wiki", path: "packages/wiki", branch: "dev" },
+      action: "update",
+      repository: {
+        name: "wiki",
+        url: "https://github.com/kxh4892636/wiki.git",
+        path: "packages/wiki",
+        branch: "dev",
+      },
+      config: path.join(cwd, WORKSPACE_CONFIG_FILE),
     });
     const document = await readFile(path.join(cwd, WORKSPACE_CONFIG_FILE), "utf8");
     expect(document).toContain("packages/wiki");
@@ -283,22 +290,54 @@ describe("workspace config add and update", (): void => {
 });
 
 describe("workspace config list and remove", (): void => {
-  test("lists selected configuration", async (): Promise<void> => {
+  test("lists all or selected configuration and rejects an unknown name", async (): Promise<void> => {
     const cwd = await initWorkspace();
     await invoke(cwd, ADD_WIKI);
-    const result = await invoke(cwd, ["config", "list", "--name", "wiki"]);
-    expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual({
+    await invoke(cwd, [
+      "config",
+      "add",
+      "--name",
+      "docs",
+      "--url",
+      "https://github.com/kxh4892636/docs.git",
+      "--path",
+      "apps/docs",
+      "--branch",
+      "stable",
+    ]);
+
+    const all = await invoke(cwd, ["config", "list"]);
+    const selected = await invoke(cwd, ["config", "list", "--name", "docs"]);
+    const unknown = await invoke(cwd, ["config", "list", "--name", "ghost"]);
+    const wiki = {
+      name: "wiki",
+      url: "https://github.com/kxh4892636/wiki.git",
+      path: "apps/wiki",
+      branch: "main",
+    };
+    const docs = {
+      name: "docs",
+      url: "https://github.com/kxh4892636/docs.git",
+      path: "apps/docs",
+      branch: "stable",
+    };
+
+    expect(all.code).toBe(0);
+    expect(JSON.parse(all.stdout)).toEqual({
       success: true,
       root: cwd,
-      repositories: [
-        {
-          name: "wiki",
-          url: "https://github.com/kxh4892636/wiki.git",
-          path: "apps/wiki",
-          branch: "main",
-        },
-      ],
+      repositories: [wiki, docs],
+    });
+    expect(selected.code).toBe(0);
+    expect(JSON.parse(selected.stdout)).toEqual({
+      success: true,
+      root: cwd,
+      repositories: [docs],
+    });
+    expect(unknown.code).toBe(1);
+    expect(JSON.parse(unknown.stderr)).toMatchObject({
+      success: false,
+      error: expect.stringContaining("ghost"),
     });
   });
 
