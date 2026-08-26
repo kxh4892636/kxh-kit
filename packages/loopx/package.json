@@ -1,6 +1,6 @@
 {
   "name": "@kxh4892636/loopx",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "LoopX unified command line interface",
   "license": "MIT",
   "repository": {
@@ -45,6 +45,8 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@stryker-mutator/core": "catalog:",
+    "@stryker-mutator/vitest-runner": "catalog:",
     "@types/node": "catalog:",
     "@types/semver": "^7.8.0",
     "@typescript/native": "catalog:",

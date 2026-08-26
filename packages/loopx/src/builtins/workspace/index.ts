@@ -29,6 +29,7 @@ import {
 } from "./workspace-repository";
 import {
   listWorkspaceWorktrees,
+  prepareWorkspaceAdd,
   prepareWorkspacePrune,
   prepareWorkspaceRemove,
   prepareWorkspaceSwitch,
@@ -112,6 +113,13 @@ const worktreeListOptions = [
     multiple: true,
     placeholder: "name",
   }),
+] as const;
+
+const worktreeAddOptions = [
+  option.string("name", "Repository that owns the worktree", { required: true }),
+  option.string("path", "Worktree path relative to the workspace root", { required: true }),
+  option.string("branch", "Branch to check out; defaults to a timestamped worktree branch", {}),
+  option.string("base", "Base for a newly created branch; defaults to the configured branch", {}),
 ] as const;
 
 const worktreeSwitchOptions = [
@@ -304,6 +312,22 @@ const workspaceCommand: BuiltinCommand = group("workspace", "Manage multi-reposi
     }),
   ]),
   group("worktree", "Manage repository worktrees", [
+    command("add", "Add an extra worktree at an explicit path", worktreeAddOptions, {
+      kind: "mutation",
+      prepare: async (
+        options: ValuesFromOptions<typeof worktreeAddOptions>,
+        context: InvocationContext,
+      ): Promise<PreparedMutation> =>
+        prepareWorkspaceAdd(
+          {
+            name: options.name,
+            path: options.path,
+            branch: options.branch,
+            base: options.base,
+          },
+          context,
+        ),
+    }),
     command("list", "List registered worktrees", worktreeListOptions, {
       kind: "query",
       run: async (

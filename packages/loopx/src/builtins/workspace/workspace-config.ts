@@ -11,28 +11,17 @@ const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
 export const WORKSPACE_CONFIG_FILE = "workspace.yaml";
-export const WORKSPACE_LOCAL_FILE = "workspace.local.yaml";
 
 export interface WorkspaceRepository {
   readonly name: string;
   readonly url: string;
   readonly path: string;
   readonly branch: string;
-  readonly clonePath?: string | undefined;
 }
 
 export interface WorkspaceConfig {
   readonly root: string;
   readonly repositories: readonly WorkspaceRepository[];
-}
-
-export interface WorkspaceLocalRepository {
-  readonly name: string;
-  readonly clonePath: string;
-}
-
-export interface WorkspaceConfigurationView extends WorkspaceConfig {
-  readonly localRepositories: readonly WorkspaceLocalRepository[];
 }
 
 export class WorkspaceConfigError extends Error {
@@ -115,23 +104,6 @@ const workspaceFileSchema = z
     },
   );
 
-const isAbsoluteClonePath = (value: string): boolean =>
-  value.startsWith("/") || value.startsWith("\\") || /^[a-zA-Z]:[\\/]/u.test(value);
-
-const localFileSchema = z.object({
-  repositories: z
-    .array(
-      z.object({
-        name: z.string().min(1),
-        clone_path: z
-          .string()
-          .min(1)
-          .refine(isAbsoluteClonePath, "clone_path must be an absolute path"),
-      }),
-    )
-    .default([]),
-});
-
 const exists = async (target: string): Promise<boolean> => {
   try {
     await access(target);
@@ -196,46 +168,6 @@ const parseConfigFile = async <Schema extends z.ZodType>(
   return parsed.data;
 };
 
-export const loadWorkspaceConfigurationView = async (
-  cwd: string,
-): Promise<WorkspaceConfigurationView> => {
-  const root = await findWorkspaceRoot(cwd);
-  const config = await parseConfigFile(path.join(root, WORKSPACE_CONFIG_FILE), workspaceFileSchema);
-  const localFile = path.join(root, WORKSPACE_LOCAL_FILE);
-  const local = (await exists(localFile))
-    ? await parseConfigFile(localFile, localFileSchema)
-    : { repositories: [] };
-  const clonePaths = new Map(
-    local.repositories.map(
-      (record: { clone_path: string; name: string }): readonly [string, string] => [
-        record.name,
-        record.clone_path,
-      ],
-    ),
-  );
-  return {
-    root,
-    repositories: config.repositories.map((repository: RepositoryDraft): WorkspaceRepository => {
-      const clonePath = clonePaths.get(repository.name);
-      return { ...repository, ...(clonePath === undefined ? {} : { clonePath }) };
-    }),
-    localRepositories: local.repositories.map(
-      (record: {
-        readonly clone_path: string;
-        readonly name: string;
-      }): WorkspaceLocalRepository => ({
-        name: record.name,
-        clonePath: record.clone_path,
-      }),
-    ),
-  };
-};
-
-export const loadWorkspaceConfig = async (cwd: string): Promise<WorkspaceConfig> => {
-  const config = await loadWorkspaceConfigurationView(cwd);
-  return { root: config.root, repositories: config.repositories };
-};
-
 export const loadWorkspaceFile = async (cwd: string): Promise<WorkspaceConfig> => {
   const root = await findWorkspaceRoot(cwd);
   const config = await parseConfigFile(path.join(root, WORKSPACE_CONFIG_FILE), workspaceFileSchema);
@@ -249,15 +181,18 @@ export type RepositoryDraft = {
   readonly branch: string;
 };
 
-export interface UpsertPlan {
+interface RepositoryWritePlan {
   readonly change: "added" | "updated";
   readonly index: number;
 }
 
-export const planUpsert = (
+type RepositoryWriteMode = "add" | "update";
+
+const planRepositoryWrite = (
   repositories: readonly RepositoryDraft[],
   draft: RepositoryDraft,
-): UpsertPlan => {
+  mode: RepositoryWriteMode,
+): RepositoryWritePlan => {
   const conflict = repositories.find(
     (repository: RepositoryDraft): boolean =>
       repository.name !== draft.name &&
@@ -272,7 +207,19 @@ export const planUpsert = (
   const index = repositories.findIndex(
     (repository: RepositoryDraft): boolean => repository.name === draft.name,
   );
-  return index === -1 ? { change: "added", index } : { change: "updated", index };
+  if (mode === "add" && index !== -1) {
+    throw new WorkspaceConfigError(
+      `Repository already exists in ${WORKSPACE_CONFIG_FILE}: ${draft.name}`,
+      { details: { name: draft.name } },
+    );
+  }
+  if (mode === "update" && index === -1) {
+    throw new WorkspaceConfigError(
+      `Repository not found in ${WORKSPACE_CONFIG_FILE}: ${draft.name}`,
+      { details: { name: draft.name } },
+    );
+  }
+  return { change: mode === "add" ? "added" : "updated", index };
 };
 
 export const planRemove = (
@@ -342,7 +289,7 @@ const writeConfigAtomically = async (config: string, content: string): Promise<v
   }
 };
 
-export interface PreparedRepositoryUpsert {
+export interface PreparedRepositoryWrite {
   readonly root: string;
   readonly config: string;
   readonly change: "added" | "updated";
@@ -355,8 +302,6 @@ export type RepositoryPatch = {
   readonly path?: string | undefined;
   readonly url?: string | undefined;
 };
-
-type RepositoryWriteMode = "add" | "update" | "upsert";
 
 interface WorkspaceDocumentState {
   readonly config: string;
@@ -376,7 +321,7 @@ const prepareRepositoryWrite = async (
   draft: RepositoryDraft,
   mode: RepositoryWriteMode,
   loaded?: WorkspaceDocumentState,
-): Promise<PreparedRepositoryUpsert> => {
+): Promise<PreparedRepositoryWrite> => {
   const validated = repositorySchema.safeParse(draft);
   if (!validated.success) {
     throw new WorkspaceConfigError(`Invalid repository '${draft.name}'`, {
@@ -385,21 +330,7 @@ const prepareRepositoryWrite = async (
   }
   const state = loaded ?? (await loadWorkspaceDocument(cwd));
   const { config, document, repositories, root } = state;
-  const plan = planUpsert(repositories, draft);
-  if (mode === "add" && plan.change !== "added") {
-    throw new WorkspaceConfigError(
-      `Repository already exists in ${WORKSPACE_CONFIG_FILE}: ${draft.name}`,
-      { details: { name: draft.name } },
-    );
-  }
-  if (mode === "update" && plan.change !== "updated") {
-    throw new WorkspaceConfigError(
-      `Repository not found in ${WORKSPACE_CONFIG_FILE}: ${draft.name}`,
-      {
-        details: { name: draft.name },
-      },
-    );
-  }
+  const plan = planRepositoryWrite(repositories, draft, mode);
   const sequence = repositorySequence(document, config);
   if (plan.change === "added") {
     sequence.flow = false;
@@ -432,21 +363,16 @@ const prepareRepositoryWrite = async (
   };
 };
 
-export const prepareUpsertRepository = async (
-  cwd: string,
-  draft: RepositoryDraft,
-): Promise<PreparedRepositoryUpsert> => prepareRepositoryWrite(cwd, draft, "upsert");
-
 export const prepareAddRepository = async (
   cwd: string,
   draft: RepositoryDraft,
-): Promise<PreparedRepositoryUpsert> => prepareRepositoryWrite(cwd, draft, "add");
+): Promise<PreparedRepositoryWrite> => prepareRepositoryWrite(cwd, draft, "add");
 
 export const prepareUpdateRepository = async (
   cwd: string,
   name: string,
   patch: RepositoryPatch,
-): Promise<PreparedRepositoryUpsert> => {
+): Promise<PreparedRepositoryWrite> => {
   const loaded = await loadWorkspaceDocument(cwd);
   const { repositories, root } = loaded;
   const repository = repositories.find(
@@ -516,49 +442,4 @@ export const prepareRemoveRepository = async (
       await writeConfigAtomically(config, document.toString());
     },
   };
-};
-
-export const recordClonePath = async (
-  root: string,
-  name: string,
-  clonePath: string,
-): Promise<void> => {
-  const localFile = path.join(root, WORKSPACE_LOCAL_FILE);
-  let document: Document;
-  if (await exists(localFile)) {
-    let text: string;
-    try {
-      text = await readFile(localFile, "utf8");
-    } catch (error) {
-      throw new WorkspaceConfigError(
-        `Failed to read ${localFile}: ${error instanceof Error ? error.message : String(error)}`,
-        {},
-      );
-    }
-    document = parseDocument(text);
-    if (document.errors.length > 0) {
-      throw new WorkspaceConfigError(
-        `Failed to read ${localFile}: ${document.errors[0]?.message}`,
-        {},
-      );
-    }
-  } else {
-    document = parseDocument("");
-  }
-  const sequence = repositorySequence(document, localFile);
-  const item = sequence.items.find(
-    (entry: unknown): boolean => isMap(entry) && entry.get("name") === name,
-  );
-  if (item === undefined) {
-    sequence.flow = false;
-    sequence.add(document.createNode({ name, clone_path: clonePath }));
-  } else {
-    if (!isMap(item)) {
-      throw new WorkspaceConfigError(`Failed to edit ${localFile}: entry '${name}'`, {});
-    }
-    item.set("clone_path", clonePath);
-  }
-  const parsed = localFileSchema.safeParse(document.toJS() ?? {});
-  if (!parsed.success) throw invalidConfigError(localFile, parsed.error);
-  await writeConfigAtomically(localFile, document.toString());
 };

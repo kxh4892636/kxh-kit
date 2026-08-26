@@ -171,6 +171,25 @@ const helpPaths = [
     leaf,
   ]),
   ["self", "update"],
+  ["workspace"],
+  ["workspace", "config"],
+  ...["init", "add", "list", "update", "remove"].map((leaf: string): string[] => [
+    "workspace",
+    "config",
+    leaf,
+  ]),
+  ["workspace", "repository"],
+  ...["clone", "status", "pull", "remove"].map((leaf: string): string[] => [
+    "workspace",
+    "repository",
+    leaf,
+  ]),
+  ["workspace", "worktree"],
+  ...["add", "list", "switch", "remove", "prune"].map((leaf: string): string[] => [
+    "workspace",
+    "worktree",
+    leaf,
+  ]),
   ["anki"],
   ...Object.entries({
     decks: ["list", "stats", "create", "move"],
@@ -280,6 +299,7 @@ const verifyDistributionSurface = async (fixture: DistributionFixture): Promise<
   const metadata = parseObject(
     await readFile(path.join(fixture.installedPackage, "package.json"), "utf8"),
   );
+  expect(metadata["version"]).toBe("0.0.4");
   expect(metadata["bin"]).toEqual({ loopx: "dist/main.mjs" });
   const assets = [
     "README.md",

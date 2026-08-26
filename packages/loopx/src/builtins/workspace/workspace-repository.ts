@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { channel } from "node:diagnostics_channel";
-import { access, mkdir, realpath, rm } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { InvocationContext, JsonOutput, JsonValue, PreparedMutation } from "../../cli/types";
@@ -11,6 +11,7 @@ import {
   WorkspaceConfigError,
   type WorkspaceRepository,
 } from "./workspace-config";
+import { assertPhysicalPathWithinRoot, pathExists as exists } from "./workspace-path";
 
 const execFileAsync = promisify(execFile);
 const workspaceDiagnostics = channel("loopx.workspace");
@@ -20,23 +21,6 @@ const errorMessage = (error: unknown): string =>
 
 const redactSensitiveText = (value: string): string =>
   value.replace(/https?:\/\/\S+/gu, "[redacted-url]");
-
-const exists = async (target: string): Promise<boolean> => {
-  try {
-    await access(target);
-    return true;
-  } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      (error.code === "ENOENT" || error.code === "ENOTDIR")
-    )
-      return false;
-    workspaceDiagnostics.publish({ level: "error", message: errorMessage(error) });
-    throw error;
-  }
-};
 
 const runGit = async (arguments_: readonly string[]): Promise<string> => {
   try {
@@ -165,24 +149,6 @@ const resolveBatchSelections = async (
           }),
     };
   });
-};
-
-const assertPhysicalPathWithinRoot = async (root: string, target: string): Promise<void> => {
-  const physicalRoot = await realpath(root);
-  let existing = target;
-  while (!(await exists(existing))) {
-    const parent = path.dirname(existing);
-    if (parent === existing) break;
-    existing = parent;
-  }
-  const physicalTarget = await realpath(existing);
-  const relative = path.relative(physicalRoot, physicalTarget);
-  if (relative === "" && existing !== root) return;
-  if (relative.startsWith("..") || path.isAbsolute(relative)) {
-    throw new WorkspaceConfigError(`Repository path resolves outside the workspace: ${target}`, {
-      details: { root, path: target },
-    });
-  }
 };
 
 type BatchStatus = "cloned" | "failed" | "pulled" | "skipped";
@@ -319,6 +285,7 @@ const repositoryStatus = async (target: RepositoryTarget): Promise<JsonValue> =>
     };
   }
   try {
+    await assertPhysicalPathWithinRoot(target.root, repositoryPath);
     const inside = (
       await runGit(["-C", repositoryPath, "rev-parse", "--is-inside-work-tree"])
     ).trim();
@@ -406,6 +373,7 @@ const pullTarget = async (target: RepositoryTarget, execute: boolean): Promise<B
     };
   }
   try {
+    await assertPhysicalPathWithinRoot(target.root, repositoryPath);
     const dirty = (await runGit(["-C", repositoryPath, "status", "--porcelain"])).trim() !== "";
     if (dirty) {
       return {
@@ -525,7 +493,12 @@ export const prepareRepositoryRemove = async (
     });
   }
   const relative = path.relative(root, repositoryPath);
-  if (relative === "" || relative.startsWith("..") || path.isAbsolute(relative)) {
+  if (
+    relative === "" ||
+    relative === ".." ||
+    relative.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relative)
+  ) {
     throw new WorkspaceConfigError(`Refusing to remove unsafe repository path: ${repositoryPath}`, {
       details: { name: repository.name, path: repositoryPath },
     });

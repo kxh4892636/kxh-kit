@@ -5,7 +5,9 @@ import { afterEach, describe, expect, test } from "vitest";
 import { runCli, type CliRequest } from "../../cli/run";
 import type { BuiltinCommand } from "../../cli/types";
 import workspaceCommand from "./index";
-import { WORKSPACE_CONFIG_FILE, WORKSPACE_LOCAL_FILE } from "./workspace-config";
+import { WORKSPACE_CONFIG_FILE } from "./workspace-config";
+
+const LEGACY_LOCAL_FILE = "workspace.local.yaml";
 
 const temporaryDirectories: string[] = [];
 
@@ -52,6 +54,24 @@ const invoke = async (cwd: string, argv: readonly string[]): Promise<CliResult> 
   const code = await runCli(request, [(): BuiltinCommand => workspaceCommand]);
   return { code, stderr, stdout };
 };
+
+test("workspace exposes only the three domain resource groups", (): void => {
+  expect(workspaceCommand.children.map((child): string => child.name)).toEqual([
+    "config",
+    "repository",
+    "worktree",
+  ]);
+  expect(
+    workspaceCommand.children.map((child): readonly [string, readonly string[]] => [
+      child.name,
+      child.kind === "group" ? child.children.map((entry): string => entry.name) : [],
+    ]),
+  ).toEqual([
+    ["config", ["init", "add", "list", "update", "remove"]],
+    ["repository", ["clone", "status", "pull", "remove"]],
+    ["worktree", ["add", "list", "switch", "remove", "prune"]],
+  ]);
+});
 
 describe("workspace config init", (): void => {
   test("creates a workspace.yaml with empty repositories", async (): Promise<void> => {
@@ -268,7 +288,7 @@ describe("workspace config list and remove", (): void => {
   test("lists selected configuration without consuming local overrides", async (): Promise<void> => {
     const cwd = await initWorkspace();
     await invoke(cwd, ADD_WIKI);
-    await writeFile(path.join(cwd, WORKSPACE_LOCAL_FILE), "not: valid: yaml", "utf8");
+    await writeFile(path.join(cwd, LEGACY_LOCAL_FILE), "not: valid: yaml", "utf8");
     const result = await invoke(cwd, ["config", "list", "--name", "wiki"]);
     expect(result.code).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({
@@ -309,7 +329,7 @@ describe("workspace config list and remove", (): void => {
     const cwd = await initWorkspace();
     await invoke(cwd, ADD_WIKI);
     await writeFile(
-      path.join(cwd, WORKSPACE_LOCAL_FILE),
+      path.join(cwd, LEGACY_LOCAL_FILE),
       `repositories:
   - name: wiki
     clone_path: C:/Users/kxh/workspaces/wiki
@@ -319,7 +339,7 @@ describe("workspace config list and remove", (): void => {
     const result = await invoke(cwd, ["config", "remove", "--name", "wiki"]);
     expect(result.code).toBe(0);
     expect(JSON.parse(result.stdout)).not.toHaveProperty("residualClonePath");
-    const local = await readFile(path.join(cwd, WORKSPACE_LOCAL_FILE), "utf8");
+    const local = await readFile(path.join(cwd, LEGACY_LOCAL_FILE), "utf8");
     expect(local).toContain("clone_path");
   });
 

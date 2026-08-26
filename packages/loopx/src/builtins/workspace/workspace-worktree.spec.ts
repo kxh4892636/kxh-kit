@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { access, mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -8,9 +8,14 @@ import { afterEach, describe, expect, test } from "vitest";
 import { runCli, type CliRequest } from "../../cli/run";
 import type { BuiltinCommand } from "../../cli/types";
 import workspaceCommand from "./index";
-import { WORKSPACE_CONFIG_FILE, WORKSPACE_LOCAL_FILE } from "./workspace-config";
+import { WORKSPACE_CONFIG_FILE } from "./workspace-config";
 
 const execFileAsync = promisify(execFile);
+const gitAvailable = await execFileAsync("git", ["--version"]).then(
+  (): boolean => true,
+  (): boolean => false,
+);
+const LEGACY_LOCAL_FILE = "workspace.local.yaml";
 const temporaryDirectories: string[] = [];
 
 const createDirectory = async (): Promise<string> => {
@@ -47,40 +52,6 @@ const gitCommit = async (repository: string, message: string): Promise<void> => 
   ]);
 };
 
-interface WorkspaceFixture {
-  readonly clonePath: string;
-  readonly mainPath: string;
-  readonly root: string;
-}
-
-const createWorkspace = async (): Promise<WorkspaceFixture> => {
-  const parent = await createDirectory();
-  const seed = path.join(parent, "seed");
-  await git(["init", "-q", "-b", "main", seed]);
-  await writeFile(path.join(seed, "README.md"), "# wiki\n", "utf8");
-  await git(["-C", seed, "add", "README.md"]);
-  await gitCommit(seed, "initial");
-  const bare = path.join(parent, "wiki.git");
-  await git(["clone", "-q", "--bare", seed, bare]);
-  const clonePath = path.join(parent, "clone");
-  await git(["clone", "-q", pathToFileURL(bare).href, clonePath]);
-  const root = path.join(parent, "workspace");
-  await mkdir(root);
-  const mainPath = path.join(root, "apps/wiki");
-  await writeFile(
-    path.join(root, WORKSPACE_CONFIG_FILE),
-    `repositories:\n  - name: wiki\n    url: ${pathToFileURL(bare).href}\n    path: apps/wiki\n    branch: main\n`,
-    "utf8",
-  );
-  await writeFile(
-    path.join(root, WORKSPACE_LOCAL_FILE),
-    `repositories:\n  - name: wiki\n    clone_path: ${clonePath.replace(/\\/gu, "/")}\n`,
-    "utf8",
-  );
-  await git(["-C", clonePath, "worktree", "add", "-q", "-b", "worktree/wiki-main", mainPath]);
-  return { clonePath, mainPath, root };
-};
-
 interface CliResult {
   readonly code: number;
   readonly stderr: string;
@@ -103,6 +74,33 @@ const invoke = async (cwd: string, argv: readonly string[]): Promise<CliResult> 
   return { code, stderr, stdout };
 };
 
+interface WorkspaceFixture {
+  readonly repositoryPath: string;
+  readonly root: string;
+}
+
+const createWorkspace = async (): Promise<WorkspaceFixture> => {
+  const parent = await createDirectory();
+  const seed = path.join(parent, "seed");
+  await git(["init", "-q", "-b", "main", seed]);
+  await writeFile(path.join(seed, "README.md"), "# wiki\n", "utf8");
+  await git(["-C", seed, "add", "README.md"]);
+  await gitCommit(seed, "initial");
+  const bare = path.join(parent, "wiki.git");
+  await git(["clone", "-q", "--bare", seed, bare]);
+  const root = path.join(parent, "workspace");
+  await mkdir(root);
+  await writeFile(
+    path.join(root, WORKSPACE_CONFIG_FILE),
+    `repositories:\n  - name: wiki\n    url: ${pathToFileURL(bare).href}\n    path: repositories/wiki\n    branch: main\n`,
+    "utf8",
+  );
+  await writeFile(path.join(root, LEGACY_LOCAL_FILE), "not: valid: yaml", "utf8");
+  const cloned = await invoke(root, ["repository", "clone"]);
+  expect(cloned.code).toBe(0);
+  return { repositoryPath: path.join(root, "repositories/wiki"), root };
+};
+
 const isMissing = async (target: string): Promise<boolean> => {
   try {
     await access(target);
@@ -112,106 +110,142 @@ const isMissing = async (target: string): Promise<boolean> => {
   }
 };
 
-describe("workspace worktree (git integration)", (): void => {
-  test("list distinguishes the configured main worktree and a locked extra worktree", async (): Promise<void> => {
+describe.skipIf(!gitAvailable)("workspace worktree (git integration)", (): void => {
+  test("add creates an explicit worktree branch from the configured base", async (): Promise<void> => {
     const fixture = await createWorkspace();
-    const extraPath = path.join(fixture.root, "extra/wiki");
-    await git(["-C", fixture.clonePath, "worktree", "add", "-q", "-b", "feature/extra", extraPath]);
-    await git(["-C", fixture.clonePath, "worktree", "lock", "--reason", "in use", extraPath]);
+    const worktreePath = path.join(fixture.root, "worktrees/wiki");
 
-    const result = await invoke(fixture.root, ["worktree", "list"]);
+    const result = await invoke(fixture.root, [
+      "worktree",
+      "add",
+      "--name",
+      "wiki",
+      "--path",
+      "worktrees/wiki",
+      "--branch",
+      "feature/wiki",
+    ]);
 
     expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      success: true,
+      action: "add-worktree",
+      name: "wiki",
+      path: worktreePath,
+      branch: "feature/wiki",
+      createdBranch: true,
+      base: "main",
+    });
+    expect((await git(["-C", worktreePath, "branch", "--show-current"])).trim()).toBe(
+      "feature/wiki",
+    );
+  }, 30000);
+
+  test("add dry-run uses a timestamped branch and leaves the target absent", async (): Promise<void> => {
+    const fixture = await createWorkspace();
+    const worktreePath = path.join(fixture.root, "worktrees/preview");
+
+    const result = await invoke(fixture.root, [
+      "worktree",
+      "add",
+      "--name",
+      "wiki",
+      "--path",
+      "worktrees/preview",
+      "--dry-run",
+    ]);
+
+    expect(JSON.parse(result.stdout).preview).toMatchObject({
+      action: "add-worktree",
+      path: worktreePath,
+      branch: expect.stringMatching(/^worktree\/wiki-\d{14}$/u),
+      base: "main",
+    });
+    expect(await isMissing(worktreePath)).toBe(true);
+  }, 30000);
+
+  test("add accepts a dotted path segment that only starts with two dots", async (): Promise<void> => {
+    const fixture = await createWorkspace();
+    const worktreePath = path.join(fixture.root, "..feature/wiki");
+
+    const result = await invoke(fixture.root, [
+      "worktree",
+      "add",
+      "--name",
+      "wiki",
+      "--path",
+      "..feature/wiki",
+      "--branch",
+      "feature/dotted-path",
+    ]);
+
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout).path).toBe(worktreePath);
+    expect(await isMissing(worktreePath)).toBe(false);
+  }, 30000);
+
+  test("target operations require an explicit safe path and protect the primary clone", async (): Promise<void> => {
+    const fixture = await createWorkspace();
+    expect((await invoke(fixture.root, ["worktree", "add", "--name", "wiki"])).code).toBe(2);
+    expect(
+      (await invoke(fixture.root, ["worktree", "add", "--name", "wiki", "--path", "../outside"]))
+        .code,
+    ).toBe(2);
+    for (const command of ["add", "switch", "remove"] as const) {
+      const arguments_ = [
+        "worktree",
+        command,
+        "--name",
+        "wiki",
+        "--path",
+        "repositories/wiki",
+        ...(command === "switch" ? ["--branch", "feature/x"] : []),
+      ];
+      const result = await invoke(fixture.root, arguments_);
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain("primary");
+    }
+  }, 30000);
+
+  test("list identifies the primary clone and locked extra worktree", async (): Promise<void> => {
+    const fixture = await createWorkspace();
+    const worktreePath = path.join(fixture.root, "worktrees/wiki");
+    await invoke(fixture.root, [
+      "worktree",
+      "add",
+      "--name",
+      "wiki",
+      "--path",
+      "worktrees/wiki",
+      "--branch",
+      "feature/wiki",
+    ]);
+    await git(["-C", fixture.repositoryPath, "worktree", "lock", worktreePath]);
+
+    const result = await invoke(fixture.root, ["worktree", "list"]);
     const repository = JSON.parse(result.stdout).repositories[0];
-    expect(repository).toMatchObject({ name: "wiki", status: "materialized" });
+
+    expect(repository.repositoryPath).toBe(fixture.repositoryPath);
     expect(repository.worktrees).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({
-          path: fixture.mainPath,
-          branch: "worktree/wiki-main",
-          isMain: true,
-          locked: false,
-        }),
-        expect.objectContaining({
-          path: extraPath,
-          branch: "feature/extra",
-          isMain: false,
-          locked: true,
-        }),
+        expect.objectContaining({ path: fixture.repositoryPath, primary: true }),
+        expect.objectContaining({ path: worktreePath, primary: false, locked: true }),
       ]),
     );
   }, 30000);
 
-  test("switch changes a registered worktree to an existing branch", async (): Promise<void> => {
+  test("switch updates only the explicitly addressed extra worktree", async (): Promise<void> => {
     const fixture = await createWorkspace();
-    await git(["-C", fixture.clonePath, "branch", "feature/existing", "main"]);
-
-    const result = await invoke(fixture.root, [
-      "worktree",
-      "switch",
-      "--name",
-      "wiki",
-      "--path",
-      "apps/wiki",
-      "--branch",
-      "feature/existing",
-    ]);
-
-    expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      success: true,
-      action: "switch-worktree",
-      name: "wiki",
-      path: fixture.mainPath,
-      branch: "feature/existing",
-      created: false,
-    });
-    expect((await git(["-C", fixture.mainPath, "branch", "--show-current"])).trim()).toBe(
-      "feature/existing",
-    );
-  }, 30000);
-
-  test("switch creates a missing branch from an explicit base", async (): Promise<void> => {
-    const fixture = await createWorkspace();
-    await git(["-C", fixture.clonePath, "branch", "release", "main"]);
-
-    const result = await invoke(fixture.root, [
-      "worktree",
-      "switch",
-      "--name",
-      "wiki",
-      "--path",
-      "apps/wiki",
-      "--branch",
-      "feature/new",
-      "--base",
-      "release",
-    ]);
-
-    expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      success: true,
-      branch: "feature/new",
-      created: true,
-      base: "release",
-    });
-    expect((await git(["-C", fixture.mainPath, "branch", "--show-current"])).trim()).toBe(
-      "feature/new",
-    );
-  }, 30000);
-
-  test("switch preserves the git error when another worktree occupies the branch", async (): Promise<void> => {
-    const fixture = await createWorkspace();
-    const extraPath = path.join(fixture.root, "extra/wiki");
-    await git([
-      "-C",
-      fixture.clonePath,
+    const worktreePath = path.join(fixture.root, "worktrees/wiki");
+    await invoke(fixture.root, [
       "worktree",
       "add",
-      "-q",
-      "-b",
-      "feature/occupied",
-      extraPath,
+      "--name",
+      "wiki",
+      "--path",
+      "worktrees/wiki",
+      "--branch",
+      "feature/old",
     ]);
 
     const result = await invoke(fixture.root, [
@@ -220,156 +254,73 @@ describe("workspace worktree (git integration)", (): void => {
       "--name",
       "wiki",
       "--path",
-      "apps/wiki",
+      "worktrees/wiki",
       "--branch",
-      "feature/occupied",
-    ]);
-
-    expect(result.code).toBe(1);
-    expect(result.stdout).toBe("");
-    expect(JSON.parse(result.stderr).error).toContain("feature/occupied");
-    expect((await git(["-C", fixture.mainPath, "branch", "--show-current"])).trim()).toBe(
-      "worktree/wiki-main",
-    );
-  }, 30000);
-
-  test("switch --dry-run plans a branch from the configured base without changing HEAD", async (): Promise<void> => {
-    const fixture = await createWorkspace();
-
-    const result = await invoke(fixture.root, [
-      "worktree",
-      "switch",
-      "--name",
-      "wiki",
-      "--path",
-      "apps/wiki",
-      "--branch",
-      "feature/preview",
-      "--dry-run",
+      "feature/new",
     ]);
 
     expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      success: true,
-      dryRun: true,
-      preview: {
-        action: "switch-worktree",
-        branch: "feature/preview",
-        created: true,
-        base: "main",
-      },
-    });
-    expect((await git(["-C", fixture.mainPath, "branch", "--show-current"])).trim()).toBe(
-      "worktree/wiki-main",
+    expect(JSON.parse(result.stdout)).toMatchObject({ created: true, base: "main" });
+    expect((await git(["-C", worktreePath, "branch", "--show-current"])).trim()).toBe(
+      "feature/new",
+    );
+    expect((await git(["-C", fixture.repositoryPath, "branch", "--show-current"])).trim()).toBe(
+      "main",
     );
   }, 30000);
 
-  test("remove deletes the worktree and preserves its branch by default", async (): Promise<void> => {
+  test("remove rejects dirty worktrees unless forced and preserves the branch", async (): Promise<void> => {
     const fixture = await createWorkspace();
+    const worktreePath = path.join(fixture.root, "worktrees/wiki");
+    await invoke(fixture.root, [
+      "worktree",
+      "add",
+      "--name",
+      "wiki",
+      "--path",
+      "worktrees/wiki",
+      "--branch",
+      "feature/wiki",
+    ]);
+    await writeFile(path.join(worktreePath, "dirty.txt"), "dirty\n", "utf8");
 
-    const result = await invoke(fixture.root, [
+    const blocked = await invoke(fixture.root, [
       "worktree",
       "remove",
       "--name",
       "wiki",
       "--path",
-      "apps/wiki",
+      "worktrees/wiki",
     ]);
-
-    expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      success: true,
-      action: "remove-worktree",
-      name: "wiki",
-      path: fixture.mainPath,
-      branch: "worktree/wiki-main",
-      branchDeleted: false,
-    });
-    expect(await isMissing(fixture.mainPath)).toBe(true);
-    expect(
-      (await git(["-C", fixture.clonePath, "branch", "--list", "worktree/wiki-main"])).trim(),
-    ).toContain("worktree/wiki-main");
-  }, 30000);
-
-  test("config removal is blocked until its worktree is removed", async (): Promise<void> => {
-    const fixture = await createWorkspace();
-    const blocked = await invoke(fixture.root, ["config", "remove", "--name", "wiki"]);
     expect(blocked.code).toBe(1);
-    expect(blocked.stderr).toContain("materialized");
-
-    const result = await invoke(fixture.root, [
+    const removed = await invoke(fixture.root, [
       "worktree",
       "remove",
       "--name",
       "wiki",
       "--path",
-      "apps/wiki",
-    ]);
-
-    expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      success: true,
-      action: "remove-worktree",
-      name: "wiki",
-    });
-    expect(await isMissing(fixture.mainPath)).toBe(true);
-  }, 30000);
-
-  test("a preserved branch can be reused by switching another registered worktree", async (): Promise<void> => {
-    const fixture = await createWorkspace();
-    const extraPath = path.join(fixture.root, "extra/wiki");
-    await git(["-C", fixture.clonePath, "worktree", "add", "-q", "-b", "feature/extra", extraPath]);
-    await invoke(fixture.root, ["worktree", "remove", "--name", "wiki", "--path", "apps/wiki"]);
-
-    const result = await invoke(fixture.root, [
-      "worktree",
-      "switch",
-      "--name",
-      "wiki",
-      "--path",
-      "extra/wiki",
-      "--branch",
-      "worktree/wiki-main",
-    ]);
-
-    expect(result.code).toBe(0);
-    expect((await git(["-C", extraPath, "branch", "--show-current"])).trim()).toBe(
-      "worktree/wiki-main",
-    );
-  }, 30000);
-
-  test("remove rejects a dirty worktree unless --force is used", async (): Promise<void> => {
-    const fixture = await createWorkspace();
-    await writeFile(path.join(fixture.mainPath, "dirty.txt"), "dirty\n", "utf8");
-
-    const rejected = await invoke(fixture.root, [
-      "worktree",
-      "remove",
-      "--name",
-      "wiki",
-      "--path",
-      "apps/wiki",
-    ]);
-
-    expect(rejected.code).toBe(1);
-    expect(JSON.parse(rejected.stderr).error).toContain("force");
-    expect(await isMissing(fixture.mainPath)).toBe(false);
-
-    const forced = await invoke(fixture.root, [
-      "worktree",
-      "remove",
-      "--name",
-      "wiki",
-      "--path",
-      "apps/wiki",
+      "worktrees/wiki",
       "--force",
     ]);
-    expect(forced.code).toBe(0);
-    expect(await isMissing(fixture.mainPath)).toBe(true);
+    expect(removed.code).toBe(0);
+    expect(await isMissing(worktreePath)).toBe(true);
+    expect(await git(["-C", fixture.repositoryPath, "branch", "--list", "feature/wiki"])).toContain(
+      "feature/wiki",
+    );
   }, 30000);
 
-  test("remove --delete-branch deletes a merged worktree branch", async (): Promise<void> => {
+  test("remove can delete its merged branch", async (): Promise<void> => {
     const fixture = await createWorkspace();
+    await invoke(fixture.root, [
+      "worktree",
+      "add",
+      "--name",
+      "wiki",
+      "--path",
+      "worktrees/wiki",
+      "--branch",
+      "feature/wiki",
+    ]);
 
     const result = await invoke(fixture.root, [
       "worktree",
@@ -377,22 +328,33 @@ describe("workspace worktree (git integration)", (): void => {
       "--name",
       "wiki",
       "--path",
-      "apps/wiki",
+      "worktrees/wiki",
       "--delete-branch",
     ]);
 
     expect(result.code).toBe(0);
     expect(JSON.parse(result.stdout).branchDeleted).toBe(true);
     expect(
-      (await git(["-C", fixture.clonePath, "branch", "--list", "worktree/wiki-main"])).trim(),
+      (await git(["-C", fixture.repositoryPath, "branch", "--list", "feature/wiki"])).trim(),
     ).toBe("");
   }, 30000);
 
-  test("remove --delete-branch preserves git refusal for an unmerged branch", async (): Promise<void> => {
+  test("remove keeps an unmerged branch worktree when branch deletion is requested", async (): Promise<void> => {
     const fixture = await createWorkspace();
-    await writeFile(path.join(fixture.mainPath, "local.txt"), "local\n", "utf8");
-    await git(["-C", fixture.mainPath, "add", "local.txt"]);
-    await gitCommit(fixture.mainPath, "local work");
+    const worktreePath = path.join(fixture.root, "worktrees/wiki");
+    await invoke(fixture.root, [
+      "worktree",
+      "add",
+      "--name",
+      "wiki",
+      "--path",
+      "worktrees/wiki",
+      "--branch",
+      "feature/unmerged",
+    ]);
+    await writeFile(path.join(worktreePath, "feature.txt"), "feature\n", "utf8");
+    await git(["-C", worktreePath, "add", "feature.txt"]);
+    await gitCommit(worktreePath, "unmerged feature");
 
     const result = await invoke(fixture.root, [
       "worktree",
@@ -400,92 +362,123 @@ describe("workspace worktree (git integration)", (): void => {
       "--name",
       "wiki",
       "--path",
-      "apps/wiki",
+      "worktrees/wiki",
       "--delete-branch",
     ]);
 
     expect(result.code).toBe(1);
-    expect(JSON.parse(result.stderr).error).toContain("not fully merged");
-    expect(await isMissing(fixture.mainPath)).toBe(true);
+    expect(result.stderr).toContain("not merged");
+    expect(await isMissing(worktreePath)).toBe(false);
     expect(
-      (await git(["-C", fixture.clonePath, "branch", "--list", "worktree/wiki-main"])).trim(),
-    ).toContain("worktree/wiki-main");
+      await git(["-C", fixture.repositoryPath, "branch", "--list", "feature/unmerged"]),
+    ).toContain("feature/unmerged");
   }, 30000);
 
-  test("remove --dry-run reports its actions without removing the worktree or branch", async (): Promise<void> => {
+  test("prune removes only a stale registration", async (): Promise<void> => {
     const fixture = await createWorkspace();
-
-    const result = await invoke(fixture.root, [
+    const worktreePath = path.join(fixture.root, "worktrees/stale");
+    await invoke(fixture.root, [
       "worktree",
-      "remove",
+      "add",
       "--name",
       "wiki",
       "--path",
-      "apps/wiki",
-      "--delete-branch",
-      "--dry-run",
+      "worktrees/stale",
+      "--branch",
+      "feature/stale",
     ]);
-
-    expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      success: true,
-      dryRun: true,
-      preview: {
-        action: "remove-worktree",
-        branch: "worktree/wiki-main",
-        deleteBranch: true,
-      },
-    });
-    expect(await isMissing(fixture.mainPath)).toBe(false);
-    expect(
-      (await git(["-C", fixture.clonePath, "branch", "--list", "worktree/wiki-main"])).trim(),
-    ).toContain("worktree/wiki-main");
-  }, 30000);
-
-  test("prune reports and removes a registration whose directory was deleted manually", async (): Promise<void> => {
-    const fixture = await createWorkspace();
-    const stalePath = path.join(fixture.root, "extra/stale");
-    await git(["-C", fixture.clonePath, "worktree", "add", "-q", "-b", "feature/stale", stalePath]);
-    await rm(stalePath, { force: true, recursive: true });
+    await rm(worktreePath, { recursive: true });
 
     const result = await invoke(fixture.root, ["worktree", "prune"]);
 
-    expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      success: true,
-      action: "prune-worktrees",
-      repositories: [
-        {
-          name: "wiki",
-          status: "pruned",
-          pruned: [expect.objectContaining({ path: stalePath, branch: "feature/stale" })],
-        },
-      ],
+    expect(JSON.parse(result.stdout).repositories[0].pruned[0]).toMatchObject({
+      path: worktreePath,
+      branch: "feature/stale",
     });
-    expect(await git(["-C", fixture.clonePath, "worktree", "list", "--porcelain"])).not.toContain(
-      stalePath,
-    );
+    expect(
+      await git(["-C", fixture.repositoryPath, "worktree", "list", "--porcelain"]),
+    ).not.toContain(worktreePath);
   }, 30000);
 
-  test("prune --dry-run reports stale registrations without pruning them", async (): Promise<void> => {
+  test("all repository-backed commands reject a configured clone linked outside", async (): Promise<void> => {
     const fixture = await createWorkspace();
-    const stalePath = path.join(fixture.root, "extra/stale");
-    await git(["-C", fixture.clonePath, "worktree", "add", "-q", "-b", "feature/stale", stalePath]);
-    await rm(stalePath, { force: true, recursive: true });
+    const outside = await createDirectory();
+    const outsideRepository = path.join(outside, "wiki");
+    await git(["clone", "-q", fixture.repositoryPath, outsideRepository]);
+    await rm(fixture.repositoryPath, { recursive: true });
+    await symlink(
+      outsideRepository,
+      fixture.repositoryPath,
+      process.platform === "win32" ? "junction" : "dir",
+    );
 
-    const result = await invoke(fixture.root, ["worktree", "prune", "--dry-run"]);
+    for (const arguments_ of [
+      ["worktree", "list"],
+      ["worktree", "add", "--name", "wiki", "--path", "worktrees/wiki"],
+      ["worktree", "prune"],
+      ["repository", "pull"],
+    ]) {
+      const result = await invoke(fixture.root, arguments_);
+      expect(result.code).toBe(1);
+      expect(result.stderr).toContain("outside the workspace");
+    }
+    const status = await invoke(fixture.root, ["repository", "status"]);
+    expect(JSON.parse(status.stdout).repositories[0].reason).toContain("outside the workspace");
+  }, 30000);
 
-    expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      success: true,
-      dryRun: true,
-      preview: {
-        action: "prune-worktrees",
-        repositories: [{ name: "wiki", pruned: [expect.objectContaining({ path: stalePath })] }],
-      },
-    });
-    const porcelain = await git(["-C", fixture.clonePath, "worktree", "list", "--porcelain"]);
-    expect(porcelain).toContain(stalePath.replace(/\\/gu, "/"));
-    expect(porcelain).toContain("prunable");
+  test("deletion order is worktree then repository then config", async (): Promise<void> => {
+    const fixture = await createWorkspace();
+    await invoke(fixture.root, [
+      "worktree",
+      "add",
+      "--name",
+      "wiki",
+      "--path",
+      "worktrees/wiki",
+      "--branch",
+      "feature/wiki",
+    ]);
+    const repositoryBlocked = await invoke(fixture.root, [
+      "repository",
+      "remove",
+      "--name",
+      "wiki",
+      "--yes",
+    ]);
+    expect(repositoryBlocked.code).toBe(1);
+    const configBlocked = await invoke(fixture.root, ["config", "remove", "--name", "wiki"]);
+    expect(configBlocked.code).toBe(1);
+
+    expect(
+      (
+        await invoke(fixture.root, [
+          "worktree",
+          "remove",
+          "--name",
+          "wiki",
+          "--path",
+          "worktrees/wiki",
+        ])
+      ).code,
+    ).toBe(0);
+    expect(
+      (await invoke(fixture.root, ["repository", "remove", "--name", "wiki", "--yes"])).code,
+    ).toBe(0);
+    expect((await invoke(fixture.root, ["config", "remove", "--name", "wiki"])).code).toBe(0);
+  }, 30000);
+
+  test("legacy local file has no effect on all three command layers", async (): Promise<void> => {
+    const fixture = await createWorkspace();
+    const before = await readFile(path.join(fixture.root, LEGACY_LOCAL_FILE), "utf8");
+
+    const config = await invoke(fixture.root, ["config", "list"]);
+    const repository = await invoke(fixture.root, ["repository", "status"]);
+    const worktree = await invoke(fixture.root, ["worktree", "list"]);
+
+    expect(config.code).toBe(0);
+    expect(repository.code).toBe(0);
+    expect(worktree.code).toBe(0);
+    expect(`${config.stdout}${repository.stdout}${worktree.stdout}`).not.toContain("clone_path");
+    expect(await readFile(path.join(fixture.root, LEGACY_LOCAL_FILE), "utf8")).toBe(before);
   }, 30000);
 });

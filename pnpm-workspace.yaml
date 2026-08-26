@@ -11,6 +11,8 @@ allowBuilds:
   esbuild: false
 
 catalog:
+  "@stryker-mutator/core": ^10.0.0
+  "@stryker-mutator/vitest-runner": ^10.0.0
   "@tanstack/react-virtual": ^3.14.10
   "@types/node": ^24.12.4
   "@types/react": ^19.2.14

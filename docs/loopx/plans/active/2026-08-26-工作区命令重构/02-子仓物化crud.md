@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 blocked_by: ["01"]
 ---
 
