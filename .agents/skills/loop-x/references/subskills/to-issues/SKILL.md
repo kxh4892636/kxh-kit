@@ -6,7 +6,7 @@ argument-hint: "要拆分或推进什么工作?"
 
 # To Issues
 
-先完整读取 `/loop-x` 及其根目录的 `DOMAIN.md`, 以其中的领域布局和 Plan 生命周期为权威约束. 下文的「校验」均指在工作区根目录执行 `node <loop-x-skill-dir>/script/check-domain.mjs .`.
+先完整读取 `/loop-x` 的 [`DOMAIN.md`](../../DOMAIN.md), 以其中的领域布局和 Plan 生命周期为权威约束. 下文的「校验」均指在工作区根目录执行 `node <loop-x-skill-dir>/script/check-domain.mjs .`.
 
 两种调用方式:
 
@@ -64,7 +64,7 @@ tracer-bullet 规则:
 
 1. **定位 frontier**——读该域 `plans/active/` 下各 spec.md 的 issue 表, 找到 `pending` 且直接依赖全部 `completed` 的 issue; 多个可选时按用户已确认的优先级选择.
 2. **交付或阻塞**——按共享协议领取并推进一个 issue. 当前 issue 完成或阻塞后, 本会话才领取下一项.
-3. **全部完成**——与用户确认参考价值, 按 `/loop-x` 根目录 `DOMAIN.md` 的生命周期约束将整个工作目录移入 `reference/` 或 `archived/`, 按共享协议同步 Plan, 再运行领域文档校验.
+3. **全部完成**——与用户确认参考价值, 按 [`DOMAIN.md`](../../DOMAIN.md) 的生命周期约束将整个工作目录移入 `reference/` 或 `archived/`, 按共享协议同步 Plan, 再运行领域文档校验.
 4. **新发现的工作**——开新 issue 或记入 spec 的 `待定` 节, 不在本 issue 内扩张范围; 需澄清的新工作回到建立与维护的 rounds 批量询问.
 
 spec 的决策不原地反转: 难逆转的决策按 `/grill-with-docs` 的标准写入该域 `adr/`, spec 中标注被取代链接; 事实性更新可直接修改.

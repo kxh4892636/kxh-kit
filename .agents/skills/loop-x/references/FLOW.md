@@ -89,7 +89,6 @@ node .agents/skills/loop-x/script/flow.mjs record-plan --plan <plan-path> --sess
 
 `.loop/state.json` 以 Flow 标识或 Plan 路径保存租约、skill 游标与 receipt；`.loop/state.lock` 只在单次运行态及 Plan 视图更新事务内短暂持有。二者不是领域文档，不参与版本控制。issue frontmatter 的 `status:` 是持久化执行状态的来源，spec 的状态与 Issue 表是派生视图，`flow.mjs` 在同一事务中协调三者。
 
-
 ```text
 pending ──领取──> in_progress ──交付物与验证证据齐备──> completed
                          │

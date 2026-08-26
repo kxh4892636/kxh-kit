@@ -65,7 +65,7 @@ node .agents/skills/loop-x/script/check-domain.mjs .
 
 ## 工作流索引
 
-可复用工作流的触发条件只在本节维护。命中后完整读取对应工作流文件；工作流正文不重复触发条件。目录概览见 [`workflows/README.md`](references/workflows/README.md)。
+工作流触发条件见 [工作流索引](references/workflows/README.md); 命中后完整读取对应工作流文件.
 
 ## 路径卡点
 

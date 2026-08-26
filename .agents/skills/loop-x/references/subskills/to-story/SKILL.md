@@ -8,7 +8,7 @@ argument-hint: "要把什么想法打磨成用户故事?"
 
 用户故事集是一组带唯一编号的用户故事有序集合. 用户故事的 **3C**: 卡片(story.md), 对话(`/grilling`), 确认(验收). 本 skill 运行 `/grilling`, 把一个模糊想法打磨为用户故事.
 
-先读取 `/loop-x` 根目录 `DOMAIN.md` 的「Plan 生命周期」, 再从工作区根 `CONTEXT-MAP.md` 定位业务域并读取该域 `CONTEXT.md`, ADR 和 Workflow. 新 plan 一律落在 `active/`;
+先读取 `/loop-x` 的 [`DOMAIN.md`](../../DOMAIN.md)「Plan 生命周期」, 再从工作区根 `CONTEXT-MAP.md` 定位业务域并读取该域 `CONTEXT.md`, ADR 和 Workflow. 新 plan 一律落在 `active/`;
 
 完整读取 [`FLOW.md`](../../FLOW.md). 作为顶层 skill 直接调用时, 确定 Plan 路径后、在访谈或写入 `story.md` 前按共享协议自动进入固定的 `story` 路径; 接收到 `/loop-x` 传递的 flow context 时直接复用. 进入后先登记 `/to-story=started`, 再只调用脚本返回的 `/grilling`; `/grilling` 登记完成并返回本 skill 后, 复用同一 context 恢复工作.
 

@@ -17,4 +17,4 @@ description: "根据 spec 或 issues 实现工作."
 
 将你的工作 commit 到当前 branch.
 
-遇到 block 卡点, 首先在对应业务域 workflow 中寻找可能的解决方法.
+遇到 block 卡点, 首先在 [工作流索引](../../workflows/README.md) 和对应业务域 workflow 中寻找可能的解决方法.
