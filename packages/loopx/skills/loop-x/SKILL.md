@@ -7,7 +7,7 @@ description: 把想法沿 Loop Kit 路由为领域设计、用户故事、tracer
 
 `/loop-x` 是从想法到交付的路由图。选择路径后，完整读取并执行该路径指向的 skill；各子 skill 是具体行为的单一事实源。
 
-工作依附于当前 workspace 时，先读取本 skill 同目录的 [`DOMAIN.md`](DOMAIN.md)，再按其中的定位顺序读取工作区根 `CONTEXT-MAP.md`、相关业务域的 `CONTEXT.md` 和 ADR。路径只在当前卡点的完成标准成立后向前推进。
+工作依附于当前 workspace 时，先读取 [`DOMAIN.md`](references/DOMAIN.md)，再按其中的定位顺序读取工作区根 `CONTEXT-MAP.md`、相关业务域的 `CONTEXT.md` 和 ADR。路径只在当前卡点的完成标准成立后向前推进。
 
 创建或修改领域文档、spec 或 issue 后，在工作区根目录执行：
 
@@ -19,7 +19,7 @@ node .agents/skills/loop-x/script/check-domain.mjs .
 
 ## 路由并进入 Flow
 
-完整读取 [`FLOW.md`](FLOW.md)，它是四个触发 skill 共用的 `flow.mjs` 调用协议。
+完整读取 [`FLOW.md`](references/FLOW.md)，它是四个触发 skill 共用的 `flow.mjs` 调用协议。
 
 1. 根据用户输入只推荐一条入口路径，并说明选择理由：设计或领域理解仍需打磨时选择 `/grill-with-docs`；角色、需求或收益仍模糊时选择 `/to-story`；目标明确但工作大到一次上下文无法安全完成时选择 `/to-issues`。
 2. 等待用户明确确认推荐路径。未确认时继续澄清或调整推荐，不进入 Flow。
@@ -39,9 +39,9 @@ node .agents/skills/loop-x/script/check-domain.mjs .
                                        └─ commit
 ```
 
-1. 使用 [`/grill-with-docs`](references/grill-with-docs/SKILL.md) 打磨设计，并就地维护已确认的领域术语与 ADR。
-2. 使用 [`/dev-gate`](references/dev-gate/SKILL.md) 检查准入条件，确认工作环境、执行契约和验收门禁。结论为 `ready` 后进入实现。
-3. 使用 [`/implement`](references/implement/SKILL.md) 在确认的边界内交付。实现默认在合适 seam 上运行 [`/tdd`](references/tdd/SKILL.md)，随后由 [`/verifying`](references/verifying/SKILL.md) 建立证据链，再由 [`/code-review`](references/code-review/SKILL.md) 分别审查 Standards 与 Spec，最后提交。
+1. 使用 [`/grill-with-docs`](references/subskills/grill-with-docs/SKILL.md) 打磨设计，并就地维护已确认的领域术语与 ADR。
+2. 使用 [`/dev-gate`](references/subskills/dev-gate/SKILL.md) 检查准入条件，确认工作环境、执行契约和验收门禁。结论为 `ready` 后进入实现。
+3. 使用 [`/implement`](references/subskills/implement/SKILL.md) 在确认的边界内交付。实现默认在合适 seam 上运行 [`/tdd`](references/subskills/tdd/SKILL.md)，随后由 [`/verifying`](references/subskills/verifying/SKILL.md) 建立证据链，再由 [`/code-review`](references/subskills/code-review/SKILL.md) 分别审查 Standards 与 Spec，最后提交。
 
 实现中的范围、环境、执行契约或验收门禁发生实质漂移时，返回 `/dev-gate` 重新确认。
 
@@ -53,7 +53,7 @@ node .agents/skills/loop-x/script/check-domain.mjs .
 /to-story ──故事卡点通过──> /to-issues ──Issue 图卡点通过──> /dev-gate
 ```
 
-当角色、需求或收益仍不清楚时，使用 [`/to-story`](references/to-story/SKILL.md)。它通过 `/grilling` 推进讨论与后台调研，把已确认内容就地写入 `story.md`。故事集完成后进入 `/to-issues`，再汇入主路径的 `/dev-gate`。
+当角色、需求或收益仍不清楚时，使用 [`/to-story`](references/subskills/to-story/SKILL.md)。它通过 `/grilling` 推进讨论与后台调研，把已确认内容就地写入 `story.md`。故事集完成后进入 `/to-issues`，再汇入主路径的 `/dev-gate`。
 
 ### 超大工作：直接拆为 tracer bullets
 
@@ -61,7 +61,11 @@ node .agents/skills/loop-x/script/check-domain.mjs .
 /to-issues ──Issue 图卡点通过──> /dev-gate
 ```
 
-当工作大到单次上下文无法安全完成，但问题、用户和目标已足够明确时，使用 [`/to-issues`](references/to-issues/SKILL.md)。它通过 `/grill-with-docs` 将确认内容维护为一份 spec 和一张可独立实现、交付、验收的 tracer-bullet issue 图，再汇入主路径。
+当工作大到单次上下文无法安全完成，但问题、用户和目标已足够明确时，使用 [`/to-issues`](references/subskills/to-issues/SKILL.md)。它通过 `/grill-with-docs` 将确认内容维护为一份 spec 和一张可独立实现、交付、验收的 tracer-bullet issue 图，再汇入主路径。
+
+## 工作流索引
+
+可复用工作流的触发条件只在本节维护。命中后完整读取对应工作流文件；工作流正文不重复触发条件。目录概览见 [`workflows/README.md`](references/workflows/README.md)。
 
 ## 路径卡点
 
@@ -75,7 +79,7 @@ node .agents/skills/loop-x/script/check-domain.mjs .
 
 ## To Issues 的文档形状
 
-新 Plan 创建在 `active/`。精确模板、tracer-bullet 规则与维护步骤以 [`/to-issues`](references/to-issues/SKILL.md) 为准。
+新 Plan 创建在 `active/`。精确模板、tracer-bullet 规则与维护步骤以 [`/to-issues`](references/subskills/to-issues/SKILL.md) 为准。
 
 ```text
 docs/{domain-name}/plans/active/YYYY-MM-DD-中文工作名/
@@ -90,7 +94,7 @@ docs/{domain-name}/plans/active/YYYY-MM-DD-中文工作名/
 
 ## 独立能力
 
-- 不依附工作区的思考打磨使用 [`/grilling`](references/grilling/SKILL.md)。
-- 模块边界与 deep-module vocabulary 使用 [`/codebase-design`](references/codebase-design/SKILL.md)。
-- 编写、修改或审查代码使用 [`/code-spec`](references/code-spec/SKILL.md)。
-- 编写 skill、`AGENTS.md` 或 agent context pointer 使用 [`/writing-for-agents`](references/writing-for-agents/SKILL.md)。
+- 不依附工作区的思考打磨使用 [`/grilling`](references/subskills/grilling/SKILL.md)。
+- 模块边界与 deep-module vocabulary 使用 [`/codebase-design`](references/subskills/codebase-design/SKILL.md)。
+- 编写、修改或审查代码使用 [`/code-spec`](references/subskills/code-spec/SKILL.md)。
+- 编写 skill、`AGENTS.md` 或 agent context pointer 使用 [`/writing-for-agents`](references/subskills/writing-for-agents/SKILL.md)。

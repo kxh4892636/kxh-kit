@@ -417,9 +417,14 @@ const checkAdrs = (domainPath, errors, rootDir) => {
 export const checkDomain = (rootDirectory) => {
   const rootDir = path.resolve(rootDirectory);
   const errors = [];
-  const policyPath = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "DOMAIN.md");
+  const policyPath = path.resolve(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "references",
+    "DOMAIN.md",
+  );
   if (!fs.existsSync(policyPath)) {
-    addError(errors, rootDir, policyPath, "/loop-x 缺少 DOMAIN.md");
+    addError(errors, rootDir, policyPath, "/loop-x 缺少 references/DOMAIN.md");
   }
   for (const requiredFile of ["CONTEXT-MAP.md"]) {
     if (!fs.existsSync(path.join(rootDir, requiredFile))) {
