@@ -17,7 +17,7 @@ status: completed
 ## 已排除的备选
 
 - 语义化读取“最新一条消息”：Herdr 0.8.2 没有 conversation/message API，只能读取终端快照。
-- 扫描整个 recent buffer：历史残留的 `429` 与 `limit` 会误触发；只检查规范化 `detection` 快照末尾 55 个 Unicode 字符。
+- 扫描整个 recent buffer：历史残留的 `429` 与 `limit` 会误触发；只检查规范化 `recent_unwrapped` 快照末尾 233 个 Unicode 字符。
 - 对 `blocked` 使用 `agent.prompt`：Herdr 会在发送任何输入前返回 `agent_blocked`；按用户确认改用底层 `pane.send_input`。
 - 仅支持 Codex 的 blocked 输入：用户确认所有 Herdr 已识别 agent 类型都进入相同策略，不设 kind allowlist。
 - 只靠 30 秒轮询：startup 命令不是 Herdr 监督的 daemon；状态事件是主触发，worker 只补偿漏失事件。
@@ -43,7 +43,7 @@ status: completed
 
 - `agent.list` 的当前 session 全量结果由插件本地过滤；所有 workspace、所有 Herdr 已识别 agent 类型均在范围内。
 - 只有 `agent_status` 为 `idle`、`blocked` 或 `done` 的 agent 是候选。
-- 对 `agent.read` 的 `detection` text 执行 Unicode 空白序列折叠为单个空格并 trim，再按 Unicode code point 取得末尾 55 个字符；该区域必须同时包含字面量 `429` 与大小写不敏感的 `limit`。
+- 对 `agent.read` 的 `recent_unwrapped` text 执行 Unicode 空白序列折叠为单个空格并 trim，再按 Unicode code point 取得末尾 233 个字符；该区域必须同时包含字面量 `429` 与大小写不敏感的 `limit`。
 - 空区域、任一 token 缺失、读取失败或协议字段不足时只记录跳过，不发送输入。
 
 ### 二次确认与发送
@@ -56,7 +56,7 @@ status: completed
 ### 去重、并发与状态
 
 - 持久状态按 `HERDR_SOCKET_PATH` 的哈希分片，避免全局安装的插件在多个 session 之间互相抑制。
-- 每个 agent 以 `terminal_id` 定位；处理指纹由 `terminal_id` 与规范化 55 字符区域的哈希组成，不把 `idle`/`blocked`/`done` 之间的状态差异当成新停顿。
+- 每个 agent 以 `terminal_id` 定位；处理指纹由 `terminal_id` 与规范化 233 字符区域的哈希组成，不把 `idle`/`blocked`/`done` 之间的状态差异当成新停顿。
 - 观察到 agent 进入 `working` 或 `unknown` 后，才解除该 terminal 已处理指纹；`done` 因聚焦变为 `idle` 时不得解除，避免同一限流停顿重复发送。它之后经过非候选状态再进入候选状态时，即使限流文本相同也可构成新停顿。
 - event handler、手工扫描和 worker 使用基于 `open(..., "wx")` 的逐 terminal 文件锁；锁文件包含 owner 与时间，按明确过期策略恢复异常退出遗留锁。
 - 只有发送成功后才以临时文件加 rename 原子持久化处理指纹；重启后 agent 与指纹未变化时不得重复发送。
@@ -82,13 +82,13 @@ status: completed
 
 - Herdr plugin manifest、构建与安装说明。
 - Herdr NDJSON socket 端口及假 server 测试端口。
-- 当前 session 全 workspace 的候选筛选、55 字符消息区域匹配、二次确认、两种发送策略。
+- 当前 session 全 workspace 的候选筛选、233 字符消息区域匹配、二次确认、两种发送策略。
 - 跨进程锁、跨重启去重、状态事件、30 秒补偿 worker、结构化诊断和安全退出。
 
 ## 非范围
 
 - 修改 Herdr core、agent detection manifest 或任何 coding agent 本身。
-- 保证“最新 55 字符”等价于语义上的最新 agent 消息。
+- 保证“最新 233 字符”等价于语义上的最新 agent 消息。
 - 识别 429/limit 之外的错误、自动计算 backoff 或等待限流窗口。
 - 为 `blocked` 对话理解审批语义，或为不同 agent 类型定制按键。
 - 使用外部 cron、Windows service、systemd/launchd 监督 worker。

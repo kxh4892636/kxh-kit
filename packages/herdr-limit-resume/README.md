@@ -1,12 +1,13 @@
 # Limit Resume
 
 Limit Resume is a Herdr 0.8.2+ plugin that resumes rate-limited agents. It watches every agent
-type in every workspace. When a `blocked`, `done`, or `idle` agent's latest detection region
+type in every workspace. When a `blocked`, `done`, or `idle` agent's latest terminal region
 contains both `429` and `limit`, it sends `go on`.
 
-The detection region is an approximation: whitespace is collapsed and only the final 233 Unicode
-characters are checked. `limit` is case-insensitive. A status event triggers an immediate check;
-a startup worker also checks immediately and every 30 seconds to compensate for missed events.
+The terminal region is an approximation based on Herdr's `recent_unwrapped` read source: whitespace
+is collapsed and only the final 233 Unicode characters are checked. `limit` is case-insensitive. A
+status event triggers an immediate check; a startup worker also checks immediately and every 30
+seconds to compensate for missed events.
 
 ## Install
 

@@ -105,7 +105,7 @@ const processCurrentAgent = async (
     await state.clear(agent.terminal_id);
     return emptyResult();
   }
-  const read = await options.herdr.readDetection(agent.pane_id);
+  const read = await options.herdr.readLatest(agent.pane_id);
   const region = messageRegion(read.text);
   if (!isRateLimitRegion(region)) return { ...emptyResult(), scanned: 1, skipped: 1 };
   const fingerprint = fingerprintFor(region);

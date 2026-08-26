@@ -12,7 +12,7 @@ blocked_by: ["01"]
 ## 范围
 
 - 在 Herdr socket 端口加入 raw `pane.send_input`。
-- 让单次扫描处理 `blocked` 候选，复用 01 的 55 字符匹配、二次确认、成功指纹和诊断契约。
+- 让单次扫描处理 `blocked` 候选，复用 01 的 233 字符匹配、二次确认、成功指纹和诊断契约。
 - 对所有 Herdr 已识别 agent 类型使用同一单请求 `{ pane_id, text: "go on", keys: ["enter"] }`，不设 kind allowlist。
 - 失败不得落成功去重；不退化为两次 `send-text`/`send-keys`。
 - 不接入自动状态事件、跨进程 handler 锁或 30 秒 worker。

@@ -27,13 +27,15 @@ export interface AgentRead {
   text: string;
 }
 
+type ReadSource = "detection" | "recent_unwrapped";
+
 export type AgentListEntry = { agent: AgentInfo; ok: true } | { index: number; ok: false };
 
 export interface HerdrPort {
   getAgent(target: string): Promise<AgentInfo>;
   listAgents(): Promise<AgentListEntry[]>;
   promptAgent(target: string, text: string): Promise<void>;
-  readDetection(target: string): Promise<AgentRead>;
+  readLatest(target: string): Promise<AgentRead>;
   sendPaneInput(paneId: string, text: string, keys: string[]): Promise<void>;
 }
 
@@ -122,10 +124,14 @@ export class HerdrSocket implements HerdrPort {
     });
   }
 
-  public async readDetection(target: string): Promise<AgentRead> {
+  public async readLatest(target: string): Promise<AgentRead> {
+    return await this.#readAgent(target, "recent_unwrapped");
+  }
+
+  async #readAgent(target: string, source: ReadSource): Promise<AgentRead> {
     const result = await this.#request("agent.read", {
       format: "text",
-      source: "detection",
+      source,
       strip_ansi: true,
       target,
     });

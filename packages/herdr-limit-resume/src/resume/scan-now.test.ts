@@ -40,6 +40,36 @@ test("a done rate-limit stall is resumed once across all workspaces", async (): 
   ]);
 });
 
+test("latest terminal text drives detection even when the detection snapshot is stale", async (): Promise<void> => {
+  const stateDir = await mkdtemp(join(tmpdir(), "herdr-limit-resume-state-"));
+  resources.push(async (): Promise<void> => rm(stateDir, { force: true, recursive: true }));
+  const { requests, socketPath } = await listen(
+    responseFor(agent, {
+      detection: "old completion without rate-limit tokens",
+      recent_unwrapped: "request failed with HTTP 429 because the upstream limit was reached",
+    }),
+  );
+
+  const result = await runScanNow({ socketPath, stateDir });
+
+  expect(result).toEqual({ failed: 0, resumed: 1, scanned: 1, skipped: 0 });
+  expect(requests.filter(({ method }: SocketRequest): boolean => method === "agent.read")).toEqual([
+    {
+      id: expect.any(String) as string,
+      method: "agent.read",
+      params: {
+        format: "text",
+        source: "recent_unwrapped",
+        strip_ansi: true,
+        target: agent.pane_id,
+      },
+    },
+  ]);
+  expect(
+    requests.filter(({ method }: SocketRequest): boolean => method === "agent.prompt"),
+  ).toHaveLength(1);
+});
+
 test("an accepted input with unchanged state records its region hash", async (): Promise<void> => {
   const stateDir = await mkdtemp(join(tmpdir(), "herdr-limit-resume-state-"));
   resources.push(async (): Promise<void> => rm(stateDir, { force: true, recursive: true }));

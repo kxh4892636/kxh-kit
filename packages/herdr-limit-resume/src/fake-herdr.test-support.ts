@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { createServer, type Server, type Socket } from "node:net";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 export interface SocketRequest {
@@ -20,6 +19,9 @@ export interface FakeAgent {
   terminal_id: string;
   workspace_id: string;
 }
+
+type FakeReadSource = "detection" | "recent_unwrapped";
+type FakeReadText = string | Partial<Record<FakeReadSource, string>>;
 
 const servers: Server[] = [];
 
@@ -42,21 +44,22 @@ export const fakeAgent = {
 export const responseFor =
   (
     targetAgent: FakeAgent,
-    detectionText = "Please retry: HTTP 429 RATE LIMIT reached",
+    readText: FakeReadText = "Please retry: HTTP 429 RATE LIMIT reached",
   ): ((request: SocketRequest) => Record<string, unknown>) =>
   (request: SocketRequest): Record<string, unknown> => {
     if (request.method === "agent.list") {
       return { agents: [targetAgent], type: "agent_list" };
     }
     if (request.method === "agent.read") {
+      const source = readSourceFor(request);
       return {
         read: {
           format: "text",
           pane_id: targetAgent.pane_id,
           revision: targetAgent.revision,
-          source: "detection",
+          source,
           tab_id: targetAgent.tab_id,
-          text: detectionText,
+          text: textForSource(readText, source),
           truncated: false,
           workspace_id: targetAgent.workspace_id,
         },
@@ -73,13 +76,24 @@ export const responseFor =
     throw new Error(`Unexpected method: ${request.method}`);
   };
 
+const readSourceFor = (request: SocketRequest): FakeReadSource => {
+  const source = request.params["source"];
+  if (source === "detection" || source === "recent_unwrapped") return source;
+  throw new Error(`Unexpected read source: ${String(source)}`);
+};
+
+const textForSource = (readText: FakeReadText, source: FakeReadSource): string => {
+  if (typeof readText === "string") return readText;
+  return readText[source] ?? "";
+};
+
 export const listen = async (
   onRequest: (request: SocketRequest) => Record<string, unknown>,
 ): Promise<{ requests: SocketRequest[]; socketPath: string }> => {
   const socketPath =
     process.platform === "win32"
       ? `\\\\.\\pipe\\herdr-limit-resume-${randomUUID()}`
-      : join(tmpdir(), `herdr-limit-resume-${randomUUID()}.sock`);
+      : join("/tmp", `hlr-${randomUUID().slice(0, 8)}.sock`);
   const requests: SocketRequest[] = [];
   const server = createServer((socket: Socket): void => {
     let buffered = "";
