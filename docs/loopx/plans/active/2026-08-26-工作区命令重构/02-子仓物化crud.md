@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in_progress
 blocked_by: ["01"]
 ---
 
@@ -24,7 +24,13 @@ blocked_by: ["01"]
 
 ## 验收
 
-- [ ] 真实 git 集成测试证明：clone/status/pull/remove 完整覆盖物化 CRUD，clone 与 pull 不互相隐式代理，pull 只快进安全克隆，remove 守住确认、dirty、本地独有历史和 worktree 门禁，全组不读写 local 文件或创建 worktree；并通过 spec 固定的全部 `/verifying` 门禁。
+- [x] 真实 git 集成测试证明：clone/status/pull/remove 完整覆盖物化 CRUD，clone 与 pull 不互相隐式代理，pull 只快进安全克隆，remove 守住确认、dirty、本地独有历史和 worktree 门禁，全组不读写 local 文件或创建 worktree；并通过 spec 固定的全部 `/verifying` 门禁。
+
+## 交付记录
+
+- 交付物：`workspace repository clone/status/pull/remove`、配置 path 物化、批处理失败隔离、浅克隆安全快进、物理路径删除门禁、local-only refs 与凭据脱敏保护，以及 16 项真实 Git 集成测试。
+- 验证证据：变更文件 format/lint/type 通过；全量 `test` 19 files / 254 tests 通过；`build` 通过。完整 `check` 的 lint/type 通过；全仓格式仍受既有 CRLF checkout 差异影响，未批量改写未改文件。
+- 审查：Standards 4 项、Spec 2 项发现全部修复；新增 symlink/junction 越界、tag-only 历史、mixed unknown name、凭据脱敏与 pull 后保持 shallow 的回归测试。
 
 ## 上下文
 

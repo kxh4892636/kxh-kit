@@ -21,8 +21,12 @@ import {
   WorkspaceConfigError,
   type WorkspaceRepository,
 } from "./workspace-config";
-import { prepareWorkspacePull } from "./workspace-pull";
-import { statusWorkspace } from "./workspace-query";
+import {
+  prepareRepositoryClone,
+  prepareRepositoryPull,
+  prepareRepositoryRemove,
+  statusRepositories,
+} from "./workspace-repository";
 import {
   listWorkspaceWorktrees,
   prepareWorkspacePrune,
@@ -90,25 +94,17 @@ const updateOptions = [
   option.string("branch", "Replacement base branch", {}),
 ] as const;
 
-const pullOptions = [
+const repositoryListOptions = [
   option.string("name", "Repository to pull; repeat to pull several; defaults to all", {
     multiple: true,
     placeholder: "name",
   }),
-  option.string(
-    "path",
-    "Worktree path relative to the workspace root; requires exactly one --name",
-    {
-      placeholder: "path",
-    },
-  ),
-  option.string(
-    "worktree-branch",
-    "Branch for a newly created worktree; requires exactly one --name",
-    {
-      placeholder: "branch",
-    },
-  ),
+] as const;
+
+const repositoryRemoveOptions = [
+  option.string("name", "Repository clone to remove", { required: true }),
+  option.boolean("yes", "Confirm removal of the resolved repository path", {}),
+  option.boolean("force", "Remove a dirty clone or local-only history", {}),
 ] as const;
 
 const worktreeListOptions = [
@@ -264,33 +260,49 @@ const workspaceCommand: BuiltinCommand = group("workspace", "Manage multi-reposi
       },
     }),
   ]),
-  command(
-    "pull",
-    "Materialize configured repositories and fast-forward them to their base branch",
-    pullOptions,
-    {
+  group("repository", "Manage configured repository clones", [
+    command(
+      "clone",
+      "Clone missing repositories at their configured paths",
+      repositoryListOptions,
+      {
+        kind: "mutation",
+        prepare: async (
+          options: ValuesFromOptions<typeof repositoryListOptions>,
+          context: InvocationContext,
+        ): Promise<PreparedMutation> => prepareRepositoryClone(options.name ?? [], context),
+      },
+    ),
+    command("status", "Inspect repository clones without fetching", repositoryListOptions, {
+      kind: "query",
+      run: async (
+        options: ValuesFromOptions<typeof repositoryListOptions>,
+        context: InvocationContext,
+      ): Promise<JsonOutput> => statusRepositories(options.name ?? [], context),
+    }),
+    command("pull", "Fast-forward materialized repository clones", repositoryListOptions, {
       kind: "mutation",
       prepare: async (
-        options: ValuesFromOptions<typeof pullOptions>,
+        options: ValuesFromOptions<typeof repositoryListOptions>,
+        context: InvocationContext,
+      ): Promise<PreparedMutation> => prepareRepositoryPull(options.name ?? [], context),
+    }),
+    command("remove", "Remove one materialized repository clone", repositoryRemoveOptions, {
+      kind: "mutation",
+      prepare: async (
+        options: ValuesFromOptions<typeof repositoryRemoveOptions>,
         context: InvocationContext,
       ): Promise<PreparedMutation> =>
-        prepareWorkspacePull(
+        prepareRepositoryRemove(
           {
-            names: options.name ?? [],
-            path: options.path,
-            worktreeBranch: options["worktree-branch"],
+            name: options.name,
+            yes: options.yes ?? false,
+            force: options.force ?? false,
           },
           context,
         ),
-    },
-  ),
-  command("status", "Inspect clones and registered worktrees without fetching", [], {
-    kind: "query",
-    run: async (
-      _options: Readonly<Record<string, never>>,
-      context: InvocationContext,
-    ): Promise<JsonOutput> => statusWorkspace(context),
-  }),
+    }),
+  ]),
   group("worktree", "Manage repository worktrees", [
     command("list", "List registered worktrees", worktreeListOptions, {
       kind: "query",

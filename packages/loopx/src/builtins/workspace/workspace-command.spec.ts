@@ -1,5 +1,5 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
 import { runCli, type CliRequest } from "../../cli/run";
@@ -365,109 +365,5 @@ describe("workspace config list and remove", (): void => {
     await mkdir(path.join(cwd, "apps", "wiki"), { recursive: true });
     const update = await invoke(cwd, ["config", "update", "--name", "wiki", "--branch", "dev"]);
     expect(update.code).toBe(0);
-  });
-});
-
-describe("workspace pull", (): void => {
-  test("fails with a usage error when --path is combined with multiple --name", async (): Promise<void> => {
-    const cwd = await createDirectory();
-    const result = await invoke(cwd, ["pull", "--name", "wiki", "--name", "docs", "--path", "x"]);
-    expect(result.code).toBe(2);
-    expect(result.stdout).toBe("");
-    expect(JSON.parse(result.stderr)).toMatchObject({
-      success: false,
-      error: expect.stringContaining("--name"),
-    });
-  });
-
-  test("fails with a usage error when --worktree-branch is used without --name", async (): Promise<void> => {
-    const cwd = await createDirectory();
-    const result = await invoke(cwd, ["pull", "--worktree-branch", "feature/docs"]);
-    expect(result.code).toBe(2);
-    expect(JSON.parse(result.stderr)).toMatchObject({ success: false });
-  });
-
-  test("fails with a JSON error for an unknown --name", async (): Promise<void> => {
-    const cwd = await initWorkspace();
-    await invoke(cwd, ADD_WIKI);
-    const result = await invoke(cwd, ["pull", "--name", "ghost"]);
-    expect(result.code).toBe(1);
-    expect(result.stdout).toBe("");
-    expect(JSON.parse(result.stderr)).toMatchObject({
-      success: false,
-      error: expect.stringContaining("ghost"),
-    });
-  });
-
-  test("fails with a JSON error when a recorded clone_path no longer exists", async (): Promise<void> => {
-    const cwd = await initWorkspace();
-    await invoke(cwd, ADD_WIKI);
-    const missing = path.join(cwd, "missing-clone");
-    await writeFile(
-      path.join(cwd, WORKSPACE_LOCAL_FILE),
-      `repositories:
-  - name: wiki
-    clone_path: ${missing}
-`,
-      "utf8",
-    );
-    const result = await invoke(cwd, ["pull"]);
-    expect(result.code).toBe(1);
-    expect(result.stdout).toBe("");
-    expect(JSON.parse(result.stderr)).toMatchObject({
-      success: false,
-      error: expect.stringContaining(missing),
-      hint: expect.stringContaining(WORKSPACE_LOCAL_FILE),
-    });
-  });
-
-  test("--dry-run reports the per-repository action plan without any side effect", async (): Promise<void> => {
-    const cwd = await initWorkspace();
-    const name = `preview-${process.pid}`;
-    await invoke(cwd, [
-      "config",
-      "add",
-      "--name",
-      name,
-      "--url",
-      "https://github.com/kxh4892636/wiki.git",
-      "--path",
-      "apps/preview",
-      "--branch",
-      "main",
-    ]);
-    const clonePath = path.join(homedir(), "workspaces", name);
-    const result = await invoke(cwd, ["pull", "--dry-run"]);
-    expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual({
-      success: true,
-      dryRun: true,
-      preview: {
-        action: "pull",
-        repositories: [
-          {
-            name,
-            actions: [
-              {
-                action: "clone",
-                url: "https://github.com/kxh4892636/wiki.git",
-                clonePath,
-              },
-              {
-                action: "create-worktree",
-                path: path.join(cwd, "apps/preview"),
-                branch: expect.stringMatching(new RegExp(`^worktree/${name}-\\d{14}$`, "u")),
-                base: "main",
-              },
-              { action: "fetch", branch: "main" },
-              { action: "fast-forward", branch: "main" },
-              { action: "record-clone-path", clonePath },
-            ],
-            status: "pulled",
-          },
-        ],
-      },
-    });
-    await expect(readFile(path.join(cwd, WORKSPACE_LOCAL_FILE), "utf8")).rejects.toThrow();
   });
 });

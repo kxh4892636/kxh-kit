@@ -57,7 +57,8 @@ export const isWorkspaceRelativePath = (value: string): boolean => {
   if (value.length === 0) return false;
   if (value.startsWith("/") || value.startsWith("\\")) return false;
   if (/^[a-zA-Z]:/u.test(value)) return false;
-  return !value.split(/[\\/]/u).includes("..");
+  if (value.split(/[\\/]/u).includes("..")) return false;
+  return path.posix.normalize(value.replace(/\\/gu, "/")) !== ".";
 };
 
 const repositorySchema = z.object({

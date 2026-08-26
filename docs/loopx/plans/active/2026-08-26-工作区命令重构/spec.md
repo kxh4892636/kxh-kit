@@ -120,6 +120,6 @@ repositories:
 
 | #   | Issue                                       | 状态        | 阻塞于 | 下一步     |
 | --- | ------------------------------------------- | ----------- | ------ | ---------- |
-| 01  | [工作区配置 CRUD](01-工作区配置crud.md)     | in_progress | —      | /implement |
-| 02  | [子仓物化 CRUD](02-子仓物化crud.md)         | pending     | 01     | /implement |
+| 01  | [工作区配置 CRUD](01-工作区配置crud.md)     | completed   | —      | /implement |
+| 02  | [子仓物化 CRUD](02-子仓物化crud.md)         | in_progress | 01     | /implement |
 | 03  | [Worktree CRUD](03-worktree生命周期crud.md) | pending     | 02     | /implement |
