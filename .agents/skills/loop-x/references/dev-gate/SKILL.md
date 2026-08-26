@@ -7,7 +7,7 @@ description: 在进入 /implement 前, 使用 /grilling, /grill-with-docs 或 /t
 
 **Gate** 是进入 `/implement` 之前的门禁检查. 本 skill 只交付 `ready` 或 `not ready` 结论; `ready` 之后才开始代码变更.
 
-任何准入判断前先完整读取 [`QUESTIONS.md`](../../QUESTIONS.md)，以用户输入和当前上下文作为已有答案，选择并询问全部相关问题。问题集未清空时结论为 `not ready`。
+任何准入判断前先完整读取 [`QUESTIONS.md`](../../QUESTIONS.md) 和 [工作流索引](../../workflows/README.md)，以用户输入和当前上下文作为已有答案，选择并询问全部相关问题。问题集未清空时结论为 `not ready`。
 
 ## 1. 准入门禁
 
@@ -35,7 +35,7 @@ description: 在进入 /implement 前, 使用 /grilling, /grill-with-docs 或 /t
 
 `/verifying` 使用的最小门禁集合.
 
-完成标准: `QUESTIONS.md` 已完整读取且其定义的问题集已清空；三项基线全部向用户明确，且用户已确认信息正确.
+完成标准: `QUESTIONS.md` 和 `工作流索引` 已完整读取且其定义的问题集已清空；三项基线全部向用户明确，且用户已确认信息正确.
 
 ## 3. 确认门禁通过
 

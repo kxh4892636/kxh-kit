@@ -74,7 +74,7 @@ node .agents/skills/loop-x/script/flow.mjs record-plan --plan <plan-path> --sess
 - `commit` 是 `next_action`，不是 skill。Issue 提交前，其「交付记录」必须包含交付物与验证证据。
 - `story` 和 `issues` 路径到达 `ready` 后，使用 `claim-issue` 领取依赖已满足的 issue；首次领取可省略 `--session` 并由脚本生成，成功后保留返回的 `issue`、`plan` 和 `session`。脚本同步状态并返回 `/implement`。
 
-脚本返回 `/dev-gate` 时，调用者必须在执行该 skill 前完整读取 [`QUESTIONS.md`](QUESTIONS.md)，以用户输入和当前上下文筛选并询问相关问题。直接调用 `/dev-gate` 时由该 skill 的第一步执行同一契约；不额外登记已阅读 receipt。
+脚本返回 `/dev-gate` 时，调用者必须在执行该 skill 前完整读取 [`QUESTIONS.md`](QUESTIONS.md) 和 [工作流索引](workflows/README.md)，以用户输入和当前上下文筛选并询问相关问题。直接调用 `/dev-gate` 时由该 skill 的第一步执行同一契约；不额外登记已阅读 receipt。
 
 ## 租约与恢复
 
