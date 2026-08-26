@@ -13,7 +13,7 @@ blocked_by: []
 
 - 建立 `config init/add/list/update/remove`，移入旧扁平配置责任，将 add upsert 拆为 add 只创建、update 只更新。
 - 以稳定 name 标识配置项；update 至少提供一个 url/path/branch，不支持 rename。
-- list 只返回 `workspace.yaml` 中的 `name/url/path/branch`，不混入物化/local 状态。
+- list 只返回 `workspace.yaml` 中的 `name/url/path/branch`，不混入物化状态。
 - update/remove 在配置 path 已物化时拒绝，不级联修改下层资源。
 - 建立「workspace root + 配置 path → 子仓克隆绝对路径」单一 resolver。
 
@@ -23,7 +23,7 @@ blocked_by: []
 
 ## 验收
 
-- [x] CLI 黑盒与配置测试证明：`config init/add/list/update/remove` 完整覆盖配置 CRUD，add 不 upsert，update 不创建，list 不读 local 状态，update/remove 不级联改动已物化资源；并通过 spec 固定的全部 `/verifying` 门禁。
+- [x] CLI 黑盒与配置测试证明：`config init/add/list/update/remove` 完整覆盖配置 CRUD，add 不 upsert，update 不创建，list 不读取物化状态，update/remove 不级联改动已物化资源；并通过 spec 固定的全部 `/verifying` 门禁。
 
 ## 交付记录
 
@@ -35,7 +35,7 @@ blocked_by: []
 
 - [spec](spec.md)
 - [现有 workspace config 实现](../../../../../packages/loopx/src/builtins/workspace/workspace-config.ts)
-- [ADR-0005](../../../adr/0005-子仓克隆由工作区配置定位.md)
+- [ADR-0004](../../../adr/0004-子仓克隆由工作区配置定位.md)
 
 ## 下一步
 

@@ -1,5 +1,5 @@
 import { execFile } from "node:child_process";
-import { access, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -15,7 +15,6 @@ const gitAvailable = await execFileAsync("git", ["--version"]).then(
   (): boolean => true,
   (): boolean => false,
 );
-const LEGACY_LOCAL_FILE = "workspace.local.yaml";
 const temporaryDirectories: string[] = [];
 
 const createDirectory = async (): Promise<string> => {
@@ -95,7 +94,6 @@ const createWorkspace = async (): Promise<WorkspaceFixture> => {
     `repositories:\n  - name: wiki\n    url: ${pathToFileURL(bare).href}\n    path: repositories/wiki\n    branch: main\n`,
     "utf8",
   );
-  await writeFile(path.join(root, LEGACY_LOCAL_FILE), "not: valid: yaml", "utf8");
   const cloned = await invoke(root, ["repository", "clone"]);
   expect(cloned.code).toBe(0);
   return { repositoryPath: path.join(root, "repositories/wiki"), root };
@@ -465,20 +463,5 @@ describe.skipIf(!gitAvailable)("workspace worktree (git integration)", (): void 
       (await invoke(fixture.root, ["repository", "remove", "--name", "wiki", "--yes"])).code,
     ).toBe(0);
     expect((await invoke(fixture.root, ["config", "remove", "--name", "wiki"])).code).toBe(0);
-  }, 30000);
-
-  test("legacy local file has no effect on all three command layers", async (): Promise<void> => {
-    const fixture = await createWorkspace();
-    const before = await readFile(path.join(fixture.root, LEGACY_LOCAL_FILE), "utf8");
-
-    const config = await invoke(fixture.root, ["config", "list"]);
-    const repository = await invoke(fixture.root, ["repository", "status"]);
-    const worktree = await invoke(fixture.root, ["worktree", "list"]);
-
-    expect(config.code).toBe(0);
-    expect(repository.code).toBe(0);
-    expect(worktree.code).toBe(0);
-    expect(`${config.stdout}${repository.stdout}${worktree.stdout}`).not.toContain("clone_path");
-    expect(await readFile(path.join(fixture.root, LEGACY_LOCAL_FILE), "utf8")).toBe(before);
   }, 30000);
 });

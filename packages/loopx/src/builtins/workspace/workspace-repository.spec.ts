@@ -10,8 +10,6 @@ import type { BuiltinCommand } from "../../cli/types";
 import workspaceCommand from "./index";
 import { WORKSPACE_CONFIG_FILE } from "./workspace-config";
 
-const LEGACY_LOCAL_FILE = "workspace.local.yaml";
-
 const execFileAsync = promisify(execFile);
 const gitAvailable = await execFileAsync("git", ["--version"]).then(
   (): boolean => true,
@@ -135,7 +133,6 @@ describe.skipIf(!gitAvailable)("workspace repository (git integration)", (): voi
     const directory = await createDirectory();
     const remote = await createRemote(directory, "wiki");
     const root = await createWorkspace([{ name: "wiki", url: remote.url }]);
-    await writeFile(path.join(root, LEGACY_LOCAL_FILE), "not: valid: yaml", "utf8");
     const repositoryPath = path.join(root, "repositories/wiki");
 
     const result = await invoke(root, ["repository", "clone"]);
@@ -152,7 +149,6 @@ describe.skipIf(!gitAvailable)("workspace repository (git integration)", (): voi
     expect(await git(["-C", repositoryPath, "worktree", "list", "--porcelain"])).not.toContain(
       path.join(root, "apps/wiki"),
     );
-    expect(await readFile(path.join(root, LEGACY_LOCAL_FILE), "utf8")).toBe("not: valid: yaml");
   }, 30000);
 
   test("clone isolates an occupied target and continues in configuration order", async (): Promise<void> => {
@@ -392,11 +388,10 @@ describe.skipIf(!gitAvailable)("workspace repository (git integration)", (): voi
     expect(await readFile(path.join(root, WORKSPACE_CONFIG_FILE), "utf8")).toContain("name: wiki");
   }, 30000);
 
-  test("remove deletes a clean clone without touching config or local files", async (): Promise<void> => {
+  test("remove deletes a clean clone without touching config", async (): Promise<void> => {
     const directory = await createDirectory();
     const remote = await createRemote(directory, "wiki");
     const root = await createWorkspace([{ name: "wiki", url: remote.url }]);
-    await writeFile(path.join(root, LEGACY_LOCAL_FILE), "legacy: true\n", "utf8");
     await invoke(root, ["repository", "clone"]);
     const repositoryPath = path.join(root, "repositories/wiki");
 
@@ -405,7 +400,6 @@ describe.skipIf(!gitAvailable)("workspace repository (git integration)", (): voi
     expect(result.code).toBe(0);
     expect(await isMissing(repositoryPath)).toBe(true);
     expect(await readFile(path.join(root, WORKSPACE_CONFIG_FILE), "utf8")).toContain("name: wiki");
-    expect(await readFile(path.join(root, LEGACY_LOCAL_FILE), "utf8")).toBe("legacy: true\n");
   }, 30000);
 
   test("remove protects local history retained only by a tag", async (): Promise<void> => {

@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
@@ -6,8 +6,6 @@ import { runCli, type CliRequest } from "../../cli/run";
 import type { BuiltinCommand } from "../../cli/types";
 import workspaceCommand from "./index";
 import { WORKSPACE_CONFIG_FILE } from "./workspace-config";
-
-const LEGACY_LOCAL_FILE = "workspace.local.yaml";
 
 const temporaryDirectories: string[] = [];
 
@@ -285,10 +283,9 @@ describe("workspace config add and update", (): void => {
 });
 
 describe("workspace config list and remove", (): void => {
-  test("lists selected configuration without consuming local overrides", async (): Promise<void> => {
+  test("lists selected configuration", async (): Promise<void> => {
     const cwd = await initWorkspace();
     await invoke(cwd, ADD_WIKI);
-    await writeFile(path.join(cwd, LEGACY_LOCAL_FILE), "not: valid: yaml", "utf8");
     const result = await invoke(cwd, ["config", "list", "--name", "wiki"]);
     expect(result.code).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({
@@ -323,24 +320,6 @@ describe("workspace config list and remove", (): void => {
     });
     const document = await readFile(path.join(cwd, WORKSPACE_CONFIG_FILE), "utf8");
     expect(document).not.toContain("wiki");
-  });
-
-  test("ignores a residual clone_path recorded in workspace.local.yaml", async (): Promise<void> => {
-    const cwd = await initWorkspace();
-    await invoke(cwd, ADD_WIKI);
-    await writeFile(
-      path.join(cwd, LEGACY_LOCAL_FILE),
-      `repositories:
-  - name: wiki
-    clone_path: C:/Users/kxh/workspaces/wiki
-`,
-      "utf8",
-    );
-    const result = await invoke(cwd, ["config", "remove", "--name", "wiki"]);
-    expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout)).not.toHaveProperty("residualClonePath");
-    const local = await readFile(path.join(cwd, LEGACY_LOCAL_FILE), "utf8");
-    expect(local).toContain("clone_path");
   });
 
   test("fails with a JSON error when the name does not exist", async (): Promise<void> => {

@@ -11,8 +11,6 @@ import {
   type WorkspaceRepository,
 } from "./workspace-config";
 
-const LEGACY_LOCAL_FILE = "workspace.local.yaml";
-
 const temporaryDirectories: string[] = [];
 
 const createDirectory = async (): Promise<string> => {
@@ -64,28 +62,6 @@ describe("loadWorkspaceFile", (): void => {
     expect((failure as WorkspaceConfigError).hint).toContain("init");
   });
 
-  test("ignores workspace.local.yaml records", async (): Promise<void> => {
-    const root = await createDirectory();
-    await writeFile(path.join(root, WORKSPACE_CONFIG_FILE), VALID_CONFIG, "utf8");
-    await writeFile(
-      path.join(root, LEGACY_LOCAL_FILE),
-      `repositories:
-  - name: kxh-kit
-    clone_path: C:/Users/kxh/workspaces/kxh-kit
-`,
-      "utf8",
-    );
-    const config = await loadWorkspaceFile(root);
-    expect(config.repositories).toEqual([
-      {
-        name: "kxh-kit",
-        url: "git@github.com:kxh4892636/kxh-kit.git",
-        path: "apps/kxh-kit",
-        branch: "main",
-      },
-    ]);
-  });
-
   test("accepts an empty repositories list", async (): Promise<void> => {
     const root = await createDirectory();
     await writeFile(path.join(root, WORKSPACE_CONFIG_FILE), "repositories: []\n", "utf8");
@@ -107,21 +83,6 @@ describe("loadWorkspaceFile", (): void => {
     );
     const config = await loadWorkspaceFile(root);
     expect(config.repositories[0]?.name).toBe("wiki");
-  });
-
-  test("ignores invalid workspace.local.yaml content", async (): Promise<void> => {
-    const root = await createDirectory();
-    await writeFile(path.join(root, WORKSPACE_CONFIG_FILE), VALID_CONFIG, "utf8");
-    await writeFile(
-      path.join(root, LEGACY_LOCAL_FILE),
-      `repositories:
-  - name: kxh-kit
-    clone_path: workspaces/kxh-kit
-`,
-      "utf8",
-    );
-    const config = await loadWorkspaceFile(root);
-    expect(config.repositories[0]?.name).toBe("kxh-kit");
   });
 
   test.each([
@@ -276,22 +237,5 @@ describe("prepareRemoveRepository", (): void => {
     expect(failure).toBeInstanceOf(WorkspaceConfigError);
     expect((failure as WorkspaceConfigError).message).toContain("gamma");
     expect(await readFile(config, "utf8")).toBe(COMMENTED_CONFIG);
-  });
-
-  test("ignores a residual workspace.local.yaml entry", async (): Promise<void> => {
-    const root = await createDirectory();
-    await writeFile(path.join(root, WORKSPACE_CONFIG_FILE), COMMENTED_CONFIG, "utf8");
-    await writeFile(
-      path.join(root, LEGACY_LOCAL_FILE),
-      `repositories:
-  - name: alpha
-    clone_path: C:/Users/kxh/workspaces/alpha
-`,
-      "utf8",
-    );
-    const prepared = await prepareRemoveRepository(root, "alpha");
-    await prepared.commit();
-    const local = await readFile(path.join(root, LEGACY_LOCAL_FILE), "utf8");
-    expect(local).toContain("clone_path");
   });
 });

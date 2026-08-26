@@ -6,9 +6,9 @@ status: completed
 
 ## 问题
 
-`loopx workspace` 当前把配置编辑、子仓物化与 worktree 生命周期混在扁平命令中，并以 `workspace.yaml.path` 表示默认 worktree、以 `workspace.local.yaml.clone_path` 或 `~/workspaces/<name>` 定位子仓克隆。需将命令树重构为三个领域资源层，每层具备完整 CRUD：工作区配置项、远程子仓的本地物化、额外 worktree。
+`loopx workspace` 需要把配置编辑、子仓物化与 worktree 生命周期拆成三个领域资源层，每层具备完整 CRUD：工作区配置项、远程子仓的本地物化、额外 worktree。
 
-`workspace.yaml.path` 改为子仓克隆相对工作区根的路径，完全移除 local 文件契约；每个额外 worktree 均从该克隆生成并显式指定目标路径。
+`workspace.yaml.path` 是子仓克隆相对工作区根的路径；每个额外 worktree 均从该克隆生成并显式指定目标路径。
 
 ## 方案
 
@@ -28,13 +28,11 @@ workspace worktree    add / list / switch / remove / prune
 
 - 保留扁平 `workspace init/add/remove/list/status/pull`：资源边界不清，且 `pull` 混合 repository create/update 与 worktree create。
 - 命名为 `create/read/update/delete`：丢失 Git 与 Workspace 领域语言。
-- 保留 `workspace.local.yaml` 覆盖：仍存在双路径事实源。
 - `repository pull` 在克隆缺失时隐式 clone：合并 Create 与 Update；缺失时应提示 `repository clone`。
 - 由 pull 创建 worktree：跨越 repository 与 worktree 资源边界。
 - 级联删除：可能产生无法审计的数据丢失；删除顺序固定为 worktree → repository → config。
-- 自动迁移或删除遗留 local 文件：未经授权改动用户机器文件；新命令忽略它。
 - 绝对 worktree 目标：破坏工作区边界与路径穿越防护。
-- bare 或完整克隆：继续普通浅克隆，见 [ADR-0005](../../../adr/0005-子仓克隆由工作区配置定位.md)。
+- bare 或完整克隆：继续普通浅克隆，见 [ADR-0004](../../../adr/0004-子仓克隆由工作区配置定位.md)。
 
 ## 实施决策
 
@@ -48,9 +46,8 @@ repositories:
     branch: main
 ```
 
-- `workspace.yaml` 是唯一配置文件；不定义、读取、写入或删除 `workspace.local.yaml`。
+- `workspace.yaml` 是工作区配置文件。
 - `path` 必须相对工作区根，不得为空或包含 `..`，规范化后不得重复；唯一解析为 `path.resolve(workspaceRoot, repository.path)`。
-- 遗留 `workspace.local.yaml` 存在时静默忽略，不自动迁移、修改或删除。
 
 ### Config CRUD
 
@@ -92,14 +89,13 @@ repositories:
 
 - config/repository/worktree 三层领域子命令与每层完整 CRUD。
 - `workspace.yaml.path` 子仓克隆语义与单一路径解析。
-- 完整移除 local 文件、默认 `~/workspaces`、local orphan 和旧扁平命令依赖。
+- 移除旧扁平命令依赖。
 - 非级联的层级删除门禁、`--yes`/`--force`、预演、JSON 输出、CLI help 与集成测试。
 - LoopX glossary 和取代 ADR 同步。
 
 ## 非范围
 
-- 自动迁移或删除遗留 `workspace.local.yaml`。
-- 级联删除、配置移除后的孤儿资源管理、repository 批量删除。
+- 级联删除、repository 批量删除。
 - 额外 worktree 的自动 pull/rebase/merge，以及子仓内提交或推送工作流。
 - 绝对 worktree 目标、配置 include/继承、并发物化、进度渲染、`worktree lock/unlock`。
 - 浅克隆的 unshallow 或完整历史管理。
@@ -113,8 +109,7 @@ repositories:
 - [LoopX 领域语言](../../../CONTEXT.md)
 - [ADR-0001 CLI 输出仅 JSON](../../../adr/0001-cli-输出仅-json.md)
 - [ADR-0002 以单一 CLI 收口内建子命令](../../../adr/0002-以单一cli收口内建子命令.md)
-- [ADR-0005 子仓克隆由工作区配置定位](../../../adr/0005-子仓克隆由工作区配置定位.md)
-- [已完成的工作区子命令 Plan](../../reference/2026-08-23-工作区子命令/spec.md)
+- [ADR-0004 子仓克隆由工作区配置定位](../../../adr/0004-子仓克隆由工作区配置定位.md)
 
 ## Issue
 
