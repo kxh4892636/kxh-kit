@@ -3,6 +3,7 @@ import { channel } from "node:diagnostics_channel";
 import path from "node:path";
 import { stringify } from "yaml";
 import { command, group, option } from "../../cli/definition";
+import { CliUsageError } from "../../cli/errors";
 import type {
   BuiltinCommand,
   InvocationContext,
@@ -12,14 +13,16 @@ import type {
   ValuesFromOptions,
 } from "../../cli/types";
 import {
+  loadWorkspaceFile,
+  prepareAddRepository,
   prepareRemoveRepository,
-  prepareUpsertRepository,
+  prepareUpdateRepository,
   WORKSPACE_CONFIG_FILE,
-  WORKSPACE_LOCAL_FILE,
   WorkspaceConfigError,
+  type WorkspaceRepository,
 } from "./workspace-config";
 import { prepareWorkspacePull } from "./workspace-pull";
-import { listWorkspace, statusWorkspace } from "./workspace-query";
+import { statusWorkspace } from "./workspace-query";
 import {
   listWorkspaceWorktrees,
   prepareWorkspacePrune,
@@ -65,12 +68,26 @@ const initPrepare = async (
 const addOptions = [
   option.string("name", "Unique repository name", { required: true }),
   option.string("url", "Repository ssh or http(s) url", { required: true }),
-  option.string("path", "Worktree path relative to the workspace root", { required: true }),
+  option.string("path", "Clone path relative to the workspace root", { required: true }),
   option.string("branch", "Base branch pulled from the remote", { required: true }),
 ] as const;
 
 const removeOptions = [
   option.string("name", "Name of the repository entry to remove", { required: true }),
+] as const;
+
+const configListOptions = [
+  option.string("name", "Repository to list; repeat to list several; defaults to all", {
+    multiple: true,
+    placeholder: "name",
+  }),
+] as const;
+
+const updateOptions = [
+  option.string("name", "Repository entry to update", { required: true }),
+  option.string("url", "Replacement repository ssh or http(s) url", {}),
+  option.string("path", "Replacement clone path relative to the workspace root", {}),
+  option.string("branch", "Replacement base branch", {}),
 ] as const;
 
 const pullOptions = [
@@ -115,76 +132,138 @@ const worktreeRemoveOptions = [
   option.boolean("delete-branch", "Delete the worktree branch after removal", {}),
 ] as const;
 
+const listConfiguredRepositories = async (
+  names: readonly string[],
+  context: InvocationContext,
+): Promise<JsonOutput> => {
+  const config = await loadWorkspaceFile(context.cwd);
+  const selected =
+    names.length === 0
+      ? config.repositories
+      : [...new Set(names)].map((name: string): WorkspaceRepository => {
+          const repository = config.repositories.find(
+            (entry: WorkspaceRepository): boolean => entry.name === name,
+          );
+          if (repository === undefined) {
+            throw new WorkspaceConfigError(
+              `Repository not found in ${WORKSPACE_CONFIG_FILE}: ${name}`,
+              {
+                details: { name },
+              },
+            );
+          }
+          return repository;
+        });
+  return {
+    success: true,
+    root: config.root,
+    repositories: selected.map(
+      (repository: WorkspaceRepository): JsonValue => ({
+        name: repository.name,
+        url: repository.url,
+        path: repository.path,
+        branch: repository.branch,
+      }),
+    ),
+  };
+};
+
 const workspaceCommand: BuiltinCommand = group("workspace", "Manage multi-repository workspaces", [
-  command("init", "Create an empty workspace.yaml in the current directory", [], {
-    kind: "mutation",
-    prepare: initPrepare,
-  }),
-  command("add", "Add or update a repository entry in workspace.yaml", addOptions, {
-    kind: "mutation",
-    prepare: async (
-      options: ValuesFromOptions<typeof addOptions>,
-      context: InvocationContext,
-    ): Promise<PreparedMutation> => {
-      const prepared = await prepareUpsertRepository(context.cwd, {
-        name: options.name,
-        url: options.url,
-        path: options.path,
-        branch: options.branch,
-      });
-      const preview: JsonValue = {
-        action: "add",
-        change: prepared.change,
-        repository: prepared.repository,
-        config: prepared.config,
-      };
-      return {
-        preview,
-        commit: async (): Promise<JsonOutput> => {
-          await prepared.commit();
-          return {
-            success: true,
-            change: prepared.change,
-            repository: prepared.repository,
-            config: prepared.config,
-          };
-        },
-      };
-    },
-  }),
-  command("remove", "Remove a repository entry from workspace.yaml", removeOptions, {
-    kind: "mutation",
-    prepare: async (
-      options: ValuesFromOptions<typeof removeOptions>,
-      context: InvocationContext,
-    ): Promise<PreparedMutation> => {
-      const prepared = await prepareRemoveRepository(context.cwd, options.name);
-      const residual =
-        prepared.residualClonePath === undefined
-          ? {}
-          : {
-              residualClonePath: prepared.residualClonePath,
-              hint: `${WORKSPACE_LOCAL_FILE} still records clone_path for '${options.name}' at ${prepared.residualClonePath}; remove its worktrees and local clone manually, then clean up the record`,
-            };
-      return {
-        preview: {
+  group("config", "Manage workspace.yaml repository entries", [
+    command("init", "Create an empty workspace.yaml in the current directory", [], {
+      kind: "mutation",
+      prepare: initPrepare,
+    }),
+    command("add", "Add a repository entry to workspace.yaml", addOptions, {
+      kind: "mutation",
+      prepare: async (
+        options: ValuesFromOptions<typeof addOptions>,
+        context: InvocationContext,
+      ): Promise<PreparedMutation> => {
+        const prepared = await prepareAddRepository(context.cwd, {
+          name: options.name,
+          url: options.url,
+          path: options.path,
+          branch: options.branch,
+        });
+        const preview = {
+          action: "add",
+          change: prepared.change,
+          repository: prepared.repository,
+          config: prepared.config,
+        };
+        return {
+          preview,
+          commit: async (): Promise<JsonOutput> => {
+            await prepared.commit();
+            return { success: true, ...preview };
+          },
+        };
+      },
+    }),
+    command("list", "List repository entries in workspace.yaml", configListOptions, {
+      kind: "query",
+      run: async (
+        options: ValuesFromOptions<typeof configListOptions>,
+        context: InvocationContext,
+      ): Promise<JsonOutput> => listConfiguredRepositories(options.name ?? [], context),
+    }),
+    command("update", "Update a repository entry in workspace.yaml", updateOptions, {
+      kind: "mutation",
+      prepare: async (
+        options: ValuesFromOptions<typeof updateOptions>,
+        context: InvocationContext,
+      ): Promise<PreparedMutation> => {
+        if (
+          options.url === undefined &&
+          options.path === undefined &&
+          options.branch === undefined
+        ) {
+          throw new CliUsageError(
+            "config update requires at least one of --url, --path or --branch",
+          );
+        }
+        const prepared = await prepareUpdateRepository(context.cwd, options.name, {
+          url: options.url,
+          path: options.path,
+          branch: options.branch,
+        });
+        const preview = {
+          action: "update",
+          repository: prepared.repository,
+          config: prepared.config,
+        };
+        return {
+          preview,
+          commit: async (): Promise<JsonOutput> => {
+            await prepared.commit();
+            return { success: true, ...preview };
+          },
+        };
+      },
+    }),
+    command("remove", "Remove a repository entry from workspace.yaml", removeOptions, {
+      kind: "mutation",
+      prepare: async (
+        options: ValuesFromOptions<typeof removeOptions>,
+        context: InvocationContext,
+      ): Promise<PreparedMutation> => {
+        const prepared = await prepareRemoveRepository(context.cwd, options.name);
+        const preview = {
           action: "remove",
           removed: prepared.removed,
           config: prepared.config,
-          ...residual,
-        },
-        commit: async (): Promise<JsonOutput> => {
-          await prepared.commit();
-          return {
-            success: true,
-            removed: prepared.removed,
-            config: prepared.config,
-            ...residual,
-          };
-        },
-      };
-    },
-  }),
+        };
+        return {
+          preview,
+          commit: async (): Promise<JsonOutput> => {
+            await prepared.commit();
+            return { success: true, ...preview };
+          },
+        };
+      },
+    }),
+  ]),
   command(
     "pull",
     "Materialize configured repositories and fast-forward them to their base branch",
@@ -205,13 +284,6 @@ const workspaceCommand: BuiltinCommand = group("workspace", "Manage multi-reposi
         ),
     },
   ),
-  command("list", "List configured repositories and local clone paths", [], {
-    kind: "query",
-    run: async (
-      _options: Readonly<Record<string, never>>,
-      context: InvocationContext,
-    ): Promise<JsonOutput> => listWorkspace(context),
-  }),
   command("status", "Inspect clones and registered worktrees without fetching", [], {
     kind: "query",
     run: async (

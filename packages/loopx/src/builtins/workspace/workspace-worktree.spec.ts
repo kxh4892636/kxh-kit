@@ -291,10 +291,11 @@ describe("workspace worktree (git integration)", (): void => {
     ).toContain("worktree/wiki-main");
   }, 30000);
 
-  test("remove can clean a worktree after the repository entry becomes an orphan", async (): Promise<void> => {
+  test("config removal is blocked until its worktree is removed", async (): Promise<void> => {
     const fixture = await createWorkspace();
-    const removed = await invoke(fixture.root, ["remove", "--name", "wiki"]);
-    expect(removed.code).toBe(0);
+    const blocked = await invoke(fixture.root, ["config", "remove", "--name", "wiki"]);
+    expect(blocked.code).toBe(1);
+    expect(blocked.stderr).toContain("materialized");
 
     const result = await invoke(fixture.root, [
       "worktree",

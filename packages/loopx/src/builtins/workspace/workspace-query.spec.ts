@@ -113,8 +113,8 @@ const invoke = async (cwd: string, argv: readonly string[]): Promise<CliResult> 
   return { code, stderr, stdout };
 };
 
-describe("workspace list", (): void => {
-  test("merges configured repositories with clone paths and marks orphaned local records", async (): Promise<void> => {
+describe("workspace config list", (): void => {
+  test("lists configured repositories and ignores workspace.local.yaml", async (): Promise<void> => {
     const root = await createDirectory();
     const config = `repositories:
   - name: wiki
@@ -135,7 +135,7 @@ describe("workspace list", (): void => {
     await writeFile(path.join(root, WORKSPACE_CONFIG_FILE), config, "utf8");
     await writeFile(path.join(root, WORKSPACE_LOCAL_FILE), local, "utf8");
 
-    const result = await invoke(root, ["list"]);
+    const result = await invoke(root, ["config", "list"]);
 
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
@@ -148,7 +148,6 @@ describe("workspace list", (): void => {
           url: "https://example.com/wiki.git",
           path: "apps/wiki",
           branch: "main",
-          clonePath: "C:/workspaces/wiki",
         },
         {
           name: "docs",
@@ -157,7 +156,6 @@ describe("workspace list", (): void => {
           branch: "dev",
         },
       ],
-      orphans: [{ name: "retired", clonePath: "C:/workspaces/retired", orphan: true }],
     });
     expect(await readFile(path.join(root, WORKSPACE_CONFIG_FILE), "utf8")).toBe(config);
     expect(await readFile(path.join(root, WORKSPACE_LOCAL_FILE), "utf8")).toBe(local);

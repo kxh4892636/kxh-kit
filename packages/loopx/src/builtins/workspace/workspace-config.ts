@@ -74,8 +74,10 @@ const repositorySchema = z.object({
   branch: z.string().min(1),
 });
 
-const normalizeRepositoryPath = (value: string): string =>
-  value.replace(/\\/gu, "/").replace(/\/+$/u, "");
+const normalizeRepositoryPath = (value: string): string => {
+  const normalized = path.posix.normalize(value.replace(/\\/gu, "/")).replace(/\/+$/u, "");
+  return process.platform === "win32" ? normalized.toLowerCase() : normalized;
+};
 
 const workspaceFileSchema = z
   .object({ repositories: z.array(repositorySchema).default([]) })
@@ -134,13 +136,20 @@ const exists = async (target: string): Promise<boolean> => {
     await access(target);
     return true;
   } catch (error) {
-    if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error.code === "ENOENT" || error.code === "ENOTDIR")
+    )
       return false;
-    }
     workspaceDiagnostics.publish({ level: "error", message: errorMessage(error) });
     throw error;
   }
 };
+
+const isMaterializedRepository = async (repositoryPath: string): Promise<boolean> =>
+  exists(path.join(repositoryPath, ".git"));
 
 export const findWorkspaceRoot = async (cwd: string): Promise<string> => {
   let current = path.resolve(cwd);
@@ -149,12 +158,15 @@ export const findWorkspaceRoot = async (cwd: string): Promise<string> => {
     const parent = path.dirname(current);
     if (parent === current) {
       throw new WorkspaceConfigError(`No ${WORKSPACE_CONFIG_FILE} found from ${cwd} upwards`, {
-        hint: `Run 'loopx workspace init' to create ${WORKSPACE_CONFIG_FILE} first`,
+        hint: `Run 'loopx workspace config init' to create ${WORKSPACE_CONFIG_FILE} first`,
       });
     }
     current = parent;
   }
 };
+
+export const resolveRepositoryPath = (root: string, repository: RepositoryDraft): string =>
+  path.resolve(root, repository.path);
 
 const formatIssues = (error: z.ZodError): JsonValue =>
   error.issues.map(
@@ -172,6 +184,7 @@ const parseConfigFile = async <Schema extends z.ZodType>(
   try {
     document = parseYaml(await readFile(file, "utf8"));
   } catch (error) {
+    workspaceDiagnostics.publish({ level: "error", message: errorMessage(error) });
     throw new WorkspaceConfigError(
       `Failed to read ${file}: ${error instanceof Error ? error.message : String(error)}`,
       {},
@@ -220,6 +233,12 @@ export const loadWorkspaceConfigurationView = async (
 export const loadWorkspaceConfig = async (cwd: string): Promise<WorkspaceConfig> => {
   const config = await loadWorkspaceConfigurationView(cwd);
   return { root: config.root, repositories: config.repositories };
+};
+
+export const loadWorkspaceFile = async (cwd: string): Promise<WorkspaceConfig> => {
+  const root = await findWorkspaceRoot(cwd);
+  const config = await parseConfigFile(path.join(root, WORKSPACE_CONFIG_FILE), workspaceFileSchema);
+  return { root, repositories: config.repositories };
 };
 
 export type RepositoryDraft = {
@@ -277,6 +296,7 @@ const readWorkspaceDocument = async (
   try {
     text = await readFile(config, "utf8");
   } catch (error) {
+    workspaceDiagnostics.publish({ level: "error", message: errorMessage(error) });
     throw new WorkspaceConfigError(
       `Failed to read ${config}: ${error instanceof Error ? error.message : String(error)}`,
       {},
@@ -329,9 +349,32 @@ export interface PreparedRepositoryUpsert {
   commit(): Promise<void>;
 }
 
-export const prepareUpsertRepository = async (
+export type RepositoryPatch = {
+  readonly branch?: string | undefined;
+  readonly path?: string | undefined;
+  readonly url?: string | undefined;
+};
+
+type RepositoryWriteMode = "add" | "update" | "upsert";
+
+interface WorkspaceDocumentState {
+  readonly config: string;
+  readonly document: Document;
+  readonly repositories: readonly RepositoryDraft[];
+  readonly root: string;
+}
+
+const loadWorkspaceDocument = async (cwd: string): Promise<WorkspaceDocumentState> => {
+  const root = await findWorkspaceRoot(cwd);
+  const config = path.join(root, WORKSPACE_CONFIG_FILE);
+  return { root, config, ...(await readWorkspaceDocument(config)) };
+};
+
+const prepareRepositoryWrite = async (
   cwd: string,
   draft: RepositoryDraft,
+  mode: RepositoryWriteMode,
+  loaded?: WorkspaceDocumentState,
 ): Promise<PreparedRepositoryUpsert> => {
   const validated = repositorySchema.safeParse(draft);
   if (!validated.success) {
@@ -339,10 +382,23 @@ export const prepareUpsertRepository = async (
       details: { issues: formatIssues(validated.error) },
     });
   }
-  const root = await findWorkspaceRoot(cwd);
-  const config = path.join(root, WORKSPACE_CONFIG_FILE);
-  const { document, repositories } = await readWorkspaceDocument(config);
+  const state = loaded ?? (await loadWorkspaceDocument(cwd));
+  const { config, document, repositories, root } = state;
   const plan = planUpsert(repositories, draft);
+  if (mode === "add" && plan.change !== "added") {
+    throw new WorkspaceConfigError(
+      `Repository already exists in ${WORKSPACE_CONFIG_FILE}: ${draft.name}`,
+      { details: { name: draft.name } },
+    );
+  }
+  if (mode === "update" && plan.change !== "updated") {
+    throw new WorkspaceConfigError(
+      `Repository not found in ${WORKSPACE_CONFIG_FILE}: ${draft.name}`,
+      {
+        details: { name: draft.name },
+      },
+    );
+  }
   const sequence = repositorySequence(document, config);
   if (plan.change === "added") {
     sequence.flow = false;
@@ -375,11 +431,58 @@ export const prepareUpsertRepository = async (
   };
 };
 
+export const prepareUpsertRepository = async (
+  cwd: string,
+  draft: RepositoryDraft,
+): Promise<PreparedRepositoryUpsert> => prepareRepositoryWrite(cwd, draft, "upsert");
+
+export const prepareAddRepository = async (
+  cwd: string,
+  draft: RepositoryDraft,
+): Promise<PreparedRepositoryUpsert> => prepareRepositoryWrite(cwd, draft, "add");
+
+export const prepareUpdateRepository = async (
+  cwd: string,
+  name: string,
+  patch: RepositoryPatch,
+): Promise<PreparedRepositoryUpsert> => {
+  const loaded = await loadWorkspaceDocument(cwd);
+  const { repositories, root } = loaded;
+  const repository = repositories.find(
+    (entry: WorkspaceRepository): boolean => entry.name === name,
+  );
+  if (repository === undefined) {
+    throw new WorkspaceConfigError(`Repository not found in ${WORKSPACE_CONFIG_FILE}: ${name}`, {
+      details: { name },
+    });
+  }
+  const repositoryPath = resolveRepositoryPath(root, repository);
+  if (await isMaterializedRepository(repositoryPath)) {
+    throw new WorkspaceConfigError(`Repository is materialized at ${repositoryPath}`, {
+      details: { name, path: repositoryPath },
+      hint: `Run 'loopx workspace repository remove --name ${name} --yes' before updating its configuration`,
+    });
+  }
+  const updated = {
+    ...repository,
+    ...(patch.url === undefined ? {} : { url: patch.url }),
+    ...(patch.path === undefined ? {} : { path: patch.path }),
+    ...(patch.branch === undefined ? {} : { branch: patch.branch }),
+  };
+  const updatedPath = resolveRepositoryPath(root, updated);
+  if (updatedPath !== repositoryPath && (await isMaterializedRepository(updatedPath))) {
+    throw new WorkspaceConfigError(`Repository is materialized at ${updatedPath}`, {
+      details: { name, path: updatedPath },
+      hint: "Choose an unused --path for the repository configuration",
+    });
+  }
+  return prepareRepositoryWrite(cwd, updated, "update", loaded);
+};
+
 export interface PreparedRepositoryRemove {
   readonly root: string;
   readonly config: string;
   readonly removed: RepositoryDraft;
-  readonly residualClonePath?: string | undefined;
   commit(): Promise<void>;
 }
 
@@ -395,20 +498,19 @@ export const prepareRemoveRepository = async (
   if (removed === undefined) {
     throw new WorkspaceConfigError(`Failed to edit ${config}: entry '${name}'`, {});
   }
+  const repositoryPath = resolveRepositoryPath(root, removed);
+  if (await isMaterializedRepository(repositoryPath)) {
+    throw new WorkspaceConfigError(`Repository is materialized at ${repositoryPath}`, {
+      details: { name, path: repositoryPath },
+      hint: `Run 'loopx workspace repository remove --name ${name} --yes' before removing its configuration`,
+    });
+  }
   repositorySequence(document, config).delete(plan.index);
   assertValidDocument(document, config);
-  const localFile = path.join(root, WORKSPACE_LOCAL_FILE);
-  const local = (await exists(localFile))
-    ? await parseConfigFile(localFile, localFileSchema)
-    : { repositories: [] };
-  const residual = local.repositories.find(
-    (record: { name: string; clone_path: string }): boolean => record.name === name,
-  );
   return {
     root,
     config,
     removed,
-    ...(residual === undefined ? {} : { residualClonePath: residual.clone_path }),
     commit: async (): Promise<void> => {
       await writeConfigAtomically(config, document.toString());
     },

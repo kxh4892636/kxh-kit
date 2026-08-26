@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, test } from "vitest";
@@ -53,10 +53,10 @@ const invoke = async (cwd: string, argv: readonly string[]): Promise<CliResult> 
   return { code, stderr, stdout };
 };
 
-describe("workspace init", (): void => {
+describe("workspace config init", (): void => {
   test("creates a workspace.yaml with empty repositories", async (): Promise<void> => {
     const cwd = await createDirectory();
-    const result = await invoke(cwd, ["init"]);
+    const result = await invoke(cwd, ["config", "init"]);
     expect(result.code).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
       success: true,
@@ -69,8 +69,8 @@ describe("workspace init", (): void => {
 
   test("fails with a JSON error when workspace.yaml already exists", async (): Promise<void> => {
     const cwd = await createDirectory();
-    await invoke(cwd, ["init"]);
-    const result = await invoke(cwd, ["init"]);
+    await invoke(cwd, ["config", "init"]);
+    const result = await invoke(cwd, ["config", "init"]);
     expect(result.code).toBe(1);
     expect(result.stdout).toBe("");
     expect(JSON.parse(result.stderr)).toMatchObject({
@@ -81,7 +81,7 @@ describe("workspace init", (): void => {
 
   test("--dry-run reports the plan without writing a file", async (): Promise<void> => {
     const cwd = await createDirectory();
-    const result = await invoke(cwd, ["init", "--dry-run"]);
+    const result = await invoke(cwd, ["config", "init", "--dry-run"]);
     expect(result.code).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({
       success: true,
@@ -93,6 +93,7 @@ describe("workspace init", (): void => {
 });
 
 const ADD_WIKI = [
+  "config",
   "add",
   "--name",
   "wiki",
@@ -106,17 +107,18 @@ const ADD_WIKI = [
 
 const initWorkspace = async (): Promise<string> => {
   const cwd = await createDirectory();
-  await invoke(cwd, ["init"]);
+  await invoke(cwd, ["config", "init"]);
   return cwd;
 };
 
-describe("workspace add", (): void => {
+describe("workspace config add and update", (): void => {
   test("appends a new repository entry", async (): Promise<void> => {
     const cwd = await initWorkspace();
     const result = await invoke(cwd, ADD_WIKI);
     expect(result.code).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({
       success: true,
+      action: "add",
       change: "added",
       repository: {
         name: "wiki",
@@ -131,10 +133,11 @@ describe("workspace add", (): void => {
     expect(document).toContain("branch: main");
   });
 
-  test("updates url, path and branch when the name already exists", async (): Promise<void> => {
+  test("rejects add when the name already exists", async (): Promise<void> => {
     const cwd = await initWorkspace();
     await invoke(cwd, ADD_WIKI);
     const result = await invoke(cwd, [
+      "config",
       "add",
       "--name",
       "wiki",
@@ -145,18 +148,63 @@ describe("workspace add", (): void => {
       "--branch",
       "dev",
     ]);
-    expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({ success: true, change: "updated" });
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.stderr)).toMatchObject({
+      success: false,
+      error: expect.stringContaining("wiki"),
+    });
     const document = await readFile(path.join(cwd, WORKSPACE_CONFIG_FILE), "utf8");
     expect(document.match(/- name: wiki/gu)).toHaveLength(1);
+    expect(document).toContain("apps/wiki");
+    expect(document).toContain("branch: main");
+  });
+
+  test("updates selected fields for an existing entry", async (): Promise<void> => {
+    const cwd = await initWorkspace();
+    await invoke(cwd, ADD_WIKI);
+    const result = await invoke(cwd, [
+      "config",
+      "update",
+      "--name",
+      "wiki",
+      "--path",
+      "packages/wiki",
+      "--branch",
+      "dev",
+    ]);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      success: true,
+      repository: { name: "wiki", path: "packages/wiki", branch: "dev" },
+    });
+    const document = await readFile(path.join(cwd, WORKSPACE_CONFIG_FILE), "utf8");
     expect(document).toContain("packages/wiki");
     expect(document).toContain("branch: dev");
+  });
+
+  test("rejects update without a mutable field", async (): Promise<void> => {
+    const cwd = await initWorkspace();
+    await invoke(cwd, ADD_WIKI);
+    const result = await invoke(cwd, ["config", "update", "--name", "wiki"]);
+    expect(result.code).toBe(2);
+    expect(JSON.parse(result.stderr)).toMatchObject({ success: false });
+  });
+
+  test("rejects update when the repository does not exist", async (): Promise<void> => {
+    const cwd = await initWorkspace();
+    const result = await invoke(cwd, ["config", "update", "--name", "ghost", "--branch", "dev"]);
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.stderr)).toMatchObject({
+      success: false,
+      error: expect.stringContaining("ghost"),
+    });
   });
 
   test("fails with a JSON error when the path is used by another repository", async (): Promise<void> => {
     const cwd = await initWorkspace();
     await invoke(cwd, ADD_WIKI);
     const result = await invoke(cwd, [
+      "config",
       "add",
       "--name",
       "docs",
@@ -180,7 +228,14 @@ describe("workspace add", (): void => {
 
   test("fails with a usage error when an option is missing", async (): Promise<void> => {
     const cwd = await initWorkspace();
-    const result = await invoke(cwd, ["add", "--name", "wiki", "--url", "https://x/y.git"]);
+    const result = await invoke(cwd, [
+      "config",
+      "add",
+      "--name",
+      "wiki",
+      "--url",
+      "https://x/y.git",
+    ]);
     expect(result.code).toBe(2);
     expect(JSON.parse(result.stderr)).toMatchObject({ success: false });
   });
@@ -209,14 +264,35 @@ describe("workspace add", (): void => {
   });
 });
 
-describe("workspace remove", (): void => {
-  test("removes the entry", async (): Promise<void> => {
+describe("workspace config list and remove", (): void => {
+  test("lists selected configuration without consuming local overrides", async (): Promise<void> => {
     const cwd = await initWorkspace();
     await invoke(cwd, ADD_WIKI);
-    const result = await invoke(cwd, ["remove", "--name", "wiki"]);
+    await writeFile(path.join(cwd, WORKSPACE_LOCAL_FILE), "not: valid: yaml", "utf8");
+    const result = await invoke(cwd, ["config", "list", "--name", "wiki"]);
     expect(result.code).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({
       success: true,
+      root: cwd,
+      repositories: [
+        {
+          name: "wiki",
+          url: "https://github.com/kxh4892636/wiki.git",
+          path: "apps/wiki",
+          branch: "main",
+        },
+      ],
+    });
+  });
+
+  test("removes the entry", async (): Promise<void> => {
+    const cwd = await initWorkspace();
+    await invoke(cwd, ADD_WIKI);
+    const result = await invoke(cwd, ["config", "remove", "--name", "wiki"]);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toEqual({
+      success: true,
+      action: "remove",
       removed: {
         name: "wiki",
         url: "https://github.com/kxh4892636/wiki.git",
@@ -229,7 +305,7 @@ describe("workspace remove", (): void => {
     expect(document).not.toContain("wiki");
   });
 
-  test("reports a residual clone_path recorded in workspace.local.yaml", async (): Promise<void> => {
+  test("ignores a residual clone_path recorded in workspace.local.yaml", async (): Promise<void> => {
     const cwd = await initWorkspace();
     await invoke(cwd, ADD_WIKI);
     await writeFile(
@@ -240,20 +316,16 @@ describe("workspace remove", (): void => {
 `,
       "utf8",
     );
-    const result = await invoke(cwd, ["remove", "--name", "wiki"]);
+    const result = await invoke(cwd, ["config", "remove", "--name", "wiki"]);
     expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      success: true,
-      residualClonePath: "C:/Users/kxh/workspaces/wiki",
-      hint: expect.stringContaining(WORKSPACE_LOCAL_FILE),
-    });
+    expect(JSON.parse(result.stdout)).not.toHaveProperty("residualClonePath");
     const local = await readFile(path.join(cwd, WORKSPACE_LOCAL_FILE), "utf8");
     expect(local).toContain("clone_path");
   });
 
   test("fails with a JSON error when the name does not exist", async (): Promise<void> => {
     const cwd = await initWorkspace();
-    const result = await invoke(cwd, ["remove", "--name", "ghost"]);
+    const result = await invoke(cwd, ["config", "remove", "--name", "ghost"]);
     expect(result.code).toBe(1);
     expect(result.stdout).toBe("");
     expect(JSON.parse(result.stderr)).toMatchObject({
@@ -265,7 +337,7 @@ describe("workspace remove", (): void => {
   test("--dry-run reports the plan without writing", async (): Promise<void> => {
     const cwd = await initWorkspace();
     await invoke(cwd, ADD_WIKI);
-    const result = await invoke(cwd, ["remove", "--name", "wiki", "--dry-run"]);
+    const result = await invoke(cwd, ["config", "remove", "--name", "wiki", "--dry-run"]);
     expect(result.code).toBe(0);
     expect(JSON.parse(result.stdout)).toMatchObject({
       success: true,
@@ -274,6 +346,25 @@ describe("workspace remove", (): void => {
     });
     const document = await readFile(path.join(cwd, WORKSPACE_CONFIG_FILE), "utf8");
     expect(document).toContain("- name: wiki");
+  });
+
+  test("rejects update and remove while the repository is materialized", async (): Promise<void> => {
+    const cwd = await initWorkspace();
+    await invoke(cwd, ADD_WIKI);
+    await mkdir(path.join(cwd, "apps", "wiki"), { recursive: true });
+    await mkdir(path.join(cwd, "apps", "wiki", ".git"), { recursive: true });
+    const update = await invoke(cwd, ["config", "update", "--name", "wiki", "--branch", "dev"]);
+    const remove = await invoke(cwd, ["config", "remove", "--name", "wiki"]);
+    expect(update.code).toBe(1);
+    expect(remove.code).toBe(1);
+  });
+
+  test("does not treat an ordinary directory as a materialized repository", async (): Promise<void> => {
+    const cwd = await initWorkspace();
+    await invoke(cwd, ADD_WIKI);
+    await mkdir(path.join(cwd, "apps", "wiki"), { recursive: true });
+    const update = await invoke(cwd, ["config", "update", "--name", "wiki", "--branch", "dev"]);
+    expect(update.code).toBe(0);
   });
 });
 
@@ -332,8 +423,20 @@ describe("workspace pull", (): void => {
 
   test("--dry-run reports the per-repository action plan without any side effect", async (): Promise<void> => {
     const cwd = await initWorkspace();
-    await invoke(cwd, ADD_WIKI);
-    const clonePath = path.join(homedir(), "workspaces", "wiki");
+    const name = `preview-${process.pid}`;
+    await invoke(cwd, [
+      "config",
+      "add",
+      "--name",
+      name,
+      "--url",
+      "https://github.com/kxh4892636/wiki.git",
+      "--path",
+      "apps/preview",
+      "--branch",
+      "main",
+    ]);
+    const clonePath = path.join(homedir(), "workspaces", name);
     const result = await invoke(cwd, ["pull", "--dry-run"]);
     expect(result.code).toBe(0);
     expect(JSON.parse(result.stdout)).toEqual({
@@ -343,7 +446,7 @@ describe("workspace pull", (): void => {
         action: "pull",
         repositories: [
           {
-            name: "wiki",
+            name,
             actions: [
               {
                 action: "clone",
@@ -352,8 +455,8 @@ describe("workspace pull", (): void => {
               },
               {
                 action: "create-worktree",
-                path: path.join(cwd, "apps/wiki"),
-                branch: expect.stringMatching(/^worktree\/wiki-\d{14}$/u),
+                path: path.join(cwd, "apps/preview"),
+                branch: expect.stringMatching(new RegExp(`^worktree/${name}-\\d{14}$`, "u")),
                 base: "main",
               },
               { action: "fetch", branch: "main" },

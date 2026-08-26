@@ -267,6 +267,16 @@ describe("planUpsert", (): void => {
       planUpsert(EXISTING_REPOSITORIES, { ...BETA_DRAFT, name: "gamma", path: "apps\\alpha\\" });
     }).toThrow(WorkspaceConfigError);
   });
+
+  test("compares paths after resolving dot segments", (): void => {
+    expect((): void => {
+      planUpsert(EXISTING_REPOSITORIES, {
+        ...BETA_DRAFT,
+        name: "gamma",
+        path: "apps/./alpha",
+      });
+    }).toThrow(WorkspaceConfigError);
+  });
 });
 
 describe("planRemove", (): void => {
@@ -377,7 +387,6 @@ describe("prepareRemoveRepository", (): void => {
     );
     const prepared = await prepareRemoveRepository(root, "alpha");
     expect(prepared.removed).toMatchObject({ name: "alpha", path: "apps/alpha" });
-    expect(prepared.residualClonePath).toBeUndefined();
     expect(await readFile(config, "utf8")).toContain("name: alpha");
     await prepared.commit();
     const document = await readFile(config, "utf8");
@@ -401,7 +410,7 @@ describe("prepareRemoveRepository", (): void => {
     expect(await readFile(config, "utf8")).toBe(COMMENTED_CONFIG);
   });
 
-  test("reports a residual clone_path recorded in workspace.local.yaml", async (): Promise<void> => {
+  test("ignores a residual workspace.local.yaml entry", async (): Promise<void> => {
     const root = await createDirectory();
     await writeFile(path.join(root, WORKSPACE_CONFIG_FILE), COMMENTED_CONFIG, "utf8");
     await writeFile(
@@ -413,7 +422,6 @@ describe("prepareRemoveRepository", (): void => {
       "utf8",
     );
     const prepared = await prepareRemoveRepository(root, "alpha");
-    expect(prepared.residualClonePath).toBe("C:/Users/kxh/workspaces/alpha");
     await prepared.commit();
     const local = await readFile(path.join(root, WORKSPACE_LOCAL_FILE), "utf8");
     expect(local).toContain("clone_path");

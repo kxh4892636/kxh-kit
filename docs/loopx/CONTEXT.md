@@ -43,28 +43,20 @@ _Avoid_: 模拟执行、试跑、只读模式
 ### Workspace 管理
 
 **工作区配置**:
-`workspace.yaml`，工作区根目录下声明子仓集合（name/url/path/branch）的文件；从 cwd 向上查找的第一个即生效，其所在目录即工作区根。
+`workspace.yaml`，工作区根目录下声明子仓集合（name/url/path/branch）的文件；`path` 是子仓克隆相对工作区根的路径。从 cwd 向上查找的第一个即生效，其所在目录即工作区根。
 _Avoid_: 仓库清单、manifest
 
-**本机覆盖**:
-`workspace.local.yaml`，记录每个子仓克隆存储在本机的实际路径；位于工作区根，不进版本控制。
-_Avoid_: 本地配置、机器配置
-
-**克隆存储**:
-子仓在本机的浅克隆（`--depth 1` + 基准分支），默认位于 `~/workspaces/<name>`，本机覆盖中已记录的实际路径优先。
+**子仓克隆**:
+工作区配置所声明的远程子仓在 `path` 上的普通浅克隆（`--depth 1` + 基准分支）；额外 worktree 均以它为生成基础。
 _Avoid_: 缓存、镜像
 
 **物化**:
-把配置中的子仓变为本机可用状态的完整动作：克隆存储就位并记录本机覆盖，worktree 检出工作分支。
+把工作区配置中的远程子仓克隆到其 `path`，使子仓克隆在工作区中可用。额外 worktree 不是物化的默认产物。
 _Avoid_: 同步、初始化
 
 **工作分支**:
-worktree 从基准分支创建的本地分支，默认命名 `worktree/<仓库名>-<yyyymmddhhmmss>`，`pull` 物化时可通过 `--worktree-branch` 显式指定；与远程分支命名空间隔离。
+worktree 从基准分支创建的本地分支，默认命名 `worktree/<仓库名>-<yyyymmddhhmmss>`；与远程分支命名空间隔离。
 _Avoid_: 开发分支
-
-**主 worktree**:
-配置 `path` 字段对应的 worktree，由 `pull` 默认物化；子仓的其他已注册 worktree 为额外 worktree，由 `pull --path --worktree-branch` 创建。
-_Avoid_: 默认 worktree
 
 ### Skill 管理
 
