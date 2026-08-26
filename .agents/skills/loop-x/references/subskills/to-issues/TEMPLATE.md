@@ -39,7 +39,7 @@ status: pending
 
 ## 待定
 
-{尚不能精确表述为 issue 的部分; 澄清后 graduate 为 issue}
+{尚不能精确表述为 issue 的未决问题、已知选项或证据、恢复条件; 澄清后 graduate 为 issue}
 
 ## 上下文
 

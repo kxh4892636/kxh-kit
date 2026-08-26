@@ -1,6 +1,6 @@
 ---
 name: writing-for-agents
-description: 为 agents 编写文档. 创建或编辑 skills, 或修改 AGENTS.md 或 CLAUDE.md 时使用.
+description: 优化 agent 指令文档的 context pointers、信息层级、完成标准与 pruning；当创建或编辑 skill、AGENTS.md、CLAUDE.md 或其引用文档时使用。
 ---
 
 编写任何供 agent 使用的文档时所参考的资料, 包括 skill, `AGENTS.md` / `CLAUDE.md`, 以及通过 pointer 到达的文档. 它们的包装不同, 写法却相同: 同一组杠杆让每一种文档都可预测, 让 agent 每次运行时采用相同的_流程_, 而不是产出相同的结果.

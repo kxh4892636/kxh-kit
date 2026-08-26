@@ -16,6 +16,8 @@
 
 向用户展示这份说明, 然后立即进入第 2 步. 当 sub-agents 并行工作时, 用户可以阅读和思考.
 
+constraints、依赖类别、现有 coupling 与不可改变的 domain invariants 均已进入 brief，且说明性草图没有预设某个候选 interface 时，本步骤完成。
+
 ### 2. 派遣 sub-agents
 
 并行派遣至少 3 个 sub-agents. 每个 sub-agent 都必须为 deepened module 产出一个**截然不同**的 interface.
@@ -37,8 +39,12 @@
 4. 依赖策略和 adapters(参见 [DEEPENING.md](DEEPENING.md)).
 5. 权衡, leverage 在哪里高, 在哪里薄弱.
 
+至少三个方案在 interface shape 或 seam placement 上真正不同，每个方案都覆盖完整 brief 且能独立评估时，本步骤完成。
+
 ### 3. 展示并比较
 
 依次展示 designs, 让用户逐个理解, 然后用文字比较它们. 按 **depth**(interface 上的 leverage), **locality**(变更集中的位置)和 **seam placement** 进行对比.
 
 比较后给出你自己的推荐: 你认为哪个 design 最强, 以及原因. 如果不同 designs 中的要素可以很好地组合, 提出 hybrid. 明确表达观点, 用户想要的是有力判断, 而不是一份菜单.
+
+用户能够沿同一组 constraints 比较所有方案，推荐方案的 depth、locality、依赖策略与代价均已明确，且最终选择或待定决策有清晰记录时，本流程完成。

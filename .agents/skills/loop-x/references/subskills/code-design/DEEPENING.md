@@ -26,8 +26,8 @@
 
 ## Seam discipline
 
-- **One adapter means a hypothetical seam. Two adapters means a real one.** 除非至少两个 adapters 合理存在(通常是生产环境 + 测试), 否则不要引入 port. single-adapter seam 只是 indirection.
-- **Internal seams vs external seams.** deep module 既可以拥有 internal seams(implementation 私有, 由自身测试使用), 也可以在 interface 上拥有 external seam. 不要仅仅因为测试使用 internal seams, 就通过 interface 暴露它们.
+- **One adapter means a hypothetical seam. Two adapters means a real one.** 至少两个合理 adapters(通常是生产环境 + 测试)使 port 成为真实 seam；single-adapter 形态保持 inline.
+- **Internal seams vs external seams.** 测试专用 variation 保持为 implementation 私有的 internal seam；调用方需要替换的 variation 才进入 external interface.
 
 ## Testing strategy: replace, don't layer
 

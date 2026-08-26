@@ -1,89 +1,42 @@
 ---
 name: to-story
-description: 把模糊想法打磨为带编号和验收、按 epic 或独立条目组织的用户故事集
+description: 打磨模糊想法为有序、可验收的用户故事集；当角色、期望收益或用户结果尚不足以安全拆分为 issues 时使用。
 argument-hint: "要把什么想法打磨成用户故事?"
 ---
 
 # To Story
 
-用户故事集是一组带唯一编号的用户故事有序集合. 用户故事的 **3C**: 卡片(story.md), 对话(`/grilling`), 确认(验收). 本 skill 运行 `/grilling`, 把一个模糊想法打磨为用户故事.
+用户故事使用 **3C**：`story.md` 是 card，`/grilling` 产生 conversation，可判定验收形成 confirmation。
 
-先读取 `/loop-x` 的 [`DOMAIN.md`](../../DOMAIN.md)「Plan 生命周期」, 再从工作区根 `CONTEXT-MAP.md` 定位业务域并读取该域 `CONTEXT.md`, ADR 和 Workflow. 新 plan 一律落在 `active/`;
+## 1. 定位 Plan
 
-完整读取 [`FLOW.md`](../../FLOW.md). 作为顶层 skill 直接调用时, 确定 Plan 路径后、在访谈或写入 `story.md` 前按共享协议自动进入固定的 `story` 路径; 接收到 `/loop-x` 传递的 flow context 时直接复用. 进入后先登记 `/to-story=started`, 再只调用脚本返回的 `/grilling`; `/grilling` 登记完成并返回本 skill 后, 复用同一 context 恢复工作.
+完整读取 [`DOMAIN.md`](../../DOMAIN.md)，从 `CONTEXT-MAP.md` 定位 owner 域并读取相关 `CONTEXT.md`、ADR 和已有 Plan。新 Plan 创建于：
 
 ```text
-docs/{domain-name}/plans/active/YYYY-MM-DD-中文工作名/
-└── story.md
+docs/{domain-name}/plans/active/YYYY-MM-DD-中文工作名/story.md
 ```
 
-访谈确认的内容只落 story.md, 不写 `CONTEXT.md` 或 ADR——此阶段的决策尚未明确, 不进领域文档.
+读取 [`TEMPLATE.md`](TEMPLATE.md) 后创建或载入 `story.md`。访谈中的候选决策只进入该文件；领域术语或 ADR 要到 `/grill-with-docs` 获得确认后才改变。
 
-## 行动地图
+owner、Plan 路径、原始想法和所有相关现有产物已确定时，本步骤完成。
 
-打磨不是固定工序, 而是一张**迷雾中的行动地图**: 有多少角色, 多少故事, 多少未知, 开始前都不可见; 只有路径不停向前推进, 迷雾才逐渐散开, 新路径随之显现.
+## 2. 进入 Flow 并清空迷雾
 
-每轮从地图边缘选择可推进的路径——互不依赖的并行, 有依赖的串行:
+完整读取 [`FLOW.md`](../../FLOW.md)。顶层直接调用时进入固定 `story` 路径；收到 `/loop-x` context 时直接复用。登记 `/to-story=started`，只调用脚本返回的 `/grilling`。
 
-- **与用户讨论**——按 `/grilling` 的 rounds 批量询问 frontier;
-- **后台调研**——派遣 sub-agent 查明环境事实(工作区, 领域文档, 既有 plan).
+以故事地图为 design tree 运行 `/grilling`：角色、故事和未知项都是 branch；无依赖的决策进入同一 frontier，有依赖的决策留到后续 round。环境事实由 agent 检索，用户决定角色、收益、边界与验收。
 
-每轮确认的内容**就地**落入 story.md:
+每轮把已确认内容就地写入 `story.md`：
 
-- 明确的角色 → 「角色」节;
-- 明确的故事 → 落入「故事」节对应 epic 之下; 不足以成 epic 的精简故事直接独立列出. 就地维护故事编号, 保证所有故事编号单调递增;
-- 新发现的空白 → 「迷雾」节, 澄清后 graduate 为故事;
-- 调研与讨论中使用的已有产物 → 「上下文」节.
+- 角色进入「角色」。
+- 完整用户结果进入「故事」，属于同一较大结果时归入 epic，否则保持独立故事。
+- 新空白进入「迷雾」，澄清后迁移到权威章节。
+- 使用过的 PRD、spec、ADR、commit 或 diff 进入「上下文」。
 
-**完成标准:** frontier 为空; 每条故事具有唯一有序编号和验收; 迷雾节清空, 或条目经用户确认接受; 用户确认故事集覆盖原始想法. 达标后按共享协议以 `story.md` 为证据登记结果, 再只执行脚本返回的下一步.
+`/grilling` frontier 为空并登记完成、脚本返回 `/to-story` 时，本步骤完成。
 
-## story.md 模板
+## 3. 闭合故事集
 
-属于 epic 的故事使用四级标题; 不足以组成 epic 的故事使用三级标题独立列出, 不创建空壳 epic.
+逐项核对原始想法与故事地图：每条故事有唯一且单调递增的 `US-NNN`、明确角色与收益、至少一项可判定验收；迷雾为空或每个保留项都获用户明确接受；每个原始意图都恰好映射到故事或已接受的非范围。
 
-```markdown
-# {工作名}
-
-## 原始想法
-
-{用户的最初表述, 保留原话}
-
-## 角色
-
-- **{角色名}**: {是谁, 处境与工作方式}
-
-## 故事
-
-### {Epic 标题}
-
-{这组故事共同完成什么}
-
-#### US-001 {故事标题}
-
-作为 {角色}, 我 {想要}, 以便 {收益}.
-
-- [ ] {可判定的验收结果}
-
-### US-002 {独立故事标题}
-
-作为 {角色}, 我 {想要}, 以便 {收益}.
-
-- [ ] {可判定的验收结果}
-
-## 迷雾
-
-{尚未探索清楚的空白; 澄清后 graduate 为故事}
-
-## 上下文
-
-{通过路径或 URL 引用生成故事时使用的产物: PRD, spec, ADR, commit, diff 等; 域内文档使用 ../../ 相对路径}
-```
-
-## 模板扩展
-
-模板章节是最小集合, 不是封闭集合. 允许根据工作的性质添加模板未固定的章节, 但新增章节必须**真正独特且必要**:
-
-- **独特**——内容无法归入任何现有章节, 语义不重叠;
-- **必要**——缺少它, 该工作的执行或验收会缺失关键信息.
-
-两条同时满足才添加, 章节标题使用中文; 否则归入现有章节或省略.
+从工作区根执行 `node <loop-x-skill-dir>/script/check-domain.mjs .`。校验通过且用户确认故事集覆盖原始想法后，以 `story.md` 为证据登记 `/to-story=completed`，只执行脚本返回的下一步。

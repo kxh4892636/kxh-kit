@@ -1,54 +1,53 @@
 ---
 name: grill-with-docs
-description: 拷问设计, 并将确认的术语与决策就地写入领域文档(CONTEXT.md, ADR). 当用户想打磨设计或想法且需要留下文档记录, 确定 domain terminology 或 ubiquitous language, 记录 architectural decision, 或其他 skill 需要维护 domain model 时使用.
+description: 维护领域模型：拷问设计并同步已确认的领域术语、跨域关系与 ADR；当讨论需要改变 CONTEXT.md、CONTEXT-MAP.md 或领域决策记录时使用。
 ---
 
-运行一次 `/grilling` 会话, 并在会话期间主动构建并打磨项目的 domain model. 这是一项*主动*实践, 它会质疑术语, 构造 edge-case scenarios, 并在 glossary 和决策明确的那一刻将其写下.(仅仅为了 vocabulary 而*读取*领域文档并不属于本 skill, 那是任何 skill 都能做到的一行习惯. 本 skill 用于改变 domain model, 而不是只使用它.)
+# Grill with Docs
 
-## 进入 Flow
+使用 `/grilling` 的 rounds 与 frontier 打磨 domain model，并在结论成立的同一轮写入其权威位置。读取领域语言供其他任务使用不触发本 skill。
 
-完整读取 [`FLOW.md`](../../FLOW.md). 作为顶层 skill 直接调用时, 在实质工作前按共享协议自动进入固定的 `main` 路径; 接收到 `/loop-x` 传递的 flow context 时直接复用. 完成访谈与文档同步后, 以实际维护的领域文档为证据登记结果.
+## 1. 进入并定域
 
-由 `/to-issues` 作为 required child 调用时, 继承其 flow context 并作为 `/to-issues` 的内部行为运行, 不建立主路径. 完成访谈与文档同步后, 使用该 context 登记 `/grill-with-docs=completed`, 再只恢复脚本返回的 `/to-issues`.
+完整读取 [`DOMAIN.md`](../../DOMAIN.md)。从工作区根 `CONTEXT-MAP.md` 定位所有相关业务域，再读取对应 `CONTEXT.md` 与相关 ADR；归属仍是用户决策时提出带推荐答案的问题。
 
-## 定位业务域
+携带 flow context 时直接复用。作为顶层 skill 直接调用时，先完整读取 [`FLOW.md`](../../FLOW.md) 并进入固定的 `main` 路径；作为 `/to-issues` 的 required child 时沿用父 context，不建立另一条 Flow。
 
-先完整读取 `/loop-x` 的 [`DOMAIN.md`](../../DOMAIN.md), 按其中的定位顺序和布局约束选择一个或多个业务域. 如果归属不清楚, 询问用户. 创建业务域、维护 map 和归属跨域决策时, 以该文件为单一事实源.
+相关业务域、跨域关系和当前 Flow 位置均已确定时，本步骤完成。
 
-## 会话期间
+## 2. 清空设计 frontier
 
-### 用 glossary 质疑
+以现有 glossary 和 ADR 为约束运行 `/grilling`：
 
-当用户使用的术语与相关业务域 `CONTEXT.md` 中的现有语言冲突时, 立即指出. "你的 glossary 将 'cancellation' 定义为 X, 但你似乎表达的是 Y. 到底是哪一个?"
+- 术语冲突或 overloaded 时，要求在现有 canonical term 与新概念之间作出明确区分。
+- 关系或规则含糊时，用具体 scenario 与 edge case 暴露边界。
+- 用户对现状的描述可由代码验证时，检查实际实现并把矛盾作为 frontier 问题。
+- 环境事实由 agent 检索；trade-off 与领域选择由用户决定。
 
-### 打磨模糊语言
+frontier 为空、代码与口头模型的矛盾已解决或明确记录、用户确认共同理解时，本步骤完成。
 
-当用户使用含糊或 overloaded terms 时, 提出精确的 canonical term. "你说的是 'account'. 你指的是 Customer 还是 User? 它们是不同的事物."
+## 3. 就地维护语言
 
-### 讨论具体 scenarios
+出现已确认的新业务域、术语或跨域关系时，读取 [`CONTEXT-FORMAT.md`](CONTEXT-FORMAT.md) 并在当轮更新：
 
-讨论 domain relationships 时, 使用具体 scenarios 对它们进行 stress-test. 构造能够探测 edge cases 的 scenarios, 迫使用户精确说明概念之间的边界.
+- `CONTEXT-MAP.md` 只拥有业务域索引与跨域关系。
+- `docs/{domain-name}/CONTEXT.md` 只拥有该域 glossary。
+- 对话、spec、实现细节与决策理由留在各自权威产物中。
 
-### 与代码交叉核对
+每项确认内容恰好有一个权威位置，map 链接可解析，glossary 中的 canonical term 与 `_Avoid_` 词互不冲突时，本步骤完成。
 
-当用户说明某项事物如何运行时, 检查代码是否一致. 如果发现矛盾, 将其指出: "你的代码会取消整个 Orders, 但你刚才说可以部分取消. 哪个才是正确的?"
+## 4. 记录有价值的 ADR
 
-### 就地维护 CONTEXT-MAP.md
+出现架构形态、跨域集成、技术锁定、scope owner 或其他长期 trade-off 时，完整读取 [`ADR-FORMAT.md`](ADR-FORMAT.md)。按其中的资格门槛逐项判断；达标的决策写入唯一 owner 的 ADR，未达标的候选不创建文档。
 
-确定新业务域或跨业务域关系后, 当场更新 `CONTEXT-MAP.md`. map 只记录业务域的名称, `CONTEXT.md` 链接, 简介和关系; domain terms 仍归各业务域的 glossary 所有. 使用 [CONTEXT-FORMAT.md](./CONTEXT-FORMAT.md) 中的格式.
+每个候选均有判断结果，所有达标决策只记录一次且理由与已确认 trade-off 一致时，本步骤完成。
 
-### 就地更新业务域 CONTEXT.md
+## 5. 验证并返回
 
-确定术语后, 当场更新 `docs/{domain-name}/CONTEXT.md`. 不要批量处理, 在它们发生时立即记录. 使用 [CONTEXT-FORMAT.md](./CONTEXT-FORMAT.md) 中的格式.
+修改领域文档后，从工作区根执行：
 
-`CONTEXT.md` 应完全不包含 implementation details. 不要将 `CONTEXT.md` 当作 spec, scratch pad 或 implementation decisions 的存储库. 它只是 glossary, 除此之外什么都不是.
+```powershell
+node <loop-x-skill-dir>/script/check-domain.mjs .
+```
 
-### 谨慎提议 ADRs
-
-只有同时满足以下三个条件时, 才提议创建 ADR:
-
-1. **Hard to reverse** - 日后改变决定的成本不可忽略.
-2. **Surprising without context** - 未来的读者会疑惑: "为什么要这样做?"
-3. **The result of a real trade-off** - 确实存在备选方案, 并且你出于具体原因选择了其中一个.
-
-缺少其中任何一个条件时, 跳过 ADR. 使用 [ADR-FORMAT.md](./ADR-FORMAT.md) 中的格式.
+校验通过、前述完成标准全部成立且用户确认共同理解后，以实际维护的领域文件为证据登记 `/grill-with-docs=completed`。只执行脚本返回的下一步；required child 调用只恢复 `/to-issues`。

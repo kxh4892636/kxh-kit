@@ -1,6 +1,6 @@
 ---
 name: verifying
-description: 交付验证:需要为变更执行本地或运行态门禁,最小重验,并给出证据化交付结论时使用.
+description: 验证交付主张并形成可复核证据链；当变更需要执行本地或运行态门禁、最小重验或给出 passed/failed/blocked 结论时使用。
 ---
 
 # Verifying

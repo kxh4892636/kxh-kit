@@ -163,7 +163,7 @@ trait ControlClient {
 ## Suggested skills
 
 - `/grill-with-docs`：在 BrowserSkill fork 中确认产品边界、CLI UX、授权主体和失效语义，并留下 `CONTEXT.md`/ADR。
-- `/codebase-design`：确定 `ControlTarget`、控制网关与 transport adapter 的深模块接缝。
+- `/code-design`：确定 `ControlTarget`、控制网关与 transport adapter 的深模块接缝。
 - `/tdd`：从 endpoint selection、认证和 SSH 断开行为开始 test-first 实现。
 - `/browser-skill`：使用已登录浏览器执行真实 PoC 和回归路径。
 - `/verifying`：验证本地门禁、SSH 实链路、跨平台行为和安全失败路径。

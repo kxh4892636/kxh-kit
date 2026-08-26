@@ -1,84 +1,40 @@
 ---
 name: code-review
-description: 沿两个轴审查自 fixed point(commit, branch, tag 或 merge-base)以来的变更 - Standards(代码是否遵循此仓库记录的编码规范?)和 Spec(代码是否符合原始 issue/spec 的要求?). 使用并行 sub-agents 运行两项审查, 并并列报告结果. 当用户想审查 branch, PR, work-in-progress 变更, 或要求 "review since X" 时使用.
+description: 双轴审查 fixed point 以来的 branch 或工作区 diff：Standards 检查仓库规范，Spec 检查需求符合度；当用户要求 review PR、branch、commit range 或 WIP 变更时使用。
 ---
 
-沿两个轴审查 `HEAD` 与用户提供的 fixed point 之间的 diff:
+# Code Review
 
-- **Standards** - 代码是否符合此仓库记录的编码规范?
-- **Spec** - 代码是否忠实实现了原始 issue / spec?
+**Standards** 与 **Spec** 是独立轴：代码可以忠实实现错误规范，也可以正确实现需求却违反仓库规则。使用两个并行 sub-agents 隔离 context，最后保持双轴报告。
 
-两个轴均由 **parallel sub-agents** 运行, 避免彼此污染 context, 然后由本 skill 汇总它们的发现.
+## 1. 固定审查范围
 
-## 流程
+解析用户给出的 commit、branch、tag 或 merge-base。用户未指定时，从执行契约或 PR/branch 上下文推断；仍有多个合理基准才询问。
 
-### 1. 固定 fixed point
+- 只审查已提交 branch：使用 `git diff <fixed-point>...HEAD`。
+- 审查 staged 或 unstaged WIP：使用 `git diff <fixed-point>`，使 HEAD 后提交和当前工作区都进入范围。
 
-用户所说的任何基准都是 fixed point, 例如 commit SHA, branch 名称, tag, `main`, `HEAD~5` 等. 如果用户没有指定, 询问用户.
+记录可复现的 diff 命令与 `git log <fixed-point>..HEAD --oneline`。fixed point 可解析、diff 非空、工作区变更是否纳入已明确时，本步骤完成。
 
-一次性记录 diff 命令: `git diff <fixed-point>...HEAD`(three-dot, 因此以 merge-base 为比较基准). 同时通过 `git log <fixed-point>..HEAD --oneline` 记录 commit 列表.
+## 2. 定位两轴来源
 
-继续之前, 确认 fixed point 可以解析(`git rev-parse <fixed-point>`), 且 diff 非空. 无效 ref 或空 diff 应在此处失败, 而不是在两个 parallel sub-agents 内部失败.
+Spec 按顺序取自：用户指定路径；与 branch/feature 匹配的 `docs/{domain-name}/plans/`；用户确认的其他来源。用户确认不存在 spec 时，Spec 轴记为 `not available`。
 
-### 2. 确定 Spec 来源
+Standards 包括仓库中实际适用于 diff 的 `AGENTS.md`、`CONTRIBUTING.md`、编码规范与 `/code-spec`。完整读取 [`SMELL-BASELINE.md`](SMELL-BASELINE.md)；它只提供判断型 heuristics，仓库明确规则优先，工具已经机械强制的内容不重复报告。
 
-按以下顺序查找原始 spec:
+每个变更文件都映射到适用 standards，每项 spec 要求都有可引用位置时，本步骤完成。
 
-1. 用户作为参数传入的路径.
-2. `docs/{domain-name}/plans/` 下与 branch 名称或 feature 匹配的 plan 目录中的 story.md 和 spec.md 文件.
-3. 如果没有找到, 询问用户 spec 在哪里. 如果用户表示没有 spec, 跳过 **Spec** sub-agent, 并报告 "没有可用的 spec".
+## 3. 并行审查
 
-### 3. 确定 Standards 来源
+同时派遣两个 sub-agents，并给每个 agent 相同的 diff 命令、commit 列表和审查范围：
 
-repo 中任何说明代码应如何编写的内容, 例如 `CODING_STANDARDS.md`, `CONTRIBUTING.md` 或 `/code-spec` skill.
+- **Standards agent**：读取全部 standards 来源与 `SMELL-BASELINE.md`。按文件和 hunk 报告违反的仓库规则，并分别标注 baseline smell；每项引用代码位置与规则来源，区分硬规则和 judgement，不超过 400 字。
+- **Spec agent**：读取全部 spec 来源。报告缺失或部分实现的 requirement、scope creep、以及行为存在但实现不符合要求的项；每项同时引用代码与 spec 位置，不超过 400 字。没有 spec 时不派遣该 agent。
 
-除仓库记录的内容外, Standards 轴始终带有以下 **smell baseline** - 一组固定的 Fowler code smells(_Refactoring_, 第 3 章), 即使仓库没有记录任何规范也适用. 它受两条规则约束:
+两个 agent 都覆盖完整 diff，且每项发现具备可复核位置、违反的规则或 requirement、影响与理由时，本步骤完成。
 
-- **The repo overrides.** 仓库中记录的 standard 始终优先. 如果它认可 smell baseline 会标记的内容, 则抑制该 smell.
-- **Always a judgement call.** 每个 smell 都是带标签的 heuristic("可能存在 Feature Envy"), 绝不是硬性违规. 与这里的任何 standard 一样, 跳过工具已经强制执行的内容.
+## 4. 汇总
 
-每个 smell 都按*它是什么* → *如何修复*来描述. 将其与 diff 对照:
+在 `## Standards` 与 `## Spec` 下分别呈现发现，保持各 agent 的严重度与顺序；Spec 不可用时明确说明。最后分别给出每轴发现数量与该轴最高严重度问题，不跨轴生成总排名。
 
-- **Mysterious Name** - function, variable 或 type 的名称没有揭示它执行或承载的内容. → 重命名. 如果想不出诚实的名称, 说明设计含混不清.
-- **Duplicated Code** - 同一种逻辑形态出现在本次变更的多个 hunk 或文件中. → 提取共享形态, 并从两处调用它.
-- **Feature Envy** - method 访问另一个 object 的数据多于自身数据. → 将 method 移到它所依恋的数据上.
-- **Data Clumps** - 相同的几个 fields 或 params 总是一起传递(一个等待诞生的 type). → 将它们组合为一个 type, 并传递该 type.
-- **Primitive Obsession** - 使用 primitive 或 string 代替一个值得拥有自身 type 的 domain concept. → 为该概念提供独立的小型 type.
-- **Repeated Switches** - 针对相同 type 的同一种 `switch`/`if` cascade 在变更中反复出现. → 使用 polymorphism 替代, 或让两处共享同一个 map.
-- **Shotgun Surgery** - 一项逻辑变更迫使 diff 跨多个文件进行分散编辑. → 将共同变化的内容收拢到一个 module 中.
-- **Divergent Change** - 一个文件或 module 因多个不相关的原因被编辑. → 拆分它, 让每个 module 只因一个原因而变化.
-- **Speculative Generality** - 为 spec 中不存在的需求添加 abstraction, parameters 或 hooks. → 删除它, 持续 inline, 直到真实需求出现.
-- **Message Chains** - 调用方不应依赖的长 `a.b().c().d()` navigation. → 将这段 traversal 隐藏在第一个 object 的一个 method 后面.
-- **Middle Man** - 主要只是继续 delegate 的 class 或 function. → 删除它, 直接调用真正的目标.
-- **Refused Bequest** - subclass 或 implementer 忽略或覆盖了所继承内容中的大部分. → 放弃 inheritance, 使用 composition.
-
-### 4. 并行派遣两个 sub-agents
-
-**Standards sub-agent prompt** - 包含:
-
-- 完整的 diff 命令和 commit 列表.
-- 第 3 步找到的 standards 来源文件列表, **以及完整粘贴第 3 步的 smell baseline**. sub-agent 无法通过其他方式访问它.
-- brief: "按相关文件/hunk 报告: (a) diff 中每一处违反已记录 standard 的位置, 引用该 standard(文件 + 规则). (b) 发现的任何 baseline smell, 给出名称并引用对应 hunk. 区分硬性违规与判断项. 违反已记录 standard 可以是硬性违规, 但 baseline smells 始终是判断项, 且仓库中记录的 standard 优先于 baseline. 跳过工具已强制执行的内容. 不超过 400 字."
-
-**Spec sub-agent prompt** - 包含:
-
-- diff 命令和 commit 列表.
-- spec 的路径或已取得的内容.
-- brief: "报告: (a) spec 要求但缺失或只完成一部分的 requirements. (b) diff 中未被要求的 behavior(scope creep). (c) 看似已实现, 但实现方式似乎有误的 requirements. 每项发现都引用对应 spec 行. 不超过 400 字."
-
-如果缺少 spec, 跳过 Spec sub-agent, 并在最终报告中注明.
-
-### 5. 汇总
-
-在 `## Standards` 和 `## Spec` 标题下逐字呈现或轻度整理两份报告. **不要**合并发现或重新排序. 两个轴是刻意分开的(参见*为什么使用两个轴*).
-
-最后用一行总结: 每个轴的发现总数, 以及*每个轴内部*最严重的问题(如果有). 不要跨轴选出唯一最严重的问题, 因为这种重新排序正是两个轴的分离所要避免的.
-
-## 为什么使用两个轴
-
-一项变更可能通过一个轴, 却未通过另一个轴:
-
-- 代码遵循每一条 standard, 却实现了错误的内容 → **Standards pass, Spec fail.**
-- 代码准确实现了 issue 的要求, 却违反项目约定 → **Spec pass, Standards fail.**
-
-分开报告可以防止一个轴掩盖另一个轴.
+双轴均有明确结论、每项 finding 可追溯、无发现的轴显式报告 pass 时，本 review 完成。
