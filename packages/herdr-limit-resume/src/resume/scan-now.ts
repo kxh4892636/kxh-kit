@@ -4,7 +4,9 @@ import { HerdrSocket, type HerdrPort } from "../herdr-socket.js";
 import { addResult, newResult, resumeAgent, type ResumeResult } from "./resume-agent.js";
 
 export interface ScanNowOptions {
+  now?: () => number;
   requestTimeoutMs?: number;
+  retryIntervalMs?: number;
   socketPath: string;
   stateDir: string;
   signal?: AbortSignal;
@@ -33,6 +35,10 @@ export const runScanNow = async (options: ScanNowOptions): Promise<ResumeResult>
       diagnostics,
       herdr,
       mode: "resume",
+      ...(options.now === undefined ? {} : { now: options.now }),
+      ...(options.retryIntervalMs === undefined
+        ? {}
+        : { retryIntervalMs: options.retryIntervalMs }),
       socketPath: options.socketPath,
       stateDir: options.stateDir,
       ...(options.signal === undefined ? {} : { signal: options.signal }),

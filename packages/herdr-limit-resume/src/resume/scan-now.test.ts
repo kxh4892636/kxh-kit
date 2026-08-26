@@ -146,21 +146,35 @@ test("an idle rate-limit stall is resumed through the prompt interface", async (
   );
 });
 
-test("the same terminal and message region are not resumed twice", async (): Promise<void> => {
+test("the same terminal and message region retries after the retry interval", async (): Promise<void> => {
   const stateDir = await mkdtemp(join(tmpdir(), "herdr-limit-resume-state-"));
   resources.push(async (): Promise<void> => rm(stateDir, { force: true, recursive: true }));
   const { requests, socketPath } = await listen(responseFor(agent));
+  let now = 1_000;
 
-  await runScanNow({ socketPath, stateDir });
-  const second = await runScanNow({ socketPath, stateDir });
+  await runScanNow({ now: (): number => now, retryIntervalMs: 100, socketPath, stateDir });
+  const second = await runScanNow({
+    now: (): number => now,
+    retryIntervalMs: 100,
+    socketPath,
+    stateDir,
+  });
+  now += 100;
+  const third = await runScanNow({
+    now: (): number => now,
+    retryIntervalMs: 100,
+    socketPath,
+    stateDir,
+  });
 
   expect(second.resumed).toBe(0);
+  expect(third.resumed).toBe(1);
   expect(
     requests.filter(({ method }: SocketRequest): boolean => method === "agent.prompt"),
-  ).toHaveLength(1);
+  ).toHaveLength(2);
 });
 
-test("a done to idle transition does not resume the same stall twice", async (): Promise<void> => {
+test("a done to idle transition remains throttled during the retry interval", async (): Promise<void> => {
   const stateDir = await mkdtemp(join(tmpdir(), "herdr-limit-resume-state-"));
   resources.push(async (): Promise<void> => rm(stateDir, { force: true, recursive: true }));
   let listCount = 0;

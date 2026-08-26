@@ -14,6 +14,7 @@ export interface AgentStatusEventOptions {
   leaseMs?: number;
   now?: () => number;
   requestTimeoutMs?: number;
+  retryIntervalMs?: number;
   socketPath: string;
   stateDir: string;
 }
@@ -43,6 +44,7 @@ export const runAgentStatusEvent = async (
     ...(options.leaseMs === undefined ? {} : { leaseMs: options.leaseMs }),
     mode: isCandidateStatus(event.status) ? "resume" : "clear-only",
     ...(options.now === undefined ? {} : { now: options.now }),
+    ...(options.retryIntervalMs === undefined ? {} : { retryIntervalMs: options.retryIntervalMs }),
     socketPath: options.socketPath,
     stateDir: options.stateDir,
     trigger: "event",

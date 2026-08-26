@@ -22,9 +22,10 @@ export interface ResumeAgentOptions {
   leaseMs?: number;
   mode: "clear-only" | "resume";
   now?: () => number;
+  retryIntervalMs?: number;
+  signal?: AbortSignal;
   socketPath: string;
   stateDir: string;
-  signal?: AbortSignal;
   trigger: DiagnosticTrigger;
 }
 
@@ -39,6 +40,7 @@ const DELIVERY_PATH = {
 } as const satisfies Record<AgentStatus, DeliveryPath | undefined>;
 
 const DETECTION_REGION_CODE_POINTS = 233;
+const DEFAULT_RESUME_RETRY_INTERVAL_MS = 30_000;
 const UNKNOWN_READ_REVISION = 0;
 
 export const resumeAgent = async (
@@ -110,14 +112,26 @@ const processCurrentAgent = async (
   const region = messageRegion(read.text);
   if (!isRateLimitRegion(region)) return { ...emptyResult(), scanned: 1, skipped: 1 };
   const fingerprint = fingerprintFor(region);
-  if (state.isHandled(agent.terminal_id, fingerprint)) {
+  const sentAt = (options.now ?? Date.now)();
+  const retryIntervalMs = options.retryIntervalMs ?? DEFAULT_RESUME_RETRY_INTERVAL_MS;
+  if (!state.canRetry(agent.terminal_id, fingerprint, sentAt, retryIntervalMs)) {
     return { ...emptyResult(), scanned: 1, skipped: 1 };
   }
   const current = await options.herdr.getAgent(agent.pane_id);
   if (!isStillCurrent(agent, current, read)) {
     return { ...emptyResult(), scanned: 1, skipped: 1 };
   }
-  if (!(await isReadStableWhenRevisionUnknown(agent, fingerprint, state, read, options))) {
+  if (
+    !(await isReadStableWhenRevisionUnknown(
+      agent,
+      fingerprint,
+      state,
+      read,
+      options,
+      sentAt,
+      retryIntervalMs,
+    ))
+  ) {
     return { ...emptyResult(), scanned: 1, skipped: 1 };
   }
   if (options.signal?.aborted === true) {
@@ -128,7 +142,7 @@ const processCurrentAgent = async (
   } else {
     await options.herdr.promptAgent(agent.pane_id, "go on");
   }
-  await state.record(agent.terminal_id, fingerprint);
+  await state.record(agent.terminal_id, fingerprint, sentAt);
   await recordUnchangedState(agent, fingerprint, options);
   return { ...emptyResult(), resumed: 1, scanned: 1 };
 };
@@ -177,13 +191,15 @@ const isReadStableWhenRevisionUnknown = async (
   state: ResumeState,
   read: AgentRead,
   options: ResumeAgentOptions,
+  sentAt: number,
+  retryIntervalMs: number,
 ): Promise<boolean> => {
   if (read.revision !== UNKNOWN_READ_REVISION) return true;
   const currentRead = await options.herdr.readLatest(agent.pane_id);
   const currentRegion = messageRegion(currentRead.text);
   const currentFingerprint = fingerprintFor(currentRegion);
   if (!isRateLimitRegion(currentRegion) || currentFingerprint !== fingerprint) return false;
-  if (state.isHandled(agent.terminal_id, currentFingerprint)) return false;
+  if (!state.canRetry(agent.terminal_id, currentFingerprint, sentAt, retryIntervalMs)) return false;
   const currentAgent = await options.herdr.getAgent(agent.pane_id);
   return isSameStateCycle(agent, currentAgent);
 };

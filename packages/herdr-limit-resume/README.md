@@ -2,7 +2,8 @@
 
 Limit Resume is a Herdr 0.8.2+ plugin that resumes rate-limited agents. It watches every agent
 type in every workspace. When a `blocked`, `done`, or `idle` agent's latest terminal region
-contains both `429` and `limit`, it sends `go on`.
+contains both `429` and `limit`, it sends `go on`. If the same rate-limit text remains visible, it
+keeps retrying on the next scan after the 30 second retry interval.
 
 The terminal region is an approximation based on Herdr's `recent_unwrapped` read source: whitespace
 is collapsed and only the final 233 Unicode characters are checked. `limit` is case-insensitive. A
@@ -11,11 +12,10 @@ seconds to compensate for missed events.
 
 ## Install
 
-Install the GitHub subdirectory and then restart Herdr or perform a live handoff:
+Install the GitHub subdirectory and then restart Herdr:
 
 ```console
 herdr plugin install kxh4892636/kxh-kit/packages/herdr-limit-resume
-herdr server live-handoff
 ```
 
 For local development, build and link this checkout:
@@ -24,12 +24,11 @@ For local development, build and link this checkout:
 corepack pnpm --filter @kxh4892636/herdr-limit-resume build
 herdr plugin link ./packages/herdr-limit-resume --disabled
 herdr plugin enable kxh.limit-resume
-herdr server live-handoff
 ```
 
-Linking or enabling a plugin does not invoke its startup hook. Restarting Herdr or running a live
-handoff is required to start the compensation worker. The `Scan rate-limited agents now` action is
-available for an immediate manual scan.
+Linking or enabling a plugin does not invoke its startup hook. Restart Herdr to start the
+compensation worker. The `Scan rate-limited agents now` action is available for an immediate manual
+scan and uses the current local build.
 
 ## Operation and risk
 
@@ -39,7 +38,7 @@ interact with whichever prompt is currently visible; the plugin rechecks the pan
 terminal, and revision immediately before delivery, but cannot make raw terminal input risk-free.
 
 The worker is best-effort and is not supervised by Herdr. If it crashes, the event hook and manual
-action still work, but periodic scans resume only after the next Herdr restart or live handoff. A
+action still work, but periodic scans resume only after the next Herdr restart. A
 per-session lease prevents duplicate startup workers; stale leases expire automatically. Disabling,
 unlinking, or uninstalling the plugin makes a running worker exit at its next lifecycle check before
 it sends new input.
@@ -54,7 +53,7 @@ herdr plugin config-dir kxh.limit-resume
 ```
 
 Herdr supplies the plugin-owned state path as `HERDR_PLUGIN_STATE_DIR`. It contains per-session
-deduplication state, leases, and bounded `diagnostics-*.jsonl` files with up to three rotated files.
+retry-cooldown state, leases, and bounded `diagnostics-*.jsonl` files with up to three rotated files.
 Diagnostics record trigger, result code, pane/terminal identifiers, a session shard, and an optional
 region hash; terminal text is never logged. The config directory command is useful for locating the
 adjacent managed plugin area, although this plugin currently has no user configuration.
@@ -70,4 +69,4 @@ herdr plugin uninstall kxh.limit-resume
 
 For a locally linked plugin, disable it and use `herdr plugin unlink kxh.limit-resume` instead. An
 already-running worker observes the disabled or missing registry entry and exits within one scan
-interval; restart or live handoff after re-enabling to start it again.
+interval; restart Herdr after re-enabling to start it again.
