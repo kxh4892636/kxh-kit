@@ -30,6 +30,7 @@
     "build": "node script/generate-skill-manifest.mjs && vp pack src/main.ts",
     "test": "vp test src",
     "test:distribution": "vp run build && vp test test/distribution.spec.ts",
+    "test:mutation": "stryker run",
     "check": "vp check",
     "prepublishOnly": "vp run build"
   },
