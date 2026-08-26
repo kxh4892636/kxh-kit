@@ -8,6 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const SCHEMA_VERSION = 3;
 const DEFAULT_LEASE_SECONDS = 1800;
+const DEFAULT_STATE_RETENTION_DAYS = 30;
 const LOCK_STALE_MS = 30000;
 const LOCK_RETRIES = 50;
 const LOCK_RETRY_MS = 100;
@@ -92,11 +93,37 @@ const normalizeFlowIdentifier = (planInput) => {
   return planInput;
 };
 
-const statePaths = (workspace) => ({
+const calendarDate = (date) =>
+  [date.getFullYear(), date.getMonth() + 1, date.getDate()]
+    .map((part, index) => (index === 0 ? String(part) : String(part).padStart(2, "0")))
+    .join("-");
+
+const statePaths = (workspace, now) => ({
   dir: path.join(workspace, ".loop"),
-  lock: path.join(workspace, ".loop", "state.lock"),
-  state: path.join(workspace, ".loop", "state.json"),
+  state: path.join(workspace, ".loop", `${calendarDate(now)}-state.json`),
 });
+
+const removeExpiredStates = async (directory, now) => {
+  const oldestRetainedDate = new Date(now);
+  oldestRetainedDate.setHours(0, 0, 0, 0);
+  oldestRetainedDate.setDate(oldestRetainedDate.getDate() - (DEFAULT_STATE_RETENTION_DAYS - 1));
+  const oldestRetainedPrefix = calendarDate(oldestRetainedDate);
+  const currentPrefix = calendarDate(now);
+  try {
+    const entries = await fs.readdir(directory, { withFileTypes: true });
+    const expiredStates = entries.filter(
+      (entry) =>
+        entry.isFile() &&
+        /^\d{4}-\d{2}-\d{2}-state\.json$/u.test(entry.name) &&
+        (entry.name.slice(0, 10) < oldestRetainedPrefix || entry.name.slice(0, 10) > currentPrefix),
+    );
+    await Promise.all(expiredStates.map((entry) => fs.unlink(path.join(directory, entry.name))));
+  } catch (error) {
+    fail(
+      `清理 ${directory} 中的过期状态失败: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+};
 
 const emptyState = () => ({
   plans: {},
@@ -114,7 +141,7 @@ const validateState = (state, supportedVersions = [SCHEMA_VERSION]) => {
     typeof state.plans !== "object" ||
     Array.isArray(state.plans)
   ) {
-    fail(".loop/state.json 格式无效或版本不受支持");
+    fail("Flow 状态格式无效或版本不受支持");
   }
   return state;
 };
@@ -236,19 +263,23 @@ const releaseLock = async (lockPath, nonce) => {
 };
 
 const withStateTransaction = async (workspace, now, action) => {
-  const paths = statePaths(workspace);
-  await fs.mkdir(paths.dir, { recursive: true });
-  const nonce = await acquireLock(paths.lock, now);
+  const directory = path.join(workspace, ".loop");
+  const lockPath = path.join(directory, "state.lock");
+  await fs.mkdir(directory, { recursive: true });
+  const nonce = await acquireLock(lockPath, now);
   try {
+    const transactionTime = now();
+    const paths = statePaths(workspace, transactionTime);
+    await removeExpiredStates(paths.dir, transactionTime);
     const { migrated, state } = await readState(paths.state);
-    const transaction = await action(state);
+    const transaction = await action(state, transactionTime);
     if (transaction.changed || migrated) {
       state.revision += 1;
       await atomicWrite(paths.state, `${JSON.stringify(state, null, 2)}\n`);
     }
     return { ...transaction.output, revision: state.revision };
   } finally {
-    await releaseLock(paths.lock, nonce);
+    await releaseLock(lockPath, nonce);
   }
 };
 
@@ -279,13 +310,13 @@ const currentPlanStep = (plan) => {
     active.parent_skill !== parent.skill ||
     active.child_skill !== parent.required_child
   ) {
-    fail(".loop/state.json 的 active_step 与当前 Plan 步骤不一致");
+    fail("Flow 状态的 active_step 与当前 Plan 步骤不一致");
   }
   if (active.phase === "child") {
     return { skill: active.child_skill, results: ["completed"] };
   }
   if (active.phase === "resume") return parent;
-  fail(".loop/state.json 的 active_step phase 无效");
+  fail("Flow 状态的 active_step phase 无效");
 };
 
 const stepLabel = (step) => (step.skill ? `/${step.skill}` : step.action);
@@ -814,7 +845,9 @@ export const executeFlow = async ({
   workspace = process.cwd(),
 }) => {
   const root = path.resolve(workspace);
-  return withStateTransaction(root, now, (state) => dispatch(state, root, command, options, now()));
+  return withStateTransaction(root, now, (state, transactionTime) =>
+    dispatch(state, root, command, options, transactionTime),
+  );
 };
 
 const parseCli = (argumentsList) => {

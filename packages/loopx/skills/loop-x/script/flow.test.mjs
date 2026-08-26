@@ -12,6 +12,16 @@ import { executeFlow } from "./flow.mjs";
 const execFileAsync = promisify(execFile);
 const FLOW_PATH = fileURLToPath(new URL("./flow.mjs", import.meta.url));
 const PLAN_PATH = "docs/orders/plans/active/2026-08-22-订单流转";
+const TEST_NOW = new Date();
+
+const statePath = (workspace, date = TEST_NOW) => {
+  const prefix = [date.getFullYear(), date.getMonth() + 1, date.getDate()]
+    .map((part, index) => (index === 0 ? String(part) : String(part).padStart(2, "0")))
+    .join("-");
+  return path.join(workspace, ".loop", `${prefix}-state.json`);
+};
+
+const shiftedDate = (days) => new Date(new Date(TEST_NOW).setDate(TEST_NOW.getDate() + days));
 
 const issueDocument = (id, dependencies = []) => `---
 status: pending
@@ -114,7 +124,7 @@ const createWorkspace = async (issueDefinitions) => {
 };
 
 const command = (workspace, commandName, options) =>
-  executeFlow({ command: commandName, options, workspace });
+  executeFlow({ command: commandName, now: () => new Date(TEST_NOW), options, workspace });
 
 const readyPlan = async (workspace, session = "plan-session") => {
   await command(workspace, "init", {
@@ -175,6 +185,67 @@ const legacyReceipt = (step, result) => ({
   recorded_at: "2026-08-25T00:00:00.000Z",
   result,
   step: step === "commit" ? step : `/${step}`,
+});
+
+test("状态文件使用本地日期前缀且不读取旧 state.json", async () => {
+  const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
+  try {
+    const stateDirectory = path.join(workspace, ".loop");
+    await fs.mkdir(stateDirectory);
+    await fs.writeFile(
+      path.join(stateDirectory, "state.json"),
+      `${JSON.stringify({ plans: { legacy: {} }, revision: 99, schema_version: 3 })}\n`,
+    );
+
+    const initialized = await command(workspace, "init", {
+      plan: PLAN_PATH,
+      route: "issues",
+      session: "dated-state-session",
+    });
+
+    assert.equal(initialized.revision, 1);
+    const state = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
+    assert.deepEqual(Object.keys(state.plans), [PLAN_PATH]);
+  } finally {
+    await fs.rm(workspace, { force: true, recursive: true });
+  }
+});
+
+test("状态事务只清理三十天窗口之前的日期状态文件", async () => {
+  const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
+  try {
+    const stateDirectory = path.join(workspace, ".loop");
+    await fs.mkdir(stateDirectory);
+    const expiredState = path.basename(statePath(workspace, shiftedDate(-30)));
+    const oldestRetainedState = path.basename(statePath(workspace, shiftedDate(-29)));
+    const recentState = path.basename(statePath(workspace, shiftedDate(-10)));
+    const futureState = path.basename(statePath(workspace, shiftedDate(1)));
+    for (const name of [
+      expiredState,
+      oldestRetainedState,
+      recentState,
+      futureState,
+      "notes.json",
+    ]) {
+      await fs.writeFile(path.join(stateDirectory, name), "{}\n");
+    }
+
+    await command(workspace, "init", {
+      plan: PLAN_PATH,
+      route: "issues",
+      session: "retention-session",
+    });
+
+    const retainedNames = await fs.readdir(stateDirectory);
+    assert.ok(!retainedNames.includes(expiredState));
+    assert.ok(!retainedNames.includes(futureState));
+    assert.ok(retainedNames.includes(oldestRetainedState));
+    assert.ok(retainedNames.includes(recentState));
+    assert.ok(retainedNames.includes(path.basename(statePath(workspace))));
+    assert.ok(retainedNames.includes("notes.json"));
+  } finally {
+    await fs.rm(workspace, { force: true, recursive: true });
+  }
 });
 
 test("按路由顺序记录 Plan skill", async () => {
@@ -285,7 +356,7 @@ test("v1 状态迁移后保留已完成步骤并约束当前步骤", async () =>
     const stateDirectory = path.join(workspace, ".loop");
     await fs.mkdir(stateDirectory);
     await fs.writeFile(
-      path.join(stateDirectory, "state.json"),
+      statePath(workspace),
       `${JSON.stringify(
         {
           plans: {
@@ -322,7 +393,7 @@ test("v1 状态迁移后保留已完成步骤并约束当前步骤", async () =>
     );
 
     await command(workspace, "status", { plan: PLAN_PATH });
-    const migrated = JSON.parse(await fs.readFile(path.join(stateDirectory, "state.json"), "utf8"));
+    const migrated = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
     assert.equal(migrated.schema_version, 3);
     assert.equal(migrated.revision, 5);
     assert.equal(migrated.plans[PLAN_PATH].setup.cursor, 1);
@@ -343,7 +414,7 @@ test("v2 主路径中途状态迁移后直接等待提交", async () => {
     const stateDirectory = path.join(workspace, ".loop");
     await fs.mkdir(stateDirectory);
     await fs.writeFile(
-      path.join(stateDirectory, "state.json"),
+      statePath(workspace),
       `${JSON.stringify(
         {
           plans: {
@@ -386,7 +457,7 @@ test("v2 主路径中途状态迁移后直接等待提交", async () => {
     });
 
     assert.equal(completed.status, "completed");
-    const migrated = JSON.parse(await fs.readFile(path.join(stateDirectory, "state.json"), "utf8"));
+    const migrated = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
     assert.equal(migrated.schema_version, 3);
     assert.equal(migrated.plans[flowIdentifier].setup.cursor, 4);
   } finally {
@@ -401,7 +472,7 @@ test("v2 Issue 中途状态迁移后保留交付证据门禁", async () => {
     const stateDirectory = path.join(workspace, ".loop");
     await fs.mkdir(stateDirectory);
     await fs.writeFile(
-      path.join(stateDirectory, "state.json"),
+      statePath(workspace),
       `${JSON.stringify(
         {
           plans: {
@@ -450,7 +521,7 @@ test("v2 Issue 中途状态迁移后保留交付证据门禁", async () => {
     );
 
     assert.equal(completed.status, "completed");
-    const migrated = JSON.parse(await fs.readFile(path.join(stateDirectory, "state.json"), "utf8"));
+    const migrated = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
     assert.equal(migrated.schema_version, 3);
     assert.equal(migrated.plans[PLAN_PATH].issues["01"].cursor, 2);
   } finally {
@@ -518,9 +589,7 @@ test("不同 Flow 标识的 grill-with-docs 使用独立运行态", async () => 
 
     assert.notEqual(first.plan, second.plan);
     assert.notEqual(first.session, second.session);
-    const state = JSON.parse(
-      await fs.readFile(path.join(workspace, ".loop", "state.json"), "utf8"),
-    );
+    const state = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
     assert.ok(state.plans[first.plan]);
     assert.ok(state.plans[second.plan]);
   } finally {
@@ -569,7 +638,7 @@ test("loop-x 必须选择规定的入口 skill", async () => {
       }),
       /\/to-story 进入流程前必须提供 --plan/,
     );
-    await assert.rejects(fs.access(path.join(workspace, ".loop", "state.json")), {
+    await assert.rejects(fs.access(statePath(workspace)), {
       code: "ENOENT",
     });
   } finally {
@@ -609,8 +678,8 @@ test("loop-x 只能接入已有流程当前期待的入口", async () => {
     });
     assert.equal(repeated.revision, entered.revision);
 
-    const statePath = path.join(workspace, ".loop", "state.json");
-    const stateBeforeMismatch = await fs.readFile(statePath, "utf8");
+    const runtimeStatePath = statePath(workspace);
+    const stateBeforeMismatch = await fs.readFile(runtimeStatePath, "utf8");
     await assert.rejects(
       command(workspace, "enter-plan", {
         entry: "/to-issues",
@@ -620,7 +689,7 @@ test("loop-x 只能接入已有流程当前期待的入口", async () => {
       }),
       /当前期望 \/to-story/,
     );
-    assert.equal(await fs.readFile(statePath, "utf8"), stateBeforeMismatch);
+    assert.equal(await fs.readFile(runtimeStatePath, "utf8"), stateBeforeMismatch);
 
     await completeRequiredPlanStep(workspace, entered.session, "to-story", "grilling");
     const advanced = await command(workspace, "enter-plan", {
@@ -807,9 +876,7 @@ test("Issue 在 implement 后只固定提交并保留交付证据门禁", async 
     await addDeliveryEvidence(workspace, "01");
     const result = await recordIssue(workspace, "01", "issue-a", "commit", "committed");
     assert.equal(result.status, "completed");
-    const state = JSON.parse(
-      await fs.readFile(path.join(workspace, ".loop", "state.json"), "utf8"),
-    );
+    const state = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
     assert.equal(state.plans[PLAN_PATH].issues["01"].status, "completed");
     const spec = await fs.readFile(path.join(workspace, PLAN_PATH, "spec.md"), "utf8");
     assert.match(spec, /^status: completed$/m);
@@ -834,9 +901,7 @@ test("sync-plan 从 Issue 文档恢复完成状态", async () => {
 
     await command(workspace, "sync-plan", { plan: PLAN_PATH });
 
-    const state = JSON.parse(
-      await fs.readFile(path.join(workspace, ".loop", "state.json"), "utf8"),
-    );
+    const state = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
     assert.equal(state.plans[PLAN_PATH].issues["01"].status, "completed");
     const spec = await fs.readFile(path.join(workspace, PLAN_PATH, "spec.md"), "utf8");
     assert.match(spec, /^status: completed$/m);
@@ -892,7 +957,7 @@ test("CLI 可脱离工作区 package 配置直接运行", async () => {
     const result = JSON.parse(stdout);
     assert.equal(result.next_skill, "/to-issues");
     assert.equal(result.success, true);
-    await fs.access(path.join(workspace, ".loop", "state.json"));
+    await fs.access(statePath(workspace, new Date()));
 
     const loopxWorkspace = path.join(workspace, "loopx-entry");
     await fs.mkdir(loopxWorkspace);
@@ -912,7 +977,7 @@ test("CLI 可脱离工作区 package 配置直接运行", async () => {
     assert.equal(loopxResult.next_skill, "/to-issues");
     assert.equal(loopxResult.route, "issues");
     assert.equal(loopxResult.success, true);
-    await fs.access(path.join(loopxWorkspace, ".loop", "state.json"));
+    await fs.access(statePath(loopxWorkspace, new Date()));
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }
