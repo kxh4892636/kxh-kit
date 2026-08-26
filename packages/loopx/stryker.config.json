@@ -11,12 +11,16 @@
   },
   "incremental": true,
   "incrementalFile": "reports/mutation/incremental.json",
+  "thresholds": {
+    "high": 90,
+    "low": 90,
+    "break": 90
+  },
   "timeoutFactor": 3,
   "timeoutMS": 20000,
   "dryRunTimeoutMinutes": 15,
   "testRunner": "vitest",
   "testRunner_comment": "Take a look at https://stryker-mutator.io/docs/stryker-js/vitest-runner for information about the vitest plugin.",
   "coverageAnalysis": "perTest",
-  "buildCommand": "vp run build",
   "plugins": ["@stryker-mutator/vitest-runner"]
 }
