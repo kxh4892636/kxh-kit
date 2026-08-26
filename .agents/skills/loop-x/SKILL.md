@@ -33,17 +33,18 @@ node .agents/skills/loop-x/script/check-domain.mjs .
 /grill-with-docs
   └─ 设计卡点通过 ─> /dev-gate
                          └─ ready ─> /implement
-                                       ├─ /tdd
-                                       ├─ /verifying
-                                       ├─ /code-review
-                                       └─ commit
+                                       └─ 写代码
+                                            └─ /code-test
+                                                 └─ /verifying
+                                                      └─ /code-review
+                                                           └─ commit
 ```
 
 1. 使用 [`/grill-with-docs`](references/subskills/grill-with-docs/SKILL.md) 打磨设计，并就地维护已确认的领域术语与 ADR。
-2. 使用 [`/dev-gate`](references/subskills/dev-gate/SKILL.md) 检查准入条件，确认工作环境、执行契约和验收门禁。结论为 `ready` 后进入实现。
-3. 使用 [`/implement`](references/subskills/implement/SKILL.md) 在确认的边界内交付。实现默认在合适 seam 上运行 [`/tdd`](references/subskills/tdd/SKILL.md)，随后由 [`/verifying`](references/subskills/verifying/SKILL.md) 建立证据链，再由 [`/code-review`](references/subskills/code-review/SKILL.md) 分别审查 Standards 与 Spec，最后提交。
+2. 使用 [`/dev-gate`](references/subskills/dev-gate/SKILL.md) 检查准入条件，确认工作环境、执行契约和质量门禁。结论为 `ready` 后进入实现。
+3. 使用 [`/implement`](references/subskills/implement/SKILL.md) 在确认的边界内交付。严格按写代码 → [`/code-test`](references/subskills/code-test/SKILL.md) → [`/verifying`](references/subskills/verifying/SKILL.md) → [`/code-review`](references/subskills/code-review/SKILL.md) → commit 推进；
 
-实现中的范围、环境、执行契约或验收门禁发生实质漂移时，返回 `/dev-gate` 重新确认。
+实现中的范围、环境、执行契约或质量门禁发生实质漂移时，返回 `/dev-gate` 重新确认。
 
 ## 接入路径
 
@@ -75,7 +76,7 @@ node .agents/skills/loop-x/script/check-domain.mjs .
 | 故事卡点     | 每条故事有唯一有序编号和可判定验收；迷雾已清空或经用户接受；用户确认覆盖原始想法                                                                          | 继续 `/to-story`                                   |
 | Issue 图卡点 | 范围无遗漏且责任单一归属；直接依赖说明消费契约；图有根、无自环、无环；全部决策已澄清；下一步均为 `/implement`；issue 均为 `pending`；用户确认边界与依赖图 | 继续 `/to-issues`，语义决策回到 `/grill-with-docs` |
 | 执行准入卡点 | `/dev-gate` 的路径准入和三项基线均获用户确认，结论为 `ready`                                                                                              | 修正文档或基线，重新执行 `/dev-gate`               |
-| 交付卡点     | `/verifying` 对约定门禁给出 `passed`；Standards 与 Spec 两轴的阻断发现已处理或明确接受；交付已提交至当前分支                                              | 门禁失败进入最小修复循环；基线漂移返回 `/dev-gate` |
+| 交付卡点     | `/code-test` 的测试与覆盖率门禁通过，变异测试按配置与人工确认结果通过或跳过；`/verifying` 给出 `passed`；两轴 review 的阻断发现已处理或明确接受；交付已提交 | 门禁失败进入最小修复循环；基线漂移返回 `/dev-gate` |
 
 ## To Issues 的文档形状
 

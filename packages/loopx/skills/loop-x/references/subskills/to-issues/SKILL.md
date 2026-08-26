@@ -43,7 +43,7 @@ spec 承载问题, 方案, 状态和依赖图; 决策细节在 issue 和 ADR 中
 2. **逐轮澄清, 就地落盘**: 按 rounds 批量询问 frontier;
    - 落盘的是确认后的结论, 不是对话记录; 每条结论当轮归入 spec.md 对应小节, 无对应小节的按模板扩展处理;
    - 可精确表述且可独立验收的工作 → 新 issue 文件(tracer-bullet 规则);
-   - 固定明确 `/verifying` 针对 issue 使用哪些验收门禁;
+   - 固定明确 `/code-test` 和 `/verifying` 针对 issue 使用的最小质量门禁集合;
 3. **每轮结束校验不变量**(见状态协议), 继续 rounds 批量询问, 迭代到达成完成标准.
 
 tracer-bullet 规则:

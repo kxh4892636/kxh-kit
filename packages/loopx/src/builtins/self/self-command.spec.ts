@@ -77,6 +77,15 @@ describe("self skill query interface", (): void => {
     });
   });
 
+  test("packages code-test as the implementation testing skill", (): void => {
+    const loopX = generatedSkills.find((skill) => skill.name === "loop-x");
+    if (loopX === undefined) throw new Error("Missing loop-x generated skill");
+    const paths = loopX.files.map((file) => file.path);
+
+    expect(paths).toContain("references/subskills/code-test/SKILL.md");
+    expect(paths.some((filePath) => filePath.startsWith("references/subskills/tdd/"))).toBe(false);
+  });
+
   test("installs, checks, and uninstalls loop-x-cli", async (): Promise<void> => {
     const target = await createTarget();
     await invoke(target, ["install", "--name", "loop-x-cli"]);

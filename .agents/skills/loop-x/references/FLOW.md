@@ -61,17 +61,17 @@ node .agents/skills/loop-x/script/flow.mjs record-plan --plan <plan-path> --sess
 
 `/to-issues` 使用相同协议调用 `/grill-with-docs`。约束属于 `PLAN_ROUTES` 中的具体 setup 步骤；`claim-issue`、`resume-issue` 和 `ISSUE_FLOW` 不触发 `/grill-with-docs`。required child 本身不递归展开其他调用要求。
 
-`main` 路径和每个已领取 issue 的完整交付链为：
+`main` 路径和每个已领取 issue 在 `/implement` 内部使用同一条完整交付链：
 
 ```text
-/implement=started
-  -> /tdd=completed|skipped
+写代码
+  -> /code-test
   -> /verifying=passed
   -> /code-review=reviewed
   -> commit=committed
 ```
 
-- `commit` 是 `next_action`，不是 skill。Issue 提交前，其「交付记录」必须包含交付物与验证证据。
+- Flow 只登记 `/implement=started` 和 `commit=committed`；tests、verify 与 review 是 `/implement` 返回前必须完成的内部卡点。`commit` 是 `next_action`，不是 skill。Issue 提交前，其「交付记录」必须包含交付物与验证证据。
 - `story` 和 `issues` 路径到达 `ready` 后，使用 `claim-issue` 领取依赖已满足的 issue；首次领取可省略 `--session` 并由脚本生成，成功后保留返回的 `issue`、`plan` 和 `session`。脚本同步状态并返回 `/implement`。
 
 脚本返回 `/dev-gate` 时，调用者必须在执行该 skill 前完整读取 [`QUESTIONS.md`](QUESTIONS.md) 和 [工作流索引](workflows/README.md)，以用户输入和当前上下文筛选并询问相关问题。直接调用 `/dev-gate` 时由该 skill 的第一步执行同一契约；不额外登记已阅读 receipt。
