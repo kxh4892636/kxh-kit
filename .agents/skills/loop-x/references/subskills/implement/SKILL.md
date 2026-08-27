@@ -7,7 +7,7 @@ description: 按已确认的 spec 或 issue 交付代码，并串联测试、验
 
 以 `/dev-gate` 确认的执行契约为边界，以同一基线中的质量门禁为证据要求。结论尚非 `ready` 时先运行 `/dev-gate`。
 
-携带 flow context 时，先完整读取 [`FLOW.md`](../../FLOW.md)，登记 `/implement=started`，保存脚本返回的 `commit` action；内部门禁完成前不执行该 action。直接调用本 skill 时沿用同一交付链，但只执行用户授权的状态变更。
+携带 flow context 时，先完整读取 [`FLOW.md`](./../../FLOW.md)，登记 `/implement=started`，保存脚本返回的 `commit` action；内部门禁完成前不执行该 action。直接调用本 skill 时沿用同一交付链，但只执行用户授权的状态变更。
 
 ## 交付链
 
@@ -19,4 +19,4 @@ description: 按已确认的 spec 或 issue 交付代码，并串联测试、验
 
 生产代码变化会使其后的测试、验证和审查证据失效；从最早受影响的门禁重新取得证据。基线漂移则返回 `/dev-gate`，更新权威入口并重新确认。
 
-遇到真实障碍时，读取 [`workflows/README.md`](../../workflows/README.md) 和相关业务域已有 workflow，寻找已记录的恢复路径；再记录现有证据、缺失条件和恢复入口。携带 issue context 时按 [`FLOW.md`](../../FLOW.md) 形成 blocked 结果；其余情况向用户交付同样可判定的阻塞说明。
+遇到真实障碍时，读取 [`workflows/README.md`](./../../workflows/README.md) 和相关业务域已有 workflow，寻找已记录的恢复路径；再记录现有证据、缺失条件和恢复入口。携带 issue context 时按 [`FLOW.md`](./../../FLOW.md) 形成 blocked 结果；其余情况向用户交付同样可判定的阻塞说明。

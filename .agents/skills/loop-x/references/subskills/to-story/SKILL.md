@@ -10,7 +10,7 @@ argument-hint: "要把什么想法打磨成用户故事?"
 
 ## 1. 定位 Plan
 
-完整读取 [`DOMAIN.md`](../../DOMAIN.md)，从 `CONTEXT-MAP.md` 定位 owner 域并读取相关 `CONTEXT.md`、ADR 和已有 Plan。新 Plan 创建于：
+完整读取 [`DOMAIN.md`](./../../DOMAIN.md)，从 `CONTEXT-MAP.md` 定位 owner 域并读取相关 `CONTEXT.md`、ADR 和已有 Plan。新 Plan 创建于：
 
 ```text
 docs/{domain-name}/plans/active/YYYY-MM-DD-中文工作名/story.md
@@ -22,7 +22,7 @@ owner、Plan 路径、原始想法和所有相关现有产物已确定时，本�
 
 ## 2. 进入 Flow 并清空迷雾
 
-完整读取 [`FLOW.md`](../../FLOW.md)。顶层直接调用时进入固定 `story` 路径；收到 `/loop-x` context 时直接复用。登记 `/to-story=started`，只调用脚本返回的 `/grilling`。
+完整读取 [`FLOW.md`](./../../FLOW.md)。顶层直接调用时进入固定 `story` 路径；收到 `/loop-x` context 时直接复用。登记 `/to-story=started`，只调用脚本返回的 `/grilling`。
 
 以故事地图为 design tree 运行 `/grilling`：角色、故事和未知项都是 branch；无依赖的决策进入同一 frontier，有依赖的决策留到后续 round。环境事实由 agent 检索，用户决定角色、收益、边界与验收。
 
@@ -39,4 +39,4 @@ owner、Plan 路径、原始想法和所有相关现有产物已确定时，本�
 
 逐项核对原始想法与故事地图：每条故事有唯一且单调递增的 `US-NNN`、明确角色与收益、至少一项可判定验收；迷雾为空或每个保留项都获用户明确接受；每个原始意图都恰好映射到故事或已接受的非范围。
 
-从工作区根执行 `node <loop-x-skill-dir>/script/check-domain.mjs .`。校验通过且用户确认故事集覆盖原始想法后，以 `story.md` 为证据登记 `/to-story=completed`，只执行脚本返回的下一步。
+从工作区根执行 `node <loop-x-skill-dir>/script/check-domain.mjs .`。校验通过且用户确认故事集覆盖原始想法后，以 `story.md` 为证据登记 `/to-story=completed`，只执行脚本返回的 `/grill-with-docs`。

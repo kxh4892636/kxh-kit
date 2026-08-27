@@ -6,7 +6,7 @@ import process from "node:process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 const DEFAULT_LEASE_SECONDS = 1800;
 const DEFAULT_STATE_RETENTION_DAYS = 30;
 const LOCK_STALE_MS = 30000;
@@ -22,16 +22,13 @@ const DELIVERY_FLOW = [
 const PLAN_ROUTES = {
   main: [
     { skill: "grill-with-docs", results: ["completed"] },
+    { skill: "to-issues", results: ["completed", "skipped"] },
     { skill: "dev-gate", results: ["ready"] },
-    ...DELIVERY_FLOW,
   ],
   story: [
     { required_child: "grilling", skill: "to-story", results: ["completed"] },
-    { required_child: "grill-with-docs", skill: "to-issues", results: ["completed"] },
-    { skill: "dev-gate", results: ["ready"] },
-  ],
-  issues: [
-    { required_child: "grill-with-docs", skill: "to-issues", results: ["completed"] },
+    { skill: "grill-with-docs", results: ["completed"] },
+    { skill: "to-issues", results: ["completed", "skipped"] },
     { skill: "dev-gate", results: ["ready"] },
   ],
 };
@@ -40,7 +37,6 @@ const ISSUE_FLOW = DELIVERY_FLOW;
 
 const ENTRY_ROUTES = {
   "grill-with-docs": "main",
-  "to-issues": "issues",
   "to-story": "story",
 };
 
@@ -50,9 +46,9 @@ const fail = (message) => {
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-const normalizeSkill = (value) => value?.replace(/^\//, "");
+export const normalizeSkill = (value) => value?.replace(/^\//, "");
 
-const requireOption = (options, name) => {
+export const requireOption = (options, name) => {
   const value = options[name];
   if (typeof value !== "string" || value.trim() === "") {
     fail(`缺少 --${name}`);
@@ -60,14 +56,14 @@ const requireOption = (options, name) => {
   return value.trim();
 };
 
-const optionValues = (options, name) => {
+export const optionValues = (options, name) => {
   const value = options[name];
   if (Array.isArray(value)) return value;
   if (typeof value === "string") return [value];
   return [];
 };
 
-const leaseSeconds = (options) => {
+export const leaseSeconds = (options) => {
   const rawValue = options["lease-seconds"];
   if (rawValue === undefined) return DEFAULT_LEASE_SECONDS;
   const value = Number(rawValue);
@@ -77,20 +73,13 @@ const leaseSeconds = (options) => {
   return value;
 };
 
-const normalizePlanPath = (workspace, planInput) => {
+export const normalizePlanPath = (workspace, planInput) => {
   const absolutePath = path.resolve(workspace, planInput);
   const relativePath = path.relative(workspace, absolutePath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
     fail("--plan 必须位于工作区内");
   }
   return relativePath === "" ? "." : relativePath.replaceAll("\\", "/");
-};
-
-const normalizeFlowIdentifier = (planInput) => {
-  if (!/^\d{4}-\d{2}-\d{2}-[^/\\]+$/u.test(planInput)) {
-    fail("/grill-with-docs 的 --plan 必须是 YYYY-MM-DD-{name} Flow 标识");
-  }
-  return planInput;
 };
 
 const calendarDate = (date) =>
@@ -131,7 +120,7 @@ const emptyState = () => ({
   schema_version: SCHEMA_VERSION,
 });
 
-const validateState = (state, supportedVersions = [SCHEMA_VERSION]) => {
+export const validateState = (state, supportedVersions = [SCHEMA_VERSION]) => {
   if (
     state === null ||
     typeof state !== "object" ||
@@ -143,10 +132,15 @@ const validateState = (state, supportedVersions = [SCHEMA_VERSION]) => {
   ) {
     fail("Flow 状态格式无效或版本不受支持");
   }
+  for (const plan of Object.values(state.plans)) {
+    if (plan === null || typeof plan !== "object" || !PLAN_ROUTES[plan.route]) {
+      fail("Flow 状态格式无效或版本不受支持");
+    }
+  }
   return state;
 };
 
-const migratedCursor = (sequence, receipts, status) => {
+export const migratedCursor = (sequence, receipts, status) => {
   if (status === "completed") return sequence.length;
   let cursor = 0;
   for (const step of sequence) {
@@ -158,27 +152,7 @@ const migratedCursor = (sequence, receipts, status) => {
   return cursor;
 };
 
-const migrateState = (state) => {
-  validateState(state, [1, 2, SCHEMA_VERSION]);
-  if (state.schema_version === SCHEMA_VERSION) return { migrated: false, state };
-  for (const plan of Object.values(state.plans)) {
-    if (plan?.setup && plan.setup.active_step === undefined) {
-      plan.setup.active_step = null;
-    }
-    if (plan?.route === "main") {
-      plan.setup.cursor = migratedCursor(
-        PLAN_ROUTES.main,
-        plan.setup.receipts ?? [],
-        plan.setup.status,
-      );
-    }
-    for (const issue of Object.values(plan?.issues ?? {})) {
-      issue.cursor = migratedCursor(ISSUE_FLOW, issue.receipts ?? [], issue.status);
-    }
-  }
-  state.schema_version = SCHEMA_VERSION;
-  return { migrated: true, state };
-};
+export const migrateState = (state) => ({ migrated: false, state: validateState(state) });
 
 const readText = async (targetPath, allowMissing = false) => {
   try {
@@ -288,7 +262,7 @@ const makeLease = (session, seconds, now) => ({
   owner_session: session,
 });
 
-const leaseIsActive = (lease, now) =>
+export const leaseIsActive = (lease, now) =>
   lease?.owner_session && Date.parse(lease.expires_at) > now.getTime();
 
 const requireLease = (subject, session, now) => {
@@ -300,8 +274,18 @@ const requireLease = (subject, session, now) => {
 
 const nextStep = (sequence, cursor) => sequence[cursor] ?? null;
 
+const toIssuesReceipt = (plan) =>
+  plan.setup.receipts.find((receipt) => receipt.step === "/to-issues") ?? null;
+
+const usesIssueDelivery = (plan) => toIssuesReceipt(plan)?.result === "completed";
+
+const planSequence = (plan) =>
+  usesIssueDelivery(plan)
+    ? PLAN_ROUTES[plan.route]
+    : [...PLAN_ROUTES[plan.route], ...DELIVERY_FLOW];
+
 const currentPlanStep = (plan) => {
-  const parent = nextStep(PLAN_ROUTES[plan.route], plan.setup.cursor);
+  const parent = nextStep(planSequence(plan), plan.setup.cursor);
   const active = plan.setup.active_step;
   if (!active) return parent;
   if (
@@ -334,13 +318,16 @@ const publicPlan = (plan) => ({
   setup: plan.setup,
 });
 
-const parseFrontmatter = (content, targetPath) => {
+export const parseFrontmatter = (content, targetPath) => {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
   if (!match) fail(`${targetPath} 缺少 YAML frontmatter`);
   const fields = new Map();
   for (const line of match[1].split(/\r?\n/)) {
-    const field = line.match(/^([a-z_]+):\s*(.*)$/);
-    if (field) fields.set(field[1], field[2].trim());
+    const separator = line.indexOf(":");
+    const name = line.slice(0, separator);
+    if (separator > 0 && /^[a-z_]+$/.test(name)) {
+      fields.set(name, line.slice(separator + 1).trim());
+    }
   }
   return { fields, match };
 };
@@ -353,7 +340,7 @@ const replaceFrontmatterField = (content, field, value, targetPath) => {
   return content.replace(parsed.match[0], `---\n${frontmatter}\n---\n`);
 };
 
-const parseDependencies = (rawValue, targetPath) => {
+export const parseDependencies = (rawValue, targetPath) => {
   try {
     const value = JSON.parse(rawValue ?? "");
     if (!Array.isArray(value) || value.some((item) => !/^\d{2}$/.test(item))) {
@@ -397,7 +384,7 @@ const readIssues = async (planPath) => {
   return snapshots;
 };
 
-const deriveSpecStatus = (issues) => {
+export const deriveSpecStatus = (issues) => {
   if (issues.every((issue) => issue.status === "pending")) return "pending";
   if (issues.every((issue) => issue.status === "completed")) return "completed";
   return "in_progress";
@@ -447,14 +434,14 @@ const requireIssueReady = async (planPath, issueId) => {
   return issue;
 };
 
-const blockedBody = (content, reason, releaseCondition) => {
+export const blockedBody = (content, reason, releaseCondition) => {
   const section = `## 阻塞记录\n\n- 障碍: ${reason}\n- 解除条件: ${releaseCondition}\n`;
   const pattern = /^## 阻塞记录\r?\n[\s\S]*?(?=^## |(?![\s\S]))/m;
   if (pattern.test(content)) return content.replace(pattern, section);
   return `${content.trimEnd()}\n\n${section}`;
 };
 
-const hasDeliveryEvidence = (content) => {
+export const hasDeliveryEvidence = (content) => {
   const section = content.match(/^## (?:交付记录|交付物与证据)\r?\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
   if (!section) return false;
   const body = section[1]
@@ -478,7 +465,7 @@ const handleInit = (state, workspace, options, now) => {
   const planKey = normalizePlanPath(workspace, planInput);
   const route = requireOption(options, "route");
   const session = requireOption(options, "session");
-  if (!PLAN_ROUTES[route]) fail("--route 必须是 main | story | issues");
+  if (!PLAN_ROUTES[route]) fail("--route 必须是 main | story");
   if (state.plans[planKey]) fail(`Plan ${planKey} 已经初始化`);
   state.plans[planKey] = {
     issues: {},
@@ -495,7 +482,7 @@ const handleInit = (state, workspace, options, now) => {
   return {
     changed: true,
     output: {
-      ...stepOutput(PLAN_ROUTES[route][0]),
+      ...stepOutput(planSequence(state.plans[planKey])[0]),
       plan: planKey,
       route,
       session,
@@ -514,16 +501,13 @@ const handleEnterPlan = (state, workspace, options, now) => {
   const entryRoute = ENTRY_ROUTES[entrySkill];
   if (!entryRoute) {
     if (initiator === "loop-x") {
-      fail("/loop-x 的 --entry 必须是 /grill-with-docs | /to-story | /to-issues");
+      fail("/loop-x 的 --entry 必须是 /grill-with-docs | /to-story");
     }
-    fail("--skill 必须是 /loop-x | /grill-with-docs | /to-story | /to-issues");
+    fail("--skill 必须是 /loop-x | /grill-with-docs | /to-story");
   }
   if (options.plan === undefined) fail(`/${entrySkill} 进入流程前必须提供 --plan`);
   const planInput = requireOption(options, "plan");
-  const planKey =
-    entrySkill === "grill-with-docs"
-      ? normalizeFlowIdentifier(planInput)
-      : normalizePlanPath(workspace, planInput);
+  const planKey = normalizePlanPath(workspace, planInput);
   let plan = state.plans[planKey];
   if (plan?.setup.status === "completed" && entryRoute === "main") {
     delete state.plans[planKey];
@@ -630,7 +614,7 @@ const handleRecordPlan = (state, workspace, options, now) => {
   if (!plan) fail(`Plan ${planKey} 尚未初始化`);
   const session = requireOption(options, "session");
   requireLease(plan.setup, session, now);
-  const sequence = PLAN_ROUTES[plan.route];
+  const sequence = planSequence(plan);
   const parent = nextStep(sequence, plan.setup.cursor);
   if (!parent) fail("当前流程已经没有待执行 skill");
   currentPlanStep(plan);
@@ -641,7 +625,7 @@ const handleRecordPlan = (state, workspace, options, now) => {
     plan.setup.lease = makeLease(session, leaseSeconds(options), now);
   } else {
     plan.setup.lease = null;
-    plan.setup.status = plan.route === "main" ? "completed" : "ready";
+    plan.setup.status = usesIssueDelivery(plan) ? "ready" : "completed";
   }
   return {
     changed: true,
@@ -760,7 +744,7 @@ const handleLeaseCommand = (state, workspace, command, options, now) => {
     subject.lease = makeLease(session, leaseSeconds(options), now);
     if (isIssue) subject.status = "active";
   }
-  const sequence = isIssue ? ISSUE_FLOW : PLAN_ROUTES[plan.route];
+  const sequence = isIssue ? ISSUE_FLOW : planSequence(plan);
   const next = isIssue ? nextStep(sequence, subject.cursor) : currentPlanStep(plan);
   return {
     changed: true,
@@ -850,7 +834,7 @@ export const executeFlow = async ({
   );
 };
 
-const parseCli = (argumentsList) => {
+export const parseCli = (argumentsList) => {
   const [command, ...tokens] = argumentsList;
   if (!command) return { command: "help", options: {} };
   const options = {};
@@ -871,9 +855,9 @@ const parseCli = (argumentsList) => {
 };
 
 const usage = `用法:
-  flow.mjs init --plan <path> --route <main|story|issues> --session <id>
-  flow.mjs enter-plan --plan <path-or-flow-id> --skill /loop-x --entry </grill-with-docs|/to-story|/to-issues> [--session <id>]
-  flow.mjs enter-plan --plan <path-or-flow-id> --skill </grill-with-docs|/to-story|/to-issues> [--session <id>]
+  flow.mjs init --plan <path> --route <main|story> --session <id>
+  flow.mjs enter-plan --plan <path> --skill /loop-x --entry </grill-with-docs|/to-story> [--session <id>]
+  flow.mjs enter-plan --plan <path> --skill </grill-with-docs|/to-story> [--session <id>]
   flow.mjs record-plan --plan <path> --session <id> (--skill </skill>|--action <action>) --result <result> --evidence <ref>
   flow.mjs claim-issue --plan <path> --issue <NN> [--session <id>]
   flow.mjs record-issue --plan <path> --issue <NN> --session <id> (--skill </skill>|--action <action>) --result <result> --evidence <ref>
@@ -884,22 +868,28 @@ const usage = `用法:
   flow.mjs status [--plan <path>]
 `;
 
-const runCli = async () => {
+export const runFlowCli = async ({
+  argumentsList = process.argv.slice(2),
+  cwd = process.cwd(),
+  stderr = (message) => console.error(message),
+  stdout = (message) => process.stdout.write(message),
+} = {}) => {
   try {
-    const parsed = parseCli(process.argv.slice(2));
+    const parsed = parseCli(argumentsList);
     if (["help", "--help", "-h"].includes(parsed.command)) {
-      process.stdout.write(usage);
-      return;
+      stdout(usage);
+      return 0;
     }
-    const workspace = parsed.options.workspace ?? process.cwd();
+    const workspace = parsed.options.workspace ?? cwd;
     delete parsed.options.workspace;
     const result = await executeFlow({ ...parsed, workspace });
-    process.stdout.write(`${JSON.stringify({ success: true, ...result }, null, 2)}\n`);
+    stdout(`${JSON.stringify({ success: true, ...result }, null, 2)}\n`);
+    return 0;
   } catch (error) {
-    console.error(JSON.stringify({ error: error.message, success: false }));
-    process.exitCode = 1;
+    stderr(JSON.stringify({ error: error.message, success: false }));
+    return 1;
   }
 };
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : "";
-if (invokedPath === fileURLToPath(import.meta.url)) await runCli();
+if (invokedPath === fileURLToPath(import.meta.url)) process.exitCode = await runFlowCli();

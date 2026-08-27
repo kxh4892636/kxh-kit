@@ -3,11 +3,12 @@ import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import test from "node:test";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { test } from "vitest";
 
 import { executeFlow } from "./flow.mjs";
+import { verifyContract } from "./testing/script-contracts.mjs";
 
 const execFileAsync = promisify(execFile);
 const FLOW_PATH = fileURLToPath(new URL("./flow.mjs", import.meta.url));
@@ -20,8 +21,6 @@ const statePath = (workspace, date = TEST_NOW) => {
     .join("-");
   return path.join(workspace, ".loop", `${prefix}-state.json`);
 };
-
-const shiftedDate = (days) => new Date(new Date(TEST_NOW).setDate(TEST_NOW.getDate() + days));
 
 const issueDocument = (id, dependencies = []) => `---
 status: pending
@@ -123,16 +122,34 @@ const createWorkspace = async (issueDefinitions) => {
   return workspace;
 };
 
-const command = (workspace, commandName, options) =>
-  executeFlow({ command: commandName, now: () => new Date(TEST_NOW), options, workspace });
+const command = async (workspace, commandName, options) => {
+  try {
+    const result = await executeFlow({
+      command: commandName,
+      now: () => new Date(TEST_NOW),
+      options,
+      workspace,
+    });
+    verifyContract("flowCore", { ok: true, result }, workspace);
+    return result;
+  } catch (error) {
+    verifyContract(
+      "flowCore",
+      { ok: false, error: { name: error?.name, message: error?.message } },
+      workspace,
+    );
+    throw error;
+  }
+};
 
 const readyPlan = async (workspace, session = "plan-session") => {
   await command(workspace, "init", {
     plan: PLAN_PATH,
-    route: "issues",
+    route: "main",
     session,
   });
-  await completeRequiredPlanStep(workspace, session, "to-issues", "grill-with-docs");
+  await recordPlan(workspace, session, "grill-with-docs", "completed");
+  await recordPlan(workspace, session, "to-issues", "completed");
   return command(workspace, "record-plan", {
     evidence: ["用户确认基线"],
     plan: PLAN_PATH,
@@ -178,77 +195,7 @@ const addDeliveryEvidence = async (workspace, issueId) => {
   );
 };
 
-const legacyReceipt = (step, result) => ({
-  evidence: [`legacy-${step}`],
-  kind: step === "commit" ? "action" : "skill",
-  reason: null,
-  recorded_at: "2026-08-25T00:00:00.000Z",
-  result,
-  step: step === "commit" ? step : `/${step}`,
-});
-
-test("状态文件使用本地日期前缀且不读取旧 state.json", async () => {
-  const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
-  try {
-    const stateDirectory = path.join(workspace, ".loop");
-    await fs.mkdir(stateDirectory);
-    await fs.writeFile(
-      path.join(stateDirectory, "state.json"),
-      `${JSON.stringify({ plans: { legacy: {} }, revision: 99, schema_version: 3 })}\n`,
-    );
-
-    const initialized = await command(workspace, "init", {
-      plan: PLAN_PATH,
-      route: "issues",
-      session: "dated-state-session",
-    });
-
-    assert.equal(initialized.revision, 1);
-    const state = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
-    assert.deepEqual(Object.keys(state.plans), [PLAN_PATH]);
-  } finally {
-    await fs.rm(workspace, { force: true, recursive: true });
-  }
-});
-
-test("状态事务只清理三十天窗口之前的日期状态文件", async () => {
-  const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
-  try {
-    const stateDirectory = path.join(workspace, ".loop");
-    await fs.mkdir(stateDirectory);
-    const expiredState = path.basename(statePath(workspace, shiftedDate(-30)));
-    const oldestRetainedState = path.basename(statePath(workspace, shiftedDate(-29)));
-    const recentState = path.basename(statePath(workspace, shiftedDate(-10)));
-    const futureState = path.basename(statePath(workspace, shiftedDate(1)));
-    for (const name of [
-      expiredState,
-      oldestRetainedState,
-      recentState,
-      futureState,
-      "notes.json",
-    ]) {
-      await fs.writeFile(path.join(stateDirectory, name), "{}\n");
-    }
-
-    await command(workspace, "init", {
-      plan: PLAN_PATH,
-      route: "issues",
-      session: "retention-session",
-    });
-
-    const retainedNames = await fs.readdir(stateDirectory);
-    assert.ok(!retainedNames.includes(expiredState));
-    assert.ok(!retainedNames.includes(futureState));
-    assert.ok(retainedNames.includes(oldestRetainedState));
-    assert.ok(retainedNames.includes(recentState));
-    assert.ok(retainedNames.includes(path.basename(statePath(workspace))));
-    assert.ok(retainedNames.includes("notes.json"));
-  } finally {
-    await fs.rm(workspace, { force: true, recursive: true });
-  }
-});
-
-test("按路由顺序记录 Plan skill", async () => {
+test("按最长路径顺序记录 Plan skill", async () => {
   const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
   try {
     await command(workspace, "init", {
@@ -267,8 +214,10 @@ test("按路由顺序记录 Plan skill", async () => {
       /期望 \/to-story/,
     );
     const result = await completeRequiredPlanStep(workspace, "s1", "to-story", "grilling");
-    assert.equal(result.next_skill, "/to-issues");
-    const issues = await completeRequiredPlanStep(workspace, "s1", "to-issues", "grill-with-docs");
+    assert.equal(result.next_skill, "/grill-with-docs");
+    const grilled = await recordPlan(workspace, "s1", "grill-with-docs", "completed");
+    assert.equal(grilled.next_skill, "/to-issues");
+    const issues = await recordPlan(workspace, "s1", "to-issues", "completed");
     assert.equal(issues.next_skill, "/dev-gate");
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
@@ -298,29 +247,39 @@ test("story 路径强制 to-story 调用 grilling", async () => {
     const grilled = await recordPlan(workspace, "story-session", "grilling", "completed");
     assert.equal(grilled.next_skill, "/to-story");
     const completed = await recordPlan(workspace, "story-session", "to-story", "completed");
-    assert.equal(completed.next_skill, "/to-issues");
+    assert.equal(completed.next_skill, "/grill-with-docs");
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }
 });
 
-test("issues 路径强制 to-issues 调用 grill-with-docs", async () => {
+test("grill-with-docs 后 to-issues 可记录 completed 或 skipped", async () => {
   const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
+  let shortWorkspace;
   try {
     await command(workspace, "init", {
       plan: PLAN_PATH,
-      route: "issues",
-      session: "issues-session",
+      route: "main",
+      session: "main-session",
     });
 
-    const started = await recordPlan(workspace, "issues-session", "to-issues", "started");
-    assert.equal(started.next_skill, "/grill-with-docs");
-    const grilled = await recordPlan(workspace, "issues-session", "grill-with-docs", "completed");
+    const grilled = await recordPlan(workspace, "main-session", "grill-with-docs", "completed");
     assert.equal(grilled.next_skill, "/to-issues");
-    const completed = await recordPlan(workspace, "issues-session", "to-issues", "completed");
+    const completed = await recordPlan(workspace, "main-session", "to-issues", "completed");
     assert.equal(completed.next_skill, "/dev-gate");
+
+    shortWorkspace = await createWorkspace([{ dependencies: [], id: "01" }]);
+    await command(shortWorkspace, "init", {
+      plan: PLAN_PATH,
+      route: "main",
+      session: "short-session",
+    });
+    await recordPlan(shortWorkspace, "short-session", "grill-with-docs", "completed");
+    const skipped = await recordPlan(shortWorkspace, "short-session", "to-issues", "skipped");
+    assert.equal(skipped.next_skill, "/dev-gate");
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
+    if (shortWorkspace) await fs.rm(shortWorkspace, { force: true, recursive: true });
   }
 });
 
@@ -350,7 +309,7 @@ test("Plan 恢复时返回未完成的 required child", async () => {
   }
 });
 
-test("v1 状态迁移后保留已完成步骤并约束当前步骤", async () => {
+test("旧 schema 状态不再迁移", async () => {
   const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
   try {
     const stateDirectory = path.join(workspace, ".loop");
@@ -363,167 +322,19 @@ test("v1 状态迁移后保留已完成步骤并约束当前步骤", async () =>
             [PLAN_PATH]: {
               issues: {},
               plan_path: PLAN_PATH,
-              route: "story",
-              setup: {
-                cursor: 1,
-                lease: {
-                  expires_at: "2999-01-01T00:00:00.000Z",
-                  owner_session: "migration-session",
-                },
-                receipts: [
-                  {
-                    evidence: ["legacy-story.md"],
-                    kind: "skill",
-                    reason: null,
-                    recorded_at: "2026-08-25T00:00:00.000Z",
-                    result: "completed",
-                    step: "/to-story",
-                  },
-                ],
-                status: "active",
-              },
+              route: "main",
+              setup: { active_step: null, cursor: 0, lease: null, receipts: [], status: "active" },
             },
           },
           revision: 4,
-          schema_version: 1,
+          schema_version: 3,
         },
         null,
         2,
       )}\n`,
     );
 
-    await command(workspace, "status", { plan: PLAN_PATH });
-    const migrated = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
-    assert.equal(migrated.schema_version, 3);
-    assert.equal(migrated.revision, 5);
-    assert.equal(migrated.plans[PLAN_PATH].setup.cursor, 1);
-    assert.equal(migrated.plans[PLAN_PATH].setup.receipts.length, 1);
-    await assert.rejects(
-      recordPlan(workspace, "migration-session", "to-issues", "completed"),
-      /必须先登记 \/to-issues=started/,
-    );
-  } finally {
-    await fs.rm(workspace, { force: true, recursive: true });
-  }
-});
-
-test("v2 主路径中途状态迁移后直接等待提交", async () => {
-  const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
-  const flowIdentifier = "2026-08-25-flow优化";
-  try {
-    const stateDirectory = path.join(workspace, ".loop");
-    await fs.mkdir(stateDirectory);
-    await fs.writeFile(
-      statePath(workspace),
-      `${JSON.stringify(
-        {
-          plans: {
-            [flowIdentifier]: {
-              issues: {},
-              plan_path: flowIdentifier,
-              route: "main",
-              setup: {
-                active_step: null,
-                cursor: 5,
-                lease: {
-                  expires_at: "2999-01-01T00:00:00.000Z",
-                  owner_session: "migration-session",
-                },
-                receipts: [
-                  legacyReceipt("grill-with-docs", "completed"),
-                  legacyReceipt("dev-gate", "ready"),
-                  legacyReceipt("implement", "started"),
-                  legacyReceipt("tdd", "completed"),
-                  legacyReceipt("verifying", "passed"),
-                ],
-                status: "active",
-              },
-            },
-          },
-          revision: 8,
-          schema_version: 2,
-        },
-        null,
-        2,
-      )}\n`,
-    );
-
-    const completed = await command(workspace, "record-plan", {
-      action: "commit",
-      evidence: ["abc1234"],
-      plan: flowIdentifier,
-      result: "committed",
-      session: "migration-session",
-    });
-
-    assert.equal(completed.status, "completed");
-    const migrated = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
-    assert.equal(migrated.schema_version, 3);
-    assert.equal(migrated.plans[flowIdentifier].setup.cursor, 4);
-  } finally {
-    await fs.rm(workspace, { force: true, recursive: true });
-  }
-});
-
-test("v2 Issue 中途状态迁移后保留交付证据门禁", async () => {
-  const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
-  try {
-    await addDeliveryEvidence(workspace, "01");
-    const stateDirectory = path.join(workspace, ".loop");
-    await fs.mkdir(stateDirectory);
-    await fs.writeFile(
-      statePath(workspace),
-      `${JSON.stringify(
-        {
-          plans: {
-            [PLAN_PATH]: {
-              issues: {
-                "01": {
-                  cursor: 4,
-                  lease: {
-                    expires_at: "2999-01-01T00:00:00.000Z",
-                    owner_session: "issue-migration-session",
-                  },
-                  receipts: [
-                    legacyReceipt("implement", "started"),
-                    legacyReceipt("tdd", "completed"),
-                    legacyReceipt("verifying", "passed"),
-                    legacyReceipt("code-review", "reviewed"),
-                  ],
-                  status: "active",
-                },
-              },
-              plan_path: PLAN_PATH,
-              route: "issues",
-              setup: {
-                active_step: null,
-                cursor: 2,
-                lease: null,
-                receipts: [],
-                status: "ready",
-              },
-            },
-          },
-          revision: 13,
-          schema_version: 2,
-        },
-        null,
-        2,
-      )}\n`,
-    );
-
-    const completed = await recordIssue(
-      workspace,
-      "01",
-      "issue-migration-session",
-      "commit",
-      "committed",
-    );
-
-    assert.equal(completed.status, "completed");
-    const migrated = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
-    assert.equal(migrated.schema_version, 3);
-    assert.equal(migrated.plans[PLAN_PATH].issues["01"].cursor, 2);
+    await assert.rejects(command(workspace, "status", { plan: PLAN_PATH }), /版本不受支持/);
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }
@@ -538,19 +349,12 @@ test("直接进入 grill-with-docs 会初始化主路径", async () => {
       }),
       /进入流程前必须提供 --plan/,
     );
-    await assert.rejects(
-      command(workspace, "enter-plan", {
-        plan: "flow优化",
-        skill: "/grill-with-docs",
-      }),
-      /YYYY-MM-DD-\{name\}/,
-    );
     const entered = await command(workspace, "enter-plan", {
-      plan: "2026-08-25-flow优化",
+      plan: PLAN_PATH,
       skill: "/grill-with-docs",
     });
     assert.equal(entered.next_skill, "/grill-with-docs");
-    assert.equal(entered.plan, "2026-08-25-flow优化");
+    assert.equal(entered.plan, PLAN_PATH);
     assert.equal(entered.route, "main");
     assert.match(entered.session, /^[0-9a-f-]{36}$/);
     const repeated = await command(workspace, "enter-plan", {
@@ -567,22 +371,22 @@ test("直接进入 grill-with-docs 会初始化主路径", async () => {
       session: entered.session,
       skill: "/grill-with-docs",
     });
-    assert.equal(next.next_skill, "/dev-gate");
+    assert.equal(next.next_skill, "/to-issues");
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }
 });
 
-test("不同 Flow 标识的 grill-with-docs 使用独立运行态", async () => {
+test("不同 Plan 路径的 grill-with-docs 使用独立运行态", async () => {
   const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
   try {
     const [first, second] = await Promise.all([
       command(workspace, "enter-plan", {
-        plan: "2026-08-25-支付边界",
+        plan: "docs/orders/plans/active/2026-08-25-支付边界",
         skill: "/grill-with-docs",
       }),
       command(workspace, "enter-plan", {
-        plan: "2026-08-25-订单边界",
+        plan: "docs/orders/plans/active/2026-08-25-订单边界",
         skill: "/grill-with-docs",
       }),
     ]);
@@ -598,9 +402,8 @@ test("不同 Flow 标识的 grill-with-docs 使用独立运行态", async () => 
 });
 
 for (const { entry, plan, route } of [
-  { entry: "/grill-with-docs", plan: "2026-08-25-flow优化", route: "main" },
+  { entry: "/grill-with-docs", plan: PLAN_PATH, route: "main" },
   { entry: "/to-story", plan: PLAN_PATH, route: "story" },
-  { entry: "/to-issues", plan: PLAN_PATH, route: "issues" },
 ]) {
   test(`loop-x 选择 ${entry} 会原子进入 ${route} 路径`, async () => {
     const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
@@ -629,7 +432,7 @@ test("loop-x 必须选择规定的入口 skill", async () => {
         entry: "/implement",
         skill: "/loop-x",
       }),
-      /--entry 必须是 \/grill-with-docs \| \/to-story \| \/to-issues/,
+      /--entry 必须是 \/grill-with-docs \| \/to-story/,
     );
     await assert.rejects(
       command(workspace, "enter-plan", {
@@ -682,7 +485,7 @@ test("loop-x 只能接入已有流程当前期待的入口", async () => {
     const stateBeforeMismatch = await fs.readFile(runtimeStatePath, "utf8");
     await assert.rejects(
       command(workspace, "enter-plan", {
-        entry: "/to-issues",
+        entry: "/grill-with-docs",
         plan: PLAN_PATH,
         session: entered.session,
         skill: "/loop-x",
@@ -693,12 +496,12 @@ test("loop-x 只能接入已有流程当前期待的入口", async () => {
 
     await completeRequiredPlanStep(workspace, entered.session, "to-story", "grilling");
     const advanced = await command(workspace, "enter-plan", {
-      entry: "/to-issues",
+      entry: "/grill-with-docs",
       plan: PLAN_PATH,
       session: entered.session,
       skill: "/loop-x",
     });
-    assert.equal(advanced.next_skill, "/to-issues");
+    assert.equal(advanced.next_skill, "/grill-with-docs");
     assert.equal(advanced.route, "story");
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
@@ -714,29 +517,29 @@ test("直接入口可以初始化并接续 story 路径", async () => {
     });
     assert.equal(story.route, "story");
     await completeRequiredPlanStep(workspace, story.session, "to-story", "grilling");
-    const issues = await command(workspace, "enter-plan", {
+    const grilled = await command(workspace, "enter-plan", {
       plan: PLAN_PATH,
       session: story.session,
-      skill: "/to-issues",
+      skill: "/grill-with-docs",
     });
-    assert.equal(issues.next_skill, "/to-issues");
-    assert.equal(issues.route, "story");
-    assert.equal(issues.session, story.session);
+    assert.equal(grilled.next_skill, "/grill-with-docs");
+    assert.equal(grilled.route, "story");
+    assert.equal(grilled.session, story.session);
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }
 });
 
-test("直接进入 to-issues 会初始化 issues 路径", async () => {
+test("to-issues 不能作为入口初始化路径", async () => {
   const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
   try {
-    const entered = await command(workspace, "enter-plan", {
-      plan: PLAN_PATH,
-      skill: "/to-issues",
-    });
-    assert.equal(entered.next_skill, "/to-issues");
-    assert.equal(entered.route, "issues");
-    assert.match(entered.session, /^[0-9a-f-]{36}$/);
+    await assert.rejects(
+      command(workspace, "enter-plan", {
+        plan: PLAN_PATH,
+        skill: "/to-issues",
+      }),
+      /--skill 必须是 \/loop-x \| \/grill-with-docs \| \/to-story/,
+    );
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }
@@ -751,6 +554,7 @@ test("主路径在 implement 后只固定提交", async () => {
       session: "main-session",
     });
     await recordPlan(workspace, "main-session", "grill-with-docs", "completed");
+    await recordPlan(workspace, "main-session", "to-issues", "skipped");
     const gated = await recordPlan(workspace, "main-session", "dev-gate", "ready");
     assert.equal(gated.next_skill, "/implement");
     assert.equal(gated.status, "active");
@@ -948,14 +752,14 @@ test("CLI 可脱离工作区 package 配置直接运行", async () => {
       "--plan",
       PLAN_PATH,
       "--route",
-      "issues",
+      "main",
       "--session",
       "cli-session",
       "--workspace",
       workspace,
     ]);
     const result = JSON.parse(stdout);
-    assert.equal(result.next_skill, "/to-issues");
+    assert.equal(result.next_skill, "/grill-with-docs");
     assert.equal(result.success, true);
     await fs.access(statePath(workspace, new Date()));
 
@@ -967,15 +771,15 @@ test("CLI 可脱离工作区 package 配置直接运行", async () => {
       "--skill",
       "/loop-x",
       "--entry",
-      "/to-issues",
+      "/grill-with-docs",
       "--plan",
       PLAN_PATH,
       "--workspace",
       loopxWorkspace,
     ]);
     const loopxResult = JSON.parse(loopxStdout);
-    assert.equal(loopxResult.next_skill, "/to-issues");
-    assert.equal(loopxResult.route, "issues");
+    assert.equal(loopxResult.next_skill, "/grill-with-docs");
+    assert.equal(loopxResult.route, "main");
     assert.equal(loopxResult.success, true);
     await fs.access(statePath(loopxWorkspace, new Date()));
   } finally {

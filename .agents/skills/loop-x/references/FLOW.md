@@ -10,10 +10,49 @@ node <loop-x-skill-dir>/script/flow.mjs --help
 
 ## 进入与恢复
 
-- 新路径只执行一次 `enter-plan`。`/loop-x` 以 `--entry` 传入用户确认的 `/grill-with-docs`、`/to-story` 或 `/to-issues`；直接调用这三个入口时以自身进入固定路径，不代理选择其他入口。
-- `/grill-with-docs` 使用 `YYYY-MM-DD-{name}` Flow 标识；`/to-story` 与 `/to-issues` 使用工作区内的实际 Plan 路径。
+- 新路径只执行一次 `enter-plan`。`/loop-x` 以 `--entry` 传入用户确认的 `/to-story` 或 `/grill-with-docs`；直接调用这两个入口时以自身进入固定路径，不代理选择其他入口。
+- `/to-story` 与 `/grill-with-docs` 都使用工作区内的 Plan 路径作为 `--plan`。
 - 接收到 flow context 的 skill 直接复用，不再次进入。已有运行态使用 `status` 查明当前位置，再按返回值恢复。
 - 命令成功且当前调用者持有唯一有效租约、返回的 `next_skill` 与预期入口一致时，进入完成。
+
+## 整体状态机
+
+`/to-story` 是可选前缀；选择它时仍按父子步骤登记 `/to-story=started -> /grilling=completed -> /to-story=completed`。
+
+```text
+入口 /to-story:
+  /to-story=started
+  -> /grilling=completed
+  -> /to-story=completed
+  -> [主干]
+
+[主干]:
+  /grill-with-docs=completed
+  -> /to-issues=completed|skipped
+  -> /dev-gate=ready
+  -> /implement=started
+  -> commit=committed
+```
+
+`/to-issues` 只在 `/grill-with-docs` 之后判断是否需要垂直 issue 划分。运行态以它的 receipt 决定 `/dev-gate=ready` 后的交付位置：
+
+```text
+/to-issues=skipped:
+  /dev-gate=ready
+  -> /implement=started
+  -> commit=committed
+  -> setup.status=completed
+
+/to-issues=completed:
+  /dev-gate=ready
+  -> setup.status=ready
+  -> claim-issue
+  -> /implement=started
+  -> commit=committed
+  -> issue.status=completed
+```
+
+不需要执行 `/to-issues` 登记 `/to-issues=skipped`, 反之登记 `/to-issues=completed`；之后每个 issue 通过 `claim-issue` 单独进入交付链。
 
 ## Receipt chain
 
@@ -23,9 +62,9 @@ node <loop-x-skill-dir>/script/flow.mjs --help
 2. 只在该 skill 的完成标准真实成立后，使用 `record-plan` 或 `record-issue` 登记结果和至少一项可核查证据。
 3. 登记成功后丢弃旧的 next 值，只执行新返回值。
 
-Plan setup 中的 `/to-story` 与 `/to-issues` 带 required child。父 skill 先登记 `started`，只调用脚本返回的 child；child 登记 `completed` 后，只恢复脚本返回的父 skill；父 skill 达到自身完成标准后再登记 `completed`。运行态负责给出 child 与恢复顺序，不手工推演路径。
+Plan setup 中的 `/to-story` 带 required child。父 skill 先登记 `started`，只调用脚本返回的 `/grilling`；child 登记 `completed` 后，只恢复脚本返回的父 skill；父 skill 达到自身完成标准后再登记 `completed`。运行态负责给出 child 与恢复顺序，不手工推演路径。
 
-`/to-issues` 是 `/grill-with-docs` 的长任务持久化层：父 skill 用 Plan 保存设计 frontier 与交付状态，required child 只完成当前设计循环并维护共享领域文档，不另建 Plan 或复制父状态。
+`/to-issues` 是 `/grill-with-docs` 之后的长任务持久化层：它只负责把已清空的设计 frontier 切成可恢复的纵向 issue graph。若判断不需要 issue graph，以 `/to-issues=skipped` 登记判断证据。
 
 `/implement` 是交付链的父步骤：进入后先登记 `started` 并保留返回的 `commit` action；代码、`/code-test`、`/verifying` 与 `/code-review` 是它返回前的内部门禁，不另记 Flow receipt。全部门禁仍适用于当前 diff 后，才执行并登记 `commit=committed`。
 
@@ -33,7 +72,7 @@ Plan setup 中的 `/to-story` 与 `/to-issues` 带 required child。父 skill �
 
 ## Issue 推进
 
-- Plan setup 到达 `ready` 后，以 `claim-issue` 领取直接依赖均已完成的 issue；首次领取保留脚本生成的 issue session。
+- Plan setup 经 `/to-issues=completed` 到达 `ready` 后，以 `claim-issue` 领取直接依赖均已完成的 issue；首次领取保留脚本生成的 issue session。
 - 一个 session 串行推进自己领取的 issue。不同 session 可以并行领取互不阻塞的 issue；同一 issue 只有一个有效租约。
 - 交付前，issue 的「交付记录」包含交付物与验证证据；脚本据此允许完成状态与 commit receipt。
 - 所有 issue 完成后，以 `sync-plan` 刷新派生视图，再按 [`DOMAIN.md`](DOMAIN.md) 处理 Plan 生命周期。
