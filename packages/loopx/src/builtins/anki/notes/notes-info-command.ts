@@ -12,9 +12,11 @@ interface NoteInfo {
   readonly tags: string[];
 }
 
-export const notesInfoParamsSchema = z.object({
-  notes: z.array(z.number()).min(1).max(100),
-});
+export const notesInfoParamsSchema = z.lazy(() =>
+  z.object({
+    notes: z.array(z.number()).min(1).max(100),
+  }),
+);
 
 export type NotesInfoParams = z.infer<typeof notesInfoParamsSchema>;
 

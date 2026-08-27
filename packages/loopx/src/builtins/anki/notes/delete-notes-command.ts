@@ -3,10 +3,12 @@ import { JsonError } from "../errors";
 import type { AnkiPort } from "../port";
 import { noteDeleteArrayResponse, nullResponse, parseResponse } from "../responses";
 
-export const deleteNotesParamsSchema = z.object({
-  notes: z.array(z.number()).min(1).max(100),
-  confirmDeletion: z.boolean(),
-});
+export const deleteNotesParamsSchema = z.lazy(() =>
+  z.object({
+    notes: z.array(z.number()).min(1).max(100),
+    confirmDeletion: z.boolean(),
+  }),
+);
 
 export type DeleteNotesParams = z.infer<typeof deleteNotesParamsSchema>;
 

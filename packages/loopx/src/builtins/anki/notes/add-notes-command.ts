@@ -6,22 +6,24 @@ import type { AnkiPort } from "../port";
 import { optionalNumberResponse, parseResponse, stringArrayResponse } from "../responses";
 
 // 批量添加笔记(上游 addNotes): 共享牌组与模板, 逐条部分成功。
-export const addNotesParamsSchema = z.object({
-  deckName: z.string().min(1),
-  modelName: z.string().min(1),
-  tags: z.array(z.string()).optional(),
-  allowDuplicate: z.boolean().optional(),
-  duplicateScope: z.enum(["deck", "collection"]).optional(),
-  notes: z
-    .array(
-      z.object({
-        fields: z.record(z.string(), z.string()),
-        tags: z.array(z.string()).optional(),
-      }),
-    )
-    .min(1)
-    .max(100),
-});
+export const addNotesParamsSchema = z.lazy(() =>
+  z.object({
+    deckName: z.string().min(1),
+    modelName: z.string().min(1),
+    tags: z.array(z.string()).optional(),
+    allowDuplicate: z.boolean().optional(),
+    duplicateScope: z.enum(["deck", "collection"]).optional(),
+    notes: z
+      .array(
+        z.object({
+          fields: z.record(z.string(), z.string()),
+          tags: z.array(z.string()).optional(),
+        }),
+      )
+      .min(1)
+      .max(100),
+  }),
+);
 
 export type AddNotesParams = z.infer<typeof addNotesParamsSchema>;
 

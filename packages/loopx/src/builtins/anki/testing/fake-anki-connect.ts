@@ -1,6 +1,6 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
-import type { JsonValue } from "../../cli/types";
+import type { JsonValue } from "../../../cli/types";
 
 export interface FakeRequest {
   readonly action: string;

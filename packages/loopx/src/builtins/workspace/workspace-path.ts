@@ -2,23 +2,15 @@ import { access, realpath } from "node:fs/promises";
 import { channel } from "node:diagnostics_channel";
 import path from "node:path";
 import { WorkspaceConfigError } from "./workspace-config";
+import { errorMessage, hasErrorCode } from "./workspace-error";
 
 const workspaceDiagnostics = channel("loopx.workspace");
-const errorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
-
 export const pathExists = async (target: string): Promise<boolean> => {
   try {
     await access(target);
     return true;
   } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      (error.code === "ENOENT" || error.code === "ENOTDIR")
-    )
-      return false;
+    if (hasErrorCode(error, "ENOENT", "ENOTDIR")) return false;
     workspaceDiagnostics.publish({ level: "error", message: errorMessage(error) });
     throw error;
   }

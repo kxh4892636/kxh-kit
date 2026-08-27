@@ -3,18 +3,20 @@ import { JsonError } from "../errors";
 import type { AnkiPort } from "../port";
 import { modelTemplatesResponse, nullResponse, parseResponse } from "../responses";
 
-export const updateModelTemplatesParamsSchema = z.object({
-  modelName: z.string().min(1),
-  templates: z
-    .record(z.string(), z.object({ Front: z.string().min(1), Back: z.string().min(1) }))
-    .refine(
-      (value: Record<string, { Front: string; Back: string }>): boolean =>
-        Object.keys(value).length > 0,
-      {
-        message: "At least one card template is required",
-      },
-    ),
-});
+export const updateModelTemplatesParamsSchema = z.lazy(() =>
+  z.object({
+    modelName: z.string().min(1),
+    templates: z
+      .record(z.string(), z.object({ Front: z.string().min(1), Back: z.string().min(1) }))
+      .refine(
+        (value: Record<string, { Front: string; Back: string }>): boolean =>
+          Object.keys(value).length > 0,
+        {
+          message: "At least one card template is required",
+        },
+      ),
+  }),
+);
 
 export type UpdateModelTemplatesParams = z.infer<typeof updateModelTemplatesParamsSchema>;
 

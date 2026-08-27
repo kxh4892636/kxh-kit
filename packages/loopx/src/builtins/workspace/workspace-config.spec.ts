@@ -58,8 +58,13 @@ describe("loadWorkspaceFile", (): void => {
     const directory = await createDirectory();
     const failure = await loadWorkspaceFile(directory).catch((error: unknown): unknown => error);
     expect(failure).toBeInstanceOf(WorkspaceConfigError);
-    expect((failure as WorkspaceConfigError).message).toContain(WORKSPACE_CONFIG_FILE);
-    expect((failure as WorkspaceConfigError).hint).toContain("init");
+    expect((failure as WorkspaceConfigError).message).toBe(
+      `No ${WORKSPACE_CONFIG_FILE} found from ${directory} upwards`,
+    );
+    expect((failure as WorkspaceConfigError).hint).toBe(
+      `Run 'loopx workspace config init' to create ${WORKSPACE_CONFIG_FILE} first`,
+    );
+    expect((failure as WorkspaceConfigError).details).toBeUndefined();
   });
 
   test("accepts an empty repositories list", async (): Promise<void> => {
@@ -84,10 +89,13 @@ describe("loadWorkspaceFile", (): void => {
     const config = await loadWorkspaceFile(root);
     expect(config.repositories[0]?.name).toBe("wiki");
   });
+});
 
+describe("loadWorkspaceFile", (): void => {
   test.each([
     {
       title: "duplicate name",
+      issue: "repositories.1.name: duplicate repository name: kxh-kit",
       document: `repositories:
   - name: kxh-kit
     url: git@github.com:kxh4892636/kxh-kit.git
@@ -101,6 +109,7 @@ describe("loadWorkspaceFile", (): void => {
     },
     {
       title: "duplicate path",
+      issue: "repositories.1.path: duplicate repository path: apps/kxh-kit",
       document: `repositories:
   - name: kxh-kit
     url: git@github.com:kxh4892636/kxh-kit.git
@@ -114,6 +123,7 @@ describe("loadWorkspaceFile", (): void => {
     },
     {
       title: "duplicate path with different separators",
+      issue: "repositories.1.path: duplicate repository path: apps\\kxh-kit",
       document: `repositories:
   - name: kxh-kit
     url: git@github.com:kxh4892636/kxh-kit.git
@@ -127,6 +137,8 @@ describe("loadWorkspaceFile", (): void => {
     },
     {
       title: "url that is neither ssh nor http(s)",
+      issue:
+        "repositories.0.url: url must be an ssh (git@host:path or ssh://), http(s) or file url",
       document: `repositories:
   - name: kxh-kit
     url: ftp://github.com/kxh4892636/kxh-kit.git
@@ -136,6 +148,8 @@ describe("loadWorkspaceFile", (): void => {
     },
     {
       title: "absolute path",
+      issue:
+        "repositories.0.path: path must be relative to the workspace root and must not contain '..'",
       document: `repositories:
   - name: kxh-kit
     url: git@github.com:kxh4892636/kxh-kit.git
@@ -145,6 +159,8 @@ describe("loadWorkspaceFile", (): void => {
     },
     {
       title: "path escaping the workspace root",
+      issue:
+        "repositories.0.path: path must be relative to the workspace root and must not contain '..'",
       document: `repositories:
   - name: kxh-kit
     url: git@github.com:kxh4892636/kxh-kit.git
@@ -154,6 +170,8 @@ describe("loadWorkspaceFile", (): void => {
     },
     {
       title: "drive-relative path",
+      issue:
+        "repositories.0.path: path must be relative to the workspace root and must not contain '..'",
       document: `repositories:
   - name: kxh-kit
     url: git@github.com:kxh4892636/kxh-kit.git
@@ -161,13 +179,19 @@ describe("loadWorkspaceFile", (): void => {
     branch: main
 `,
     },
-  ])("rejects a config with $title", async ({ document }: { document: string }): Promise<void> => {
-    const root = await createDirectory();
-    await writeFile(path.join(root, WORKSPACE_CONFIG_FILE), document, "utf8");
-    const failure = await loadWorkspaceFile(root).catch((error: unknown): unknown => error);
-    expect(failure).toBeInstanceOf(WorkspaceConfigError);
-    expect((failure as WorkspaceConfigError).details?.["issues"]).toBeDefined();
-  });
+  ])(
+    "rejects a config with $title",
+    async ({ document, issue }: { document: string; issue: string }): Promise<void> => {
+      const root = await createDirectory();
+      const config = path.join(root, WORKSPACE_CONFIG_FILE);
+      await writeFile(config, document, "utf8");
+      const failure = await loadWorkspaceFile(root).catch((error: unknown): unknown => error);
+      expect(failure).toBeInstanceOf(WorkspaceConfigError);
+      expect((failure as WorkspaceConfigError).message).toBe(`Invalid ${config}`);
+      expect((failure as WorkspaceConfigError).details).toEqual({ issues: [issue] });
+      expect((failure as WorkspaceConfigError).hint).toBeUndefined();
+    },
+  );
 });
 
 const EXISTING_REPOSITORIES: readonly WorkspaceRepository[] = [
@@ -189,7 +213,10 @@ describe("planRemove", (): void => {
       }
     })();
     expect(failure).toBeInstanceOf(WorkspaceConfigError);
-    expect((failure as WorkspaceConfigError).message).toContain("gamma");
+    expect((failure as WorkspaceConfigError).message).toBe(
+      "Repository not found in workspace.yaml: gamma",
+    );
+    expect((failure as WorkspaceConfigError).details).toEqual({ name: "gamma" });
   });
 });
 
@@ -215,7 +242,12 @@ describe("prepareRemoveRepository", (): void => {
       "utf8",
     );
     const prepared = await prepareRemoveRepository(root, "alpha");
-    expect(prepared.removed).toMatchObject({ name: "alpha", path: "apps/alpha" });
+    expect(prepared.removed).toEqual({
+      name: "alpha",
+      url: "https://example.com/alpha.git",
+      path: "apps/alpha",
+      branch: "main",
+    });
     expect(await readFile(config, "utf8")).toContain("name: alpha");
     await prepared.commit();
     const document = await readFile(config, "utf8");
@@ -235,7 +267,10 @@ describe("prepareRemoveRepository", (): void => {
       (error: unknown): unknown => error,
     );
     expect(failure).toBeInstanceOf(WorkspaceConfigError);
-    expect((failure as WorkspaceConfigError).message).toContain("gamma");
+    expect((failure as WorkspaceConfigError).message).toBe(
+      "Repository not found in workspace.yaml: gamma",
+    );
+    expect((failure as WorkspaceConfigError).details).toEqual({ name: "gamma" });
     expect(await readFile(config, "utf8")).toBe(COMMENTED_CONFIG);
   });
 });

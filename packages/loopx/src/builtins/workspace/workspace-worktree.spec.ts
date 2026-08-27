@@ -6,9 +6,11 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, test } from "vitest";
 import { runCli, type CliRequest } from "../../cli/run";
-import type { BuiltinCommand } from "../../cli/types";
+import type { BuiltinCommand, InvocationContext } from "../../cli/types";
 import workspaceCommand from "./index";
+import { verifyWorkspaceContract } from "./testing/workspace-contracts";
 import { WORKSPACE_CONFIG_FILE } from "./workspace-config";
+import { prepareWorkspaceAdd } from "./workspace-worktree";
 
 const execFileAsync = promisify(execFile);
 const gitAvailable = await execFileAsync("git", ["--version"]).then(
@@ -70,7 +72,9 @@ const invoke = async (cwd: string, argv: readonly string[]): Promise<CliResult> 
     stderr: { write: (chunk: string): void => void (stderr += chunk) },
   };
   const code = await runCli(request, [(): BuiltinCommand => workspaceCommand]);
-  return { code, stderr, stdout };
+  const result = { code, stderr, stdout };
+  verifyWorkspaceContract("worktree", { argv, ...result }, cwd);
+  return result;
 };
 
 interface WorkspaceFixture {
@@ -109,6 +113,60 @@ const isMissing = async (target: string): Promise<boolean> => {
 };
 
 describe.skipIf(!gitAvailable)("workspace worktree (git integration)", (): void => {
+  test("list reports unmaterialized, unknown, and detached primary repositories", async (): Promise<void> => {
+    const parent = await createDirectory();
+    const root = path.join(parent, "empty-workspace");
+    await mkdir(root);
+    await writeFile(
+      path.join(root, WORKSPACE_CONFIG_FILE),
+      "repositories:\n  - name: missing\n    url: https://example.com/missing.git\n    path: repositories/missing\n    branch: main\n",
+      "utf8",
+    );
+    const missing = await invoke(root, ["worktree", "list"]);
+    expect(JSON.parse(missing.stdout).repositories[0]).toMatchObject({
+      status: "not-materialized",
+    });
+    expect((await invoke(root, ["worktree", "list", "--name", "unknown"])).code).toBe(1);
+
+    const fixture = await createWorkspace();
+    await git(["-C", fixture.repositoryPath, "checkout", "--detach", "-q"]);
+    const detached = await invoke(fixture.root, ["worktree", "list"]);
+    expect(JSON.parse(detached.stdout).repositories[0].worktrees[0]).not.toHaveProperty("branch");
+  }, 30000);
+
+  test("add commit rechecks a target created after preview", async (): Promise<void> => {
+    const fixture = await createWorkspace();
+    const context: InvocationContext = {
+      cwd: fixture.root,
+      env: {},
+      signal: new AbortController().signal,
+      stdin: { readLine: async (): Promise<null> => null },
+      debug: false,
+      dryRun: false,
+    };
+    const prepared = await prepareWorkspaceAdd(
+      { name: "wiki", path: "worktrees/race", branch: "feature/race" },
+      context,
+    );
+    await mkdir(path.join(fixture.root, "worktrees/race"), { recursive: true });
+    await expect(prepared.commit()).rejects.toThrow("target already exists");
+  }, 30000);
+
+  test("remove accepts a detached worktree when branch deletion is not requested", async (): Promise<void> => {
+    const fixture = await createWorkspace();
+    const worktreePath = path.join(fixture.root, "worktrees/detached-remove");
+    await git(["-C", fixture.repositoryPath, "worktree", "add", "--detach", worktreePath, "main"]);
+    const result = await invoke(fixture.root, [
+      "worktree",
+      "remove",
+      "--name",
+      "wiki",
+      "--path",
+      "worktrees/detached-remove",
+    ]);
+    expect(JSON.parse(result.stdout)).toMatchObject({ branchDeleted: false });
+    expect(JSON.parse(result.stdout)).not.toHaveProperty("branch");
+  }, 30000);
   test("add creates an explicit worktree branch from the configured base", async (): Promise<void> => {
     const fixture = await createWorkspace();
     const worktreePath = path.join(fixture.root, "worktrees/wiki");
@@ -161,7 +219,9 @@ describe.skipIf(!gitAvailable)("workspace worktree (git integration)", (): void 
     });
     expect(await isMissing(worktreePath)).toBe(true);
   }, 30000);
+});
 
+describe.skipIf(!gitAvailable)("workspace worktree (git integration)", (): void => {
   test("add checks out an existing branch without reporting a new branch", async (): Promise<void> => {
     const fixture = await createWorkspace();
     const worktreePath = path.join(fixture.root, "worktrees/existing");
@@ -259,7 +319,9 @@ describe.skipIf(!gitAvailable)("workspace worktree (git integration)", (): void 
       expect(result.stderr).toContain("primary");
     }
   }, 30000);
+});
 
+describe.skipIf(!gitAvailable)("workspace worktree (git integration)", (): void => {
   test("list identifies the primary clone and locked extra worktree", async (): Promise<void> => {
     const fixture = await createWorkspace();
     const worktreePath = path.join(fixture.root, "worktrees/wiki");
@@ -370,7 +432,9 @@ describe.skipIf(!gitAvailable)("workspace worktree (git integration)", (): void 
       created: false,
     });
   }, 30000);
+});
 
+describe.skipIf(!gitAvailable)("workspace worktree (git integration)", (): void => {
   test("remove rejects dirty worktrees unless forced and preserves the branch", async (): Promise<void> => {
     const fixture = await createWorkspace();
     const worktreePath = path.join(fixture.root, "worktrees/wiki");
@@ -490,7 +554,9 @@ describe.skipIf(!gitAvailable)("workspace worktree (git integration)", (): void 
       await git(["-C", fixture.repositoryPath, "branch", "--list", "feature/unmerged"]),
     ).toContain("feature/unmerged");
   }, 30000);
+});
 
+describe.skipIf(!gitAvailable)("workspace worktree (git integration)", (): void => {
   test("remove keeps a detached worktree when branch deletion is requested", async (): Promise<void> => {
     const fixture = await createWorkspace();
     const worktreePath = path.join(fixture.root, "worktrees/detached");
@@ -587,7 +653,9 @@ describe.skipIf(!gitAvailable)("workspace worktree (git integration)", (): void 
     expect(statusOutput).toMatchObject({ success: false, action: "status-repositories" });
     expect(statusOutput.repositories[0].reason).toContain("outside the workspace");
   }, 30000);
+});
 
+describe.skipIf(!gitAvailable)("workspace worktree (git integration)", (): void => {
   test("deletion order is worktree then repository then config", async (): Promise<void> => {
     const fixture = await createWorkspace();
     await invoke(fixture.root, [

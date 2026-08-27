@@ -314,6 +314,11 @@ const verifyDistributionSurface = async (fixture: DistributionFixture): Promise<
         access(path.join(fixture.installedPackage, ...file.split("/"))),
     ),
   );
+  const skillTree = await collectTree(path.join(fixture.installedPackage, "skills"));
+  expect(skillTree.every((file: string): boolean => !file.includes(".test.mjs:"))).toBe(true);
+  expect(skillTree.every((file: string): boolean => !/script[\\/]testing[\\/]/u.test(file))).toBe(
+    true,
+  );
   for (const commandPath of helpPaths) {
     const result = await executeBin(fixture.bin, [...commandPath, "--help"], fixture.workspace);
     expect(result.stdout, commandPath.join(" ")).toContain("Usage:");

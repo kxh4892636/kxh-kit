@@ -13,18 +13,32 @@ import type { PackageManagerPort, ResolvedLoopxPackage } from "./self-updater";
 const execFileAsync = promisify(execFile);
 const packageName = "@kxh4892636/loopx";
 
-const executeNpm = async (arguments_: readonly string[]): Promise<{ stdout: string }> => {
-  if (process.platform === "win32") {
-    const npmCli = path.join(
-      path.dirname(process.execPath),
-      "node_modules",
-      "npm",
-      "bin",
-      "npm-cli.js",
-    );
-    return execFileAsync(process.execPath, [npmCli, ...arguments_]);
-  }
-  return execFileAsync("npm", arguments_);
+export interface NpmPackageManagerDependencies {
+  readonly execPath?: string;
+  readonly executeFile?: (
+    executable: string,
+    arguments_: readonly string[],
+  ) => Promise<{ readonly stdout: string }>;
+  readonly platform?: NodeJS.Platform;
+}
+
+const defaultExecuteFile = async (
+  executable: string,
+  arguments_: readonly string[],
+): Promise<{ readonly stdout: string }> =>
+  execFileAsync(executable, [...arguments_], { encoding: "utf8" });
+
+const createNpmExecutor = (
+  dependencies: NpmPackageManagerDependencies,
+): ((arguments_: readonly string[]) => Promise<{ readonly stdout: string }>) => {
+  const executeFile = dependencies.executeFile ?? defaultExecuteFile;
+  const platform = dependencies.platform ?? process.platform;
+  const execPath = dependencies.execPath ?? process.execPath;
+  return async (arguments_: readonly string[]): Promise<{ readonly stdout: string }> => {
+    if (platform !== "win32") return executeFile("npm", arguments_);
+    const npmCli = path.join(path.dirname(execPath), "node_modules", "npm", "bin", "npm-cli.js");
+    return executeFile(execPath, [npmCli, ...arguments_]);
+  };
 };
 
 const parseVersions = (stdout: string): readonly string[] => {
@@ -56,7 +70,11 @@ const parsePackFilename = (stdout: string): string => {
   return path.basename(value[0].filename);
 };
 
-const retrieveSkills = async (version: string): Promise<readonly ManagedSkill[]> => {
+const retrieveSkills = async (
+  version: string,
+  executeNpm: (arguments_: readonly string[]) => Promise<{ readonly stdout: string }>,
+  executeFile: NonNullable<NpmPackageManagerDependencies["executeFile"]>,
+): Promise<readonly ManagedSkill[]> => {
   const temporaryRoot = await mkdtemp(path.join(tmpdir(), "loopx-package-"));
   try {
     const { stdout } = await executeNpm([
@@ -69,7 +87,7 @@ const retrieveSkills = async (version: string): Promise<readonly ManagedSkill[]>
     const archive = path.join(temporaryRoot, parsePackFilename(stdout));
     const extracted = path.join(temporaryRoot, "extracted");
     await mkdir(extracted);
-    await execFileAsync("tar", ["-xf", archive, "-C", extracted]);
+    await executeFile("tar", ["-xf", archive, "-C", extracted]);
     const skillsRoot = path.join(extracted, "package", "skills");
     const entries = await readdir(skillsRoot, { withFileTypes: true });
     return Promise.all(
@@ -94,37 +112,46 @@ const retrieveSkills = async (version: string): Promise<readonly ManagedSkill[]>
   }
 };
 
-export const createNpmPackageManager = (): PackageManagerPort => ({
-  resolve: async (selector: string, includePrerelease: boolean): Promise<ResolvedLoopxPackage> => {
-    try {
-      const { stdout } = await executeNpm([
-        "view",
-        `${packageName}@${selector}`,
-        "version",
-        "--json",
-      ]);
-      const versions = parseVersions(stdout)
-        .filter((version: string): boolean => includePrerelease || prerelease(version) === null)
-        .sort(compare);
-      const version = versions.at(-1);
-      if (version === undefined) throw new Error(`No stable LoopX version matches ${selector}`);
-      return { version, skills: await retrieveSkills(version) };
-    } catch (error) {
-      throw new Error(`Unable to resolve ${packageName}@${selector}`, { cause: error });
-    }
-  },
-  install: async (version: string): Promise<void> => {
-    try {
-      await executeNpm(["install", "--global", `${packageName}@${version}`]);
-    } catch (error) {
-      throw new Error(`Unable to install ${packageName}@${version}`, { cause: error });
-    }
-  },
-  rollback: async (version: string): Promise<void> => {
-    try {
-      await executeNpm(["install", "--global", `${packageName}@${version}`]);
-    } catch (error) {
-      throw new Error(`Unable to restore ${packageName}@${version}`, { cause: error });
-    }
-  },
-});
+export const createNpmPackageManager = (
+  dependencies: NpmPackageManagerDependencies = {},
+): PackageManagerPort => {
+  const executeFile = dependencies.executeFile ?? defaultExecuteFile;
+  const executeNpm = createNpmExecutor(dependencies);
+  return {
+    resolve: async (
+      selector: string,
+      includePrerelease: boolean,
+    ): Promise<ResolvedLoopxPackage> => {
+      try {
+        const { stdout } = await executeNpm([
+          "view",
+          `${packageName}@${selector}`,
+          "version",
+          "--json",
+        ]);
+        const versions = parseVersions(stdout)
+          .filter((version: string): boolean => includePrerelease || prerelease(version) === null)
+          .sort(compare);
+        const version = versions.at(-1);
+        if (version === undefined) throw new Error(`No stable LoopX version matches ${selector}`);
+        return { version, skills: await retrieveSkills(version, executeNpm, executeFile) };
+      } catch (error) {
+        throw new Error(`Unable to resolve ${packageName}@${selector}`, { cause: error });
+      }
+    },
+    install: async (version: string): Promise<void> => {
+      try {
+        await executeNpm(["install", "--global", `${packageName}@${version}`]);
+      } catch (error) {
+        throw new Error(`Unable to install ${packageName}@${version}`, { cause: error });
+      }
+    },
+    rollback: async (version: string): Promise<void> => {
+      try {
+        await executeNpm(["install", "--global", `${packageName}@${version}`]);
+      } catch (error) {
+        throw new Error(`Unable to restore ${packageName}@${version}`, { cause: error });
+      }
+    },
+  };
+};

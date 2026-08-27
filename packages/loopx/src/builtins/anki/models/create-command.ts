@@ -3,21 +3,23 @@ import { JsonError } from "../errors";
 import type { AnkiPort } from "../port";
 import { modelCreateResponse, parseResponse } from "../responses";
 
-export const createModelParamsSchema = z.object({
-  modelName: z.string().min(1),
-  inOrderFields: z.array(z.string().min(1)).min(1),
-  cardTemplates: z
-    .array(
-      z.object({
-        Name: z.string().min(1),
-        Front: z.string().min(1),
-        Back: z.string().min(1),
-      }),
-    )
-    .min(1),
-  css: z.string().optional(),
-  isCloze: z.boolean().optional(),
-});
+export const createModelParamsSchema = z.lazy(() =>
+  z.object({
+    modelName: z.string().min(1),
+    inOrderFields: z.array(z.string().min(1)).min(1),
+    cardTemplates: z
+      .array(
+        z.object({
+          Name: z.string().min(1),
+          Front: z.string().min(1),
+          Back: z.string().min(1),
+        }),
+      )
+      .min(1),
+    css: z.string().optional(),
+    isCloze: z.boolean().optional(),
+  }),
+);
 
 export type CreateModelParams = z.infer<typeof createModelParamsSchema>;
 

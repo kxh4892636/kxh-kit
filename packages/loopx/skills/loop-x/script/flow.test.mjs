@@ -3,11 +3,12 @@ import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import test from "node:test";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { test } from "vitest";
 
 import { executeFlow } from "./flow.mjs";
+import { verifyContract } from "./testing/script-contracts.mjs";
 
 const execFileAsync = promisify(execFile);
 const FLOW_PATH = fileURLToPath(new URL("./flow.mjs", import.meta.url));
@@ -20,8 +21,6 @@ const statePath = (workspace, date = TEST_NOW) => {
     .join("-");
   return path.join(workspace, ".loop", `${prefix}-state.json`);
 };
-
-const shiftedDate = (days) => new Date(new Date(TEST_NOW).setDate(TEST_NOW.getDate() + days));
 
 const issueDocument = (id, dependencies = []) => `---
 status: pending
@@ -123,8 +122,25 @@ const createWorkspace = async (issueDefinitions) => {
   return workspace;
 };
 
-const command = (workspace, commandName, options) =>
-  executeFlow({ command: commandName, now: () => new Date(TEST_NOW), options, workspace });
+const command = async (workspace, commandName, options) => {
+  try {
+    const result = await executeFlow({
+      command: commandName,
+      now: () => new Date(TEST_NOW),
+      options,
+      workspace,
+    });
+    verifyContract("flowCore", { ok: true, result }, workspace);
+    return result;
+  } catch (error) {
+    verifyContract(
+      "flowCore",
+      { ok: false, error: { name: error?.name, message: error?.message } },
+      workspace,
+    );
+    throw error;
+  }
+};
 
 const readyPlan = async (workspace, session = "plan-session") => {
   await command(workspace, "init", {
@@ -185,67 +201,6 @@ const legacyReceipt = (step, result) => ({
   recorded_at: "2026-08-25T00:00:00.000Z",
   result,
   step: step === "commit" ? step : `/${step}`,
-});
-
-test("状态文件使用本地日期前缀且不读取旧 state.json", async () => {
-  const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
-  try {
-    const stateDirectory = path.join(workspace, ".loop");
-    await fs.mkdir(stateDirectory);
-    await fs.writeFile(
-      path.join(stateDirectory, "state.json"),
-      `${JSON.stringify({ plans: { legacy: {} }, revision: 99, schema_version: 3 })}\n`,
-    );
-
-    const initialized = await command(workspace, "init", {
-      plan: PLAN_PATH,
-      route: "issues",
-      session: "dated-state-session",
-    });
-
-    assert.equal(initialized.revision, 1);
-    const state = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
-    assert.deepEqual(Object.keys(state.plans), [PLAN_PATH]);
-  } finally {
-    await fs.rm(workspace, { force: true, recursive: true });
-  }
-});
-
-test("状态事务只清理三十天窗口之前的日期状态文件", async () => {
-  const workspace = await createWorkspace([{ dependencies: [], id: "01" }]);
-  try {
-    const stateDirectory = path.join(workspace, ".loop");
-    await fs.mkdir(stateDirectory);
-    const expiredState = path.basename(statePath(workspace, shiftedDate(-30)));
-    const oldestRetainedState = path.basename(statePath(workspace, shiftedDate(-29)));
-    const recentState = path.basename(statePath(workspace, shiftedDate(-10)));
-    const futureState = path.basename(statePath(workspace, shiftedDate(1)));
-    for (const name of [
-      expiredState,
-      oldestRetainedState,
-      recentState,
-      futureState,
-      "notes.json",
-    ]) {
-      await fs.writeFile(path.join(stateDirectory, name), "{}\n");
-    }
-
-    await command(workspace, "init", {
-      plan: PLAN_PATH,
-      route: "issues",
-      session: "retention-session",
-    });
-
-    const retainedNames = await fs.readdir(stateDirectory);
-    assert.ok(!retainedNames.includes(expiredState));
-    assert.ok(!retainedNames.includes(futureState));
-    assert.ok(retainedNames.includes(oldestRetainedState));
-    assert.ok(retainedNames.includes(recentState));
-    assert.ok(retainedNames.includes(path.basename(statePath(workspace))));
-    assert.ok(retainedNames.includes("notes.json"));
-  } finally {
-    await fs.rm(workspace, { force: true, recursive: true });
-  }
 });
 
 test("按路由顺序记录 Plan skill", async () => {

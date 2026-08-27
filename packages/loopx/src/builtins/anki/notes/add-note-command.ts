@@ -5,21 +5,23 @@ import type { AnkiPort } from "../port";
 import { optionalNumberResponse, parseResponse, stringArrayResponse } from "../responses";
 
 // 上游 addNote 参数 schema 的 CLI 移植。
-export const addNoteParamsSchema = z.object({
-  deckName: z.string().min(1),
-  modelName: z.string().min(1),
-  fields: z.record(z.string(), z.string()),
-  tags: z.array(z.string()).optional(),
-  allowDuplicate: z.boolean().optional(),
-  duplicateScope: z.enum(["deck", "collection"]).optional(),
-  duplicateScopeOptions: z
-    .object({
-      deckName: z.string().optional(),
-      checkChildren: z.boolean().optional(),
-      checkAllModels: z.boolean().optional(),
-    })
-    .optional(),
-});
+export const addNoteParamsSchema = z.lazy(() =>
+  z.object({
+    deckName: z.string().min(1),
+    modelName: z.string().min(1),
+    fields: z.record(z.string(), z.string()),
+    tags: z.array(z.string()).optional(),
+    allowDuplicate: z.boolean().optional(),
+    duplicateScope: z.enum(["deck", "collection"]).optional(),
+    duplicateScopeOptions: z
+      .object({
+        deckName: z.string().optional(),
+        checkChildren: z.boolean().optional(),
+        checkAllModels: z.boolean().optional(),
+      })
+      .optional(),
+  }),
+);
 
 export type AddNoteParams = z.infer<typeof addNoteParamsSchema>;
 

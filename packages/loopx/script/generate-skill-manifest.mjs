@@ -6,6 +6,8 @@ import { hashSkillFiles, readSkillFiles } from "../src/builtins/self/skill-files
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const skillsRoot = path.join(packageRoot, "skills");
 const outputPath = path.join(packageRoot, "src", "builtins", "self", "generated-skill-manifest.ts");
+const isShippedSkillFile = (file) =>
+  !file.path.endsWith(".test.mjs") && !file.path.startsWith("script/testing/");
 
 const generateManifest = async () => {
   const packageMetadata = JSON.parse(
@@ -16,7 +18,9 @@ const generateManifest = async () => {
     .sort((left, right) => left.name.localeCompare(right.name));
   const skills = [];
   for (const directory of skillDirectories) {
-    const files = await readSkillFiles(path.join(skillsRoot, directory.name));
+    const files = (await readSkillFiles(path.join(skillsRoot, directory.name))).filter(
+      isShippedSkillFile,
+    );
     if (!files.some((file) => file.path === "SKILL.md")) continue;
     skills.push({
       name: directory.name,

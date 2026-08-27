@@ -13,25 +13,16 @@ import {
   type WorkspaceRepository,
 } from "./workspace-config";
 import { assertPhysicalPathWithinRoot, normalizeFsPath, pathExists } from "./workspace-path";
+import { errorDetail, errorMessage, hasErrorCode } from "./workspace-error";
 
 const execFileAsync = promisify(execFile);
 const workspaceDiagnostics = channel("loopx.workspace");
-const errorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
-
 const runGit = async (arguments_: readonly string[]): Promise<string> => {
   try {
     const { stdout } = await execFileAsync("git", ["--no-optional-locks", ...arguments_]);
     return stdout;
   } catch (error) {
-    const stderr =
-      typeof error === "object" &&
-      error !== null &&
-      "stderr" in error &&
-      typeof error.stderr === "string"
-        ? error.stderr.trim()
-        : "";
-    const detail = stderr === "" ? errorMessage(error) : stderr;
+    const detail = errorDetail(error);
     workspaceDiagnostics.publish({ level: "error", message: detail });
     throw new Error(`Git worktree operation failed: ${detail}`);
   }
@@ -42,13 +33,7 @@ const gitSucceeds = async (arguments_: readonly string[]): Promise<boolean> => {
     await execFileAsync("git", ["--no-optional-locks", ...arguments_]);
     return true;
   } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      (error as { readonly code?: unknown }).code === 1
-    )
-      return false;
+    if (hasErrorCode(error, 1)) return false;
     workspaceDiagnostics.publish({ level: "error", message: errorMessage(error) });
     throw error;
   }

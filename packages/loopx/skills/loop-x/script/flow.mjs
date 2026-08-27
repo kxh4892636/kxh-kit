@@ -50,9 +50,9 @@ const fail = (message) => {
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-const normalizeSkill = (value) => value?.replace(/^\//, "");
+export const normalizeSkill = (value) => value?.replace(/^\//, "");
 
-const requireOption = (options, name) => {
+export const requireOption = (options, name) => {
   const value = options[name];
   if (typeof value !== "string" || value.trim() === "") {
     fail(`缺少 --${name}`);
@@ -60,14 +60,14 @@ const requireOption = (options, name) => {
   return value.trim();
 };
 
-const optionValues = (options, name) => {
+export const optionValues = (options, name) => {
   const value = options[name];
   if (Array.isArray(value)) return value;
   if (typeof value === "string") return [value];
   return [];
 };
 
-const leaseSeconds = (options) => {
+export const leaseSeconds = (options) => {
   const rawValue = options["lease-seconds"];
   if (rawValue === undefined) return DEFAULT_LEASE_SECONDS;
   const value = Number(rawValue);
@@ -77,7 +77,7 @@ const leaseSeconds = (options) => {
   return value;
 };
 
-const normalizePlanPath = (workspace, planInput) => {
+export const normalizePlanPath = (workspace, planInput) => {
   const absolutePath = path.resolve(workspace, planInput);
   const relativePath = path.relative(workspace, absolutePath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
@@ -86,7 +86,7 @@ const normalizePlanPath = (workspace, planInput) => {
   return relativePath === "" ? "." : relativePath.replaceAll("\\", "/");
 };
 
-const normalizeFlowIdentifier = (planInput) => {
+export const normalizeFlowIdentifier = (planInput) => {
   if (!/^\d{4}-\d{2}-\d{2}-[^/\\]+$/u.test(planInput)) {
     fail("/grill-with-docs 的 --plan 必须是 YYYY-MM-DD-{name} Flow 标识");
   }
@@ -131,7 +131,7 @@ const emptyState = () => ({
   schema_version: SCHEMA_VERSION,
 });
 
-const validateState = (state, supportedVersions = [SCHEMA_VERSION]) => {
+export const validateState = (state, supportedVersions = [SCHEMA_VERSION]) => {
   if (
     state === null ||
     typeof state !== "object" ||
@@ -146,7 +146,7 @@ const validateState = (state, supportedVersions = [SCHEMA_VERSION]) => {
   return state;
 };
 
-const migratedCursor = (sequence, receipts, status) => {
+export const migratedCursor = (sequence, receipts, status) => {
   if (status === "completed") return sequence.length;
   let cursor = 0;
   for (const step of sequence) {
@@ -158,7 +158,7 @@ const migratedCursor = (sequence, receipts, status) => {
   return cursor;
 };
 
-const migrateState = (state) => {
+export const migrateState = (state) => {
   validateState(state, [1, 2, SCHEMA_VERSION]);
   if (state.schema_version === SCHEMA_VERSION) return { migrated: false, state };
   for (const plan of Object.values(state.plans)) {
@@ -288,7 +288,7 @@ const makeLease = (session, seconds, now) => ({
   owner_session: session,
 });
 
-const leaseIsActive = (lease, now) =>
+export const leaseIsActive = (lease, now) =>
   lease?.owner_session && Date.parse(lease.expires_at) > now.getTime();
 
 const requireLease = (subject, session, now) => {
@@ -334,13 +334,16 @@ const publicPlan = (plan) => ({
   setup: plan.setup,
 });
 
-const parseFrontmatter = (content, targetPath) => {
+export const parseFrontmatter = (content, targetPath) => {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
   if (!match) fail(`${targetPath} 缺少 YAML frontmatter`);
   const fields = new Map();
   for (const line of match[1].split(/\r?\n/)) {
-    const field = line.match(/^([a-z_]+):\s*(.*)$/);
-    if (field) fields.set(field[1], field[2].trim());
+    const separator = line.indexOf(":");
+    const name = line.slice(0, separator);
+    if (separator > 0 && /^[a-z_]+$/.test(name)) {
+      fields.set(name, line.slice(separator + 1).trim());
+    }
   }
   return { fields, match };
 };
@@ -353,7 +356,7 @@ const replaceFrontmatterField = (content, field, value, targetPath) => {
   return content.replace(parsed.match[0], `---\n${frontmatter}\n---\n`);
 };
 
-const parseDependencies = (rawValue, targetPath) => {
+export const parseDependencies = (rawValue, targetPath) => {
   try {
     const value = JSON.parse(rawValue ?? "");
     if (!Array.isArray(value) || value.some((item) => !/^\d{2}$/.test(item))) {
@@ -397,7 +400,7 @@ const readIssues = async (planPath) => {
   return snapshots;
 };
 
-const deriveSpecStatus = (issues) => {
+export const deriveSpecStatus = (issues) => {
   if (issues.every((issue) => issue.status === "pending")) return "pending";
   if (issues.every((issue) => issue.status === "completed")) return "completed";
   return "in_progress";
@@ -447,14 +450,14 @@ const requireIssueReady = async (planPath, issueId) => {
   return issue;
 };
 
-const blockedBody = (content, reason, releaseCondition) => {
+export const blockedBody = (content, reason, releaseCondition) => {
   const section = `## 阻塞记录\n\n- 障碍: ${reason}\n- 解除条件: ${releaseCondition}\n`;
   const pattern = /^## 阻塞记录\r?\n[\s\S]*?(?=^## |(?![\s\S]))/m;
   if (pattern.test(content)) return content.replace(pattern, section);
   return `${content.trimEnd()}\n\n${section}`;
 };
 
-const hasDeliveryEvidence = (content) => {
+export const hasDeliveryEvidence = (content) => {
   const section = content.match(/^## (?:交付记录|交付物与证据)\r?\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
   if (!section) return false;
   const body = section[1]
@@ -850,7 +853,7 @@ export const executeFlow = async ({
   );
 };
 
-const parseCli = (argumentsList) => {
+export const parseCli = (argumentsList) => {
   const [command, ...tokens] = argumentsList;
   if (!command) return { command: "help", options: {} };
   const options = {};
@@ -884,22 +887,28 @@ const usage = `用法:
   flow.mjs status [--plan <path>]
 `;
 
-const runCli = async () => {
+export const runFlowCli = async ({
+  argumentsList = process.argv.slice(2),
+  cwd = process.cwd(),
+  stderr = (message) => console.error(message),
+  stdout = (message) => process.stdout.write(message),
+} = {}) => {
   try {
-    const parsed = parseCli(process.argv.slice(2));
+    const parsed = parseCli(argumentsList);
     if (["help", "--help", "-h"].includes(parsed.command)) {
-      process.stdout.write(usage);
-      return;
+      stdout(usage);
+      return 0;
     }
-    const workspace = parsed.options.workspace ?? process.cwd();
+    const workspace = parsed.options.workspace ?? cwd;
     delete parsed.options.workspace;
     const result = await executeFlow({ ...parsed, workspace });
-    process.stdout.write(`${JSON.stringify({ success: true, ...result }, null, 2)}\n`);
+    stdout(`${JSON.stringify({ success: true, ...result }, null, 2)}\n`);
+    return 0;
   } catch (error) {
-    console.error(JSON.stringify({ error: error.message, success: false }));
-    process.exitCode = 1;
+    stderr(JSON.stringify({ error: error.message, success: false }));
+    return 1;
   }
 };
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : "";
-if (invokedPath === fileURLToPath(import.meta.url)) await runCli();
+if (invokedPath === fileURLToPath(import.meta.url)) process.exitCode = await runFlowCli();

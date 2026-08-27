@@ -21,18 +21,16 @@ interface StructuredError extends Error {
   readonly hint?: string;
 }
 
-const isStructuredError = (error: Error): error is StructuredError =>
-  "action" in error || "hint" in error || "details" in error;
-
 export const toErrorJson = (error: unknown, debug: boolean): Record<string, JsonValue> => {
   const payload: Record<string, JsonValue> = {
     success: false,
     error: error instanceof Error ? error.message : String(error),
   };
-  if (error instanceof Error && isStructuredError(error)) {
-    if (error.action !== undefined) payload["action"] = error.action;
-    if (error.hint !== undefined) payload["hint"] = error.hint;
-    if (error.details !== undefined) Object.assign(payload, error.details);
+  if (error instanceof Error) {
+    const structured = error as StructuredError;
+    if (structured.action !== undefined) payload["action"] = structured.action;
+    if (structured.hint !== undefined) payload["hint"] = structured.hint;
+    if (structured.details !== undefined) Object.assign(payload, structured.details);
   }
   if (debug && error instanceof Error && error.stack !== undefined) {
     payload["stack"] = error.stack;

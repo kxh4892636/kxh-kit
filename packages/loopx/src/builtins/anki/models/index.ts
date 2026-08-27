@@ -1,5 +1,6 @@
 import { command, group, option } from "../../../cli/definition";
 import { CliUsageError } from "../../../cli/errors";
+import { z } from "zod";
 import type {
   CommandGroup,
   CommandNode,
@@ -35,10 +36,24 @@ import { connection, loggerFor, mutation, toJson, type AnkiDependencies } from "
 type Templates = Record<string, { Front: string; Back: string }>;
 type CreateTemplate = { Name: string; Front: string; Back: string };
 
-const strings = (value: OptionValue): readonly string[] =>
+const templateSchema = z
+  .object({ Front: z.string().min(1), Back: z.string().min(1) })
+  .passthrough();
+const templatesSchema = z
+  .record(z.string(), templateSchema)
+  .refine((value: Templates): boolean => Object.keys(value).length > 0);
+const createTemplatesSchema = z
+  .array(
+    z
+      .object({ Name: z.string().min(1), Front: z.string().min(1), Back: z.string().min(1) })
+      .passthrough(),
+  )
+  .min(1);
+
+export const strings = (value: OptionValue): readonly string[] =>
   Array.isArray(value) ? value : typeof value === "string" ? [value] : [];
 
-const nonNegative = (value: OptionValue, flag: string): number => {
+export const nonNegative = (value: OptionValue, flag: string): number => {
   const parsed = Number(value);
   if (!Number.isInteger(parsed) || parsed < 0) {
     throw new CliUsageError(`${flag} requires a non-negative integer`);
@@ -46,58 +61,17 @@ const nonNegative = (value: OptionValue, flag: string): number => {
   return parsed;
 };
 
-const templates = (value: OptionValue): Templates => {
+export const templates = (value: OptionValue): Templates => {
   try {
-    const parsed: unknown = JSON.parse(value as string);
-    if (
-      typeof parsed !== "object" ||
-      parsed === null ||
-      Array.isArray(parsed) ||
-      Object.keys(parsed).length === 0 ||
-      !Object.values(parsed).every(
-        (template: unknown): boolean =>
-          typeof template === "object" &&
-          template !== null &&
-          "Front" in template &&
-          typeof template.Front === "string" &&
-          template.Front.length > 0 &&
-          "Back" in template &&
-          typeof template.Back === "string" &&
-          template.Back.length > 0,
-      )
-    ) {
-      throw new Error("shape");
-    }
-    return parsed as Templates;
+    return templatesSchema.parse(JSON.parse(value as string));
   } catch {
     throw new CliUsageError('--templates requires JSON: {"Card 1":{"Front":"...","Back":"..."}}');
   }
 };
 
-const createTemplates = (value: OptionValue): CreateTemplate[] => {
+export const createTemplates = (value: OptionValue): CreateTemplate[] => {
   try {
-    const parsed: unknown = JSON.parse(value as string);
-    if (
-      !Array.isArray(parsed) ||
-      parsed.length === 0 ||
-      !parsed.every(
-        (template: unknown): template is CreateTemplate =>
-          typeof template === "object" &&
-          template !== null &&
-          "Name" in template &&
-          typeof template.Name === "string" &&
-          template.Name.length > 0 &&
-          "Front" in template &&
-          typeof template.Front === "string" &&
-          template.Front.length > 0 &&
-          "Back" in template &&
-          typeof template.Back === "string" &&
-          template.Back.length > 0,
-      )
-    ) {
-      throw new Error("shape");
-    }
-    return parsed;
+    return createTemplatesSchema.parse(JSON.parse(value as string));
   } catch {
     throw new CliUsageError(
       '--templates requires JSON: [{"Name":"Card 1","Front":"...","Back":"..."}]',
