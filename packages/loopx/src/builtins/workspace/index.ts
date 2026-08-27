@@ -34,20 +34,16 @@ import {
   prepareWorkspaceRemove,
   prepareWorkspaceSwitch,
 } from "./workspace-worktree";
+import { errorMessage, hasErrorCode } from "./workspace-error";
 
 const workspaceDiagnostics = channel("loopx.workspace");
-
-const errorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
 
 const exists = async (target: string): Promise<boolean> => {
   try {
     await access(target);
     return true;
   } catch (error) {
-    if (typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT") {
-      return false;
-    }
+    if (hasErrorCode(error, "ENOENT")) return false;
     workspaceDiagnostics.publish({ level: "error", message: errorMessage(error) });
     throw error;
   }

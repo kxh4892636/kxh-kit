@@ -3,9 +3,11 @@ import { JsonError } from "../errors";
 import type { AnkiPort } from "../port";
 import { numberArrayResponse, parseResponse } from "../responses";
 
-export const findNotesParamsSchema = z.object({
-  query: z.string().min(1),
-});
+export const findNotesParamsSchema = z.lazy(() =>
+  z.object({
+    query: z.string().min(1),
+  }),
+);
 
 export type FindNotesParams = z.infer<typeof findNotesParamsSchema>;
 

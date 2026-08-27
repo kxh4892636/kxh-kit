@@ -44,7 +44,7 @@ const readEntries = (targetPath, errors, rootDir) => {
   }
 };
 
-const countLines = (content) => {
+export const countLines = (content) => {
   if (content.length === 0) return 0;
   const normalized = content.replaceAll("\r\n", "\n");
   return normalized.endsWith("\n")
@@ -52,7 +52,7 @@ const countLines = (content) => {
     : normalized.split("\n").length;
 };
 
-const parseFrontmatter = (content, targetPath, errors, rootDir) => {
+export const parseFrontmatter = (content, targetPath, errors, rootDir) => {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
   if (!match) {
     addError(errors, rootDir, targetPath, "缺少 YAML frontmatter");
@@ -61,13 +61,16 @@ const parseFrontmatter = (content, targetPath, errors, rootDir) => {
 
   const fields = new Map();
   for (const line of match[1].split(/\r?\n/)) {
-    const field = line.match(/^([a-z_]+):\s*(.*)$/);
-    if (field) fields.set(field[1], field[2].trim());
+    const separator = line.indexOf(":");
+    const name = line.slice(0, separator);
+    if (separator > 0 && /^[a-z_]+$/.test(name)) {
+      fields.set(name, line.slice(separator + 1).trim());
+    }
   }
   return fields;
 };
 
-const parseDependencies = (rawValue, targetPath, errors, rootDir) => {
+export const parseDependencies = (rawValue, targetPath, errors, rootDir) => {
   if (rawValue === undefined) {
     addError(errors, rootDir, targetPath, "frontmatter 缺少 blocked_by");
     return [];
@@ -90,7 +93,7 @@ const parseDependencies = (rawValue, targetPath, errors, rootDir) => {
   }
 };
 
-const hasSection = (content, heading) => new RegExp(`^## ${heading}$`, "m").test(content);
+export const hasSection = (content, heading) => new RegExp(`^## ${heading}$`, "m").test(content);
 
 const assertChineseDocument = (content, targetPath, errors, rootDir) => {
   if (!HAN_PATTERN.test(content)) {
@@ -98,24 +101,25 @@ const assertChineseDocument = (content, targetPath, errors, rootDir) => {
   }
 };
 
-const isValidDate = (value) => {
+export const isValidDate = (value) => {
   const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (!match) return false;
   const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
-  return (
-    date.getUTCFullYear() === Number(match[1]) &&
-    date.getUTCMonth() === Number(match[2]) - 1 &&
-    date.getUTCDate() === Number(match[3])
-  );
+  const normalized = [
+    date.getUTCFullYear().toString().padStart(4, "0"),
+    (date.getUTCMonth() + 1).toString().padStart(2, "0"),
+    date.getUTCDate().toString().padStart(2, "0"),
+  ].join("-");
+  return normalized === value;
 };
 
-const parseIssueTable = (specContent) => {
+export const parseIssueTable = (specContent) => {
   const rows = new Map();
   const rowPattern =
     /^\|\s*(\d{2})\s*\|\s*\[[^\]]+\]\(([^)]+\.md)\)\s*\|\s*(pending|in_progress|blocked|completed)\s*\|\s*([^|]+?)\s*\|/gm;
   for (const match of specContent.matchAll(rowPattern)) {
-    const dependencyCell = match[4].trim();
-    const dependencies = ["—", "-", ""].includes(dependencyCell)
+    const dependencyCell = match[4];
+    const dependencies = ["—", "-"].includes(dependencyCell)
       ? []
       : [...dependencyCell.matchAll(/\d{2}/g)].map((item) => item[0]);
     rows.set(match[1], {
@@ -127,7 +131,7 @@ const parseIssueTable = (specContent) => {
   return rows;
 };
 
-const deriveSpecStatus = (issues) => {
+export const deriveSpecStatus = (issues) => {
   const statuses = issues.map((issue) => issue.status);
   if (statuses.every((status) => status === "pending")) return "pending";
   if (statuses.every((status) => status === "completed")) return "completed";
@@ -479,22 +483,26 @@ export const checkDomain = (rootDirectory) => {
   return errors;
 };
 
-const run = () => {
-  const rootDir = path.resolve(process.argv[2] ?? process.cwd());
+export const runDomainCheck = ({
+  rootDirectory = process.argv[2] ?? process.cwd(),
+  stderr = (message) => console.error(message),
+  stdout = (message) => console.log(message),
+} = {}) => {
+  const rootDir = path.resolve(rootDirectory);
   try {
     const errors = checkDomain(rootDir);
     if (errors.length > 0) {
-      console.error(`领域文档校验失败，共 ${errors.length} 项：`);
-      for (const error of errors) console.error(`- ${error}`);
-      process.exitCode = 1;
-      return;
+      stderr(`领域文档校验失败，共 ${errors.length} 项：`);
+      for (const error of errors) stderr(`- ${error}`);
+      return 1;
     }
-    console.log("领域文档校验通过。");
+    stdout("领域文档校验通过。");
+    return 0;
   } catch (error) {
-    console.error(`领域文档校验异常: ${error instanceof Error ? error.stack : String(error)}`);
-    process.exitCode = 1;
+    stderr(`领域文档校验异常: ${error instanceof Error ? error.stack : String(error)}`);
+    return 1;
   }
 };
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : "";
-if (invokedPath === fileURLToPath(import.meta.url)) run();
+if (invokedPath === fileURLToPath(import.meta.url)) process.exitCode = runDomainCheck();

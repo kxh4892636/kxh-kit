@@ -55,18 +55,16 @@ const writeSkillTree = async (directory: string, skill: ManagedSkill): Promise<v
 const validateChange = (change: PlannedChange, force: boolean): void => {
   const { action, managed, state } = change;
   if (action === "install") return;
-  if (action === "update" && (state.status === "current" || state.status === "outdated")) return;
-  if (action === "uninstall" && state.status !== "not_installed" && managed) {
-    if (state.status !== "modified" || force) return;
-  }
-  if (state.status === "modified" && managed && force) return;
-  if (state.status === "modified" && !managed) {
-    throw new Error(`Refusing to replace unmanaged skill directory: ${state.target}`);
-  }
-  if (state.status === "modified")
+  if (state.status === "modified") {
+    if (!managed) {
+      throw new Error(`Refusing to replace unmanaged skill directory: ${state.target}`);
+    }
+    if (force) return;
     throw new Error(`Managed skill has local changes: ${state.target}`);
+  }
   if (state.status === "not_installed")
     throw new Error(`Managed skill is not installed: ${state.name}`);
+  if (action === "update" || managed) return;
   throw new Error(`Managed skill is already installed: ${state.name}`);
 };
 

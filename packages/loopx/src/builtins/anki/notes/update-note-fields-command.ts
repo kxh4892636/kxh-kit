@@ -6,30 +6,32 @@ import type { AnkiPort } from "../port";
 import { noteUpdateArrayResponse, nullResponse, parseResponse } from "../responses";
 import { mediaUrlConfig, sanitizeMediaFilename, validateMediaUrl } from "../media/media-validation";
 
-export const updateNoteFieldsParamsSchema = z.object({
-  note: z.object({
-    id: z.number(),
-    fields: z.record(z.string(), z.string()),
-    audio: z
-      .array(
-        z.object({
-          url: z.string(),
-          filename: z.string(),
-          fields: z.array(z.string()),
-        }),
-      )
-      .optional(),
-    picture: z
-      .array(
-        z.object({
-          url: z.string(),
-          filename: z.string(),
-          fields: z.array(z.string()),
-        }),
-      )
-      .optional(),
+export const updateNoteFieldsParamsSchema = z.lazy(() =>
+  z.object({
+    note: z.object({
+      id: z.number(),
+      fields: z.record(z.string(), z.string()),
+      audio: z
+        .array(
+          z.object({
+            url: z.string(),
+            filename: z.string(),
+            fields: z.array(z.string()),
+          }),
+        )
+        .optional(),
+      picture: z
+        .array(
+          z.object({
+            url: z.string(),
+            filename: z.string(),
+            fields: z.array(z.string()),
+          }),
+        )
+        .optional(),
+    }),
   }),
-});
+);
 
 export type UpdateNoteFieldsParams = z.infer<typeof updateNoteFieldsParamsSchema>;
 

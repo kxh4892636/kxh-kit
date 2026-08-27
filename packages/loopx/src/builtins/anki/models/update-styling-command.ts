@@ -4,10 +4,12 @@ import type { Logger } from "../logger";
 import type { AnkiPort } from "../port";
 import { modelStylingResponse, nullResponse, parseResponse } from "../responses";
 
-export const updateModelStylingParamsSchema = z.object({
-  modelName: z.string().min(1),
-  css: z.string().min(1),
-});
+export const updateModelStylingParamsSchema = z.lazy(() =>
+  z.object({
+    modelName: z.string().min(1),
+    css: z.string().min(1),
+  }),
+);
 
 export type UpdateModelStylingParams = z.infer<typeof updateModelStylingParamsSchema>;
 

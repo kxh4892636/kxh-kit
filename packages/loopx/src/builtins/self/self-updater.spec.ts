@@ -128,7 +128,27 @@ describe("self update orchestration", (): void => {
     };
     await installCurrentSkill(current, target, dependencies);
     const result = await invoke([current], target, ["update"], dependencies);
-    expect(result.code).toBe(0);
+    expect({ ...result, stdout: JSON.parse(result.stdout) }).toEqual({
+      code: 0,
+      stderr: "",
+      stdout: {
+        success: true,
+        skills: {
+          success: true,
+          changes: [
+            {
+              action: "update",
+              fromVersion: "1.0.0",
+              name: "loop-x",
+              source: "package://skills/loop-x",
+              target: path.join(target, "loop-x"),
+              toVersion: "2.0.0",
+            },
+          ],
+        },
+        version: "2.0.0",
+      },
+    });
     expect(script.resolves).toEqual([{ selector: "latest", includePrerelease: false }]);
     expect(script.installs).toEqual(["2.0.0"]);
     expect(await readFile(path.join(target, "loop-x", "SKILL.md"), "utf8")).toBe("new");
@@ -169,13 +189,29 @@ describe("self update orchestration", (): void => {
     await installCurrentSkill(current, target, dependencies);
     const before = await readFile(path.join(target, "loop-x", "SKILL.md"), "utf8");
     const result = await invoke([current], target, ["update", "--dry-run"], dependencies);
-    expect(JSON.parse(result.stdout)).toMatchObject({
+    expect(JSON.parse(result.stdout)).toEqual({
       dryRun: true,
       preview: {
         candidateVersion: "2.0.0",
-        cli: { action: "install", version: "2.0.0" },
-        skills: { changes: [{ action: "update", name: "loop-x" }] },
+        cli: { action: "install", package: "@kxh4892636/loopx", version: "2.0.0" },
+        currentVersion: "1.0.0",
+        skills: {
+          changes: [
+            {
+              action: "update",
+              fromVersion: "1.0.0",
+              name: "loop-x",
+              source: "package://skills/loop-x",
+              target: path.join(target, "loop-x"),
+              toVersion: "2.0.0",
+            },
+          ],
+          success: true,
+        },
+        success: true,
+        updateAvailable: true,
       },
+      success: true,
     });
     expect([script.installs, script.rollbacks]).toEqual([[], []]);
     expect(await readFile(path.join(target, "loop-x", "SKILL.md"), "utf8")).toBe(before);
@@ -190,10 +226,18 @@ describe("self update orchestration", (): void => {
       packageManager: scriptedPort(script, { version: "1.0.0", skills: [current] }),
     };
     const result = await invoke([current], target, ["update"], dependencies);
-    expect(JSON.parse(result.stdout)).toMatchObject({ updateAvailable: false });
+    expect(JSON.parse(result.stdout)).toEqual({
+      candidateVersion: "1.0.0",
+      currentVersion: "1.0.0",
+      skillChanges: [],
+      success: true,
+      updateAvailable: false,
+    });
     expect(script.installs).toEqual([]);
   });
+});
 
+describe("self update orchestration", (): void => {
   test("surfaces query failure without install or rollback", async (): Promise<void> => {
     const target = await createTarget();
     const current = managedSkill("1.0.0", "old");

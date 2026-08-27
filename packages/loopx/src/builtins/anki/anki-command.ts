@@ -46,7 +46,7 @@ type StatsOptions = ValuesFromOptions<typeof statsOptions>;
 type CreateOptions = ValuesFromOptions<typeof createOptions>;
 type MoveOptions = ValuesFromOptions<typeof moveOptions>;
 
-const numbers = (raw: string | undefined, name: string): readonly number[] | undefined => {
+export const numbers = (raw: string | undefined, name: string): readonly number[] | undefined => {
   if (raw === undefined) return undefined;
   const values = raw.split(",").map((value: string): number => Number(value.trim()));
   if (
@@ -59,7 +59,7 @@ const numbers = (raw: string | undefined, name: string): readonly number[] | und
   return values;
 };
 
-const cardIds = (value: OptionValues[string]): readonly number[] => {
+export const cardIds = (value: OptionValues[string]): readonly number[] => {
   const raw = Array.isArray(value) ? value : typeof value === "string" ? [value] : [];
   const ids = raw.map((entry: string): number => Number(entry));
   if (ids.length === 0 || ids.some((id: number): boolean => !Number.isInteger(id) || id <= 0)) {

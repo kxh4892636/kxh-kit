@@ -17,6 +17,7 @@ catalog:
   "@types/node": ^24.12.4
   "@types/react": ^19.2.14
   "@types/react-dom": ^19.2.3
+  "@vitest/coverage-v8": ^4.1.10
   # TypeScript 7 provides tsc; TypeScript 6 remains under the canonical package name
   # for tools that still import the legacy compiler API.
   "@typescript/native": npm:typescript@~7.0.2

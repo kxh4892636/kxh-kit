@@ -3,12 +3,10 @@ import { channel } from "node:diagnostics_channel";
 import path from "node:path";
 import { isMap, isSeq, parse as parseYaml, parseDocument, type Document, type YAMLSeq } from "yaml";
 import { z } from "zod";
+import { errorMessage, hasErrorCode } from "./workspace-error";
 import type { JsonValue } from "../../cli/types";
 
 const workspaceDiagnostics = channel("loopx.workspace");
-
-const errorMessage = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
 
 export const WORKSPACE_CONFIG_FILE = "workspace.yaml";
 
@@ -109,13 +107,7 @@ const exists = async (target: string): Promise<boolean> => {
     await access(target);
     return true;
   } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      (error.code === "ENOENT" || error.code === "ENOTDIR")
-    )
-      return false;
+    if (hasErrorCode(error, "ENOENT", "ENOTDIR")) return false;
     workspaceDiagnostics.publish({ level: "error", message: errorMessage(error) });
     throw error;
   }

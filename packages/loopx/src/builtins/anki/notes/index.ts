@@ -1,5 +1,6 @@
 import { command, group, option } from "../../../cli/definition";
 import { CliUsageError } from "../../../cli/errors";
+import { z } from "zod";
 import type {
   CommandGroup,
   InvocationContext,
@@ -25,10 +26,27 @@ import { mediaUrlConfig, sanitizeMediaFilename, validateMediaUrl } from "../medi
 type MediaItem = { url: string; filename: string; fields: string[] };
 type BatchNote = { fields: Record<string, string>; tags?: string[] };
 
-const strings = (value: OptionValue): readonly string[] =>
+const mediaItemSchema = z.object({
+  url: z.string().min(1),
+  filename: z.string().min(1),
+  fields: z.array(z.string()).min(1),
+});
+const batchNotesSchema = z
+  .array(
+    z
+      .object({
+        fields: z.record(z.string(), z.string()),
+        tags: z.array(z.string()).optional(),
+      })
+      .passthrough(),
+  )
+  .min(1)
+  .max(100);
+
+export const strings = (value: OptionValue): readonly string[] =>
   Array.isArray(value) ? value : typeof value === "string" ? [value] : [];
 
-const fields = (value: OptionValue): Record<string, string> => {
+export const fields = (value: OptionValue): Record<string, string> => {
   const result: Record<string, string> = {};
   for (const pair of strings(value)) {
     const separator = pair.indexOf("=");
@@ -38,7 +56,7 @@ const fields = (value: OptionValue): Record<string, string> => {
   return result;
 };
 
-const ids = (value: OptionValue, flag: string): number[] => {
+export const ids = (value: OptionValue, flag: string): number[] => {
   const values = strings(value).map(Number);
   if (
     values.length === 0 ||
@@ -50,7 +68,7 @@ const ids = (value: OptionValue, flag: string): number[] => {
   return values;
 };
 
-const duplicateScope = (value: OptionValue): "collection" | "deck" | undefined => {
+export const duplicateScope = (value: OptionValue): "collection" | "deck" | undefined => {
   if (value === undefined) return undefined;
   if (value !== "deck" && value !== "collection") {
     throw new CliUsageError("--duplicate-scope must be deck or collection");
@@ -58,29 +76,12 @@ const duplicateScope = (value: OptionValue): "collection" | "deck" | undefined =
   return value;
 };
 
-const media = (value: OptionValue, flag: string): MediaItem[] | undefined => {
+export const media = (value: OptionValue, flag: string): MediaItem[] | undefined => {
   const raw = strings(value);
   if (raw.length === 0) return undefined;
   return raw.map((entry: string): MediaItem => {
     try {
-      const parsed: unknown = JSON.parse(entry);
-      if (
-        typeof parsed !== "object" ||
-        parsed === null ||
-        !("url" in parsed) ||
-        typeof parsed.url !== "string" ||
-        !("filename" in parsed) ||
-        typeof parsed.filename !== "string" ||
-        !("fields" in parsed) ||
-        !Array.isArray(parsed.fields) ||
-        !parsed.fields.every((field: unknown): field is string => typeof field === "string")
-      ) {
-        throw new Error("shape");
-      }
-      if (parsed.url.length === 0 || parsed.filename.length === 0 || parsed.fields.length === 0) {
-        throw new Error("empty");
-      }
-      return { url: parsed.url, filename: parsed.filename, fields: parsed.fields };
+      return mediaItemSchema.parse(JSON.parse(entry));
     } catch {
       throw new CliUsageError(
         `${flag} requires JSON: {"url":"..","filename":"..","fields":["Front"]}`,
@@ -109,36 +110,18 @@ const assertValid = (result: { readonly success: boolean; readonly error?: Error
   if (!result.success) throw new CliUsageError(result.error?.message ?? "Invalid command input");
 };
 
-const parseBatch = (text: string): BatchNote[] => {
+export const parseBatch = (text: string): BatchNote[] => {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
   } catch {
     throw new AnkiOperationError("Input is not valid JSON", "addNotes");
   }
-  if (
-    !Array.isArray(parsed) ||
-    parsed.length === 0 ||
-    parsed.length > 100 ||
-    !parsed.every(
-      (note: unknown): note is BatchNote =>
-        typeof note === "object" &&
-        note !== null &&
-        "fields" in note &&
-        typeof note.fields === "object" &&
-        note.fields !== null &&
-        !Array.isArray(note.fields) &&
-        Object.values(note.fields).every(
-          (field: unknown): field is string => typeof field === "string",
-        ) &&
-        (!("tags" in note) ||
-          (Array.isArray(note.tags) &&
-            note.tags.every((tag: unknown): tag is string => typeof tag === "string"))),
-    )
-  ) {
+  const result = batchNotesSchema.safeParse(parsed);
+  if (!result.success) {
     throw new AnkiOperationError("Input must contain an array of 1-100 valid notes", "addNotes");
   }
-  return parsed;
+  return result.data as BatchNote[];
 };
 
 const addOptions = [

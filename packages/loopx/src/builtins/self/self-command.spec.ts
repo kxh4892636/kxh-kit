@@ -7,6 +7,8 @@ import { runCli, type CliRequest } from "../../cli/run";
 import type { BuiltinCommand } from "../../cli/types";
 import { generatedSkills } from "./generated-skill-manifest";
 import { createSelfCommand } from "./self-command";
+import { inspectSkill, readManagedMarker } from "./skill-state";
+import { prepareSkillChange } from "./skill-store";
 
 const temporaryDirectories: string[] = [];
 
@@ -62,6 +64,86 @@ afterEach(async (): Promise<void> => {
 });
 
 describe("self skill query interface", (): void => {
+  test("treats missing, invalid, and malformed managed markers as unmanaged", async (): Promise<void> => {
+    const target = await createTarget();
+    const directory = path.join(target, "marker");
+    await mkdir(directory);
+    await expect(readManagedMarker(directory)).resolves.toBeNull();
+    for (const marker of [
+      "{",
+      "null",
+      "[]",
+      "{}",
+      '{"name":1,"version":"1","contentHash":"x"}',
+      '{"name":"x","version":1,"contentHash":"x"}',
+      '{"name":"x","version":"1","contentHash":1}',
+    ]) {
+      await writeFile(path.join(directory, ".loopx-managed.json"), marker, "utf8");
+      await expect(readManagedMarker(directory)).resolves.toBeNull();
+    }
+  });
+
+  test("wraps marker and skill tree filesystem failures", async (): Promise<void> => {
+    const target = await createTarget();
+    const directory = path.join(target, "broken-marker");
+    await mkdir(path.join(directory, ".loopx-managed.json"), { recursive: true });
+    await expect(readManagedMarker(directory)).rejects.toThrow(
+      "Unable to read managed skill marker",
+    );
+
+    const skill = generatedSkills[0];
+    if (skill === undefined) throw new Error("Missing generated skill fixture");
+    await writeFile(path.join(target, skill.name), "not a directory", "utf8");
+    await expect(inspectSkill(skill, target)).rejects.toThrow("Unable to inspect skill");
+  });
+
+  test("enforces managed update and uninstall state boundaries", async (): Promise<void> => {
+    const skill = generatedSkills[0];
+    if (skill === undefined) throw new Error("Missing generated skill fixture");
+
+    const missing = await createTarget();
+    await expect(
+      prepareSkillChange([skill], {
+        kind: "update",
+        names: [skill.name],
+        targetRoot: missing,
+        force: false,
+      }),
+    ).rejects.toThrow("is not installed");
+
+    const unmanaged = await createTarget();
+    await mkdir(path.join(unmanaged, skill.name));
+    await writeFile(path.join(unmanaged, skill.name, "SKILL.md"), "local", "utf8");
+    await expect(
+      prepareSkillChange([skill], {
+        kind: "update",
+        names: [skill.name],
+        targetRoot: unmanaged,
+        force: true,
+      }),
+    ).rejects.toThrow("unmanaged skill directory");
+
+    const modified = await createTarget();
+    await writeManagedSkill(modified, skill.version);
+    await writeFile(path.join(modified, skill.name, "SKILL.md"), "changed", "utf8");
+    await expect(
+      prepareSkillChange([skill], {
+        kind: "update",
+        names: [skill.name],
+        targetRoot: modified,
+        force: false,
+      }),
+    ).rejects.toThrow("local changes");
+    await expect(
+      prepareSkillChange([skill], {
+        kind: "update",
+        names: [skill.name],
+        targetRoot: modified,
+        force: true,
+      }),
+    ).resolves.toMatchObject({ preview: { success: true } });
+  });
+
   test("lists packaged skills without writing the target", async (): Promise<void> => {
     const target = await createTarget();
     const result = await invoke(target, ["list", "--dry-run"]);
@@ -99,7 +181,9 @@ describe("self skill query interface", (): void => {
       status: "not_installed",
     });
   });
+});
 
+describe("self skill query interface", (): void => {
   test("installs and uninstalls every packaged skill", async (): Promise<void> => {
     const target = await createTarget();
     await invoke(target, ["install", "--all"]);

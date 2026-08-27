@@ -15,26 +15,27 @@ export const resetAnkiQueueForTests = (depth = 50): void => {
   maxQueueDepth = depth;
 };
 
-const writeActions = new Set([
-  "addNote",
-  "updateNoteFields",
-  "deleteNotes",
-  "createDeck",
-  "changeDeck",
-  "addTags",
-  "removeTags",
-  "clearUnusedTags",
-  "replaceTags",
-  "storeMediaFile",
-  "deleteMediaFile",
-  "createModel",
-  "updateModelStyling",
-  "updateModelTemplates",
-  "modelFieldAdd",
-  "modelFieldRemove",
-  "modelFieldRename",
-  "modelFieldReposition",
-]);
+const isWriteAction = (action: string): boolean =>
+  [
+    "addNote",
+    "updateNoteFields",
+    "deleteNotes",
+    "createDeck",
+    "changeDeck",
+    "addTags",
+    "removeTags",
+    "clearUnusedTags",
+    "replaceTags",
+    "storeMediaFile",
+    "deleteMediaFile",
+    "createModel",
+    "updateModelStyling",
+    "updateModelTemplates",
+    "modelFieldAdd",
+    "modelFieldRemove",
+    "modelFieldRename",
+    "modelFieldReposition",
+  ].includes(action);
 
 const parseEnvelope = <Result>(value: unknown, action: string): Result => {
   if (typeof value !== "object" || value === null || !("error" in value) || !("result" in value)) {
@@ -53,27 +54,29 @@ export class HttpAnkiPort implements AnkiPort {
   private readonly config: AnkiConfig;
   private readonly logger: Logger;
 
-  constructor(config: AnkiConfig, logger: Logger) {
+  constructor(config: AnkiConfig, logger: Logger, client?: KyInstance) {
     this.config = config;
     this.logger = logger;
-    this.client = ky.create({
-      prefix: config.url,
-      timeout: config.timeout,
-      headers: { "Content-Type": "application/json" },
-      retry: {
-        limit: 2,
-        methods: ["POST"],
-        statusCodes: [408, 413, 429, 500, 502, 503, 504],
-        backoffLimit: 3000,
-      },
-    });
+    this.client =
+      client ??
+      ky.create({
+        prefix: config.url,
+        timeout: config.timeout,
+        headers: { "Content-Type": "application/json" },
+        retry: {
+          limit: 2,
+          methods: ["POST"],
+          statusCodes: [408, 413, 429, 500, 502, 503, 504],
+          backoffLimit: 3000,
+        },
+      });
   }
 
   readonly invoke = async <Result>(
     action: string,
     params?: Readonly<Record<string, JsonValue>>,
   ): Promise<Result> => {
-    if (this.config.readOnly && writeActions.has(action)) {
+    if (this.config.readOnly && isWriteAction(action)) {
       this.logger.warn(`Blocked write action "${action}" in read-only mode`);
       throw new ReadOnlyModeError(action);
     }

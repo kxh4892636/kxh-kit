@@ -3,11 +3,12 @@ import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import test from "node:test";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import { test } from "vitest";
 
 import { executeFlow } from "./flow.mjs";
+import { verifyContract } from "./testing/script-contracts.mjs";
 
 const execFileAsync = promisify(execFile);
 const FLOW_PATH = fileURLToPath(new URL("./flow.mjs", import.meta.url));
@@ -113,8 +114,20 @@ const createWorkspace = async (issueDefinitions) => {
   return workspace;
 };
 
-const command = (workspace, commandName, options) =>
-  executeFlow({ command: commandName, options, workspace });
+const command = async (workspace, commandName, options) => {
+  try {
+    const result = await executeFlow({ command: commandName, options, workspace });
+    verifyContract("flowCore", { ok: true, result }, workspace);
+    return result;
+  } catch (error) {
+    verifyContract(
+      "flowCore",
+      { ok: false, error: { name: error?.name, message: error?.message } },
+      workspace,
+    );
+    throw error;
+  }
+};
 
 const readyPlan = async (workspace, session = "plan-session") => {
   await command(workspace, "init", {

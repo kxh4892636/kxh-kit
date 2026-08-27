@@ -8,6 +8,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import { runCli, type CliRequest } from "../../cli/run";
 import type { BuiltinCommand } from "../../cli/types";
 import workspaceCommand from "./index";
+import { verifyWorkspaceContract } from "./testing/workspace-contracts";
 import { WORKSPACE_CONFIG_FILE } from "./workspace-config";
 
 const execFileAsync = promisify(execFile);
@@ -116,7 +117,9 @@ const invoke = async (cwd: string, argv: readonly string[]): Promise<CliResult> 
     stderr: { write: (chunk: string): void => void (stderr += chunk) },
   };
   const code = await runCli(request, [(): BuiltinCommand => workspaceCommand]);
-  return { code, stderr, stdout };
+  const result = { code, stderr, stdout };
+  verifyWorkspaceContract("repository", { argv, ...result }, cwd);
+  return result;
 };
 
 const isMissing = async (target: string): Promise<boolean> => {
@@ -129,6 +132,50 @@ const isMissing = async (target: string): Promise<boolean> => {
 };
 
 describe.skipIf(!gitAvailable)("workspace repository (git integration)", (): void => {
+  test("status handles detached clones and repositories without a remote tracking ref", async (): Promise<void> => {
+    const directory = await createDirectory();
+    const remote = await createRemote(directory, "wiki");
+    const root = await createWorkspace([{ name: "wiki", url: remote.url }]);
+    expect((await invoke(root, ["repository", "clone"])).code).toBe(0);
+    const repositoryPath = path.join(root, "repositories/wiki");
+    await git(["-C", repositoryPath, "checkout", "--detach", "-q"]);
+    await git(["-C", repositoryPath, "update-ref", "-d", "refs/remotes/origin/main"]);
+
+    const result = await invoke(root, ["repository", "status"]);
+    expect(JSON.parse(result.stdout).repositories[0]).toMatchObject({
+      branch: "",
+      ahead: 0,
+      behind: 0,
+      status: "materialized",
+    });
+    expect(JSON.parse(result.stdout).repositories[0].worktrees[0]).not.toHaveProperty("branch");
+  }, 30000);
+
+  test("pull reports an up-to-date primary clone and a wrong primary branch", async (): Promise<void> => {
+    const directory = await createDirectory();
+    const remote = await createRemote(directory, "wiki");
+    const root = await createWorkspace([{ name: "wiki", url: remote.url }]);
+    expect((await invoke(root, ["repository", "clone"])).code).toBe(0);
+    const current = await invoke(root, ["repository", "pull"]);
+    expect(JSON.parse(current.stdout).repositories[0].status).toBe("pulled");
+
+    const repositoryPath = path.join(root, "repositories/wiki");
+    await git(["-C", repositoryPath, "checkout", "-q", "-b", "other"]);
+    const wrongBranch = await invoke(root, ["repository", "pull"]);
+    expect(JSON.parse(wrongBranch.stdout).repositories[0]).toMatchObject({
+      status: "skipped",
+      reason: expect.stringContaining("expected 'main'"),
+    });
+  }, 30000);
+
+  test("remove rejects a configured repository that is not materialized", async (): Promise<void> => {
+    const directory = await createDirectory();
+    const remote = await createRemote(directory, "wiki");
+    const root = await createWorkspace([{ name: "wiki", url: remote.url }]);
+    const result = await invoke(root, ["repository", "remove", "--name", "wiki", "--yes"]);
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.stderr).error).toContain("not materialized");
+  }, 30000);
   test("clone materializes a shallow primary clone at config path only", async (): Promise<void> => {
     const directory = await createDirectory();
     const remote = await createRemote(directory, "wiki");
@@ -191,7 +238,9 @@ describe.skipIf(!gitAvailable)("workspace repository (git integration)", (): voi
     });
     expect(await isMissing(repositoryPath)).toBe(true);
   }, 30000);
+});
 
+describe.skipIf(!gitAvailable)("workspace repository (git integration)", (): void => {
   test("status reads local state without fetching", async (): Promise<void> => {
     const directory = await createDirectory();
     const remote = await createRemote(directory, "wiki");
@@ -310,7 +359,9 @@ describe.skipIf(!gitAvailable)("workspace repository (git integration)", (): voi
       "true",
     );
   }, 30000);
+});
 
+describe.skipIf(!gitAvailable)("workspace repository (git integration)", (): void => {
   test("pull skips dirty and local-ahead primary clones", async (): Promise<void> => {
     const directory = await createDirectory();
     const remote = await createRemote(directory, "wiki");
@@ -406,7 +457,9 @@ describe.skipIf(!gitAvailable)("workspace repository (git integration)", (): voi
     expect(JSON.parse(blocked.stderr).error).toContain("additional worktrees");
     expect(await isMissing(repositoryPath)).toBe(false);
   }, 30000);
+});
 
+describe.skipIf(!gitAvailable)("workspace repository (git integration)", (): void => {
   test("remove protects dirty and local-only history unless forced", async (): Promise<void> => {
     const directory = await createDirectory();
     const remote = await createRemote(directory, "wiki");

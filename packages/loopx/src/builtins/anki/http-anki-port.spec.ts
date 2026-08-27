@@ -7,7 +7,7 @@ import {
   type FakeAnkiConnect,
   type FakeRequest,
   type FakeResponse,
-} from "./fake-anki-connect";
+} from "./testing/fake-anki-connect";
 import { HttpAnkiPort, resetAnkiQueueForTests } from "./http-anki-port";
 import { createLogger } from "./logger";
 const servers: FakeAnkiConnect[] = [];

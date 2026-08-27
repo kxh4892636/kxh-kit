@@ -11,6 +11,15 @@
   },
   "incremental": true,
   "incrementalFile": "reports/mutation/incremental.json",
+  "mutate": [
+    "src/**/*.ts",
+    "!src/**/*.spec.ts",
+    "!src/**/*.d.ts",
+    "!src/**/testing/**",
+    "!src/**/generated-skill-manifest.ts",
+    "skills/**/script/*.mjs",
+    "!skills/**/script/*.test.mjs"
+  ],
   "thresholds": {
     "high": 90,
     "low": 90,

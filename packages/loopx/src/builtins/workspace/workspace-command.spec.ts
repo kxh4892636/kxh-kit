@@ -6,6 +6,7 @@ import { runCli, type CliRequest } from "../../cli/run";
 import type { BuiltinCommand } from "../../cli/types";
 import workspaceCommand from "./index";
 import { WORKSPACE_CONFIG_FILE } from "./workspace-config";
+import { verifyWorkspaceContract } from "./testing/workspace-contracts";
 
 const temporaryDirectories: string[] = [];
 
@@ -50,7 +51,9 @@ const invoke = async (cwd: string, argv: readonly string[]): Promise<CliResult> 
     },
   };
   const code = await runCli(request, [(): BuiltinCommand => workspaceCommand]);
-  return { code, stderr, stdout };
+  const result = { code, stderr, stdout };
+  verifyWorkspaceContract("command", { argv, ...result }, cwd);
+  return result;
 };
 
 test("workspace exposes only the three domain resource groups", (): void => {
@@ -250,7 +253,9 @@ describe("workspace config add and update", (): void => {
     const document = await readFile(path.join(cwd, WORKSPACE_CONFIG_FILE), "utf8");
     expect(document).not.toContain("docs");
   });
+});
 
+describe("workspace config add and update", (): void => {
   test("fails with a usage error when an option is missing", async (): Promise<void> => {
     const cwd = await initWorkspace();
     const result = await invoke(cwd, [

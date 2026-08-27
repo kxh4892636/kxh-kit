@@ -28,7 +28,8 @@
   },
   "scripts": {
     "build": "node script/generate-skill-manifest.mjs && vp pack src/main.ts",
-    "test": "vp test src",
+    "test": "vp test",
+    "test:coverage": "vp test --run --coverage",
     "test:distribution": "vp run build && vp test test/distribution.spec.ts",
     "test:mutation": "stryker run",
     "check": "vp check",
@@ -50,6 +51,7 @@
     "@types/node": "catalog:",
     "@types/semver": "^7.8.0",
     "@typescript/native": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:",
     "vitest": "catalog:"

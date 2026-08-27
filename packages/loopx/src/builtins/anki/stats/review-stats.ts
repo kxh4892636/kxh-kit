@@ -33,11 +33,15 @@ const reviewRecord = z
 const collectionReviewsResponse = z.record(z.string(), z.array(reviewRecord));
 const cardIdsResponse = z.array(z.number());
 type ReviewTuple = z.infer<typeof reviewTuple>;
+interface ReviewEntry {
+  readonly ease: number;
+  readonly id: number;
+}
 
 const collectionReviews = async (
   port: AnkiPort,
   start: number,
-): Promise<readonly ReviewTuple[]> => {
+): Promise<readonly ReviewEntry[]> => {
   const cards = parseResponse(
     "findCards",
     cardIdsResponse,
@@ -49,27 +53,16 @@ const collectionReviews = async (
     collectionReviewsResponse,
     await port.invoke<unknown>("getReviewsOfCards", { cards }),
   );
-  const tuples: ReviewTuple[] = [];
-  for (const [cardId, reviews] of Object.entries(byCard)) {
+  const entries: ReviewEntry[] = [];
+  for (const reviews of Object.values(byCard)) {
     for (const review of reviews)
-      if (review.id > start)
-        tuples.push([
-          review.id,
-          Number(cardId),
-          review.usn ?? 0,
-          review.ease,
-          review.ivl ?? 0,
-          review.lastIvl ?? 0,
-          review.factor ?? 0,
-          review.time ?? 0,
-          review.type ?? 0,
-        ]);
+      if (review.id > start) entries.push({ ease: review.ease, id: review.id });
   }
-  return tuples;
+  return entries;
 };
 
 const aggregate = (
-  reviews: readonly ReviewTuple[],
+  reviews: readonly ReviewEntry[],
   start: string,
   end: string,
   deck: string,
@@ -77,7 +70,7 @@ const aggregate = (
 ): JsonValue => {
   const byDate = new Map<string, number>();
   for (const review of reviews) {
-    const date = new Date(review[0]).toISOString().slice(0, 10);
+    const date = new Date(review.id).toISOString().slice(0, 10);
     byDate.set(date, (byDate.get(date) ?? 0) + 1);
   }
   const days = [...byDate.entries()]
@@ -116,7 +109,7 @@ const aggregate = (
       min_day: minDay,
       streak: streak(days, today),
     },
-    retention: retention(reviews.map((review: ReviewTuple): number => review[3])),
+    retention: retention(reviews.map((review: ReviewEntry): number => review.ease)),
   };
 };
 
@@ -137,9 +130,9 @@ export const reviewStats = async (
             "cardReviews",
             reviewTuples,
             await port.invoke<unknown>("cardReviews", { startID: start, deck }),
-          );
+          ).map((review: ReviewTuple): ReviewEntry => ({ ease: review[3], id: review[0] }));
     return aggregate(
-      reviews.filter((review: ReviewTuple): boolean => review[0] <= end),
+      reviews.filter((review: ReviewEntry): boolean => review.id <= end),
       startDate,
       endDate,
       deck ?? "All Decks",
