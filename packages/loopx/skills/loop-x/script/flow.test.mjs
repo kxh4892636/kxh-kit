@@ -19,7 +19,7 @@ const statePath = (workspace, date = TEST_NOW) => {
   const prefix = [date.getFullYear(), date.getMonth() + 1, date.getDate()]
     .map((part, index) => (index === 0 ? String(part) : String(part).padStart(2, "0")))
     .join("-");
-  return path.join(workspace, ".loop", `${prefix}-state.json`);
+  return path.join(workspace, ".flow", "state", `${prefix}-state.json`);
 };
 
 const issueDocument = (id, dependencies = []) => `---

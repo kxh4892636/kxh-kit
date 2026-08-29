@@ -5,18 +5,18 @@ description: 路由从想法到交付的 Loop Kit 主流程；当任务需要形
 
 # LoopX
 
-`/loop-x` 只负责选择主流程的起点和传递 Flow context。每个 subskill 的步骤、产物与完成标准由该 subskill 单独拥有。
+`/loop-x` 只负责选择主流程的起点和传递 Flow context。每个 skill 的步骤、产物与完成标准由该 skill 单独拥有。
 
 ## 选择入口
 
-完整读取 [`workflows/README.md`](references/workflows/README.md)。它是可复用工作流的触发索引；空文件表示当前没有附加工作流。
+完整读取 [`workflows/README.md`](extensions/workflows/README.md)。它是可复用工作流的触发索引；空文件表示当前没有附加工作流。
 
 先从用户输入和现场材料判断当前位置，只推荐一条入口：
 
-| 现场                                         | 入口                                                                |
-| -------------------------------------------- | ------------------------------------------------------------------- |
-| 角色、收益或可验收的用户结果尚未明确         | [`/to-story`](references/subskills/to-story/SKILL.md)               |
-| 用户结果已明确，需要从领域设计开始继续主流程 | [`/grill-with-docs`](references/subskills/grill-with-docs/SKILL.md) |
+| 现场                                         | 入口                                                             |
+| -------------------------------------------- | ---------------------------------------------------------------- |
+| 角色、收益或可验收的用户结果尚未明确         | [`/to-story`](references/skills/to-story/SKILL.md)               |
+| 用户结果已明确，需要从领域设计开始继续主流程 | [`/grill-with-docs`](references/skills/grill-with-docs/SKILL.md) |
 
 已有 Flow 或 Plan 时不创建新路径；读取 [`FLOW.md`](references/FLOW.md)，从运行态返回的当前位置恢复。
 

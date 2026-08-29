@@ -83,8 +83,8 @@ const calendarDate = (date) =>
     .join("-");
 
 const statePaths = (workspace, now) => ({
-  dir: path.join(workspace, ".loop"),
-  state: path.join(workspace, ".loop", `${calendarDate(now)}-state.json`),
+  dir: path.join(workspace, ".flow", "state"),
+  state: path.join(workspace, ".flow", "state", `${calendarDate(now)}-state.json`),
 });
 
 const removeExpiredStates = async (directory, now) => {
@@ -213,7 +213,7 @@ const releaseLock = async (lockPath, nonce) => {
 };
 
 const withStateTransaction = async (workspace, now, action) => {
-  const directory = path.join(workspace, ".loop");
+  const directory = path.join(workspace, ".flow", "state");
   const lockPath = path.join(directory, "state.lock");
   await fs.mkdir(directory, { recursive: true });
   const nonce = await acquireLock(lockPath, now);

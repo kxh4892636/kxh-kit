@@ -159,13 +159,17 @@ describe("self skill query interface", (): void => {
     });
   });
 
-  test("packages code-test as the implementation testing skill", (): void => {
+  test("packages extension skills from their extension paths", (): void => {
     const loopX = generatedSkills.find((skill) => skill.name === "loop-x");
     if (loopX === undefined) throw new Error("Missing loop-x generated skill");
     const paths = loopX.files.map((file) => file.path);
 
-    expect(paths).toContain("references/subskills/code-test/SKILL.md");
-    expect(paths.some((filePath) => filePath.startsWith("references/subskills/tdd/"))).toBe(false);
+    expect(paths).toContain("extensions/skills/code-test/SKILL.md");
+    expect(paths).toContain("extensions/skills/code-spec/SKILL.md");
+    expect(paths).toContain("extensions/workflows/README.md");
+    expect(paths).toContain("extensions/QUESTIONS.md");
+    expect(paths.some((filePath) => filePath.startsWith("references/subskills/"))).toBe(false);
+    expect(paths.some((filePath) => filePath.startsWith("extensions/skills/tdd/"))).toBe(false);
   });
 
   test("installs, checks, and uninstalls loop-x-cli", async (): Promise<void> => {

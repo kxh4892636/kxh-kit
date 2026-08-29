@@ -96,7 +96,7 @@ const statePath = (workspace, date = TEST_NOW) => {
   const prefix = [date.getFullYear(), date.getMonth() + 1, date.getDate()]
     .map((part, index) => (index === 0 ? String(part) : String(part).padStart(2, "0")))
     .join("-");
-  return path.join(workspace, ".loop", `${prefix}-state.json`);
+  return path.join(workspace, ".flow", "state", `${prefix}-state.json`);
 };
 
 const shiftedDate = (days) => new Date(new Date(TEST_NOW).setDate(TEST_NOW.getDate() + days));
@@ -109,8 +109,8 @@ afterEach(async () => {
 
 test("状态文件使用本地日期前缀且不读取旧 state.json", async () => {
   const workspace = await createWorkspace();
-  const stateDirectory = path.join(workspace, ".loop");
-  await fs.mkdir(stateDirectory);
+  const stateDirectory = path.join(workspace, ".flow", "state");
+  await fs.mkdir(stateDirectory, { recursive: true });
   await fs.writeFile(
     path.join(stateDirectory, "state.json"),
     `${JSON.stringify({ plans: { legacy: {} }, revision: 99, schema_version: 4 })}\n`,
@@ -129,8 +129,8 @@ test("状态文件使用本地日期前缀且不读取旧 state.json", async () 
 
 test("状态事务只清理三十天窗口之前的日期状态文件", async () => {
   const workspace = await createWorkspace();
-  const stateDirectory = path.join(workspace, ".loop");
-  await fs.mkdir(stateDirectory);
+  const stateDirectory = path.join(workspace, ".flow", "state");
+  await fs.mkdir(stateDirectory, { recursive: true });
   const expiredState = path.basename(statePath(workspace, shiftedDate(-30)));
   const oldestRetainedState = path.basename(statePath(workspace, shiftedDate(-29)));
   const recentState = path.basename(statePath(workspace, shiftedDate(-10)));
@@ -248,14 +248,14 @@ test.each([
   ["array plans", { schema_version: 4, revision: 0, plans: [] }],
 ])("rejects invalid persisted state: %s", async (_name, state) => {
   const workspace = await createWorkspace();
-  await fs.mkdir(path.join(workspace, ".loop"), { recursive: true });
+  await fs.mkdir(path.join(workspace, ".flow", "state"), { recursive: true });
   await fs.writeFile(statePath(workspace), JSON.stringify(state));
   await assert.rejects(command(workspace, "status"), /格式无效或版本不受支持/);
 });
 
 test("reports malformed JSON and removes a stale state lock", async () => {
   const workspace = await createWorkspace();
-  const stateRoot = path.join(workspace, ".loop");
+  const stateRoot = path.join(workspace, ".flow", "state");
   await fs.mkdir(stateRoot, { recursive: true });
   await fs.writeFile(statePath(workspace), "{");
   await assert.rejects(command(workspace, "status"), /解析 .*state.json 失败/);

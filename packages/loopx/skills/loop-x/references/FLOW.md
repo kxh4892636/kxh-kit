@@ -50,7 +50,7 @@ node <loop-x-skill-dir>/script/flow.mjs --help
 
 ## 持久状态
 
-`.loop/YYYY-MM-DD-state.json` 按本地日期保存当日租约、游标与 receipt，默认只保留包含当天在内的最近 30 天；`.loop/state.lock` 只保护单次事务。这些文件是运行态，不进入版本控制。不读取无日期前缀或其他日期的状态文件。issue frontmatter 的 `status` 是持久化执行状态的事实源，spec 状态与 Issue 表是派生视图：
+`.flow/state/YYYY-MM-DD-state.json` 按本地日期保存当日租约、游标与 receipt，默认只保留包含当天在内的最近 30 天；`.flow/state/state.lock` 只保护单次事务。这些文件是运行态，不进入版本控制。不读取无日期前缀或其他日期的状态文件。issue frontmatter 的 `status` 是持久化执行状态的事实源，spec 状态与 Issue 表是派生视图：
 
 ```text
 pending -> in_progress -> completed
