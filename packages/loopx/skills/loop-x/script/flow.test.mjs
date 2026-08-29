@@ -14,6 +14,7 @@ const execFileAsync = promisify(execFile);
 const FLOW_PATH = fileURLToPath(new URL("./flow.mjs", import.meta.url));
 const PLAN_PATH = "docs/orders/plans/active/2026-08-22-订单流转";
 const TEST_NOW = new Date();
+const DEFAULT_HOOK_MESSAGE = "请携带当前 Flow context 执行，并在完成后返回主流程登记真实结果。";
 
 const statePath = (workspace, date = TEST_NOW) => {
   const prefix = [date.getFullYear(), date.getMonth() + 1, date.getDate()]
@@ -160,9 +161,11 @@ test("主流程从 to-story 开始且不再强制 questing", async () => {
       skill: "/loop-x",
     });
     assert.equal(entered.next_skill, "/to-story");
+    assert.equal(entered.message, DEFAULT_HOOK_MESSAGE);
 
     const story = await recordPlan(workspace, entered.session, "to-story", "completed");
     assert.equal(story.next_skill, "/quest-with-domain");
+    assert.equal(story.message, DEFAULT_HOOK_MESSAGE);
     await assert.rejects(
       recordPlan(workspace, entered.session, "questing", "completed"),
       /期望 \/quest-with-domain/,
@@ -170,6 +173,7 @@ test("主流程从 to-story 开始且不再强制 questing", async () => {
 
     const quested = await recordPlan(workspace, entered.session, "quest-with-domain", "completed");
     assert.equal(quested.next_skill, "/to-issues");
+    assert.equal(quested.message, DEFAULT_HOOK_MESSAGE);
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }
@@ -195,13 +199,14 @@ test("主流程可从 quest-with-domain 开始并跳过 to-issues", async () => 
     const delivery = await recordPlan(workspace, entered.session, "dev-gate", "ready");
     assert.equal(delivery.phase, "delivering_direct");
     assert.equal(delivery.next_skill, "/code-delivery");
-    assert.equal(
-      (await recordPlan(workspace, entered.session, "code-delivery", "started")).next_action,
-      "commit",
-    );
+    assert.equal(delivery.message, DEFAULT_HOOK_MESSAGE);
+    const commit = await recordPlan(workspace, entered.session, "code-delivery", "started");
+    assert.equal(commit.next_action, "commit");
+    assert.equal("message" in commit, false);
     const completed = await recordPlan(workspace, entered.session, "commit", "committed");
     assert.equal(completed.phase, "completed");
     assert.equal(completed.next_skill, null);
+    assert.equal("message" in completed, false);
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }
@@ -213,6 +218,7 @@ test("to-issues 完成后 dev-gate 转入 Issue 级 code-delivery", async () => 
     const ready = await readyIssuePlan(workspace);
     assert.equal(ready.phase, "delivering_issues");
     assert.equal(ready.next_skill, null);
+    assert.equal("message" in ready, false);
     await assert.rejects(
       recordPlan(workspace, "plan-session", "code-delivery", "started"),
       /当前阶段 delivering_issues 不接受 record-plan/,
@@ -224,6 +230,7 @@ test("to-issues 完成后 dev-gate 转入 Issue 级 code-delivery", async () => 
       session: "issue-session",
     });
     assert.equal(claimed.next_skill, "/code-delivery");
+    assert.equal(claimed.message, DEFAULT_HOOK_MESSAGE);
     assert.equal(
       (await recordIssue(workspace, "01", "issue-session", "code-delivery", "started")).next_action,
       "commit",
@@ -232,6 +239,45 @@ test("to-issues 完成后 dev-gate 转入 Issue 级 code-delivery", async () => 
     const completed = await recordIssue(workspace, "01", "issue-session", "commit", "committed");
     assert.equal(completed.status, "completed");
     assert.equal(completed.phase, "completed");
+  } finally {
+    await fs.rm(workspace, { force: true, recursive: true });
+  }
+});
+
+test("hooks 对同一 skill 按声明顺序拼接且只附加到 next_skill", async () => {
+  const workspace = await createWorkspace();
+  const hooks = {
+    hooks: [
+      { match: "all", message: "global" },
+      { match: ["to-story", "quest-with-domain"], message: "discovery" },
+      { match: ["to-story"], message: "story" },
+    ],
+    schema_version: 1,
+  };
+  try {
+    const entered = await executeFlow({
+      command: "init",
+      hooks,
+      now: () => new Date(TEST_NOW),
+      options: { entry: "/to-story", plan: PLAN_PATH, session: "hook-session" },
+      workspace,
+    });
+    assert.equal(entered.message, "global\ndiscovery\nstory");
+
+    const story = await executeFlow({
+      command: "record-plan",
+      hooks,
+      now: () => new Date(TEST_NOW),
+      options: {
+        evidence: ["story-completed"],
+        plan: PLAN_PATH,
+        result: "completed",
+        session: "hook-session",
+        skill: "/to-story",
+      },
+      workspace,
+    });
+    assert.equal(story.message, "global\ndiscovery");
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }

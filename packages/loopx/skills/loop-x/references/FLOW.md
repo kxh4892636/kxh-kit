@@ -6,7 +6,7 @@
 node <loop-x-skill-dir>/script/flow.mjs --help
 ```
 
-所有命令从工作区根目录执行。首次使用一个命令前查看其帮助；保留成功结果中的 `plan`、`session`、`issue`、`next_skill` 与 `next_action`，后续调用原样复用对应标识。
+所有命令从工作区根目录执行。首次使用一个命令前查看其帮助；保留成功结果中的 `plan`、`session`、`issue`、`next_skill`、`next_action` 与 `message`，后续调用原样复用对应标识和消息。
 
 ## 进入与恢复
 

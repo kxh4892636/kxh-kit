@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { describe, test } from "vitest";
 
@@ -17,6 +19,8 @@ import {
   hasDeliveryEvidence,
   leaseIsActive,
   leaseSeconds,
+  loadHooks,
+  messageForSkill,
   normalizePlanPath,
   normalizeSkill,
   optionValues,
@@ -24,6 +28,7 @@ import {
   parseDependencies,
   parseFrontmatter,
   requireOption,
+  validateHooks,
   validateState,
 } from "./flow.mjs";
 
@@ -153,6 +158,57 @@ describe("flow parsers", () => {
     assert.deepEqual(optionValues({ evidence: ["a", "b"] }, "evidence"), ["a", "b"]);
     assert.deepEqual(optionValues({ evidence: "a" }, "evidence"), ["a"]);
     assert.deepEqual(optionValues({ evidence: 1 }, "evidence"), []);
+  });
+
+  test("validates hooks and composes matching messages in declaration order", () => {
+    const config = validateHooks({
+      hooks: [
+        { match: "all", message: "global" },
+        { match: ["to-story", "quest-with-domain"], message: "discovery" },
+        { match: ["to-story"], message: "story" },
+      ],
+      schema_version: 1,
+    });
+    assert.equal(messageForSkill(config, "/to-story"), "global\ndiscovery\nstory");
+    assert.equal(messageForSkill(config, "/quest-with-domain"), "global\ndiscovery");
+    assert.equal(messageForSkill(config, "/dev-gate"), "global");
+    assert.equal(messageForSkill({ hooks: [] }, "/to-story"), "");
+
+    for (const invalid of [
+      null,
+      {},
+      { hooks: [], schema_version: 2 },
+      { hooks: null, schema_version: 1 },
+      { hooks: [null], schema_version: 1 },
+      { hooks: [{ match: [], message: "x" }], schema_version: 1 },
+      { hooks: [{ match: ["/to-story"], message: "x" }], schema_version: 1 },
+      { hooks: [{ match: ["questing"], message: "x" }], schema_version: 1 },
+      { hooks: [{ match: "*", message: "x" }], schema_version: 1 },
+      { hooks: [{ match: "all", message: "" }], schema_version: 1 },
+      { hooks: [{ match: "all", message: "line one\nline two" }], schema_version: 1 },
+    ]) {
+      assert.throws(() => validateHooks(invalid), /Hook/);
+    }
+  });
+
+  test("loads hooks from JSON and reports read and parse failures", async () => {
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "loop-hooks-"));
+    const hooksPath = path.join(directory, "hooks.json");
+    try {
+      const config = {
+        hooks: [{ match: ["code-delivery"], message: "deliver" }],
+        schema_version: 1,
+      };
+      await fs.writeFile(hooksPath, JSON.stringify(config));
+      assert.deepEqual(await loadHooks(hooksPath), config);
+
+      await fs.writeFile(hooksPath, "{");
+      await assert.rejects(loadHooks(hooksPath), /解析 Hook 配置/);
+      await fs.rm(hooksPath);
+      await assert.rejects(loadHooks(hooksPath), /读取 Hook 配置/);
+    } finally {
+      await fs.rm(directory, { force: true, recursive: true });
+    }
   });
 
   test("validates lease and plan boundaries", () => {

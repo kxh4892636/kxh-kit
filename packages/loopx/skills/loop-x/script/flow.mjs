@@ -29,6 +29,12 @@ const PLANNING_FLOW = [
 
 const ISSUE_FLOW = DELIVERY_FLOW;
 
+const HOOK_SCHEMA_VERSION = 1;
+const HOOKS_PATH = fileURLToPath(new URL("../extensions/hooks.json", import.meta.url));
+const HOOKABLE_SKILLS = new Set(
+  [...PLANNING_FLOW, ...DELIVERY_FLOW].filter((step) => step.skill).map((step) => step.skill),
+);
+
 const ENTRY_CURSORS = {
   "quest-with-domain": 1,
   "to-story": 0,
@@ -41,6 +47,62 @@ const fail = (message) => {
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 export const normalizeSkill = (value) => value?.replace(/^\//, "");
+
+export const validateHooks = (config) => {
+  if (
+    config === null ||
+    typeof config !== "object" ||
+    Array.isArray(config) ||
+    config.schema_version !== HOOK_SCHEMA_VERSION ||
+    !Array.isArray(config.hooks)
+  ) {
+    fail("Hook 配置格式无效或版本不受支持");
+  }
+  for (const [index, hook] of config.hooks.entries()) {
+    if (hook === null || typeof hook !== "object" || Array.isArray(hook)) {
+      fail(`Hook ${index + 1} 格式无效`);
+    }
+    if (
+      hook.match !== "all" &&
+      (!Array.isArray(hook.match) ||
+        hook.match.length === 0 ||
+        hook.match.some((skill) => typeof skill !== "string" || !HOOKABLE_SKILLS.has(skill)))
+    ) {
+      fail(`Hook ${index + 1} 的 match 必须是 "all" 或主流程 Skill 数组`);
+    }
+    if (
+      typeof hook.message !== "string" ||
+      hook.message.trim() === "" ||
+      /[\r\n]/u.test(hook.message)
+    ) {
+      fail(`Hook ${index + 1} 的 message 必须是非空单行字符串`);
+    }
+  }
+  return config;
+};
+
+export const loadHooks = async (hooksPath = HOOKS_PATH) => {
+  let content;
+  try {
+    content = await fs.readFile(hooksPath, "utf8");
+  } catch (error) {
+    fail(
+      `读取 Hook 配置 ${hooksPath} 失败: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  try {
+    return validateHooks(JSON.parse(content));
+  } catch (error) {
+    if (error instanceof SyntaxError) fail(`解析 Hook 配置 ${hooksPath} 失败: ${error.message}`);
+    throw error;
+  }
+};
+
+export const messageForSkill = (config, skill) =>
+  config.hooks
+    .filter((hook) => hook.match === "all" || hook.match.includes(normalizeSkill(skill)))
+    .map((hook) => hook.message)
+    .join("\n");
 
 export const requireOption = (options, name) => {
   const value = options[name];
@@ -800,14 +862,19 @@ const dispatch = async (state, workspace, command, options, now) => {
 
 export const executeFlow = async ({
   command,
+  hooks,
   now = () => new Date(),
   options = {},
   workspace = process.cwd(),
 }) => {
   const root = path.resolve(workspace);
-  return withStateTransaction(root, now, (state, transactionTime) =>
+  const hookConfig = hooks === undefined ? await loadHooks() : validateHooks(hooks);
+  const result = await withStateTransaction(root, now, (state, transactionTime) =>
     dispatch(state, root, command, options, transactionTime),
   );
+  if (!result.next_skill) return result;
+  const message = messageForSkill(hookConfig, result.next_skill);
+  return message === "" ? result : { ...result, message };
 };
 
 export const parseCli = (argumentsList) => {

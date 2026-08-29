@@ -127,6 +127,20 @@ test("状态文件使用本地日期前缀且不读取旧 state.json", async () 
   assert.deepEqual(Object.keys(state.plans), [PLAN_PATH]);
 });
 
+test("invalid hooks fail before creating Flow state", async () => {
+  const workspace = await createWorkspace();
+  await assert.rejects(
+    executeFlow({
+      command: "init",
+      hooks: { hooks: [{ match: "all", message: "two\nlines" }], schema_version: 1 },
+      options: { entry: "/to-story", plan: PLAN_PATH, session: "invalid-hook" },
+      workspace,
+    }),
+    /message 必须是非空单行字符串/,
+  );
+  await assert.rejects(fs.access(path.join(workspace, ".flow", "state")));
+});
+
 test("状态事务只清理三十天窗口之前的日期状态文件", async () => {
   const workspace = await createWorkspace();
   const stateDirectory = path.join(workspace, ".flow", "state");
