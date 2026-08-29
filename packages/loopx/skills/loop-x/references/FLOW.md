@@ -26,7 +26,7 @@ node <loop-x-skill-dir>/script/flow.mjs --help
 
 `/to-story` 完成后直接进入 `/grill-with-docs`。`/grill-with-docs` 完成后必须进入 `/to-issues`，由它根据任务是否需要可恢复的 issue graph 登记 `completed` 或 `skipped`。
 
-`/to-issues=skipped` 时，`/dev-gate=ready` 后返回 Plan 级 `/implement`；`/to-issues=completed` 时，`/dev-gate=ready` 后 Plan setup 进入 `ready`，再由 `claim-issue` 返回 Issue 级 `/implement`。
+`/to-issues=skipped` 时，`/dev-gate=ready` 后 Plan 从 `planning` 进入 `delivering_direct` 并返回 Plan 级 `/implement`；`/to-issues=completed` 时，Plan 进入 `delivering_issues`，再由 `claim-issue` 返回 Issue 级 `/implement`。
 
 `/implement` 进入后先登记 `started` 并保留返回的 `commit` action；代码、`/code-test`、`/verifying` 与 `/code-review` 是它返回前的内部门禁，不另记 Flow receipt。全部门禁仍适用于当前 diff 后，才执行并登记 `commit=committed`。
 
@@ -34,10 +34,10 @@ node <loop-x-skill-dir>/script/flow.mjs --help
 
 ## Issue 推进
 
-- 仅当 `/to-issues=completed` 且 Plan setup 到达 `ready` 后，以 `claim-issue` 领取直接依赖均已完成的 issue；首次领取保留脚本生成的 issue session。
+- 仅当 `/to-issues=completed` 且 Plan 到达 `delivering_issues` 后，以 `claim-issue` 领取直接依赖均已完成的 issue；首次领取保留脚本生成的 issue session。
 - 一个 session 串行推进自己领取的 issue。不同 session 可以并行领取互不阻塞的 issue；同一 issue 只有一个有效租约。
 - 交付前，issue 的「交付记录」包含交付物与验证证据；脚本据此允许完成状态与 commit receipt。
-- 所有 issue 完成后，以 `sync-plan` 刷新派生视图，再按 [`DOMAIN.md`](DOMAIN.md) 处理 Plan 生命周期。
+- 所有 issue 完成后，Plan 自动进入 `completed`；再以 `sync-plan` 刷新派生视图，并按 [`DOMAIN.md`](DOMAIN.md) 处理 Plan 生命周期。
 
 ## 租约、阻塞与恢复
 
@@ -50,7 +50,24 @@ node <loop-x-skill-dir>/script/flow.mjs --help
 
 ## 持久状态
 
-`.flow/state/YYYY-MM-DD-state.json` 按本地日期保存当日租约、游标与 receipt，默认只保留包含当天在内的最近 30 天；`.flow/state/state.lock` 只保护单次事务。这些文件是运行态，不进入版本控制。不读取无日期前缀或其他日期的状态文件。issue frontmatter 的 `status` 是持久化执行状态的事实源，spec 状态与 Issue 表是派生视图：
+`.flow/state/YYYY-MM-DD-state.json` 按本地日期保存当日阶段、租约、游标与 receipt，默认只保留包含当天在内的最近 30 天；`.flow/state/state.lock` 只保护单次事务。这些文件是运行态，不进入版本控制。不读取无日期前缀或其他日期的状态文件。
+
+Plan 的 `phase` 是显式执行阶段：
+
+```text
+planning
+  ├─ /to-issues=skipped + /dev-gate=ready
+  │      ↓
+  │  delivering_direct ── commit=committed ─→ completed
+  │
+  └─ /to-issues=completed + /dev-gate=ready
+         ↓
+     delivering_issues ── all issues completed ─→ completed
+```
+
+`cursor` 只表示当前阶段内的位置，切换阶段时归零；`lease` 与阶段正交。Plan 运行态直接保存为 `{ phase, cursor, lease, receipts, issues }`。
+
+issue frontmatter 的 `status` 是持久化 Issue 执行状态的事实源，spec 状态与 Issue 表是派生视图：
 
 ```text
 pending -> in_progress -> completed

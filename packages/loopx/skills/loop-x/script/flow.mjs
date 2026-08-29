@@ -6,27 +6,26 @@ import process from "node:process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-const SCHEMA_VERSION = 4;
+const SCHEMA_VERSION = 5;
 const DEFAULT_LEASE_SECONDS = 1800;
 const DEFAULT_STATE_RETENTION_DAYS = 30;
 const LOCK_STALE_MS = 30000;
 const LOCK_RETRIES = 50;
 const LOCK_RETRY_MS = 100;
 const ISSUE_STATUSES = new Set(["pending", "in_progress", "blocked", "completed"]);
+const PLAN_PHASES = new Set(["planning", "delivering_direct", "delivering_issues", "completed"]);
 
 const DELIVERY_FLOW = [
   { skill: "implement", results: ["started"] },
   { action: "commit", results: ["committed"] },
 ];
 
-const MAIN_FLOW_PREFIX = [
+const PLANNING_FLOW = [
   { skill: "to-story", results: ["completed"] },
   { skill: "grill-with-docs", results: ["completed"] },
   { skill: "to-issues", results: ["completed", "skipped"] },
   { skill: "dev-gate", results: ["ready"] },
 ];
-
-const MAIN_FLOW_WITHOUT_ISSUES = [...MAIN_FLOW_PREFIX, ...DELIVERY_FLOW];
 
 const ISSUE_FLOW = DELIVERY_FLOW;
 
@@ -126,6 +125,23 @@ export const validateState = (state) => {
     Array.isArray(state.plans)
   ) {
     fail("Flow 状态格式无效或版本不受支持");
+  }
+  for (const plan of Object.values(state.plans)) {
+    if (
+      plan === null ||
+      typeof plan !== "object" ||
+      Array.isArray(plan) ||
+      !PLAN_PHASES.has(plan.phase) ||
+      !Number.isInteger(plan.cursor) ||
+      plan.cursor < 0 ||
+      !Array.isArray(plan.receipts) ||
+      plan.issues === null ||
+      typeof plan.issues !== "object" ||
+      Array.isArray(plan.issues) ||
+      (plan.lease !== null && (typeof plan.lease !== "object" || Array.isArray(plan.lease)))
+    ) {
+      fail("Flow Plan 状态格式无效");
+    }
   }
   return state;
 };
@@ -251,12 +267,18 @@ const requireLease = (subject, session, now) => {
 const nextStep = (sequence, cursor) => sequence[cursor] ?? null;
 
 const issuesDecision = (plan) =>
-  plan.setup.receipts.find((receipt) => receipt.step === "/to-issues")?.result ?? null;
+  plan.receipts.find((receipt) => receipt.step === "/to-issues")?.result ?? null;
 
-const planSequence = (plan) =>
-  issuesDecision(plan) === "completed" ? MAIN_FLOW_PREFIX : MAIN_FLOW_WITHOUT_ISSUES;
+const planSequence = (plan) => {
+  if (plan.phase === "planning") return PLANNING_FLOW;
+  if (plan.phase === "delivering_direct") return DELIVERY_FLOW;
+  return null;
+};
 
-const currentPlanStep = (plan) => nextStep(planSequence(plan), plan.setup.cursor);
+const currentPlanStep = (plan) => {
+  const sequence = planSequence(plan);
+  return sequence ? nextStep(sequence, plan.cursor) : null;
+};
 
 const stepLabel = (step) => (step.skill ? `/${step.skill}` : step.action);
 
@@ -267,9 +289,11 @@ const stepOutput = (step) => {
 };
 
 const publicPlan = (plan) => ({
+  cursor: plan.cursor,
   issues: plan.issues,
-  plan_path: plan.plan_path,
-  setup: plan.setup,
+  lease: plan.lease,
+  phase: plan.phase,
+  receipts: plan.receipts,
 });
 
 export const parseFrontmatter = (content, targetPath) => {
@@ -424,22 +448,19 @@ const handleInit = (state, workspace, options, now) => {
   }
   if (state.plans[planKey]) fail(`Plan ${planKey} 已经初始化`);
   state.plans[planKey] = {
+    cursor: ENTRY_CURSORS[entry],
     issues: {},
-    plan_path: planKey,
-    setup: {
-      cursor: ENTRY_CURSORS[entry],
-      lease: makeLease(session, leaseSeconds(options), now),
-      receipts: [],
-      status: "active",
-    },
+    lease: makeLease(session, leaseSeconds(options), now),
+    phase: "planning",
+    receipts: [],
   };
   return {
     changed: true,
     output: {
       ...stepOutput(currentPlanStep(state.plans[planKey])),
+      phase: "planning",
       plan: planKey,
       session,
-      status: "active",
     },
   };
 };
@@ -461,7 +482,7 @@ const handleEnterPlan = (state, workspace, options, now) => {
   const planInput = requireOption(options, "plan");
   const planKey = normalizePlanPath(workspace, planInput);
   let plan = state.plans[planKey];
-  if (plan?.setup.status === "completed") {
+  if (plan?.phase === "completed") {
     delete state.plans[planKey];
     plan = null;
   }
@@ -481,29 +502,29 @@ const handleEnterPlan = (state, workspace, options, now) => {
     );
   }
   const requestedSession = options.session?.trim();
-  if (leaseIsActive(plan.setup.lease, now)) {
-    if (!requestedSession || plan.setup.lease.owner_session !== requestedSession) {
-      fail(`资源由会话 ${plan.setup.lease.owner_session} 持有`);
+  if (leaseIsActive(plan.lease, now)) {
+    if (!requestedSession || plan.lease.owner_session !== requestedSession) {
+      fail(`资源由会话 ${plan.lease.owner_session} 持有`);
     }
     return {
       changed: false,
       output: {
         ...stepOutput(expected),
+        phase: plan.phase,
         plan: planKey,
         session: requestedSession,
-        status: plan.setup.status,
       },
     };
   }
   const session = requestedSession || randomUUID();
-  plan.setup.lease = makeLease(session, leaseSeconds(options), now);
+  plan.lease = makeLease(session, leaseSeconds(options), now);
   return {
     changed: true,
     output: {
       ...stepOutput(expected),
+      phase: plan.phase,
       plan: planKey,
       session,
-      status: plan.setup.status,
     },
   };
 };
@@ -536,18 +557,28 @@ const handleRecordPlan = (state, workspace, options, now) => {
   const plan = state.plans[planKey];
   if (!plan) fail(`Plan ${planKey} 尚未初始化`);
   const session = requireOption(options, "session");
-  requireLease(plan.setup, session, now);
   const sequence = planSequence(plan);
-  const next = recordReceipt(plan.setup, sequence, options, now);
+  if (!sequence) fail(`Plan ${planKey} 当前阶段 ${plan.phase} 不接受 record-plan`);
+  requireLease(plan, session, now);
+  let next = recordReceipt(plan, sequence, options, now);
   if (next) {
-    plan.setup.lease = makeLease(session, leaseSeconds(options), now);
+    plan.lease = makeLease(session, leaseSeconds(options), now);
+  } else if (plan.phase === "planning" && issuesDecision(plan) === "skipped") {
+    plan.cursor = 0;
+    plan.phase = "delivering_direct";
+    plan.lease = makeLease(session, leaseSeconds(options), now);
+    next = currentPlanStep(plan);
+  } else if (plan.phase === "planning") {
+    plan.cursor = 0;
+    plan.lease = null;
+    plan.phase = "delivering_issues";
   } else {
-    plan.setup.lease = null;
-    plan.setup.status = issuesDecision(plan) === "completed" ? "ready" : "completed";
+    plan.lease = null;
+    plan.phase = "completed";
   }
   return {
     changed: true,
-    output: { ...stepOutput(next), plan: planKey, status: plan.setup.status },
+    output: { ...stepOutput(next), phase: plan.phase, plan: planKey },
   };
 };
 
@@ -557,7 +588,9 @@ const handleClaimIssue = async (state, workspace, options, now) => {
   const requestedSession = options.session?.trim();
   if (!/^\d{2}$/.test(issueId)) fail("--issue 必须是两位 Issue ID");
   const plan = state.plans[planKey];
-  if (!plan || plan.setup.status !== "ready") fail(`Plan ${planKey} 尚未通过 /dev-gate`);
+  if (!plan || plan.phase !== "delivering_issues") {
+    fail(`Plan ${planKey} 尚未进入 Issue 交付阶段`);
+  }
   const issueState = plan.issues[issueId];
   if (issueState?.status === "completed") fail(`Issue ${issueId} 已完成`);
   if (issueState?.status === "active" && leaseIsActive(issueState.lease, now)) {
@@ -611,10 +644,19 @@ const handleRecordIssue = async (state, workspace, options, now) => {
     await transitionIssue(planPath, issueId, "completed");
     issueState.lease = null;
     issueState.status = "completed";
+    if ((await readIssues(planPath)).every((item) => item.status === "completed")) {
+      plan.phase = "completed";
+    }
   }
   return {
     changed: true,
-    output: { issue: issueId, ...stepOutput(next), plan: planKey, status: issueState.status },
+    output: {
+      issue: issueId,
+      ...stepOutput(next),
+      phase: plan.phase,
+      plan: planKey,
+      status: issueState.status,
+    },
   };
 };
 
@@ -643,7 +685,7 @@ const handleLeaseCommand = (state, workspace, command, options, now) => {
   if (!plan) fail(`Plan ${planKey} 尚未初始化`);
   const isIssue = command.endsWith("-issue");
   const issueId = isIssue ? requireOption(options, "issue") : null;
-  const subject = isIssue ? plan.issues[issueId] : plan.setup;
+  const subject = isIssue ? plan.issues[issueId] : plan;
   if (!subject) fail(isIssue ? `Issue ${issueId} 没有运行态` : "Plan 没有运行态");
   if (command.startsWith("heartbeat")) {
     requireLease(subject, session, now);
@@ -653,7 +695,10 @@ const handleLeaseCommand = (state, workspace, command, options, now) => {
     subject.lease = null;
     if (isIssue) subject.status = "paused";
   } else {
-    if (subject.status === "completed" || (plan.setup.status === "ready" && !isIssue)) {
+    if (
+      (isIssue && subject.status === "completed") ||
+      (!isIssue && ["delivering_issues", "completed"].includes(plan.phase))
+    ) {
       fail("已完成的流程不可重新领取");
     }
     if (leaseIsActive(subject.lease, now)) {
@@ -665,7 +710,12 @@ const handleLeaseCommand = (state, workspace, command, options, now) => {
   const next = isIssue ? nextStep(ISSUE_FLOW, subject.cursor) : currentPlanStep(plan);
   return {
     changed: true,
-    output: { issue: issueId, ...stepOutput(next), plan: planKey, status: subject.status },
+    output: {
+      issue: issueId,
+      ...stepOutput(next),
+      ...(isIssue ? { status: subject.status } : { phase: plan.phase }),
+      plan: planKey,
+    },
   };
 };
 
@@ -708,7 +758,16 @@ const handleSyncPlan = async (state, workspace, options) => {
       changed = true;
     }
   }
-  return { changed, output: { plan: planKey, synced: true } };
+  if (plan.phase !== "planning" && issuesDecision(plan) === "completed") {
+    const phase = issues.every((issue) => issue.status === "completed")
+      ? "completed"
+      : "delivering_issues";
+    if (plan.phase !== phase) {
+      plan.phase = phase;
+      changed = true;
+    }
+  }
+  return { changed, output: { phase: plan.phase, plan: planKey, synced: true } };
 };
 
 const handleStatus = (state, workspace, options) => {

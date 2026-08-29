@@ -192,16 +192,15 @@ test("主流程可从 grill-with-docs 开始并跳过 to-issues", async () => {
       (await recordPlan(workspace, entered.session, "to-issues", "skipped")).next_skill,
       "/dev-gate",
     );
-    assert.equal(
-      (await recordPlan(workspace, entered.session, "dev-gate", "ready")).next_skill,
-      "/implement",
-    );
+    const delivery = await recordPlan(workspace, entered.session, "dev-gate", "ready");
+    assert.equal(delivery.phase, "delivering_direct");
+    assert.equal(delivery.next_skill, "/implement");
     assert.equal(
       (await recordPlan(workspace, entered.session, "implement", "started")).next_action,
       "commit",
     );
     const completed = await recordPlan(workspace, entered.session, "commit", "committed");
-    assert.equal(completed.status, "completed");
+    assert.equal(completed.phase, "completed");
     assert.equal(completed.next_skill, null);
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
@@ -212,11 +211,11 @@ test("to-issues 完成后 dev-gate 转入 Issue 级 implement", async () => {
   const workspace = await createWorkspace();
   try {
     const ready = await readyIssuePlan(workspace);
-    assert.equal(ready.status, "ready");
+    assert.equal(ready.phase, "delivering_issues");
     assert.equal(ready.next_skill, null);
     await assert.rejects(
       recordPlan(workspace, "plan-session", "implement", "started"),
-      /租约不存在或已经过期/,
+      /当前阶段 delivering_issues 不接受 record-plan/,
     );
 
     const claimed = await command(workspace, "claim-issue", {
@@ -232,6 +231,7 @@ test("to-issues 完成后 dev-gate 转入 Issue 级 implement", async () => {
     await addDeliveryEvidence(workspace, "01");
     const completed = await recordIssue(workspace, "01", "issue-session", "commit", "committed");
     assert.equal(completed.status, "completed");
+    assert.equal(completed.phase, "completed");
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }
@@ -266,8 +266,9 @@ test.each(["/to-story", "/grill-with-docs"])("loop-x 只从主流程入口 %s �
     assert.equal(entered.next_skill, entry);
     assert.match(entered.session, /^[0-9a-f-]{36}$/);
     const state = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
-    assert.equal(state.schema_version, 4);
-    assert.equal(state.plans[PLAN_PATH].setup.cursor, entry === "/to-story" ? 0 : 1);
+    assert.equal(state.schema_version, 5);
+    assert.equal(state.plans[PLAN_PATH].cursor, entry === "/to-story" ? 0 : 1);
+    assert.equal(state.plans[PLAN_PATH].phase, "planning");
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }
@@ -402,8 +403,20 @@ test("Issue 必须等待直接依赖完成", async () => {
     await addDeliveryEvidence(workspace, "01");
     await recordIssue(workspace, "01", "first", "commit", "committed");
     assert.equal(
+      (await command(workspace, "status", { plan: PLAN_PATH })).plan.phase,
+      "delivering_issues",
+    );
+    assert.equal(
       (await command(workspace, "claim-issue", { issue: "02", plan: PLAN_PATH })).next_skill,
       "/implement",
+    );
+    const second = await command(workspace, "status", { plan: PLAN_PATH });
+    const secondSession = second.plan.issues["02"].lease.owner_session;
+    await recordIssue(workspace, "02", secondSession, "implement", "started");
+    await addDeliveryEvidence(workspace, "02");
+    assert.equal(
+      (await recordIssue(workspace, "02", secondSession, "commit", "committed")).phase,
+      "completed",
     );
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
@@ -448,6 +461,13 @@ test("sync-plan 从 Issue 文档恢复完成状态", async () => {
     await command(workspace, "sync-plan", { plan: PLAN_PATH });
     const status = await command(workspace, "status", { plan: PLAN_PATH });
     assert.equal(status.plan.issues["01"].status, "completed");
+    assert.equal(status.plan.phase, "completed");
+
+    await fs.writeFile(issuePath, issue);
+    await command(workspace, "sync-plan", { plan: PLAN_PATH });
+    const reopened = await command(workspace, "status", { plan: PLAN_PATH });
+    assert.equal(reopened.plan.issues["01"], undefined);
+    assert.equal(reopened.plan.phase, "delivering_issues");
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }

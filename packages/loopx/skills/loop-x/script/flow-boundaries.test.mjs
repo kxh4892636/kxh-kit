@@ -219,7 +219,7 @@ test.each([
   await assert.rejects(command(workspace, "init", options), new RegExp(expected));
 });
 
-test("init applies default and boundary leases, rejects duplicates, and exposes status", async () => {
+test("init applies default and boundary leases, rejects duplicates, and exposes phase", async () => {
   const workspace = await createWorkspace();
   const now = () => new Date("2026-08-27T00:00:00.000Z");
   const initialized = await command(
@@ -233,8 +233,9 @@ test("init applies default and boundary leases, rejects duplicates, and exposes 
     command(workspace, "init", { entry: "/to-story", plan: PLAN_PATH, session: "other" }, now),
     /已经初始化/,
   );
-  assert.ok((await command(workspace, "status")).plans[PLAN_PATH]);
-  assert.equal((await command(workspace, "status", { plan: PLAN_PATH })).plan.plan_path, PLAN_PATH);
+  const plan = (await command(workspace, "status", { plan: PLAN_PATH })).plan;
+  assert.deepEqual(Object.keys(plan).sort(), ["cursor", "issues", "lease", "phase", "receipts"]);
+  assert.equal(plan.phase, "planning");
   await assert.rejects(command(workspace, "status", { plan: "missing" }), /尚未初始化/);
 });
 
@@ -242,10 +243,10 @@ test.each([
   ["null", null],
   ["empty", {}],
   ["unsupported schema", { schema_version: 99, revision: 0, plans: {} }],
-  ["legacy schema", { schema_version: 3, revision: 0, plans: {} }],
-  ["fractional revision", { schema_version: 4, revision: 0.5, plans: {} }],
-  ["null plans", { schema_version: 4, revision: 0, plans: null }],
-  ["array plans", { schema_version: 4, revision: 0, plans: [] }],
+  ["legacy schema", { schema_version: 4, revision: 0, plans: {} }],
+  ["fractional revision", { schema_version: 5, revision: 0.5, plans: {} }],
+  ["null plans", { schema_version: 5, revision: 0, plans: null }],
+  ["array plans", { schema_version: 5, revision: 0, plans: [] }],
 ])("rejects invalid persisted state: %s", async (_name, state) => {
   const workspace = await createWorkspace();
   await fs.mkdir(path.join(workspace, ".flow", "state"), { recursive: true });
@@ -262,7 +263,7 @@ test("reports malformed JSON and removes a stale state lock", async () => {
 
   await fs.writeFile(
     statePath(workspace),
-    JSON.stringify({ schema_version: 4, revision: 0, plans: {} }),
+    JSON.stringify({ schema_version: 5, revision: 0, plans: {} }),
   );
   const lockPath = path.join(stateRoot, "state.lock");
   await fs.writeFile(lockPath, JSON.stringify({ nonce: "stale" }));
@@ -347,7 +348,10 @@ test("record-plan rejects wrong order, result, evidence, lease, and exhausted Fl
   await recordPlan(workspace, "owner", "grill-with-docs", "completed");
   await recordPlan(workspace, "owner", "to-issues", "completed");
   await recordPlan(workspace, "owner", "dev-gate", "ready");
-  await assert.rejects(recordPlan(workspace, "owner", "dev-gate", "ready"), /租约不存在或已经过期/);
+  await assert.rejects(
+    recordPlan(workspace, "owner", "dev-gate", "ready"),
+    /当前阶段 delivering_issues 不接受 record-plan/,
+  );
 });
 
 test("lease commands heartbeat, release, reclaim, and enforce owners", async () => {
@@ -362,13 +366,13 @@ test("lease commands heartbeat, release, reclaim, and enforce owners", async () 
     /资源由会话 owner 持有/,
   );
   assert.equal(
-    (await command(workspace, "heartbeat-plan", { plan: PLAN_PATH, session: "owner" })).status,
-    "active",
+    (await command(workspace, "heartbeat-plan", { plan: PLAN_PATH, session: "owner" })).phase,
+    "planning",
   );
   await command(workspace, "release-plan", { plan: PLAN_PATH, session: "owner" });
   assert.equal(
-    (await command(workspace, "claim-plan", { plan: PLAN_PATH, session: "new-owner" })).status,
-    "active",
+    (await command(workspace, "claim-plan", { plan: PLAN_PATH, session: "new-owner" })).phase,
+    "planning",
   );
   await assert.rejects(
     command(workspace, "claim-plan", { plan: PLAN_PATH, session: "another" }),
@@ -402,7 +406,7 @@ test("issue commands reject invalid IDs, unready plans, missing runtime, and inc
   }
   await assert.rejects(
     command(workspace, "claim-issue", { plan: PLAN_PATH, issue: "01" }),
-    /尚未通过 \/dev-gate/,
+    /尚未进入 Issue 交付阶段/,
   );
   await readyPlan(workspace, "owner").catch(() => undefined);
 
@@ -535,6 +539,7 @@ test("sync-plan reconciles pending, completed, blocked, and in-progress issue do
   assert.equal((await command(workspace, "sync-plan", { plan: PLAN_PATH })).synced, true);
 
   const status = (await command(workspace, "status", { plan: PLAN_PATH })).plan;
+  assert.equal(status.phase, "delivering_issues");
   assert.equal(status.issues["01"], undefined);
   assert.equal(status.issues["02"].status, "completed");
   assert.equal(status.issues["03"].status, "blocked");
@@ -641,7 +646,7 @@ test("completes and re-enters the main Flow with a generated session", async () 
     result: "committed",
     session,
   });
-  assert.equal((await command(workspace, "status", { plan })).plan.setup.status, "completed");
+  assert.equal((await command(workspace, "status", { plan })).plan.phase, "completed");
   const restarted = await command(workspace, "enter-plan", { skill: "/grill-with-docs", plan });
   assert.equal(restarted.next_skill, "/grill-with-docs");
   assert.notEqual(restarted.session, session);
@@ -669,13 +674,14 @@ test("completes an issue and rejects a second claim", async () => {
     result: "committed",
     session: "issue",
   });
+  assert.equal((await command(workspace, "status", { plan: PLAN_PATH })).plan.phase, "completed");
   await assert.rejects(
     command(workspace, "claim-issue", { plan: PLAN_PATH, issue: "01", session: "again" }),
-    /已完成/,
+    /尚未进入 Issue 交付阶段/,
   );
   await assert.rejects(
     command(workspace, "claim-issue", { plan: PLAN_PATH, issue: "99", session: "again" }),
-    /不存在 Issue 99/,
+    /尚未进入 Issue 交付阶段/,
   );
 });
 
@@ -793,7 +799,7 @@ test("rejects record and block operations without their runtime subjects", async
   );
 });
 
-test("rejects entering or recording an exhausted setup", async () => {
+test("rejects entering or recording an exhausted planning phase", async () => {
   const workspace = await createWorkspace();
   await readyPlan(workspace);
   await assert.rejects(
@@ -806,8 +812,9 @@ test("rejects entering or recording an exhausted setup", async () => {
   );
 
   const state = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
-  state.plans[PLAN_PATH].setup.status = "active";
-  state.plans[PLAN_PATH].setup.lease = {
+  state.plans[PLAN_PATH].phase = "planning";
+  state.plans[PLAN_PATH].cursor = 4;
+  state.plans[PLAN_PATH].lease = {
     owner_session: "owner",
     expires_at: "2999-01-01T00:00:00.000Z",
   };

@@ -170,8 +170,16 @@ describe("flow parsers", () => {
   });
 
   test("只接受当前持久状态版本", () => {
-    const current = { plans: {}, revision: 0, schema_version: 4 };
+    const current = { plans: {}, revision: 0, schema_version: 5 };
     assert.equal(validateState(current), current);
+    const plan = {
+      cursor: 0,
+      issues: {},
+      lease: null,
+      phase: "planning",
+      receipts: [],
+    };
+    assert.equal(validateState({ ...current, plans: { plan } }).plans.plan, plan);
     for (const invalid of [
       null,
       [],
@@ -179,6 +187,9 @@ describe("flow parsers", () => {
       { ...current, revision: 0.5 },
       { ...current, plans: null },
       { ...current, schema_version: 3 },
+      { ...current, plans: { plan: { ...plan, phase: "ready" } } },
+      { ...current, plans: { plan: { ...plan, cursor: -1 } } },
+      { ...current, plans: { plan: { ...plan, receipts: null } } },
     ]) {
       assert.throws(() => validateState(invalid), /格式无效/);
     }
