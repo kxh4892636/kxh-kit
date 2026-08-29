@@ -1,11 +1,11 @@
 ---
 name: loop-x
-description: 路由从想法到交付的 Loop Kit 路径；当任务需要打磨短程领域设计、形成用户故事、为长任务建立可恢复 Plan、恢复既有 Plan 或判断下一步 skill 时使用。
+description: 路由从想法到交付的 Loop Kit 主流程；当任务需要形成用户故事、打磨领域设计、按需拆分 issues、恢复既有 Flow 或判断下一步 skill 时使用。
 ---
 
 # LoopX
 
-`/loop-x` 只负责选择路径和传递 Flow context。每个 subskill 的步骤、产物与完成标准由该 subskill 单独拥有。
+`/loop-x` 只负责选择主流程的起点和传递 Flow context。每个 subskill 的步骤、产物与完成标准由该 subskill 单独拥有。
 
 ## 选择入口
 
@@ -13,11 +13,10 @@ description: 路由从想法到交付的 Loop Kit 路径；当任务需要打磨
 
 先从用户输入和现场材料判断当前位置，只推荐一条入口：
 
-| 现场                                                                      | 入口                                                                |
-| ------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| 领域语言、方案边界或关键 trade-off 尚未明确，且可在一次短程设计循环中收敛 | [`/grill-with-docs`](references/subskills/grill-with-docs/SKILL.md) |
-| 角色、收益或可验收的用户结果尚未明确                                      | [`/to-story`](references/subskills/to-story/SKILL.md)               |
-| 领域设计需要持续打磨或持久化，且工作是单会话长任务或需要跨会话推进        | [`/to-issues`](references/subskills/to-issues/SKILL.md)             |
+| 现场                                         | 入口                                                                |
+| -------------------------------------------- | ------------------------------------------------------------------- |
+| 角色、收益或可验收的用户结果尚未明确         | [`/to-story`](references/subskills/to-story/SKILL.md)               |
+| 用户结果已明确，需要从领域设计开始继续主流程 | [`/grill-with-docs`](references/subskills/grill-with-docs/SKILL.md) |
 
 已有 Flow 或 Plan 时不创建新路径；读取 [`FLOW.md`](references/FLOW.md)，从运行态返回的当前位置恢复。
 

@@ -17,9 +17,6 @@ import {
   hasDeliveryEvidence,
   leaseIsActive,
   leaseSeconds,
-  migrateState,
-  migratedCursor,
-  normalizeFlowIdentifier,
   normalizePlanPath,
   normalizeSkill,
   optionValues,
@@ -170,19 +167,10 @@ describe("flow parsers", () => {
     assert.equal(normalizePlanPath(workspace, "docs\\plan"), "docs/plan");
     assert.throws(() => normalizePlanPath(workspace, "../outside"), /工作区内/);
     assert.throws(() => normalizePlanPath(workspace, path.parse(workspace).root), /工作区内/);
-    assert.equal(normalizeFlowIdentifier("2026-08-27-orders"), "2026-08-27-orders");
-    for (const invalid of [
-      "x2026-08-27-orders",
-      "2026-08-27-orders/x",
-      "2026-08-27-orders\\x",
-      "2026-08-27-",
-    ]) {
-      assert.throws(() => normalizeFlowIdentifier(invalid), /YYYY-MM-DD/);
-    }
   });
 
-  test("validates and migrates persisted state exactly", () => {
-    const current = { plans: {}, revision: 0, schema_version: 3 };
+  test("只接受当前持久状态版本", () => {
+    const current = { plans: {}, revision: 0, schema_version: 4 };
     assert.equal(validateState(current), current);
     for (const invalid of [
       null,
@@ -190,34 +178,10 @@ describe("flow parsers", () => {
       {},
       { ...current, revision: 0.5 },
       { ...current, plans: null },
+      { ...current, schema_version: 3 },
     ]) {
       assert.throws(() => validateState(invalid), /格式无效/);
     }
-    const sequence = [
-      { skill: "first", results: ["done"] },
-      { skill: "second", results: ["done"] },
-    ];
-    assert.equal(migratedCursor(sequence, [], "completed"), 2);
-    assert.equal(migratedCursor(sequence, [{ step: "/first", result: "done" }], "active"), 1);
-    assert.equal(migratedCursor(sequence, [{ step: "/first", result: "wrong" }], "active"), 0);
-
-    const legacy = {
-      plans: {
-        plan: {
-          issues: {},
-          route: "main",
-          setup: { receipts: [], status: "active" },
-        },
-      },
-      revision: 0,
-      schema_version: 2,
-    };
-    const migrated = migrateState(legacy);
-    assert.equal(migrated.migrated, true);
-    assert.equal(migrated.state.schema_version, 3);
-    assert.equal(migrated.state.plans.plan.setup.active_step, null);
-    assert.equal(migrated.state.plans.plan.setup.cursor, 0);
-    assert.deepEqual(migrateState(current), { migrated: false, state: current });
   });
 
   test("parses frontmatter, dependencies, statuses, and delivery evidence", () => {
@@ -289,7 +253,7 @@ describe("flow parsers", () => {
       ["init", "value"],
       ["init", "plan", "value"],
       ["init", "--plan"],
-      ["init", "--plan", "--route"],
+      ["init", "--plan", "--entry"],
     ]) {
       assert.throws(() => parseCli(invalid), /无法识别参数|缺少值/);
     }

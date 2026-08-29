@@ -6,7 +6,7 @@ import process from "node:process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 const DEFAULT_LEASE_SECONDS = 1800;
 const DEFAULT_STATE_RETENTION_DAYS = 30;
 const LOCK_STALE_MS = 30000;
@@ -19,29 +19,20 @@ const DELIVERY_FLOW = [
   { action: "commit", results: ["committed"] },
 ];
 
-const PLAN_ROUTES = {
-  main: [
-    { skill: "grill-with-docs", results: ["completed"] },
-    { skill: "dev-gate", results: ["ready"] },
-    ...DELIVERY_FLOW,
-  ],
-  story: [
-    { required_child: "grilling", skill: "to-story", results: ["completed"] },
-    { required_child: "grill-with-docs", skill: "to-issues", results: ["completed"] },
-    { skill: "dev-gate", results: ["ready"] },
-  ],
-  issues: [
-    { required_child: "grill-with-docs", skill: "to-issues", results: ["completed"] },
-    { skill: "dev-gate", results: ["ready"] },
-  ],
-};
+const MAIN_FLOW_PREFIX = [
+  { skill: "to-story", results: ["completed"] },
+  { skill: "grill-with-docs", results: ["completed"] },
+  { skill: "to-issues", results: ["completed", "skipped"] },
+  { skill: "dev-gate", results: ["ready"] },
+];
+
+const MAIN_FLOW_WITHOUT_ISSUES = [...MAIN_FLOW_PREFIX, ...DELIVERY_FLOW];
 
 const ISSUE_FLOW = DELIVERY_FLOW;
 
-const ENTRY_ROUTES = {
-  "grill-with-docs": "main",
-  "to-issues": "issues",
-  "to-story": "story",
+const ENTRY_CURSORS = {
+  "grill-with-docs": 1,
+  "to-story": 0,
 };
 
 const fail = (message) => {
@@ -86,13 +77,6 @@ export const normalizePlanPath = (workspace, planInput) => {
   return relativePath === "" ? "." : relativePath.replaceAll("\\", "/");
 };
 
-export const normalizeFlowIdentifier = (planInput) => {
-  if (!/^\d{4}-\d{2}-\d{2}-[^/\\]+$/u.test(planInput)) {
-    fail("/grill-with-docs 的 --plan 必须是 YYYY-MM-DD-{name} Flow 标识");
-  }
-  return planInput;
-};
-
 const calendarDate = (date) =>
   [date.getFullYear(), date.getMonth() + 1, date.getDate()]
     .map((part, index) => (index === 0 ? String(part) : String(part).padStart(2, "0")))
@@ -131,11 +115,11 @@ const emptyState = () => ({
   schema_version: SCHEMA_VERSION,
 });
 
-export const validateState = (state, supportedVersions = [SCHEMA_VERSION]) => {
+export const validateState = (state) => {
   if (
     state === null ||
     typeof state !== "object" ||
-    !supportedVersions.includes(state.schema_version) ||
+    state.schema_version !== SCHEMA_VERSION ||
     !Number.isInteger(state.revision) ||
     state.plans === null ||
     typeof state.plans !== "object" ||
@@ -144,40 +128,6 @@ export const validateState = (state, supportedVersions = [SCHEMA_VERSION]) => {
     fail("Flow 状态格式无效或版本不受支持");
   }
   return state;
-};
-
-export const migratedCursor = (sequence, receipts, status) => {
-  if (status === "completed") return sequence.length;
-  let cursor = 0;
-  for (const step of sequence) {
-    const label = stepLabel(step);
-    const receipt = receipts.find((item) => item.step === label);
-    if (!receipt || !step.results.includes(receipt.result)) break;
-    cursor += 1;
-  }
-  return cursor;
-};
-
-export const migrateState = (state) => {
-  validateState(state, [1, 2, SCHEMA_VERSION]);
-  if (state.schema_version === SCHEMA_VERSION) return { migrated: false, state };
-  for (const plan of Object.values(state.plans)) {
-    if (plan?.setup && plan.setup.active_step === undefined) {
-      plan.setup.active_step = null;
-    }
-    if (plan?.route === "main") {
-      plan.setup.cursor = migratedCursor(
-        PLAN_ROUTES.main,
-        plan.setup.receipts ?? [],
-        plan.setup.status,
-      );
-    }
-    for (const issue of Object.values(plan?.issues ?? {})) {
-      issue.cursor = migratedCursor(ISSUE_FLOW, issue.receipts ?? [], issue.status);
-    }
-  }
-  state.schema_version = SCHEMA_VERSION;
-  return { migrated: true, state };
 };
 
 const readText = async (targetPath, allowMissing = false) => {
@@ -191,9 +141,9 @@ const readText = async (targetPath, allowMissing = false) => {
 
 const readState = async (statePath) => {
   const content = await readText(statePath, true);
-  if (content === null) return { migrated: false, state: emptyState() };
+  if (content === null) return emptyState();
   try {
-    return migrateState(JSON.parse(content));
+    return validateState(JSON.parse(content));
   } catch (error) {
     if (error instanceof SyntaxError) fail(`解析 ${statePath} 失败: ${error.message}`);
     throw error;
@@ -271,9 +221,9 @@ const withStateTransaction = async (workspace, now, action) => {
     const transactionTime = now();
     const paths = statePaths(workspace, transactionTime);
     await removeExpiredStates(paths.dir, transactionTime);
-    const { migrated, state } = await readState(paths.state);
+    const state = await readState(paths.state);
     const transaction = await action(state, transactionTime);
-    if (transaction.changed || migrated) {
+    if (transaction.changed) {
       state.revision += 1;
       await atomicWrite(paths.state, `${JSON.stringify(state, null, 2)}\n`);
     }
@@ -300,24 +250,13 @@ const requireLease = (subject, session, now) => {
 
 const nextStep = (sequence, cursor) => sequence[cursor] ?? null;
 
-const currentPlanStep = (plan) => {
-  const parent = nextStep(PLAN_ROUTES[plan.route], plan.setup.cursor);
-  const active = plan.setup.active_step;
-  if (!active) return parent;
-  if (
-    !parent ||
-    active.parent_cursor !== plan.setup.cursor ||
-    active.parent_skill !== parent.skill ||
-    active.child_skill !== parent.required_child
-  ) {
-    fail("Flow 状态的 active_step 与当前 Plan 步骤不一致");
-  }
-  if (active.phase === "child") {
-    return { skill: active.child_skill, results: ["completed"] };
-  }
-  if (active.phase === "resume") return parent;
-  fail("Flow 状态的 active_step phase 无效");
-};
+const issuesDecision = (plan) =>
+  plan.setup.receipts.find((receipt) => receipt.step === "/to-issues")?.result ?? null;
+
+const planSequence = (plan) =>
+  issuesDecision(plan) === "completed" ? MAIN_FLOW_PREFIX : MAIN_FLOW_WITHOUT_ISSUES;
+
+const currentPlanStep = (plan) => nextStep(planSequence(plan), plan.setup.cursor);
 
 const stepLabel = (step) => (step.skill ? `/${step.skill}` : step.action);
 
@@ -330,7 +269,6 @@ const stepOutput = (step) => {
 const publicPlan = (plan) => ({
   issues: plan.issues,
   plan_path: plan.plan_path,
-  route: plan.route,
   setup: plan.setup,
 });
 
@@ -479,17 +417,17 @@ const recordReceipt = (subject, sequence, options, now) => {
 const handleInit = (state, workspace, options, now) => {
   const planInput = requireOption(options, "plan");
   const planKey = normalizePlanPath(workspace, planInput);
-  const route = requireOption(options, "route");
+  const entry = normalizeSkill(requireOption(options, "entry"));
   const session = requireOption(options, "session");
-  if (!PLAN_ROUTES[route]) fail("--route 必须是 main | story | issues");
+  if (ENTRY_CURSORS[entry] === undefined) {
+    fail("--entry 必须是 /to-story | /grill-with-docs");
+  }
   if (state.plans[planKey]) fail(`Plan ${planKey} 已经初始化`);
   state.plans[planKey] = {
     issues: {},
     plan_path: planKey,
-    route,
     setup: {
-      active_step: null,
-      cursor: 0,
+      cursor: ENTRY_CURSORS[entry],
       lease: makeLease(session, leaseSeconds(options), now),
       receipts: [],
       status: "active",
@@ -498,9 +436,8 @@ const handleInit = (state, workspace, options, now) => {
   return {
     changed: true,
     output: {
-      ...stepOutput(PLAN_ROUTES[route][0]),
+      ...stepOutput(currentPlanStep(state.plans[planKey])),
       plan: planKey,
-      route,
       session,
       status: "active",
     },
@@ -514,21 +451,17 @@ const handleEnterPlan = (state, workspace, options, now) => {
   }
   const entrySkill =
     initiator === "loop-x" ? normalizeSkill(requireOption(options, "entry")) : initiator;
-  const entryRoute = ENTRY_ROUTES[entrySkill];
-  if (!entryRoute) {
+  if (ENTRY_CURSORS[entrySkill] === undefined) {
     if (initiator === "loop-x") {
-      fail("/loop-x 的 --entry 必须是 /grill-with-docs | /to-story | /to-issues");
+      fail("/loop-x 的 --entry 必须是 /to-story | /grill-with-docs");
     }
-    fail("--skill 必须是 /loop-x | /grill-with-docs | /to-story | /to-issues");
+    fail("--skill 必须是 /loop-x | /to-story | /grill-with-docs");
   }
   if (options.plan === undefined) fail(`/${entrySkill} 进入流程前必须提供 --plan`);
   const planInput = requireOption(options, "plan");
-  const planKey =
-    entrySkill === "grill-with-docs"
-      ? normalizeFlowIdentifier(planInput)
-      : normalizePlanPath(workspace, planInput);
+  const planKey = normalizePlanPath(workspace, planInput);
   let plan = state.plans[planKey];
-  if (plan?.setup.status === "completed" && entryRoute === "main") {
+  if (plan?.setup.status === "completed") {
     delete state.plans[planKey];
     plan = null;
   }
@@ -537,7 +470,7 @@ const handleEnterPlan = (state, workspace, options, now) => {
     return handleInit(
       state,
       workspace,
-      { ...options, plan: planKey, route: entryRoute, session },
+      { ...options, entry: entrySkill, plan: planKey, session },
       now,
     );
   }
@@ -557,7 +490,6 @@ const handleEnterPlan = (state, workspace, options, now) => {
       output: {
         ...stepOutput(expected),
         plan: planKey,
-        route: plan.route,
         session: requestedSession,
         status: plan.setup.status,
       },
@@ -570,7 +502,6 @@ const handleEnterPlan = (state, workspace, options, now) => {
     output: {
       ...stepOutput(expected),
       plan: planKey,
-      route: plan.route,
       session,
       status: plan.setup.status,
     },
@@ -600,51 +531,19 @@ const recordStepReceipt = (subject, expected, options, now) => {
   });
 };
 
-const recordRequiredPlanStep = (setup, sequence, parent, options, now) => {
-  const active = setup.active_step;
-  if (!active) {
-    const actualSkill = normalizeSkill(options.skill);
-    if (actualSkill === parent.skill && options.result === "completed") {
-      fail(`/${parent.skill} 必须先登记 /${parent.skill}=started`);
-    }
-    recordStepReceipt(setup, { skill: parent.skill, results: ["started"] }, options, now);
-    setup.active_step = {
-      child_skill: parent.required_child,
-      parent_cursor: setup.cursor,
-      parent_skill: parent.skill,
-      phase: "child",
-    };
-    return { skill: parent.required_child, results: ["completed"] };
-  }
-  if (active.phase === "child") {
-    recordStepReceipt(setup, { skill: active.child_skill, results: ["completed"] }, options, now);
-    active.phase = "resume";
-    return parent;
-  }
-  recordStepReceipt(setup, parent, options, now);
-  setup.active_step = null;
-  setup.cursor += 1;
-  return nextStep(sequence, setup.cursor);
-};
-
 const handleRecordPlan = (state, workspace, options, now) => {
   const planKey = normalizePlanPath(workspace, requireOption(options, "plan"));
   const plan = state.plans[planKey];
   if (!plan) fail(`Plan ${planKey} 尚未初始化`);
   const session = requireOption(options, "session");
   requireLease(plan.setup, session, now);
-  const sequence = PLAN_ROUTES[plan.route];
-  const parent = nextStep(sequence, plan.setup.cursor);
-  if (!parent) fail("当前流程已经没有待执行 skill");
-  currentPlanStep(plan);
-  const next = parent.required_child
-    ? recordRequiredPlanStep(plan.setup, sequence, parent, options, now)
-    : recordReceipt(plan.setup, sequence, options, now);
+  const sequence = planSequence(plan);
+  const next = recordReceipt(plan.setup, sequence, options, now);
   if (next) {
     plan.setup.lease = makeLease(session, leaseSeconds(options), now);
   } else {
     plan.setup.lease = null;
-    plan.setup.status = plan.route === "main" ? "completed" : "ready";
+    plan.setup.status = issuesDecision(plan) === "completed" ? "ready" : "completed";
   }
   return {
     changed: true,
@@ -763,8 +662,7 @@ const handleLeaseCommand = (state, workspace, command, options, now) => {
     subject.lease = makeLease(session, leaseSeconds(options), now);
     if (isIssue) subject.status = "active";
   }
-  const sequence = isIssue ? ISSUE_FLOW : PLAN_ROUTES[plan.route];
-  const next = isIssue ? nextStep(sequence, subject.cursor) : currentPlanStep(plan);
+  const next = isIssue ? nextStep(ISSUE_FLOW, subject.cursor) : currentPlanStep(plan);
   return {
     changed: true,
     output: { issue: issueId, ...stepOutput(next), plan: planKey, status: subject.status },
@@ -874,9 +772,9 @@ export const parseCli = (argumentsList) => {
 };
 
 const usage = `用法:
-  flow.mjs init --plan <path> --route <main|story|issues> --session <id>
-  flow.mjs enter-plan --plan <path-or-flow-id> --skill /loop-x --entry </grill-with-docs|/to-story|/to-issues> [--session <id>]
-  flow.mjs enter-plan --plan <path-or-flow-id> --skill </grill-with-docs|/to-story|/to-issues> [--session <id>]
+  flow.mjs init --plan <path> --entry </to-story|/grill-with-docs> --session <id>
+  flow.mjs enter-plan --plan <path> --skill /loop-x --entry </to-story|/grill-with-docs> [--session <id>]
+  flow.mjs enter-plan --plan <path> --skill </to-story|/grill-with-docs> [--session <id>]
   flow.mjs record-plan --plan <path> --session <id> (--skill </skill>|--action <action>) --result <result> --evidence <ref>
   flow.mjs claim-issue --plan <path> --issue <NN> [--session <id>]
   flow.mjs record-issue --plan <path> --issue <NN> --session <id> (--skill </skill>|--action <action>) --result <result> --evidence <ref>

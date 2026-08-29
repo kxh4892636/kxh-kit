@@ -11,7 +11,7 @@ description: 维护领域模型：拷问设计并同步已确认的领域术语�
 
 完整读取 [`DOMAIN.md`](../../DOMAIN.md)。从工作区根 `CONTEXT-MAP.md` 定位所有相关业务域，再读取对应 `CONTEXT.md` 与相关 ADR；归属仍是用户决策时提出带推荐答案的问题。
 
-携带 flow context 时直接复用。作为顶层 skill 直接调用时，先完整读取 [`FLOW.md`](../../FLOW.md) 并进入固定的 `main` 路径；作为 `/to-issues` 的 required child 时沿用父 context，不建立另一条 Flow。
+携带 flow context 时直接复用。作为顶层 skill 直接调用时，先完整读取 [`FLOW.md`](../../FLOW.md)。
 
 相关业务域、跨域关系和当前 Flow 位置均已确定时，本步骤完成。
 
@@ -50,4 +50,4 @@ frontier 为空、代码与口头模型的矛盾已解决或明确记录、用�
 node <loop-x-skill-dir>/script/check-domain.mjs .
 ```
 
-校验通过、前述完成标准全部成立且用户确认共同理解后，以实际维护的领域文件为证据登记 `/grill-with-docs=completed`。只执行脚本返回的下一步；required child 调用只恢复 `/to-issues`。
+校验通过、前述完成标准全部成立且用户确认共同理解后，本步骤完成。

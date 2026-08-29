@@ -24,5 +24,3 @@ description: 拷问计划、决策或想法直到共同理解；当用户要求 
 4. 用答案更新 tree，显式记录已确定决策、被排除分支与新出现的节点，再计算下一轮 frontier。把握超过 90% 且不会改变用户意图的节点由 agent 回答并说明依据。
 
 重复 rounds，直到每个可达分支都有结论，frontier 为空，未知假设为零或已成为带解除条件的 blocker。向用户复述共同理解并取得确认后，本 skill 完成；随后才由调用者采取实现或写入动作。
-
-作为 `/to-story` 的 required child 收到 flow context 时，完成后以会话结论登记 `/grilling=completed`，只恢复脚本返回的 `/to-story`。
