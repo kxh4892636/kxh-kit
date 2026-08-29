@@ -1,9 +1,9 @@
 ---
-name: implement
+name: code-delivery
 description: 按已确认的 spec 或 issue 交付代码，并串联测试、验证、双轴审查与获授权的提交；当 `/dev-gate` 已给出 `ready` 时使用。
 ---
 
-# Implement
+# Code Delivery
 
 以 `/dev-gate` 确认的执行契约为边界，以同一基线中的质量门禁为证据要求。结论尚非 `ready` 时先运行 `/dev-gate`。
 

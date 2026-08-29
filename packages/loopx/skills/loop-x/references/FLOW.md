@@ -10,8 +10,8 @@ node <loop-x-skill-dir>/script/flow.mjs --help
 
 ## 进入与恢复
 
-- 主流程：`/to-story -> /grill-with-docs -> /to-issues -> /dev-gate -> /implement`。
-- Flow 只执行一次 `enter-plan`。`/loop-x` 以 `--entry` 传入用户确认的 `/to-story` 或 `/grill-with-docs`；直接调用这两个入口时以自身进入同一条主流程，不代理选择其他入口。
+- 主流程：`/to-story -> /quest-with-domain -> /to-issues -> /dev-gate -> /code-delivery`。
+- Flow 只执行一次 `enter-plan`。`/loop-x` 以 `--entry` 传入用户确认的 `/to-story` 或 `/quest-with-domain`；直接调用这两个入口时以自身进入同一条主流程，不代理选择其他入口。
 - `--plan` 是本轮稳定标识。需要进入 `/to-issues` 时，它必须是工作区内的实际 Plan 路径；跳过 `/to-issues` 时只要求它在工作区内唯一且稳定。
 - 接收到 flow context 的 skill 直接复用，不再次进入。已有运行态使用 `status` 查明当前位置，再按返回值恢复。
 - 命令成功且当前调用者持有唯一有效租约、返回的 `next_skill` 与预期入口一致时，进入完成。
@@ -24,11 +24,11 @@ node <loop-x-skill-dir>/script/flow.mjs --help
 2. 只在该 skill 的完成标准真实成立后，使用 `record-plan` 或 `record-issue` 登记结果和至少一项可核查证据。
 3. 登记成功后丢弃旧的 next 值，只执行新返回值。
 
-`/to-story` 完成后直接进入 `/grill-with-docs`。`/grill-with-docs` 完成后必须进入 `/to-issues`，由它根据任务是否需要可恢复的 issue graph 登记 `completed` 或 `skipped`。
+`/to-story` 完成后直接进入 `/quest-with-domain`。`/quest-with-domain` 完成后必须进入 `/to-issues`，由它根据任务是否需要可恢复的 issue graph 登记 `completed` 或 `skipped`。
 
-`/to-issues=skipped` 时，`/dev-gate=ready` 后 Plan 从 `planning` 进入 `delivering_direct` 并返回 Plan 级 `/implement`；`/to-issues=completed` 时，Plan 进入 `delivering_issues`，再由 `claim-issue` 返回 Issue 级 `/implement`。
+`/to-issues=skipped` 时，`/dev-gate=ready` 后 Plan 从 `planning` 进入 `delivering_direct` 并返回 Plan 级 `/code-delivery`；`/to-issues=completed` 时，Plan 进入 `delivering_issues`，再由 `claim-issue` 返回 Issue 级 `/code-delivery`。
 
-`/implement` 进入后先登记 `started` 并保留返回的 `commit` action；代码、`/code-test`、`/verifying` 与 `/code-review` 是它返回前的内部门禁，不另记 Flow receipt。全部门禁仍适用于当前 diff 后，才执行并登记 `commit=committed`。
+`/code-delivery` 进入后先登记 `started` 并保留返回的 `commit` action；代码、`/code-test`、`/verifying` 与 `/code-review` 是它返回前的内部门禁，不另记 Flow receipt。全部门禁仍适用于当前 diff 后，才执行并登记 `commit=committed`。
 
 每条 receipt 都引用本轮真实产物或结果。证据存在、与当前目标和 diff 对应，且足以复核声明时，本步骤完成。
 

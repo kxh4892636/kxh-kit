@@ -1,11 +1,11 @@
 ---
-name: grill-with-docs
+name: quest-with-domain
 description: 维护领域模型：拷问设计并同步已确认的领域术语、跨域关系与 ADR；当讨论需要改变 CONTEXT.md、CONTEXT-MAP.md 或领域决策记录时使用。
 ---
 
-# Grill with Docs
+# Quest with Domain
 
-使用 `/grilling` 的 rounds 与 frontier 打磨 domain model，并在结论成立的同一轮写入其权威位置。读取领域语言供其他任务使用不触发本 skill。
+使用 `/questing` 的 rounds 与 frontier 打磨 domain model，并在结论成立的同一轮写入其权威位置。读取领域语言供其他任务使用不触发本 skill。
 
 ## 1. 进入并定域
 
@@ -17,7 +17,7 @@ description: 维护领域模型：拷问设计并同步已确认的领域术语�
 
 ## 2. 清空设计 frontier
 
-以现有 glossary 和 ADR 为约束运行 `/grilling`：
+以现有 glossary 和 ADR 为约束运行 `/questing`：
 
 - 术语冲突或 overloaded 时，要求在现有 canonical term 与新概念之间作出明确区分。
 - 关系或规则含糊时，用具体 scenario 与 edge case 暴露边界。

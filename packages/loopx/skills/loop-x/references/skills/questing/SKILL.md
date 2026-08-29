@@ -1,9 +1,9 @@
 ---
-name: grilling
+name: questing
 description: 拷问计划、决策或想法直到共同理解；当用户要求 stress-test、grill，或另一 skill 需要清空决策 frontier 时使用。
 ---
 
-# Grilling
+# Questing
 
 把当前想法映射为 **design tree**：每个待定决策是一个节点，依赖它的决策位于下游。**frontier** 是前置已经确定、现在即可回答的全部节点。
 

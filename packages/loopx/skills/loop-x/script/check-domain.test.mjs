@@ -85,7 +85,7 @@ status: pending
 
 | # | Issue | 状态 | 阻塞于 | 下一步 |
 | --- | --- | --- | --- | --- |
-| 01 | [取消订单](01-取消订单.md) | pending | — | /implement |
+| 01 | [取消订单](01-取消订单.md) | pending | — | /code-delivery |
 `,
   );
   writeFile(
@@ -120,7 +120,7 @@ blocked_by: []
 
 ## 下一步
 
-/implement
+/code-delivery
 `,
   );
   return rootDir;
@@ -537,7 +537,7 @@ test.each([
   ],
   [
     "额外 Issue",
-    (content) => `${content}\n| 99 | [幽灵](99-幽灵.md) | pending | — | /implement |\n`,
+    (content) => `${content}\n| 99 | [幽灵](99-幽灵.md) | pending | — | /code-delivery |\n`,
     "Issue 表引用了不存在的 99",
   ],
 ])("拒绝 Issue 表%s", (_name, mutate, expected) => {
@@ -562,7 +562,7 @@ test("拒绝断号、无根、缺失引用、逆序依赖和依赖环", () => {
     const specPath = path.join(planRoot, "spec.md");
     fs.appendFileSync(
       specPath,
-      "\n| 02 | [通知客户](02-通知客户.md) | pending | 01 | /implement |\n",
+      "\n| 02 | [通知客户](02-通知客户.md) | pending | 01 | /code-delivery |\n",
     );
     replaceFile(
       specPath,
@@ -595,7 +595,7 @@ test("要求进行中 Issue 的直接依赖已经完成", () => {
     replaceFile(specPath, "status: pending", "status: in_progress");
     fs.appendFileSync(
       specPath,
-      "\n| 02 | [通知客户](02-通知客户.md) | in_progress | 01 | /implement |\n",
+      "\n| 02 | [通知客户](02-通知客户.md) | in_progress | 01 | /code-delivery |\n",
     );
     assert.ok(
       checkDomain(rootDir).some((error) =>

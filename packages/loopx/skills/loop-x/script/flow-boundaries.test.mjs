@@ -34,7 +34,7 @@ status: ${status}
 ${issues
   .map(
     (issue) =>
-      `| ${issue.id} | [Issue ${issue.id}](${issue.id}-订单能力.md) | ${issue.status ?? "pending"} | ${issue.dependencies.length === 0 ? "—" : issue.dependencies.join(", ")} | /implement |`,
+      `| ${issue.id} | [Issue ${issue.id}](${issue.id}-订单能力.md) | ${issue.status ?? "pending"} | ${issue.dependencies.length === 0 ? "—" : issue.dependencies.join(", ")} | /code-delivery |`,
   )
   .join("\n")}
 `;
@@ -87,7 +87,7 @@ const recordPlan = (workspace, session, skill, result, extra = {}) =>
 const readyPlan = async (workspace, session = "plan-session") => {
   await command(workspace, "init", { entry: "/to-story", plan: PLAN_PATH, session });
   await recordPlan(workspace, session, "to-story", "completed");
-  await recordPlan(workspace, session, "grill-with-docs", "completed");
+  await recordPlan(workspace, session, "quest-with-domain", "completed");
   await recordPlan(workspace, session, "to-issues", "completed");
   return recordPlan(workspace, session, "dev-gate", "ready");
 };
@@ -287,7 +287,7 @@ test("enter-plan validates initiators, entries, sessions, and completed Flow reu
   );
   await assert.rejects(
     command(workspace, "enter-plan", {
-      skill: "/grill-with-docs",
+      skill: "/quest-with-domain",
       entry: "/to-story",
       plan: PLAN_PATH,
     }),
@@ -345,7 +345,7 @@ test("record-plan rejects wrong order, result, evidence, lease, and exhausted Fl
   );
 
   await recordPlan(workspace, "owner", "to-story", "completed");
-  await recordPlan(workspace, "owner", "grill-with-docs", "completed");
+  await recordPlan(workspace, "owner", "quest-with-domain", "completed");
   await recordPlan(workspace, "owner", "to-issues", "completed");
   await recordPlan(workspace, "owner", "dev-gate", "ready");
   await assert.rejects(
@@ -424,7 +424,7 @@ test("issue commands reject invalid IDs, unready plans, missing runtime, and inc
       plan: PLAN_PATH,
       issue: "01",
       session: "none",
-      skill: "/implement",
+      skill: "/code-delivery",
       result: "started",
       evidence: ["x"],
     }),
@@ -440,7 +440,7 @@ test("issue lease can resume, block twice, release, and requires delivery eviden
     issue: "01",
     session: "issue-owner",
   });
-  assert.equal(claimed.next_skill, "/implement");
+  assert.equal(claimed.next_skill, "/code-delivery");
   assert.equal(
     (
       await command(workspace, "claim-issue", {
@@ -496,7 +496,7 @@ test("issue lease can resume, block twice, release, and requires delivery eviden
     plan: PLAN_PATH,
     issue: "01",
     session: "delivery",
-    skill: "/implement",
+    skill: "/code-delivery",
     result: "started",
     evidence: ["code"],
   });
@@ -630,15 +630,15 @@ test("derives completed and mixed plan statuses", async () => {
 test("completes and re-enters the main Flow with a generated session", async () => {
   const workspace = await createWorkspace();
   const entered = await command(workspace, "enter-plan", {
-    skill: "/grill-with-docs",
+    skill: "/quest-with-domain",
     plan: "2026-08-27-main-flow",
   });
   const session = entered.session;
   const plan = "2026-08-27-main-flow";
-  await recordPlan(workspace, session, "grill-with-docs", "completed", { plan });
+  await recordPlan(workspace, session, "quest-with-domain", "completed", { plan });
   await recordPlan(workspace, session, "to-issues", "skipped", { plan });
   await recordPlan(workspace, session, "dev-gate", "ready", { plan });
-  await recordPlan(workspace, session, "implement", "started", { plan });
+  await recordPlan(workspace, session, "code-delivery", "started", { plan });
   await command(workspace, "record-plan", {
     action: "commit",
     evidence: ["abc"],
@@ -647,8 +647,8 @@ test("completes and re-enters the main Flow with a generated session", async () 
     session,
   });
   assert.equal((await command(workspace, "status", { plan })).plan.phase, "completed");
-  const restarted = await command(workspace, "enter-plan", { skill: "/grill-with-docs", plan });
-  assert.equal(restarted.next_skill, "/grill-with-docs");
+  const restarted = await command(workspace, "enter-plan", { skill: "/quest-with-domain", plan });
+  assert.equal(restarted.next_skill, "/quest-with-domain");
   assert.notEqual(restarted.session, session);
 });
 
@@ -662,7 +662,7 @@ test("completes an issue and rejects a second claim", async () => {
     plan: PLAN_PATH,
     result: "started",
     session: "issue",
-    skill: "/implement",
+    skill: "/code-delivery",
   });
   const issuePath = path.join(workspace, PLAN_PATH, "01-订单能力.md");
   await fs.appendFile(issuePath, "\n## 交付记录\n\n- 交付物: code\n- 证据: tests\n");
@@ -711,7 +711,7 @@ test("covers issue heartbeat, release, and missing runtime lease commands", asyn
   assert.equal(
     (await command(workspace, "resume-issue", { plan: PLAN_PATH, issue: "01", session: "new" }))
       .next_skill,
-    "/implement",
+    "/code-delivery",
   );
 });
 
@@ -804,7 +804,7 @@ test("rejects entering or recording an exhausted planning phase", async () => {
   await readyPlan(workspace);
   await assert.rejects(
     command(workspace, "enter-plan", {
-      skill: "/grill-with-docs",
+      skill: "/quest-with-domain",
       plan: PLAN_PATH,
       session: "plan-session",
     }),

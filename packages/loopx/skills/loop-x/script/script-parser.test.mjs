@@ -142,9 +142,9 @@ describe("domain document parsers", () => {
 
 describe("flow parsers", () => {
   test("normalizes skills, required options, and repeated option values", () => {
-    assert.equal(normalizeSkill("/implement"), "implement");
-    assert.equal(normalizeSkill("implement"), "implement");
-    assert.equal(normalizeSkill("nested/implement"), "nested/implement");
+    assert.equal(normalizeSkill("/code-delivery"), "code-delivery");
+    assert.equal(normalizeSkill("code-delivery"), "code-delivery");
+    assert.equal(normalizeSkill("nested/code-delivery"), "nested/code-delivery");
     assert.equal(normalizeSkill(undefined), undefined);
     assert.equal(requireOption({ plan: "  docs/plan  " }, "plan"), "docs/plan");
     for (const value of [undefined, null, 1, "", "   "]) {

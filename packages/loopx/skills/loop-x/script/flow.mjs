@@ -16,13 +16,13 @@ const ISSUE_STATUSES = new Set(["pending", "in_progress", "blocked", "completed"
 const PLAN_PHASES = new Set(["planning", "delivering_direct", "delivering_issues", "completed"]);
 
 const DELIVERY_FLOW = [
-  { skill: "implement", results: ["started"] },
+  { skill: "code-delivery", results: ["started"] },
   { action: "commit", results: ["committed"] },
 ];
 
 const PLANNING_FLOW = [
   { skill: "to-story", results: ["completed"] },
-  { skill: "grill-with-docs", results: ["completed"] },
+  { skill: "quest-with-domain", results: ["completed"] },
   { skill: "to-issues", results: ["completed", "skipped"] },
   { skill: "dev-gate", results: ["ready"] },
 ];
@@ -30,7 +30,7 @@ const PLANNING_FLOW = [
 const ISSUE_FLOW = DELIVERY_FLOW;
 
 const ENTRY_CURSORS = {
-  "grill-with-docs": 1,
+  "quest-with-domain": 1,
   "to-story": 0,
 };
 
@@ -444,7 +444,7 @@ const handleInit = (state, workspace, options, now) => {
   const entry = normalizeSkill(requireOption(options, "entry"));
   const session = requireOption(options, "session");
   if (ENTRY_CURSORS[entry] === undefined) {
-    fail("--entry 必须是 /to-story | /grill-with-docs");
+    fail("--entry 必须是 /to-story | /quest-with-domain");
   }
   if (state.plans[planKey]) fail(`Plan ${planKey} 已经初始化`);
   state.plans[planKey] = {
@@ -474,9 +474,9 @@ const handleEnterPlan = (state, workspace, options, now) => {
     initiator === "loop-x" ? normalizeSkill(requireOption(options, "entry")) : initiator;
   if (ENTRY_CURSORS[entrySkill] === undefined) {
     if (initiator === "loop-x") {
-      fail("/loop-x 的 --entry 必须是 /to-story | /grill-with-docs");
+      fail("/loop-x 的 --entry 必须是 /to-story | /quest-with-domain");
     }
-    fail("--skill 必须是 /loop-x | /to-story | /grill-with-docs");
+    fail("--skill 必须是 /loop-x | /to-story | /quest-with-domain");
   }
   if (options.plan === undefined) fail(`/${entrySkill} 进入流程前必须提供 --plan`);
   const planInput = requireOption(options, "plan");
@@ -831,9 +831,9 @@ export const parseCli = (argumentsList) => {
 };
 
 const usage = `用法:
-  flow.mjs init --plan <path> --entry </to-story|/grill-with-docs> --session <id>
-  flow.mjs enter-plan --plan <path> --skill /loop-x --entry </to-story|/grill-with-docs> [--session <id>]
-  flow.mjs enter-plan --plan <path> --skill </to-story|/grill-with-docs> [--session <id>]
+  flow.mjs init --plan <path> --entry </to-story|/quest-with-domain> --session <id>
+  flow.mjs enter-plan --plan <path> --skill /loop-x --entry </to-story|/quest-with-domain> [--session <id>]
+  flow.mjs enter-plan --plan <path> --skill </to-story|/quest-with-domain> [--session <id>]
   flow.mjs record-plan --plan <path> --session <id> (--skill </skill>|--action <action>) --result <result> --evidence <ref>
   flow.mjs claim-issue --plan <path> --issue <NN> [--session <id>]
   flow.mjs record-issue --plan <path> --issue <NN> --session <id> (--skill </skill>|--action <action>) --result <result> --evidence <ref>

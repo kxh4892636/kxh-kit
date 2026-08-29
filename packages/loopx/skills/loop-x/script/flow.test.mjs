@@ -51,7 +51,7 @@ ${dependencies.length === 0 ? "无。" : dependencies.map((item) => `- ${item}: 
 
 ## 下一步
 
-/implement
+/code-delivery
 `;
 
 const specDocument = (issueDefinitions) => `---
@@ -75,7 +75,7 @@ status: pending
 ${issueDefinitions
   .map(
     (issue) =>
-      `| ${issue.id} | [Issue ${issue.id}](${issue.id}-订单能力.md) | pending | ${issue.dependencies.length === 0 ? "—" : issue.dependencies.join(", ")} | /implement |`,
+      `| ${issue.id} | [Issue ${issue.id}](${issue.id}-订单能力.md) | pending | ${issue.dependencies.length === 0 ? "—" : issue.dependencies.join(", ")} | /code-delivery |`,
   )
   .join("\n")}
 `;
@@ -137,7 +137,7 @@ const recordIssue = (workspace, issue, session, step, result) =>
 const readyIssuePlan = async (workspace, session = "plan-session") => {
   await command(workspace, "init", { entry: "/to-story", plan: PLAN_PATH, session });
   await recordPlan(workspace, session, "to-story", "completed");
-  await recordPlan(workspace, session, "grill-with-docs", "completed");
+  await recordPlan(workspace, session, "quest-with-domain", "completed");
   await recordPlan(workspace, session, "to-issues", "completed");
   return recordPlan(workspace, session, "dev-gate", "ready");
 };
@@ -151,7 +151,7 @@ const addDeliveryEvidence = async (workspace, issueId) => {
   );
 };
 
-test("主流程从 to-story 开始且不再强制 grilling", async () => {
+test("主流程从 to-story 开始且不再强制 questing", async () => {
   const workspace = await createWorkspace();
   try {
     const entered = await command(workspace, "enter-plan", {
@@ -162,30 +162,30 @@ test("主流程从 to-story 开始且不再强制 grilling", async () => {
     assert.equal(entered.next_skill, "/to-story");
 
     const story = await recordPlan(workspace, entered.session, "to-story", "completed");
-    assert.equal(story.next_skill, "/grill-with-docs");
+    assert.equal(story.next_skill, "/quest-with-domain");
     await assert.rejects(
-      recordPlan(workspace, entered.session, "grilling", "completed"),
-      /期望 \/grill-with-docs/,
+      recordPlan(workspace, entered.session, "questing", "completed"),
+      /期望 \/quest-with-domain/,
     );
 
-    const grilled = await recordPlan(workspace, entered.session, "grill-with-docs", "completed");
-    assert.equal(grilled.next_skill, "/to-issues");
+    const quested = await recordPlan(workspace, entered.session, "quest-with-domain", "completed");
+    assert.equal(quested.next_skill, "/to-issues");
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }
 });
 
-test("主流程可从 grill-with-docs 开始并跳过 to-issues", async () => {
+test("主流程可从 quest-with-domain 开始并跳过 to-issues", async () => {
   const workspace = await createWorkspace();
   try {
     const entered = await command(workspace, "enter-plan", {
       plan: PLAN_PATH,
-      skill: "/grill-with-docs",
+      skill: "/quest-with-domain",
     });
-    assert.equal(entered.next_skill, "/grill-with-docs");
+    assert.equal(entered.next_skill, "/quest-with-domain");
 
     assert.equal(
-      (await recordPlan(workspace, entered.session, "grill-with-docs", "completed")).next_skill,
+      (await recordPlan(workspace, entered.session, "quest-with-domain", "completed")).next_skill,
       "/to-issues",
     );
     assert.equal(
@@ -194,9 +194,9 @@ test("主流程可从 grill-with-docs 开始并跳过 to-issues", async () => {
     );
     const delivery = await recordPlan(workspace, entered.session, "dev-gate", "ready");
     assert.equal(delivery.phase, "delivering_direct");
-    assert.equal(delivery.next_skill, "/implement");
+    assert.equal(delivery.next_skill, "/code-delivery");
     assert.equal(
-      (await recordPlan(workspace, entered.session, "implement", "started")).next_action,
+      (await recordPlan(workspace, entered.session, "code-delivery", "started")).next_action,
       "commit",
     );
     const completed = await recordPlan(workspace, entered.session, "commit", "committed");
@@ -207,14 +207,14 @@ test("主流程可从 grill-with-docs 开始并跳过 to-issues", async () => {
   }
 });
 
-test("to-issues 完成后 dev-gate 转入 Issue 级 implement", async () => {
+test("to-issues 完成后 dev-gate 转入 Issue 级 code-delivery", async () => {
   const workspace = await createWorkspace();
   try {
     const ready = await readyIssuePlan(workspace);
     assert.equal(ready.phase, "delivering_issues");
     assert.equal(ready.next_skill, null);
     await assert.rejects(
-      recordPlan(workspace, "plan-session", "implement", "started"),
+      recordPlan(workspace, "plan-session", "code-delivery", "started"),
       /当前阶段 delivering_issues 不接受 record-plan/,
     );
 
@@ -223,9 +223,9 @@ test("to-issues 完成后 dev-gate 转入 Issue 级 implement", async () => {
       plan: PLAN_PATH,
       session: "issue-session",
     });
-    assert.equal(claimed.next_skill, "/implement");
+    assert.equal(claimed.next_skill, "/code-delivery");
     assert.equal(
-      (await recordIssue(workspace, "01", "issue-session", "implement", "started")).next_action,
+      (await recordIssue(workspace, "01", "issue-session", "code-delivery", "started")).next_action,
       "commit",
     );
     await addDeliveryEvidence(workspace, "01");
@@ -241,11 +241,11 @@ test("to-issues 只接受 completed 或 skipped", async () => {
   const workspace = await createWorkspace();
   try {
     await command(workspace, "init", {
-      entry: "/grill-with-docs",
+      entry: "/quest-with-domain",
       plan: PLAN_PATH,
       session: "decision-session",
     });
-    await recordPlan(workspace, "decision-session", "grill-with-docs", "completed");
+    await recordPlan(workspace, "decision-session", "quest-with-domain", "completed");
     await assert.rejects(
       recordPlan(workspace, "decision-session", "to-issues", "started"),
       /result 必须是 completed \| skipped/,
@@ -255,7 +255,7 @@ test("to-issues 只接受 completed 或 skipped", async () => {
   }
 });
 
-test.each(["/to-story", "/grill-with-docs"])("loop-x 只从主流程入口 %s 初始化", async (entry) => {
+test.each(["/to-story", "/quest-with-domain"])("loop-x 只从主流程入口 %s 初始化", async (entry) => {
   const workspace = await createWorkspace();
   try {
     const entered = await command(workspace, "enter-plan", {
@@ -283,7 +283,7 @@ test("to-issues 不再是入口", async () => {
         plan: PLAN_PATH,
         skill: "/loop-x",
       }),
-      /--entry 必须是 \/to-story \| \/grill-with-docs/,
+      /--entry 必须是 \/to-story \| \/quest-with-domain/,
     );
     await assert.rejects(
       command(workspace, "enter-plan", { plan: PLAN_PATH, skill: "/to-issues" }),
@@ -313,7 +313,7 @@ test("已有 Flow 只能从当前入口接续", async () => {
 
     await assert.rejects(
       command(workspace, "enter-plan", {
-        entry: "/grill-with-docs",
+        entry: "/quest-with-domain",
         plan: PLAN_PATH,
         session: "owner",
         skill: "/loop-x",
@@ -324,13 +324,13 @@ test("已有 Flow 只能从当前入口接续", async () => {
     assert.equal(
       (
         await command(workspace, "enter-plan", {
-          entry: "/grill-with-docs",
+          entry: "/quest-with-domain",
           plan: PLAN_PATH,
           session: "owner",
           skill: "/loop-x",
         })
       ).next_skill,
-      "/grill-with-docs",
+      "/quest-with-domain",
     );
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
@@ -351,7 +351,7 @@ test("Plan 租约可释放并由新会话恢复当前主流程步骤", async () 
       plan: PLAN_PATH,
       session: "second",
     });
-    assert.equal(resumed.next_skill, "/grill-with-docs");
+    assert.equal(resumed.next_skill, "/quest-with-domain");
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }
@@ -376,8 +376,8 @@ test("同一 Plan 的无依赖 Issue 可以由不同会话并行领取", async (
         session: "second",
       }),
     ]);
-    assert.equal(first.next_skill, "/implement");
-    assert.equal(second.next_skill, "/implement");
+    assert.equal(first.next_skill, "/code-delivery");
+    assert.equal(second.next_skill, "/code-delivery");
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }
@@ -399,7 +399,7 @@ test("Issue 必须等待直接依赖完成", async () => {
       plan: PLAN_PATH,
       session: "first",
     });
-    await recordIssue(workspace, "01", "first", "implement", "started");
+    await recordIssue(workspace, "01", "first", "code-delivery", "started");
     await addDeliveryEvidence(workspace, "01");
     await recordIssue(workspace, "01", "first", "commit", "committed");
     assert.equal(
@@ -408,11 +408,11 @@ test("Issue 必须等待直接依赖完成", async () => {
     );
     assert.equal(
       (await command(workspace, "claim-issue", { issue: "02", plan: PLAN_PATH })).next_skill,
-      "/implement",
+      "/code-delivery",
     );
     const second = await command(workspace, "status", { plan: PLAN_PATH });
     const secondSession = second.plan.issues["02"].lease.owner_session;
-    await recordIssue(workspace, "02", secondSession, "implement", "started");
+    await recordIssue(workspace, "02", secondSession, "code-delivery", "started");
     await addDeliveryEvidence(workspace, "02");
     assert.equal(
       (await recordIssue(workspace, "02", secondSession, "commit", "committed")).phase,
@@ -445,7 +445,7 @@ test("阻塞 Issue 释放租约并可恢复", async () => {
       plan: PLAN_PATH,
       session: "second",
     });
-    assert.equal(resumed.next_skill, "/implement");
+    assert.equal(resumed.next_skill, "/code-delivery");
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }
@@ -478,19 +478,19 @@ test("完成后的无 Issue Flow 可从同一入口重新开始", async () => {
   try {
     const entered = await command(workspace, "enter-plan", {
       plan: PLAN_PATH,
-      skill: "/grill-with-docs",
+      skill: "/quest-with-domain",
     });
-    await recordPlan(workspace, entered.session, "grill-with-docs", "completed");
+    await recordPlan(workspace, entered.session, "quest-with-domain", "completed");
     await recordPlan(workspace, entered.session, "to-issues", "skipped");
     await recordPlan(workspace, entered.session, "dev-gate", "ready");
-    await recordPlan(workspace, entered.session, "implement", "started");
+    await recordPlan(workspace, entered.session, "code-delivery", "started");
     await recordPlan(workspace, entered.session, "commit", "committed");
 
     const restarted = await command(workspace, "enter-plan", {
       plan: PLAN_PATH,
-      skill: "/grill-with-docs",
+      skill: "/quest-with-domain",
     });
-    assert.equal(restarted.next_skill, "/grill-with-docs");
+    assert.equal(restarted.next_skill, "/quest-with-domain");
     assert.notEqual(restarted.session, entered.session);
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
@@ -502,10 +502,10 @@ test("CLI 可脱离工作区 package 配置直接运行", async () => {
   try {
     const initialized = await execFileAsync(
       process.execPath,
-      [FLOW_PATH, "init", "--plan", PLAN_PATH, "--entry", "/grill-with-docs", "--session", "cli"],
+      [FLOW_PATH, "init", "--plan", PLAN_PATH, "--entry", "/quest-with-domain", "--session", "cli"],
       { cwd: workspace },
     );
-    assert.equal(JSON.parse(initialized.stdout).next_skill, "/grill-with-docs");
+    assert.equal(JSON.parse(initialized.stdout).next_skill, "/quest-with-domain");
 
     const loopxWorkspace = await createWorkspace();
     try {

@@ -47,9 +47,9 @@ status: pending
 
 ## Issue
 
-| #   | Issue                  | 状态    | 阻塞于 | 下一步     |
-| --- | ---------------------- | ------- | ------ | ---------- |
-| 01  | [{标题}](01-{标题}.md) | pending | —      | /implement |
+| #   | Issue                  | 状态    | 阻塞于 | 下一步         |
+| --- | ---------------------- | ------- | ------ | -------------- |
+| 01  | [{标题}](01-{标题}.md) | pending | —      | /code-delivery |
 ```
 
 ## issue 模板
@@ -84,7 +84,7 @@ blocked_by: []
 
 ## 下一步
 
-{决策已澄清: /implement; 仍需澄清: /grill-with-docs}
+{决策已澄清: /code-delivery; 仍需澄清: /quest-with-domain}
 
 ## 阻塞记录
 

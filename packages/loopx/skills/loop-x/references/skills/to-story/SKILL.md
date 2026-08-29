@@ -6,7 +6,7 @@ argument-hint: "要把什么想法打磨成用户故事?"
 
 # To Story
 
-用户故事使用 **3C**：`story.md` 是 card，`/grilling` 产生 conversation，可判定验收形成 confirmation。
+用户故事使用 **3C**：`story.md` 是 card，`/questing` 产生 conversation，可判定验收形成 confirmation。
 
 ## 1. 定位 Plan
 
@@ -16,7 +16,7 @@ argument-hint: "要把什么想法打磨成用户故事?"
 docs/{domain-name}/plans/active/YYYY-MM-DD-中文工作名/story.md
 ```
 
-读取 [`TEMPLATE.md`](TEMPLATE.md) 后创建或载入 `story.md`。访谈中的候选决策只进入该文件；领域术语或 ADR 要到 `/grill-with-docs` 获得确认后才改变。
+读取 [`TEMPLATE.md`](TEMPLATE.md) 后创建或载入 `story.md`。访谈中的候选决策只进入该文件；领域术语或 ADR 要到 `/quest-with-domain` 获得确认后才改变。
 
 owner、Plan 路径、原始想法和所有相关现有产物已确定时，本步骤完成。
 
@@ -24,7 +24,7 @@ owner、Plan 路径、原始想法和所有相关现有产物已确定时，本�
 
 完整读取 [`FLOW.md`](../../FLOW.md)。顶层直接调用时从 `/to-story` 进入主流程；收到 `/loop-x` context 时直接复用。
 
-以故事地图为 design tree 运行 `/grilling`：角色、故事和未知项都是 branch；无依赖的决策进入同一 frontier，有依赖的决策留到后续 round。环境事实由 agent 检索，用户决定角色、收益、边界与验收。
+以故事地图为 design tree 运行 `/questing`：角色、故事和未知项都是 branch；无依赖的决策进入同一 frontier，有依赖的决策留到后续 round。环境事实由 agent 检索，用户决定角色、收益、边界与验收。
 
 每轮把已确认内容就地写入 `story.md`：
 
@@ -33,7 +33,7 @@ owner、Plan 路径、原始想法和所有相关现有产物已确定时，本�
 - 新空白进入「迷雾」，澄清后迁移到权威章节。
 - 使用过的 PRD、spec、ADR、commit 或 diff 进入「上下文」。
 
-`/grilling` frontier 为空并登记完成、脚本返回 `/to-story` 时，本步骤完成。
+`/questing` frontier 为空并登记完成、脚本返回 `/to-story` 时，本步骤完成。
 
 ## 3. 闭合故事集
 

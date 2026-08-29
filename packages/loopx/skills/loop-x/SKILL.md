@@ -13,10 +13,10 @@ description: 路由从想法到交付的 Loop Kit 主流程；当任务需要形
 
 先从用户输入和现场材料判断当前位置，只推荐一条入口：
 
-| 现场                                         | 入口                                                             |
-| -------------------------------------------- | ---------------------------------------------------------------- |
-| 角色、收益或可验收的用户结果尚未明确         | [`/to-story`](references/skills/to-story/SKILL.md)               |
-| 用户结果已明确，需要从领域设计开始继续主流程 | [`/grill-with-docs`](references/skills/grill-with-docs/SKILL.md) |
+| 现场                                         | 入口                                                                 |
+| -------------------------------------------- | -------------------------------------------------------------------- |
+| 角色、收益或可验收的用户结果尚未明确         | [`/to-story`](references/skills/to-story/SKILL.md)                   |
+| 用户结果已明确，需要从领域设计开始继续主流程 | [`/quest-with-domain`](references/skills/quest-with-domain/SKILL.md) |
 
 已有 Flow 或 Plan 时不创建新路径；读取 [`FLOW.md`](references/FLOW.md)，从运行态返回的当前位置恢复。
 
