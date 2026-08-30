@@ -18,8 +18,6 @@
 
 跨越网络边界的自有服务(microservices, internal APIs). 在 seam 上定义 **port**(interface). deep module 拥有逻辑, transport 以 **adapter** 形式注入. 测试使用 in-memory adapter. 生产环境使用 HTTP/gRPC/queue adapter.
 
-推荐表达: _"在 seam 上定义 port, 为 production 实现 HTTP adapter, 为测试实现 in-memory adapter. 这样, 即使跨网络部署, 逻辑仍位于一个 deep module 中."_
-
 ### 4. True external (Mock)
 
 不受你控制的第三方服务(Stripe, Twilio 等). deepened module 将外部依赖作为注入的 port 接收. 测试提供 mock adapter.

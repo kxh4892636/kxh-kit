@@ -1,6 +1,6 @@
 ---
 name: quest-with-domain
-description: 维护领域模型：拷问设计并同步已确认的领域术语、跨域关系与 ADR；当讨论需要改变 CONTEXT.md、CONTEXT-MAP.md 或领域决策记录时使用。
+description: 维护领域模型：拷问设计并同步已确认的领域术语、跨域关系与 ADR；当讨论需要改变领域 context 文档或领域决策记录时使用。
 ---
 
 # Quest with Domain
@@ -30,9 +30,7 @@ frontier 为空、代码与口头模型的矛盾已解决或明确记录、用�
 
 出现已确认的新业务域、术语或跨域关系时，读取 [`CONTEXT-FORMAT.md`](CONTEXT-FORMAT.md) 并在当轮更新：
 
-- `CONTEXT-MAP.md` 只拥有业务域索引与跨域关系。
-- `docs/{domain-name}/CONTEXT.md` 只拥有该域 glossary。
-- 对话、spec、实现细节与决策理由留在各自权威产物中。
+- 各产物的归属规则以 CONTEXT-FORMAT.md 为权威。
 
 每项确认内容恰好有一个权威位置，map 链接可解析，glossary 中的 canonical term 与 `_Avoid_` 词互不冲突时，本步骤完成。
 
@@ -50,4 +48,4 @@ frontier 为空、代码与口头模型的矛盾已解决或明确记录、用�
 node <loop-x-skill-dir>/script/check-domain.mjs .
 ```
 
-校验通过、前述完成标准全部成立且用户确认共同理解后，本步骤完成。
+校验通过后，本步骤完成。

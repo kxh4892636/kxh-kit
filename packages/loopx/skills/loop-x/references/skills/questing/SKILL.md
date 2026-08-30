@@ -1,6 +1,6 @@
 ---
 name: questing
-description: 拷问计划、决策或想法直到共同理解；当用户要求 stress-test、grill，或另一 skill 需要清空决策 frontier 时使用。
+description: 拷问计划、决策或想法直到共同理解；当用户要求 stress-test，或另一 skill 需要清空决策 frontier 时使用。
 ---
 
 # Questing

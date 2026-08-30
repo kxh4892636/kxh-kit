@@ -1,6 +1,6 @@
 ---
 name: code-design
-description: 设计 deep modules 与可测试 seams；当任务需要收窄 interface、集中复杂性、分类依赖、选择 adapter 或比较模块边界方案时使用。
+description: 设计 deep modules 与可测试 seams；当任务需要收窄 interface 并集中复杂性、分类依赖、选择 adapter 或比较模块边界方案时使用。
 ---
 
 # Code Design
@@ -27,7 +27,6 @@ description: 设计 deep modules 与可测试 seams；当任务需要收窄 inte
 - **Depth 属于 interface**：更多 implementation lines 不会自动产生 depth；只有调用方需要理解的复杂度下降才会。
 - **Deletion test**：移除 module 后，若复杂性在多个调用方重新出现，它提供了 locality；若只少一层转发，它是 shallow middle man。
 - **Interface is the test surface**：调用方与测试穿过同一个 seam 观察行为。需要越过 interface 才能验证时，重新检查 interface 或 seam placement。
-- **Real seam follows variation**：至少存在两个合理 adapters，或已经确定的变化轴时，seam 才带来 leverage。
 - **Hide policy, expose intent**：把顺序、重试、状态转换和依赖编排藏在 module 内，让调用方表达要得到的结果。
 
 评估每个候选 module：列出调用方必须知道的 interface、被隐藏的 complexity、预期 adapters、可观察结果，以及变化会集中在哪里。无法指出 leverage 或 locality 的候选保持 inline 或继续重构。
@@ -36,7 +35,6 @@ description: 设计 deep modules 与可测试 seams；当任务需要收窄 inte
 
 - dependencies 从拥有 policy 的 module 外部注入；module 自己拥有其内部协作方式。
 - 优先返回或暴露可观察结果，使测试通过 interface 判断行为。
-- internal seam 留在 implementation 内；只有调用方需要替换的 variation 才成为 external seam。
 - 新 interface 的 methods 与 parameters 只表达真实 use cases 和 invariants。
 
 每个新增或改变的 seam 都有真实 variation，每个测试都通过约定 interface 观察行为，且 implementation 细节没有泄漏到调用方时，设计检查完成。
