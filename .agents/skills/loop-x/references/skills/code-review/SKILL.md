@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: 双轴审查 fixed point 以来的 branch 或工作区 diff：Standards 检查仓库规范，Spec 检查需求符合度；当用户要求 review PR、branch、commit range 或 WIP 变更时使用。
+description: 双轴审查 fixed point 以来的 branch 或工作区 diff；当用户要求 review PR、branch、commit range 或 WIP 变更时使用。
 ---
 
 # Code Review
@@ -20,7 +20,7 @@ description: 双轴审查 fixed point 以来的 branch 或工作区 diff：Stand
 
 Spec 按顺序取自：用户指定路径；与 branch/feature 匹配的 `docs/{domain-name}/plans/`；用户确认的其他来源。用户确认不存在 spec 时，Spec 轴记为 `not available`。
 
-Standards 包括仓库中实际适用于 diff 的 `AGENTS.md`、`CONTRIBUTING.md`、编码规范与 `/code-spec`。完整读取 [`SMELL-BASELINE.md`](SMELL-BASELINE.md)；它只提供判断型 heuristics，仓库明确规则优先，工具已经机械强制的内容不重复报告。
+Standards 包括仓库中实际适用于 diff 的 `AGENTS.md`、`CONTRIBUTING.md`、编码规范与 `/code-spec`。完整读取 [`SMELL-BASELINE.md`](SMELL-BASELINE.md)；它只提供判断型 heuristics。
 
 每个变更文件都映射到适用 standards，每项 spec 要求都有可引用位置时，本步骤完成。
 

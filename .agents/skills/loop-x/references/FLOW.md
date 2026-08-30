@@ -26,7 +26,7 @@ node <loop-x-skill-dir>/script/flow.mjs --help
 
 `/to-story` 完成后直接进入 `/quest-with-domain`。`/quest-with-domain` 完成后必须进入 `/to-issues`，由它根据任务是否需要可恢复的 issue graph 登记 `completed` 或 `skipped`。
 
-`/to-issues=skipped` 时，`/dev-gate=ready` 后 Plan 从 `planning` 进入 `delivering_direct` 并返回 Plan 级 `/code-delivery`；`/to-issues=completed` 时，Plan 进入 `delivering_issues`，再由 `claim-issue` 返回 Issue 级 `/code-delivery`。
+`delivering_direct` 返回 Plan 级 `/code-delivery`；`delivering_issues` 由 `claim-issue` 返回 Issue 级 `/code-delivery`。
 
 `/code-delivery` 进入后先登记 `started` 并保留返回的 `commit` action；代码、`/code-test`、`/verifying` 与 `/code-review` 是它返回前的内部门禁，不另记 Flow receipt。全部门禁仍适用于当前 diff 后，才执行并登记 `commit=committed`。
 
@@ -46,11 +46,11 @@ node <loop-x-skill-dir>/script/flow.mjs --help
 - 真实障碍用 `block-issue` 记录原因和可判定的解除条件，并释放租约。
 - 异常退出或移动 Plan 后用 `sync-plan` 从 issue frontmatter 重建 spec 派生视图。
 
-每个写命令成功返回后再继续；失败时保留现场，依据错误信息恢复前置条件。
+写命令失败时保留现场，依据错误信息恢复前置条件。
 
 ## 持久状态
 
-`.flow/state/YYYY-MM-DD-state.json` 按本地日期保存当日阶段、租约、游标与 receipt，默认只保留包含当天在内的最近 30 天；`.flow/state/state.lock` 只保护单次事务。这些文件是运行态，不进入版本控制。不读取无日期前缀或其他日期的状态文件。
+`.flow/state/YYYY-MM-DD-state.json` 按本地日期保存当日阶段、租约、游标与 receipt。不读取无日期前缀或其他日期的状态文件。
 
 Plan 的 `phase` 是显式执行阶段：
 

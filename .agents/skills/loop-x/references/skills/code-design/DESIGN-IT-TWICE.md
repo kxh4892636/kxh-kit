@@ -1,6 +1,6 @@
 # Design It Twice
 
-当用户想为选定的 deepening 候选项探索备选 interfaces 时, 使用此 parallel sub-agent pattern. 它基于 "Design It Twice"(Ousterhout) - 你的第一个想法不太可能是最好的.
+当用户想为选定的 deepening 候选项探索备选 interfaces 时, 使用此 parallel sub-agent pattern. 它基于 "Design It Twice" - 你的第一个想法不太可能是最好的.
 
 使用 [SKILL.md](SKILL.md) 中的 vocabulary - **module**, **interface**, **seam**, **adapter**, **leverage**.
 
@@ -14,7 +14,7 @@
 - 它将依赖的内容, 以及它们所属的 category(参见 [DEEPENING.md](DEEPENING.md)).
 - 用于落地 constraints 的粗略说明性代码草图. 它不是提案, 只是让 constraints 变得具体的方法.
 
-向用户展示这份说明, 然后立即进入第 2 步. 当 sub-agents 并行工作时, 用户可以阅读和思考.
+向用户展示这份说明, 然后立即进入第 2 步.
 
 constraints、依赖类别、现有 coupling 与不可改变的 domain invariants 均已进入 brief，且说明性草图没有预设某个候选 interface 时，本步骤完成。
 

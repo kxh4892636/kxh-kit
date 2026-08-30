@@ -4,9 +4,11 @@ description: 打磨模糊想法为有序、可验收的用户故事集；当角�
 argument-hint: "要把什么想法打磨成用户故事?"
 ---
 
+完整读取 [`FLOW.md`](../../FLOW.md)。顶层直接调用时, 在执行 skill 前直接执行 `enter-plan` 进入主流程；收到 Flow context 时直接复用。
+
 # To Story
 
-用户故事使用 **3C**：`story.md` 是 card，`/questing` 产生 conversation，可判定验收形成 confirmation。
+用户故事使用 **3C**：`story.md` 是 card，分轮访谈形成 conversation，可判定验收形成 confirmation。
 
 ## 1. 定位 Plan
 
@@ -20,11 +22,25 @@ docs/{domain-name}/plans/active/YYYY-MM-DD-中文工作名/story.md
 
 owner、Plan 路径、原始想法和所有相关现有产物已确定时，本步骤完成。
 
-## 2. 进入 Flow 并清空迷雾
+## 2. 拷问故事地图
 
-完整读取 [`FLOW.md`](../../FLOW.md)。顶层直接调用时从 `/to-story` 进入主流程；收到 `/loop-x` context 时直接复用。
+持续访谈直到与用户达成共同理解。把角色、用户结果、收益、边界、验收与未知项映射为 **design tree**：每个待定决策是一个节点，依赖它的决策位于下游；**frontier** 是前置均已确定、当前无需猜测即可回答的全部节点。
 
-以故事地图为 design tree 运行 `/questing`：角色、故事和未知项都是 branch；无依赖的决策进入同一 frontier，有依赖的决策留到后续 round。环境事实由 agent 检索，用户决定角色、收益、边界与验收。
+按 **rounds** 推进 design tree。每轮询问整个 frontier：问题依次编号，提供 agent 的推荐答案与关键理由，然后等待用户回答。依赖本轮未决答案的问题留到下一轮。使用以下格式：
+
+```markdown
+❓ **Q1 - {问题标题}**：{问题；需要时列出互斥选择}
+
+➡️ **建议**：{推荐答案与关键理由}
+
+❓ **Q2 - {问题标题}**：{问题；需要时列出互斥选择}
+
+➡️ **建议**：{推荐答案与关键理由}
+```
+
+用户的答案会重塑 design tree：用已确定决策推进 frontier，补入新暴露的下游节点，再重新计算下一轮。事实由 agent 通过工作区与工具查明，不把可检索问题交给用户；需要继续探索时委派 subagent，并把进行中的探索视为未决前置，只暂停其下游，当前 frontier 的其余问题照常询问。角色、收益、边界与验收等判断由用户决定并等待其回答。
+
+用户确认共同理解前，工作限于取证、访谈与维护 `story.md`；确认后才闭合故事集并推进 Flow。
 
 每轮把已确认内容就地写入 `story.md`：
 
@@ -33,7 +49,7 @@ owner、Plan 路径、原始想法和所有相关现有产物已确定时，本�
 - 新空白进入「迷雾」，澄清后迁移到权威章节。
 - 使用过的 PRD、spec、ADR、commit 或 diff 进入「上下文」。
 
-`/questing` frontier 为空并登记完成、脚本返回 `/to-story` 时，本步骤完成。
+Flow 已正确进入或复用；design tree 的每个可达分支都已访问，frontier 为空且没有静默假设；agent 已复述最终故事地图，用户明确确认达成共同理解时，本步骤完成。
 
 ## 3. 闭合故事集
 

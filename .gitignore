@@ -37,7 +37,7 @@ release
 .dsh
 
 # Loop X runtime state
-**/.flow/state/
+**/.flow
 
 # Mutation test reports
 **/reports/mutation/

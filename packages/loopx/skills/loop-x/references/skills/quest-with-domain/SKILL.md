@@ -3,6 +3,8 @@ name: quest-with-domain
 description: 维护领域模型：拷问设计并同步已确认的领域术语、跨域关系与 ADR；当讨论需要改变领域 context 文档或领域决策记录时使用。
 ---
 
+完整读取 [`FLOW.md`](../../FLOW.md)。顶层直接调用时, 在执行 skill 前直接执行 `enter-plan` 进入主流程；收到 Flow context 时直接复用。
+
 # Quest with Domain
 
 使用 `/questing` 的 rounds 与 frontier 打磨 domain model，并在结论成立的同一轮写入其权威位置。读取领域语言供其他任务使用不触发本 skill。
@@ -10,8 +12,6 @@ description: 维护领域模型：拷问设计并同步已确认的领域术语�
 ## 1. 进入并定域
 
 完整读取 [`DOMAIN.md`](../../DOMAIN.md)。从工作区根 `CONTEXT-MAP.md` 定位所有相关业务域，再读取对应 `CONTEXT.md` 与相关 ADR；归属仍是用户决策时提出带推荐答案的问题。
-
-携带 flow context 时直接复用。作为顶层 skill 直接调用时，先完整读取 [`FLOW.md`](../../FLOW.md)。
 
 相关业务域、跨域关系和当前 Flow 位置均已确定时，本步骤完成。
 

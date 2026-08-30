@@ -11,7 +11,9 @@ description: 在实现代码完成后编写和评估测试；当 feature、bug f
 
 ## 流程
 
-1. 使用 `/dev-gate` 已确认的质量门禁、public interfaces、critical paths 和 seams，负责其中的测试类门禁；直接调用本 skill 时，在写测试前写下受测 seams 并与用户确认。interface 形态仍未确定时，使用 `/code-design` 的 module、interface、depth 和 seam vocabulary 先确定边界。
+1. 使用 `/dev-gate` 已确认的质量门禁、public interfaces、critical paths 和 seams，负责其中的测试类门禁。
+   - 直接调用本 skill 时，在写测试前写下受测 seams 并与用户确认。
+   - interface 形态仍未确定时，使用 `/code-design` 的 module、interface、depth 和 seam vocabulary 先确定边界。
 2. 在生产代码完成后编写测试。测试通过 public interfaces 验证 observable behavior，覆盖 spec 中的成功路径、失败路径和关键边界；expected values 来自 spec、worked example 或 known-good literal 等独立事实源。
 3. 先运行受影响的单个测试文件。失败时根据 public contract 判断是测试还是实现错误；任何生产代码修正都会使本阶段重新从受影响测试开始。
 4. 按仓库已有配置运行 coverage。只检查 mutation testing 的配置或命令入口，不执行；入口存在时，在运行前单独请求用户明确确认。得到确认后才运行，surviving mutants 通过补强 public-behavior assertions 处理，再重跑受影响测试和 mutation testing。
@@ -26,7 +28,7 @@ description: 在实现代码完成后编写和评估测试；当 feature、bug f
 
 ## 测试原则
 
-良好的测试读起来像 specification。代码内部结构可以完全改变，只要 observable behavior 不变，测试就应继续通过。需要判断示例质量时读取 [tests.md](tests.md)；外部 seam 需要 stand-in 时读取 [mocking.md](mocking.md)。
+良好的测试读起来像 specification。代码内部结构可以完全改变，只要 observable behavior 不变，测试就应继续通过。需要判断示例质量时读取 [tests.md](tests.md)；外部 seam 需要 mock 时读取 [mocking.md](mocking.md)。
 
 **seam** 是执行测试的 public boundary：你可以在该 interface 上观察行为，而无需深入内部。测试只位于预先商定的 seams 上，使投入集中在 critical paths 和复杂逻辑，而不是内部结构或任意 edge cases。
 

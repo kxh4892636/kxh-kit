@@ -6,13 +6,19 @@ import process from "node:process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
+import {
+  deriveSpecStatus,
+  ISSUE_STATUSES,
+  parseFrontmatter as parsePlanFrontmatter,
+  parseIssueDependencies,
+} from "./plan-document.mjs";
+
 const SCHEMA_VERSION = 5;
 const DEFAULT_LEASE_SECONDS = 1800;
 const DEFAULT_STATE_RETENTION_DAYS = 30;
 const LOCK_STALE_MS = 30000;
 const LOCK_RETRIES = 50;
 const LOCK_RETRY_MS = 100;
-const ISSUE_STATUSES = new Set(["pending", "in_progress", "blocked", "completed"]);
 const PLAN_PHASES = new Set(["planning", "delivering_direct", "delivering_issues", "completed"]);
 
 const DELIVERY_FLOW = [
@@ -46,13 +52,11 @@ const fail = (message) => {
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-export const normalizeSkill = (value) => value?.replace(/^\//, "");
+const normalizeSkill = (value) => value?.replace(/^\//, "");
 
-export const validateHooks = (config) => {
+const validateHooks = (config) => {
   if (
     config === null ||
-    typeof config !== "object" ||
-    Array.isArray(config) ||
     config.schema_version !== HOOK_SCHEMA_VERSION ||
     !Array.isArray(config.hooks)
   ) {
@@ -81,7 +85,7 @@ export const validateHooks = (config) => {
   return config;
 };
 
-export const loadHooks = async (hooksPath = HOOKS_PATH) => {
+const loadHooks = async (hooksPath = HOOKS_PATH) => {
   let content;
   try {
     content = await fs.readFile(hooksPath, "utf8");
@@ -98,13 +102,13 @@ export const loadHooks = async (hooksPath = HOOKS_PATH) => {
   }
 };
 
-export const messageForSkill = (config, skill) =>
+const messageForSkill = (config, skill) =>
   config.hooks
     .filter((hook) => hook.match === "all" || hook.match.includes(normalizeSkill(skill)))
     .map((hook) => hook.message)
     .join("\n");
 
-export const requireOption = (options, name) => {
+const requireOption = (options, name) => {
   const value = options[name];
   if (typeof value !== "string" || value.trim() === "") {
     fail(`缺少 --${name}`);
@@ -112,14 +116,14 @@ export const requireOption = (options, name) => {
   return value.trim();
 };
 
-export const optionValues = (options, name) => {
+const optionValues = (options, name) => {
   const value = options[name];
   if (Array.isArray(value)) return value;
   if (typeof value === "string") return [value];
   return [];
 };
 
-export const leaseSeconds = (options) => {
+const leaseSeconds = (options) => {
   const rawValue = options["lease-seconds"];
   if (rawValue === undefined) return DEFAULT_LEASE_SECONDS;
   const value = Number(rawValue);
@@ -129,7 +133,7 @@ export const leaseSeconds = (options) => {
   return value;
 };
 
-export const normalizePlanPath = (workspace, planInput) => {
+const normalizePlanPath = (workspace, planInput) => {
   const absolutePath = path.resolve(workspace, planInput);
   const relativePath = path.relative(workspace, absolutePath);
   if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
@@ -176,10 +180,9 @@ const emptyState = () => ({
   schema_version: SCHEMA_VERSION,
 });
 
-export const validateState = (state) => {
+const validateState = (state) => {
   if (
     state === null ||
-    typeof state !== "object" ||
     state.schema_version !== SCHEMA_VERSION ||
     !Number.isInteger(state.revision) ||
     state.plans === null ||
@@ -191,8 +194,6 @@ export const validateState = (state) => {
   for (const plan of Object.values(state.plans)) {
     if (
       plan === null ||
-      typeof plan !== "object" ||
-      Array.isArray(plan) ||
       !PLAN_PHASES.has(plan.phase) ||
       !Number.isInteger(plan.cursor) ||
       plan.cursor < 0 ||
@@ -316,7 +317,7 @@ const makeLease = (session, seconds, now) => ({
   owner_session: session,
 });
 
-export const leaseIsActive = (lease, now) =>
+const leaseIsActive = (lease, now) =>
   lease?.owner_session && Date.parse(lease.expires_at) > now.getTime();
 
 const requireLease = (subject, session, now) => {
@@ -358,18 +359,10 @@ const publicPlan = (plan) => ({
   receipts: plan.receipts,
 });
 
-export const parseFrontmatter = (content, targetPath) => {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
-  if (!match) fail(`${targetPath} 缺少 YAML frontmatter`);
-  const fields = new Map();
-  for (const line of match[1].split(/\r?\n/)) {
-    const separator = line.indexOf(":");
-    const name = line.slice(0, separator);
-    if (separator > 0 && /^[a-z_]+$/.test(name)) {
-      fields.set(name, line.slice(separator + 1).trim());
-    }
-  }
-  return { fields, match };
+const parseFrontmatter = (content, targetPath) => {
+  const parsed = parsePlanFrontmatter(content);
+  if (!parsed) fail(`${targetPath} 缺少 YAML frontmatter`);
+  return parsed;
 };
 
 const replaceFrontmatterField = (content, field, value, targetPath) => {
@@ -380,17 +373,13 @@ const replaceFrontmatterField = (content, field, value, targetPath) => {
   return content.replace(parsed.match[0], `---\n${frontmatter}\n---\n`);
 };
 
-export const parseDependencies = (rawValue, targetPath) => {
-  try {
-    const value = JSON.parse(rawValue ?? "");
-    if (!Array.isArray(value) || value.some((item) => !/^\d{2}$/.test(item))) {
-      fail(`${targetPath} 的 blocked_by 必须是两位 Issue ID 的 JSON 数组`);
-    }
-    return value;
-  } catch (error) {
-    if (error instanceof SyntaxError) fail(`${targetPath} 的 blocked_by 不是有效 JSON`);
-    throw error;
+const parseDependencies = (rawValue, targetPath) => {
+  const parsed = parseIssueDependencies(rawValue);
+  if (parsed.kind === "valid") return parsed.dependencies;
+  if (parsed.kind === "invalid_value") {
+    fail(`${targetPath} 的 blocked_by 必须是两位 Issue ID 的 JSON 数组`);
   }
+  fail(`${targetPath} 的 blocked_by 不是有效 JSON`);
 };
 
 const issueFiles = async (planPath) => {
@@ -410,7 +399,7 @@ const readIssues = async (planPath) => {
     const content = await readText(issuePath);
     const frontmatter = parseFrontmatter(content, issuePath).fields;
     const status = frontmatter.get("status");
-    if (!ISSUE_STATUSES.has(status)) fail(`${issuePath} 的 status 无效`);
+    if (!ISSUE_STATUSES.includes(status)) fail(`${issuePath} 的 status 无效`);
     snapshots.push({
       content,
       dependencies: parseDependencies(frontmatter.get("blocked_by"), issuePath),
@@ -422,12 +411,6 @@ const readIssues = async (planPath) => {
   }
   if (snapshots.length === 0) fail(`${planPath} 没有 Issue 文件`);
   return snapshots;
-};
-
-export const deriveSpecStatus = (issues) => {
-  if (issues.every((issue) => issue.status === "pending")) return "pending";
-  if (issues.every((issue) => issue.status === "completed")) return "completed";
-  return "in_progress";
 };
 
 const updateSpecView = async (planPath, issues) => {
@@ -474,22 +457,21 @@ const requireIssueReady = async (planPath, issueId) => {
   return issue;
 };
 
-export const blockedBody = (content, reason, releaseCondition) => {
+const blockedBody = (content, reason, releaseCondition) => {
   const section = `## 阻塞记录\n\n- 障碍: ${reason}\n- 解除条件: ${releaseCondition}\n`;
   const pattern = /^## 阻塞记录\r?\n[\s\S]*?(?=^## |(?![\s\S]))/m;
   if (pattern.test(content)) return content.replace(pattern, section);
   return `${content.trimEnd()}\n\n${section}`;
 };
 
-export const hasDeliveryEvidence = (content) => {
+const hasDeliveryEvidence = (content) => {
   const section = content.match(/^## (?:交付记录|交付物与证据)\r?\n([\s\S]*?)(?=^## |(?![\s\S]))/m);
   if (!section) return false;
   const body = section[1]
     .split(/\r?\n/)
     .filter((line) => !/^\s*\{.*\}\s*$/.test(line))
-    .join("\n")
-    .trim();
-  return body.length > 0 && body.includes("交付物") && body.includes("证据");
+    .join("\n");
+  return body.includes("交付物") && body.includes("证据");
 };
 
 const recordReceipt = (subject, sequence, options, now) => {
@@ -757,17 +739,13 @@ const handleLeaseCommand = (state, workspace, command, options, now) => {
     subject.lease = null;
     if (isIssue) subject.status = "paused";
   } else {
-    if (
-      (isIssue && subject.status === "completed") ||
-      (!isIssue && ["delivering_issues", "completed"].includes(plan.phase))
-    ) {
+    if (["delivering_issues", "completed"].includes(plan.phase)) {
       fail("已完成的流程不可重新领取");
     }
     if (leaseIsActive(subject.lease, now)) {
       fail(`资源由会话 ${subject.lease.owner_session} 持有`);
     }
     subject.lease = makeLease(session, leaseSeconds(options), now);
-    if (isIssue) subject.status = "active";
   }
   const next = isIssue ? nextStep(ISSUE_FLOW, subject.cursor) : currentPlanStep(plan);
   return {
@@ -841,7 +819,6 @@ const handleStatus = (state, workspace, options) => {
 };
 
 const dispatch = async (state, workspace, command, options, now) => {
-  if (command === "init") return handleInit(state, workspace, options, now);
   if (command === "enter-plan") return handleEnterPlan(state, workspace, options, now);
   if (command === "record-plan") return handleRecordPlan(state, workspace, options, now);
   if (command === "claim-issue") return handleClaimIssue(state, workspace, options, now);
@@ -877,7 +854,7 @@ export const executeFlow = async ({
   return message === "" ? result : { ...result, message };
 };
 
-export const parseCli = (argumentsList) => {
+const parseCli = (argumentsList) => {
   const [command, ...tokens] = argumentsList;
   if (!command) return { command: "help", options: {} };
   const options = {};
@@ -898,7 +875,6 @@ export const parseCli = (argumentsList) => {
 };
 
 const usage = `用法:
-  flow.mjs init --plan <path> --entry </to-story|/quest-with-domain> --session <id>
   flow.mjs enter-plan --plan <path> --skill /loop-x --entry </to-story|/quest-with-domain> [--session <id>]
   flow.mjs enter-plan --plan <path> --skill </to-story|/quest-with-domain> [--session <id>]
   flow.mjs record-plan --plan <path> --session <id> (--skill </skill>|--action <action>) --result <result> --evidence <ref>

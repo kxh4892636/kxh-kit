@@ -4,8 +4,14 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  deriveSpecStatus,
+  ISSUE_STATUSES,
+  parseFrontmatter as parsePlanFrontmatter,
+  parseIssueDependencies,
+} from "./plan-document.mjs";
+
 const LIFECYCLES = new Set(["active", "reference", "archived"]);
-const ISSUE_STATUSES = new Set(["pending", "in_progress", "blocked", "completed"]);
 const SPEC_STATUSES = new Set(["pending", "in_progress", "completed"]);
 const HAN_PATTERN = /\p{Script=Han}/u;
 
@@ -44,56 +50,36 @@ const readEntries = (targetPath, errors, rootDir) => {
   }
 };
 
-export const countLines = (content) => {
-  if (content.length === 0) return 0;
+const countLines = (content) => {
   const normalized = content.replaceAll("\r\n", "\n");
   return normalized.endsWith("\n")
     ? normalized.slice(0, -1).split("\n").length
     : normalized.split("\n").length;
 };
 
-export const parseFrontmatter = (content, targetPath, errors, rootDir) => {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
-  if (!match) {
+const parseFrontmatter = (content, targetPath, errors, rootDir) => {
+  const parsed = parsePlanFrontmatter(content);
+  if (!parsed) {
     addError(errors, rootDir, targetPath, "缺少 YAML frontmatter");
     return new Map();
   }
-
-  const fields = new Map();
-  for (const line of match[1].split(/\r?\n/)) {
-    const separator = line.indexOf(":");
-    const name = line.slice(0, separator);
-    if (separator > 0 && /^[a-z_]+$/.test(name)) {
-      fields.set(name, line.slice(separator + 1).trim());
-    }
-  }
-  return fields;
+  return parsed.fields;
 };
 
-export const parseDependencies = (rawValue, targetPath, errors, rootDir) => {
-  if (rawValue === undefined) {
+const parseDependencies = (rawValue, targetPath, errors, rootDir) => {
+  const parsed = parseIssueDependencies(rawValue);
+  if (parsed.kind === "valid") return parsed.dependencies;
+  if (parsed.kind === "missing") {
     addError(errors, rootDir, targetPath, "frontmatter 缺少 blocked_by");
     return [];
   }
-
-  try {
-    const value = JSON.parse(rawValue);
-    if (!Array.isArray(value) || value.some((dependency) => !/^\d{2}$/.test(dependency))) {
-      throw new Error('必须是两位稳定 ID 的 JSON 数组，例如 ["01"]');
-    }
-    return value;
-  } catch (error) {
-    addError(
-      errors,
-      rootDir,
-      targetPath,
-      `blocked_by 无效: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return [];
-  }
+  const detail =
+    parsed.kind === "invalid_json" ? parsed.detail : '必须是两位稳定 ID 的 JSON 数组，例如 ["01"]';
+  addError(errors, rootDir, targetPath, `blocked_by 无效: ${detail}`);
+  return [];
 };
 
-export const hasSection = (content, heading) => new RegExp(`^## ${heading}$`, "m").test(content);
+const hasSection = (content, heading) => new RegExp(`^## ${heading}$`, "m").test(content);
 
 const assertChineseDocument = (content, targetPath, errors, rootDir) => {
   if (!HAN_PATTERN.test(content)) {
@@ -101,10 +87,9 @@ const assertChineseDocument = (content, targetPath, errors, rootDir) => {
   }
 };
 
-export const isValidDate = (value) => {
-  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return false;
-  const date = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, Number(match[3])));
+const isValidDate = (value) => {
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
   const normalized = [
     date.getUTCFullYear().toString().padStart(4, "0"),
     (date.getUTCMonth() + 1).toString().padStart(2, "0"),
@@ -113,29 +98,26 @@ export const isValidDate = (value) => {
   return normalized === value;
 };
 
-export const parseIssueTable = (specContent) => {
+const parseIssueTable = (specContent) => {
   const rows = new Map();
-  const rowPattern =
-    /^\|\s*(\d{2})\s*\|\s*\[[^\]]+\]\(([^)]+\.md)\)\s*\|\s*(pending|in_progress|blocked|completed)\s*\|\s*([^|]+?)\s*\|/gm;
-  for (const match of specContent.matchAll(rowPattern)) {
-    const dependencyCell = match[4];
-    const dependencies = ["—", "-"].includes(dependencyCell)
-      ? []
-      : [...dependencyCell.matchAll(/\d{2}/g)].map((item) => item[0]);
-    rows.set(match[1], {
-      fileName: path.basename(match[2]),
-      status: match[3],
-      dependencies,
+  for (const line of specContent.split(/\r?\n/)) {
+    if (!line.startsWith("|")) continue;
+    const cells = line
+      .slice(1)
+      .split("|")
+      .map((cell) => cell.trim());
+    if (cells.length < 5 || !/^\d{2}$/.test(cells[0]) || !ISSUE_STATUSES.includes(cells[2])) {
+      continue;
+    }
+    const link = cells[1].match(/^\[[^\]]+\]\(([^)]+\.md)\)$/);
+    if (!link) continue;
+    rows.set(cells[0], {
+      dependencies: cells[3].match(/\d{2}/g) ?? [],
+      fileName: path.basename(link[1]),
+      status: cells[2],
     });
   }
   return rows;
-};
-
-export const deriveSpecStatus = (issues) => {
-  const statuses = issues.map((issue) => issue.status);
-  if (statuses.every((status) => status === "pending")) return "pending";
-  if (statuses.every((status) => status === "completed")) return "completed";
-  return "in_progress";
 };
 
 const checkDependencyGraph = (issues, planPath, errors, rootDir) => {
@@ -194,8 +176,8 @@ const checkIssue = (issuePath, id, errors, rootDir) => {
   assertChineseDocument(content, issuePath, errors, rootDir);
   const frontmatter = parseFrontmatter(content, issuePath, errors, rootDir);
   const status = frontmatter.get("status");
-  if (!ISSUE_STATUSES.has(status)) {
-    addError(errors, rootDir, issuePath, `status 必须是 ${[...ISSUE_STATUSES].join(" | ")}`);
+  if (!ISSUE_STATUSES.includes(status)) {
+    addError(errors, rootDir, issuePath, `status 必须是 ${ISSUE_STATUSES.join(" | ")}`);
   }
   const dependencies = parseDependencies(frontmatter.get("blocked_by"), issuePath, errors, rootDir);
 

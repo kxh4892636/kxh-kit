@@ -6,14 +6,12 @@ argument-hint: "要持久化并推进什么长任务?"
 
 # To Issues
 
-`/to-issues` 将工作拆成可恢复的 Issue Plan，并维护 spec、issue graph 与执行状态。
-
 完整读取 [`DOMAIN.md`](../../DOMAIN.md) 与 [`FLOW.md`](../../FLOW.md)，以其中的领域布局、Plan 生命周期和状态转移为权威约束。
 
 ## 判断是否跳过
 
-提供 FLOW 上下文时，如果工作需要划分为多个原子单元并行执行，需要长时间执行或多会话执行时，向用户推荐不得跳过，反之推荐跳过，等待用户确认。
-未提供 FLOW 上下文时，不得跳过，直接执行。
+提供 FLOW 上下文时，如果工作是需持久化推进的长程任务，向用户推荐继续执行，反之推荐跳过，等待用户确认。
+未提供 FLOW 上下文时，直接执行。
 
 ## 建立或维护
 
@@ -23,8 +21,7 @@ argument-hint: "要持久化并推进什么长任务?"
 2. **就地落盘**: 根据事实就地创建或更新 `spec.md` 与 `issue.md`;
    - 落盘内容是确认后的结论, 不是对话记录; 无对应小节的按模板扩展处理;
    - 使用**tracer-bullet 规则**创建 issue 文件;
-   - 确保仅凭领域文档、Plan 与 Flow 运行态即可恢复工作；
-3. **用户确认**：反复确认并迭代，直至保证边界和依赖图正确；
+3. **用户确认**：反复确认并迭代，直至通过；
 4. **校验并交接**：从工作区根运行 `node <loop-x-skill-dir>/script/check-domain.mjs .`。
 
 tracer-bullet 规则:
@@ -35,7 +32,7 @@ tracer-bullet 规则:
 - 让每个 issue 更容易实现的 prefactoring 排最前——"Make the change easy, then make the easy change";
 - 大范围机械重构是唯一例外: expand-contract 序列——expand → 按影响面分批 migrate, 每批一个 issue → contract 删除旧形态.
 
-**完成标准:** 工作范围无遗漏, 每项交付责任只有一个归属 issue; 依赖图至少有一个根 issue, 无自环, 无环; 用户确认边界和依赖图正确；校验通过，全部 issue 为 `pending`；仅凭领域文档、Plan 与 Flow 运行态即可恢复工作
+**完成标准:** 工作范围无遗漏, 每项交付责任只有一个归属 issue; 依赖图至少有一个根 issue, 无环; 用户确认边界和依赖图正确；校验通过，全部 issue 为 `pending`；仅凭领域文档、Plan 与 Flow 运行态即可恢复工作
 
 ## 推进 Plan
 

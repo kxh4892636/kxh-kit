@@ -44,8 +44,7 @@
 ## 文档约束
 
 - `docs/` 下的 ADR、Plan 文件名与正文使用中文；约定名 `CONTEXT.md`、`spec.md`、`story.md`、稳定 ID、代码标识符和 `domain-name` 除外。
-- 每个 `docs/{domain-name}/CONTEXT.md` 不超过 610 行。
-- 每个业务域不超过 89 个 `adr/*.md`；每个 ADR 不超过 144 行。
+- `CONTEXT.md` 行数、`adr/*.md` 数量与单个 ADR 行数的上限由 `check-domain` 脚本强制，以其输出为准。
 - ADR 使用域内连续编号 `0001-中文决策名.md`、`0002-中文决策名.md`。
 - 超过任一上限时，按领域边界合并、拆分或移除沉积内容，使文档重新满足上限。
 
