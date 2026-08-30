@@ -1,12 +1,60 @@
-# Mocking at external seams
+# 何时 Mock
 
-优先使用真实的 in-process modules 和本地可替代依赖；stand-in 只放在会带来不可控 I/O、时间或随机性的 system seam：
+只在 **system boundaries** 进行 Mock:
 
-- 第三方 API 使用满足同一 port 的 mock adapter。
-- 自有远程服务使用 in-memory adapter 验证业务 policy，另以 contract/integration test 验证 transport adapter。
-- database 与 filesystem 优先使用隔离的真实实例或 in-memory 实现；成本或隔离条件不允许时才 mock。
-- clock、randomness 与环境输入通过窄 interface 注入可重复值。
+- External APIs(payment, email 等).
+- Databases(有时需要, 优先使用 test DB).
+- 时间/随机性.
+- File system(有时需要).
 
-adapter 的 interface 以领域操作命名，例如 `chargePayment`、`loadOrders`；它返回稳定的领域 shape，把 HTTP、SDK 或 query 细节留在 adapter 内。这样测试准备只描述外部结果，不复制 production conditional logic。
+不要 mock:
 
-每个 stand-in 都对应一个真实 external seam，生产与测试 adapters 满足同一契约，assertion 通过被测 module 的 public interface 观察行为时，mocking 设计完成。
+- 你自己的 classes/modules.
+- 内部协作者.
+- 任何你控制的事物.
+
+## 为 Mockability 进行设计
+
+在 system boundaries 上, 设计易于 mock 的 interfaces:
+
+**1. 使用 dependency injection**
+
+传入 external dependencies, 而不是在内部创建它们:
+
+```typescript
+// 易于 mock
+function processPayment(order, paymentClient) {
+  return paymentClient.charge(order.total);
+}
+
+// 难以 mock
+function processPayment(order) {
+  const client = new StripeClient(process.env.STRIPE_KEY);
+  return client.charge(order.total);
+}
+```
+
+**2. 优先使用 SDK-style interfaces, 而不是 generic fetchers**
+
+为每项外部操作创建具体 function, 而不是创建一个包含条件逻辑的 generic function:
+
+```typescript
+// GOOD: 每个 function 都可以独立 mock
+const api = {
+  getUser: (id) => fetch(`/users/${id}`),
+  getOrders: (userId) => fetch(`/users/${userId}/orders`),
+  createOrder: (data) => fetch("/orders", { method: "POST", body: data }),
+};
+
+// BAD: Mocking 要求 mock 内部存在 conditional logic
+const api = {
+  fetch: (endpoint, options) => fetch(endpoint, options),
+};
+```
+
+SDK approach 意味着:
+
+- 每个 mock 返回一种特定 shape.
+- 测试准备中没有条件逻辑.
+- 更容易看出测试使用了哪些 endpoints.
+- 每个 endpoint 都有 type safety.
