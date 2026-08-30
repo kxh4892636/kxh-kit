@@ -6,7 +6,7 @@ argument-hint: "要持久化并推进什么长任务?"
 
 # To Issues
 
-完整读取 [`DOMAIN.md`](../../DOMAIN.md) 与 [`FLOW.md`](../../FLOW.md)，以其中的领域布局、Plan 生命周期和状态转移为权威约束。
+完整读取 `<loop-x-skill-dir>/references/DOMAIN.md` 与 `<loop-x-skill-dir>/references/FLOW.md`，以其中的领域布局、Plan 生命周期和状态转移为权威约束。
 
 ## 判断是否跳过
 
@@ -39,7 +39,7 @@ tracer-bullet 规则:
 1. 从 `plans/active/` 的 spec 派生表定位 `pending` 且直接依赖全部 `completed` 的 frontier；有多个候选时使用用户已确认的优先级。
 2. 领取一个 issue，在同一 session 内交付或形成真实 blocked 结果；当前 issue 结束后才领取下一个。
 3. 新发现的事实更新 spec；新发现的工作建立新 issue，尚不能精确表述的设计 frontier 进入 spec「待定」。当前 issue 的边界保持不变，符合 ADR 资格的长期 trade-off 由 `/quest-with-domain` 写入领域文档。
-4. 每次暂停前同步 issue 状态、spec 派生视图与证据，并按 `FLOW.md` 续租或释放；恢复时只信任文件与运行态，不依赖先前对话。
+4. 每次暂停前同步 issue 状态、spec 派生视图与证据，并按 `<loop-x-skill-dir>/references/FLOW.md` 续租或释放；恢复时只信任文件与运行态，不依赖先前对话。
 5. 全部 issue 完成后与用户确认参考价值，把整个 Plan 移入 `reference/` 或 `archived/`，执行 `sync-plan` 并重新运行领域校验。
 
 **完成标准:** 一个领取结果有且只有一个终态、状态与 spec 派生视图一致、证据链可复核时，本轮推进完成。

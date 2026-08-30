@@ -1,17 +1,17 @@
 {
-	"schema_version": 1,
-	"hooks": [
-		{
-			"match": "all",
-			"message": "调用下一个 skill 之前，必须向用户确认之后才能执行，禁止未经用户确认自动执行。"
-		},
-		{
-			"match": ["dev-gate"],
-			"message": "任何准入判断前先完整读取 `<SKILL_ROOT>/extensions/QUESTIONS.md` 和 `<SKILL_ROOT>/extensions/workflows/README.md`，以用户输入和当前上下文作为已有答案，选择并询问全部相关问题。问题集未清空时结论为 `not ready`。"
-		},
-		{
-			"match": ["code-delivery"],
-			"message": "交付过程中遇到 block 卡点， 请优先在 `<SKILL_ROOT>/extensions/workflows/README.md` 和对应业务域 workflow 中寻找可能的解决方法."
-		}
-	]
+  "schema_version": 1,
+  "hooks": [
+    {
+      "match": "all",
+      "message": "调用下一个 skill 之前，必须向用户确认之后才能执行，禁止未经用户确认自动执行。"
+    },
+    {
+      "match": ["dev-gate"],
+      "message": "任何准入判断前先完整读取 `<loop-x-skill-dir>/extensions/QUESTIONS.md` 和 `<loop-x-skill-dir>/extensions/workflows/README.md`，以用户输入和当前上下文作为已有答案，选择并询问全部相关问题。问题集未清空时结论为 `not ready`。"
+    },
+    {
+      "match": ["code-delivery"],
+      "message": "交付过程中遇到 block 卡点， 请优先在 `<loop-x-skill-dir>/extensions/workflows/README.md` 和对应业务域 workflow 中寻找可能的解决方法."
+    }
+  ]
 }

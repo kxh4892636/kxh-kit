@@ -1,6 +1,6 @@
 # Context 格式
 
-本文件只定义领域 glossary 与 map 的文档形状；布局、归属与生命周期由 [`DOMAIN.md`](../../DOMAIN.md) 负责。
+本文件只定义领域 glossary 与 map 的文档形状；布局、归属与生命周期由 `<loop-x-skill-dir>/references/DOMAIN.md` 负责。
 
 ## 业务域 CONTEXT.md
 
