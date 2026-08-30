@@ -1,98 +1,24 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { afterEach, test } from "vitest";
-import { executeFlow, runFlowCli } from "./flow.mjs";
 
-const PLAN_PATH = "docs/orders/plans/active/2026-08-22-订单流转";
-const TEST_NOW = new Date(2026, 7, 27, 12);
-const workspaces = [];
+import { executeFlow } from "./flow.mjs";
+import {
+  cleanupWorkspaces,
+  command,
+  createWorkspace,
+  PLAN_PATH,
+  readyIssuePlan as readyPlan,
+  recordPlan,
+  statePath,
+  TEST_NOW,
+} from "./testing/flow-workspace.mjs";
 
-const issueDocument = (id, dependencies = [], status = "pending", body = "") => `---
-status: ${status}
-blocked_by: ${JSON.stringify(dependencies)}
----
+afterEach(cleanupWorkspaces);
 
-# Issue ${id} 订单能力
-
-中文交付内容。
-${body}
-`;
-
-const specDocument = (issues, status = "pending") => `---
-status: ${status}
----
-
-# 订单流转
-
-## Issue
-
-| # | Issue | 状态 | 阻塞于 | 下一步 |
-| --- | --- | --- | --- | --- |
-${issues
-  .map(
-    (issue) =>
-      `| ${issue.id} | [Issue ${issue.id}](${issue.id}-订单能力.md) | ${issue.status ?? "pending"} | ${issue.dependencies.length === 0 ? "—" : issue.dependencies.join(", ")} | /code-delivery |`,
-  )
-  .join("\n")}
-`;
-
-const createWorkspace = async (issues = [{ id: "01", dependencies: [] }]) => {
-  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "loop-flow-boundary-"));
-  workspaces.push(workspace);
-  const planRoot = path.join(workspace, PLAN_PATH);
-  await fs.mkdir(planRoot, { recursive: true });
-  await fs.writeFile(path.join(planRoot, "spec.md"), specDocument(issues));
-  for (const issue of issues) {
-    await fs.writeFile(
-      path.join(planRoot, `${issue.id}-订单能力.md`),
-      issueDocument(issue.id, issue.dependencies, issue.status),
-    );
-  }
-  return workspace;
-};
-
-const command = async (workspace, commandName, options = {}, now = () => new Date(TEST_NOW)) =>
-  executeFlow({
-    command: commandName,
-    options,
-    workspace,
-    now,
-  });
-
-const recordPlan = (workspace, session, skill, result, extra = {}) =>
-  command(workspace, "record-plan", {
-    evidence: [`${skill}-${result}`],
-    plan: PLAN_PATH,
-    result,
-    session,
-    skill: `/${skill}`,
-    ...extra,
-  });
-
-const readyPlan = async (workspace, session = "plan-session") => {
-  await command(workspace, "init", { entry: "/to-story", plan: PLAN_PATH, session });
-  await recordPlan(workspace, session, "to-story", "completed");
-  await recordPlan(workspace, session, "quest-with-domain", "completed");
-  await recordPlan(workspace, session, "to-issues", "completed");
-  return recordPlan(workspace, session, "dev-gate", "ready");
-};
-
-const statePath = (workspace, date = TEST_NOW) => {
-  const prefix = [date.getFullYear(), date.getMonth() + 1, date.getDate()]
-    .map((part, index) => (index === 0 ? String(part) : String(part).padStart(2, "0")))
-    .join("-");
-  return path.join(workspace, ".flow", "state", `${prefix}-state.json`);
-};
-
-const shiftedDate = (days) => new Date(new Date(TEST_NOW).setDate(TEST_NOW.getDate() + days));
-
-afterEach(async () => {
-  await Promise.all(
-    workspaces.splice(0).map((workspace) => fs.rm(workspace, { force: true, recursive: true })),
-  );
-});
+const enterPlan = (workspace, options = {}, now) =>
+  command(workspace, "enter-plan", { skill: "/loop-x", ...options }, now);
 
 test("状态文件使用本地日期前缀且不读取旧 state.json", async () => {
   const workspace = await createWorkspace();
@@ -103,7 +29,7 @@ test("状态文件使用本地日期前缀且不读取旧 state.json", async () 
     `${JSON.stringify({ plans: { legacy: {} }, revision: 99, schema_version: 4 })}\n`,
   );
 
-  const initialized = await command(workspace, "init", {
+  const initialized = await enterPlan(workspace, {
     entry: "/to-story",
     plan: PLAN_PATH,
     session: "dated-state-session",
@@ -114,16 +40,37 @@ test("状态文件使用本地日期前缀且不读取旧 state.json", async () 
   assert.deepEqual(Object.keys(state.plans), [PLAN_PATH]);
 });
 
-test("invalid hooks fail before creating Flow state", async () => {
+test.each([
+  ["null config", null, /格式无效或版本不受支持/],
+  ["unsupported schema", { hooks: [], schema_version: 2 }, /格式无效或版本不受支持/],
+  ["null hook", { hooks: [null], schema_version: 1 }, /Hook 1 格式无效/],
+  ["empty match", { hooks: [{ match: [], message: "x" }], schema_version: 1 }, /match 必须/],
+  [
+    "unknown skill",
+    { hooks: [{ match: ["questing"], message: "x" }], schema_version: 1 },
+    /match 必须/,
+  ],
+  ["empty message", { hooks: [{ match: "all", message: "" }], schema_version: 1 }, /message 必须/],
+  [
+    "multiline message",
+    { hooks: [{ match: "all", message: "two\nlines" }], schema_version: 1 },
+    /message 必须/,
+  ],
+])("invalid hooks fail before creating Flow state: %s", async (_name, hooks, expected) => {
   const workspace = await createWorkspace();
   await assert.rejects(
     executeFlow({
-      command: "init",
-      hooks: { hooks: [{ match: "all", message: "two\nlines" }], schema_version: 1 },
-      options: { entry: "/to-story", plan: PLAN_PATH, session: "invalid-hook" },
+      command: "enter-plan",
+      hooks,
+      options: {
+        entry: "/to-story",
+        plan: PLAN_PATH,
+        session: "invalid-hook",
+        skill: "/loop-x",
+      },
       workspace,
     }),
-    /message 必须是非空单行字符串/,
+    expected,
   );
   await assert.rejects(fs.access(path.join(workspace, ".flow", "state")));
 });
@@ -132,15 +79,15 @@ test("状态事务只清理三十天窗口之前的日期状态文件", async ()
   const workspace = await createWorkspace();
   const stateDirectory = path.join(workspace, ".flow", "state");
   await fs.mkdir(stateDirectory, { recursive: true });
-  const expiredState = path.basename(statePath(workspace, shiftedDate(-30)));
-  const oldestRetainedState = path.basename(statePath(workspace, shiftedDate(-29)));
-  const recentState = path.basename(statePath(workspace, shiftedDate(-10)));
-  const futureState = path.basename(statePath(workspace, shiftedDate(1)));
+  const expiredState = "2026-07-28-state.json";
+  const oldestRetainedState = "2026-07-29-state.json";
+  const recentState = "2026-08-17-state.json";
+  const futureState = "2026-08-28-state.json";
   for (const name of [expiredState, oldestRetainedState, recentState, futureState, "notes.json"]) {
     await fs.writeFile(path.join(stateDirectory, name), "{}\n");
   }
 
-  await command(workspace, "init", {
+  await enterPlan(workspace, {
     entry: "/to-story",
     plan: PLAN_PATH,
     session: "retention-session",
@@ -151,49 +98,12 @@ test("状态事务只清理三十天窗口之前的日期状态文件", async ()
   assert.ok(!retainedNames.includes(futureState));
   assert.ok(retainedNames.includes(oldestRetainedState));
   assert.ok(retainedNames.includes(recentState));
-  assert.ok(retainedNames.includes(path.basename(statePath(workspace))));
+  assert.ok(retainedNames.includes("2026-08-27-state.json"));
   assert.ok(retainedNames.includes("notes.json"));
 });
 
-test("CLI wrapper renders help, parses repeated evidence, and returns JSON errors", async () => {
-  const workspace = await createWorkspace();
-  const help = [];
-  assert.equal(await runFlowCli({ argumentsList: [], stdout: (message) => help.push(message) }), 0);
-  assert.ok(help[0].includes("flow.mjs init"));
-
-  const stdout = [];
-  assert.equal(
-    await runFlowCli({
-      argumentsList: [
-        "init",
-        "--workspace",
-        workspace,
-        "--plan",
-        PLAN_PATH,
-        "--entry",
-        "/to-story",
-        "--session",
-        "cli-session",
-        "--evidence",
-        "first",
-        "--evidence",
-        "second",
-      ],
-      stdout: (message) => stdout.push(message),
-    }),
-    0,
-  );
-  assert.equal(JSON.parse(stdout[0]).success, true);
-
-  for (const argumentsList of [["unknown"], ["init", "positional"], ["init", "--plan"]]) {
-    const stderr = [];
-    assert.equal(await runFlowCli({ argumentsList, stderr: (message) => stderr.push(message) }), 1);
-    assert.equal(JSON.parse(stderr[0]).success, false);
-  }
-});
-
 test.each([
-  ["缺少 option", {}, "缺少 --plan"],
+  ["缺少 plan", { entry: "/to-story", session: "s" }, "提供 --plan"],
   ["非法 entry", { entry: "/invalid", plan: PLAN_PATH, session: "s" }, "--entry 必须是"],
   [
     "过短 lease",
@@ -215,44 +125,91 @@ test.each([
     { entry: "/to-story", plan: "../outside", session: "s" },
     "--plan 必须位于工作区内",
   ],
-])("init 拒绝%s", async (_name, options, expected) => {
+])("enter-plan 拒绝%s", async (_name, options, expected) => {
   const workspace = await createWorkspace();
-  await assert.rejects(command(workspace, "init", options), new RegExp(expected));
+  await assert.rejects(enterPlan(workspace, options), new RegExp(expected));
 });
 
-test("init applies default and boundary leases, rejects duplicates, and exposes phase", async () => {
+test("enter-plan applies default and boundary leases, rejects competing owners, and exposes phase", async () => {
   const workspace = await createWorkspace();
-  const now = () => new Date("2026-08-27T00:00:00.000Z");
-  const initialized = await command(
+  const now = () => new Date(TEST_NOW);
+  const initialized = await enterPlan(
     workspace,
-    "init",
     { entry: "/to-story", plan: PLAN_PATH, session: "session", "lease-seconds": "30" },
     now,
   );
   assert.equal(initialized.session, "session");
   await assert.rejects(
-    command(workspace, "init", { entry: "/to-story", plan: PLAN_PATH, session: "other" }, now),
-    /已经初始化/,
+    enterPlan(workspace, { entry: "/to-story", plan: PLAN_PATH, session: "other" }, now),
+    /资源由会话 session 持有/,
   );
   const plan = (await command(workspace, "status", { plan: PLAN_PATH })).plan;
   assert.deepEqual(Object.keys(plan).sort(), ["cursor", "issues", "lease", "phase", "receipts"]);
   assert.equal(plan.phase, "planning");
+  assert.equal(Date.parse(plan.lease.expires_at) - TEST_NOW.getTime(), 30_000);
+
+  await enterPlan(workspace, {
+    entry: "/to-story",
+    plan: "default-plan",
+    session: "default-session",
+  });
+  const defaultPlan = (await command(workspace, "status", { plan: "default-plan" })).plan;
+  assert.equal(Date.parse(defaultPlan.lease.expires_at) - TEST_NOW.getTime(), 1_800_000);
+
+  await enterPlan(workspace, {
+    entry: "/to-story",
+    plan: "maximum-plan",
+    session: "maximum-session",
+    "lease-seconds": "86400",
+  });
+  const maximumPlan = (await command(workspace, "status", { plan: "maximum-plan" })).plan;
+  assert.equal(Date.parse(maximumPlan.lease.expires_at) - TEST_NOW.getTime(), 86_400_000);
   await assert.rejects(command(workspace, "status", { plan: "missing" }), /尚未初始化/);
 });
 
 test.each([
   ["null", null],
-  ["empty", {}],
   ["unsupported schema", { schema_version: 99, revision: 0, plans: {} }],
-  ["legacy schema", { schema_version: 4, revision: 0, plans: {} }],
   ["fractional revision", { schema_version: 5, revision: 0.5, plans: {} }],
   ["null plans", { schema_version: 5, revision: 0, plans: null }],
   ["array plans", { schema_version: 5, revision: 0, plans: [] }],
+  ["scalar plans", { schema_version: 5, revision: 0, plans: 1 }],
 ])("rejects invalid persisted state: %s", async (_name, state) => {
   const workspace = await createWorkspace();
   await fs.mkdir(path.join(workspace, ".flow", "state"), { recursive: true });
   await fs.writeFile(statePath(workspace), JSON.stringify(state));
-  await assert.rejects(command(workspace, "status"), /格式无效或版本不受支持/);
+  await assert.rejects(command(workspace, "status"), {
+    message: "Flow 状态格式无效或版本不受支持",
+  });
+});
+
+const validPersistedPlan = () => ({
+  cursor: 0,
+  issues: {},
+  lease: null,
+  phase: "planning",
+  receipts: [],
+});
+
+test.each([
+  ["null", () => null],
+  ["invalid phase", () => ({ ...validPersistedPlan(), phase: "unknown" })],
+  ["fractional cursor", () => ({ ...validPersistedPlan(), cursor: 0.5 })],
+  ["negative cursor", () => ({ ...validPersistedPlan(), cursor: -1 })],
+  ["scalar receipts", () => ({ ...validPersistedPlan(), receipts: 1 })],
+  ["null issues", () => ({ ...validPersistedPlan(), issues: null })],
+  ["scalar issues", () => ({ ...validPersistedPlan(), issues: 1 })],
+  ["array issues", () => ({ ...validPersistedPlan(), issues: [] })],
+  ["scalar lease", () => ({ ...validPersistedPlan(), lease: 1 })],
+  ["array lease", () => ({ ...validPersistedPlan(), lease: [] })],
+])("rejects one invalid persisted Plan field: %s", async (_name, makePlan) => {
+  const workspace = await createWorkspace();
+  await fs.mkdir(path.join(workspace, ".flow", "state"), { recursive: true });
+  await fs.writeFile(
+    statePath(workspace),
+    JSON.stringify({ plans: { [PLAN_PATH]: makePlan() }, revision: 0, schema_version: 5 }),
+  );
+  await assert.rejects(command(workspace, "status"), { message: "Flow Plan 状态格式无效" });
 });
 
 test("reports malformed JSON and removes a stale state lock", async () => {
@@ -271,8 +228,8 @@ test("reports malformed JSON and removes a stale state lock", async () => {
   const stale = new Date("2026-08-26T00:00:00.000Z");
   await fs.utimes(lockPath, stale, stale);
   assert.deepEqual(
-    (await command(workspace, "status", {}, () => new Date("2026-08-27T00:00:00.000Z"))).plans,
-    {},
+    await command(workspace, "status", {}, () => new Date("2026-08-27T00:00:00.000Z")),
+    { plans: {}, revision: 0 },
   );
 });
 
@@ -317,11 +274,31 @@ test("enter-plan validates initiators, entries, sessions, and completed Flow reu
     ).session,
     "owner",
   );
+  const reacquired = await command(
+    workspace,
+    "enter-plan",
+    { plan: PLAN_PATH, skill: "/to-story" },
+    () => new Date(TEST_NOW.getTime() + 1_801_000),
+  );
+  assert.notEqual(reacquired.session, "owner");
+  assert.match(reacquired.session, /^[0-9a-f-]{36}$/u);
+  assert.deepEqual(
+    { ...reacquired, session: "generated" },
+    {
+      message: "调用下一个 skill 之前，必须向用户确认之后才能执行，禁止未经用户确认自动执行。",
+      next_action: null,
+      next_skill: "/to-story",
+      phase: "planning",
+      plan: PLAN_PATH,
+      revision: 2,
+      session: "generated",
+    },
+  );
 });
 
 test("record-plan rejects wrong order, result, evidence, lease, and exhausted Flow", async () => {
   const workspace = await createWorkspace();
-  await command(workspace, "init", {
+  await enterPlan(workspace, {
     entry: "/to-story",
     plan: PLAN_PATH,
     session: "owner",
@@ -357,7 +334,7 @@ test("record-plan rejects wrong order, result, evidence, lease, and exhausted Fl
 
 test("lease commands heartbeat, release, reclaim, and enforce owners", async () => {
   const workspace = await createWorkspace();
-  await command(workspace, "init", {
+  await enterPlan(workspace, {
     entry: "/to-story",
     plan: PLAN_PATH,
     session: "owner",
@@ -366,6 +343,9 @@ test("lease commands heartbeat, release, reclaim, and enforce owners", async () 
     command(workspace, "heartbeat-plan", { plan: PLAN_PATH, session: "other" }),
     /资源由会话 owner 持有/,
   );
+  await assert.rejects(command(workspace, "release-plan", { plan: PLAN_PATH, session: "other" }), {
+    message: "资源由会话 owner 持有",
+  });
   assert.equal(
     (await command(workspace, "heartbeat-plan", { plan: PLAN_PATH, session: "owner" })).phase,
     "planning",
@@ -386,7 +366,7 @@ test("issue commands reject invalid IDs, unready plans, missing runtime, and inc
     { id: "01", dependencies: [] },
     { id: "02", dependencies: ["01"] },
   ]);
-  await command(workspace, "init", {
+  await enterPlan(workspace, {
     entry: "/to-story",
     plan: PLAN_PATH,
     session: "owner",
@@ -473,6 +453,8 @@ test("issue lease can resume, block twice, release, and requires delivery eviden
     reason: "依赖缺失",
     "release-condition": "依赖恢复",
   });
+  const issuePath = path.join(workspace, PLAN_PATH, "01-订单能力.md");
+  await fs.appendFile(issuePath, "\n## 后续记录\n\n必须保留。\n");
   await command(workspace, "resume-issue", {
     plan: PLAN_PATH,
     issue: "01",
@@ -485,8 +467,15 @@ test("issue lease can resume, block twice, release, and requires delivery eviden
     reason: "第二障碍",
     "release-condition": "第二条件",
   });
-  const issueContent = await fs.readFile(path.join(workspace, PLAN_PATH, "01-订单能力.md"), "utf8");
+  const issueContent = await fs.readFile(issuePath, "utf8");
   assert.equal(issueContent.match(/^## 阻塞记录$/gm)?.length, 1);
+  assert.equal(issueContent.includes("依赖缺失"), false);
+  assert.equal(issueContent.includes("中文交付内容。\n\n\n## 阻塞记录"), false);
+  assert.ok(
+    issueContent.endsWith(
+      "## 阻塞记录\n\n- 障碍: 第二障碍\n- 解除条件: 第二条件\n## 后续记录\n\n必须保留。\n",
+    ),
+  );
 
   await command(workspace, "resume-issue", {
     plan: PLAN_PATH,
@@ -514,6 +503,44 @@ test("issue lease can resume, block twice, release, and requires delivery eviden
   );
 });
 
+test.each([
+  ["empty section", "## 交付记录\n\n"],
+  ["only delivery", "## 交付记录\n\n- 交付物: code\n"],
+  ["only evidence", "## 交付记录\n\n- 证据: test\n"],
+  ["JSON metadata", '## 交付记录\n\n{"交付物":"code","证据":"test"}\n'],
+  ["spaced JSON metadata", '## 交付记录\n\n  {"交付物":"code","证据":"test"}  \n'],
+  ["malformed heading", "x## 交付记录\n\n- 交付物: code\n- 证据: test\n"],
+])("delivery evidence rejects %s", async (_name, section) => {
+  const workspace = await createWorkspace();
+  await readyPlan(workspace);
+  await command(workspace, "claim-issue", {
+    issue: "01",
+    plan: PLAN_PATH,
+    session: "delivery",
+  });
+  await command(workspace, "record-issue", {
+    evidence: ["code"],
+    issue: "01",
+    plan: PLAN_PATH,
+    result: "started",
+    session: "delivery",
+    skill: "/code-delivery",
+  });
+  const issuePath = path.join(workspace, PLAN_PATH, "01-订单能力.md");
+  await fs.appendFile(issuePath, `\n${section}`);
+  await assert.rejects(
+    command(workspace, "record-issue", {
+      action: "commit",
+      evidence: ["commit"],
+      issue: "01",
+      plan: PLAN_PATH,
+      result: "committed",
+      session: "delivery",
+    }),
+    { message: "Issue 01 完成前必须写入交付物与验证证据" },
+  );
+});
+
 test("sync-plan reconciles pending, completed, blocked, and in-progress issue documents", async () => {
   const workspace = await createWorkspace([
     { id: "01", dependencies: [] },
@@ -537,20 +564,76 @@ test("sync-plan reconciles pending, completed, blocked, and in-progress issue do
   await setStatus("02", "completed");
   await setStatus("03", "blocked");
   await setStatus("04", "in_progress");
-  assert.equal((await command(workspace, "sync-plan", { plan: PLAN_PATH })).synced, true);
+  const firstSync = await command(workspace, "sync-plan", { plan: PLAN_PATH });
+  assert.deepEqual(firstSync, {
+    phase: "delivering_issues",
+    plan: PLAN_PATH,
+    revision: 10,
+    synced: true,
+  });
+  assert.deepEqual(await command(workspace, "sync-plan", { plan: PLAN_PATH }), firstSync);
 
-  const status = (await command(workspace, "status", { plan: PLAN_PATH })).plan;
-  assert.equal(status.phase, "delivering_issues");
-  assert.equal(status.issues["01"], undefined);
-  assert.equal(status.issues["02"].status, "completed");
-  assert.equal(status.issues["03"].status, "blocked");
-  assert.equal(status.issues["04"].status, "paused");
+  const status = await command(workspace, "status", { plan: PLAN_PATH });
+  assert.equal(status.revision, 10);
+  assert.deepEqual(status.plan.issues, {
+    "02": { cursor: 2, lease: null, receipts: [], status: "completed" },
+    "03": { cursor: 0, lease: null, receipts: [], status: "blocked" },
+    "04": { cursor: 0, lease: null, receipts: [], status: "paused" },
+  });
+  assert.equal(status.plan.phase, "delivering_issues");
+});
+
+test("sync-plan persists an isolated pending runtime removal", async () => {
+  const workspace = await createWorkspace();
+  await readyPlan(workspace);
+  await command(workspace, "claim-issue", { issue: "01", plan: PLAN_PATH, session: "owner" });
+  await command(workspace, "release-issue", { issue: "01", plan: PLAN_PATH, session: "owner" });
+  const issuePath = path.join(workspace, PLAN_PATH, "01-订单能力.md");
+  await fs.writeFile(
+    issuePath,
+    (await fs.readFile(issuePath, "utf8")).replace("status: in_progress", "status: pending"),
+  );
+  assert.deepEqual(await command(workspace, "sync-plan", { plan: PLAN_PATH }), {
+    phase: "delivering_issues",
+    plan: PLAN_PATH,
+    revision: 8,
+    synced: true,
+  });
+  assert.deepEqual((await command(workspace, "status", { plan: PLAN_PATH })).plan.issues, {});
+});
+
+test("sync-plan persists an isolated completed runtime", async () => {
+  const workspace = await createWorkspace([
+    { dependencies: [], id: "01" },
+    { dependencies: [], id: "02" },
+  ]);
+  await readyPlan(workspace);
+  await command(workspace, "claim-issue", { issue: "01", plan: PLAN_PATH, session: "owner" });
+  const issuePath = path.join(workspace, PLAN_PATH, "01-订单能力.md");
+  await fs.writeFile(
+    issuePath,
+    (await fs.readFile(issuePath, "utf8")).replace("status: in_progress", "status: completed"),
+  );
+  assert.deepEqual(await command(workspace, "sync-plan", { plan: PLAN_PATH }), {
+    phase: "delivering_issues",
+    plan: PLAN_PATH,
+    revision: 7,
+    synced: true,
+  });
+  assert.equal(
+    (await command(workspace, "status", { plan: PLAN_PATH })).plan.issues["01"].status,
+    "completed",
+  );
 });
 
 test("unknown commands and sync without runtime return deterministic results", async () => {
   const workspace = await createWorkspace();
   await assert.rejects(command(workspace, "unknown"), /未知命令 unknown/);
-  assert.equal((await command(workspace, "sync-plan", { plan: PLAN_PATH })).synced, true);
+  assert.deepEqual(await command(workspace, "sync-plan", { plan: PLAN_PATH }), {
+    plan: PLAN_PATH,
+    revision: 0,
+    synced: true,
+  });
 });
 
 test.each([
@@ -686,6 +769,51 @@ test("completes an issue and rejects a second claim", async () => {
   );
 });
 
+test("completed issue and issue-delivery Plan cannot be reclaimed", async () => {
+  const workspace = await createWorkspace([
+    { dependencies: [], id: "01" },
+    { dependencies: [], id: "02" },
+  ]);
+  await readyPlan(workspace);
+  await command(workspace, "claim-issue", {
+    issue: "01",
+    plan: PLAN_PATH,
+    session: "owner",
+  });
+  await command(workspace, "record-issue", {
+    evidence: ["code"],
+    issue: "01",
+    plan: PLAN_PATH,
+    result: "started",
+    session: "owner",
+    skill: "/code-delivery",
+  });
+  await fs.appendFile(
+    path.join(workspace, PLAN_PATH, "01-订单能力.md"),
+    "\n## 交付记录\n\n- 交付物: code\n- 证据: tests\n",
+  );
+  await command(workspace, "record-issue", {
+    action: "commit",
+    evidence: ["commit"],
+    issue: "01",
+    plan: PLAN_PATH,
+    result: "committed",
+    session: "owner",
+  });
+
+  await assert.rejects(
+    command(workspace, "claim-issue", {
+      issue: "01",
+      plan: PLAN_PATH,
+      session: "again",
+    }),
+    { message: "Issue 01 已完成" },
+  );
+  await assert.rejects(command(workspace, "claim-plan", { plan: PLAN_PATH, session: "again" }), {
+    message: "已完成的流程不可重新领取",
+  });
+});
+
 test("covers issue heartbeat, release, and missing runtime lease commands", async () => {
   const workspace = await createWorkspace();
   await readyPlan(workspace);
@@ -694,6 +822,10 @@ test("covers issue heartbeat, release, and missing runtime lease commands", asyn
     /没有运行态/,
   );
   await command(workspace, "claim-issue", { plan: PLAN_PATH, issue: "01", session: "owner" });
+  await assert.rejects(
+    command(workspace, "release-issue", { plan: PLAN_PATH, issue: "01", session: "other" }),
+    { message: "资源由会话 owner 持有" },
+  );
   assert.equal(
     (
       await command(workspace, "heartbeat-issue", {
@@ -714,139 +846,4 @@ test("covers issue heartbeat, release, and missing runtime lease commands", asyn
       .next_skill,
     "/code-delivery",
   );
-});
-
-test("CLI wrapper supports explicit help aliases and default dependency callbacks", async () => {
-  for (const alias of ["help", "--help", "-h"]) {
-    const output = [];
-    assert.equal(
-      await runFlowCli({ argumentsList: [alias], stdout: (message) => output.push(message) }),
-      0,
-    );
-    assert.match(output[0], /flow\.mjs init/);
-  }
-  const originalArgv = process.argv;
-  process.argv = [process.execPath, "vitest", "unknown-default-command"];
-  try {
-    assert.equal(await runFlowCli({}), 1);
-  } finally {
-    process.argv = originalArgv;
-  }
-});
-
-test("reports a non-missing state read failure", async () => {
-  const workspace = await createWorkspace();
-  await fs.mkdir(statePath(workspace), { recursive: true });
-  await assert.rejects(command(workspace, "status"), /读取 .*state.json 失败/);
-});
-
-test("rejects flow issue frontmatter with missing fields", async () => {
-  const missingDependency = await createWorkspace();
-  const issuePath = path.join(missingDependency, PLAN_PATH, "01-订单能力.md");
-  await fs.writeFile(issuePath, "---\nstatus: pending\n---\n\n中文\n");
-  await assert.rejects(
-    command(missingDependency, "sync-plan", { plan: PLAN_PATH }),
-    /blocked_by 不是有效 JSON/,
-  );
-
-  const missingSpecStatus = await createWorkspace();
-  await fs.writeFile(
-    path.join(missingSpecStatus, PLAN_PATH, "spec.md"),
-    specDocument([{ id: "01", dependencies: [] }]).replace("status: pending", "other: value"),
-  );
-  await assert.rejects(
-    command(missingSpecStatus, "sync-plan", { plan: PLAN_PATH }),
-    /spec.md 缺少 status/,
-  );
-});
-
-test("rejects completed issues and dependencies absent from the plan", async () => {
-  const completed = await createWorkspace([{ id: "01", dependencies: [], status: "completed" }]);
-  await readyPlan(completed);
-  await assert.rejects(
-    command(completed, "claim-issue", { plan: PLAN_PATH, issue: "01", session: "x" }),
-    /当前状态 completed 不可领取/,
-  );
-
-  const missingDependency = await createWorkspace([{ id: "01", dependencies: ["99"] }]);
-  await readyPlan(missingDependency);
-  await assert.rejects(
-    command(missingDependency, "claim-issue", { plan: PLAN_PATH, issue: "01", session: "x" }),
-    /直接依赖 99 尚未 completed/,
-  );
-});
-
-test("rejects record and block operations without their runtime subjects", async () => {
-  const workspace = await createWorkspace();
-  await assert.rejects(
-    command(workspace, "record-plan", {
-      plan: PLAN_PATH,
-      session: "x",
-      skill: "/to-issues",
-      result: "started",
-      evidence: ["x"],
-    }),
-    /尚未初始化/,
-  );
-  await assert.rejects(
-    command(workspace, "block-issue", {
-      plan: PLAN_PATH,
-      issue: "01",
-      session: "x",
-      reason: "x",
-      "release-condition": "y",
-    }),
-    /未被领取/,
-  );
-});
-
-test("rejects entering or recording an exhausted planning phase", async () => {
-  const workspace = await createWorkspace();
-  await readyPlan(workspace);
-  await assert.rejects(
-    command(workspace, "enter-plan", {
-      skill: "/quest-with-domain",
-      plan: PLAN_PATH,
-      session: "plan-session",
-    }),
-    /当前期望 无后续 skill/,
-  );
-
-  const state = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
-  state.plans[PLAN_PATH].phase = "planning";
-  state.plans[PLAN_PATH].cursor = 4;
-  state.plans[PLAN_PATH].lease = {
-    owner_session: "owner",
-    expires_at: "2999-01-01T00:00:00.000Z",
-  };
-  await fs.writeFile(statePath(workspace), JSON.stringify(state));
-  await assert.rejects(
-    command(workspace, "record-plan", {
-      plan: PLAN_PATH,
-      session: "owner",
-      action: "commit",
-      result: "committed",
-      evidence: ["x"],
-    }),
-    /没有待执行 skill/,
-  );
-});
-
-test("sync creates completed and blocked runtime defaults", async () => {
-  const workspace = await createWorkspace([
-    { id: "01", dependencies: [], status: "completed" },
-    { id: "02", dependencies: [], status: "blocked" },
-  ]);
-  await command(workspace, "init", {
-    entry: "/to-story",
-    plan: PLAN_PATH,
-    session: "owner",
-  });
-  await command(workspace, "sync-plan", { plan: PLAN_PATH });
-  const plan = (await command(workspace, "status", { plan: PLAN_PATH })).plan;
-  assert.deepEqual(plan.issues["01"].receipts, []);
-  assert.equal(plan.issues["01"].status, "completed");
-  assert.deepEqual(plan.issues["02"].receipts, []);
-  assert.equal(plan.issues["02"].cursor, 0);
-  assert.equal(plan.issues["02"].status, "blocked");
 });

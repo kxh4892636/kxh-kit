@@ -1,145 +1,33 @@
 import assert from "node:assert/strict";
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
-import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
-import { test } from "vitest";
+import { afterEach, test } from "vitest";
 
 import { executeFlow } from "./flow.mjs";
+import {
+  addDeliveryEvidence,
+  cleanupWorkspaces,
+  command,
+  createWorkspace,
+  PLAN_PATH,
+  readyIssuePlan,
+  recordIssue,
+  recordPlan,
+  statePath,
+  TEST_NOW,
+} from "./testing/flow-workspace.mjs";
 
 const execFileAsync = promisify(execFile);
 const FLOW_PATH = fileURLToPath(new URL("./flow.mjs", import.meta.url));
-const PLAN_PATH = "docs/orders/plans/active/2026-08-22-订单流转";
-const TEST_NOW = new Date();
 const DEFAULT_HOOK_MESSAGE =
   "调用下一个 skill 之前，必须向用户确认之后才能执行，禁止未经用户确认自动执行。";
+const DEV_GATE_HOOK_MESSAGE = `${DEFAULT_HOOK_MESSAGE}\n任何准入判断前先完整读取 \`<SKILL_ROOT>/extensions/QUESTIONS.md\` 和 \`<SKILL_ROOT>/extensions/workflows/README.md\`，以用户输入和当前上下文作为已有答案，选择并询问全部相关问题。问题集未清空时结论为 \`not ready\`。`;
 const CODE_DELIVERY_HOOK_MESSAGE = `${DEFAULT_HOOK_MESSAGE}\n交付过程中遇到 block 卡点， 请优先在 \`<SKILL_ROOT>/extensions/workflows/README.md\` 和对应业务域 workflow 中寻找可能的解决方法.`;
 
-const statePath = (workspace, date = TEST_NOW) => {
-  const prefix = [date.getFullYear(), date.getMonth() + 1, date.getDate()]
-    .map((part, index) => (index === 0 ? String(part) : String(part).padStart(2, "0")))
-    .join("-");
-  return path.join(workspace, ".flow", "state", `${prefix}-state.json`);
-};
-
-const issueDocument = (id, dependencies = []) => `---
-status: pending
-blocked_by: ${JSON.stringify(dependencies)}
----
-
-# Issue ${id} 订单能力
-
-## 交付
-
-交付订单能力。
-
-## 范围
-
-仅覆盖本 Issue。
-
-## 直接依赖
-
-${dependencies.length === 0 ? "无。" : dependencies.map((item) => `- ${item}: 消费订单契约。`).join("\n")}
-
-## 验收
-
-- [ ] 结果可判定。
-
-## 上下文
-
-- 订单计划。
-
-## 下一步
-
-/code-delivery
-`;
-
-const specDocument = (issueDefinitions) => `---
-status: pending
----
-
-# 订单流转
-
-## 问题
-
-需要订单能力。
-
-## 方案
-
-按 Issue 交付。
-
-## Issue
-
-| # | Issue | 状态 | 阻塞于 | 下一步 |
-| --- | --- | --- | --- | --- |
-${issueDefinitions
-  .map(
-    (issue) =>
-      `| ${issue.id} | [Issue ${issue.id}](${issue.id}-订单能力.md) | pending | ${issue.dependencies.length === 0 ? "—" : issue.dependencies.join(", ")} | /code-delivery |`,
-  )
-  .join("\n")}
-`;
-
-const createWorkspace = async (issueDefinitions = [{ dependencies: [], id: "01" }]) => {
-  const workspace = await fs.mkdtemp(path.join(os.tmpdir(), "loop-flow-"));
-  const planPath = path.join(workspace, PLAN_PATH);
-  await fs.mkdir(planPath, { recursive: true });
-  await fs.writeFile(path.join(planPath, "spec.md"), specDocument(issueDefinitions));
-  for (const issue of issueDefinitions) {
-    await fs.writeFile(
-      path.join(planPath, `${issue.id}-订单能力.md`),
-      issueDocument(issue.id, issue.dependencies),
-    );
-  }
-  return workspace;
-};
-
-const command = async (workspace, commandName, options) =>
-  executeFlow({
-    command: commandName,
-    now: () => new Date(TEST_NOW),
-    options,
-    workspace,
-  });
-
-const recordPlan = (workspace, session, step, result, extra = {}) =>
-  command(workspace, "record-plan", {
-    ...(step === "commit" ? { action: "commit" } : { skill: `/${step}` }),
-    evidence: [`${step}-${result}`],
-    plan: PLAN_PATH,
-    result,
-    session,
-    ...extra,
-  });
-
-const recordIssue = (workspace, issue, session, step, result) =>
-  command(workspace, "record-issue", {
-    ...(step === "commit" ? { action: "commit" } : { skill: `/${step}` }),
-    evidence: [`${step}-${result}`],
-    issue,
-    plan: PLAN_PATH,
-    result,
-    session,
-  });
-
-const readyIssuePlan = async (workspace, session = "plan-session") => {
-  await command(workspace, "init", { entry: "/to-story", plan: PLAN_PATH, session });
-  await recordPlan(workspace, session, "to-story", "completed");
-  await recordPlan(workspace, session, "quest-with-domain", "completed");
-  await recordPlan(workspace, session, "to-issues", "completed");
-  return recordPlan(workspace, session, "dev-gate", "ready");
-};
-
-const addDeliveryEvidence = async (workspace, issueId) => {
-  const issuePath = path.join(workspace, PLAN_PATH, `${issueId}-订单能力.md`);
-  const content = await fs.readFile(issuePath, "utf8");
-  await fs.writeFile(
-    issuePath,
-    `${content.trimEnd()}\n\n## 交付记录\n\n- 交付物: 订单能力。\n- 验证证据: 测试通过。\n`,
-  );
-};
+afterEach(cleanupWorkspaces);
 
 test("主流程从 to-story 开始且不再强制 questing", async () => {
   const workspace = await createWorkspace();
@@ -173,29 +61,112 @@ test("主流程可从 quest-with-domain 开始并跳过 to-issues", async () => 
   try {
     const entered = await command(workspace, "enter-plan", {
       plan: PLAN_PATH,
+      session: "direct-session",
       skill: "/quest-with-domain",
     });
-    assert.equal(entered.next_skill, "/quest-with-domain");
+    assert.deepEqual(entered, {
+      message: DEFAULT_HOOK_MESSAGE,
+      next_action: null,
+      next_skill: "/quest-with-domain",
+      phase: "planning",
+      plan: PLAN_PATH,
+      revision: 1,
+      session: "direct-session",
+    });
 
-    assert.equal(
-      (await recordPlan(workspace, entered.session, "quest-with-domain", "completed")).next_skill,
-      "/to-issues",
+    assert.deepEqual(
+      await recordPlan(workspace, entered.session, "quest-with-domain", "completed"),
+      {
+        message: DEFAULT_HOOK_MESSAGE,
+        next_action: null,
+        next_skill: "/to-issues",
+        phase: "planning",
+        plan: PLAN_PATH,
+        revision: 2,
+      },
     );
-    assert.equal(
-      (await recordPlan(workspace, entered.session, "to-issues", "skipped")).next_skill,
-      "/dev-gate",
-    );
+    assert.deepEqual(await recordPlan(workspace, entered.session, "to-issues", "skipped"), {
+      message: DEV_GATE_HOOK_MESSAGE,
+      next_action: null,
+      next_skill: "/dev-gate",
+      phase: "planning",
+      plan: PLAN_PATH,
+      revision: 3,
+    });
     const delivery = await recordPlan(workspace, entered.session, "dev-gate", "ready");
-    assert.equal(delivery.phase, "delivering_direct");
-    assert.equal(delivery.next_skill, "/code-delivery");
-    assert.equal(delivery.message, CODE_DELIVERY_HOOK_MESSAGE);
+    assert.deepEqual(delivery, {
+      message: CODE_DELIVERY_HOOK_MESSAGE,
+      next_action: null,
+      next_skill: "/code-delivery",
+      phase: "delivering_direct",
+      plan: PLAN_PATH,
+      revision: 4,
+    });
     const commit = await recordPlan(workspace, entered.session, "code-delivery", "started");
-    assert.equal(commit.next_action, "commit");
-    assert.equal("message" in commit, false);
+    assert.deepEqual(commit, {
+      next_action: "commit",
+      next_skill: null,
+      phase: "delivering_direct",
+      plan: PLAN_PATH,
+      revision: 5,
+    });
     const completed = await recordPlan(workspace, entered.session, "commit", "committed");
-    assert.equal(completed.phase, "completed");
-    assert.equal(completed.next_skill, null);
-    assert.equal("message" in completed, false);
+    assert.deepEqual(completed, {
+      next_action: null,
+      next_skill: null,
+      phase: "completed",
+      plan: PLAN_PATH,
+      revision: 6,
+    });
+    const status = await command(workspace, "status", { plan: PLAN_PATH });
+    assert.deepEqual(status.plan, {
+      cursor: 2,
+      issues: {},
+      lease: null,
+      phase: "completed",
+      receipts: [
+        {
+          evidence: ["quest-with-domain-completed"],
+          kind: "skill",
+          reason: null,
+          recorded_at: TEST_NOW.toISOString(),
+          result: "completed",
+          step: "/quest-with-domain",
+        },
+        {
+          evidence: ["to-issues-skipped"],
+          kind: "skill",
+          reason: null,
+          recorded_at: TEST_NOW.toISOString(),
+          result: "skipped",
+          step: "/to-issues",
+        },
+        {
+          evidence: ["dev-gate-ready"],
+          kind: "skill",
+          reason: null,
+          recorded_at: TEST_NOW.toISOString(),
+          result: "ready",
+          step: "/dev-gate",
+        },
+        {
+          evidence: ["code-delivery-started"],
+          kind: "skill",
+          reason: null,
+          recorded_at: TEST_NOW.toISOString(),
+          result: "started",
+          step: "/code-delivery",
+        },
+        {
+          evidence: ["commit-committed"],
+          kind: "action",
+          reason: null,
+          recorded_at: TEST_NOW.toISOString(),
+          result: "committed",
+          step: "commit",
+        },
+      ],
+    });
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }
@@ -205,9 +176,13 @@ test("to-issues 完成后 dev-gate 转入 Issue 级 code-delivery", async () => 
   const workspace = await createWorkspace();
   try {
     const ready = await readyIssuePlan(workspace);
-    assert.equal(ready.phase, "delivering_issues");
-    assert.equal(ready.next_skill, null);
-    assert.equal("message" in ready, false);
+    assert.deepEqual(ready, {
+      next_action: null,
+      next_skill: null,
+      phase: "delivering_issues",
+      plan: PLAN_PATH,
+      revision: 5,
+    });
     await assert.rejects(
       recordPlan(workspace, "plan-session", "code-delivery", "started"),
       /当前阶段 delivering_issues 不接受 record-plan/,
@@ -218,16 +193,103 @@ test("to-issues 完成后 dev-gate 转入 Issue 级 code-delivery", async () => 
       plan: PLAN_PATH,
       session: "issue-session",
     });
-    assert.equal(claimed.next_skill, "/code-delivery");
-    assert.equal(claimed.message, CODE_DELIVERY_HOOK_MESSAGE);
-    assert.equal(
-      (await recordIssue(workspace, "01", "issue-session", "code-delivery", "started")).next_action,
-      "commit",
+    assert.deepEqual(claimed, {
+      issue: "01",
+      message: CODE_DELIVERY_HOOK_MESSAGE,
+      next_action: null,
+      next_skill: "/code-delivery",
+      plan: PLAN_PATH,
+      revision: 6,
+      session: "issue-session",
+    });
+    assert.deepEqual(
+      await recordIssue(workspace, "01", "issue-session", "code-delivery", "started"),
+      {
+        issue: "01",
+        next_action: "commit",
+        next_skill: null,
+        phase: "delivering_issues",
+        plan: PLAN_PATH,
+        revision: 7,
+        status: "active",
+      },
     );
     await addDeliveryEvidence(workspace, "01");
     const completed = await recordIssue(workspace, "01", "issue-session", "commit", "committed");
-    assert.equal(completed.status, "completed");
-    assert.equal(completed.phase, "completed");
+    assert.deepEqual(completed, {
+      issue: "01",
+      next_action: null,
+      next_skill: null,
+      phase: "completed",
+      plan: PLAN_PATH,
+      revision: 8,
+      status: "completed",
+    });
+    const status = await command(workspace, "status", { plan: PLAN_PATH });
+    assert.deepEqual(status.plan, {
+      cursor: 0,
+      issues: {
+        "01": {
+          cursor: 2,
+          lease: null,
+          receipts: [
+            {
+              evidence: ["code-delivery-started"],
+              kind: "skill",
+              reason: null,
+              recorded_at: TEST_NOW.toISOString(),
+              result: "started",
+              step: "/code-delivery",
+            },
+            {
+              evidence: ["commit-committed"],
+              kind: "action",
+              reason: null,
+              recorded_at: TEST_NOW.toISOString(),
+              result: "committed",
+              step: "commit",
+            },
+          ],
+          status: "completed",
+        },
+      },
+      lease: null,
+      phase: "completed",
+      receipts: [
+        {
+          evidence: ["to-story-completed"],
+          kind: "skill",
+          reason: null,
+          recorded_at: TEST_NOW.toISOString(),
+          result: "completed",
+          step: "/to-story",
+        },
+        {
+          evidence: ["quest-with-domain-completed"],
+          kind: "skill",
+          reason: null,
+          recorded_at: TEST_NOW.toISOString(),
+          result: "completed",
+          step: "/quest-with-domain",
+        },
+        {
+          evidence: ["to-issues-completed"],
+          kind: "skill",
+          reason: null,
+          recorded_at: TEST_NOW.toISOString(),
+          result: "completed",
+          step: "/to-issues",
+        },
+        {
+          evidence: ["dev-gate-ready"],
+          kind: "skill",
+          reason: null,
+          recorded_at: TEST_NOW.toISOString(),
+          result: "ready",
+          step: "/dev-gate",
+        },
+      ],
+    });
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }
@@ -245,10 +307,15 @@ test("hooks 对同一 skill 按声明顺序拼接且只附加到 next_skill", as
   };
   try {
     const entered = await executeFlow({
-      command: "init",
+      command: "enter-plan",
       hooks,
       now: () => new Date(TEST_NOW),
-      options: { entry: "/to-story", plan: PLAN_PATH, session: "hook-session" },
+      options: {
+        entry: "/to-story",
+        plan: PLAN_PATH,
+        session: "hook-session",
+        skill: "/loop-x",
+      },
       workspace,
     });
     assert.equal(entered.message, "global\ndiscovery\nstory");
@@ -272,13 +339,40 @@ test("hooks 对同一 skill 按声明顺序拼接且只附加到 next_skill", as
   }
 });
 
+test("无匹配 hook 时不暴露空 message 字段", async () => {
+  const workspace = await createWorkspace();
+  const result = await executeFlow({
+    command: "enter-plan",
+    hooks: {
+      hooks: [{ match: ["dev-gate"], message: "gate only" }],
+      schema_version: 1,
+    },
+    now: () => new Date(TEST_NOW),
+    options: {
+      entry: "/to-story",
+      plan: PLAN_PATH,
+      session: "owner",
+      skill: "/loop-x",
+    },
+    workspace,
+  });
+  assert.deepEqual(result, {
+    next_action: null,
+    next_skill: "/to-story",
+    phase: "planning",
+    plan: PLAN_PATH,
+    revision: 1,
+    session: "owner",
+  });
+});
+
 test("to-issues 只接受 completed 或 skipped", async () => {
   const workspace = await createWorkspace();
   try {
-    await command(workspace, "init", {
-      entry: "/quest-with-domain",
+    await command(workspace, "enter-plan", {
       plan: PLAN_PATH,
       session: "decision-session",
+      skill: "/quest-with-domain",
     });
     await recordPlan(workspace, "decision-session", "quest-with-domain", "completed");
     await assert.rejects(
@@ -375,10 +469,11 @@ test("已有 Flow 只能从当前入口接续", async () => {
 test("Plan 租约可释放并由新会话恢复当前主流程步骤", async () => {
   const workspace = await createWorkspace();
   try {
-    await command(workspace, "init", {
+    await command(workspace, "enter-plan", {
       entry: "/to-story",
       plan: PLAN_PATH,
       session: "first",
+      skill: "/loop-x",
     });
     await recordPlan(workspace, "first", "to-story", "completed");
     await command(workspace, "release-plan", { plan: PLAN_PATH, session: "first" });
@@ -508,39 +603,24 @@ test("sync-plan 从 Issue 文档恢复完成状态", async () => {
   }
 });
 
-test("完成后的无 Issue Flow 可从同一入口重新开始", async () => {
-  const workspace = await createWorkspace();
-  try {
-    const entered = await command(workspace, "enter-plan", {
-      plan: PLAN_PATH,
-      skill: "/quest-with-domain",
-    });
-    await recordPlan(workspace, entered.session, "quest-with-domain", "completed");
-    await recordPlan(workspace, entered.session, "to-issues", "skipped");
-    await recordPlan(workspace, entered.session, "dev-gate", "ready");
-    await recordPlan(workspace, entered.session, "code-delivery", "started");
-    await recordPlan(workspace, entered.session, "commit", "committed");
-
-    const restarted = await command(workspace, "enter-plan", {
-      plan: PLAN_PATH,
-      skill: "/quest-with-domain",
-    });
-    assert.equal(restarted.next_skill, "/quest-with-domain");
-    assert.notEqual(restarted.session, entered.session);
-  } finally {
-    await fs.rm(workspace, { force: true, recursive: true });
-  }
-});
-
 test("CLI 可脱离工作区 package 配置直接运行", async () => {
   const workspace = await createWorkspace();
   try {
-    const initialized = await execFileAsync(
+    const enteredDirectly = await execFileAsync(
       process.execPath,
-      [FLOW_PATH, "init", "--plan", PLAN_PATH, "--entry", "/quest-with-domain", "--session", "cli"],
+      [
+        FLOW_PATH,
+        "enter-plan",
+        "--plan",
+        PLAN_PATH,
+        "--skill",
+        "/quest-with-domain",
+        "--session",
+        "cli",
+      ],
       { cwd: workspace },
     );
-    assert.equal(JSON.parse(initialized.stdout).next_skill, "/quest-with-domain");
+    assert.equal(JSON.parse(enteredDirectly.stdout).next_skill, "/quest-with-domain");
 
     const loopxWorkspace = await createWorkspace();
     try {

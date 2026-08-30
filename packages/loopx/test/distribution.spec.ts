@@ -316,6 +316,11 @@ const verifyDistributionSurface = async (fixture: DistributionFixture): Promise<
   );
   const skillTree = await collectTree(path.join(fixture.installedPackage, "skills"));
   expect(skillTree.every((file: string): boolean => !file.includes(".test.mjs:"))).toBe(true);
+  expect(
+    skillTree.every(
+      (file: string): boolean => !file.replaceAll("\\", "/").includes("/script/testing/"),
+    ),
+  ).toBe(true);
   for (const commandPath of helpPaths) {
     const result = await executeBin(fixture.bin, [...commandPath, "--help"], fixture.workspace);
     expect(result.stdout, commandPath.join(" ")).toContain("Usage:");
@@ -338,6 +343,12 @@ const verifySkillLifecycle = async (fixture: DistributionFixture): Promise<void>
     expect(await invoke(["check", "--name", name])).toMatchObject({ name, status: "current" });
   }
   const before = await collectTree(target);
+  expect(before.every((file: string): boolean => !file.includes(".test.mjs:"))).toBe(true);
+  expect(
+    before.every(
+      (file: string): boolean => !file.replaceAll("\\", "/").includes("/script/testing/"),
+    ),
+  ).toBe(true);
   expect(await invoke(["update", "--name", "loop-x", "--dry-run"])).toMatchObject({
     dryRun: true,
     preview: { changes: [{ action: "update", name: "loop-x" }] },
