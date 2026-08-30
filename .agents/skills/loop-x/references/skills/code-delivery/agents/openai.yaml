@@ -1,0 +1,3 @@
+interface:
+  display_name: "Code Delivery"
+  short_description: "根据 spec 或 issues 构建工作"

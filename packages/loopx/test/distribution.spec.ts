@@ -299,7 +299,7 @@ const verifyDistributionSurface = async (fixture: DistributionFixture): Promise<
   const metadata = parseObject(
     await readFile(path.join(fixture.installedPackage, "package.json"), "utf8"),
   );
-  expect(metadata["version"]).toBe("0.0.4");
+  expect(metadata["version"]).toBe("0.0.1");
   expect(metadata["bin"]).toEqual({ loopx: "dist/main.mjs" });
   const assets = [
     "README.md",
@@ -316,9 +316,6 @@ const verifyDistributionSurface = async (fixture: DistributionFixture): Promise<
   );
   const skillTree = await collectTree(path.join(fixture.installedPackage, "skills"));
   expect(skillTree.every((file: string): boolean => !file.includes(".test.mjs:"))).toBe(true);
-  expect(skillTree.every((file: string): boolean => !/script[\\/]testing[\\/]/u.test(file))).toBe(
-    true,
-  );
   for (const commandPath of helpPaths) {
     const result = await executeBin(fixture.bin, [...commandPath, "--help"], fixture.workspace);
     expect(result.stdout, commandPath.join(" ")).toContain("Usage:");

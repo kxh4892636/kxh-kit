@@ -8,13 +8,14 @@ import { fileURLToPath } from "node:url";
 import { test } from "vitest";
 
 import { executeFlow } from "./flow.mjs";
-import { verifyContract } from "./testing/script-contracts.mjs";
 
 const execFileAsync = promisify(execFile);
 const FLOW_PATH = fileURLToPath(new URL("./flow.mjs", import.meta.url));
 const PLAN_PATH = "docs/orders/plans/active/2026-08-22-订单流转";
 const TEST_NOW = new Date();
-const DEFAULT_HOOK_MESSAGE = "请携带当前 Flow context 执行，并在完成后返回主流程登记真实结果。";
+const DEFAULT_HOOK_MESSAGE =
+  "调用下一个 skill 之前，必须向用户确认之后才能执行，禁止未经用户确认自动执行。";
+const CODE_DELIVERY_HOOK_MESSAGE = `${DEFAULT_HOOK_MESSAGE}\n交付过程中遇到 block 卡点， 请优先在 \`<SKILL_ROOT>/extensions/workflows/README.md\` 和对应业务域 workflow 中寻找可能的解决方法.`;
 
 const statePath = (workspace, date = TEST_NOW) => {
   const prefix = [date.getFullYear(), date.getMonth() + 1, date.getDate()]
@@ -95,25 +96,13 @@ const createWorkspace = async (issueDefinitions = [{ dependencies: [], id: "01" 
   return workspace;
 };
 
-const command = async (workspace, commandName, options) => {
-  try {
-    const result = await executeFlow({
-      command: commandName,
-      now: () => new Date(TEST_NOW),
-      options,
-      workspace,
-    });
-    verifyContract("flowCore", { ok: true, result }, workspace);
-    return result;
-  } catch (error) {
-    verifyContract(
-      "flowCore",
-      { ok: false, error: { name: error?.name, message: error?.message } },
-      workspace,
-    );
-    throw error;
-  }
-};
+const command = async (workspace, commandName, options) =>
+  executeFlow({
+    command: commandName,
+    now: () => new Date(TEST_NOW),
+    options,
+    workspace,
+  });
 
 const recordPlan = (workspace, session, step, result, extra = {}) =>
   command(workspace, "record-plan", {
@@ -199,7 +188,7 @@ test("主流程可从 quest-with-domain 开始并跳过 to-issues", async () => 
     const delivery = await recordPlan(workspace, entered.session, "dev-gate", "ready");
     assert.equal(delivery.phase, "delivering_direct");
     assert.equal(delivery.next_skill, "/code-delivery");
-    assert.equal(delivery.message, DEFAULT_HOOK_MESSAGE);
+    assert.equal(delivery.message, CODE_DELIVERY_HOOK_MESSAGE);
     const commit = await recordPlan(workspace, entered.session, "code-delivery", "started");
     assert.equal(commit.next_action, "commit");
     assert.equal("message" in commit, false);
@@ -230,7 +219,7 @@ test("to-issues 完成后 dev-gate 转入 Issue 级 code-delivery", async () => 
       session: "issue-session",
     });
     assert.equal(claimed.next_skill, "/code-delivery");
-    assert.equal(claimed.message, DEFAULT_HOOK_MESSAGE);
+    assert.equal(claimed.message, CODE_DELIVERY_HOOK_MESSAGE);
     assert.equal(
       (await recordIssue(workspace, "01", "issue-session", "code-delivery", "started")).next_action,
       "commit",

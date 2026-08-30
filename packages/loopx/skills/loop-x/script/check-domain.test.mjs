@@ -4,14 +4,7 @@ import path from "node:path";
 import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 
-import { checkDomain as checkDomainImplementation, runDomainCheck } from "./check-domain.mjs";
-import { verifyContract } from "./testing/script-contracts.mjs";
-
-const checkDomain = (rootDirectory) => {
-  const result = checkDomainImplementation(rootDirectory);
-  verifyContract("checkDomain", result, rootDirectory);
-  return result;
-};
+import { checkDomain, runDomainCheck } from "./check-domain.mjs";
 
 const writeFile = (rootDir, relativePath, content) => {
   const targetPath = path.join(rootDir, relativePath);

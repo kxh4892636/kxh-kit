@@ -1,0 +1,3 @@
+interface:
+  display_name: "Questing"
+  short_description: "逐轮提问以 stress-test 思考"

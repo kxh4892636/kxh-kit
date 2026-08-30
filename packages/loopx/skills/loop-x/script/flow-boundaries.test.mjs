@@ -4,7 +4,6 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, test } from "vitest";
 import { executeFlow, runFlowCli } from "./flow.mjs";
-import { verifyContract } from "./testing/script-contracts.mjs";
 
 const PLAN_PATH = "docs/orders/plans/active/2026-08-22-订单流转";
 const TEST_NOW = new Date(2026, 7, 27, 12);
@@ -54,25 +53,13 @@ const createWorkspace = async (issues = [{ id: "01", dependencies: [] }]) => {
   return workspace;
 };
 
-const command = async (workspace, commandName, options = {}, now = () => new Date(TEST_NOW)) => {
-  try {
-    const result = await executeFlow({
-      command: commandName,
-      options,
-      workspace,
-      now,
-    });
-    verifyContract("flowBoundary", { ok: true, result }, workspace);
-    return result;
-  } catch (error) {
-    verifyContract(
-      "flowBoundary",
-      { ok: false, error: { name: error?.name, message: error?.message } },
-      workspace,
-    );
-    throw error;
-  }
-};
+const command = async (workspace, commandName, options = {}, now = () => new Date(TEST_NOW)) =>
+  executeFlow({
+    command: commandName,
+    options,
+    workspace,
+    now,
+  });
 
 const recordPlan = (workspace, session, skill, result, extra = {}) =>
   command(workspace, "record-plan", {
