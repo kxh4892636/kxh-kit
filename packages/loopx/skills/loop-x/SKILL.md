@@ -9,8 +9,6 @@ description: 路由从想法到交付的 Loop Kit 主流程；当任务需要形
 
 ## 选择入口
 
-完整读取 [`workflows/README.md`](extensions/workflows/README.md)。它是可复用工作流的触发索引；空文件表示当前没有附加工作流。
-
 先从用户输入和现场材料判断当前位置，只推荐一条入口：
 
 | 现场                                         | 入口                                                                 |
