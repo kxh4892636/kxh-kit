@@ -1,0 +1,6 @@
+# dsh-nested-skill bundle patch: mounts the nested-skill provider over the
+# profile root. Row order carries no load semantics (activation is
+# service-availability driven).
+- insert:
+    - id: nested-skill
+      name: "@kxh4892636/dsh-nested-skill"
