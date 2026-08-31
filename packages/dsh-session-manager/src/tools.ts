@@ -146,7 +146,7 @@ export const buildSessionTools = (host: SessionManagerHost): ToolDefinition[] =>
     name: "session_spawn",
     description:
       "创建新会话并可选地为其选择指定模型。workspaceId/cwd 缺省时与调用方会话同一 workspace;" +
-      " 新会话与 GUI「新会话」一致: 默认携带部署预置的系统消息/上下文。" +
+      " context 作为该会话的**系统消息**上下文注入(不触发模型调用, 首次模型调用由第一条用户消息驱动; ADR-0004)。" +
       " model+provider 择一省略时用部署默认模型。创建后给 session 投递指令请使用 session_prompt。",
     parameters: {
       workspaceId: optionalString(
@@ -154,6 +154,7 @@ export const buildSessionTools = (host: SessionManagerHost): ToolDefinition[] =>
       ),
       cwd: optionalString("会话的工作目录(与 workspaceId 二选一; 缺省同上)。"),
       sessionId: optionalString("显式会话 id(缺省自动生成, 便于幂等与测试)。"),
+      context: optionalString("注入为系统消息的上下文文本(ADR-0004; 不触发模型调用)。"),
       provider: optionalString(
         "模型 provider id(来自 session_model_list; 与 model 同时给出或同时省略)。",
       ),
@@ -170,6 +171,7 @@ export const buildSessionTools = (host: SessionManagerHost): ToolDefinition[] =>
           ...(args.cwd === undefined ? {} : { cwd: args.cwd }),
           ...(callerCwd === undefined ? {} : { callerCwd }),
           ...(args.sessionId === undefined ? {} : { sessionId: args.sessionId }),
+          ...(args.context === undefined ? {} : { context: args.context }),
           ...(args.provider === undefined || args.model === undefined
             ? {}
             : {

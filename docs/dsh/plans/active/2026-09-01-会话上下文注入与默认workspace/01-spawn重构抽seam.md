@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 blocked_by: []
 ---
 
@@ -35,3 +35,9 @@ blocked_by: []
 ## 下一步
 
 /code-delivery
+
+## 交付记录
+
+- **交付物**：`host.ts` 新增 `resolveSpawnLocation`(显式透传/省略返回空,行为不变)与 `ContextInstaller` seam + spawn `context` 参数(暂不注册);3 项新单测;主分支提交 `52f5bb4`。
+- **验证证据**：`test` 43 项全部通过;覆盖率 98.13/90.19/98.46/99.49 ≥80%;`vp check` 无警告错误。
+- 变异测试：未配置,`skipped: not configured`。

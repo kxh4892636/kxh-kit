@@ -3,7 +3,7 @@
   "hooks": [
     {
       "match": "all",
-      "message": "Flow 主流程的 skill 执行结束后, 询问用户当前 skill 是否完成 + 是否进入下一个 skill, 用户同意后, 自动流转到 Flow 的下一阶段."
+      "message": "Flow 主流程的 skill 执行结束后, 询问用户当前 skill 是否完成 + 是否进入下一个 skill, 用户同意后, 自动流转, 上一阶段的 complete 和下一阶段的 start 只需要确定一次, 已经确定后无须二次确定."
     },
     {
       "match": ["dev-gate"],
