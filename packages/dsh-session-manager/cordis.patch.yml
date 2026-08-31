@@ -1,0 +1,16 @@
+# dsh-session-manager bundle patch: mounts the session-manager plugin over the
+# profile root, plus upstream content search (tool-session-query) with the
+# deployment-level sqlite index enabled (ADR-0003).
+#
+# 覆盖行: session-query-sqlite 的 id-targeted config 覆盖(整体替换语义, 见
+# app-boot config-reload.spec), 启用部署级内容搜索索引并为首次搜索构建。
+- id: session-query-sqlite
+  config:
+    path: !!js dshHomePath('storages/session-query.sqlite')
+    openAt: first-search
+- insert:
+    - id: session-query-tool
+      name: "@deepseek-ai/dsh-tool-session-query"
+- insert:
+    - id: session-manager
+      name: "@kxh4892636/dsh-session-manager"
