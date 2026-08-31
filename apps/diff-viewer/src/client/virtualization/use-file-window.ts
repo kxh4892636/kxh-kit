@@ -14,6 +14,7 @@ import { useScrollVirtualizer } from "./use-scroll-virtualizer";
 interface UseFileWindowOptions {
   filePaths: string[];
   anchorRef: RefObject<HTMLElement | null>;
+  navigationContext: string;
 }
 
 interface FileWindow {
@@ -29,13 +30,18 @@ interface FileWindow {
  * 为完整 diff 文件序列提供有界 windowing，并隐藏挂载后 DOM-id 导航的时序。
  */
 export const useFileWindow = (options: UseFileWindowOptions): FileWindow => {
-  const { filePaths, anchorRef } = options;
+  const { filePaths, anchorRef, navigationContext } = options;
+  const navigationScope = useMemo(
+    (): string => [navigationContext, ...filePaths].join("\u0000"),
+    [filePaths, navigationContext],
+  );
   const virtualWindow = useScrollVirtualizer({
     itemCount: filePaths.length,
     estimateItemSize: (): number => ESTIMATED_FILE_HEIGHT,
     anchorRef,
     enabled: filePaths.length > VIRTUALIZED_FILE_THRESHOLD,
     overscan: VIRTUALIZED_FILE_OVERSCAN,
+    navigationScope,
   });
   const allFileIndexes = useMemo(
     (): number[] => filePaths.map((_filePath: string, fileIndex: number): number => fileIndex),

@@ -1,5 +1,7 @@
-import { renderHook } from "@testing-library/react";
-import { describe, it, expect, afterEach } from "vitest";
+import { renderHook, waitFor } from "@testing-library/react";
+import { describe, it, expect, afterEach, vi } from "vitest";
+
+import { type DiffFile, type DiffResponse } from "../../types/diff";
 
 import { getFileElementId } from "../utils/domUtils";
 
@@ -16,6 +18,45 @@ function renderLazyDiffRendering(container: HTMLElement | null) {
   );
 }
 
+const createDiffData = (
+  files: DiffFile[],
+  overrides: Partial<DiffResponse> = {},
+): DiffResponse => ({
+  commit: "target-sha",
+  repositoryId: "repository-a",
+  requestedBaseCommitish: "main",
+  requestedTargetCommitish: "feature",
+  requestedBaseMode: "merge-base",
+  baseCommitish: "base-sha",
+  targetCommitish: "target-sha",
+  files,
+  ...overrides,
+});
+
+const createFile = (path: string, overrides: Partial<DiffFile> = {}): DiffFile => ({
+  path,
+  status: "modified",
+  additions: 1,
+  deletions: 0,
+  chunks: [],
+  isGenerated: false,
+  ...overrides,
+});
+
+const renderDiffData = (
+  diffData: DiffResponse,
+  setDiffData: React.Dispatch<React.SetStateAction<DiffResponse | null>> = (): void => {},
+): ReturnType<typeof renderLazyDiffRendering> =>
+  renderHook(
+    (): ReturnType<typeof useLazyDiffRendering> =>
+      useLazyDiffRendering({
+        diffData,
+        diffScrollContainerRef: { current: null },
+        fileListAnchorRef: { current: null },
+        setDiffData,
+      }),
+  );
+
 function stubRect(element: HTMLElement, top: number) {
   element.getBoundingClientRect = () =>
     ({
@@ -31,6 +72,99 @@ function stubRect(element: HTMLElement, top: number) {
 describe("useLazyDiffRendering", () => {
   afterEach(() => {
     document.body.innerHTML = "";
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  describe("generated status", (): void => {
+    it("marks a visible regular file generated without changing unrelated files", async (): Promise<void> => {
+      const sourceFile = createFile("src/generated.ts");
+      const alreadyGenerated = createFile("src/vendor.ts", { isGenerated: true });
+      const diffData = createDiffData([sourceFile, alreadyGenerated]);
+      const updates: Array<React.SetStateAction<DiffResponse | null>> = [];
+      const setDiffData = vi.fn((update: React.SetStateAction<DiffResponse | null>): void => {
+        updates.push(update);
+      });
+      const fetchMock = vi.fn().mockResolvedValue({
+        ok: true,
+        json: (): Promise<{ isGenerated: boolean }> => Promise.resolve({ isGenerated: true }),
+      });
+      vi.stubGlobal("fetch", fetchMock);
+
+      renderDiffData(diffData, setDiffData);
+
+      await waitFor((): void => {
+        expect(setDiffData).toHaveBeenCalledOnce();
+      });
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/generated-status/src%2Fgenerated.ts?ref=target-sha",
+      );
+
+      const update = updates[0];
+      expect(typeof update).toBe("function");
+      if (typeof update !== "function") return;
+
+      expect(update(null)).toBeNull();
+      const staleDiff = { ...diffData, requestedTargetCommitish: "other" };
+      expect(update(staleDiff)).toBe(staleDiff);
+
+      const updated = update(diffData);
+      expect(updated?.files).toEqual([{ ...sourceFile, isGenerated: true }, alreadyGenerated]);
+      expect(update(updated)).toBe(updated);
+    });
+
+    it("ignores non-generated and unsuccessful responses", async (): Promise<void> => {
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          json: (): Promise<{ isGenerated: boolean }> => Promise.resolve({ isGenerated: false }),
+        })
+        .mockResolvedValueOnce({ ok: false });
+      vi.stubGlobal("fetch", fetchMock);
+      const setDiffData = vi.fn();
+
+      renderDiffData(createDiffData([createFile("src/a.ts"), createFile("src/b.ts")]), setDiffData);
+
+      await waitFor((): void => {
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+      });
+      await Promise.resolve();
+      expect(setDiffData).not.toHaveBeenCalled();
+    });
+
+    it("skips stdin, deleted, and already generated targets", (): void => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal("fetch", fetchMock);
+
+      renderDiffData(
+        createDiffData(
+          [
+            createFile("src/deleted.ts", { status: "deleted" }),
+            createFile("src/vendor.ts", { isGenerated: true }),
+          ],
+          { targetCommitish: "stdin" },
+        ),
+      );
+
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it("keeps the regular viewer when generated-status lookup rejects", async (): Promise<void> => {
+      const error = new Error("network unavailable");
+      const fetchMock = vi.fn().mockRejectedValue(error);
+      const warn = vi.spyOn(console, "warn").mockImplementation((): void => {});
+      vi.stubGlobal("fetch", fetchMock);
+
+      renderDiffData(createDiffData([createFile("src/a.ts")], { targetCommitish: "" }));
+
+      await waitFor((): void => {
+        expect(warn).toHaveBeenCalledWith(
+          "Failed to resolve generated status; keeping the regular diff viewer",
+          { error, filePath: "src/a.ts", ref: "HEAD" },
+        );
+      });
+    });
   });
 
   describe("isFileScrolledPastContainerTop", () => {

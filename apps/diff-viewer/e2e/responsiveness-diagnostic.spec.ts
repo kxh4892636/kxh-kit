@@ -6,7 +6,7 @@ import { measureResponsiveness } from "./responsiveness-harness";
 
 const appPath = resolve(__dirname, "..");
 
-test("records responsiveness profiles for each virtualization shape", async (): Promise<void> => {
+test("keeps every virtualization shape within the responsiveness budget", async (): Promise<void> => {
   test.setTimeout(240_000);
   const healthy = await measureResponsiveness(appPath, "healthy");
   const row = await measureResponsiveness(appPath, "row-virtualizer");
@@ -16,7 +16,8 @@ test("records responsiveness profiles for each virtualization shape", async (): 
 
   console.log(`RESPONSIVENESS_DIAGNOSTIC=${JSON.stringify({ healthy, row, chunk, file, nested })}`);
 
-  for (const sample of [healthy, row, chunk, file, nested]) {
+  const samples = [healthy, row, chunk, file, nested];
+  for (const sample of samples) {
     for (const [metric, value] of Object.entries(sample)) {
       if (typeof value !== "number") continue;
       expect(Number.isFinite(value), `${sample.shape}.${metric}`).toBe(true);
@@ -24,5 +25,20 @@ test("records responsiveness profiles for each virtualization shape", async (): 
     }
     expect(sample.fileCount).toBeGreaterThan(0);
     expect(sample.trustedWheelProfile.length).toBeGreaterThan(0);
+    expect(sample.settleTimedOut, `${sample.shape}.settleTimedOut`).toBe(false);
+    expect(sample.idleTaskRatio, `${sample.shape}.idleTaskRatio`).toBeLessThan(0.1);
+    expect(sample.idleLongTasks, `${sample.shape}.idleLongTasks`).toBe(0);
+    expect(sample.toggleResponseMs, `${sample.shape}.toggleResponseMs`).toBeLessThan(150);
+    expect(sample.scrollLongestFrameMs, `${sample.shape}.scrollLongestFrameMs`).toBeLessThan(50);
+    expect(sample.scrollLongTasks, `${sample.shape}.scrollLongTasks`).toBe(0);
+  }
+
+  for (const sample of [row, chunk, file, nested]) {
+    expect(sample.burstSynchronousMs, `${sample.shape}.burstSynchronousMs`).toBeLessThan(
+      Math.max(20, healthy.burstSynchronousMs * 10),
+    );
+    expect(sample.trustedWheelDispatchMs, `${sample.shape}.trustedWheelDispatchMs`).toBeLessThan(
+      healthy.trustedWheelDispatchMs * 5,
+    );
   }
 });

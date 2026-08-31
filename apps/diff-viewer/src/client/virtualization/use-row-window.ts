@@ -22,6 +22,7 @@ export const useRowWindow = (options: UseRowWindowOptions): RowWindowResult => {
     anchorRef,
     enabled: rowCount > VIRTUALIZED_LINE_THRESHOLD,
     overscan: VIRTUALIZED_LINE_OVERSCAN,
+    navigationScope: `${targetRowIndex ?? "none"}\u0000${targetElementId ?? ""}`,
   });
 
   useEffect((): void => {
