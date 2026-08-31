@@ -13,7 +13,7 @@ import type { AgentStoreLike } from "./session-context.ts";
 import { buildSessionTools } from "./tools.ts";
 
 export const name = "session-manager";
-export const inject = ["tools", "sessionController", "workspaceRegistry", "systemPrompt"];
+export const inject = ["tools", "sessionController", "workspaceRegistry", "systemPrompt", "agents"];
 
 /** 指引章节排位: TOOL_RALPH(2700) 与 TOOL_SUBAGENT(2800) 之间。 */
 const GUIDANCE_ORDER = 2750;

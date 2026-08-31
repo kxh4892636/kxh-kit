@@ -2,7 +2,7 @@
  * 插件入口测试: apply 注册 9 个工具与指引章节。
  */
 import { describe, expect, it, vi } from "vitest";
-import { apply } from "./main.ts";
+import { apply, inject } from "./main.ts";
 import { makeFakeServices } from "./test-support.ts";
 
 const makeCtx = (): {
@@ -45,5 +45,12 @@ describe("main.apply", () => {
       | undefined;
     expect(sectionCall?.name).toBe("tool:session-manager");
     expect(sectionCall?.order).toBe(2750);
+  });
+
+  it("inject 声明必须包含 apply 访问的全部服务(cordis strict inject 防回归)", () => {
+    // 上次冒烟即因此失败: apply 访问 ctx.agents 但 inject 未声明。
+    expect(inject).toContain("agents");
+    expect(inject).toContain("sessionController");
+    expect(inject).toContain("systemPrompt");
   });
 });
