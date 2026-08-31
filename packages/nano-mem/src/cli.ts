@@ -11,7 +11,7 @@
  *   `{"error":{"code":"usage"|"runtime","message":"...","hint":"..."}}`；
  * - 错误输出含 hint 时优先展示 hint；
  * - `--db`：参数 → `$NANO_MEM_DB` → `~/.nano-mem/mem.db`（目录自动创建）；
- * - `--agent`：默认当前工作目录 basename；`--dry-run`：写命令预演，不打开数据库、无副作用。
+ * - `--agent`：默认当前工作目录 basename；`*` 表示 list/search 不限分区；`--dry-run`：写命令预演，不打开数据库、无副作用。
  */
 
 import { mkdirSync, readFileSync } from "node:fs";
@@ -385,6 +385,22 @@ function parsePositiveInt(raw: string, label: string): number {
   return Number(raw);
 }
 
+/**
+ * list/search 分区过滤解析（issue 08）：--agent 未传默认限定 ctx.agent（cwd basename），
+ * `--agent *` 返回 agent 键省略（不限分区），显式 `<name>` 覆盖；--run 仍为显式给出才过滤。
+ */
+function resolveScopeFilter(
+  values: RawValues,
+  ctx: CommandContext,
+): { readonly agent?: string; readonly run?: string } {
+  const rawAgent = strValue(values["agent"]);
+  const rawRun = strValue(values["run"]);
+  return {
+    ...(rawAgent === "*" ? {} : { agent: rawAgent ?? ctx.agent }),
+    ...(rawRun === undefined ? {} : { run: rawRun }),
+  };
+}
+
 function listCommand(ctx: CommandContext): Payload {
   const limitRaw = strValue(ctx.values["limit"]);
   const limit = limitRaw === undefined ? undefined : parsePositiveInt(limitRaw, "--limit");
@@ -395,17 +411,16 @@ function listCommand(ctx: CommandContext): Payload {
     }
     requested.add(state);
   }
-  // 默认只显示有效 active（软删除/休眠默认隐藏）；--agent/--run 仅在显式给出时过滤。
+  // 默认只显示有效 active（软删除/休眠默认隐藏）；agent 默认限定当前分区（issue 08），
+  // --agent * 跨分区、--agent <name> 显式覆盖；--run 仅在显式给出时过滤。
   // state 语义为惰性判定（issue 04）：active=非 trashed 且 R≥0.35；dormant=非 trashed 且
   // R<0.35；trashed=state=trashed；all=全部。
-  const agent = strValue(ctx.values["agent"]);
-  const run = strValue(ctx.values["run"]);
+  const scope = resolveScopeFilter(ctx.values, ctx);
   return ctx.withStore((store) => {
     const now = ctx.env.now();
     const memories: MemoryView[] = [];
     for (const memory of store.list({
-      ...(agent === undefined ? {} : { agent }),
-      ...(run === undefined ? {} : { run }),
+      ...scope,
       tags: strList(ctx.values["tag"]),
     })) {
       const effective = effectiveStateOf(memory, now);
@@ -541,8 +556,7 @@ function searchCommand(ctx: CommandContext): Payload {
   }
   const noTouch = ctx.values["no-touch"] === true;
   const includeDormant = ctx.values["include-dormant"] === true;
-  const agent = strValue(ctx.values["agent"]);
-  const run = strValue(ctx.values["run"]);
+  const scope = resolveScopeFilter(ctx.values, ctx);
   const results = ctx.withStore((store) =>
     searchMemories(store, {
       query,
@@ -553,8 +567,7 @@ function searchCommand(ctx: CommandContext): Payload {
       includeDormant,
       // 自动弱使用默认开启（每次命中记一次 Hard）；--no-touch/--dry-run 关闭。
       touch: !ctx.dryRun && !noTouch,
-      ...(agent === undefined ? {} : { agent }),
-      ...(run === undefined ? {} : { run }),
+      ...scope,
       tags: strList(ctx.values["tag"]),
     }),
   );
@@ -938,7 +951,7 @@ export function helpText(version: string): string {
     "全局选项:",
     "  --json        成功输出 JSON 到 stdout，错误输出 JSON 到 stderr",
     "  --db <path>   数据库路径（默认 $NANO_MEM_DB → ~/.nano-mem/mem.db）",
-    "  --agent <a>   记忆归属 agent（默认当前目录名）",
+    "  --agent <a>   agent 分区（默认当前目录名；list/search 默认限定当前分区，* 跨分区）",
     "  --run <key>   运行键",
     "  --dry-run     写命令预演，无副作用",
     "  --help        显示本帮助",

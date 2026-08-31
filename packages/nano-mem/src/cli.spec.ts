@@ -312,7 +312,7 @@ describe("list", () => {
       );
       expect(byTag.memories.map((m) => m.text)).toEqual(["m1"]);
       const limited = parseJson<ListJson>(
-        (await run(["list", "--db", db, "--limit", "2", "--json"])).stdout,
+        (await run(["list", "--db", db, "--agent", "*", "--limit", "2", "--json"])).stdout,
       );
       expect(limited.memories.map((m) => m.text)).toEqual(["m3", "m2"]);
       expect((await run(["list", "--db", db, "--limit", "0"])).exitCode).toBe(2);
@@ -791,6 +791,70 @@ describe("search（issue 04 检索排序）", () => {
     ).toBe(2);
     expect((await run(["search", "x", "--limit", "0", "--db", ":memory:"])).exitCode).toBe(2);
     expect((await run(["search", "x", "--grade", "good", "--db", ":memory:"])).exitCode).toBe(2);
+  });
+});
+
+describe("检索与列表默认分区（issue 08）", () => {
+  it("未传 --agent 时 search/list 只返回当前 cwd 分区；--agent <name> 覆盖；--agent * 跨分区", async () => {
+    await withTempDb(async (db) => {
+      const envA = makeEnv({ cwd: "C:/work/agent-a" });
+      const envB = makeEnv({ cwd: "C:/work/agent-b" });
+      await runCli(["add", "甲方记忆", "--db", db], envA);
+      await runCli(["add", "乙方记忆", "--db", db], envB);
+
+      // 默认：cwd=agent-a → 只含 a 分区
+      const listA = parseJson<ListJson>(
+        (await runCli(["list", "--db", db, "--json"], envA)).stdout,
+      );
+      expect(listA.memories.map((m) => m.text)).toEqual(["甲方记忆"]);
+      const searchA = parseJson<SearchJson>(
+        (await runCli(["search", "记忆", "--no-touch", "--db", db, "--json"], envA)).stdout,
+      );
+      expect(searchA.results.map((r) => r.text)).toEqual(["甲方记忆"]);
+
+      // 默认：cwd=agent-b → 只含 b 分区
+      const listB = parseJson<ListJson>(
+        (await runCli(["list", "--db", db, "--json"], envB)).stdout,
+      );
+      expect(listB.memories.map((m) => m.text)).toEqual(["乙方记忆"]);
+      const searchB = parseJson<SearchJson>(
+        (await runCli(["search", "记忆", "--no-touch", "--db", db, "--json"], envB)).stdout,
+      );
+      expect(searchB.results.map((r) => r.text)).toEqual(["乙方记忆"]);
+
+      // 显式 --agent 覆盖默认分区
+      const explicit = parseJson<SearchJson>(
+        (
+          await runCli(
+            ["search", "记忆", "--agent", "agent-b", "--no-touch", "--db", db, "--json"],
+            envA,
+          )
+        ).stdout,
+      );
+      expect(explicit.results.map((r) => r.text)).toEqual(["乙方记忆"]);
+      const explicitList = parseJson<ListJson>(
+        (await runCli(["list", "--agent", "agent-a", "--db", db, "--json"], envA)).stdout,
+      );
+      expect(explicitList.memories.map((m) => m.text)).toEqual(["甲方记忆"]);
+
+      // --agent * 跨分区：两个分区都命中
+      const allSearch = parseJson<SearchJson>(
+        (await runCli(["search", "记忆", "--agent", "*", "--no-touch", "--db", db, "--json"], envA))
+          .stdout,
+      );
+      expect(allSearch.results.map((r) => r.text).sort()).toEqual(["乙方记忆", "甲方记忆"]);
+      const allList = parseJson<ListJson>(
+        (await runCli(["list", "--agent", "*", "--db", db, "--json"], envA)).stdout,
+      );
+      expect(allList.memories.map((m) => m.text).sort()).toEqual(["乙方记忆", "甲方记忆"]);
+    });
+  });
+
+  it("--help 说明 --agent 默认当前目录名与 * 跨分区语义", async () => {
+    const result = await run(["--help"]);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toContain("默认当前目录名");
+    expect(result.stdout).toContain("跨分区");
   });
 });
 

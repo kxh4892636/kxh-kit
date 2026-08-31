@@ -71,7 +71,7 @@ nm list --state dormant       # 仅休眠
 nm list --agent kxh-kit --tag tech --limit 20
 ```
 
-- 选项：`--agent <a>`、`--run <r>`（显式给出时按分区过滤）、`--tag <t>`（可重复）、`--state <s>`（可重复：`active` / `dormant` / `trashed` / `all`）、`--limit <n>`（正整数）。
+- 选项：`--agent <a>`（默认当前工作目录名，限定当前分区；`--agent *` 跨分区，`<a>` 显式覆盖）、`--run <r>`（显式给出时按分区过滤）、`--tag <t>`（可重复）、`--state <s>`（可重复：`active` / `dormant` / `trashed` / `all`）、`--limit <n>`（正整数）。
 - `--state` 语义为惰性判定：`active` = 非已删且 R ≥ 0.35；`dormant` = 非已删且 R < 0.35；`trashed` = 已删；`all` = 全部。
 
 ### nm use <id> [--grade again|hard|good|easy]
@@ -109,7 +109,7 @@ nm search "去重" --score-weights rel=0.8,strength=0.2
 ```
 
 - 全文检索（查询与写入同构：CJK 汉字两侧插入空格 + 小写），按 `score = 0.65 × rel + 0.35 × R` 降序；只返回 FTS 命中项，trashed 恒排除。
-- 选项：`--limit <n>`（默认 10）、`--min-score <m>`（默认 0.35，取值 [0,1]）、`--no-touch`（关闭自动弱使用）、`--include-dormant`（显示休眠记忆）、`--score-weights rel=<w>,strength=<w>`（和为 1）、`--agent <a>`、`--run <r>`、`--tag <t>`（可重复）。
+- 选项：`--limit <n>`（默认 10）、`--min-score <m>`（默认 0.35，取值 [0,1]）、`--no-touch`（关闭自动弱使用）、`--include-dormant`（显示休眠记忆）、`--score-weights rel=<w>,strength=<w>`（和为 1）、`--agent <a>`（默认当前工作目录名，限定当前分区；`--agent *` 跨分区，`<a>` 显式覆盖）、`--run <r>`（显式给出时按分区过滤）、`--tag <t>`（可重复）。
 - 默认对返回的每条记忆记一次弱使用（Hard）；`--no-touch` 或 `--dry-run` 时为零记账。
 
 ### nm gc [--retention-days <n>]
@@ -129,7 +129,7 @@ nm gc --retention-days 60     # 已删记录保留 60 天
 | ------------- | ------------------------------------------------------------------------------------ |
 | `--json`      | 成功输出 JSON 到 stdout，错误输出 JSON 到 stderr                                     |
 | `--db <path>` | 数据库路径（默认 `$NANO_MEM_DB` → `~/.nano-mem/mem.db`），目录自动创建               |
-| `--agent <a>` | agent 分区（add 默认当前目录名；list/search 仅在显式给出时按分区过滤）               |
+| `--agent <a>` | agent 分区（默认当前目录名；list/search 默认限定当前分区，`--agent *` 跨分区）       |
 | `--run <key>` | run 分区键（可选的任务/会话子分区，如 DSH sessionId）                                |
 | `--dry-run`   | 写命令（add/use/delete/gc）预演，不打开数据库、无副作用；search 下同时关闭自动弱使用 |
 | `--help`      | 显示帮助                                                                             |
@@ -141,7 +141,7 @@ nm gc --retention-days 60     # 已删记录保留 60 天
 
 ### 记忆分区（--agent / --run）
 
-- **agent 分区**：记忆必属的分区，默认取当前工作目录名（工作区根时为仓库名），如 `kxh-kit`；`--agent` 显式覆盖（写入时生效，读取时作为过滤条件）。
+- **agent 分区**：记忆必属的分区，默认取当前工作目录名（工作区根时为仓库名），如 `kxh-kit`；写入时 `--agent` 显式覆盖默认归属；读取（list/search）默认限定当前分区，`--agent <name>` 显式覆盖、`--agent *` 跨分区。
 - **run 分区**：可选的任务/会话子分区，与 agent 分区共同限定记忆归属；不指定时为空。
 
 ## JSON 契约与退出码
@@ -184,7 +184,7 @@ nm gc --retention-days 60     # 已删记录保留 60 天
 - **休眠（dormant）**：R < 0.35，默认检索隐藏；`nm search --include-dormant` 可见，`nm list --state dormant` 盘点。
 - **已删（trashed）**：`nm delete` 软删除后的终态，恒不进检索结果；`nm gc` 清除超过保留期（默认 30 天）的已删记忆。
 
-记忆随使用增强：`search` 命中自动记弱使用（Hard），`nm use` 显式记强使用——高频使用提高 stability 与检索排名，长期不用的记忆 R 衰减进入休眠直至被 gc 清理。「搜不到不代表没有」：目标记忆可能在休眠、已删，或属于其他 agent/run 分区，先 `nm list --state all` 盘点再下结论。
+记忆随使用增强：`search` 命中自动记弱使用（Hard），`nm use` 显式记强使用——高频使用提高 stability 与检索排名，长期不用的记忆 R 衰减进入休眠直至被 gc 清理。「搜不到不代表没有」：目标记忆可能在休眠、已删，或属于其他 agent/run 分区，先 `nm list --state all` 盘点当前分区，必要时 `--agent *` 跨分区再下结论。
 
 ## self skill 管理
 
