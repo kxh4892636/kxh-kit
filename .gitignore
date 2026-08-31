@@ -42,3 +42,6 @@ release
 # Mutation test reports
 **/reports/mutation/
 **/.stryker-tmp/
+
+# Test coverage reports
+coverage
