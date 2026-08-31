@@ -369,28 +369,37 @@ const isChunkRowEvent = (
   event.type === "chunkrow/reasoning-chunks" ||
   event.type === "chunkrow/tool-call-chunks";
 
-const isChunkRecord = (
-  record: HistoryRecordVariantLike,
-): record is { readonly type: "chunks"; readonly event: ChunkRowEventLike } =>
-  record.type === "chunks" && isChunkRowEvent(record.event);
+/**
+ * 从记录取 chunk 行事件: 兼容 'chunks' 变体与 'event' 包裹变体两种 wire 形状
+ * (SessionChunkRun 与事件形式均可由历史页返回)。
+ */
+const chunkEventOf = (record: HistoryRecordVariantLike): ChunkRowEventLike | undefined => {
+  if (record.type === "chunks" && isChunkRowEvent(record.event)) return record.event;
+  if (record.type === "event" && isChunkRowEvent(record.event))
+    return record.event as ChunkRowEventLike;
+  return undefined;
+};
 
 /** 文本化一条历史记录: user/assistant 完整文本, chunk 行展开文本, 其余一行摘要。 */
 const entryOf = (record: HistoryRecordVariantLike): HistoryEntry => {
-  if (isChunkRecord(record)) {
-    const text = eventTextOf(record.event.data);
-    if (record.event.type === "chunkrow/text-chunks" && text !== "") {
-      return { seq: record.event.seq, time: record.event.time, kind: "assistant", text };
+  const chunkEvent = chunkEventOf(record);
+  if (chunkEvent !== undefined) {
+    const text = eventTextOf(chunkEvent.data);
+    if (chunkEvent.type === "chunkrow/text-chunks" && text !== "") {
+      return { seq: chunkEvent.seq, time: chunkEvent.time, kind: "assistant", text };
     }
     return {
-      seq: record.event.seq,
-      time: record.event.time,
+      seq: chunkEvent.seq,
+      time: chunkEvent.time,
       kind: "event",
-      text: `[chunk 增量行 ${record.event.type}]`,
+      text: `[chunk 增量行 ${chunkEvent.type}]`,
     };
   }
-  const event = record.event;
-  if (isUserMessage(record) || isAssistantMessage(record)) {
-    const kind = isUserMessage(record) ? "user" : "assistant";
+  // 到此处仅剩 event 变体(chunkEventOf 已排除了 chunks 包裹的 chunk 行)
+  const eventRecord = record as HistoryRecordLike;
+  const event = eventRecord.event;
+  if (isUserMessage(eventRecord) || isAssistantMessage(eventRecord)) {
+    const kind = isUserMessage(eventRecord) ? "user" : "assistant";
     return {
       seq: event.seq,
       time: event.time,
