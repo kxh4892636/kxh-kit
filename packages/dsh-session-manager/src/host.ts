@@ -454,18 +454,24 @@ export interface SpawnLocationDecision {
 }
 
 /**
- * 解析 spawn 的 workspace 落位。当前决策规则: workspaceId/cwd 显式给出时原样透传,
- * 两者都省略时返回空(Host 回退默认 cwd)——调用方 workspace 兜底由 02 在此扩展。
+ * 解析 spawn 的 workspace 落位。决策规则: workspaceId/cwd 显式给出时原样透传;
+ * 两者都省略时以 callerCwd 兜底(与调用方会话同一 workspace); 均无则返回空(Host 回退默认 cwd)。
  */
 export const resolveSpawnLocation = (options: {
   readonly workspaceId?: string;
   readonly cwd?: string;
+  readonly callerCwd?: string;
 }): SpawnLocationDecision => {
-  if (options.workspaceId === undefined && options.cwd === undefined) return {};
-  return {
-    ...(options.workspaceId === undefined ? {} : { workspaceId: options.workspaceId }),
-    ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
-  };
+  if (options.workspaceId !== undefined || options.cwd !== undefined) {
+    return {
+      ...(options.workspaceId === undefined ? {} : { workspaceId: options.workspaceId }),
+      ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+    };
+  }
+  if (options.callerCwd !== undefined) {
+    return { cwd: options.callerCwd };
+  }
+  return {};
 };
 
 /** 会话上下文注入器(03 实现): 创建后以系统消息注册上下文。 */
@@ -551,6 +557,7 @@ export class SessionManagerHost {
   async spawn(options: {
     readonly workspaceId?: string;
     readonly cwd?: string;
+    readonly callerCwd?: string;
     readonly sessionId?: string;
     readonly provider?: string;
     readonly model?: string;
@@ -560,6 +567,7 @@ export class SessionManagerHost {
     const location = resolveSpawnLocation({
       ...(options.workspaceId === undefined ? {} : { workspaceId: options.workspaceId }),
       ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+      ...(options.callerCwd === undefined ? {} : { callerCwd: options.callerCwd }),
     });
     const created = await this.services.sessionController.create({
       ...(location.workspaceId === undefined ? {} : { workspaceId: location.workspaceId }),
