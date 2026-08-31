@@ -186,6 +186,86 @@ nm gc --retention-days 60     # 已删记录保留 60 天
 
 记忆随使用增强：`search` 命中自动记弱使用（Hard），`nm use` 显式记强使用——高频使用提高 stability 与检索排名，长期不用的记忆 R 衰减进入休眠直至被 gc 清理。「搜不到不代表没有」：目标记忆可能在休眠、已删，或属于其他 agent/run 分区，先 `nm list --state all` 盘点再下结论。
 
-## self skill 管理（待 06 完善）
+## self skill 管理
 
-`nano-mem` skill 随 CLI 包分发（`skills/nano-mem/`），经 `nm self skill` 安装/更新/卸载到工作区 `.agents/skills`——命令详细说明与示例待 issue 06 补全。
+`nano-mem` skill 随 CLI 包分发（`packages/nano-mem/skills/nano-mem/`，ADR-0003 与 CLI 同版发布），经 `nm self skill` 安装/更新/卸载到工作区 `.agents/skills`（默认 target）。安装目录带受管标记 `.nano-mem-managed.json`，与 loopx 的 `.loopx-managed.json` 隔离，互不干扰。
+
+### nm self skill list
+
+```sh
+nm self skill list
+nm self skill list --target D:\work\agent\.agents\skills
+```
+
+列出包内全部受管技能 + 安装状态（文本格式 `name [status] v<version> → <target>`）。
+
+### nm self skill check --name nano-mem
+
+```sh
+nm self skill check --name nano-mem
+```
+
+查看单个技能的状态详情（status/version/target 与说明）。
+
+### nm self skill install --name nano-mem | --all
+
+```sh
+nm self skill install --name nano-mem        # 安装/重装单个技能
+nm self skill install --all                  # 安装包内全部技能
+nm self skill install --name nano-mem --dry-run   # 只输出 preview，不落盘
+```
+
+首次安装（not_installed）直接写入；已有安装时按状态决定是否覆盖（见下）。`--all` 覆盖包内全部技能。
+
+### nm self skill update --name nano-mem
+
+```sh
+nm self skill update --name nano-mem          # 包版本升级后更新已安装技能
+```
+
+### nm self skill uninstall --name nano-mem | --all
+
+```sh
+nm self skill uninstall --name nano-mem
+nm self skill uninstall --all
+```
+
+删除安装目录与 marker；卸载后 `check` 回到 `not_installed`。
+
+### 选项
+
+| 选项              | 说明                                                                  |
+| ----------------- | --------------------------------------------------------------------- |
+| `--target <root>` | 目标技能根目录（默认 `<cwd>/.agents/skills`；相对路径按 cwd 解析）    |
+| `--force`         | 本地修改（modified）时强制覆盖/卸载，否则拒绝                         |
+| `--dry-run`       | 写命令只输出 preview（install/update/uninstall 可用），不修改文件系统 |
+
+### 状态四值
+
+安装状态按目标目录文件树哈希（对 `skills/<name>/` 下所有文件按相对路径排序计算，见下）与 marker 判定：
+
+| 状态            | 语义                                                                          |
+| --------------- | ----------------------------------------------------------------------------- |
+| `not_installed` | 目标目录不存在                                                                |
+| `current`       | 版本与内容均与包内一致                                                        |
+| `outdated`      | 未修改，但安装版本 ≠ 包版本（包已升级，可 `update`）                          |
+| `modified`      | 目录内容与 marker 记录不一致，或目录非受管（本地修改/外来目录），需 `--force` |
+
+`install/update/uninstall` 遇 `modified` 一律拒绝（退出码 1），`--force` 可覆盖；`update/uninstall` 遇 `not_installed` 拒绝。写命令走 prepare → preview → commit 事务（staged 写入 → 校验哈希 → 备份现目录 → rename 替换），任一步失败整体回滚（恢复备份）。
+
+### marker 与 contentHash
+
+`.nano-mem-managed.json`：
+
+```json
+{ "name": "nano-mem", "version": "0.1.0", "contentHash": "<sha256 hex>" }
+```
+
+- `version` = CLI 包版本（`--version` 输出，ADR-0003 同版发布）；
+- `contentHash` = 对技能文件树的确定性哈希：全部普通文件（跳过 marker、含空文件，二进制按 utf8 解码）按相对路径排序后，逐条 `sha256(路径 + "\0" + 内容 + "\0")`——同文件树与读取/排序顺序无关，路径/内容边界（换行、空文件）不产生歧义。以 `contentHash` 与 marker 的一致性区分 `current/outdated` 与 `modified`。
+
+### JSON 契约
+
+- `list` → `{"skills":[{"name":"nano-mem","version":"0.1.0","target":"...","status":"not_installed"}]}`
+- `check` → `{"skill":{"name":"nano-mem","version":"0.1.0","target":"...","status":"current"}}`
+- 写命令 → `{"dryRun":false,"changes":[{"name":"nano-mem","action":"install","source":"package://skills/nano-mem","target":"...","fromVersion":null,"toVersion":"0.1.0"}]}`；`--dry-run` 时 `dryRun:true` 且不落盘。

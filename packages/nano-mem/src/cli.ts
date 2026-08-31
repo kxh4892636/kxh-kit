@@ -44,6 +44,13 @@ import {
   type GcReport,
   type SearchHit,
 } from "./search";
+import {
+  renderSelfJson,
+  renderSelfText,
+  runSelfCommand,
+  SelfUsageError,
+  type SelfPayload,
+} from "./self";
 
 /** 可注入的进程环境；测试传假值，nodeEnv() 提供真实默认。 */
 export interface CliEnv {
@@ -128,6 +135,11 @@ const OPTION_DEFS = {
   "include-dormant": { type: "boolean" },
   "score-weights": { type: "string" },
   "retention-days": { type: "string" },
+  // self skill 命令组专属选项（仅 self 命令接受；记忆命令经 assertCommandOptions 拒绝）
+  name: { type: "string" },
+  target: { type: "string" },
+  force: { type: "boolean" },
+  all: { type: "boolean" },
 } as const;
 
 type RawValues = Readonly<Record<string, string | boolean | readonly string[] | undefined>>;
@@ -200,7 +212,8 @@ type Payload =
     }
   | { readonly kind: "plan"; readonly plans: readonly Plan[] }
   | { readonly kind: "search"; readonly results: readonly SearchResultView[] }
-  | { readonly kind: "gc"; readonly dryRun: boolean; readonly report: GcReport };
+  | { readonly kind: "gc"; readonly dryRun: boolean; readonly report: GcReport }
+  | SelfPayload;
 
 const strValue = (value: unknown): string | undefined =>
   typeof value === "string" ? value : undefined;
@@ -703,6 +716,11 @@ function renderText(payload: Payload): string {
     case "plan": {
       return payload.plans.map(planText).join("");
     }
+    case "selfList":
+    case "selfCheck":
+    case "selfChange": {
+      return renderSelfText(payload);
+    }
   }
 }
 
@@ -768,6 +786,11 @@ function renderJson(payload: Payload): string {
     case "plan": {
       return `${JSON.stringify({ dryRun: true, operations: payload.plans.map(planJson) })}\n`;
     }
+    case "selfList":
+    case "selfCheck":
+    case "selfChange": {
+      return renderSelfJson(payload);
+    }
   }
 }
 
@@ -783,9 +806,15 @@ function errorText(hint: string | undefined, message: string): string {
 }
 
 function toErrorResult(error: unknown, json: boolean): CliResult {
-  const code: CliErrorCode = error instanceof CliError ? error.code : "runtime";
+  const code: CliErrorCode =
+    error instanceof CliError
+      ? error.code
+      : error instanceof SelfUsageError
+        ? error.code
+        : "runtime";
   const message = error instanceof Error ? error.message : String(error);
-  const hint = error instanceof CliError ? error.hint : undefined;
+  const hint =
+    error instanceof CliError || error instanceof SelfUsageError ? error.hint : undefined;
   const payload = { error: { code, message, ...(hint === undefined ? {} : { hint }) } };
   return {
     exitCode: code === "usage" ? 2 : 1,
@@ -824,11 +853,21 @@ async function handle(argv: readonly string[], env: CliEnv): Promise<CliResult> 
   if (command === undefined) {
     throw new CliError("usage", "缺少命令", "运行 nm --help 查看可用命令");
   }
+  if (command === "self") {
+    // self 命令组不触碰数据库（--db/--agent/--run 不适用），校验与分派在 self.ts。
+    const payload = await runSelfCommand({
+      args,
+      values,
+      cwd: env.cwd,
+      version: env.version,
+    });
+    return renderResult(payload, values["json"] === true);
+  }
   if (!isCommand(command)) {
     throw new CliError(
       "usage",
       `未知命令 "${command}"`,
-      `可用命令: ${COMMANDS.join(", ")}（nm --help 查看）`,
+      `可用命令: ${COMMANDS.join(", ")}, self（nm --help 查看）`,
     );
   }
   assertCommandOptions(command, values);
@@ -881,6 +920,8 @@ export function helpText(version: string): string {
     "  nm search <query> [--limit <n>] [--min-score <m>] [--no-touch] [--include-dormant]",
     "        [--score-weights rel=0.8,strength=0.2] [--agent <a>] [--run <r>] [--tag <t> ...]",
     "  nm gc [--dry-run] [--retention-days <n>]",
+    "  nm self skill <list|check|install|update|uninstall> [--name <n>|--all]",
+    "        [--target <root>] [--force] [--dry-run]",
     "  nm [--help] [--version]",
     "",
     "命令:",
@@ -892,6 +933,7 @@ export function helpText(version: string): string {
     "  stats         总数 / 状态分布 / FSRS 概览",
     "  search <q>    全文检索并按 0.65×rel + 0.35×R 排序（--no-touch 关闭自动弱使用）",
     "  gc            标删遗忘记忆（R<0.10 或休眠>180 天）并清除超期已删记录",
+    "  self skill    管理随包受管技能（安装到 .agents/skills；状态判定见 nm self skill check）",
     "",
     "全局选项:",
     "  --json        成功输出 JSON 到 stdout，错误输出 JSON 到 stderr",
