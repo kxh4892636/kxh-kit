@@ -34,6 +34,15 @@ const runHost = async (
   }
 };
 
+/** 调用方会话的 cwd(经工具执行上下文); 不可得时返回 undefined。 */
+export const callerSessionCwdOf = (exec: ToolRunContext): string | undefined => {
+  const agent = exec.agent as unknown as
+    | { readonly session?: { readonly header?: { readonly cwd?: string } } }
+    | undefined;
+  const cwd = agent?.session?.header?.cwd;
+  return typeof cwd === "string" && cwd !== "" ? cwd : undefined;
+};
+
 const requiredString = (
   description: string,
 ): { readonly type: "string"; readonly required: true; readonly description: string } => ({
@@ -136,12 +145,14 @@ export const buildSessionTools = (host: SessionManagerHost): ToolDefinition[] =>
   defineTool({
     name: "session_spawn",
     description:
-      "创建新会话并可选地为其选择指定模型。新会话与 GUI「新会话」一致: 默认携带部署预置的系统消息/上下文," +
-      " 不提供注入或选择参数。model+provider 择一省略时用部署默认模型。" +
-      " 创建后给 session 投递指令请使用 session_prompt。",
+      "创建新会话并可选地为其选择指定模型。workspaceId/cwd 缺省时与调用方会话同一 workspace;" +
+      " 新会话与 GUI「新会话」一致: 默认携带部署预置的系统消息/上下文。" +
+      " model+provider 择一省略时用部署默认模型。创建后给 session 投递指令请使用 session_prompt。",
     parameters: {
-      workspaceId: optionalString("归属的 workspace id(与 cwd 二选一; 缺省用默认 cwd)。"),
-      cwd: optionalString("会话的工作目录(与 workspaceId 二选一)。"),
+      workspaceId: optionalString(
+        "归属的 workspace id(与 cwd 二选一; 缺省与调用方会话同 workspace)。",
+      ),
+      cwd: optionalString("会话的工作目录(与 workspaceId 二选一; 缺省同上)。"),
       sessionId: optionalString("显式会话 id(缺省自动生成, 便于幂等与测试)。"),
       provider: optionalString(
         "模型 provider id(来自 session_model_list; 与 model 同时给出或同时省略)。",
@@ -153,9 +164,11 @@ export const buildSessionTools = (host: SessionManagerHost): ToolDefinition[] =>
     execute: async (args, exec) =>
       runHost(async () => {
         spawnSchemaValidator(args);
+        const callerCwd = callerSessionCwdOf(exec);
         const result = await host.spawn({
           ...(args.workspaceId === undefined ? {} : { workspaceId: args.workspaceId }),
           ...(args.cwd === undefined ? {} : { cwd: args.cwd }),
+          ...(callerCwd === undefined ? {} : { callerCwd }),
           ...(args.sessionId === undefined ? {} : { sessionId: args.sessionId }),
           ...(args.provider === undefined || args.model === undefined
             ? {}

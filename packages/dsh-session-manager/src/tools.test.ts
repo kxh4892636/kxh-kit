@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import type { ToolRunContext } from "@deepseek-ai/dsh-tools";
 import { SessionManagerHost } from "./host.ts";
 import { headerOf, makeFakeServices, messageRecordOf, snapshotOf } from "./test-support.ts";
-import { buildSessionTools } from "./tools.ts";
+import { buildSessionTools, callerSessionCwdOf } from "./tools.ts";
 
 const toolOf = (tools: ReturnType<typeof buildSessionTools>, name: string) => {
   const found = tools.find((tool) => tool.name === name);
@@ -25,6 +25,39 @@ const makeTools = (
 
 const execOf = (): ToolRunContext =>
   ({ signal: new AbortController().signal }) as unknown as ToolRunContext;
+
+describe("callerSessionCwdOf", () => {
+  it("从执行上下文的 agent.session.header.cwd 取调用方 cwd", () => {
+    expect(
+      callerSessionCwdOf({
+        signal: new AbortController().signal,
+        agent: { session: { header: { cwd: "C:\\caller" } } },
+      } as unknown as ToolRunContext),
+    ).toBe("C:\\caller");
+    expect(
+      callerSessionCwdOf({
+        signal: new AbortController().signal,
+        agent: { session: { header: {} } },
+      } as unknown as ToolRunContext),
+    ).toBeUndefined();
+    expect(
+      callerSessionCwdOf({ signal: new AbortController().signal } as unknown as ToolRunContext),
+    ).toBeUndefined();
+  });
+
+  it("session_spawn 无显式落位时把调用方 cwd 传给 host.spawn", async () => {
+    const { tools, calls } = makeTools();
+    const execWithAgent = {
+      signal: new AbortController().signal,
+      agent: { session: { header: { cwd: "C:\\caller" } } },
+    } as unknown as ToolRunContext;
+    const executor = toolOf(tools, "session_spawn").execute.bind(
+      toolOf(tools, "session_spawn"),
+    ) as unknown as (args: unknown, exec: ToolRunContext) => Promise<unknown>;
+    await executor({}, execWithAgent);
+    expect(calls.create[0]).toEqual({ cwd: "C:\\caller" });
+  });
+});
 
 const exec = async (
   tool: ReturnType<typeof buildSessionTools>[number],
