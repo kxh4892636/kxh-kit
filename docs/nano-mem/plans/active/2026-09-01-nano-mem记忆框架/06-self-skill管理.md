@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 blocked_by: ["05"]
 ---
 
@@ -40,3 +40,10 @@ blocked_by: ["05"]
 ## 下一步
 
 决策已澄清：/code-delivery
+
+## 交付记录
+
+- 交付物：`src/self.ts` + `src/self/{skill-catalog,skill-files,skill-state,skill-store}.ts`（文件树哈希/四态判定/两段式事务）+ `src/self.spec.ts`（21 测试）+ cli.ts self 分派 + README self 章节；commit `bf17d0e`（A：feat/nano-mem）。
+- 验证证据：test 121/121 passed（存量 100 + 21）；覆盖率 95.33/90.04/98.00/96.08（≥80）；`vp check` pass；build 60.84 kB；冒烟（临时 target）：list→not_installed、install --dry-run 无落盘、install 后 marker {name,version,contentHash}+check=current、本地修改后 update 拒绝+--force 覆盖、uninstall --all 无残留。
+- 四态：not_installed/current/outdated/modified（contentHash=sha256(path\0content\0) 排序后哈希）；与 loopx 的差异：install/update/uninstall 对 modified 一律拒绝、--force 覆盖（本 issue 验收口径，loopx 仅 update 保护）。
+- 修复缺陷：技能根目录 URL 随 bundle 变位 → 改为 src/self.ts 同深度 `../skills/` 解析。

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 blocked_by: ["01", "02"]
 ---
 
@@ -44,3 +44,9 @@ blocked_by: ["01", "02"]
 ## 下一步
 
 决策已澄清：/code-delivery
+
+## 交付记录
+
+- 交付物：`src/cli.ts`（runCli(argv, env) 命令分派/输出/错误契约）+ `src/cli.spec.ts`（35 测试）+ `src/main.ts` 薄壳（shebang + 进程接线）+ `src/store.ts` 新增 `updateFsrs` + `vitest.config.ts` exclude main.ts；commit `6e28c20`（A：feat/nano-mem）。
+- 验证证据：`pnpm --filter @kxh4892636/nano-mem test` 66/66 passed；覆盖率 statements/branches/functions/lines = 95.25/89.38/98.87/95.17（≥80）；`vp check` pass（13 files、0 lint/type errors）；`build` 后 `node dist/main.mjs --version` → 0.1.0（exit 0）。
+- 验收点证据（临时 db 冒烟）：add→重复 add 返回既有 id→stdin 多行 add→get 全文（tags/meta/FSRS 字段）→use good 更新 reps/due/last_review→stats（总数/状态分布/平均 stability）→delete 软删后 list 默认不含、get 显示 trashed+trashed_at→`--json` 错误契约（exit 1/2 + stderr JSON + hint）。

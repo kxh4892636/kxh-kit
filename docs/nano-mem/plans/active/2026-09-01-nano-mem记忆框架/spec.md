@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 ---
 
 # nano-mem 记忆框架
@@ -70,7 +70,7 @@ CREATE VIRTUAL TABLE memories_fts USING fts5(text_tok, content='', tokenize='uni
 
 ### 检索评分
 
-- `score = w_rel × rel + w_strength × R`，默认 `w_rel=0.65, w_strength=0.35`（`--score-weights` 可覆盖）；`rel = 1 / (1 + exp(bm25))`（bm25 为负，越接近 0 越相关）；`R = retrievability()`。
+- `score = w_rel × rel + w_strength × R`，默认 `w_rel=0.65, w_strength=0.35`（`--score-weights` 可覆盖）；`rel = 1 / (1 + exp(bm25))`（bm25 为负，实测越负越特异——常见词趋近 0、rel 偏低，稀有词更负、rel 更高）；`R = retrievability()`。
 - 默认 `--min-score 0.35`；过滤按 score 与状态（见下）。
 
 ### 遗忘状态机（惰性）
@@ -131,12 +131,13 @@ CREATE VIRTUAL TABLE memories_fts USING fts5(text_tok, content='', tokenize='uni
 
 ## Issue
 
-| #   | Issue                                                      | 状态    | 阻塞于 | 下一步         |
-| --- | ---------------------------------------------------------- | ------- | ------ | -------------- |
-| 01  | [项目脚手架与记忆库存储层](01-项目脚手架与记忆库存储层.md) | pending | —      | /code-delivery |
-| 02  | [FSRS 调度接入](02-fsrs调度接入.md)                        | pending | —      | /code-delivery |
-| 03  | [CLI 命令集与记忆管理命令](03-cli命令集与记忆管理命令.md)  | pending | 01,02  | /code-delivery |
-| 04  | [检索排序与遗忘状态机](04-检索排序与遗忘状态机.md)         | pending | 03     | /code-delivery |
-| 05  | [nano-mem skill 与 README 使用文档](05-skill与使用文档.md) | pending | 04     | /code-delivery |
-| 06  | [self skill 管理](06-self-skill管理.md)                    | pending | 05     | /code-delivery |
-| 07  | [端到端冒烟验证](07-端到端冒烟验证.md)                     | pending | 06     | /code-delivery |
+| #   | Issue                                                              | 状态      | 阻塞于 | 下一步         |
+| --- | ------------------------------------------------------------------ | --------- | ------ | -------------- |
+| 01  | [项目脚手架与记忆库存储层](01-项目脚手架与记忆库存储层.md)         | completed | —      | /code-delivery |
+| 02  | [FSRS 调度接入](02-fsrs调度接入.md)                                | completed | —      | /code-delivery |
+| 03  | [CLI 命令集与记忆管理命令](03-cli命令集与记忆管理命令.md)          | completed | 01,02  | /code-delivery |
+| 04  | [检索排序与遗忘状态机](04-检索排序与遗忘状态机.md)                 | completed | 03     | /code-delivery |
+| 05  | [nano-mem skill 与 README 使用文档](05-skill与使用文档.md)         | completed | 04     | /code-delivery |
+| 06  | [self skill 管理](06-self-skill管理.md)                            | completed | 05     | /code-delivery |
+| 07  | [端到端冒烟验证](07-端到端冒烟验证.md)                             | completed | 06,08  | /code-delivery |
+| 08  | [检索与列表默认分区一致性修正](08-检索与列表默认分区一致性修正.md) | completed | 04     | /code-delivery |

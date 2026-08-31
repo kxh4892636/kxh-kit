@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 blocked_by: []
 ---
 
@@ -34,3 +34,9 @@ blocked_by: []
 ## 下一步
 
 决策已澄清：/code-delivery
+
+## 交付记录
+
+- 交付物：`src/fsrs.ts`（createMemoryScheduler 纯长时、initialCard、initReview、recordUse、retrievability、cardToRow/rowToCard、Grade 校验与映射）+ `src/fsrs.spec.ts`（15 测试）；commit `8b54dbf`（worktree 分支），A（feat/nano-mem）合并 `7ce7b8a`。
+- 验证证据：fsrs.spec 15/15 passed，覆盖率 100/100/100/100；A 集成 31/31 passed；`vp check` pass；`enable_short_term:false` 长时路径断言通过（New 经 Again 直达 Review、learning_steps=0、due≥1 天）。
+- 验收点证据：连续 Good 后 stability 严格单调上升；时间推进 60 天 R 单调下降；Again 后 lapses+1 且 S 低于 Good；card↔row 往返一致。

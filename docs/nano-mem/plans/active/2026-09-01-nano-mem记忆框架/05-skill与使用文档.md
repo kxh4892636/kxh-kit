@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 blocked_by: ["04"]
 ---
 
@@ -35,3 +35,9 @@ blocked_by: ["04"]
 ## 下一步
 
 决策已澄清：/code-delivery
+
+## 交付记录
+
+- 交付物：`packages/nano-mem/skills/nano-mem/SKILL.md`（49 行：frontmatter+契约段+add/search/use 纪律+三态遗忘语义）+ `README.md`（191 行：安装/快速开始/8 命令参考/全局选项/NANO_MEM_DB/JSON 契约/退出码/遗忘语义/self 占位）；commit `da7c86d`（A：feat/nano-mem）。
+- 验证证据：`node dist/main.mjs --help` 与 README 命令表逐项比对一致（limit=10、min-score=0.35、权重 0.65/0.35、use 默认 good、retention 30 天、退出码 0/1/2）；`vp check` pass；test 100/100 保持全绿；`npm pack --dry-run` 确认 tarball 含 `skills/nano-mem/SKILL.md`。
+- 备注：README 关于 list/search「仅显式 --agent 时过滤」的陈述与已确认设计（检索默认限定当前分区）不符，由 issue 08 修正。
