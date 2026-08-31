@@ -139,5 +139,5 @@ CREATE VIRTUAL TABLE memories_fts USING fts5(text_tok, content='', tokenize='uni
 | 04  | [检索排序与遗忘状态机](04-检索排序与遗忘状态机.md)                 | completed | 03     | /code-delivery |
 | 05  | [nano-mem skill 与 README 使用文档](05-skill与使用文档.md)         | completed | 04     | /code-delivery |
 | 06  | [self skill 管理](06-self-skill管理.md)                            | completed | 05     | /code-delivery |
-| 07  | [端到端冒烟验证](07-端到端冒烟验证.md)                             | completed | 06,08  | /code-delivery |
+| 07  | [端到端冒烟验证](07-端到端冒烟验证.md)                             | completed | 06     | /code-delivery |
 | 08  | [检索与列表默认分区一致性修正](08-检索与列表默认分区一致性修正.md) | completed | 04     | /code-delivery |
