@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 import { helpText, nodeEnv, resolveDbPath, runCli, type CliEnv, type CliResult } from "./cli";
 import type { Memory, MemoryState } from "./store";
@@ -37,6 +38,24 @@ interface ErrorJson {
     readonly code: "usage" | "runtime";
     readonly message: string;
     readonly hint?: string;
+  };
+}
+interface SearchJson {
+  readonly results: ReadonlyArray<{
+    readonly id: number;
+    readonly text: string;
+    readonly state: string;
+    readonly score: number;
+    readonly relevance: number;
+    readonly strength: number;
+  }>;
+}
+interface GcJson {
+  readonly dryRun: boolean;
+  readonly report: {
+    readonly scanned: number;
+    readonly toTrash: number[];
+    readonly toPurge: number[];
   };
 }
 
@@ -573,5 +592,347 @@ describe("数据库路径与初始化", () => {
   it(":memory: 库也可用（不建目录、不写文件）", async () => {
     const result = await run(["stats", "--db", ":memory:", "--json"]);
     expect(result.exitCode).toBe(0);
+  });
+});
+
+describe("search（issue 04 检索排序）", () => {
+  it("search 中文/英文命中：返回 score 降序，JSON 含 score/relevance/strength/state", async () => {
+    await withTempDb(async (db) => {
+      await addJson(db, "记忆信息很关键");
+      await addJson(db, "窗口管理指南");
+      const res = await run(["search", "记忆", "--db", db, "--json"]);
+      expect(res.exitCode).toBe(0);
+      expect(res.stderr).toBe("");
+      const { results } = parseJson<SearchJson>(res.stdout);
+      expect(results).toHaveLength(1);
+      const r = results[0] as (typeof results)[number];
+      expect(r.id).toBe(1);
+      expect(r.text).toBe("记忆信息很关键");
+      expect(r.state).toBe("active");
+      expect(r.relevance).toBeGreaterThan(0.5);
+      expect(r.relevance).toBeLessThan(1);
+      expect(r.strength).toBe(1);
+      // 融合公式：0.65 × rel + 0.35 × R
+      expect(r.score).toBeCloseTo(0.65 * r.relevance + 0.35 * r.strength, 9);
+
+      const en = parseJson<SearchJson>(
+        (await run(["search", "窗口", "--db", db, "--json"])).stdout,
+      );
+      expect(en.results.map((item) => item.id)).toEqual([2]);
+
+      const none = await run(["search", "绝对不存在的词", "--db", db]);
+      expect(none.exitCode).toBe(0);
+      expect(none.stdout).toBe("（无结果）\n");
+    });
+  });
+
+  it("未命中项不进结果（无相关性的记忆不因 R 高上榜）", async () => {
+    await withTempDb(async (db) => {
+      await addJson(db, "窗口管理指南");
+      await addJson(db, "记忆信息很关键");
+      // 默认 min-score 0.35 时 R=1 的未命中项若被纳入将恰好达阈值
+      const res = parseJson<SearchJson>(
+        (await run(["search", "窗口", "--db", db, "--json"])).stdout,
+      );
+      expect(res.results.map((item) => item.id)).toEqual([1]);
+    });
+  });
+
+  it("默认对命中记录一次 Hard（自动弱使用）；--no-touch 不写 FSRS", async () => {
+    await withTempDb(async (db) => {
+      await addJson(db, "记忆信息很关键");
+      expect(mustMemory(await run(["get", "1", "--db", db, "--json"])).reps).toBe(1);
+
+      await run(["search", "记忆", "--db", db]);
+      let memory = mustMemory(await run(["get", "1", "--db", db, "--json"]));
+      expect(memory.reps).toBe(2);
+      expect(memory.lastReview).toBe(NOW.toISOString());
+
+      await run(["search", "记忆", "--db", db, "--no-touch"]);
+      memory = mustMemory(await run(["get", "1", "--db", db, "--json"]));
+      expect(memory.reps).toBe(2); // --no-touch 未再写入
+
+      // --dry-run 同样不触碰
+      await run(["search", "记忆", "--db", db, "--dry-run"]);
+      expect(mustMemory(await run(["get", "1", "--db", db, "--json"])).reps).toBe(2);
+    });
+  });
+
+  it("连续 use(good) 后同查询 rank 上升或不降（构造 R 差异）", async () => {
+    await withTempDb(async (db) => {
+      let clock = NOW;
+      const env = makeEnv({ now: () => clock });
+      await runCli(["add", "窗口管理指南", "--db", db], env);
+      await runCli(
+        ["add", "窗口装饰技巧与更多长文本词汇填充内容以增加文档长度并拉低相关性", "--db", db],
+        env,
+      );
+      // 老化 #1：3 次 Again（R ≈ 0.39，仍 active）；#2 保持强记忆
+      for (let i = 1; i <= 3; i++) {
+        clock = new Date(NOW.getTime() + 30 * i * DAY);
+        await runCli(["use", "1", "--grade", "again", "--db", db], env);
+      }
+      clock = new Date(NOW.getTime() + 290 * DAY);
+      await runCli(["use", "2", "--grade", "good", "--db", db], env); // #2 回满（R=1）
+      const before = parseJson<SearchJson>(
+        (await runCli(["search", "窗口", "--db", db, "--json"], env)).stdout,
+      );
+      expect(before.results.map((item) => item.id)).toEqual([2, 1]); // #1 R 低 → 靠后
+
+      await runCli(["use", "1", "--grade", "good", "--db", db], env); // #1 回满（R=1）
+      const after = parseJson<SearchJson>(
+        (await runCli(["search", "窗口", "--db", db, "--json"], env)).stdout,
+      );
+      expect(after.results[0]?.id).toBe(1); // rank 上升为第 1
+      expect(after.results[0]?.strength).toBe(1);
+      // #2 排名不降于使用后的比较基准（#2 仍为次席）
+      expect(after.results.map((item) => item.id)).toEqual([1, 2]);
+    });
+  });
+
+  it("时间推进 R 衰减 → dormant：search 默认隐藏、--include-dormant 可见且 state=dormant", async () => {
+    await withTempDb(async (db) => {
+      let clock = NOW;
+      const env = makeEnv({ now: () => clock });
+      await runCli(["add", "窗口管理指南", "--db", db], env);
+      for (let i = 1; i <= 6; i++) {
+        clock = new Date(NOW.getTime() + 30 * i * DAY);
+        await runCli(["use", "1", "--grade", "again", "--db", db], env);
+      }
+      clock = new Date(NOW.getTime() + 380 * DAY); // 距最后复习 200 天 → R < 0.35
+
+      const hidden = parseJson<SearchJson>(
+        (await runCli(["search", "窗口", "--db", db, "--json"], env)).stdout,
+      );
+      expect(hidden.results).toHaveLength(0);
+
+      const shown = parseJson<SearchJson>(
+        (
+          await runCli(
+            ["search", "窗口", "--db", db, "--include-dormant", "--no-touch", "--json"],
+            env,
+          )
+        ).stdout,
+      );
+      expect(shown.results).toHaveLength(1);
+      expect(shown.results[0]?.state).toBe("dormant");
+      expect(shown.results[0]?.strength).toBeLessThan(0.35);
+      expect(shown.results[0]?.score).toBeGreaterThanOrEqual(0.35);
+    });
+  });
+
+  it("--score-weights / --min-score / --limit 覆盖生效", async () => {
+    await withTempDb(async (db) => {
+      await addJson(db, "窗口管理指南");
+      await addJson(db, "记忆信息很关键");
+      const weighted = parseJson<SearchJson>(
+        (
+          await run([
+            "search",
+            "窗口",
+            "--score-weights",
+            "rel=0.8,strength=0.2",
+            "--db",
+            db,
+            "--json",
+          ])
+        ).stdout,
+      );
+      const r = weighted.results[0] as (typeof weighted.results)[number];
+      expect(r.score).toBeCloseTo(0.8 * r.relevance + 0.2 * r.strength, 9);
+
+      // min-score 提高到 0.99 → 低于阈值被过滤；limit=1 → 只返回 1 条
+      expect(
+        (await run(["search", "记忆", "--min-score", "0.99", "--db", db, "--json"])).stdout,
+      ).toBe('{"results":[]}\n');
+      await addJson(db, "窗口装饰技巧");
+      const limited = parseJson<SearchJson>(
+        (await run(["search", "窗口", "--limit", "1", "--db", db, "--json"])).stdout,
+      );
+      expect(limited.results).toHaveLength(1);
+    });
+  });
+
+  it("search --agent/--run/--tag 过滤", async () => {
+    await withTempDb(async (db) => {
+      await run(["add", "记忆信息很关键", "--tag", "core", "--db", db]);
+      await run(["add", "记忆备份策略", "--run", "r2", "--tag", "ops", "--db", db]);
+      await run(["add", "记忆信息很关键", "--agent", "other", "--db", db]);
+      const byAgent = parseJson<SearchJson>(
+        (await run(["search", "记忆", "--agent", "my-agent", "--db", db, "--json"])).stdout,
+      );
+      expect(byAgent.results.map((item) => item.text).sort()).toEqual([
+        "记忆信息很关键",
+        "记忆备份策略",
+      ]);
+      const byTag = parseJson<SearchJson>(
+        (await run(["search", "记忆", "--tag", "core", "--db", db, "--json"])).stdout,
+      );
+      expect(byTag.results.map((item) => item.id)).toEqual([1]);
+      const byRun = parseJson<SearchJson>(
+        (await run(["search", "记忆", "--run", "r2", "--db", db, "--json"])).stdout,
+      );
+      expect(byRun.results.map((item) => item.id)).toEqual([2]);
+    });
+  });
+
+  it("search 用法错误：缺查询 / min-score 越界 / 权重非法 / limit 非法 / 选项不适用", async () => {
+    expect((await run(["search", "--db", ":memory:"])).exitCode).toBe(2);
+    expect((await run(["search", "x", "--min-score", "1.5", "--db", ":memory:"])).exitCode).toBe(2);
+    expect((await run(["search", "x", "--min-score", "-0.1", "--db", ":memory:"])).exitCode).toBe(
+      2,
+    );
+    expect(
+      (await run(["search", "x", "--score-weights", "rel=0.5", "--db", ":memory:"])).exitCode,
+    ).toBe(2);
+    expect(
+      (await run(["search", "x", "--score-weights", "rel=0.8,strength=0.3", "--db", ":memory:"]))
+        .exitCode,
+    ).toBe(2);
+    expect((await run(["search", "x", "--limit", "0", "--db", ":memory:"])).exitCode).toBe(2);
+    expect((await run(["search", "x", "--grade", "good", "--db", ":memory:"])).exitCode).toBe(2);
+  });
+});
+
+describe("list 惰性状态（issue 04）", () => {
+  it("--state active/dormant/trashed/all 按惰性有效状态过滤；默认仅有效 active", async () => {
+    await withTempDb(async (db) => {
+      let clock = NOW;
+      const env = makeEnv({ now: () => clock });
+      await runCli(["add", "优雅记忆", "--db", db], env); // #1 活跃
+      await runCli(["add", "漂泊记忆", "--db", db], env); // #2 被遗忘链路
+      await runCli(["add", "历史记忆", "--db", db], env); // #3 手动删除
+      await runCli(["delete", "3", "--db", db], env);
+      for (let i = 1; i <= 6; i++) {
+        clock = new Date(NOW.getTime() + 30 * i * DAY);
+        await runCli(["use", "2", "--grade", "again", "--db", db], env);
+      }
+      clock = new Date(NOW.getTime() + 380 * DAY);
+
+      const all = parseJson<ListJson>(
+        (await runCli(["list", "--state", "all", "--db", db, "--json"], env)).stdout,
+      );
+      expect(all.memories.map((item) => item.id).sort((a, b) => a - b)).toEqual([1, 2, 3]);
+      const active = parseJson<ListJson>(
+        (await runCli(["list", "--state", "active", "--db", db, "--json"], env)).stdout,
+      );
+      expect(active.memories.map((item) => item.id)).toEqual([1]);
+      const dormant = parseJson<ListJson>(
+        (await runCli(["list", "--state", "dormant", "--db", db, "--json"], env)).stdout,
+      );
+      expect(dormant.memories.map((item) => item.id)).toEqual([2]);
+      expect(dormant.memories[0]?.state).toBe("dormant");
+      const trashed = parseJson<ListJson>(
+        (await runCli(["list", "--state", "trashed", "--db", db, "--json"], env)).stdout,
+      );
+      expect(trashed.memories.map((item) => item.id)).toEqual([3]);
+      const defaultList = parseJson<ListJson>(
+        (await runCli(["list", "--db", db, "--json"], env)).stdout,
+      );
+      expect(defaultList.memories.map((item) => item.id)).toEqual([1]); // 默认仅有效 active
+      expect((await runCli(["list", "--state", "bogus", "--db", db], env)).exitCode).toBe(2);
+    });
+  });
+});
+
+describe("gc（issue 04 遗忘状态机）", () => {
+  it("gc --dry-run 输出计划且零副作用；真实执行标删 R<0.10 与休眠>180 天记录", async () => {
+    await withTempDb(async (db) => {
+      let clock = NOW;
+      const env = makeEnv({ now: () => clock });
+      await runCli(["add", "窗口管理指南", "--db", db], env); // #1 长期休眠 → 标删
+      await runCli(["add", "记忆信息很关键", "--db", db], env); // #2 R<0.10（外部改写）
+      await runCli(["add", "数据库索引设计", "--db", db], env); // #3 keeper
+      for (let i = 1; i <= 6; i++) {
+        clock = new Date(NOW.getTime() + 30 * i * DAY);
+        await runCli(["use", "1", "--grade", "again", "--db", db], env);
+      }
+      // 测试夹具：直接改写 #2 的 FSRS 列为 New 态（R 恒为 0 < 0.10）
+      const raw = new DatabaseSync(db);
+      const past = new Date(NOW.getTime() - 100 * DAY).toISOString();
+      raw
+        .prepare(
+          "UPDATE memories SET stability = 0.001, difficulty = 2.1, due = ?, last_review = ?, " +
+            "reps = 1, lapses = 0, fsrs_state = 0 WHERE id = 2",
+        )
+        .run(past, past);
+      raw.close();
+
+      clock = new Date(NOW.getTime() + 380 * DAY);
+      const dry = await runCli(["gc", "--dry-run", "--db", db, "--json"], env);
+      expect(dry.exitCode).toBe(0);
+      const dryReport = parseJson<GcJson>(dry.stdout);
+      expect(dryReport.dryRun).toBe(true);
+      expect([...dryReport.report.toTrash].sort((a, b) => a - b)).toEqual([1, 2]);
+      expect(dryReport.report.toPurge).toEqual([]);
+      // 零副作用：#1 仍 active、仍可命中 FTS（惰性休眠态需 --include-dormant 可见）
+      expect((await runCli(["get", "1", "--db", db, "--json"], env)).exitCode).toBe(0);
+      expect(
+        parseJson<SearchJson>(
+          (
+            await runCli(
+              ["search", "窗口", "--db", db, "--include-dormant", "--no-touch", "--json"],
+              env,
+            )
+          ).stdout,
+        ).results.map((item) => item.id),
+      ).toEqual([1]);
+      const dryText = await runCli(["gc", "--dry-run", "--db", db], env);
+      expect(dryText.stdout).toContain("[dry-run] gc 扫描 3 条记忆");
+
+      // 真实执行
+      const done = await runCli(["gc", "--db", db, "--json"], env);
+      expect(done.exitCode).toBe(0);
+      const doneReport = parseJson<GcJson>(done.stdout);
+      expect([...doneReport.report.toTrash].sort((a, b) => a - b)).toEqual([1, 2]);
+      expect(mustMemory(await runCli(["get", "1", "--db", db, "--json"], env)).state).toBe(
+        "trashed",
+      );
+      expect(mustMemory(await runCli(["get", "2", "--db", db, "--json"], env)).state).toBe(
+        "trashed",
+      );
+      expect(mustMemory(await runCli(["get", "3", "--db", db, "--json"], env)).state).toBe(
+        "active",
+      );
+      // 标删后 FTS 移除：不再命中
+      expect(
+        parseJson<SearchJson>(
+          (await runCli(["search", "窗口", "--db", db, "--no-touch", "--json"], env)).stdout,
+        ).results,
+      ).toEqual([]);
+    });
+  });
+
+  it("gc 清除 trashed 超保留期记录（--retention-days 可调）", async () => {
+    await withTempDb(async (db) => {
+      let clock = NOW;
+      const env = makeEnv({ now: () => clock });
+      await runCli(["add", "旧记录", "--db", db], env); // #1
+      clock = new Date(NOW.getTime() - 40 * DAY);
+      await runCli(["delete", "1", "--db", db], env); // 40 天前删除（trashed_at 跟随注入时钟）
+      clock = NOW;
+
+      const res = await runCli(["gc", "--db", db, "--json"], env);
+      const report = parseJson<GcJson>(res.stdout).report;
+      expect(report.toPurge).toEqual([1]);
+      expect((await runCli(["get", "1", "--db", db, "--json"], env)).exitCode).toBe(1);
+
+      // 保留期调大 → 不清除：新加一条再删除（40 天前），gc --retention-days 45 保留
+      await runCli(["add", "旧记录二", "--db", db], env); // #2
+      clock = new Date(NOW.getTime() - 40 * DAY);
+      await runCli(["delete", "2", "--db", db], env);
+      clock = NOW;
+      const lenient = await runCli(["gc", "--retention-days", "45", "--db", db, "--json"], env);
+      expect(parseJson<GcJson>(lenient.stdout).report.toPurge).toEqual([]);
+      expect(mustMemory(await runCli(["get", "2", "--db", db, "--json"], env)).state).toBe(
+        "trashed",
+      );
+    });
+  });
+
+  it("gc 用法错误：--retention-days 非法", async () => {
+    expect((await run(["gc", "--retention-days", "0", "--db", ":memory:"])).exitCode).toBe(2);
+    expect((await run(["gc", "--retention-days", "-1", "--db", ":memory:"])).exitCode).toBe(2);
+    expect((await run(["gc", "--retention-days", "abc", "--db", ":memory:"])).exitCode).toBe(2);
   });
 });

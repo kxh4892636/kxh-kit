@@ -30,6 +30,20 @@ import {
   type MemoryRow,
 } from "./fsrs";
 import { MemoryStore, type Memory, type MemoryState } from "./store";
+import {
+  DEFAULT_WEIGHTS,
+  effectiveStateOf,
+  gcExecute,
+  gcPlan,
+  parseScoreWeights,
+  SEARCH_LIMIT_DEFAULT,
+  SEARCH_MIN_SCORE_DEFAULT,
+  searchMemories,
+  GC_RETENTION_DAYS_DEFAULT,
+  type EffectiveState,
+  type GcReport,
+  type SearchHit,
+} from "./search";
 
 /** 可注入的进程环境；测试传假值，nodeEnv() 提供真实默认。 */
 export interface CliEnv {
@@ -69,12 +83,15 @@ export class CliError extends Error {
   }
 }
 
-/** 记忆命令（search/gc/self 在 issue 04/06，v1 不在此处）。 */
-export const COMMANDS = ["add", "get", "list", "use", "delete", "stats"] as const;
+/** 记忆命令（self 在 issue 06，v1 不在此处）。 */
+export const COMMANDS = ["add", "get", "list", "use", "delete", "stats", "search", "gc"] as const;
 export type CommandName = (typeof COMMANDS)[number];
 
 export const GRADES_HINT = "again, hard, good, easy";
-export const STATES_HINT = "active, trashed";
+export const STATES_HINT = "active, dormant, trashed, all";
+
+/** list --state 合法取值（惰性状态语义，issue 04）。 */
+export const LIST_STATES = ["active", "dormant", "trashed", "all"] as const;
 
 const isCommand = (value: string): value is CommandName =>
   (COMMANDS as readonly string[]).includes(value);
@@ -87,6 +104,8 @@ const COMMAND_OPTIONS: Readonly<Record<CommandName, readonly string[]>> = {
   use: ["grade"],
   delete: [],
   stats: [],
+  search: ["tag", "limit", "min-score", "no-touch", "include-dormant", "score-weights"],
+  gc: ["retention-days"],
 };
 
 const GLOBAL_OPTIONS = ["json", "db", "agent", "run", "dry-run", "help", "version"] as const;
@@ -104,6 +123,11 @@ const OPTION_DEFS = {
   limit: { type: "string" },
   state: { type: "string", multiple: true },
   grade: { type: "string" },
+  "min-score": { type: "string" },
+  "no-touch": { type: "boolean" },
+  "include-dormant": { type: "boolean" },
+  "score-weights": { type: "string" },
+  "retention-days": { type: "string" },
 } as const;
 
 type RawValues = Readonly<Record<string, string | boolean | readonly string[] | undefined>>;
@@ -150,10 +174,22 @@ export interface FsrsStats {
   readonly averageRetrievability: number;
 }
 
+/** list/search 输出中的记忆视图：state 为惰性判定的有效状态。 */
+export interface MemoryView extends Omit<Memory, "state"> {
+  readonly state: EffectiveState;
+}
+
+/** search 结果视图：记忆字段 + 分数/相关性/强度（触摸前语义）。 */
+export interface SearchResultView extends MemoryView {
+  readonly score: number;
+  readonly relevance: number;
+  readonly strength: number;
+}
+
 type Payload =
   | { readonly kind: "added"; readonly id: number; readonly duplicate: boolean }
   | { readonly kind: "memory"; readonly memory: Memory }
-  | { readonly kind: "list"; readonly memories: readonly Memory[] }
+  | { readonly kind: "list"; readonly memories: readonly MemoryView[] }
   | { readonly kind: "used"; readonly memory: Memory; readonly grade: Grade }
   | { readonly kind: "deleted"; readonly id: number }
   | {
@@ -162,7 +198,9 @@ type Payload =
       readonly byState: Readonly<Record<MemoryState, number>>;
       readonly fsrs: FsrsStats;
     }
-  | { readonly kind: "plan"; readonly plans: readonly Plan[] };
+  | { readonly kind: "plan"; readonly plans: readonly Plan[] }
+  | { readonly kind: "search"; readonly results: readonly SearchResultView[] }
+  | { readonly kind: "gc"; readonly dryRun: boolean; readonly report: GcReport };
 
 const strValue = (value: unknown): string | undefined =>
   typeof value === "string" ? value : undefined;
@@ -321,48 +359,52 @@ function getCommand(ctx: CommandContext): Payload {
   const id = requireOneId(ctx, "get");
   const memory = ctx.withStore((store) => store.get(id));
   if (memory === null) {
-    throw new CliError(
-      "runtime",
-      `记忆 ${id} 不存在`,
-      "nm list --state active,trashed 查看现有记忆",
-    );
+    throw new CliError("runtime", `记忆 ${id} 不存在`, "nm list --state all 查看现有记忆");
   }
   return { kind: "memory", memory };
 }
 
+/** 解析正整数选项（--limit/--retention-days 通用）；非法值抛用法错误。 */
+function parsePositiveInt(raw: string, label: string): number {
+  if (!/^\d+$/.test(raw) || Number(raw) === 0) {
+    throw new CliError("usage", `${label} "${raw}" 非法`, `${label} 应为正整数`);
+  }
+  return Number(raw);
+}
+
 function listCommand(ctx: CommandContext): Payload {
   const limitRaw = strValue(ctx.values["limit"]);
-  let limit: number | undefined;
-  if (limitRaw !== undefined) {
-    if (!/^\d+$/.test(limitRaw) || Number(limitRaw) === 0) {
-      throw new CliError(
-        "usage",
-        `--limit "${limitRaw}" 非法`,
-        "--limit 应为正整数，如 --limit 20",
-      );
-    }
-    limit = Number(limitRaw);
-  }
-  const requested: MemoryState[] = [];
+  const limit = limitRaw === undefined ? undefined : parsePositiveInt(limitRaw, "--limit");
+  const requested = new Set<string>();
   for (const state of strList(ctx.values["state"])) {
-    if (state !== "active" && state !== "trashed") {
+    if (!(LIST_STATES as readonly string[]).includes(state)) {
       throw new CliError("usage", `--state "${state}" 非法`, `合法的 state: ${STATES_HINT}`);
     }
-    requested.push(state);
+    requested.add(state);
   }
-  // 默认只显示 active（软删除默认隐藏）；--agent/--run 仅在显式给出时过滤。
+  // 默认只显示有效 active（软删除/休眠默认隐藏）；--agent/--run 仅在显式给出时过滤。
+  // state 语义为惰性判定（issue 04）：active=非 trashed 且 R≥0.35；dormant=非 trashed 且
+  // R<0.35；trashed=state=trashed；all=全部。
   const agent = strValue(ctx.values["agent"]);
   const run = strValue(ctx.values["run"]);
-  const memories = ctx.withStore((store) =>
-    store.list({
+  return ctx.withStore((store) => {
+    const now = ctx.env.now();
+    const memories: MemoryView[] = [];
+    for (const memory of store.list({
       ...(agent === undefined ? {} : { agent }),
       ...(run === undefined ? {} : { run }),
       tags: strList(ctx.values["tag"]),
-      state: requested.length > 0 ? requested : "active",
-      ...(limit === undefined ? {} : { limit }),
-    }),
-  );
-  return { kind: "list", memories };
+    })) {
+      const effective = effectiveStateOf(memory, now);
+      const matches =
+        requested.size === 0
+          ? effective === "active"
+          : requested.has("all") || requested.has(effective);
+      if (!matches) continue;
+      memories.push({ ...memory, state: effective });
+    }
+    return { kind: "list", memories: limit === undefined ? memories : memories.slice(0, limit) };
+  });
 }
 
 /** Memory → fsrs.MemoryRow；未初始化（due 为空）应已由调用方分支处理。 */
@@ -418,13 +460,9 @@ function deleteCommand(ctx: CommandContext): Payload {
   if (ctx.dryRun) {
     return { kind: "plan", plans: [{ op: "delete", id }] };
   }
-  const deleted = ctx.withStore((store) => store.delete(id));
+  const deleted = ctx.withStore((store) => store.delete(id, ctx.env.now()));
   if (!deleted) {
-    throw new CliError(
-      "runtime",
-      `记忆 ${id} 不存在`,
-      "nm list --state active,trashed 查看现有记忆",
-    );
+    throw new CliError("runtime", `记忆 ${id} 不存在`, "nm list --state all 查看现有记忆");
   }
   return { kind: "deleted", id };
 }
@@ -454,6 +492,82 @@ function statsCommand(ctx: CommandContext): Payload {
   });
 }
 
+function searchCommand(ctx: CommandContext): Payload {
+  const query = ctx.args.join(" ").trim();
+  if (query === "") {
+    throw new CliError("usage", "search 需要 <query>", 'nm search "关键词"');
+  }
+  const limitRaw = strValue(ctx.values["limit"]);
+  const limit =
+    limitRaw === undefined ? SEARCH_LIMIT_DEFAULT : parsePositiveInt(limitRaw, "--limit");
+  const minScoreRaw = strValue(ctx.values["min-score"]);
+  let minScore = SEARCH_MIN_SCORE_DEFAULT;
+  if (minScoreRaw !== undefined) {
+    const parsed = Number(minScoreRaw);
+    if (!Number.isFinite(parsed) || parsed < 0 || parsed > 1) {
+      throw new CliError(
+        "usage",
+        `--min-score "${minScoreRaw}" 非法`,
+        "--min-score 应取 [0,1] 区间，如 --min-score 0.5",
+      );
+    }
+    minScore = parsed;
+  }
+  let weights = DEFAULT_WEIGHTS;
+  const weightsRaw = strValue(ctx.values["score-weights"]);
+  if (weightsRaw !== undefined) {
+    try {
+      weights = parseScoreWeights(weightsRaw);
+    } catch (error) {
+      throw new CliError(
+        "usage",
+        `--score-weights "${weightsRaw}" 非法`,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+  const noTouch = ctx.values["no-touch"] === true;
+  const includeDormant = ctx.values["include-dormant"] === true;
+  const agent = strValue(ctx.values["agent"]);
+  const run = strValue(ctx.values["run"]);
+  const results = ctx.withStore((store) =>
+    searchMemories(store, {
+      query,
+      now: ctx.env.now(),
+      limit,
+      minScore,
+      weights,
+      includeDormant,
+      // 自动弱使用默认开启（每次命中记一次 Hard）；--no-touch/--dry-run 关闭。
+      touch: !ctx.dryRun && !noTouch,
+      ...(agent === undefined ? {} : { agent }),
+      ...(run === undefined ? {} : { run }),
+      tags: strList(ctx.values["tag"]),
+    }),
+  );
+  const views: SearchResultView[] = results.map((hit: SearchHit) => ({
+    ...hit.memory,
+    state: hit.state,
+    score: hit.score,
+    relevance: hit.relevance,
+    strength: hit.strength,
+  }));
+  return { kind: "search", results: views };
+}
+
+function gcCommand(ctx: CommandContext): Payload {
+  const retentionRaw = strValue(ctx.values["retention-days"]) ?? String(GC_RETENTION_DAYS_DEFAULT);
+  const retentionDays = parsePositiveInt(retentionRaw, "--retention-days");
+  return ctx.withStore((store) => {
+    const options = { now: ctx.env.now(), retentionDays };
+    return {
+      kind: "gc",
+      dryRun: ctx.dryRun,
+      report: ctx.dryRun ? gcPlan(store, options) : gcExecute(store, options),
+    } as const;
+  });
+}
+
 async function execute(command: CommandName, ctx: CommandContext): Promise<Payload> {
   switch (command) {
     case "add": {
@@ -473,6 +587,12 @@ async function execute(command: CommandName, ctx: CommandContext): Promise<Paylo
     }
     case "stats": {
       return statsCommand(ctx);
+    }
+    case "search": {
+      return searchCommand(ctx);
+    }
+    case "gc": {
+      return gcCommand(ctx);
     }
   }
 }
@@ -499,7 +619,7 @@ function memoryText(memory: Memory): string {
   return `${lines.join("\n")}\n`;
 }
 
-function listLine(memory: Memory): string {
+function listLine(memory: MemoryView): string {
   const run = memory.runKey === "" ? "-" : memory.runKey;
   return (
     `#${memory.id} [${memory.state}] tags=${joinTags(memory.tags)} · ${memory.text} ` +
@@ -565,10 +685,33 @@ function renderText(payload: Payload): string {
         "",
       ].join("\n");
     }
+    case "search": {
+      return payload.results.length === 0
+        ? "（无结果）\n"
+        : payload.results.map(searchLine).join("");
+    }
+    case "gc": {
+      const report = payload.report;
+      const toTrash = report.toTrash.length === 0 ? "无" : `#${report.toTrash.join(", #")}`;
+      const toPurge = report.toPurge.length === 0 ? "无" : `#${report.toPurge.join(", #")}`;
+      const prefix = payload.dryRun ? "[dry-run] " : "";
+      return (
+        `${prefix}gc 扫描 ${report.scanned} 条记忆；标删 ${report.toTrash.length} 条: ${toTrash}；` +
+        `物理清除 ${report.toPurge.length} 条: ${toPurge}\n`
+      );
+    }
     case "plan": {
       return payload.plans.map(planText).join("");
     }
   }
+}
+
+function searchLine(result: SearchResultView): string {
+  const run = result.runKey === "" ? "-" : result.runKey;
+  return (
+    `#${result.id} [${result.state}] score=${fmtNum(result.score)} · ${result.text} ` +
+    `(agent=${result.agent}, run=${run})\n`
+  );
 }
 
 function planJson(plan: Plan): Record<string, unknown> {
@@ -615,6 +758,12 @@ function renderJson(payload: Payload): string {
         byState: payload.byState,
         fsrs: payload.fsrs,
       })}\n`;
+    }
+    case "search": {
+      return `${JSON.stringify({ results: payload.results })}\n`;
+    }
+    case "gc": {
+      return `${JSON.stringify({ dryRun: payload.dryRun, report: payload.report })}\n`;
     }
     case "plan": {
       return `${JSON.stringify({ dryRun: true, operations: payload.plans.map(planJson) })}\n`;
@@ -729,15 +878,20 @@ export function helpText(version: string): string {
     "  nm use <id> [--grade again|hard|good|easy]",
     "  nm delete <id>",
     "  nm stats",
+    "  nm search <query> [--limit <n>] [--min-score <m>] [--no-touch] [--include-dormant]",
+    "        [--score-weights rel=0.8,strength=0.2] [--agent <a>] [--run <r>] [--tag <t> ...]",
+    "  nm gc [--dry-run] [--retention-days <n>]",
     "  nm [--help] [--version]",
     "",
     "命令:",
     "  add <text>    添加记忆；文本为 - 时从 stdin 读取；同文本去重",
     "  get <id>      读取记忆全文（含标签/元数据/FSRS 字段）",
-    "  list          列出记忆（默认仅 active；--state 可透传存储 state）",
+    "  list          列出记忆（默认仅有效 active；--state 支持惰性状态 active/dormant/trashed/all）",
     "  use <id>      记录一次使用并按评级走 FSRS 复习（默认 good）",
     "  delete <id>   软删除：state=trashed + trashed_at，FTS 同步移除",
     "  stats         总数 / 状态分布 / FSRS 概览",
+    "  search <q>    全文检索并按 0.65×rel + 0.35×R 排序（--no-touch 关闭自动弱使用）",
+    "  gc            标删遗忘记忆（R<0.10 或休眠>180 天）并清除超期已删记录",
     "",
     "全局选项:",
     "  --json        成功输出 JSON 到 stdout，错误输出 JSON 到 stderr",

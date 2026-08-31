@@ -174,6 +174,7 @@ export class MemoryStore {
   readonly #updateTouched: StatementSync;
   readonly #updateFsrs: StatementSync;
   readonly #searchFts: StatementSync;
+  readonly #deleteMemory: StatementSync;
 
   constructor(db: string | DatabaseSync) {
     this.#db = typeof db === "string" ? new DatabaseSync(db) : db;
@@ -210,6 +211,7 @@ export class MemoryStore {
       "SELECT rowid AS id, bm25(memories_fts) AS bm25 FROM memories_fts\n" +
         "WHERE memories_fts MATCH ? ORDER BY bm25 DESC",
     );
+    this.#deleteMemory = this.#db.prepare("DELETE FROM memories WHERE id = ?");
   }
 
   /** 新增记忆；同 agent + run_key + text_hash 已存在时返回既有 id（不更新记录）。 */
@@ -284,26 +286,26 @@ export class MemoryStore {
   }
 
   /** 软删除：state=trashed + trashed_at，并移除 FTS 行；返回是否存在该 id。 */
-  delete(id: number): boolean {
-    return this.setState(id, "trashed") !== null;
+  delete(id: number, now: Date = new Date()): boolean {
+    return this.setState(id, "trashed", now) !== null;
   }
 
   /** 显式状态转移；transition 时同步 FTS 行（trashed ⇔ 无 FTS 行）。 */
-  setState(id: number, state: MemoryState): Memory | null {
+  setState(id: number, state: MemoryState, now: Date = new Date()): Memory | null {
     const row = this.#selectById.get(id) as unknown as MemoryRow | undefined;
     if (row === undefined) return null;
     if (row.state === state) return rowToMemory(row);
-    const now = new Date().toISOString();
+    const nowIso = now.toISOString();
     const tokens = cjkTokenize(row.text);
     this.#db.exec("BEGIN IMMEDIATE");
     try {
       const ftsRowExists = this.#ftsRowExists.get(id) !== undefined;
       if (state === "active") {
-        this.#updateActive.run(now, id);
+        this.#updateActive.run(nowIso, id);
         if (!ftsRowExists) this.#insertFts.run(id, tokens);
       } else {
         if (ftsRowExists) this.#deleteFts.run(id, tokens);
-        this.#updateTrashed.run(now, now, id);
+        this.#updateTrashed.run(nowIso, nowIso, id);
       }
       this.#db.exec("COMMIT");
     } catch (error) {
@@ -311,6 +313,26 @@ export class MemoryStore {
       throw error;
     }
     return this.get(id);
+  }
+
+  /**
+   * 物理清除（gc 使用）：删除 memories 行 + 防御性移除 FTS 行（trashed 记录
+   * 的 FTS 行通常已在软删除时移除，此处兜底）。返回该 id 是否存在。
+   */
+  purge(id: number): boolean {
+    const row = this.#selectById.get(id) as unknown as MemoryRow | undefined;
+    if (row === undefined) return false;
+    const tokens = cjkTokenize(row.text);
+    this.#db.exec("BEGIN IMMEDIATE");
+    try {
+      if (this.#ftsRowExists.get(id) !== undefined) this.#deleteFts.run(id, tokens);
+      this.#deleteMemory.run(id);
+      this.#db.exec("COMMIT");
+    } catch (error) {
+      this.#db.exec("ROLLBACK");
+      throw error;
+    }
+    return true;
   }
 
   /** 仅刷新 updated_at。 */
