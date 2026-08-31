@@ -32,14 +32,6 @@ _Avoid_: loopx-cli、CLI 集合、命令集合器
 随 `loopx` 包一起建立和分发的顶层命令能力，如 `self` 和 `anki`。MVP 不从运行时加载第三方插件。
 _Avoid_: 独立 CLI、插件、tool
 
-**真实执行**:
-未启用 `--dry-run` 时的默认执行模式，允许命令产生其定义的持久化副作用。
-_Avoid_: apply mode、normal mode
-
-**预演**:
-由全局 `--dry-run` 选项启用的执行模式；写命令只返回原本将执行的操作，不产生持久化副作用。
-_Avoid_: 模拟执行、试跑、只读模式
-
 ### Workspace 管理
 
 **工作区配置**:
@@ -60,13 +52,7 @@ _Avoid_: 开发分支
 
 ### Skill 管理
 
-**受管 skill**:
-由 `loopx` 包分发，并由 `loopx self skill` 安装、检测、更新或卸载的完整 skill 树；其版本始终跟随 CLI 版本。
-_Avoid_: 插件、独立 skill 包
-
-**skill 安装状态**:
-受管 skill 相对当前 CLI 包的状态：`not_installed`、`current`、`outdated` 或 `modified`。
-_Avoid_: 同步状态、健康状态
+**受管 skill** 与 **skill 安装状态** 为 common 共享术语（见 [common](../common/CONTEXT.md)），loopx 沿用其语义。
 
 **CLI 路由 skill**:
 以 `loop-x-cli` 为名的受管 skill，识别 CLI 任务意图并路由到正确的 `loopx` 内建子命令。
