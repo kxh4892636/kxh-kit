@@ -1,6 +1,6 @@
 ---
 name: code-test
-description: 在实现代码完成后编写和评估测试；当 feature、bug fix 或既有代码需要 unit/integration tests、覆盖率或变异测试时使用。
+description: 在实现代码完成后编写和评估测试；当 feature、bug fix 或既有代码需要 unit/integration tests 或覆盖率时使用。
 ---
 
 # Code Test
@@ -16,15 +16,14 @@ description: 在实现代码完成后编写和评估测试；当 feature、bug f
    - interface 形态仍未确定时，使用 `/code-design` 的 module、interface、depth 和 seam vocabulary 先确定边界。
 2. 在生产代码完成后编写测试。测试通过 public interfaces 验证 observable behavior，覆盖 spec 中的成功路径、失败路径和关键边界；expected values 来自 spec、worked example 或 known-good literal 等独立事实源。
 3. 先运行受影响的单个测试文件。失败时根据 public contract 判断是测试还是实现错误；任何生产代码修正都会使本阶段重新从受影响测试开始。
-4. 按仓库已有配置运行 coverage。只检查 mutation testing 的配置或命令入口，不执行；入口存在时，在运行前单独请求用户明确确认。得到确认后才运行，surviving mutants 通过补强 public-behavior assertions 处理，再重跑受影响测试和 mutation testing。
-5. 记录测试命令、通过结果和 coverage report；变异测试另行记录 `passed` 或跳过原因。只有下方门禁全部成立时，本 skill 才完成并进入 `/verifying`。
+4. 按仓库已有配置运行 coverage。
+5. 记录测试命令、通过结果和 coverage report。只有下方门禁全部成立时，本 skill 才完成并进入 `/verifying`。
 
 ## 硬门禁
 
 - 受影响测试和完整 test suite 均通过。
 - **测试覆盖率 ≥ 80%。** 统计范围以仓库配置为事实源；未配置时至少包含本次修改的全部生产代码。报告同时给出 statements、branches、functions、lines 时，每一项都必须达到 80%；只给出单一总指标时，该指标必须达到 80%。
-- **变异测试是人工确认门禁。** 只有工作区已存在可复现的 mutation testing 配置或命令入口，并且用户对本次执行给出明确确认时才运行；执行后的 mutation score 必须 ≥ 80%。入口不存在时记为 `skipped: not configured`；未得到明确确认时记为 `skipped: not approved`，不执行命令，两种 skip 均不阻断交付。
-- 缺少 coverage tooling、报告或可复现命令时，结论是 `blocked`。不得通过缩小统计范围、排除有效 mutants 或编写无行为断言的测试来抬高指标；仓库定义的更严格门禁优先。
+- 缺少 coverage tooling、报告或可复现命令时，结论是 `blocked`。不得通过缩小统计范围或编写无行为断言的测试来抬高指标；仓库定义的更严格门禁优先。
 
 ## 测试原则
 
@@ -36,4 +35,4 @@ description: 在实现代码完成后编写和评估测试；当 feature、bug f
 
 - **Implementation-coupled** - mock internal collaborators、测试 private methods，或通过 side channel 验证。识别信号：重构时行为没有变化，测试却失败。
 - **Tautological** - assertion 使用与代码相同的方式重新计算 expected value，因此它由构造保证通过，永远无法与代码产生分歧。
-- **Metric gaming** - 只执行代码却不验证行为、缩小统计范围或无依据排除 surviving mutants。识别信号：指标提高，但测试仍无法区分一个相关的错误实现。
+- **Metric gaming** - 只执行代码却不验证行为、缩小统计范围或堆砌无行为断言的测试。识别信号：指标提高，但测试仍无法区分一个相关的错误实现。

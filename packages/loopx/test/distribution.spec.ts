@@ -299,7 +299,7 @@ const verifyDistributionSurface = async (fixture: DistributionFixture): Promise<
   const metadata = parseObject(
     await readFile(path.join(fixture.installedPackage, "package.json"), "utf8"),
   );
-  expect(metadata["version"]).toBe("0.0.1");
+  expect(metadata["version"]).toBe("0.0.2");
   expect(metadata["bin"]).toEqual({ loopx: "dist/main.mjs" });
   const assets = [
     "README.md",
