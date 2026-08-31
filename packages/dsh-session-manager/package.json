@@ -27,6 +27,9 @@
     "test:coverage": "vp test --run --coverage",
     "prepublishOnly": "vp run build"
   },
+  "dependencies": {
+    "@deepseek-ai/dsh-tool-session-query": "0.1.2-alpha.2"
+  },
   "devDependencies": {
     "@deepseek-ai/schemastery": "^3.18.2",
     "@types/node": "catalog:",
