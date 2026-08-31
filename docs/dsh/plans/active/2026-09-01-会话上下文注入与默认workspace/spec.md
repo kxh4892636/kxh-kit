@@ -64,6 +64,6 @@ status: in_progress
 | #   | Issue | 状态 | 阻塞于 | 下一步 |
 | --- | --- | --- | --- | --- |
 | 01 | [spawn 重构抽 seam(prefactoring)](01-spawn重构抽seam.md) | completed | — | /code-delivery |
-| 02 | [spawn 默认 workspace = 调用方会话](02-spawn默认workspace.md) | in_progress | 01 | /code-delivery |
-| 03 | [会话上下文系统消息注入](03-会话上下文系统消息注入.md) | in_progress | 01 | /code-delivery |
+| 02 | [spawn 默认 workspace = 调用方会话](02-spawn默认workspace.md) | completed | 01 | /code-delivery |
+| 03 | [会话上下文系统消息注入](03-会话上下文系统消息注入.md) | completed | 01 | /code-delivery |
 | 04 | [安装并端到端冒烟](04-安装并端到端冒烟.md) | pending | 02, 03 | /code-delivery |

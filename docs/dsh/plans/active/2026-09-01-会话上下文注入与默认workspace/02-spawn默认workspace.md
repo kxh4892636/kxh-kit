@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 blocked_by: ["01"]
 ---
 
@@ -35,3 +35,9 @@ blocked_by: ["01"]
 ## 下一步
 
 /code-delivery
+
+## 交付记录
+
+- **交付物**：`resolveSpawnLocation` callerCwd 兜底;`session_spawn.execute` 从 `exec.agent.session.header.cwd` 取调用方 cwd;描述更新;并行分支提交 `6132042`,经 main merge `7631a41` 合入。
+- **验证证据**：`test` 46 项通过(新增 callerSessionCwdOf/spawn 落位 3 项);覆盖率 98.19/90.82/98.48/99.51;`vp check` 通过。
+- 变异测试：`skipped: not configured`。
