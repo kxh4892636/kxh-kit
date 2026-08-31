@@ -4,7 +4,12 @@
  * 只提供宿主边界的结构等价替身, 不引入任何 DSH 运行时依赖;
  * 覆盖统计排除本文件。
  */
-import type { FollowFrameLike, HeaderLike, HistoryRecordLike, HostServices } from "./host.ts";
+import type {
+  FollowFrameLike,
+  HeaderLike,
+  HistoryRecordVariantLike,
+  HostServices,
+} from "./host.ts";
 
 /** 调用记录容器。 */
 export interface FakeCalls {
@@ -33,7 +38,7 @@ export interface FakeOptions {
     readonly title?: string;
   }[];
   readonly frames?: FollowFrameLike[];
-  readonly pageRecords?: readonly HistoryRecordLike[];
+  readonly pageRecords?: readonly HistoryRecordVariantLike[];
   readonly pageHasMore?: boolean;
   readonly catalogModels?: readonly string[];
   readonly workspaces?: readonly {
@@ -59,7 +64,7 @@ export const messageRecordOf = (
   kind: "user/message" | "assistant/message",
   seq: number,
   text: string,
-): HistoryRecordLike => ({
+): HistoryRecordVariantLike => ({
   type: "event",
   event: {
     type: kind,
@@ -71,7 +76,7 @@ export const messageRecordOf = (
 
 /** 默认快照帧。 */
 export const snapshotOf = (
-  records: HistoryRecordLike[],
+  records: HistoryRecordVariantLike[],
   cursor = 10,
   hasMore = false,
   header?: HeaderLike,

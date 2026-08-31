@@ -146,7 +146,7 @@ export interface SessionControllerLike {
       readonly maxMessages?: number;
     },
     signal?: AbortSignal,
-  ): Promise<{ readonly records: readonly HistoryRecordLike[]; readonly hasMore: boolean }>;
+  ): Promise<{ readonly records: readonly HistoryRecordVariantLike[]; readonly hasMore: boolean }>;
   create(request: {
     readonly workspaceId?: string;
     readonly cwd?: string;
@@ -211,12 +211,36 @@ export interface ModelCatalogLike {
   }[];
 }
 
+/** 历史记录: 原始事件或打包 delta 行(wire 形状, 见 SessionHistoryRecord)。 */
+export interface HistoryRecordLike {
+  readonly type: "event";
+  readonly event: {
+    readonly type: string;
+    readonly seq: number;
+    readonly time: number;
+    readonly data: unknown;
+  };
+}
+
+/** 打包 chunk 行事件(ChunkRowEvent)。 */
+export interface ChunkRowEventLike {
+  readonly type: `chunkrow/${"text-chunks" | "reasoning-chunks" | "tool-call-chunks"}`;
+  readonly seq: number;
+  readonly time: number;
+  readonly data: unknown;
+}
+
+/** 分页记录: 原始事件或打包 chunk 行。 */
+export type HistoryRecordVariantLike =
+  | HistoryRecordLike
+  | { readonly type: "chunks"; readonly event: ChunkRowEventLike };
+
 /** follow opening snapshot 帧。 */
 export interface FollowFrameLike {
   readonly type: "snapshot";
   readonly header: HeaderLike;
   readonly cursor: number;
-  readonly records: readonly HistoryRecordLike[];
+  readonly records: readonly HistoryRecordVariantLike[];
   readonly hasMore: boolean;
 }
 
@@ -313,7 +337,7 @@ export const subagentModeOf = (
   return mode === "continuable" || mode === "one-shot" ? mode : undefined;
 };
 
-/** 事件 data 里取文本块内容; 拼不出的返回空串。 */
+/** 事件 data 里取文本块内容; 拼不出的返回空串(含打包行的 texts 数组)。 */
 export const eventTextOf = (data: unknown): string => {
   const block = asObject(data);
   if (block === undefined) return "";
@@ -327,6 +351,10 @@ export const eventTextOf = (data: unknown): string => {
     }
   }
   if (out.length > 0) return out.join("\n");
+  const texts = block["texts"];
+  if (Array.isArray(texts) && texts.every((part): part is string => typeof part === "string")) {
+    return texts.join("");
+  }
   return typeof block["text"] === "string" ? block["text"] : "";
 };
 
@@ -334,11 +362,32 @@ const isUserMessage = (record: HistoryRecordLike): boolean =>
   record.type === "event" && record.event.type === "user/message";
 const isAssistantMessage = (record: HistoryRecordLike): boolean =>
   record.type === "event" && record.event.type === "assistant/message";
-const isChunkRow = (record: HistoryRecordLike): boolean =>
-  record.type === "event" && record.event.type.startsWith("chunkrow/");
+const isChunkRowEvent = (
+  event: ChunkRowEventLike | { readonly type: string },
+): event is ChunkRowEventLike =>
+  event.type === "chunkrow/text-chunks" ||
+  event.type === "chunkrow/reasoning-chunks" ||
+  event.type === "chunkrow/tool-call-chunks";
 
-/** 文本化一条历史记录: user/assistant 完整文本, chunk 行汇总, 其余一行摘要。 */
-const entryOf = (record: HistoryRecordLike): HistoryEntry => {
+const isChunkRecord = (
+  record: HistoryRecordVariantLike,
+): record is { readonly type: "chunks"; readonly event: ChunkRowEventLike } =>
+  record.type === "chunks" && isChunkRowEvent(record.event);
+
+/** 文本化一条历史记录: user/assistant 完整文本, chunk 行展开文本, 其余一行摘要。 */
+const entryOf = (record: HistoryRecordVariantLike): HistoryEntry => {
+  if (isChunkRecord(record)) {
+    const text = eventTextOf(record.event.data);
+    if (record.event.type === "chunkrow/text-chunks" && text !== "") {
+      return { seq: record.event.seq, time: record.event.time, kind: "assistant", text };
+    }
+    return {
+      seq: record.event.seq,
+      time: record.event.time,
+      kind: "event",
+      text: `[chunk 增量行 ${record.event.type}]`,
+    };
+  }
   const event = record.event;
   if (isUserMessage(record) || isAssistantMessage(record)) {
     const kind = isUserMessage(record) ? "user" : "assistant";
@@ -347,14 +396,6 @@ const entryOf = (record: HistoryRecordLike): HistoryEntry => {
       time: event.time,
       kind,
       text: eventTextOf(event.data),
-    };
-  }
-  if (isChunkRow(record)) {
-    return {
-      seq: event.seq,
-      time: event.time,
-      kind: "event",
-      text: `[chunk 增量行 ${event.type}]`,
     };
   }
   return { seq: event.seq, time: event.time, kind: "event", text: `[event ${event.type}]` };

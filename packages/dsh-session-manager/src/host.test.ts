@@ -142,21 +142,38 @@ describe("read", () => {
     expect(window.header.cwd).toBe("C:\\ws");
   });
 
-  it("事件文本: chunk 行汇总与后备 text 字段", async () => {
+  it("事件文本: chunk 行展开为 assistant 文本(真实 wire 形状)+ 后备 text 字段", async () => {
     const { host } = makeHost({
       frames: [
         snapshotOf([
-          { type: "event", event: { type: "chunkrow/text-chunks", seq: 6, time: 6, data: {} } },
+          {
+            type: "chunks",
+            event: {
+              type: "chunkrow/text-chunks",
+              seq: 6,
+              time: 6,
+              data: { seq: 45, turn: 1, step: 1, index: 0, dt: [], texts: ["SMOKE-", "OK"] },
+            },
+          },
+          {
+            type: "chunks",
+            event: {
+              type: "chunkrow/reasoning-chunks",
+              seq: 7,
+              time: 7,
+              data: { texts: ["thinking"] },
+            },
+          },
           {
             type: "event",
-            event: { type: "user/message", seq: 7, time: 7, data: { text: "plain text" } },
+            event: { type: "user/message", seq: 8, time: 8, data: { text: "plain text" } },
           },
           {
             type: "event",
             event: {
               type: "user/message",
-              seq: 8,
-              time: 8,
+              seq: 9,
+              time: 9,
               data: { content: [{ type: "text", text: "a" }, { type: "image" }] },
             },
           },
@@ -164,10 +181,11 @@ describe("read", () => {
       ],
     });
     const window = await host.read({ sessionId: "session-a" });
-    expect(window.entries.map((entry) => entry.text)).toEqual([
-      "[chunk 增量行 chunkrow/text-chunks]",
-      "plain text",
-      "a",
+    expect(window.entries.map((entry) => [entry.kind, entry.text])).toEqual([
+      ["assistant", "SMOKE-OK"],
+      ["event", "[chunk 增量行 chunkrow/reasoning-chunks]"],
+      ["user", "plain text"],
+      ["user", "a"],
     ]);
   });
 
