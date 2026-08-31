@@ -75,7 +75,11 @@ const FileWindowFixture = (): React.ReactNode => {
     { length: FILE_COUNT },
     (_value: unknown, index: number): string => `src/file-${index}.ts`,
   );
-  const fileWindow = useFileWindow({ filePaths, anchorRef });
+  const fileWindow = useFileWindow({
+    filePaths,
+    anchorRef,
+    navigationContext: "fixture-repository:working-tree",
+  });
 
   return (
     <main className="overflow-y-auto">
@@ -103,6 +107,37 @@ const FileWindowFixture = (): React.ReactNode => {
         {fileWindow.paddingBottom > 0 && (
           <div aria-hidden="true" style={{ height: fileWindow.paddingBottom }} />
         )}
+      </div>
+    </main>
+  );
+};
+
+const SmallFileWindowFixture = (): React.ReactNode => {
+  const anchorRef = useRef<HTMLDivElement>(null);
+  const filePaths = ["src/first.ts", "src/second.ts"];
+  const fileWindow = useFileWindow({
+    filePaths,
+    anchorRef,
+    navigationContext: "small-fixture-repository:working-tree",
+  });
+
+  return (
+    <main className="overflow-y-auto">
+      <button type="button" onClick={(): void => fileWindow.ensureFileMounted(filePaths[1]!)}>
+        跳到已挂载文件
+      </button>
+      <button type="button" onClick={(): void => fileWindow.ensureFileMounted("src/missing.ts")}>
+        跳到不存在文件
+      </button>
+      <div ref={anchorRef}>
+        {fileWindow.fileIndexes.map((fileIndex: number): React.ReactNode => {
+          const filePath = filePaths[fileIndex]!;
+          return (
+            <section key={filePath} id={getFileElementId(filePath)}>
+              {filePath}
+            </section>
+          );
+        })}
       </div>
     </main>
   );
@@ -151,5 +186,20 @@ describe("文件级虚拟列表", (): void => {
       expect(container.querySelector('[data-index="90"]')).not.toBeNull();
     });
     expect(container.querySelector('[data-index="0"]')).toBeNull();
+  });
+
+  it("少量文件沿用全量渲染并忽略不存在的导航目标", (): void => {
+    vi.spyOn(window, "requestAnimationFrame").mockImplementation(
+      (callback: FrameRequestCallback): number => {
+        callback(performance.now());
+        return 1;
+      },
+    );
+    render(<SmallFileWindowFixture />);
+
+    expect(screen.getByText("src/first.ts")).toBeInTheDocument();
+    expect(screen.getByText("src/second.ts")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "跳到已挂载文件" }));
+    fireEvent.click(screen.getByRole("button", { name: "跳到不存在文件" }));
   });
 });

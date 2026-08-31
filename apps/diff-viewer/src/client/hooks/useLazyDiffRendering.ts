@@ -37,7 +37,25 @@ export function useLazyDiffRendering({
     (): string[] => diffData?.files.map((file: DiffFile): string => file.path) ?? [],
     [diffData],
   );
-  const fileWindow = useFileWindow({ filePaths, anchorRef: fileListAnchorRef });
+  const fileNavigationContext = useMemo(
+    (): string =>
+      diffData
+        ? [
+            diffData.repositoryId,
+            diffData.requestedBaseCommitish ?? "",
+            diffData.requestedTargetCommitish ?? "",
+            diffData.requestedBaseMode ?? "direct",
+            diffData.baseCommitish ?? "",
+            diffData.targetCommitish ?? "",
+          ].join("\u0000")
+        : "no-diff",
+    [diffData],
+  );
+  const fileWindow = useFileWindow({
+    filePaths,
+    anchorRef: fileListAnchorRef,
+    navigationContext: fileNavigationContext,
+  });
 
   useEffect((): void => {
     const revisionKey = diffData

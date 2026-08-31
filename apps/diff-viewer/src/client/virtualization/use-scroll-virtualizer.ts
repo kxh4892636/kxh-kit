@@ -18,6 +18,7 @@ interface UseScrollVirtualizerOptions {
   anchorRef: RefObject<HTMLElement | null>;
   enabled: boolean;
   overscan: number;
+  navigationScope?: string;
 }
 
 interface UseScrollVirtualizerResult {
@@ -29,7 +30,7 @@ interface UseScrollVirtualizerResult {
   ensureItemMounted: (itemIndex: number, elementId?: string) => void;
 }
 
-const NAVIGATION_MOUNT_ATTEMPTS = 5;
+const NAVIGATION_MOUNT_ATTEMPTS = 60;
 
 /**
  * 在全局 diff 滚动容器中提供 windowing，并在目标挂载后重试既有 DOM-id 滚动契约。
@@ -37,7 +38,7 @@ const NAVIGATION_MOUNT_ATTEMPTS = 5;
 export const useScrollVirtualizer = (
   options: UseScrollVirtualizerOptions,
 ): UseScrollVirtualizerResult => {
-  const { itemCount, estimateItemSize, anchorRef, enabled, overscan } = options;
+  const { itemCount, estimateItemSize, anchorRef, enabled, overscan, navigationScope } = options;
   const [scrollElement, setScrollElement] = useState<HTMLElement | null>(null);
   const [scrollMargin, setScrollMargin] = useState(0);
   const navigationRequestRef = useRef(0);
@@ -48,6 +49,13 @@ export const useScrollVirtualizer = (
       anchorRef.current?.closest<HTMLElement>(NAVIGATION_SELECTORS.SCROLL_CONTAINER) ?? null,
     );
   }, [enabled, anchorRef]);
+
+  useLayoutEffect(
+    (): (() => void) => (): void => {
+      navigationRequestRef.current += 1;
+    },
+    [enabled, itemCount, navigationScope, scrollElement],
+  );
 
   // 列表起点会受上方文件头与 chunk 高度变化影响，因此每次提交后重新校正。
   useLayoutEffect((): void => {
@@ -69,6 +77,7 @@ export const useScrollVirtualizer = (
     overscan,
     scrollMargin,
     enabled,
+    useFlushSync: false,
   });
 
   const virtualItems = enabled ? virtualizer.getVirtualItems() : [];
@@ -101,7 +110,10 @@ export const useScrollVirtualizer = (
             return;
           }
           attempts += 1;
-          if (attempts < NAVIGATION_MOUNT_ATTEMPTS) retryDomScroll();
+          if (attempts < NAVIGATION_MOUNT_ATTEMPTS) {
+            virtualizer.scrollToIndex(itemIndex, { align: "auto" });
+            retryDomScroll();
+          }
         });
       };
       retryDomScroll();
