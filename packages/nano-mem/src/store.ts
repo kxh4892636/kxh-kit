@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
 import type { StatementSync } from "node:sqlite";
+import type { MemoryRow as FsrsMemoryRow } from "./fsrs";
 import { cjkTokenize } from "./split";
 
 /** 持久化的显式状态：仅 delete → trashed；休眠状态由查询侧惰性判定（issue 04）。 */
@@ -171,6 +172,7 @@ export class MemoryStore {
   readonly #updateTrashed: StatementSync;
   readonly #updateActive: StatementSync;
   readonly #updateTouched: StatementSync;
+  readonly #updateFsrs: StatementSync;
   readonly #searchFts: StatementSync;
 
   constructor(db: string | DatabaseSync) {
@@ -200,6 +202,10 @@ export class MemoryStore {
       "UPDATE memories SET state = 'active', trashed_at = NULL, updated_at = ? WHERE id = ?",
     );
     this.#updateTouched = this.#db.prepare("UPDATE memories SET updated_at = ? WHERE id = ?");
+    this.#updateFsrs = this.#db.prepare(
+      "UPDATE memories SET due = ?, last_review = ?, stability = ?, difficulty = ?, " +
+        "reps = ?, lapses = ?, fsrs_state = ?, updated_at = ? WHERE id = ?",
+    );
     this.#searchFts = this.#db.prepare(
       "SELECT rowid AS id, bm25(memories_fts) AS bm25 FROM memories_fts\n" +
         "WHERE memories_fts MATCH ? ORDER BY bm25 DESC",
@@ -310,6 +316,25 @@ export class MemoryStore {
   /** 仅刷新 updated_at。 */
   touch(id: number): Memory | null {
     const changed = this.#updateTouched.run(new Date().toISOString(), id);
+    return changed.changes === 0 ? null : this.get(id);
+  }
+
+  /**
+   * 持久化 FSRS 调度列（add 初始化/use 复习后由 CLI 写入 cardToRow 结果，
+   * 与 fsrs.ts 的 MemoryRow 一致）。updated_at 一并刷新；id 不存在返回 null。
+   */
+  updateFsrs(id: number, fsrs: FsrsMemoryRow): Memory | null {
+    const changed = this.#updateFsrs.run(
+      fsrs.due,
+      fsrs.last_review,
+      fsrs.stability,
+      fsrs.difficulty,
+      fsrs.reps,
+      fsrs.lapses,
+      fsrs.fsrs_state,
+      new Date().toISOString(),
+      id,
+    );
     return changed.changes === 0 ? null : this.get(id);
   }
 
