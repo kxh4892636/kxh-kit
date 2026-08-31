@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 ---
 
 # DSH 嵌套 skill 发现插件
@@ -32,7 +32,7 @@ DSH 内建 provider 只发现 `.agents/skills/<skill>/SKILL.md` 的一层形态�
 - **包布局**：`src/main.ts` 为入口，`vp pack` 产出 `dist/main.mjs` 与 `dist/main.d.mts`（沿用 `packages/herdr-limit-resume` 约定）；测试用 vitest（`vp test src`）。
 - **依赖**：运行时依赖 `yaml`、`chokidar`；peer 依赖 `@deepseek-ai/cordis`、`@deepseek-ai/dsh-skill`、`@deepseek-ai/dsh-fs`、`@deepseek-ai/schemastery`（经 profile 的 bundled-installation fallback 解析）。
 - **provider 契约**：实现 `SkillProvider { name: 'nested-agents'; list(options); get(candidate, options) }`，在 `apply(ctx, config)` 内经 `ctx.skills.registerProvider()` 注册，注册生命周期走 `ctx.effect`。
-- **配置 schema**（schemastery，全部可选）：`watch: boolean = true`、`watchUsePolling: boolean = false`、`includeUserRoots: boolean = true`、`excludedDirs: string[] = 默认清单`、`extraRoots: string[] = []`。
+- **配置 schema**（schemastery，全部可选）：`watch: boolean = true`、`watchUsePolling: boolean = false`、`watchPollIntervalMs: number = 100`、`watchStabilityThresholdMs: number = 200`、`includeUserRoots: boolean = true`、`agentsHome: string = $DSH_AGENTS_HOME | ~/.agents`、`excludedDirs: string[] = 默认清单`、`extraRoots: string[] = []`。schema 默认值与 `resolveOptions` 兜底保持一致（`excludedDirs` 缺省 = 排除清单，显式 `[]` 表示关闭剪除）。
 - **常量**：`NESTED_SKILL_RANK = 250`、`provider 名 = 'nested-agents'`。
 - **cordis.patch.yml**：
 
@@ -78,7 +78,7 @@ DSH 内建 provider 只发现 `.agents/skills/<skill>/SKILL.md` 的一层形态�
 
 ## Issue
 
-| #   | Issue                                                      | 状态        | 阻塞于 | 下一步         |
-| --- | ---------------------------------------------------------- | ----------- | ------ | -------------- |
-| 01  | [插件包实现与测试](01-插件包实现与测试.md)                 | in_progress | —      | /code-delivery |
-| 02  | [安装到 web profile 并验证](02-安装到web-profile并验证.md) | pending     | 01     | /code-delivery |
+| #   | Issue                                                      | 状态      | 阻塞于 | 下一步         |
+| --- | ---------------------------------------------------------- | --------- | ------ | -------------- |
+| 01  | [插件包实现与测试](01-插件包实现与测试.md)                 | completed | —      | /code-delivery |
+| 02  | [安装到 web profile 并验证](02-安装到web-profile并验证.md) | completed | 01     | /code-delivery |
