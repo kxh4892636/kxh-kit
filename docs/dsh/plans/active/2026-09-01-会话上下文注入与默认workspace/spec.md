@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 ---
 
 # 会话上下文注入与默认 workspace
@@ -66,4 +66,4 @@ status: in_progress
 | 01 | [spawn 重构抽 seam(prefactoring)](01-spawn重构抽seam.md) | completed | — | /code-delivery |
 | 02 | [spawn 默认 workspace = 调用方会话](02-spawn默认workspace.md) | completed | 01 | /code-delivery |
 | 03 | [会话上下文系统消息注入](03-会话上下文系统消息注入.md) | completed | 01 | /code-delivery |
-| 04 | [安装并端到端冒烟](04-安装并端到端冒烟.md) | pending | 02, 03 | /code-delivery |
+| 04 | [安装并端到端冒烟](04-安装并端到端冒烟.md) | completed | 02, 03 | /code-delivery |
