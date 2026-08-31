@@ -447,12 +447,38 @@ const selectionOf = (
   ...(reasoningEffort === undefined || reasoningEffort === "" ? {} : { reasoningEffort }),
 });
 
+/** spawn 落位决策: 显式参数优先, 否则空(由 Host 回退)。 */
+export interface SpawnLocationDecision {
+  readonly workspaceId?: string;
+  readonly cwd?: string;
+}
+
+/**
+ * 解析 spawn 的 workspace 落位。当前决策规则: workspaceId/cwd 显式给出时原样透传,
+ * 两者都省略时返回空(Host 回退默认 cwd)——调用方 workspace 兜底由 02 在此扩展。
+ */
+export const resolveSpawnLocation = (options: {
+  readonly workspaceId?: string;
+  readonly cwd?: string;
+}): SpawnLocationDecision => {
+  if (options.workspaceId === undefined && options.cwd === undefined) return {};
+  return {
+    ...(options.workspaceId === undefined ? {} : { workspaceId: options.workspaceId }),
+    ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+  };
+};
+
+/** 会话上下文注入器(03 实现): 创建后以系统消息注册上下文。 */
+export type ContextInstaller = (sessionId: string, context: string) => Promise<void>;
+
 /** Session/Model 管理 CRUD 的实现面。 */
 export class SessionManagerHost {
   private readonly services: HostServices;
+  private readonly contextInstaller: ContextInstaller | undefined;
 
-  constructor(services: HostServices) {
+  constructor(services: HostServices, options?: { readonly contextInstaller?: ContextInstaller }) {
     this.services = services;
+    this.contextInstaller = options?.contextInstaller;
   }
 
   /** 列全部会话: 摘要 + workspace 归属 + 归档标记(默认隐藏, includeArchived 恢复)。 */
@@ -521,7 +547,7 @@ export class SessionManagerHost {
     };
   }
 
-  /** 创建普通会话; 给了模型选择时创建后立即 selectModel。 */
+  /** 创建普通会话; 给了模型选择时创建后立即 selectModel; context 经注入器(03)生效。 */
   async spawn(options: {
     readonly workspaceId?: string;
     readonly cwd?: string;
@@ -529,10 +555,15 @@ export class SessionManagerHost {
     readonly provider?: string;
     readonly model?: string;
     readonly reasoningEffort?: string;
+    readonly context?: string;
   }): Promise<{ readonly sessionId: string }> {
-    const created = await this.services.sessionController.create({
+    const location = resolveSpawnLocation({
       ...(options.workspaceId === undefined ? {} : { workspaceId: options.workspaceId }),
       ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
+    });
+    const created = await this.services.sessionController.create({
+      ...(location.workspaceId === undefined ? {} : { workspaceId: location.workspaceId }),
+      ...(location.cwd === undefined ? {} : { cwd: location.cwd }),
       ...(options.sessionId === undefined ? {} : { sessionId: options.sessionId }),
     });
     if (options.provider !== undefined && options.model !== undefined) {
@@ -544,6 +575,13 @@ export class SessionManagerHost {
           ? {}
           : { reasoningEffort: options.reasoningEffort }),
       });
+    }
+    if (
+      options.context !== undefined &&
+      options.context !== "" &&
+      this.contextInstaller !== undefined
+    ) {
+      await this.contextInstaller(created.sessionId, options.context);
     }
     return { sessionId: created.sessionId };
   }

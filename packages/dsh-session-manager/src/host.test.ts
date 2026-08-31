@@ -7,6 +7,7 @@ import {
   HostError,
   SessionManagerHost,
   normalizeHostError,
+  resolveSpawnLocation,
   subagentModeOf,
 } from "./host.ts";
 import type { HostServices } from "./host.ts";
@@ -259,6 +260,36 @@ describe("spawn / prompt / select / rename / archive", () => {
     expect(result.sessionId).toBe("session-new-1");
     expect(calls.create[0]).toMatchObject({ cwd: "C:\\ws" });
     expect(calls.selectModel).toHaveLength(0);
+  });
+
+  it("resolveSpawnLocation: 显式参数透传, 省略返回空", () => {
+    expect(resolveSpawnLocation({ workspaceId: "ws-1" })).toEqual({ workspaceId: "ws-1" });
+    expect(resolveSpawnLocation({ cwd: "C:\\ws" })).toEqual({ cwd: "C:\\ws" });
+    expect(resolveSpawnLocation({})).toEqual({});
+    expect(resolveSpawnLocation({ workspaceId: "ws-1", cwd: "C:\\ws" })).toEqual({
+      workspaceId: "ws-1",
+      cwd: "C:\\ws",
+    });
+  });
+
+  it("spawn 全部省略时落位为空(行为不变)", async () => {
+    const { host, calls } = makeHost();
+    await host.spawn({});
+    expect(calls.create[0]).toEqual({});
+  });
+
+  it("context 注入钩子: 有 installer 且 context 非空时调用; 否则跳过", async () => {
+    const fake = makeFakeServices();
+    const installed: Array<{ sessionId: string; context: string }> = [];
+    const host = new SessionManagerHost(fake.services, {
+      contextInstaller: async (sessionId, context) => {
+        installed.push({ sessionId, context });
+      },
+    });
+    await host.spawn({ context: "自定义上下文" });
+    expect(installed).toEqual([{ sessionId: "session-new-1", context: "自定义上下文" }]);
+    await host.spawn({});
+    expect(installed).toHaveLength(1);
   });
 
   it("spawn 带模型时创建后 selectModel", async () => {
