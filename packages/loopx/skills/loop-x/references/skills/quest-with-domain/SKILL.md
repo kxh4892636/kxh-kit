@@ -3,7 +3,7 @@ name: quest-with-domain
 description: 维护领域模型：拷问设计并同步已确认的领域术语、跨域关系与 ADR；当讨论需要改变领域 context 文档或领域决策记录时使用。
 ---
 
-完整读取 `<loop-x-skill-dir>/references/FLOW.md`。顶层直接调用时, 在执行 skill 前直接执行 `enter-plan` 进入主流程；收到 Flow context 时直接复用。
+完整读取 `<loop-x-skill-root-dir>/references/FLOW.md`。顶层直接调用时, 在执行 skill 前直接执行 `enter-plan` 进入主流程；收到 Flow context 时直接复用。
 
 # Quest with Domain
 
@@ -11,7 +11,7 @@ description: 维护领域模型：拷问设计并同步已确认的领域术语�
 
 ## 1. 进入并定域
 
-完整读取 `<loop-x-skill-dir>/references/DOMAIN.md`。从工作区根 `CONTEXT-MAP.md` 定位所有相关业务域，再读取对应 `CONTEXT.md` 与相关 ADR；归属仍是用户决策时提出带推荐答案的问题。
+完整读取 `<loop-x-skill-root-dir>/references/DOMAIN.md`。从工作区根 `CONTEXT-MAP.md` 定位所有相关业务域，再读取对应 `CONTEXT.md` 与相关 ADR；归属仍是用户决策时提出带推荐答案的问题。
 
 相关业务域、跨域关系和当前 Flow 位置均已确定时，本步骤完成。
 
@@ -45,7 +45,7 @@ frontier 为空、代码与口头模型的矛盾已解决或明确记录、用�
 修改领域文档后，从工作区根执行：
 
 ```powershell
-node <loop-x-skill-dir>/script/check-domain.mjs .
+node <loop-x-skill-root-dir>/script/check-domain.mjs .
 ```
 
 校验通过后，本步骤完成。

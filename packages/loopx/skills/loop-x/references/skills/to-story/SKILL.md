@@ -4,7 +4,7 @@ description: 打磨模糊想法为有序、可验收的用户故事集；当角�
 argument-hint: "要把什么想法打磨成用户故事?"
 ---
 
-完整读取 `<loop-x-skill-dir>/references/FLOW.md`。顶层直接调用时, 在执行 skill 前直接执行 `enter-plan` 进入主流程；收到 Flow context 时直接复用。
+完整读取 `<loop-x-skill-root-dir>/references/FLOW.md`。顶层直接调用时, 在执行 skill 前直接执行 `enter-plan` 进入主流程；收到 Flow context 时直接复用。
 
 # To Story
 
@@ -12,7 +12,7 @@ argument-hint: "要把什么想法打磨成用户故事?"
 
 ## 1. 定位 Plan
 
-完整读取 `<loop-x-skill-dir>/references/DOMAIN.md`，从 `CONTEXT-MAP.md` 定位 owner 域并读取相关 `CONTEXT.md`、ADR 和已有 Plan。新 Plan 创建于：
+完整读取 `<loop-x-skill-root-dir>/references/DOMAIN.md`，从 `CONTEXT-MAP.md` 定位 owner 域并读取相关 `CONTEXT.md`、ADR 和已有 Plan。新 Plan 创建于：
 
 ```text
 docs/{domain-name}/plans/active/YYYY-MM-DD-中文工作名/story.md
@@ -55,4 +55,4 @@ Flow 已正确进入或复用；design tree 的每个可达分支都已访问，
 
 逐项核对原始想法与故事地图：每条故事有唯一且单调递增的 `US-NNN`、明确角色与收益、至少一项可判定验收；迷雾为空或每个保留项都获用户明确接受；每个原始意图都恰好映射到故事或已接受的非范围。
 
-从工作区根执行 `node <loop-x-skill-dir>/script/check-domain.mjs .`。校验通过且用户确认故事集覆盖原始想法后，本步骤完成。
+从工作区根执行 `node <loop-x-skill-root-dir>/script/check-domain.mjs .`。校验通过且用户确认故事集覆盖原始想法后，本步骤完成。

@@ -3,7 +3,7 @@
 本文件定义 skills 如何驱动 `flow.mjs`；脚本返回的 JSON 是当前步骤、租约与状态的运行态事实源。脚本命令及 options 以现场帮助为准：
 
 ```powershell
-node <loop-x-skill-dir>/script/flow.mjs --help
+node <loop-x-skill-root-dir>/script/flow.mjs --help
 ```
 
 所有命令从工作区根目录执行。首次使用一个命令前查看其帮助；保留成功结果中的 `plan`、`session`、`issue`、`next_skill`、`next_action` 与 `message`，后续调用原样复用对应标识和消息。

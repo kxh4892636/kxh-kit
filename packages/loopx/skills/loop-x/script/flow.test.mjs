@@ -24,8 +24,8 @@ const execFileAsync = promisify(execFile);
 const FLOW_PATH = fileURLToPath(new URL("./flow.mjs", import.meta.url));
 const DEFAULT_HOOK_MESSAGE =
   "调用下一个 skill 之前，必须向用户确认之后才能执行，禁止未经用户确认自动执行。";
-const DEV_GATE_HOOK_MESSAGE = `${DEFAULT_HOOK_MESSAGE}\n任何准入判断前先完整读取 \`<loop-x-skill-dir>/extensions/QUESTIONS.md\` 和 \`<loop-x-skill-dir>/extensions/workflows/README.md\`，以用户输入和当前上下文作为已有答案，选择并询问全部相关问题。问题集未清空时结论为 \`not ready\`。`;
-const CODE_DELIVERY_HOOK_MESSAGE = `${DEFAULT_HOOK_MESSAGE}\n交付过程中遇到 block 卡点， 请优先在 \`<loop-x-skill-dir>/extensions/workflows/README.md\` 和对应业务域 workflow 中寻找可能的解决方法.`;
+const DEV_GATE_HOOK_MESSAGE = `${DEFAULT_HOOK_MESSAGE}\n任何准入判断前先完整读取 \`<loop-x-skill-root-dir>/extensions/QUESTIONS.md\` 和 \`<loop-x-skill-root-dir>/extensions/workflows/README.md\`，以用户输入和当前上下文作为已有答案，选择并询问全部相关问题。问题集未清空时结论为 \`not ready\`。`;
+const CODE_DELIVERY_HOOK_MESSAGE = `${DEFAULT_HOOK_MESSAGE}\n交付过程中遇到 block 卡点， 请优先在 \`<loop-x-skill-root-dir>/extensions/workflows/README.md\` 和对应业务域 workflow 中寻找可能的解决方法.`;
 
 afterEach(cleanupWorkspaces);
 
