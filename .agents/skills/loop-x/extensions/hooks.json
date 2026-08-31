@@ -3,7 +3,7 @@
   "hooks": [
     {
       "match": "all",
-      "message": "调用下一个 skill 之前，必须向用户确认之后才能执行，禁止未经用户确认自动执行。"
+      "message": "Flow 主流程的 skill 执行结束后, 询问用户当前 skill 是否完成 + 是否进入下一个 skill, 用户同意后, 自动流转到 Flow 的下一阶段."
     },
     {
       "match": ["dev-gate"],
