@@ -54,13 +54,14 @@ DSH Web 的会话内 agent 无法读取、搜索、派生、投递其他 session
       openAt: first-search
   - insert:
       - id: session-query-tool
-        name: '@deepseek-ai/dsh-tool-session-query'
+        name: "@deepseek-ai/dsh-tool-session-query"
   - insert:
       - id: session-manager
-        name: '@kxh4892636/dsh-session-manager'
+        name: "@kxh4892636/dsh-session-manager"
   ```
 
   loader 的 id-targeted `config` 覆盖为整块替换语义（以 config-reload.spec 行为为准），故 `path`+`openAt` 同时给出；其余 schema 字段用默认值。
+
 - **测试**：每工具参数校验/正常路径/错误映射；patch YAML 结构断言（含索引覆盖行、上游工具行、插件行）；列表归档过滤与 workspace 归属（fake registry fixture）；子会话寻址失败路径。真实 Host 行为由 Issue 03 冒烟覆盖。
 
 ## 工作环境
@@ -99,8 +100,8 @@ DSH Web 的会话内 agent 无法读取、搜索、派生、投递其他 session
 
 ## Issue
 
-| #   | Issue                                          | 状态    | 阻塞于 | 下一步         |
-| --- | ---------------------------------------------- | ------- | ------ | -------------- |
-| 01  | [会话管理工具实现与单元测试](01-会话管理工具实现与单元测试.md) | completed | —      | /code-delivery |
-| 02  | [挂载上游内容搜索并启用索引](02-挂载上游内容搜索并启用索引.md) | completed | 01     | /code-delivery |
+| #   | Issue                                                                  | 状态      | 阻塞于 | 下一步         |
+| --- | ---------------------------------------------------------------------- | --------- | ------ | -------------- |
+| 01  | [会话管理工具实现与单元测试](01-会话管理工具实现与单元测试.md)         | completed | —      | /code-delivery |
+| 02  | [挂载上游内容搜索并启用索引](02-挂载上游内容搜索并启用索引.md)         | completed | 01     | /code-delivery |
 | 03  | [安装到 web profile 并端到端冒烟](03-安装到web-profile并端到端冒烟.md) | completed | 01, 02 | /code-delivery |
