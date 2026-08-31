@@ -1,0 +1,5 @@
+# dsh-session-manager bundle patch: mounts the session-manager plugin over the
+# profile root. 内容搜索行(上游工具与索引启用)由 Issue 02 追加。
+- insert:
+    - id: session-manager
+      name: "@kxh4892636/dsh-session-manager"
