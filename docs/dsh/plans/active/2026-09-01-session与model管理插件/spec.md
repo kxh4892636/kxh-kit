@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 ---
 
 # Session 与 Model 管理插件
@@ -70,7 +70,7 @@ DSH Web 的会话内 agent 无法读取、搜索、派生、投递其他 session
 - web profile：`C:\Users\kxh\.dsh\profiles\web`（`patchReload: live`；bundles `dsh-base`+`dsh-web-app`+`dsh-nested-skill`）；验证 GUI `http://127.0.0.1:3080`；运行中 Host 进程 `node ...\dsh\lib\bin.js web`（PID 32992，重启验证时需重启该进程）。
 - 工作区：kxh-kit pnpm workspace（pnpm 11.22.0，node 24；`vp pack`/`vp check`/vitest）。
 - 安装命令：`dsh plugin --profile web add file:<工作区包路径>`。
-- 执行方式（基线卡确认后变更）：全部 issue 自动推进；实现以 git worktree 进行（自 `main`，`worktree/dsh-session-manager-<时间戳>`），规划产物先在 `main` 提交，实现完成后以 `--no-ff` 合入 `main` 并清理 worktree。
+- 执行方式（基线卡确认后变更）：全部 issue 自动推进（无逐项确认）；实现以 git worktree 进行（自 `main` 分支 `worktree/dsh-session-manager-<时间戳>`，位于仓库外路径）；**执行 Issue 03 前停止任务，等待用户手动重启 web 进程**，重启确认后再继续其验证与冒烟；实现完成后以 `--no-ff` 合入 `main`，并 commit & push 到 origin。
 
 ## 范围
 
@@ -101,6 +101,6 @@ DSH Web 的会话内 agent 无法读取、搜索、派生、投递其他 session
 
 | #   | Issue                                          | 状态    | 阻塞于 | 下一步         |
 | --- | ---------------------------------------------- | ------- | ------ | -------------- |
-| 01  | [会话管理工具实现与单元测试](01-会话管理工具实现与单元测试.md) | pending | —      | /code-delivery |
-| 02  | [挂载上游内容搜索并启用索引](02-挂载上游内容搜索并启用索引.md) | pending | 01     | /code-delivery |
-| 03  | [安装到 web profile 并端到端冒烟](03-安装到web-profile并端到端冒烟.md) | pending | 01, 02 | /code-delivery |
+| 01  | [会话管理工具实现与单元测试](01-会话管理工具实现与单元测试.md) | completed | —      | /code-delivery |
+| 02  | [挂载上游内容搜索并启用索引](02-挂载上游内容搜索并启用索引.md) | completed | 01     | /code-delivery |
+| 03  | [安装到 web profile 并端到端冒烟](03-安装到web-profile并端到端冒烟.md) | completed | 01, 02 | /code-delivery |

@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 blocked_by: ["01", "02"]
 ---
 
@@ -41,3 +41,14 @@ blocked_by: ["01", "02"]
 ## 下一步
 
 /code-delivery
+
+## 交付记录
+
+- **交付物**：插件安装到 web profile(profile `package.json` bundles 含 `@kxh4892636/dsh-session-manager`);端到端冒烟全部通过;实践修复提交 worktree `9830ee8`(chunk 文本展开)、`ebe1d47`(双 wire 形状)。
+- **验证证据**:
+  - `dsh plugin --profile web add file:<worktree 包路径>` 成功;`node_modules` 含插件与 `@deepseek-ai/dsh-tool-session-query@0.1.2-alpha.2`。
+  - 工具可见性:9 个 `session_*` 工具 + 上游搜索工具(session_search/session_trace/session_event_search/session_event_trace/session_event_read)均进入会话工具目录。
+  - 端到端冒烟(会话 `session-smoke-20260901-1`,真实模型请求一次):`session_spawn`(显式 sessionId)→ `session_model_select`(deepseek-official/v4-flash-vision-exp,归一化 high)→ `session_prompt`(queue)→ `session_wait`(running→false,标题自动生成)→ `session_read`(**assistant 回复 `SMOKE-OK` 正确展开**)→ `session_search`(**命中** seed 文本,snippet 正确)→ `session_rename`(标题→`插件冒烟-已完成`,seq 57)→ `session_archive`(归档后默认列表不可见)。
+  - 冒烟暴露并修复:`session_read` 对 `chunkrow/*` 打包行(文本存于 `texts`)只输出摘要——修复为展开 assistant 文本,并兼容 `{type:'chunks'}` 与 `{type:'event'}` 两种 wire 形状(单元测试覆盖,40 项全绿)。
+  - **经验**:`dsh plugin add` 对 `file:` 依赖是快照复制——插件代码变更后须同步 `dist/` 到 profile 快照(或重装)并重启。
+  - 变异测试:未配置 mutation,记为 `skipped: not configured`,不阻断。
