@@ -36,7 +36,7 @@ release
 .k2/
 .dsh
 
-# Loop X runtime state
+# Nano Flow runtime state
 **/.flow
 
 # Mutation test reports

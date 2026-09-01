@@ -9,7 +9,7 @@ Typical layout it discovers:
 ```text
 .agents/
 └── skills/
-    └── loop-x/
+    └── nano-flow/
         └── references/
             └── skills/
                 └── to-story/

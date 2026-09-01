@@ -22,7 +22,7 @@ const fakeControl = (invalidate = vi.fn()) =>
   }) satisfies SkillProviderControlLike;
 
 const TOP_SKILL = `---
-name: loop-x
+name: nano-flow
 description: 顶层 Skill
 ---
 
@@ -38,8 +38,8 @@ whenToUse: 角色未明确时
 
 const FILES = {
   "C:/project/.git": "",
-  "C:/project/.agents/skills/loop-x/SKILL.md": TOP_SKILL,
-  "C:/project/.agents/skills/loop-x/references/skills/to-story/SKILL.md": NESTED_SKILL,
+  "C:/project/.agents/skills/nano-flow/SKILL.md": TOP_SKILL,
+  "C:/project/.agents/skills/nano-flow/references/skills/to-story/SKILL.md": NESTED_SKILL,
   "C:/project/.agents/skills/a/b/c/SKILL.md": `---
 name: deep-c
 description: 更深一层
@@ -52,20 +52,20 @@ description: .agents 直属目录
 ---
 
 foo`,
-  "C:/project/.agents/skills/loop-x/references/skills/invalid/SKILL.md": "# 无 frontmatter",
-  "C:/project/.agents/skills/loop-x/references/skills/bad-name/SKILL.md": `---
+  "C:/project/.agents/skills/nano-flow/references/skills/invalid/SKILL.md": "# 无 frontmatter",
+  "C:/project/.agents/skills/nano-flow/references/skills/bad-name/SKILL.md": `---
 name: To Story
 description: 非法名
 ---
 
 bad`,
-  "C:/project/.agents/skills/loop-x/node_modules/pkg/SKILL.md": `---
+  "C:/project/.agents/skills/nano-flow/node_modules/pkg/SKILL.md": `---
 name: ignored-pkg
 description: 排除目录
 ---
 
 pkg`,
-  "C:/project/.agents/skills/loop-x/.hidden/h/SKILL.md": `---
+  "C:/project/.agents/skills/nano-flow/.hidden/h/SKILL.md": `---
 name: hidden-h
 description: 隐藏目录
 ---
@@ -91,7 +91,7 @@ describe("NestedSkillProvider discovery", () => {
     expect(names).toContain("to-story");
     expect(names).toContain("deep-c");
     expect(names).toContain("foo-sk");
-    expect(names).not.toContain("loop-x");
+    expect(names).not.toContain("nano-flow");
     expect(names).not.toContain("invalid");
     expect(names).not.toContain("bad-name");
     expect(names).not.toContain("ignored-pkg");
@@ -116,11 +116,11 @@ describe("NestedSkillProvider discovery", () => {
       invocation: { modelInvocable: true, userInvocable: true },
       resourceBase: {
         kind: "directory",
-        path: "C:/project/.agents/skills/loop-x/references/skills/to-story",
+        path: "C:/project/.agents/skills/nano-flow/references/skills/to-story",
       },
     });
     expect(toStory?.path).toBe(
-      "C:/project/.agents/skills/loop-x/references/skills/to-story/SKILL.md",
+      "C:/project/.agents/skills/nano-flow/references/skills/to-story/SKILL.md",
     );
   });
 
@@ -210,8 +210,8 @@ zz`,
       memoryFs(FILES),
     );
     await provider.list({ cwd: "C:/project" });
-    provider.observeHostMutation("C:/project/.agents/skills/loop-x/references/skills/to-story");
-    provider.observeHostMutation("C:/project/.agents/skills/loop-x/references");
+    provider.observeHostMutation("C:/project/.agents/skills/nano-flow/references/skills/to-story");
+    provider.observeHostMutation("C:/project/.agents/skills/nano-flow/references");
     await flushTurns();
     expect(invalidate).toHaveBeenCalledTimes(1);
     provider.observeHostMutation("C:/elsewhere/file");
@@ -236,8 +236,8 @@ zz`,
 
 describe("walk helpers", () => {
   it("classifies the shipped one-layer form", () => {
-    expect(isShippedOneLayerForm(["skills", "loop-x", "SKILL.md"])).toBe(true);
-    expect(isShippedOneLayerForm(["skills", "loop-x", "references", "SKILL.md"])).toBe(false);
+    expect(isShippedOneLayerForm(["skills", "nano-flow", "SKILL.md"])).toBe(true);
+    expect(isShippedOneLayerForm(["skills", "nano-flow", "references", "SKILL.md"])).toBe(false);
     expect(isShippedOneLayerForm(["foo", "SKILL.md"])).toBe(false);
   });
 
@@ -257,9 +257,9 @@ describe("walk helpers", () => {
     expect(files.map((file) => file.path).sort()).toEqual([
       "C:/project/.agents/foo/SKILL.md",
       "C:/project/.agents/skills/a/b/c/SKILL.md",
-      "C:/project/.agents/skills/loop-x/references/skills/bad-name/SKILL.md",
-      "C:/project/.agents/skills/loop-x/references/skills/invalid/SKILL.md",
-      "C:/project/.agents/skills/loop-x/references/skills/to-story/SKILL.md",
+      "C:/project/.agents/skills/nano-flow/references/skills/bad-name/SKILL.md",
+      "C:/project/.agents/skills/nano-flow/references/skills/invalid/SKILL.md",
+      "C:/project/.agents/skills/nano-flow/references/skills/to-story/SKILL.md",
     ]);
   });
 
@@ -282,11 +282,11 @@ describe("NestedSkillProvider watcher (real filesystem)", () => {
     const project = await mkdtemp(join(tmpdir(), "dsh-nested-skill-watch-"));
     cleanup.push(project);
     await mkdir(join(project, ".git"), { recursive: true });
-    await mkdir(join(project, ".agents", "skills", "loop-x", "references", "skills", "first"), {
+    await mkdir(join(project, ".agents", "skills", "nano-flow", "references", "skills", "first"), {
       recursive: true,
     });
     await writeFile(
-      join(project, ".agents", "skills", "loop-x", "references", "skills", "first", "SKILL.md"),
+      join(project, ".agents", "skills", "nano-flow", "references", "skills", "first", "SKILL.md"),
       NESTED_SKILL,
       "utf8",
     );
@@ -301,11 +301,11 @@ describe("NestedSkillProvider watcher (real filesystem)", () => {
     const before = await provider.list({ cwd: project });
     expect(before.map((candidate) => candidate.name)).toContain("to-story");
     await new Promise((resolve) => setTimeout(resolve, 500));
-    await mkdir(join(project, ".agents", "skills", "loop-x", "references", "skills", "second"), {
+    await mkdir(join(project, ".agents", "skills", "nano-flow", "references", "skills", "second"), {
       recursive: true,
     });
     await writeFile(
-      join(project, ".agents", "skills", "loop-x", "references", "skills", "second", "SKILL.md"),
+      join(project, ".agents", "skills", "nano-flow", "references", "skills", "second", "SKILL.md"),
       `---
 name: second-sk
 description: 新出现的嵌套 skill

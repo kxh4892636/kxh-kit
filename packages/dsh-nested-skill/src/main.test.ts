@@ -32,10 +32,10 @@ describe("plugin entry", () => {
     expect(registered?.name).toBe(PROVIDER_NAME);
     const handler = handlers.get("fs/observed");
     expect(handler).toBeDefined();
-    handler?.({ displayPath: "C:/project/.agents/skills/loop-x" }, undefined, { name: "edit" });
-    handler?.({ displayPath: "C:/project/.agents/skills/loop-x" }, undefined, { name: "write" });
-    handler?.({ displayPath: "C:/project/.agents/skills/loop-x" }, undefined, { name: "read" });
-    handler?.({ displayPath: "C:/project/.agents/skills/loop-x" }, undefined, undefined);
+    handler?.({ displayPath: "C:/project/.agents/skills/nano-flow" }, undefined, { name: "edit" });
+    handler?.({ displayPath: "C:/project/.agents/skills/nano-flow" }, undefined, { name: "write" });
+    handler?.({ displayPath: "C:/project/.agents/skills/nano-flow" }, undefined, { name: "read" });
+    handler?.({ displayPath: "C:/project/.agents/skills/nano-flow" }, undefined, undefined);
     const effectCall = (ctx.effect as unknown as { mock: { calls: unknown[][] } }).mock
       .calls[0]?.[0];
     const iterator = (effectCall as () => Generator<() => Promise<void>>)();
