@@ -62,6 +62,7 @@ export const createProgram = (): Command =>
     .description(packageJson.description)
     .version(packageJson.version)
     .option("--pretty", "Pretty-print JSON output")
+    .enablePositionalOptions()
     .showHelpAfterError(false)
     .showSuggestionAfterError(false)
     .exitOverride()
@@ -72,6 +73,7 @@ export const createProgram = (): Command =>
 
 interface CliApplication {
   program: Command;
+  readCommanderOutput: () => string;
   readResponse: () => unknown;
 }
 
@@ -83,6 +85,15 @@ const createApplication = (
   registrars: readonly CommandRegistrar[],
 ): CliApplication => {
   const program = createProgram();
+  let commanderOutput = "";
+  program.configureOutput({
+    writeErr: (text: string): void => {
+      commanderOutput += text;
+    },
+    writeOut: (text: string): void => {
+      commanderOutput += text;
+    },
+  });
   let response: unknown = noResponse;
   const context: CommandContext = {
     input,
@@ -108,6 +119,7 @@ const createApplication = (
   for (const register of registrars) register(program, context);
   return {
     program,
+    readCommanderOutput: (): string => commanderOutput,
     readResponse: (): unknown => response,
   };
 };
@@ -117,11 +129,12 @@ const commanderError = (error: CommanderError): CliError =>
 
 export const runCli = async (options: RunCliOptions = {}): Promise<number> => {
   const io = options.io ?? defaultIo;
+  let application: CliApplication | undefined;
   let pretty = false;
   try {
     const extracted = extractPretty(options.argumentsList ?? process.argv.slice(2));
     pretty = extracted.pretty;
-    const application = createApplication(
+    application = createApplication(
       options.input ?? defaultInput,
       options.runtime ?? nodeRuntime(),
       options.registrars ?? [],
@@ -148,6 +161,10 @@ export const runCli = async (options: RunCliOptions = {}): Promise<number> => {
     writeSuccess(io, response, pretty);
     return 0;
   } catch (error) {
+    if (error instanceof CommanderError && error.code === "commander.helpDisplayed") {
+      writeSuccess(io, { command: "nm", usage: application?.readCommanderOutput() ?? "" }, pretty);
+      return 0;
+    }
     const cliError = error instanceof CommanderError ? commanderError(error) : asCliError(error);
     writeError(io, cliError, pretty);
     return cliError.kind === CliErrorKind.usage ? 2 : 1;

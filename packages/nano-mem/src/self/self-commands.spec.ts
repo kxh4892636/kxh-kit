@@ -6,7 +6,8 @@ import { afterEach, beforeEach, describe, expect, test } from "vitest";
 import { runCli } from "../cli.js";
 import { nodeRuntime, type RuntimeDependencies } from "../runtime.js";
 import { nanoMemSkillManifest } from "./generated-skill-manifest.js";
-import { createSelfCommandRegistrar } from "./self-commands.js";
+import type { NanoMemPackageExecutor, ResolvedNanoMemPackage } from "./npm-package-executor.js";
+import { createSelfCommandRegistrar, type SelfCommandDependencies } from "./self-commands.js";
 
 interface CliResult {
   code: number;
@@ -26,7 +27,10 @@ beforeEach((): void => {
 
 afterEach((): void => rmSync(temporaryRoot, { force: true, recursive: true }));
 
-const execute = async (argumentsList: string[]): Promise<CliResult> => {
+const execute = async (
+  argumentsList: string[],
+  dependencies: Partial<SelfCommandDependencies> = {},
+): Promise<CliResult> => {
   let stderr = "";
   let stdout = "";
   const code = await runCli({
@@ -39,7 +43,13 @@ const execute = async (argumentsList: string[]): Promise<CliResult> => {
         stdout += text;
       },
     },
-    registrars: [createSelfCommandRegistrar({ manifest: nanoMemSkillManifest, sourceDirectory })],
+    registrars: [
+      createSelfCommandRegistrar({
+        manifest: nanoMemSkillManifest,
+        sourceDirectory,
+        ...dependencies,
+      }),
+    ],
     runtime,
   });
   return {
@@ -94,5 +104,66 @@ describe("self skill CLI", (): void => {
       error: { error: { code: "SKILL_MODIFIED" } },
     });
     expect(forced.output).toMatchObject({ data: { after: "not_installed" }, ok: true });
+  });
+});
+
+describe("self update CLI", (): void => {
+  test("passes version and dry-run through the command boundary", async (): Promise<void> => {
+    const selectors: Array<string | undefined> = [];
+    const packageExecutor: NanoMemPackageExecutor = {
+      captureInstalled: async (): Promise<never> => {
+        throw new Error("dry-run must not capture the installed package");
+      },
+      install: async (): Promise<void> => undefined,
+      resolve: async (selector: string | undefined): Promise<ResolvedNanoMemPackage> => {
+        selectors.push(selector);
+        return {
+          archivePath: "candidate.tgz",
+          cleanup: (): void => undefined,
+          manifest: nanoMemSkillManifest,
+          sourceDirectory,
+          version: nanoMemSkillManifest.packageVersion,
+        };
+      },
+      verifyInstalled: async (): Promise<void> => undefined,
+    };
+    const result = await execute(["self", "update", "--version", "next", "--dry-run"], {
+      packageExecutor,
+    });
+    expect(result).toMatchObject({
+      code: 0,
+      output: { data: { changed: false, dryRun: true }, ok: true },
+    });
+    expect(selectors).toEqual(["next"]);
+  });
+
+  test("serializes failure stage and recovery details", async (): Promise<void> => {
+    const packageExecutor: NanoMemPackageExecutor = {
+      captureInstalled: async (): Promise<never> => {
+        throw new Error("resolve failure must not capture the installed package");
+      },
+      install: async (): Promise<void> => undefined,
+      resolve: async (): Promise<never> => {
+        throw new Error("registry unavailable");
+      },
+      verifyInstalled: async (): Promise<void> => undefined,
+    };
+    const result = await execute(["self", "update"], { packageExecutor });
+    expect(result).toMatchObject({
+      code: 1,
+      error: {
+        error: {
+          code: "SELF_UPDATE_FAILED",
+          details: {
+            recovery: {
+              cli: { status: "not_needed" },
+              skill: { status: "not_needed" },
+            },
+            stage: "resolve",
+          },
+        },
+        ok: false,
+      },
+    });
   });
 });

@@ -33,13 +33,13 @@
     "check": "node scripts/generate-skill-manifest.mjs --check && vp check",
     "prepublishOnly": "vp run build"
   },
-  "dependencies": {
-    "commander": "^15.0.0"
-  },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@types/semver": "^7.8.0",
     "@typescript/native": "catalog:",
     "@vitest/coverage-v8": "catalog:",
+    "commander": "^15.0.0",
+    "semver": "^7.8.1",
     "typescript": "catalog:",
     "vite-plus": "catalog:",
     "vitest": "catalog:"

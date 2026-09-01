@@ -7,13 +7,15 @@ export type CliErrorKind = (typeof CliErrorKind)[keyof typeof CliErrorKind];
 
 export class CliError extends Error {
   readonly code: string;
+  readonly details: unknown;
   readonly hint: string | undefined;
   readonly kind: CliErrorKind;
 
-  constructor(code: string, message: string, kind: CliErrorKind, hint?: string) {
+  constructor(code: string, message: string, kind: CliErrorKind, hint?: string, details?: unknown) {
     super(message);
     this.name = "CliError";
     this.code = code;
+    this.details = details;
     this.hint = hint;
     this.kind = kind;
   }

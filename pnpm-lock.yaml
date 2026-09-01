@@ -435,20 +435,25 @@ importers:
         version: 4.1.10(@types/node@24.12.4)(@vitest/browser-playwright@4.1.10)(@vitest/browser-preview@4.1.10)(@vitest/coverage-v8@4.1.10)(@voidzero-dev/vite-plus-core@0.2.6(@types/node@24.12.4)(@typescript/typescript6@6.0.2)(esbuild@0.28.0)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0))(happy-dom@20.11.2)
 
   packages/nano-mem:
-    dependencies:
-      commander:
-        specifier: ^15.0.0
-        version: 15.0.0
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
         version: 24.12.4
+      '@types/semver':
+        specifier: ^7.8.0
+        version: 7.8.0
       '@typescript/native':
         specifier: 'catalog:'
         version: typescript@7.0.2
       '@vitest/coverage-v8':
         specifier: 'catalog:'
         version: 4.1.10(@vitest/browser@4.1.10)(vitest@4.1.10)
+      commander:
+        specifier: ^15.0.0
+        version: 15.0.0
+      semver:
+        specifier: ^7.8.1
+        version: 7.8.1
       typescript:
         specifier: 'catalog:'
         version: '@typescript/typescript6@6.0.2'

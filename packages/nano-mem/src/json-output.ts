@@ -8,6 +8,7 @@ export interface CliIo {
 interface ErrorEnvelope {
   error: {
     code: string;
+    details?: unknown;
     hint?: string;
     message: string;
   };
@@ -32,5 +33,6 @@ export const writeError = (io: CliIo, error: CliError, pretty: boolean): void =>
     message: error.message,
   };
   if (error.hint) detail.hint = error.hint;
+  if (error.details !== undefined) detail.details = error.details;
   io.stderr(serialize({ error: detail, ok: false }, pretty));
 };
