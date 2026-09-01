@@ -1,8 +1,9 @@
 import type { DatabaseSync } from "node:sqlite";
 import { CliError, CliErrorKind } from "../cli-error.js";
 import { runImmediateTransaction } from "./memory-transaction.js";
+import { SEARCH_TOKENIZER_VERSION, toSearchTerms } from "./search-tokenizer.js";
 
-const schemaVersion = 1;
+const schemaVersion = 1 + SEARCH_TOKENIZER_VERSION;
 
 const schemaSql = `
   CREATE TABLE memories (
@@ -47,8 +48,25 @@ const schemaSql = `
     INSERT INTO memories_fts(rowid, content, search_terms)
     VALUES (new.rowid, new.content, new.search_terms);
   END;
-  PRAGMA user_version = 1;
 `;
+
+interface SearchTermRow {
+  content: string;
+  rowid: number;
+}
+
+const rebuildSearchTerms = (database: DatabaseSync): void => {
+  const rows = database
+    .prepare("SELECT rowid, content FROM memories")
+    .all() as unknown as SearchTermRow[];
+  const update = database.prepare("UPDATE memories SET search_terms = ? WHERE rowid = ?");
+  for (const row of rows) update.run(toSearchTerms(row.content), row.rowid);
+  database.exec("INSERT INTO memories_fts(memories_fts) VALUES ('rebuild')");
+};
+
+export const rebuildMemorySearchIndex = (database: DatabaseSync): void => {
+  runImmediateTransaction(database, (): void => rebuildSearchTerms(database));
+};
 
 export const migrateMemoryDatabase = (database: DatabaseSync): void => {
   database.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
@@ -65,7 +83,8 @@ export const migrateMemoryDatabase = (database: DatabaseSync): void => {
   }
   if (version === schemaVersion) return;
   runImmediateTransaction(database, (): void => {
-    database.exec(schemaSql);
-    database.exec("INSERT INTO memories_fts(memories_fts) VALUES ('rebuild')");
+    if (version === 0) database.exec(schemaSql);
+    rebuildSearchTerms(database);
+    database.exec(`PRAGMA user_version = ${schemaVersion}`);
   });
 };

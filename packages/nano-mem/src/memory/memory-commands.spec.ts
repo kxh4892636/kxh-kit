@@ -173,3 +173,45 @@ describe("memory CLI maintenance", (): void => {
     expect(update).toMatchObject({ code: 2, error: { error: { code: "INVALID_SCOPE" } } });
   });
 });
+
+describe("memory CLI search", (): void => {
+  test("searches current project and global memories by default", async (): Promise<void> => {
+    await execute(["add", "当前项目使用缓存策略"]);
+    await execute(["add", "global cache policy", "--scope", "global"]);
+    await execute(["add", "other cache secret", "--project", "other"]);
+    const result = await execute(["search", "cache"]);
+    const projectOnly = await execute(["search", "cache", "--scope", "project"]);
+    const globalOnly = await execute(["search", "cache", "--scope", "global"]);
+    const otherProject = await execute([
+      "search",
+      "cache",
+      "--scope",
+      "project",
+      "--project",
+      "other",
+    ]);
+    expect(result.code).toBe(0);
+    expect(JSON.stringify(result.output)).toContain("global cache policy");
+    expect(JSON.stringify(result.output)).not.toContain("other cache secret");
+    expect(JSON.stringify(projectOnly.output)).not.toContain("global cache policy");
+    expect(JSON.stringify(globalOnly.output)).toContain("global cache policy");
+    expect(JSON.stringify(otherProject.output)).toContain("other cache secret");
+    const chinese = await execute(["search", "缓存"]);
+    expect(JSON.stringify(chinese.output)).toContain("当前项目使用缓存策略");
+  });
+
+  test("accepts literal punctuation and validates search limits", async (): Promise<void> => {
+    await execute(["add", "title operator memory"]);
+    const punctuation = await execute(["search", 'title OR "memory" -drop:();']);
+    const zero = await execute(["search", "title", "--limit", "0"]);
+    const aboveMaximum = await execute(["search", "title", "--limit", "51"]);
+    const decimal = await execute(["search", "title", "--limit", "1.5"]);
+    expect(punctuation).toMatchObject({ code: 0 });
+    expect(zero).toMatchObject({ code: 2, error: { error: { code: "INVALID_LIMIT" } } });
+    expect(aboveMaximum).toMatchObject({
+      code: 2,
+      error: { error: { code: "INVALID_LIMIT" } },
+    });
+    expect(decimal).toMatchObject({ code: 2, error: { error: { code: "INVALID_LIMIT" } } });
+  });
+});

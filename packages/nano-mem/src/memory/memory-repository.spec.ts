@@ -239,3 +239,128 @@ describe("memory repository transactionally synchronized FTS", (): void => {
     expect(fixture.database.prepare("SELECT rowid FROM memories_fts").all()).toEqual([]);
   });
 });
+
+describe("memory repository full-text search", (): void => {
+  test("finds Chinese, English, identifier, file, path, and extension terms", (): void => {
+    const { repository } = createFixture();
+    const chinese = repository.add({
+      content: "使用缓存策略降低重复读取",
+      projectId: "one",
+      scope: MemoryScope.project,
+    }).memory;
+    const code = repository.add({
+      content: "src/services/getUserProfile reads user_cache from nano-mem.test.ts",
+      projectId: "one",
+      scope: MemoryScope.project,
+    }).memory;
+    for (const query of ["缓存", "重复读取"]) {
+      expect(
+        repository.search({ limit: 10, query, selector: { projectId: "one", scope: "all" } })[0]
+          ?.id,
+      ).toBe(chinese.id);
+    }
+    for (const query of ["services", "getUserProfile", "user", "cache", "nano-mem", "test.ts"]) {
+      expect(
+        repository.search({ limit: 10, query, selector: { projectId: "one", scope: "all" } })[0]
+          ?.id,
+      ).toBe(code.id);
+    }
+  });
+
+  test("treats FTS syntax as text and keeps candidates inside the selected scope", (): void => {
+    const { repository } = createFixture();
+    const current = repository.add({
+      content: "title operator memory",
+      projectId: "one",
+      scope: MemoryScope.project,
+    }).memory;
+    const global = repository.add({
+      content: "title shared memory",
+      projectId: "ignored",
+      scope: MemoryScope.global,
+    }).memory;
+    repository.add({
+      content: "title secret memory",
+      projectId: "two",
+      scope: MemoryScope.project,
+    });
+    const literalSyntax = repository.search({
+      limit: 10,
+      query: 'title OR "memory" -drop:(); DROP TABLE memories;',
+      selector: { projectId: "one", scope: "all" },
+    });
+    expect(literalSyntax).toEqual([]);
+    const results = repository.search({
+      limit: 10,
+      query: "title memory",
+      selector: { projectId: "one", scope: "all" },
+    });
+    expect(results.map((memory: MemoryRecord): string => memory.id)).toEqual(
+      expect.arrayContaining([current.id, global.id]),
+    );
+    expect(results).toHaveLength(2);
+  });
+});
+
+describe("memory repository retrieval accounting", (): void => {
+  test("increments only returned results and leaves empty searches unchanged", (): void => {
+    const fixture = createFixture();
+    for (const suffix of ["a", "b", "c"]) {
+      fixture.repository.add({
+        content: `bounded candidate ${suffix}`,
+        projectId: "one",
+        scope: MemoryScope.project,
+      });
+    }
+    expect(
+      fixture.repository.search({
+        limit: 2,
+        query: "bounded candidate",
+        selector: { projectId: "one", scope: "all" },
+      }),
+    ).toHaveLength(2);
+    const counts = fixture.database
+      .prepare("SELECT retrieval_count FROM memories ORDER BY id")
+      .all() as Array<{ retrieval_count: number }>;
+    expect(
+      counts
+        .map((row: { retrieval_count: number }): number => row.retrieval_count)
+        .sort((left: number, right: number): number => left - right),
+    ).toEqual([0, 1, 1]);
+    expect(
+      fixture.repository.search({
+        limit: 10,
+        query: "missing",
+        selector: { projectId: "one", scope: "all" },
+      }),
+    ).toEqual([]);
+    expect(fixture.repository.list({ projectId: "one", scope: "all" })).toHaveLength(3);
+  });
+
+  test("rolls back all retrieval counts when incrementing a result fails", (): void => {
+    const fixture = createFixture();
+    fixture.repository.add({
+      content: "atomic result one",
+      projectId: "one",
+      scope: MemoryScope.project,
+    });
+    fixture.repository.add({
+      content: "atomic result two",
+      projectId: "one",
+      scope: MemoryScope.project,
+    });
+    fixture.database.exec(
+      "CREATE TRIGGER reject_retrieval BEFORE UPDATE OF retrieval_count ON memories BEGIN SELECT RAISE(ABORT, 'rejected'); END;",
+    );
+    expect((): void => {
+      fixture.repository.search({
+        limit: 2,
+        query: "atomic result",
+        selector: { projectId: "one", scope: "all" },
+      });
+    }).toThrow();
+    expect(
+      fixture.database.prepare("SELECT sum(retrieval_count) AS total FROM memories").get(),
+    ).toEqual({ total: 0 });
+  });
+});

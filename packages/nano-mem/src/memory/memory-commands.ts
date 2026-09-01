@@ -30,6 +30,10 @@ interface DeleteOptions extends ScopeOptions {
   force?: boolean;
 }
 
+interface SearchOptions extends ScopeOptions {
+  limit: string;
+}
+
 interface MemoryDto {
   content: string;
   createdAt: string;
@@ -74,6 +78,23 @@ const writeSelector = (options: ScopeOptions, context: MemoryContext): MemorySel
   projectId: context.projectId,
   scope: writeScope(options.scope),
 });
+
+const searchLimit = (value: string): number => {
+  if (!/^\d+$/u.test(value)) {
+    throw new CliError(
+      "INVALID_LIMIT",
+      "Search limit must be an integer from 1 to 50.",
+      CliErrorKind.usage,
+    );
+  }
+  const limit = Number(value);
+  if (limit >= 1 && limit <= 50) return limit;
+  throw new CliError(
+    "INVALID_LIMIT",
+    "Search limit must be an integer from 1 to 50.",
+    CliErrorKind.usage,
+  );
+};
 
 const withRepository = async <T>(
   commandContext: CommandContext,
@@ -159,6 +180,33 @@ const registerList = (program: Command, context: CommandContext): void => {
   });
 };
 
+const registerSearch = (program: Command, context: CommandContext): void => {
+  const command = addScopeOptions(
+    program.command("search [query]").description("Search active memories"),
+    "all",
+  ).option("--limit <count>", "Maximum memories to return", "10");
+  command.action(async (query: string | undefined): Promise<void> => {
+    const options = command.opts<SearchOptions>();
+    const text = await resolveTextInput({
+      ...context.input,
+      ...(query === undefined ? {} : { positional: query }),
+    });
+    const memories = await withRepository(
+      context,
+      options.project,
+      (repository: MemoryRepository, memoryContext: MemoryContext): readonly MemoryDto[] =>
+        repository
+          .search({
+            limit: searchLimit(options.limit),
+            query: text,
+            selector: selector(options, memoryContext),
+          })
+          .map((memory: MemoryRecord): MemoryDto => toDto(memory)),
+    );
+    context.respond({ memories });
+  });
+};
+
 const registerUpdate = (program: Command, context: CommandContext): void => {
   const command = addScopeOptions(
     program.command("update <id> [content]").description("Update a memory"),
@@ -210,6 +258,7 @@ export const registerMemoryCommands: CommandRegistrar = (
   registerAdd(program, context);
   registerGet(program, context);
   registerList(program, context);
+  registerSearch(program, context);
   registerUpdate(program, context);
   registerDelete(program, context);
 };

@@ -3,6 +3,7 @@ import type { DatabaseSync } from "node:sqlite";
 import { CliError, CliErrorKind } from "../cli-error.js";
 import { initialRetentionState, type RetentionState } from "./retention-state.js";
 import { runImmediateTransaction } from "./memory-transaction.js";
+import { toFtsMatchQuery, toSearchTerms } from "./search-tokenizer.js";
 
 export const MemoryScope = {
   global: "global",
@@ -42,11 +43,18 @@ export interface UpdateMemoryInput {
   sourceSpecified: boolean;
 }
 
+export interface SearchMemoryInput {
+  limit: number;
+  query: string;
+  selector: MemorySelector;
+}
+
 export interface MemoryRepository {
   add: (input: AddMemoryInput) => { created: boolean; memory: MemoryRecord };
   delete: (id: string, selector: MemorySelector, force: boolean) => MemoryRecord;
   get: (id: string, selector: MemorySelector) => MemoryRecord;
   list: (selector: MemorySelector) => readonly MemoryRecord[];
+  search: (input: SearchMemoryInput) => readonly MemoryRecord[];
   update: (input: UpdateMemoryInput) => MemoryRecord;
 }
 
@@ -92,6 +100,11 @@ const selectedColumns = `
   use_count, retrieval_count
 `;
 
+const qualifiedSelectedColumns = selectedColumns
+  .split(",")
+  .map((column: string): string => `m.${column.trim()}`)
+  .join(", ");
+
 const normalizeIdentity = (
   content: string,
 ): { content: string; hash: string; identity: string } => {
@@ -134,16 +147,20 @@ const toRecord = (row: MemoryRow): MemoryRecord => ({
 
 const scopePredicate = (
   selector: MemorySelector,
+  qualifier: string = "",
 ): { parameters: readonly string[]; sql: string } => {
   if (selector.scope === MemoryScope.project) {
-    return { parameters: [selector.projectId], sql: "scope = 'project' AND project_id = ?" };
+    return {
+      parameters: [selector.projectId],
+      sql: `${qualifier}scope = 'project' AND ${qualifier}project_id = ?`,
+    };
   }
   if (selector.scope === MemoryScope.global) {
-    return { parameters: [], sql: "scope = 'global'" };
+    return { parameters: [], sql: `${qualifier}scope = 'global'` };
   }
   return {
     parameters: [selector.projectId],
-    sql: "((scope = 'project' AND project_id = ?) OR scope = 'global')",
+    sql: `((${qualifier}scope = 'project' AND ${qualifier}project_id = ?) OR ${qualifier}scope = 'global')`,
   };
 };
 
@@ -207,7 +224,7 @@ const addMemory = (
         normalized.content,
         normalized.identity,
         normalized.hash,
-        normalized.identity,
+        toSearchTerms(normalized.content),
         normalizeSource(input.source),
         input.scope,
         projectId,
@@ -287,7 +304,7 @@ const updateMemory = (runtime: RepositoryRuntime, input: UpdateMemoryInput): Mem
         normalized?.content ?? existing.content,
         normalized?.identity ?? existing.identity_text,
         normalized?.hash ?? existing.content_hash,
-        normalized?.identity ?? existing.search_terms,
+        normalized === undefined ? existing.search_terms : toSearchTerms(normalized.content),
         source,
         nowMs,
         retention.policyVersion,
@@ -324,6 +341,38 @@ const deleteMemory = (
   });
 };
 
+const searchMemories = (
+  runtime: RepositoryRuntime,
+  input: SearchMemoryInput,
+): readonly MemoryRecord[] => {
+  const matchQuery = toFtsMatchQuery(input.query);
+  if (matchQuery === undefined) return [];
+  const predicate = scopePredicate(input.selector, "m.");
+  return runImmediateTransaction(runtime.database, (): readonly MemoryRecord[] => {
+    const rows = runtime.database
+      .prepare(
+        `SELECT ${qualifiedSelectedColumns}, bm25(memories_fts, 1.0, 3.0) AS lexical_rank
+         FROM memories_fts JOIN memories AS m ON m.rowid = memories_fts.rowid
+         WHERE memories_fts MATCH ? AND m.explicit_forgotten_at_ms IS NULL
+           AND m.natural_forget_at_ms > ? AND ${predicate.sql}
+         ORDER BY lexical_rank ASC, m.updated_at_ms DESC, m.id ASC LIMIT 50`,
+      )
+      .all(matchQuery, runtime.now().getTime(), ...predicate.parameters) as unknown as MemoryRow[];
+    const returned = rows.slice(0, input.limit);
+    const increment = runtime.database.prepare(
+      "UPDATE memories SET retrieval_count = retrieval_count + 1 WHERE id = ?",
+    );
+    for (const row of returned) increment.run(row.id);
+    return returned.map(
+      (row: MemoryRow): MemoryRecord =>
+        toRecord({
+          ...row,
+          retrieval_count: row.retrieval_count + 1,
+        }),
+    );
+  });
+};
+
 export const createMemoryRepository = (dependencies: RepositoryDependencies): MemoryRepository => {
   const runtime: RepositoryRuntime = {
     createId: dependencies.createId ?? randomUUID,
@@ -339,6 +388,7 @@ export const createMemoryRepository = (dependencies: RepositoryDependencies): Me
       toRecord(requireById(runtime.database, id, selector)),
     list: (selector: MemorySelector): readonly MemoryRecord[] =>
       listMemories(runtime.database, selector),
+    search: (input: SearchMemoryInput): readonly MemoryRecord[] => searchMemories(runtime, input),
     update: (input: UpdateMemoryInput): MemoryRecord => updateMemory(runtime, input),
   };
 };

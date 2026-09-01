@@ -1,13 +1,14 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, test } from "vitest";
-import { migrateMemoryDatabase } from "./memory-schema.js";
+import { createMemoryRepository, MemoryScope } from "./memory-repository.js";
+import { migrateMemoryDatabase, rebuildMemorySearchIndex } from "./memory-schema.js";
 
 describe("memory database migration", (): void => {
   test("creates the versioned schema and can run repeatedly", (): void => {
     const database = new DatabaseSync(":memory:");
     migrateMemoryDatabase(database);
     migrateMemoryDatabase(database);
-    expect(database.prepare("PRAGMA user_version").get()).toEqual({ user_version: 1 });
+    expect(database.prepare("PRAGMA user_version").get()).toEqual({ user_version: 2 });
     expect(database.prepare("PRAGMA foreign_keys").get()).toEqual({ foreign_keys: 1 });
     expect(database.prepare("PRAGMA busy_timeout").get()).toEqual({ timeout: 5000 });
     expect(
@@ -17,6 +18,29 @@ describe("memory database migration", (): void => {
         )
         .all(),
     ).toEqual([{ name: "memories" }, { name: "memories_fts" }]);
+    database.close();
+  });
+
+  test("migrates and explicitly rebuilds tokenizer-derived search terms", (): void => {
+    const database = new DatabaseSync(":memory:");
+    migrateMemoryDatabase(database);
+    const repository = createMemoryRepository({ database });
+    const memory = repository.add({
+      content: "使用cachePolicy",
+      projectId: "one",
+      scope: MemoryScope.project,
+    }).memory;
+    database.prepare("UPDATE memories SET search_terms = 'legacy' WHERE id = ?").run(memory.id);
+    database.exec("PRAGMA user_version = 1");
+    migrateMemoryDatabase(database);
+    expect(
+      database.prepare("SELECT search_terms FROM memories WHERE id = ?").get(memory.id),
+    ).toEqual(expect.objectContaining({ search_terms: expect.stringContaining("policy") }));
+    database.prepare("UPDATE memories SET search_terms = 'stale' WHERE id = ?").run(memory.id);
+    rebuildMemorySearchIndex(database);
+    expect(
+      database.prepare("SELECT search_terms FROM memories WHERE id = ?").get(memory.id),
+    ).toEqual(expect.objectContaining({ search_terms: expect.stringContaining("使用") }));
     database.close();
   });
 
