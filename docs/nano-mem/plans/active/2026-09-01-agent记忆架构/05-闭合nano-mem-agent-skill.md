@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 blocked_by: ["04"]
 ---
 
@@ -22,10 +22,20 @@ agent 可以通过一个 `nano-mem` skill 完成 recall → use → remember/res
 
 ## 验收
 
-- [ ] skill 的最小场景可复核演练：无结果静默、检索并采用后 use、精确重复幂等、语义冲突显式 update、长期记忆 restore 后再 use。
-- [ ] skill 只注入任务相关的精炼内容，不把 CLI envelope、内部计数或 FSRS 参数原样放入 agent 上下文。
-- [ ] 新增前明确 search，CLI 不承担语义合并；delete 只有在人类明确永久删除目标后才调用 `--force`。
-- [ ] skill 目录符合 skill 校验与包分发要求，所有引用文件随 skill 自包含且不存在工作区绝对路径。
+- [x] skill 的最小场景可复核演练：无结果静默、检索并采用后 use、精确重复幂等、语义冲突显式 update、长期记忆 restore 后再 use。
+- [x] skill 只注入任务相关的精炼内容，不把 CLI envelope、内部计数或 FSRS 参数原样放入 agent 上下文。
+- [x] 新增前明确 search，CLI 不承担语义合并；delete 只有在人类明确永久删除目标后才调用 `--force`。
+- [x] skill 目录符合 skill 校验与包分发要求，所有引用文件随 skill 自包含且不存在工作区绝对路径。
+
+## 交付记录
+
+- 交付物：包内单一 model-invoked `skills/nano-mem/SKILL.md`，闭合 recall → use → remember/resolve → forget/restore/delete 策略面。
+- skill 只选择相关 `content` 和必要 `source` 进入工作上下文，明确排除 envelope、生命周期内部量、原始会话与临时任务状态。
+- 每次 add 前先 search；精确重复使用 CLI 幂等结果，语义修正显式 update，永久 delete 必须由人类明确目标与不可逆意图后才使用 `--force`。
+- ID 与 DTO-derived selector 一起保留并重放；真实 CLI walkthrough 证明 current project、global 和显式其他 project 的 recall/use/maintenance 闭环。
+- 验证证据：包级 `check` 通过；最小场景与 selector replay 均使用临时 `NANO_MEM_HOME` 完成真实 built CLI walkthrough。
+- 本机缺少 Python launcher，因而读取 `quick_validate.py` 并逐项执行其 frontmatter、name、description 和 TODO 等价检查，全部通过。
+- 以 `748d6ef14882fba3de30fe933c0577580d4c619a` 为 fixed point 的 Instruction-quality 与 Spec 双轴复审均为 0 findings。
 
 ## 上下文
 

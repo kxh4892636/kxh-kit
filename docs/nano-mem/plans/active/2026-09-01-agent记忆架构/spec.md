@@ -179,6 +179,6 @@ memories_fts(content, search_terms, content='memories', content_rowid='rowid')
 | 02  | [交付作用域化记忆存储与维护](02-交付作用域化记忆存储与维护.md) | completed | 01     | /code-delivery |
 | 03  | [交付中文与代码全文检索](03-交付中文与代码全文检索.md)         | completed | 02     | /code-delivery |
 | 04  | [交付使用强化与软遗忘](04-交付使用强化与软遗忘.md)             | completed | 03     | /code-delivery |
-| 05  | [闭合 Nano Mem agent skill](05-闭合nano-mem-agent-skill.md)    | pending   | 04     | /code-delivery |
+| 05  | [闭合 Nano Mem agent skill](05-闭合nano-mem-agent-skill.md)    | completed | 04     | /code-delivery |
 | 06  | [交付受管 skill 自管理](06-交付受管skill自管理.md)             | pending   | 01、05 | /code-delivery |
 | 07  | [交付事务式自更新与分发验收](07-交付事务式自更新与分发验收.md) | pending   | 06     | /code-delivery |
