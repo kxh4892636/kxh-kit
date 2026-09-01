@@ -1,6 +1,6 @@
 ---
 name: nano-flow
-description: 路由从想法到交付的 Loop Kit 主流程；当任务需要形成用户故事、打磨领域设计、按需拆分 issues、恢复既有 Flow 或判断下一步 skill 时使用。
+description: 路由从想法到交付的 Nano Flow 主流程；当任务需要形成用户故事、打磨领域设计、按需拆分 issues、恢复既有 Flow 或判断下一步 skill 时使用。
 ---
 
 # Nano Flow

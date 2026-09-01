@@ -6,7 +6,7 @@ status: completed
 
 ## 问题
 
-`loopx workspace` 需要把配置编辑、子仓物化与 worktree 生命周期拆成三个领域资源层，每层具备完整 CRUD：工作区配置项、远程子仓的本地物化、额外 worktree。
+`nf workspace` 需要把配置编辑、子仓物化与 worktree 生命周期拆成三个领域资源层，每层具备完整 CRUD：工作区配置项、远程子仓的本地物化、额外 worktree。
 
 `workspace.yaml.path` 是子仓克隆相对工作区根的路径；每个额外 worktree 均从该克隆生成并显式指定目标路径。
 
@@ -81,9 +81,9 @@ repositories:
 
 ## 工作环境
 
-- 实现位于 `packages/loopx/src/builtins/workspace/`；Node.js >= 22.12，使用本机 `git` CLI，不引入新 git 库。
+- 实现位于 `packages/nano-flow/src/builtins/workspace/`；Node.js >= 22.12，使用本机 `git` CLI，不引入新 git 库。
 - 配置继续使用 `yaml` 解析/写回和 `zod` schema。
-- 每个 issue 的 `/verifying` 门禁固定为 `pnpm --filter @kxh4892636/loopx check`、`pnpm --filter @kxh4892636/loopx test`、`pnpm --filter @kxh4892636/loopx build`；repository/worktree 副作用使用临时目录中的真实 git 仓库集成测试。Issue 03 完成后额外执行 `pnpm --filter @kxh4892636/loopx test:distribution`、`pnpm --filter @kxh4892636/loopx test:mutation` 和领域文档校验，验证分发包中的完整命令树与测试敏感度。
+- 每个 issue 的 `/verifying` 门禁固定为 `pnpm --filter @kxh4892636/nano-flow check`、`pnpm --filter @kxh4892636/nano-flow test`、`pnpm --filter @kxh4892636/nano-flow build`；repository/worktree 副作用使用临时目录中的真实 git 仓库集成测试。Issue 03 完成后额外执行 `pnpm --filter @kxh4892636/nano-flow test:distribution`、`pnpm --filter @kxh4892636/nano-flow test:mutation` 和领域文档校验，验证分发包中的完整命令树与测试敏感度。
 
 ## 范围
 
@@ -91,7 +91,7 @@ repositories:
 - `workspace.yaml.path` 子仓克隆语义与单一路径解析。
 - 移除旧扁平命令依赖。
 - 非级联的层级删除门禁、`--yes`/`--force`、预演、JSON 输出、CLI help 与集成测试。
-- LoopX glossary 和取代 ADR 同步。
+- Nano Flow glossary 和取代 ADR 同步。
 
 ## 非范围
 
@@ -106,7 +106,7 @@ repositories:
 
 ## 上下文
 
-- [LoopX 领域语言](../../../CONTEXT.md)
+- [Nano Flow 领域语言](../../../CONTEXT.md)
 - [ADR-0001 CLI 输出仅 JSON](../../../adr/0001-cli-输出仅-json.md)
 - [ADR-0002 以单一 CLI 收口内建子命令](../../../adr/0002-以单一cli收口内建子命令.md)
 - [ADR-0004 子仓克隆由工作区配置定位](../../../adr/0004-子仓克隆由工作区配置定位.md)

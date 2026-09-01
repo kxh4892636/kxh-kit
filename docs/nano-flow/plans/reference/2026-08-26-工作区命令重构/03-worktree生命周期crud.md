@@ -34,8 +34,8 @@ blocked_by: ["02"]
 ## 上下文
 
 - [spec](spec.md)
-- [现有 worktree 实现](../../../../../packages/loopx/src/builtins/workspace/workspace-worktree.ts)
-- [现有 workspace 命令入口](../../../../../packages/loopx/src/builtins/workspace/index.ts)
+- [现有 worktree 实现](../../../../../packages/nano-flow/src/builtins/workspace/workspace-worktree.ts)
+- [现有 workspace 命令入口](../../../../../packages/nano-flow/src/builtins/workspace/index.ts)
 
 ## 下一步
 

@@ -26,7 +26,7 @@ blocked_by: ["02"]
 - [x] 临时工作区端到端测试覆盖单个/全部安装、更新、单个/全部卸载，每次后 `check` 状态正确。
 - [x] 本地修改、非受管同名目录和人工注入的中途失败均证明默认不覆盖、不部分完成；`--force` 只放宽已确认的本地修改保护。
 - [x] 所有写命令的 `--dry-run` 输出可判定 JSON 计划，目标文件树哈希前后一致。
-- [x] `vp run @kxh4892636/loopx#test`、`vp run @kxh4892636/loopx#build` 和 `vp check` 通过。
+- [x] `vp run @kxh4892636/nano-flow#test`、`vp run @kxh4892636/nano-flow#build` 和 `vp check` 通过。
 
 ## 上下文
 

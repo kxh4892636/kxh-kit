@@ -7,7 +7,7 @@ blocked_by: ["05"]
 
 ## 交付
 
-`loopx anki` 承载标签、媒体和统计能力，保留媒体安全与统计聚合语义，并为 AnkiConnect 与本地文件写入提供可判定预演。
+`nf anki` 承载标签、媒体和统计能力，保留媒体安全与统计聚合语义，并为 AnkiConnect 与本地文件写入提供可判定预演。
 
 ## 范围
 
@@ -26,7 +26,7 @@ blocked_by: ["05"]
 - [x] 媒体测试覆盖 URL SSRF、路径穿越、不允许 MIME、互斥来源、输出文件与删除原文件，使用临时目录不触碰用户媒体。
 - [x] 所有 Anki/文件写操作预演时写调用数为 0，preview 同时列出远程 action 和本地文件效果。
 - [x] 所有原 positional input 均改为命名 option，各级 help 与用法错误测试通过。
-- [x] `vp run @kxh4892636/loopx#test`、`vp run @kxh4892636/loopx#build` 和 `vp check` 通过，原 `@kxh4892636/anki-cli` 测试仍通过。
+- [x] `vp run @kxh4892636/nano-flow#test`、`vp run @kxh4892636/nano-flow#build` 和 `vp check` 通过，原 `@kxh4892636/anki-cli` 测试仍通过。
 
 ## 上下文
 
@@ -43,4 +43,4 @@ blocked_by: ["05"]
 
 交付物：`tags`、`media` 与 `stats` 命令组，包含命名 option、媒体条件 query/mutation、SSRF/MIME/目录白名单、文件边界 seam、统计聚合和可判定 dry-run。
 
-验证证据：145 个 LoopX 测试与 168 个旧 Anki CLI 测试通过；LoopX 构建和全仓 `vp check` 通过（31 个既有 warning）；dangling commit `0bd35f0c562015889e40528afbc425c5765cbb57` 的 Standards/Spec 双轴复审均无 blocker。
+验证证据：145 个 Nano Flow 测试与 168 个旧 Anki CLI 测试通过；Nano Flow 构建和全仓 `vp check` 通过（31 个既有 warning）；dangling commit `0bd35f0c562015889e40528afbc425c5765cbb57` 的 Standards/Spec 双轴复审均无 blocker。

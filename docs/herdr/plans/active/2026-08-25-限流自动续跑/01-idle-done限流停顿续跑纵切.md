@@ -30,7 +30,7 @@ blocked_by: []
 - [x] Herdr error、畸形响应、断连与超时被隔离到单 agent，并留下不包含终端正文的诊断。
 - [x] `corepack pnpm --filter @kxh4892636/herdr-limit-resume check`、`test`、`build` 通过。
 - [x] `herdr plugin link packages/herdr-limit-resume --disabled` 成功，`plugin list` 不含 manifest warning；验证后 unlink，不删除工作区文件。
-- [x] `node .agents/skills/loop-x/script/check-domain.mjs .` 通过。
+- [x] `node .agents/skills/nano-flow/script/check-domain.mjs .` 通过。
 
 ## 上下文
 

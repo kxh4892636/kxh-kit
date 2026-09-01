@@ -82,5 +82,5 @@
 - [Herdr Socket API](https://herdr.dev/docs/socket-api/)
 - 本机 Herdr `0.8.2` / socket protocol `20` 的 `herdr api schema --json` 输出。
 - [`CONTEXT-MAP.md`](../../../../../CONTEXT-MAP.md)
-- [`docs/loopx/CONTEXT.md`](../../../../loopx/CONTEXT.md)
-- [`docs/loopx/adr/0002-以单一cli收口内建子命令.md`](../../../../loopx/adr/0002-以单一cli收口内建子命令.md)
+- [`docs/nano-flow/CONTEXT.md`](../../../../nano-flow/CONTEXT.md)
+- [`docs/nano-flow/adr/0002-以单一cli收口内建子命令.md`](../../../../nano-flow/adr/0002-以单一cli收口内建子命令.md)

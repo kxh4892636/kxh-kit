@@ -7,7 +7,7 @@ blocked_by: ["05"]
 
 ## 交付
 
-`loopx anki gui` 承载现有 11 条 Anki GUI 操作，使用者可查询 GUI 状态或驱动 Anki 界面，无需使用旧 `anki-cli` 入口。
+`nf anki gui` 承载现有 11 条 Anki GUI 操作，使用者可查询 GUI 状态或驱动 Anki 界面，无需使用旧 `anki-cli` 入口。
 
 ## 范围
 
@@ -24,8 +24,8 @@ blocked_by: ["05"]
 
 - [x] 假 AnkiConnect 的 CLI interface 测试覆盖 11 条 GUI 操作的 action/params、成功结果和 GUI 不可用/状态不匹配错误。
 - [x] 所有写性 GUI 操作的 `--dry-run` 调用数为 0 且 preview 可判定；只读 GUI 查询在预演中正常执行。
-- [x] `loopx anki gui --help` 与全部 leaf `--help` 可在 Anki 离线时运行，旧 positional 写法均以退出码 2 拒绝。
-- [x] `vp run @kxh4892636/loopx#test`、`vp run @kxh4892636/loopx#build` 和 `vp check` 通过，原 `@kxh4892636/anki-cli` 测试仍通过。
+- [x] `nf anki gui --help` 与全部 leaf `--help` 可在 Anki 离线时运行，旧 positional 写法均以退出码 2 拒绝。
+- [x] `vp run @kxh4892636/nano-flow#test`、`vp run @kxh4892636/nano-flow#build` 和 `vp check` 通过，原 `@kxh4892636/anki-cli` 测试仍通过。
 
 ## 上下文
 
@@ -38,6 +38,6 @@ blocked_by: ["05"]
 
 ## 交付记录
 
-交付物：`loopx anki gui` 已承载 11 条 GUI 操作，统一使用命名 option，并保留既有 action、结果与窗口状态错误契约。
+交付物：`nf anki gui` 已承载 11 条 GUI 操作，统一使用命名 option，并保留既有 action、结果与窗口状态错误契约。
 
-验证证据：175 个 LoopX 测试与 168 个旧 Anki CLI 测试通过；LoopX 构建和全仓 `vp check` 通过（31 个既有 warning）；dangling commit `64f06692563b3e17950b95d91907b544a9e1a03f` 的 Standards/Spec 双轴复审均无 blocker。
+验证证据：175 个 Nano Flow 测试与 168 个旧 Anki CLI 测试通过；Nano Flow 构建和全仓 `vp check` 通过（31 个既有 warning）；dangling commit `64f06692563b3e17950b95d91907b544a9e1a03f` 的 Standards/Spec 双轴复审均无 blocker。

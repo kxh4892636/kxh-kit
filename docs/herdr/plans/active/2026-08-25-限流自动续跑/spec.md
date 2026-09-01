@@ -75,7 +75,7 @@ status: completed
 - Herdr：本机 `0.8.2`，socket protocol `20`；实现与测试以本机 `herdr api schema --json` 和官方 0.8.2 CLI 行为为契约。
 - 目标平台：Windows named pipe、Linux/macOS Unix socket。
 - 开发链接：`herdr plugin link packages/herdr-limit-resume --disabled` 用于无自动执行的 manifest 验证；运行态 smoke 在隔离 Herdr session 或假 socket server 中执行，不重启当前工作 session。
-- 仓库门禁：插件包级 `check`、`test`、`build`，领域校验 `node .agents/skills/loop-x/script/check-domain.mjs .`，以及隔离 Herdr/fake socket runtime smoke。
+- 仓库门禁：插件包级 `check`、`test`、`build`，领域校验 `node .agents/skills/nano-flow/script/check-domain.mjs .`，以及隔离 Herdr/fake socket runtime smoke。
 - 已知基线：准入时根 `corepack pnpm exec vp check` 因 972 个既存文件的格式问题失败；这些文件不属于本插件范围，因此根 `pnpm ready` 不作为本 Plan 的交付门禁，也不允许为通过门禁而批量改写无关文件。
 
 ## 范围

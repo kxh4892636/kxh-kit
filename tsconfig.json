@@ -6,6 +6,6 @@
     { "path": "./apps/wiki" },
     { "path": "./packages/docusaurus-plugin-link" },
     { "path": "./packages/herdr-limit-resume" },
-    { "path": "./packages/loop-kit" }
+    { "path": "./packages/nano-flow" }
   ]
 }

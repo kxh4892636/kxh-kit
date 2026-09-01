@@ -35,8 +35,8 @@ blocked_by: ["01"]
 ## 上下文
 
 - [spec](spec.md)
-- [现有 pull 实现](../../../../../packages/loopx/src/builtins/workspace/workspace-pull.ts)
-- [现有 status 实现](../../../../../packages/loopx/src/builtins/workspace/workspace-query.ts)
+- [现有 pull 实现](../../../../../packages/nano-flow/src/builtins/workspace/workspace-pull.ts)
+- [现有 status 实现](../../../../../packages/nano-flow/src/builtins/workspace/workspace-query.ts)
 - [ADR-0004](../../../adr/0004-子仓克隆由工作区配置定位.md)
 
 ## 下一步

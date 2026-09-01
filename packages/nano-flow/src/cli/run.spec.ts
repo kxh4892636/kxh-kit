@@ -59,10 +59,10 @@ describe("CLI public interface", (): void => {
       ),
     ]);
     const result = await invoke(
-      ["typed", "read", "--display-name", "Loop X"],
+      ["typed", "read", "--display-name", "Nano Flow"],
       [(): BuiltinCommand => multiWord],
     );
-    expect(JSON.parse(result.stdout)).toEqual({ displayName: "Loop X" });
+    expect(JSON.parse(result.stdout)).toEqual({ displayName: "Nano Flow" });
   });
 
   test("rejects missing and conflicting options as usage errors", async (): Promise<void> => {

@@ -28,7 +28,7 @@ blocked_by: ["01"]
 - [x] terminal、状态、`state_change_seq` 或 read revision 任一变化均零输入；缺 token 与非 `blocked` 候选不进入该路径。
 - [x] Herdr error、断连与超时只记录失败，不落成功指纹；后续手工扫描仍可重试。
 - [x] `corepack pnpm --filter @kxh4892636/herdr-limit-resume check`、`test`、`build` 通过。
-- [x] `node .agents/skills/loop-x/script/check-domain.mjs .` 通过。
+- [x] `node .agents/skills/nano-flow/script/check-domain.mjs .` 通过。
 
 ## 上下文
 

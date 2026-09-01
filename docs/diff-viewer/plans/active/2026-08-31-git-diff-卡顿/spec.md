@@ -51,7 +51,7 @@ status: completed
 - 覆盖率：Diff Viewer 未配置固定 coverage scope；对本 issue 修改的全部生产代码使用 Vitest V8 coverage，statements、branches、functions、lines 各自不低于 80%。缺少可复现报告则 blocked。
 - 运行态：Issue 01 的真实 Electron 诊断 harness 能稳定区分健康与失败 fixture，并输出可复核测量；Issue 02 在同一 harness 及 split/unified 覆盖矩阵中进入已锁定预算。
 - 构建与消费者路径：`pnpm --filter @kxh4892636/diff-viewer build` 和适用的 Electron e2e 通过；Plan 完成前执行完整 `pnpm --filter @kxh4892636/diff-viewer test:e2e` 与根级 `pnpm ready`。
-- 领域与 Plan：`node .agents/skills/loop-x/script/check-domain.mjs .` 通过，issue 状态、交付记录与 spec 派生表一致。
+- 领域与 Plan：`node .agents/skills/nano-flow/script/check-domain.mjs .` 通过，issue 状态、交付记录与 spec 派生表一致。
 - 审查与结论：`/code-review` 从固定点复查 Spec 与 Standards 两轴；`/verifying` 只在上述适用门禁均有当前 diff 的通过证据时给出 `passed`。
 
 ## 范围

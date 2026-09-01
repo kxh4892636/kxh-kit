@@ -6,7 +6,7 @@ status: completed
 
 ## 问题
 
-DSH 内建 provider 只发现 `.agents/skills/<skill>/SKILL.md` 的一层形态；LoopX 等技能把主流程 skill 嵌套在 `references/skills/` 下（如 `.agents/skills/loop-x/references/skills/*/SKILL.md`），DSH 目录完全不可见。用户需要 DSH 在 `.agents` 目录内任意深度发现嵌套 skill，并以独立插件交付、安装到本机 profile。
+DSH 内建 provider 只发现 `.agents/skills/<skill>/SKILL.md` 的一层形态；Nano Flow 等技能把主流程 skill 嵌套在 `references/skills/` 下（如 `.agents/skills/nano-flow/references/skills/*/SKILL.md`），DSH 目录完全不可见。用户需要 DSH 在 `.agents` 目录内任意深度发现嵌套 skill，并以独立插件交付、安装到本机 profile。
 
 ## 方案
 
@@ -23,7 +23,7 @@ DSH 内建 provider 只发现 `.agents/skills/<skill>/SKILL.md` 的一层形态�
 ## 已排除的备选
 
 - **约定子目录（references/skills）递归**：只覆盖单一容器名，未来新布局需再次改插件；被拒绝。
-- **父级前缀命名空间（loop-x-to-story）**：改变稳定标识与用户感知名，与 frontmatter 文档不一致；被拒绝。
+- **父级前缀命名空间（nano-flow-to-story）**：改变稳定标识与用户感知名，与 frontmatter 文档不一致；被拒绝。
 - **修改 DSH 上游 skill-filesystem**：受上游发布节奏约束，无法立即作用于本机已安装 profile；被拒绝。
 - **配置 customSkillDirs 指向固定目录**：只覆盖手工维护的目录列表，非任意深度；被拒绝。
 
@@ -61,7 +61,7 @@ DSH 内建 provider 只发现 `.agents/skills/<skill>/SKILL.md` 的一层形态�
 
 - 修改或 fork DSH 上游仓库。
 - 发现 `.dsh/skills`、bundled skill 或非 `.agents` 根。
-- 改变内建 provider 行为、loop-x 本体或现有顶层 skill。
+- 改变内建 provider 行为、nano-flow 本体或现有顶层 skill。
 - 命名空间化注册名（已排除）。
 - npm 发布。
 

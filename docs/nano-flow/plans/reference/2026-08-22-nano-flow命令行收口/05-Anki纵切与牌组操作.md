@@ -7,7 +7,7 @@ blocked_by: ["01"]
 
 ## 交付
 
-`loopx anki` 的首个完整纵切：使用者可通过命名 options 列出、查看、创建和移动牌组/卡片，从 CLI 穿过 AnkiConnect port 获得与原 Anki CLI 等价的 JSON 结果。
+`nf anki` 的首个完整纵切：使用者可通过命名 options 列出、查看、创建和移动牌组/卡片，从 CLI 穿过 AnkiConnect port 获得与原 Anki CLI 等价的 JSON 结果。
 
 ## 范围
 
@@ -24,9 +24,9 @@ blocked_by: ["01"]
 ## 验收
 
 - [x] 假 AnkiConnect 的 CLI interface 测试验证 4 条牌组操作的 action/params、结果 shape、错误 hint、只读守卫、重试与背压契约。
-- [x] `loopx anki --help`、`loopx anki decks --help` 和四个 leaf `--help` 在 Anki 离线时仍成功；任一旧 positional 写法均以用法错误退出。
+- [x] `nf anki --help`、`nf anki decks --help` 和四个 leaf `--help` 在 Anki 离线时仍成功；任一旧 positional 写法均以用法错误退出。
 - [x] `decks create/move --dry-run` 的写 action 调用数为 0，`decks list/stats --dry-run` 仍返回真实查询结果。
-- [x] `vp run @kxh4892636/loopx#test`、`vp run @kxh4892636/loopx#build` 和 `vp check` 通过，原 `@kxh4892636/anki-cli` 测试仍通过。
+- [x] `vp run @kxh4892636/nano-flow#test`、`vp run @kxh4892636/nano-flow#build` 和 `vp check` 通过，原 `@kxh4892636/anki-cli` 测试仍通过。
 
 ## 上下文
 
@@ -41,6 +41,6 @@ blocked_by: ["01"]
 
 ## 交付记录
 
-交付物：`loopx anki decks` 的 list/stats/create/move 命令、AnkiConnect port 与 HTTP adapter、配置/诊断日志、串行重试背压、只读与 dry-run 安全边界。
+交付物：`nf anki decks` 的 list/stats/create/move 命令、AnkiConnect port 与 HTTP adapter、配置/诊断日志、串行重试背压、只读与 dry-run 安全边界。
 
-验证证据：53 个 LoopX 测试与 168 个旧 Anki CLI 测试通过；LoopX 构建通过；全仓 `vp check` 为 0 error（31 个既有 warning）；Standards/Spec 双轴审查均无 blocker。
+验证证据：53 个 Nano Flow 测试与 168 个旧 Anki CLI 测试通过；Nano Flow 构建通过；全仓 `vp check` 为 0 error（31 个既有 warning）；Standards/Spec 双轴审查均无 blocker。

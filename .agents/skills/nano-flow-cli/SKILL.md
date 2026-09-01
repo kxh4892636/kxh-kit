@@ -10,7 +10,7 @@ description: 使用 nf CLI 管理 Nano Flow 自身与受管 skills，或通过 A
 - CLI 自管理任务：读取 [self 路由](references/self.md)。
 - Anki 操作：读取 [Anki 路由](references/anki.md)。
 
-Loop Kit 的需求打磨、计划与实现流程属于 `nano-flow` 工作流 skill，不通过本 skill 路由。
+Nano Flow 的需求打磨、计划与实现流程属于 `nano-flow` 工作流 skill，不通过本 skill 路由。
 
 ## 共享契约
 
