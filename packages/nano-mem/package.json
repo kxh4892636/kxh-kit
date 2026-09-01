@@ -27,10 +27,10 @@
     "access": "public"
   },
   "scripts": {
-    "build": "vp pack src/main.ts",
+    "build": "node scripts/generate-skill-manifest.mjs && vp pack src/main.ts",
     "test": "vp test",
     "test:coverage": "vp test --run --coverage",
-    "check": "vp check",
+    "check": "node scripts/generate-skill-manifest.mjs --check && vp check",
     "prepublishOnly": "vp run build"
   },
   "dependencies": {
