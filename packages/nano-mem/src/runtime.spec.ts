@@ -31,6 +31,6 @@ describe("node runtime composition root", (): void => {
         argumentsList: ["-e", "process.exit(7)"],
         command: process.execPath,
       }),
-    ).rejects.toMatchObject({ code: 7 });
+    ).rejects.toMatchObject({ exitCode: 7 });
   });
 });

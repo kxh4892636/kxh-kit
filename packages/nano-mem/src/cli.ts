@@ -5,14 +5,21 @@ import { type CliIo, writeError, writeSuccess } from "./json-output.js";
 import { nodeRuntime, type RuntimeDependencies } from "./runtime.js";
 
 export interface CommandContext {
+  input: CliInput;
   respond: (data: unknown) => void;
   runtime: RuntimeDependencies;
 }
 
 export type CommandRegistrar = (program: Command, context: CommandContext) => void;
 
+export interface CliInput {
+  readStdin: () => Promise<string>;
+  stdinIsTerminal: boolean;
+}
+
 export interface RunCliOptions {
   argumentsList?: string[];
+  input?: CliInput;
   io?: CliIo;
   registrars?: readonly CommandRegistrar[];
   runtime?: RuntimeDependencies;
@@ -21,6 +28,17 @@ export interface RunCliOptions {
 const defaultIo: CliIo = {
   stderr: process.stderr.write.bind(process.stderr),
   stdout: process.stdout.write.bind(process.stdout),
+};
+
+const readProcessStdin = async (): Promise<string> => {
+  const chunks: Buffer[] = [];
+  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
+  return Buffer.concat(chunks).toString("utf8");
+};
+
+const defaultInput: CliInput = {
+  readStdin: readProcessStdin,
+  stdinIsTerminal: process.stdin.isTTY === true,
 };
 
 const extractPretty = (argumentsList: string[]): { argumentsList: string[]; pretty: boolean } => {
@@ -60,12 +78,14 @@ interface CliApplication {
 const noResponse = Symbol("no-response");
 
 const createApplication = (
+  input: CliInput,
   runtime: RuntimeDependencies,
   registrars: readonly CommandRegistrar[],
 ): CliApplication => {
   const program = createProgram();
   let response: unknown = noResponse;
   const context: CommandContext = {
+    input,
     respond: (data: unknown): void => {
       if (data === undefined) {
         throw new CliError(
@@ -102,6 +122,7 @@ export const runCli = async (options: RunCliOptions = {}): Promise<number> => {
     const extracted = extractPretty(options.argumentsList ?? process.argv.slice(2));
     pretty = extracted.pretty;
     const application = createApplication(
+      options.input ?? defaultInput,
       options.runtime ?? nodeRuntime(),
       options.registrars ?? [],
     );

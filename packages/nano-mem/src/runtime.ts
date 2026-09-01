@@ -1,6 +1,7 @@
-import { execFile } from "node:child_process";
+import { execFile, type ExecFileException } from "node:child_process";
+import { mkdirSync } from "node:fs";
 import { homedir } from "node:os";
-import { resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
 export interface Clock {
@@ -12,8 +13,12 @@ export interface DatabaseFactory {
 }
 
 export interface PathRuntime {
+  basename: (path: string) => string;
   cwd: string;
+  ensureDirectory: (path: string) => void;
   home: string;
+  join: (...segments: string[]) => string;
+  platform: NodeJS.Platform;
   resolve: (...segments: string[]) => string;
 }
 
@@ -32,9 +37,24 @@ export interface ProcessExecutor {
   execute: (request: ProcessRequest) => Promise<ProcessResult>;
 }
 
+export class ProcessExecutionError extends Error {
+  readonly exitCode: number | string | null;
+  readonly stderr: string;
+  readonly stdout: string;
+
+  constructor(error: ExecFileException, stdout: string, stderr: string) {
+    super(error.message, { cause: error });
+    this.name = "ProcessExecutionError";
+    this.exitCode = error.code ?? null;
+    this.stderr = stderr;
+    this.stdout = stdout;
+  }
+}
+
 export interface RuntimeDependencies {
   clock: Clock;
   databaseFactory: DatabaseFactory;
+  environment: Readonly<Record<string, string | undefined>>;
   paths: PathRuntime;
   processExecutor: ProcessExecutor;
 }
@@ -49,9 +69,9 @@ const executeProcess = async (request: ProcessRequest): Promise<ProcessResult> =
         request.command,
         [...request.argumentsList],
         { cwd: request.cwd, encoding: "utf8", windowsHide: true },
-        (error: Error | null, stdout: string, stderr: string): void => {
+        (error: ExecFileException | null, stdout: string, stderr: string): void => {
           if (error) {
-            reject(error);
+            reject(new ProcessExecutionError(error, stdout, stderr));
             return;
           }
           resolveResult({ stderr, stdout });
@@ -65,9 +85,16 @@ export const nodeRuntime = (): RuntimeDependencies => ({
   databaseFactory: {
     open: (databasePath: string): DatabaseSync => new DatabaseSync(databasePath),
   },
+  environment: process.env,
   paths: {
+    basename: (path: string): string => basename(path),
     cwd: process.cwd(),
+    ensureDirectory: (path: string): void => {
+      mkdirSync(path, { recursive: true });
+    },
     home: homedir(),
+    join: (...segments: string[]): string => join(...segments),
+    platform: process.platform,
     resolve: (...segments: string[]): string => resolve(...segments),
   },
   processExecutor: { execute: executeProcess },
