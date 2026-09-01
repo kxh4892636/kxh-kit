@@ -1,7 +1,13 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import { CliError, CliErrorKind } from "../cli-error.js";
-import { initialRetentionState, type RetentionState } from "./retention-state.js";
+import {
+  applyGoodUse,
+  initialRetentionState,
+  lifecycleBoost,
+  retentionStatus,
+  type RetentionState,
+} from "./retention-state.js";
 import { runImmediateTransaction } from "./memory-transaction.js";
 import { toFtsMatchQuery, toSearchTerms } from "./search-tokenizer.js";
 
@@ -52,10 +58,13 @@ export interface SearchMemoryInput {
 export interface MemoryRepository {
   add: (input: AddMemoryInput) => { created: boolean; memory: MemoryRecord };
   delete: (id: string, selector: MemorySelector, force: boolean) => MemoryRecord;
+  forget: (id: string, selector: MemorySelector) => MemoryRecord;
   get: (id: string, selector: MemorySelector) => MemoryRecord;
   list: (selector: MemorySelector) => readonly MemoryRecord[];
+  restore: (id: string, selector: MemorySelector) => MemoryRecord;
   search: (input: SearchMemoryInput) => readonly MemoryRecord[];
   update: (input: UpdateMemoryInput) => MemoryRecord;
+  use: (id: string, selector: MemorySelector) => MemoryRecord;
 }
 
 interface MemoryRow {
@@ -78,6 +87,10 @@ interface MemoryRow {
   stability: number;
   updated_at_ms: number;
   use_count: number;
+}
+
+interface SearchCandidateRow extends MemoryRow {
+  lexical_rank: number;
 }
 
 interface RepositoryDependencies {
@@ -341,14 +354,133 @@ const deleteMemory = (
   });
 };
 
+const writeRetentionState = (
+  database: DatabaseSync,
+  id: string,
+  state: RetentionState,
+  updatedAtMs: number,
+): void => {
+  database
+    .prepare(
+      `UPDATE memories SET policy_version = ?, stability = ?, difficulty = ?,
+       retention_anchor_at_ms = ?, natural_forget_at_ms = ?, explicit_forgotten_at_ms = ?,
+       last_used_at_ms = ?, use_count = ?, retrieval_count = ?, updated_at_ms = ? WHERE id = ?`,
+    )
+    .run(
+      state.policyVersion,
+      state.stability,
+      state.difficulty,
+      state.retentionAnchorAtMs,
+      state.naturalForgetAtMs,
+      state.explicitForgottenAtMs,
+      state.lastUsedAtMs,
+      state.useCount,
+      state.retrievalCount,
+      updatedAtMs,
+      id,
+    );
+};
+
+const forgetMemory = (
+  runtime: RepositoryRuntime,
+  id: string,
+  selector: MemorySelector,
+): MemoryRecord =>
+  runImmediateTransaction(runtime.database, (): MemoryRecord => {
+    const existing = requireById(runtime.database, id, selector);
+    if (existing.explicit_forgotten_at_ms !== null) return toRecord(existing);
+    const nowMs = runtime.now().getTime();
+    runtime.database
+      .prepare("UPDATE memories SET explicit_forgotten_at_ms = ?, updated_at_ms = ? WHERE id = ?")
+      .run(nowMs, nowMs, id);
+    return toRecord(requireById(runtime.database, id, selector));
+  });
+
+const restoreMemory = (
+  runtime: RepositoryRuntime,
+  id: string,
+  selector: MemorySelector,
+): MemoryRecord =>
+  runImmediateTransaction(runtime.database, (): MemoryRecord => {
+    const existing = requireById(runtime.database, id, selector);
+    const nowMs = runtime.now().getTime();
+    if (retentionStatus(toRecord(existing), nowMs).status === "active") {
+      throw new CliError(
+        "MEMORY_NOT_FORGOTTEN",
+        "Only a forgotten memory can be restored.",
+        CliErrorKind.runtime,
+      );
+    }
+    writeRetentionState(runtime.database, id, initialRetentionState(nowMs), nowMs);
+    return toRecord(requireById(runtime.database, id, selector));
+  });
+
+const useMemory = (
+  runtime: RepositoryRuntime,
+  id: string,
+  selector: MemorySelector,
+): MemoryRecord =>
+  runImmediateTransaction(runtime.database, (): MemoryRecord => {
+    const existing = requireById(runtime.database, id, selector);
+    const nowMs = runtime.now().getTime();
+    if (retentionStatus(toRecord(existing), nowMs).status === "forgotten") {
+      throw new CliError(
+        "MEMORY_FORGOTTEN",
+        "A forgotten memory cannot be used.",
+        CliErrorKind.runtime,
+        "Restore the memory before recording use.",
+      );
+    }
+    writeRetentionState(runtime.database, id, applyGoodUse(toRecord(existing), nowMs), nowMs);
+    return toRecord(requireById(runtime.database, id, selector));
+  });
+
+const normalizedLexicalScore = (
+  rank: number,
+  leastRelevant: number,
+  mostRelevant: number,
+): number => {
+  if (mostRelevant === leastRelevant) return 1;
+  return (-rank - leastRelevant) / (mostRelevant - leastRelevant);
+};
+
+const rankCandidates = (
+  rows: readonly SearchCandidateRow[],
+  nowMs: number,
+): readonly SearchCandidateRow[] => {
+  if (rows.length < 2) return rows;
+  const relevances = rows.map((row: SearchCandidateRow): number => -row.lexical_rank);
+  const leastRelevant = Math.min(...relevances);
+  const mostRelevant = Math.max(...relevances);
+  return [...rows].sort((left: SearchCandidateRow, right: SearchCandidateRow): number => {
+    const leftLexical = normalizedLexicalScore(left.lexical_rank, leastRelevant, mostRelevant);
+    const rightLexical = normalizedLexicalScore(right.lexical_rank, leastRelevant, mostRelevant);
+    const leftScore = leftLexical * (1 + lifecycleBoost(toRecord(left), nowMs));
+    const rightScore = rightLexical * (1 + lifecycleBoost(toRecord(right), nowMs));
+    return (
+      rightScore - leftScore ||
+      left.lexical_rank - right.lexical_rank ||
+      left.id.localeCompare(right.id)
+    );
+  });
+};
+
 const searchMemories = (
   runtime: RepositoryRuntime,
   input: SearchMemoryInput,
 ): readonly MemoryRecord[] => {
+  if (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 50) {
+    throw new CliError(
+      "INVALID_LIMIT",
+      "Search limit must be an integer from 1 to 50.",
+      CliErrorKind.usage,
+    );
+  }
   const matchQuery = toFtsMatchQuery(input.query);
   if (matchQuery === undefined) return [];
   const predicate = scopePredicate(input.selector, "m.");
   return runImmediateTransaction(runtime.database, (): readonly MemoryRecord[] => {
+    const nowMs = runtime.now().getTime();
     const rows = runtime.database
       .prepare(
         `SELECT ${qualifiedSelectedColumns}, bm25(memories_fts, 1.0, 3.0) AS lexical_rank
@@ -357,8 +489,8 @@ const searchMemories = (
            AND m.natural_forget_at_ms > ? AND ${predicate.sql}
          ORDER BY lexical_rank ASC, m.updated_at_ms DESC, m.id ASC LIMIT 50`,
       )
-      .all(matchQuery, runtime.now().getTime(), ...predicate.parameters) as unknown as MemoryRow[];
-    const returned = rows.slice(0, input.limit);
+      .all(matchQuery, nowMs, ...predicate.parameters) as unknown as SearchCandidateRow[];
+    const returned = rankCandidates(rows, nowMs).slice(0, input.limit);
     const increment = runtime.database.prepare(
       "UPDATE memories SET retrieval_count = retrieval_count + 1 WHERE id = ?",
     );
@@ -384,11 +516,16 @@ export const createMemoryRepository = (dependencies: RepositoryDependencies): Me
       addMemory(runtime, input),
     delete: (id: string, selector: MemorySelector, force: boolean): MemoryRecord =>
       deleteMemory(runtime.database, id, selector, force),
+    forget: (id: string, selector: MemorySelector): MemoryRecord =>
+      forgetMemory(runtime, id, selector),
     get: (id: string, selector: MemorySelector): MemoryRecord =>
       toRecord(requireById(runtime.database, id, selector)),
     list: (selector: MemorySelector): readonly MemoryRecord[] =>
       listMemories(runtime.database, selector),
+    restore: (id: string, selector: MemorySelector): MemoryRecord =>
+      restoreMemory(runtime, id, selector),
     search: (input: SearchMemoryInput): readonly MemoryRecord[] => searchMemories(runtime, input),
     update: (input: UpdateMemoryInput): MemoryRecord => updateMemory(runtime, input),
+    use: (id: string, selector: MemorySelector): MemoryRecord => useMemory(runtime, id, selector),
   };
 };

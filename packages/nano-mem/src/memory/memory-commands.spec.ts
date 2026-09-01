@@ -17,15 +17,17 @@ interface CliResult {
 
 let temporaryRoot = "";
 let runtime: RuntimeDependencies;
+let currentTime = 0;
 
 beforeEach((): void => {
   temporaryRoot = mkdtempSync(join(tmpdir(), "nano-mem-cli-"));
   const projectDirectory = join(temporaryRoot, "current-project");
   mkdirSync(projectDirectory);
   const base = nodeRuntime();
+  currentTime = new Date("2026-09-02T00:00:00.000Z").getTime();
   runtime = {
     ...base,
-    clock: { now: (): Date => new Date("2026-09-02T00:00:00.000Z") },
+    clock: { now: (): Date => new Date(currentTime) },
     environment: { NANO_MEM_HOME: join(temporaryRoot, "data") },
     paths: { ...base.paths, cwd: projectDirectory },
     processExecutor: {
@@ -213,5 +215,51 @@ describe("memory CLI search", (): void => {
       error: { error: { code: "INVALID_LIMIT" } },
     });
     expect(decimal).toMatchObject({ code: 2, error: { error: { code: "INVALID_LIMIT" } } });
+  });
+});
+
+describe("memory CLI lifecycle", (): void => {
+  test("forgets, exposes the reason, rejects use, and restores", async (): Promise<void> => {
+    const added = await execute(["add", "lifecycle target"]);
+    const id = memoryId(added);
+    const used = await execute(["use", id]);
+    const forgotten = await execute(["forget", id]);
+    const hidden = await execute(["search", "lifecycle target"]);
+    const retrieved = await execute(["get", id]);
+    const refusedUse = await execute(["use", id]);
+    const restored = await execute(["restore", id]);
+    const visible = await execute(["search", "lifecycle target"]);
+    expect(used.output).toMatchObject({ data: { forgottenReason: null, status: "active" } });
+    expect(forgotten.output).toMatchObject({
+      data: { forgottenReason: "explicit", status: "forgotten" },
+    });
+    expect(hidden.output).toMatchObject({ data: { memories: [] } });
+    expect(retrieved.output).toMatchObject({
+      data: { forgottenReason: "explicit", status: "forgotten" },
+    });
+    expect(refusedUse).toMatchObject({
+      code: 1,
+      error: { error: { code: "MEMORY_FORGOTTEN" } },
+    });
+    expect(restored.output).toMatchObject({
+      data: { forgottenReason: null, id, status: "active" },
+    });
+    expect(JSON.stringify(visible.output)).toContain("lifecycle target");
+  });
+
+  test("evaluates natural forgetting lazily without heating get or list", async (): Promise<void> => {
+    const added = await execute(["add", "naturally forgotten target"]);
+    const id = memoryId(added);
+    currentTime += 209 * 86_400_000;
+    const hidden = await execute(["search", "naturally forgotten target"]);
+    const retrieved = await execute(["get", id]);
+    const listed = await execute(["list"]);
+    expect(hidden.output).toMatchObject({ data: { memories: [] } });
+    expect(retrieved.output).toMatchObject({
+      data: { forgottenReason: "natural", status: "forgotten" },
+    });
+    expect(listed.output).toMatchObject({
+      data: { memories: [{ forgottenReason: "natural", id, status: "forgotten" }] },
+    });
   });
 });

@@ -300,9 +300,40 @@ describe("memory repository full-text search", (): void => {
     );
     expect(results).toHaveLength(2);
   });
+
+  test("keeps stronger BM25 relevance ahead before lifecycle signals differ", (): void => {
+    const { repository } = createFixture();
+    const exact = repository.add({
+      content: "precise",
+      projectId: "one",
+      scope: MemoryScope.project,
+    }).memory;
+    repository.add({
+      content: "precise with several unrelated filler words around the candidate",
+      projectId: "one",
+      scope: MemoryScope.project,
+    });
+    const results = repository.search({
+      limit: 2,
+      query: "precise",
+      selector: { projectId: "one", scope: "all" },
+    });
+    expect(results[0]?.id).toBe(exact.id);
+  });
 });
 
 describe("memory repository retrieval accounting", (): void => {
+  test("enforces the public search limit invariant", (): void => {
+    const { repository } = createFixture();
+    expect((): void => {
+      repository.search({
+        limit: 51,
+        query: "anything",
+        selector: { projectId: "one", scope: "all" },
+      });
+    }).toThrowError(expect.objectContaining({ code: "INVALID_LIMIT" }));
+  });
+
   test("increments only returned results and leaves empty searches unchanged", (): void => {
     const fixture = createFixture();
     for (const suffix of ["a", "b", "c"]) {
@@ -362,5 +393,126 @@ describe("memory repository retrieval accounting", (): void => {
     expect(
       fixture.database.prepare("SELECT sum(retrieval_count) AS total FROM memories").get(),
     ).toEqual({ total: 0 });
+  });
+});
+
+describe("memory repository use and ranking", (): void => {
+  test("repeated Good uses increase stability, forget time, and rank", (): void => {
+    const fixture = createFixture();
+    const lessUsed = fixture.repository.add({
+      content: "shared ranking alpha",
+      projectId: "one",
+      scope: MemoryScope.project,
+    }).memory;
+    const moreUsed = fixture.repository.add({
+      content: "shared ranking beta",
+      projectId: "one",
+      scope: MemoryScope.project,
+    }).memory;
+    fixture.advance(10 * 86_400_000);
+    fixture.repository.use(lessUsed.id, { projectId: "one", scope: MemoryScope.project });
+    fixture.repository.use(moreUsed.id, { projectId: "one", scope: MemoryScope.project });
+    fixture.advance(10 * 86_400_000);
+    fixture.repository.use(moreUsed.id, { projectId: "one", scope: MemoryScope.project });
+    const lessUsedAfter = fixture.repository.get(lessUsed.id, { projectId: "one", scope: "all" });
+    const moreUsedAfter = fixture.repository.get(moreUsed.id, { projectId: "one", scope: "all" });
+    const ranked = fixture.repository.search({
+      limit: 2,
+      query: "shared ranking",
+      selector: { projectId: "one", scope: "all" },
+    });
+    expect(moreUsedAfter.stability).toBeGreaterThanOrEqual(lessUsedAfter.stability);
+    expect(moreUsedAfter.naturalForgetAtMs).toBeGreaterThan(lessUsedAfter.naturalForgetAtMs);
+    expect(ranked[0]?.id).toBe(moreUsed.id);
+  });
+
+  test("search heats results without changing FSRS lifecycle state", (): void => {
+    const fixture = createFixture();
+    const added = fixture.repository.add({
+      content: "retrieval-only signal",
+      projectId: "one",
+      scope: MemoryScope.project,
+    }).memory;
+    fixture.advance(5 * 86_400_000);
+    fixture.repository.search({
+      limit: 10,
+      query: "retrieval signal",
+      selector: { projectId: "one", scope: "all" },
+    });
+    const retrieved = fixture.repository.get(added.id, { projectId: "one", scope: "all" });
+    expect(retrieved).toMatchObject({
+      lastUsedAtMs: added.lastUsedAtMs,
+      naturalForgetAtMs: added.naturalForgetAtMs,
+      retrievalCount: 1,
+      stability: added.stability,
+      useCount: 0,
+    });
+  });
+});
+
+describe("memory repository soft forgetting", (): void => {
+  test("hides naturally and explicitly forgotten memories from search", (): void => {
+    const fixture = createFixture();
+    const natural = fixture.repository.add({
+      content: "forgotten natural candidate",
+      projectId: "one",
+      scope: MemoryScope.project,
+    }).memory;
+    const explicit = fixture.repository.add({
+      content: "forgotten explicit candidate",
+      projectId: "one",
+      scope: MemoryScope.project,
+    }).memory;
+    fixture.repository.forget(explicit.id, { projectId: "one", scope: MemoryScope.project });
+    fixture.advance(natural.naturalForgetAtMs - natural.retentionAnchorAtMs);
+    expect(
+      fixture.repository.search({
+        limit: 10,
+        query: "forgotten candidate",
+        selector: { projectId: "one", scope: "all" },
+      }),
+    ).toEqual([]);
+    expect(fixture.repository.get(natural.id, { projectId: "one", scope: "all" }).id).toBe(
+      natural.id,
+    );
+    expect(fixture.repository.list({ projectId: "one", scope: "all" })).toHaveLength(2);
+  });
+
+  test("rejects use until restore resets lifecycle and preserves identity", (): void => {
+    const fixture = createFixture();
+    const added = fixture.repository.add({
+      content: "restore identity",
+      projectId: "one",
+      scope: MemoryScope.project,
+      source: "source",
+    }).memory;
+    fixture.database
+      .prepare(
+        "UPDATE memories SET stability = 90, use_count = 9, retrieval_count = 8 WHERE id = ?",
+      )
+      .run(added.id);
+    fixture.repository.forget(added.id, { projectId: "one", scope: MemoryScope.project });
+    expect((): void => {
+      fixture.repository.use(added.id, { projectId: "one", scope: MemoryScope.project });
+    }).toThrowError(expect.objectContaining({ code: "MEMORY_FORGOTTEN" }));
+    fixture.advance(1_000);
+    const restored = fixture.repository.restore(added.id, {
+      projectId: "one",
+      scope: MemoryScope.project,
+    });
+    expect(restored).toMatchObject({
+      content: added.content,
+      createdAtMs: added.createdAtMs,
+      explicitForgottenAtMs: null,
+      id: added.id,
+      lastUsedAtMs: null,
+      retrievalCount: 0,
+      source: "source",
+      stability: INITIAL_STABILITY_DAYS,
+      useCount: 0,
+    });
+    expect((): void => {
+      fixture.repository.restore(added.id, { projectId: "one", scope: MemoryScope.project });
+    }).toThrowError(expect.objectContaining({ code: "MEMORY_NOT_FORGOTTEN" }));
   });
 });

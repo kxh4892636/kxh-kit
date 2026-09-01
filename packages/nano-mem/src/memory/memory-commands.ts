@@ -12,6 +12,7 @@ import {
   type ReadScope,
 } from "./memory-repository.js";
 import { migrateMemoryDatabase } from "./memory-schema.js";
+import { retentionStatus, type ForgottenReason } from "./retention-state.js";
 
 interface ScopeOptions {
   project?: string;
@@ -37,10 +38,12 @@ interface SearchOptions extends ScopeOptions {
 interface MemoryDto {
   content: string;
   createdAt: string;
+  forgottenReason: ForgottenReason | null;
   id: string;
   project: string | null;
   scope: MemoryScope;
   source: string | null;
+  status: "active" | "forgotten";
   updatedAt: string;
 }
 
@@ -59,15 +62,23 @@ const readScope = (value: string): ReadScope => {
   );
 };
 
-const toDto = (memory: MemoryRecord): MemoryDto => ({
-  content: memory.content,
-  createdAt: new Date(memory.createdAtMs).toISOString(),
-  id: memory.id,
-  project: memory.scope === MemoryScope.project ? memory.projectId : null,
-  scope: memory.scope,
-  source: memory.source,
-  updatedAt: new Date(memory.updatedAtMs).toISOString(),
-});
+const toDto = (memory: MemoryRecord, nowMs: number): MemoryDto => {
+  const lifecycle = retentionStatus(memory, nowMs);
+  return {
+    content: memory.content,
+    createdAt: new Date(memory.createdAtMs).toISOString(),
+    forgottenReason: lifecycle.forgottenReason,
+    id: memory.id,
+    project: memory.scope === MemoryScope.project ? memory.projectId : null,
+    scope: memory.scope,
+    source: memory.source,
+    status: lifecycle.status,
+    updatedAt: new Date(memory.updatedAtMs).toISOString(),
+  };
+};
+
+const currentDto = (context: CommandContext, memory: MemoryRecord): MemoryDto =>
+  toDto(memory, context.runtime.clock.now().getTime());
 
 const selector = (options: ScopeOptions, context: MemoryContext): MemorySelector => ({
   projectId: context.projectId,
@@ -146,7 +157,7 @@ const registerAdd = (program: Command, context: CommandContext): void => {
           ...(options.source === undefined ? {} : { source: options.source }),
         }),
     );
-    context.respond({ created: result.created, memory: toDto(result.memory) });
+    context.respond({ created: result.created, memory: currentDto(context, result.memory) });
   });
 };
 
@@ -160,7 +171,7 @@ const registerGet = (program: Command, context: CommandContext): void => {
       (repository: MemoryRepository, memoryContext: MemoryContext): MemoryRecord =>
         repository.get(id, selector(options, memoryContext)),
     );
-    context.respond(toDto(memory));
+    context.respond(currentDto(context, memory));
   });
 };
 
@@ -174,7 +185,7 @@ const registerList = (program: Command, context: CommandContext): void => {
       (repository: MemoryRepository, memoryContext: MemoryContext): readonly MemoryDto[] =>
         repository
           .list(selector(options, memoryContext))
-          .map((memory: MemoryRecord): MemoryDto => toDto(memory)),
+          .map((memory: MemoryRecord): MemoryDto => currentDto(context, memory)),
     );
     context.respond({ memories });
   });
@@ -201,7 +212,7 @@ const registerSearch = (program: Command, context: CommandContext): void => {
             query: text,
             selector: selector(options, memoryContext),
           })
-          .map((memory: MemoryRecord): MemoryDto => toDto(memory)),
+          .map((memory: MemoryRecord): MemoryDto => currentDto(context, memory)),
     );
     context.respond({ memories });
   });
@@ -230,7 +241,7 @@ const registerUpdate = (program: Command, context: CommandContext): void => {
           ...(options.source === undefined ? {} : { source: options.source }),
         }),
     );
-    context.respond(toDto(memory));
+    context.respond(currentDto(context, memory));
   });
 };
 
@@ -247,7 +258,36 @@ const registerDelete = (program: Command, context: CommandContext): void => {
       (repository: MemoryRepository, memoryContext: MemoryContext): MemoryRecord =>
         repository.delete(id, writeSelector(options, memoryContext), options.force === true),
     );
-    context.respond({ deleted: toDto(memory) });
+    context.respond({ deleted: currentDto(context, memory) });
+  });
+};
+
+type LifecycleCommand = "forget" | "restore" | "use";
+
+const lifecycleDescription: Record<LifecycleCommand, string> = {
+  forget: "Soft-forget a memory",
+  restore: "Restore a forgotten memory",
+  use: "Record successful use of a memory",
+};
+
+const registerLifecycle = (
+  program: Command,
+  context: CommandContext,
+  name: LifecycleCommand,
+): void => {
+  const command = addScopeOptions(
+    program.command(`${name} <id>`).description(lifecycleDescription[name]),
+    MemoryScope.project,
+  );
+  command.action(async (id: string): Promise<void> => {
+    const options = command.opts<ScopeOptions>();
+    const memory = await withRepository(
+      context,
+      options.project,
+      (repository: MemoryRepository, memoryContext: MemoryContext): MemoryRecord =>
+        repository[name](id, writeSelector(options, memoryContext)),
+    );
+    context.respond(currentDto(context, memory));
   });
 };
 
@@ -259,6 +299,9 @@ export const registerMemoryCommands: CommandRegistrar = (
   registerGet(program, context);
   registerList(program, context);
   registerSearch(program, context);
+  registerLifecycle(program, context, "use");
   registerUpdate(program, context);
+  registerLifecycle(program, context, "forget");
+  registerLifecycle(program, context, "restore");
   registerDelete(program, context);
 };
