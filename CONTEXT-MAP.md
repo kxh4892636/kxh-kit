@@ -8,6 +8,7 @@
 - [diff-viewer](./docs/diff-viewer/CONTEXT.md) - Diff Viewer 业务域：Electron 桌面的多仓库 git diff 阅读工具。
 - [herdr](./docs/herdr/CONTEXT.md) - Herdr 扩展业务域：观察 coding agent 运行状态并执行可审计的自动化工作流。
 - [dsh](./docs/dsh/CONTEXT.md) - DSH 扩展业务域：工作区自研的 DeepSeek Harness 插件。
+- [pi](./docs/pi/CONTEXT.md) - Pi 扩展业务域：以可安装 package 向 Pi 提供模型工具与用户级配置能力。
 
 ## Relationships
 
