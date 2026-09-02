@@ -39,9 +39,5 @@ release
 # Nano Flow runtime state
 **/.flow
 
-# Mutation test reports
-**/reports/mutation/
-**/.stryker-tmp/
-
 # Test coverage reports
 coverage
