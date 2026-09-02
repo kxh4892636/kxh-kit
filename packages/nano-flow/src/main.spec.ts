@@ -86,7 +86,7 @@ describe("node entry point", (): void => {
     "reports other line reader errors",
     async (failure: unknown): Promise<void> => {
       const events: unknown[] = [];
-      const diagnosticChannel = channel("nf.input");
+      const diagnosticChannel = channel("nnf.input");
       const subscriber = (message: unknown): void => void events.push(message);
       diagnosticChannel.subscribe(subscriber);
       try {

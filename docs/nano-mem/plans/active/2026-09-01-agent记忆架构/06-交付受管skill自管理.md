@@ -7,7 +7,7 @@ blocked_by: ["01", "05"]
 
 ## 交付
 
-用户可以用 `nm self skill` 检查、预演、安装、更新或卸载包内唯一的 `nano-mem` skill，并在版本陈旧或本地修改时获得可靠状态和保护。
+用户可以用 `nnm self skill` 检查、预演、安装、更新或卸载包内唯一的 `nano-mem` skill，并在版本陈旧或本地修改时获得可靠状态和保护。
 
 ## 范围
 
@@ -31,7 +31,7 @@ blocked_by: ["01", "05"]
 
 ## 交付记录
 
-- 交付物：构建期 manifest generator、受管 skill 文件系统 adapter、状态/事务 service、`nm self skill` 命令组及其测试。
+- 交付物：构建期 manifest generator、受管 skill 文件系统 adapter、状态/事务 service、`nnm self skill` 命令组及其测试。
 - 构建期生成单 skill manifest，记录包版本、文件 SHA-256 与 tree hash；安装 marker 与实际树共同推导 `not_installed|current|outdated|modified`。
 - `self skill status|install|update|uninstall` 支持默认 target、显式 `--target`、`--dry-run` 与 `--force`，并拒绝空路径、父目录穿越、具体 skill 目录及 symlink target root。
 - staging/backup/rename 事务在破坏性清理前完整回滚；递归清理一旦部分失败即保留最后恢复副本并返回 `SKILL_ROLLBACK_FAILED`，不以不完整快照伪装成功恢复。

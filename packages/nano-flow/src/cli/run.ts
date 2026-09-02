@@ -291,7 +291,7 @@ const createProgram = (
   scopedValues: OptionValues,
 ): Command => {
   const program = new Command()
-    .name("nf")
+    .name("nnf")
     .description("Nano Flow unified command line interface")
     .enablePositionalOptions()
     .version(packageMetadata.version, "--version");

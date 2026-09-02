@@ -1,6 +1,6 @@
 # Nano Mem
 
-Nano Mem 管理 agent 记忆从形成、作用域隔离、检索和实际使用，到软遗忘、恢复与删除的完整生命周期。`nano-mem` skill 负责 agent 策略，`nm` CLI 负责确定性的本地机制与受管 skill 自管理。
+Nano Mem 管理 agent 记忆从形成、作用域隔离、检索和实际使用，到软遗忘、恢复与删除的完整生命周期。`nano-mem` skill 负责 agent 策略，`nnm` CLI 负责确定性的本地机制与受管 skill 自管理。
 
 ## Language
 
@@ -58,4 +58,4 @@ _Avoid_：软遗忘、forget、隐藏
 
 ### Skill 管理
 
-**受管 skill** 与 **skill 安装状态** 为 [Common](../common/CONTEXT.md) 共享术语。Nano Mem 使用它们表达由 `nm self skill` 安装、检查、更新或卸载的 `nano-mem` skill 及其四态。
+**受管 skill** 与 **skill 安装状态** 为 [Common](../common/CONTEXT.md) 共享术语。Nano Mem 使用它们表达由 `nnm self skill` 安装、检查、更新或卸载的 `nano-mem` skill 及其四态。

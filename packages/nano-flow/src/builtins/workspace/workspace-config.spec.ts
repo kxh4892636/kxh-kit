@@ -62,7 +62,7 @@ describe("loadWorkspaceFile", (): void => {
       `No ${WORKSPACE_CONFIG_FILE} found from ${directory} upwards`,
     );
     expect((failure as WorkspaceConfigError).hint).toBe(
-      `Run 'nf workspace config init' to create ${WORKSPACE_CONFIG_FILE} first`,
+      `Run 'nnf workspace config init' to create ${WORKSPACE_CONFIG_FILE} first`,
     );
     expect((failure as WorkspaceConfigError).details).toBeUndefined();
   });

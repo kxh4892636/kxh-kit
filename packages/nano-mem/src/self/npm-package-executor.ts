@@ -114,8 +114,8 @@ const assertPackageIdentity = (packageRoot: string, version: string): string => 
     !("bin" in value) ||
     typeof value.bin !== "object" ||
     value.bin === null ||
-    !("nm" in value.bin) ||
-    value.bin.nm !== "dist/main.mjs"
+    !("nnm" in value.bin) ||
+    value.bin.nnm !== "dist/main.mjs"
   ) {
     throw new Error(
       "The downloaded package identity does not match the resolved nano-mem version.",

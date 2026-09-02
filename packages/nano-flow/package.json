@@ -9,7 +9,7 @@
     "directory": "packages/nano-flow"
   },
   "bin": {
-    "nf": "dist/main.mjs"
+    "nnf": "dist/main.mjs"
   },
   "files": [
     "dist",

@@ -419,7 +419,7 @@ describe("Anki runtime primitives", (): void => {
 
   test("logger publishes only messages at or above its configured rank", (): void => {
     const events: unknown[] = [];
-    const diagnosticChannel = channel("nf.anki");
+    const diagnosticChannel = channel("nnf.anki");
     const subscriber = (message: unknown): void => void events.push(message);
     diagnosticChannel.subscribe(subscriber);
     try {

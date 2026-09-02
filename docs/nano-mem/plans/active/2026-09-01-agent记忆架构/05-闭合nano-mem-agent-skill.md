@@ -11,7 +11,7 @@ agent 可以通过一个 `nano-mem` skill 完成 recall → use → remember/res
 
 ## 范围
 
-- 创建包内 `skills/nano-mem` 完整 skill，使用已确认领域语言和稳定 `nm` JSON/错误契约。
+- 创建包内 `skills/nano-mem` 完整 skill，使用已确认领域语言和稳定 `nnm` JSON/错误契约。
 - 定义任务前的少量查询、结果裁剪、实际采用后的 use、原子记忆提炼和新增前冲突搜索流程。
 - 定义显式 remember/update/forget/restore/delete 的安全边界；永久删除必须保留用户确认要求。
 - 不添加 hooks、自动全会话捕获、后台维护或第二个 CLI 路由 skill。

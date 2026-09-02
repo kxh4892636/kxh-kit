@@ -133,7 +133,7 @@ describe("CLI definition and scanner boundaries", (): void => {
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
     expect(createHash("sha256").update(result.stdout).digest("hex")).toBe(
-      "1b341b3222f92c11e91f2597bc5a5da561e9c45506e3c1f05dafb1b56edcbc7d",
+      "6d1248912925e700f6038f06b7f73093c1bf05c7560128dd422c866f8827d47b",
     );
   });
 });

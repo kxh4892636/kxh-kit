@@ -2,11 +2,11 @@
   "files": [
     {
       "path": "SKILL.md",
-      "sha256": "6d5cbea79757b2b451536d6a1b05ef99e13ccc1c4f76458ee8a8b4f410a6bf61"
+      "sha256": "865e3c59e88b62d09e1643a0a86ef5709bc4dba86fe866212f5d9a20984e89f1"
     }
   ],
   "packageVersion": "0.0.1",
   "skillName": "nano-mem",
-  "treeHash": "a37877669f8edd14a1201ff654eaec93d419747757e28cf2efd6f9b0da3352b8",
+  "treeHash": "72789dcfe1c8557e47fb600e973b083966de6f64a31f4b80d58abdaee997b90f",
   "schemaVersion": 1
 }

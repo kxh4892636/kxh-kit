@@ -16,7 +16,7 @@ import { assertPhysicalPathWithinRoot, normalizeFsPath, pathExists } from "./wor
 import { errorDetail, errorMessage, hasErrorCode } from "./workspace-error";
 
 const execFileAsync = promisify(execFile);
-const workspaceDiagnostics = channel("nf.workspace");
+const workspaceDiagnostics = channel("nnf.workspace");
 const runGit = async (arguments_: readonly string[]): Promise<string> => {
   try {
     const { stdout } = await execFileAsync("git", ["--no-optional-locks", ...arguments_]);
@@ -172,7 +172,7 @@ const resolveRepository = async (
   await assertPhysicalPathWithinRoot(config.root, repositoryPath);
   if (!(await pathExists(path.join(repositoryPath, ".git")))) {
     throw new WorkspaceConfigError(`Repository is not materialized: ${name}`, {
-      hint: `Run 'nf workspace repository clone --name ${name}' first`,
+      hint: `Run 'nnf workspace repository clone --name ${name}' first`,
       details: { name, path: repositoryPath },
     });
   }

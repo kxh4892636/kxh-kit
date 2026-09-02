@@ -7,7 +7,7 @@ blocked_by: []
 
 ## 交付
 
-开发者可以在工作区构建并执行只有 `nm` bin 的 Nano Mem 包，并获得稳定的 JSON、帮助、版本和错误契约，为后续每条记忆能力提供同一个 public seam。
+开发者可以在工作区构建并执行只有 `nnm` bin 的 Nano Mem 包，并获得稳定的 JSON、帮助、版本和错误契约，为后续每条记忆能力提供同一个 public seam。
 
 ## 范围
 
@@ -22,8 +22,8 @@ blocked_by: []
 
 ## 验收
 
-- [x] `pnpm --filter @kxh4892636/nano-mem check`、`test` 和 `build` 成功，构建产物只暴露 `nm`。
-- [x] `nm --help`、`nm --version` 和未知命令分别产生约定的 stdout/stderr JSON 与退出码，`--pretty` 不改变字段。
+- [x] `pnpm --filter @kxh4892636/nano-mem check`、`test` 和 `build` 成功，构建产物只暴露 `nnm`。
+- [x] `nnm --help`、`nnm --version` 和未知命令分别产生约定的 stdout/stderr JSON 与退出码，`--pretty` 不改变字段。
 - [x] CLI 文本输入 seam 覆盖位置参数、stdin、二者冲突和空输入，后续命令无需另建解析协议。
 - [x] package tarball 只包含声明的发布文件，不包含源码、测试、临时数据库或工作区路径。
 

@@ -165,7 +165,7 @@ describe("workspace configuration boundaries", (): void => {
   test("reports malformed YAML", async (): Promise<void> => {
     const root = await createRoot("repositories: [\n");
     const events: unknown[] = [];
-    const diagnostics = channel("nf.workspace");
+    const diagnostics = channel("nnf.workspace");
     const subscriber = (event: unknown): void => void events.push(event);
     diagnostics.subscribe(subscriber);
     try {
@@ -423,7 +423,7 @@ describe("workspace repository and worktree public boundaries", (): void => {
     );
     expect(unmaterialized.message).toBe("Repository is not materialized: alpha");
     expect((unmaterialized as WorkspaceConfigError).hint).toBe(
-      "Run 'nf workspace repository clone --name alpha' first",
+      "Run 'nnf workspace repository clone --name alpha' first",
     );
     expect((unmaterialized as WorkspaceConfigError).details).toEqual({
       name: "alpha",
@@ -466,7 +466,7 @@ describe("workspace repository and worktree public boundaries", (): void => {
     );
     expect(error.message).toBe("Repository is not materialized: alpha");
     expect((error as WorkspaceConfigError).hint).toBe(
-      "Run 'nf workspace repository clone --name alpha' first",
+      "Run 'nnf workspace repository clone --name alpha' first",
     );
     expect((error as WorkspaceConfigError).details).toEqual({
       name: "alpha",

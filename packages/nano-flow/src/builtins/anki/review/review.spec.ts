@@ -18,7 +18,7 @@ const events = (stdout: string): readonly Record<string, unknown>[] =>
     .filter((line: string): boolean => line.length > 0)
     .map((line: string): Record<string, unknown> => JSON.parse(line) as Record<string, unknown>);
 
-describe("nf anki review", (): void => {
+describe("nnf anki review", (): void => {
   test("renders help without connecting", async (): Promise<void> => {
     const result = await invokeAnki(["review", "--help"]);
     expect([result.code, result.invocations.length]).toEqual([0, 0]);

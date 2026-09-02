@@ -4,7 +4,7 @@ import path from "node:path";
 import { WorkspaceConfigError } from "./workspace-config";
 import { errorMessage, hasErrorCode } from "./workspace-error";
 
-const workspaceDiagnostics = channel("nf.workspace");
+const workspaceDiagnostics = channel("nnf.workspace");
 export const pathExists = async (target: string): Promise<boolean> => {
   try {
     await access(target);

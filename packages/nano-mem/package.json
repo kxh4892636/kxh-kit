@@ -9,7 +9,7 @@
     "directory": "packages/nano-mem"
   },
   "bin": {
-    "nm": "dist/main.mjs"
+    "nnm": "dist/main.mjs"
   },
   "files": [
     "dist",

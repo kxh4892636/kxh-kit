@@ -21,7 +21,7 @@ export interface MainRuntime {
   stdout: { write: (chunk: string) => void };
 }
 
-const inputDiagnostics = channel("nf.input");
+const inputDiagnostics = channel("nnf.input");
 
 export const isClosedInput = (error: unknown): boolean =>
   typeof error === "object" &&

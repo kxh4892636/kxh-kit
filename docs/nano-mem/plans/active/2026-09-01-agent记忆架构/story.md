@@ -8,12 +8,12 @@
 > 2. 记忆信息的存储+检索，使用 sqlite + 全文搜索，不需要向量模型 + 向量搜索
 > 3. 参考 `.temp/ts-fsrs` 的 FSRS 机制，每段记忆使用频率越高，越不容易忘记，被检索的频率和优先级更高；长时间不用的记忆会被遗忘
 >
-> skill 命名为 `nano-mem`，cli 命名为 `nm`
+> skill 命名为 `nano-mem`，cli 命名为 `nnm`
 
 ## 角色
 
 - **Agent**：通过 `nano-mem` skill 在工作前检索记忆、在实际采用后强化记忆，并在形成可复用知识后维护记忆。
-- **人类用户**：可直接通过 `nm` 检查、维护、恢复或删除自己的记忆库。
+- **人类用户**：可直接通过 `nnm` 检查、维护、恢复或删除自己的记忆库。
 
 ## 故事
 
@@ -41,7 +41,7 @@
 
 ### S3 - 记录原子记忆
 
-作为 agent，我希望由 skill 将当前上下文提炼成原子记忆，并把确定的内容交给 `nm` 存储，以便 CLI 保持离线、简单和确定。
+作为 agent，我希望由 skill 将当前上下文提炼成原子记忆，并把确定的内容交给 `nnm` 存储，以便 CLI 保持离线、简单和确定。
 
 **验收标准**
 
@@ -73,14 +73,14 @@
 
 ### S6 - 手动维护记忆
 
-作为人类用户，我希望使用简单直接的 `nm` 命令查看、编辑、恢复和显式删除记忆，以便始终掌控本地数据。
+作为人类用户，我希望使用简单直接的 `nnm` 命令查看、编辑、恢复和显式删除记忆，以便始终掌控本地数据。
 
 **验收标准**
 
 - v1 命令面为 `add`、`search`、`use`、`get`、`list`、`update`、`forget`、`restore`、`delete`。
-- `nm self skill status|install|update|uninstall` 管理随 CLI 分发的单个 `nano-mem` skill；默认目标为当前工作区 `.agents/skills`，可由 `--target` 覆盖。
+- `nnm self skill status|install|update|uninstall` 管理随 CLI 分发的单个 `nano-mem` skill；默认目标为当前工作区 `.agents/skills`，可由 `--target` 覆盖。
 - skill 安装状态为 `not_installed | current | outdated | modified`；本地修改必须显式使用 `--force` 才能覆盖或卸载。
-- `nm self update` 默认更新到最新稳定版，也可指定版本或 tag；支持预演，并以失败回滚的事务同步 CLI 与已安装 skill。
+- `nnm self update` 默认更新到最新稳定版，也可指定版本或 tag；支持预演，并以失败回滚的事务同步 CLI 与已安装 skill。
 - stdout 默认输出稳定 JSON，可通过 `--pretty` 便于人工阅读；诊断写入 stderr，失败返回非零退出码。
 - `forget` 可恢复；`delete` 永久删除且必须显式传入 `--force`。
 - v1 不提供 pin、历史回滚、导入导出、批处理或后台维护。
@@ -101,7 +101,7 @@
 
 ## 已确认决策
 
-- `nano-mem` skill 负责策略、原子记忆提炼与调用时机；`nm` 只执行确定性的存储、检索和生命周期操作，不调用 LLM。
+- `nano-mem` skill 负责策略、原子记忆提炼与调用时机；`nnm` 只执行确定性的存储、检索和生命周期操作，不调用 LLM。
 - 使用一个用户级 SQLite 数据库；默认按当前 project 隔离，并允许显式使用 global 作用域。v1 不引入 user、agent、session、run 等身份维度。
 - 搜索返回累计检索热度，但不改变 FSRS 稳定性；实际采用由 skill 显式记录，只有实际采用会增强抗遗忘能力。
 - 检索热度只提供有上限的排序加成，避免热门结果形成无界反馈循环。
@@ -110,7 +110,7 @@
 - v1 只实现 skill 主动调用 CLI，不接入 session hooks、后台进程或全量对话自动捕获。
 - 中文自然语言与代码标识符检索属于 v1 硬验收。
 - v1 CLI 命令面为 `add`、`search`、`use`、`get`、`list`、`update`、`forget`、`restore`、`delete`；不增加单独的 sweep 命令。
-- `nm` 分发并管理 `nano-mem` 受管 skill，提供 `self skill status|install|update|uninstall` 与事务式 `self update`；CLI 与已安装 skill 保持版本一致。
+- `nnm` 分发并管理 `nano-mem` 受管 skill，提供 `self skill status|install|update|uninstall` 与事务式 `self update`；CLI 与已安装 skill 保持版本一致。
 - stdout 默认使用稳定 JSON，stderr 承载诊断，失败使用非零退出码；文本支持位置参数与 stdin，人工阅读使用 `--pretty`。
 - project key 使用 Git 根目录的目录名，不在 Git 仓库时使用当前目录名，并允许 `--project` 覆盖；数据库位于操作系统用户数据目录，可由 `NANO_MEM_HOME` 覆盖。
 - 不同路径下的同名根目录默认共享 project 记忆空间；需要隔离时显式使用 `--project` 覆盖。

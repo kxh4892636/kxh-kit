@@ -13,7 +13,7 @@ const ranks: Record<AnkiConfig["logLevel"], number> = {
   warn: 30,
   error: 40,
 };
-const diagnosticChannel = channel("nf.anki");
+const diagnosticChannel = channel("nnf.anki");
 
 export const createLogger = (level: AnkiConfig["logLevel"]): Logger => {
   const publish = (eventLevel: "debug" | "info" | "warn", message: string): void => {

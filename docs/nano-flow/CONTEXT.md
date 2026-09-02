@@ -1,6 +1,6 @@
 # Nano Flow
 
-Nano Flow 将想法路由为可验收的设计、Plan 和交付 Flow，并以单一 TypeScript CLI 收口多种内建命令行能力。它同时管理与 CLI 配套的 agent skill；Anki 能力归属本域，以 `nf anki` 子命令提供。
+Nano Flow 将想法路由为可验收的设计、Plan 和交付 Flow，并以单一 TypeScript CLI 收口多种内建命令行能力。它同时管理与 CLI 配套的 agent skill；Anki 能力归属本域，以 `nnf anki` 子命令提供。
 
 ## Language
 
@@ -24,9 +24,9 @@ _避免使用_：Plan 路径、flow ID
 
 ### CLI
 
-**nf**:
-对外提供单一 `nf` bin 的 npm CLI；各项业务能力位于其命令树中。
-_Avoid_: nf-cli、CLI 集合、命令集合器
+**nnf**:
+对外提供单一 `nnf` bin 的 npm CLI；各项业务能力位于其命令树中。
+_Avoid_: nnf-cli、CLI 集合、命令集合器
 
 **内建子命令**:
 随 Nano Flow npm 包一起建立和分发的顶层命令能力，如 `self` 和 `anki`。MVP 不从运行时加载第三方插件。
@@ -55,13 +55,13 @@ _Avoid_: 开发分支
 **受管 skill** 与 **skill 安装状态** 为 common 共享术语（见 [common](../common/CONTEXT.md)），Nano Flow 沿用其语义。
 
 **CLI 路由 skill**:
-以 `nano-flow-cli` 为名的受管 skill，识别 CLI 任务意图并路由到正确的 `nf` 内建子命令。
+以 `nano-flow-cli` 为名的受管 skill，识别 CLI 任务意图并路由到正确的 `nnf` 内建子命令。
 _Avoid_: anki-cli skill、子命令 skill
 
 ### Anki 通道
 
 **AnkiConnect**:
-Anki 的本地 HTTP 插件（FooSoft 出品，Anki 插件码 2055492159，默认 `http://localhost:8765`）。`nf anki` 与 Anki 之间的唯一通道。
+Anki 的本地 HTTP 插件（FooSoft 出品，Anki 插件码 2055492159，默认 `http://localhost:8765`）。`nnf anki` 与 Anki 之间的唯一通道。
 _Avoid_: add-on、插件（在本域内指代该通道时）
 
 **action**:
@@ -105,13 +105,13 @@ _Avoid_: 过期、待复习
 _Avoid_: 评级、打分、grade
 
 **复习会话**:
-「拉取到期卡片 → 逐张呈现 → 评分」的完整闭环，由 `nf anki review` 承载。
+「拉取到期卡片 → 逐张呈现 → 评分」的完整闭环，由 `nnf anki review` 承载。
 _Avoid_: 学习会话、study session
 
 ### Anki 执行
 
 **Anki 操作**:
-`nf anki` 下按「资源 动词」分组的最小 CLI 行为（如 `notes add`）；其行为和校验继承原 Anki CLI。
+`nnf anki` 下按「资源 动词」分组的最小 CLI 行为（如 `notes add`）；其行为和校验继承原 Anki CLI。
 _Avoid_: 工具、tool、独立子命令
 
 **只读模式**:

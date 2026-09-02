@@ -16,7 +16,7 @@ const card = (id: number, answer: string = "Q<hr id=answer>A"): Record<string, u
   tags: ["x"],
 });
 
-describe("nf anki cards", (): void => {
+describe("nnf anki cards", (): void => {
   test.each([
     ["cards", "--help"],
     ["cards", "due", "--help"],

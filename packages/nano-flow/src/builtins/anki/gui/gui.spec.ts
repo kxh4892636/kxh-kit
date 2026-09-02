@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { invokeAnki } from "../testing/test-harness";
 
-describe("nf anki gui", (): void => {
+describe("nnf anki gui", (): void => {
   test.each([
     ["gui", "--help"],
     ...[

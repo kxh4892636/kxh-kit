@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 import { invokeAnki } from "../testing/test-harness";
 
-describe("nf anki sync", (): void => {
+describe("nnf anki sync", (): void => {
   test("renders offline help, syncs, and previews without writes", async (): Promise<void> => {
     const help = await invokeAnki(["sync", "--help"]);
     expect([help.code, help.invocations.length]).toEqual([0, 0]);

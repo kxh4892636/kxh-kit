@@ -2,7 +2,7 @@ import { resolve } from "node:path";
 import { describe, expect, test } from "vitest";
 import { invokeAnki } from "../testing/test-harness";
 
-describe("nf anki media", (): void => {
+describe("nnf anki media", (): void => {
   test.each([
     ["media", "--help"],
     ["media", "list", "--help"],

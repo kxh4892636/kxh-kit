@@ -2,7 +2,7 @@
 
 ## anki-mcp-server
 
-The `nf anki` implementation is adapted from the tool layer of
+The `nnf anki` implementation is adapted from the tool layer of
 [ankimcp/anki-mcp-server](https://github.com/ankimcp/anki-mcp-server), version 0.24.1 at commit
 `8b82692`.
 

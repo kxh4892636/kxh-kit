@@ -15,7 +15,7 @@ import { assertPhysicalPathWithinRoot, pathExists as exists } from "./workspace-
 import { errorDetail, errorMessage, hasErrorCode } from "./workspace-error";
 
 const execFileAsync = promisify(execFile);
-const workspaceDiagnostics = channel("nf.workspace");
+const workspaceDiagnostics = channel("nnf.workspace");
 
 const redactSensitiveText = (value: string): string =>
   value.replace(/https?:\/\/\S+/gu, "[redacted-url]");
@@ -354,7 +354,7 @@ const pullTarget = async (target: RepositoryTarget, execute: boolean): Promise<B
       name: repository.name,
       path: repositoryPath,
       status: "skipped",
-      reason: `Repository is not materialized; run 'nf workspace repository clone --name ${repository.name}'`,
+      reason: `Repository is not materialized; run 'nnf workspace repository clone --name ${repository.name}'`,
     };
   }
   try {

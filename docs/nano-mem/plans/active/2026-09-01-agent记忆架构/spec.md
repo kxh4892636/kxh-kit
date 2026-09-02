@@ -6,9 +6,9 @@ status: completed
 
 ## 问题
 
-需要从零交付 npm 包 `@kxh4892636/nano-mem`：它以 `nm` CLI 提供本地记忆存储、全文检索、使用强化与软遗忘，并随包分发 `nano-mem` agent skill。系统必须在不使用 LLM、embedding、向量模型或向量数据库的前提下，可靠检索中文自然短语与代码标识符；高频实际使用的记忆更难遗忘，长期不用的记忆从默认搜索隐藏但可恢复。
+需要从零交付 npm 包 `@kxh4892636/nano-mem`：它以 `nnm` CLI 提供本地记忆存储、全文检索、使用强化与软遗忘，并随包分发 `nano-mem` agent skill。系统必须在不使用 LLM、embedding、向量模型或向量数据库的前提下，可靠检索中文自然短语与代码标识符；高频实际使用的记忆更难遗忘，长期不用的记忆从默认搜索隐藏但可恢复。
 
-CLI 还要管理随包分发的受管 skill，并以事务式 `nm self update` 保持 CLI 与已安装 skill 版本一致。所有数据保存在单个用户级 SQLite 数据库；默认 project 标识是 Git 根目录名，同名项目有意共享记忆空间。
+CLI 还要管理随包分发的受管 skill，并以事务式 `nnm self update` 保持 CLI 与已安装 skill 版本一致。所有数据保存在单个用户级 SQLite 数据库；默认 project 标识是 Git 根目录名，同名项目有意共享记忆空间。
 
 ## 方案
 
@@ -18,7 +18,7 @@ CLI 还要管理随包分发的受管 skill，并以事务式 `nm self update` �
 nano-mem skill
       │ stable JSON
       ▼
-nm command handlers
+nnm command handlers
       ├── MemoryService ── ScopeResolver
       │        ├────────── SQLiteMemoryStore + FTS5
       │        └────────── RetentionPolicy + RankPolicy
@@ -30,7 +30,7 @@ nm command handlers
 ## 已排除的备选
 
 - embedding 或向量搜索：引入模型、索引服务和不可解释依赖，违背本地全文检索边界。
-- 把 LLM 抽取放进 `nm add`：使命令结果依赖模型和网络；语义提炼属于 skill。
+- 把 LLM 抽取放进 `nnm add`：使命令结果依赖模型和网络；语义提炼属于 skill。
 - 每个 workspace 一个数据库：global 记忆难以共享，并产生多库迁移与维护成本。
 - search 返回即增强稳定性：会形成排名自强化回路；search 与 use 必须分离。
 - 后台调度遗忘：扩大部署、并发和故障面；生命周期在读取时惰性求值。
@@ -41,7 +41,7 @@ nm command handlers
 
 ### 包与公开契约
 
-- 新包位于 `packages/nano-mem`，npm 名称为 `@kxh4892636/nano-mem`，只暴露 `nm` bin，Node engine 与工作区保持 `>=22.12.0`。
+- 新包位于 `packages/nano-mem`，npm 名称为 `@kxh4892636/nano-mem`，只暴露 `nnm` bin，Node engine 与工作区保持 `>=22.12.0`。
 - 使用 Commander 解析命令；stdout 只输出成功 JSON，stderr 只输出错误 JSON。成功 envelope 为 `{ "ok": true, "data": ... }`；失败为 `{ "ok": false, "error": { "code", "message", "hint"? } }`。
 - 退出码 `0` 表示成功，`1` 表示运行时失败，`2` 表示用法错误；`--pretty` 只改变缩进，不改变字段。
 - `add`/`update` 的 content 可来自位置参数或 stdin，二者同时提供时返回用法错误。所有用户查询先转成 FTS 参数，不把原始文本拼接进 SQL 或 MATCH 语法。
@@ -135,13 +135,13 @@ memories_fts(content, search_terms, content='memories', content_rowid='rowid')
 - 实现在独立 worktree `C:/Users/kxh/kxh-awesome/projects/kxh-kit-nano-mem-v1` 的分支 `worktree/nano-mem-v1-20260902` 中进行；现有 `feat/nano-mem` worktree 与任何旧 Nano Mem 内容不作为事实来源且保持不动。
 - 当前已确认的领域与 Plan 变更安全转移到新 worktree 后再开始实现。固定比较点为 `main@5cd31ee6e96f294586db0a0daa00d5071c7ac5fc`；不覆盖无关工作树变更。
 - 每个完成 issue 在 feature branch 形成可恢复 commit。全部 Plan 门禁通过后以 fast-forward 方式合入本地 `main`；若远端推进导致不能 fast-forward，则重新同步、重验受影响门禁，不 force push。
-- 合入后从本地 tarball 全局安装 `nm` 到当前 npm prefix `C:/nvm4w/nodejs`，再从仓库根以 `nm self skill install --target .agents/skills --force` 安装已确认要替换的本地 `nano-mem` skill；不发布 npm 包。
+- 合入后从本地 tarball 全局安装 `nnm` 到当前 npm prefix `C:/nvm4w/nodejs`，再从仓库根以 `nnm self skill install --target .agents/skills --force` 安装已确认要替换的本地 `nano-mem` skill；不发布 npm 包。
 - 本地 CLI 与 skill 安装完成后执行真实 smoke 和替代后的完整门禁；将安装产生的受管 skill 工作区变更形成最终 commit，并 push `origin main`。不推送 feature branch，不删除或改写其他 worktree/branch。
 - push 成功且 `origin/main` 指向已验证提交后，才移除本次专用 worktree；现有其他 worktree 保持不动。
 
 ## 范围
 
-- 创建并接入 `packages/nano-mem`、`nm` bin、README、许可证与第三方声明。
+- 创建并接入 `packages/nano-mem`、`nnm` bin、README、许可证与第三方声明。
 - 实现 SQLite schema/migration、scope、精确去重、CRUD、FTS search、排序、检索计数、FSRS use、软遗忘与恢复。
 - 实现稳定 JSON/错误/退出码契约和全部已确认命令。
 - 创建并分发 `nano-mem` skill。

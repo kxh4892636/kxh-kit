@@ -275,7 +275,9 @@ const createDistributionFixture = async (): Promise<DistributionFixture> => {
     );
     return {
       bin:
-        process.platform === "win32" ? path.join(prefix, "nf.cmd") : path.join(prefix, "bin", "nf"),
+        process.platform === "win32"
+          ? path.join(prefix, "nnf.cmd")
+          : path.join(prefix, "bin", "nnf"),
       installedPackage: path.join(prefix, "node_modules", ...packageName.split("/")),
       sandbox,
       workspace,
@@ -298,7 +300,7 @@ const verifyDistributionSurface = async (fixture: DistributionFixture): Promise<
     await readFile(path.join(fixture.installedPackage, "package.json"), "utf8"),
   );
   expect(metadata["version"]).toBe("0.0.2");
-  expect(metadata["bin"]).toEqual({ nf: "dist/main.mjs" });
+  expect(metadata["bin"]).toEqual({ nnf: "dist/main.mjs" });
   const assets = [
     "README.md",
     "LICENSE",

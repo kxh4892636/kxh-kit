@@ -1,6 +1,6 @@
 # Flow 运行协议
 
-本文件定义 skills 如何驱动 `flow.mjs`；脚本返回的 JSON 是当前步骤、租约与状态的运行态事实源。脚本命令及 options 以现场帮助为准：
+本文件定义 `/nano-flow` 如何驱动 `flow.mjs`；主流程中的其他 skill 不触发该脚本。脚本返回的 JSON 是当前步骤、租约与状态的运行态事实源。脚本命令及 options 以现场帮助为准：
 
 ```powershell
 node <nano-flow-skill-root-dir>/script/flow.mjs --help
@@ -11,9 +11,10 @@ node <nano-flow-skill-root-dir>/script/flow.mjs --help
 ## 进入与恢复
 
 - 主流程：`/to-story -> /quest-with-domain -> /to-issues -> /dev-gate -> /code-delivery`。
-- Flow 只执行一次 `enter-plan`。`/nano-flow` 以 `--entry` 传入用户确认的 `/to-story` 或 `/quest-with-domain`；直接调用这两个入口时以自身进入同一条主流程，不代理选择其他入口。
+- Flow 只执行一次 `enter-plan`，由 `/nano-flow` 以 `--entry` 传入用户确认的 `/to-story` 或 `/quest-with-domain`。
+- `--mode` 可选 `manual`（默认）或 `auto`：`/dev-gate` 及之前的步骤完成后，manual 询问用户再推进，auto 直接自动推进。模式随 Plan 持久化，重新进入时传入即切换。
 - `--plan` 是本轮稳定标识。需要进入 `/to-issues` 时，它必须是工作区内的实际 Plan 路径；跳过 `/to-issues` 时只要求它在工作区内唯一且稳定。
-- 接收到 flow context 的 skill 直接复用，不再次进入。已有运行态使用 `status` 查明当前位置，再按返回值恢复。
+- 已有运行态使用 `status` 查明当前位置，再按返回值恢复。
 - 命令成功且当前调用者持有唯一有效租约、返回的 `next_skill` 与预期入口一致时，进入完成。
 
 ## Receipt chain
@@ -37,7 +38,7 @@ node <nano-flow-skill-root-dir>/script/flow.mjs --help
 - 仅当 `/to-issues=completed` 且 Plan 到达 `delivering_issues` 后，以 `claim-issue` 领取直接依赖均已完成的 issue；首次领取保留脚本生成的 issue session。
 - 一个 session 串行推进自己领取的 issue。不同 session 可以并行领取互不阻塞的 issue；同一 issue 只有一个有效租约。
 - 交付前，issue 的「交付记录」包含交付物与验证证据；脚本据此允许完成状态与 commit receipt。
-- 所有 issue 完成后，Plan 自动进入 `completed`；再以 `sync-plan` 刷新派生视图，并按 [`DOMAIN.md`](DOMAIN.md) 处理 Plan 生命周期。
+- 所有 issue 完成后，Plan 自动进入 `completed`；再以 `sync-plan` 刷新派生视图，并按 [`DOMAIN.md`](references/DOMAIN.md) 处理 Plan 生命周期。
 
 ## 租约、阻塞与恢复
 

@@ -23,18 +23,18 @@ const execute = async (
   return { code, stderr, stdout };
 };
 
-describe("nm CLI contract", (): void => {
+describe("nnm CLI contract", (): void => {
   test("returns help as success JSON", async (): Promise<void> => {
     const result = await execute(["--help"]);
     expect(result.code).toBe(0);
     expect(result.stderr).toBe("");
-    expect(JSON.parse(result.stdout)).toMatchObject({ data: { command: "nm" }, ok: true });
+    expect(JSON.parse(result.stdout)).toMatchObject({ data: { command: "nnm" }, ok: true });
   });
 
   test("returns help when no arguments are provided", async (): Promise<void> => {
     const result = await execute([]);
     expect(result.code).toBe(0);
-    expect(JSON.parse(result.stdout)).toMatchObject({ data: { command: "nm" }, ok: true });
+    expect(JSON.parse(result.stdout)).toMatchObject({ data: { command: "nnm" }, ok: true });
   });
 
   test("returns version as success JSON", async (): Promise<void> => {
@@ -47,7 +47,7 @@ describe("nm CLI contract", (): void => {
     expect(result.code).toBe(2);
     expect(result.stdout).toBe("");
     expect(JSON.parse(result.stderr)).toMatchObject({
-      error: { code: "USAGE_ERROR", hint: "Run nm --help for usage." },
+      error: { code: "USAGE_ERROR", hint: "Run nnm --help for usage." },
       ok: false,
     });
   });

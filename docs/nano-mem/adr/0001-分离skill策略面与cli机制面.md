@@ -4,9 +4,9 @@ status: accepted
 
 # 分离 skill 策略面与 CLI 机制面
 
-Nano Mem 作为独立业务域拥有记忆生命周期、`nano-mem` skill 与 `nm` CLI，不归入 Nano Flow 或 Common。skill 利用 agent 上下文负责原子记忆提炼、语义冲突判断与调用时机；CLI 不调用 LLM 或外部服务，只提供确定性的存储、检索和生命周期机制。
+Nano Mem 作为独立业务域拥有记忆生命周期、`nano-mem` skill 与 `nnm` CLI，不归入 Nano Flow 或 Common。skill 利用 agent 上下文负责原子记忆提炼、语义冲突判断与调用时机；CLI 不调用 LLM 或外部服务，只提供确定性的存储、检索和生命周期机制。
 
-`nm` 包同时分发 `nano-mem` 受管 skill，并通过 `nm self skill status|install|update|uninstall` 管理它。`nm self update` 默认更新 CLI 至最新稳定版，也可选择版本或 tag；它以可预演、失败回滚的事务同步已安装 skill，本地修改只有在显式 `--force` 时才允许覆盖。
+`nnm` 包同时分发 `nano-mem` 受管 skill，并通过 `nnm self skill status|install|update|uninstall` 管理它。`nnm self update` 默认更新 CLI 至最新稳定版，也可选择版本或 tag；它以可预演、失败回滚的事务同步已安装 skill，本地修改只有在显式 `--force` 时才允许覆盖。
 
 ## Considered Options
 

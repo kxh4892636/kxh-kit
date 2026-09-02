@@ -17,7 +17,7 @@ import { updateModelTemplatesParamsSchema } from "./update-templates-command";
 const createTemplate = '[{"Name":"Card 1","Front":"{{Front}}","Back":"{{Back}}"}]';
 const updateTemplate = '{"Card 1":{"Front":"{{Front}}","Back":"{{Back}}"}}';
 
-describe("nf anki models", (): void => {
+describe("nnf anki models", (): void => {
   test.each([
     ["models", "--help"],
     ["models", "list", "--help"],
@@ -134,7 +134,7 @@ describe("nf anki models", (): void => {
   });
 });
 
-describe("nf anki models", (): void => {
+describe("nnf anki models", (): void => {
   test("adds, removes, renames, and repositions model fields", async (): Promise<void> => {
     const added = await invokeAnki(
       ["models", "field-add", "--name", "Custom", "--field", "Extra", "--index", "1"],
@@ -237,7 +237,7 @@ describe("nf anki models", (): void => {
   });
 });
 
-describe("nf anki models", (): void => {
+describe("nnf anki models", (): void => {
   test("rejects empty model mutations before dry-run output", async (): Promise<void> => {
     const cases = [
       [

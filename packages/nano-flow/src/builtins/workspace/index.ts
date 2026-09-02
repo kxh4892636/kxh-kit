@@ -36,7 +36,7 @@ import {
 } from "./workspace-worktree";
 import { errorMessage, hasErrorCode } from "./workspace-error";
 
-const workspaceDiagnostics = channel("nf.workspace");
+const workspaceDiagnostics = channel("nnf.workspace");
 
 const exists = async (target: string): Promise<boolean> => {
   try {

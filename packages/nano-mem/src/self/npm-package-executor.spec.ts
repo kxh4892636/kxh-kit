@@ -26,7 +26,7 @@ const writePackage = (root: string, version: string): void => {
   writeFileSync(join(distribution, "main.mjs"), "// bundled CLI");
   writeFileSync(
     join(root, "package.json"),
-    JSON.stringify({ bin: { nm: "dist/main.mjs" }, name: "@kxh4892636/nano-mem", version }),
+    JSON.stringify({ bin: { nnm: "dist/main.mjs" }, name: "@kxh4892636/nano-mem", version }),
   );
 };
 

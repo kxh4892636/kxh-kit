@@ -58,7 +58,7 @@ const rootOption = (argumentsList: string[]): string | undefined =>
 
 export const createProgram = (): Command =>
   new Command()
-    .name("nm")
+    .name("nnm")
     .description(packageJson.description)
     .version(packageJson.version)
     .option("--pretty", "Pretty-print JSON output")
@@ -125,7 +125,7 @@ const createApplication = (
 };
 
 const commanderError = (error: CommanderError): CliError =>
-  new CliError("USAGE_ERROR", error.message, CliErrorKind.usage, "Run nm --help for usage.");
+  new CliError("USAGE_ERROR", error.message, CliErrorKind.usage, "Run nnm --help for usage.");
 
 export const runCli = async (options: RunCliOptions = {}): Promise<number> => {
   const io = options.io ?? defaultIo;
@@ -142,7 +142,7 @@ export const runCli = async (options: RunCliOptions = {}): Promise<number> => {
     const { program } = application;
     const firstOption = rootOption(extracted.argumentsList);
     if (extracted.argumentsList.length === 0 || firstOption === "--help" || firstOption === "-h") {
-      writeSuccess(io, { command: "nm", usage: program.helpInformation() }, pretty);
+      writeSuccess(io, { command: "nnm", usage: program.helpInformation() }, pretty);
       return 0;
     }
     if (firstOption === "--version" || firstOption === "-V") {
@@ -162,7 +162,7 @@ export const runCli = async (options: RunCliOptions = {}): Promise<number> => {
     return 0;
   } catch (error) {
     if (error instanceof CommanderError && error.code === "commander.helpDisplayed") {
-      writeSuccess(io, { command: "nm", usage: application?.readCommanderOutput() ?? "" }, pretty);
+      writeSuccess(io, { command: "nnm", usage: application?.readCommanderOutput() ?? "" }, pretty);
       return 0;
     }
     const cliError = error instanceof CommanderError ? commanderError(error) : asCliError(error);

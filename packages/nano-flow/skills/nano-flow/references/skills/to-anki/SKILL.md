@@ -67,7 +67,7 @@ disable-model-invocation: true
 
 ## 5. 创建
 
-写入 Anki 一律使用 `nf anki` 命令(经 AnkiConnect 操作本机 Anki), 不直接读写 Anki 数据库或 collection 文件; 具体命令与 option 以 `/nano-flow-cli` 的 Anki 路由和现场 `nf anki --help` 为事实来源.
+写入 Anki 一律使用 `nnf anki` 命令(经 AnkiConnect 操作本机 Anki), 不直接读写 Anki 数据库或 collection 文件; 具体命令与 option 以 `/nano-flow-cli` 的 Anki 路由和现场 `nnf anki --help` 为事实来源.
 
 创建并写入 anki 卡片:
 

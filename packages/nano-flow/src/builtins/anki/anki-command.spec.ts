@@ -47,7 +47,7 @@ const invoke = async (
   return { code, stdout, stderr };
 };
 
-describe("nf anki decks", (): void => {
+describe("nnf anki decks", (): void => {
   test.each([
     ["--help"],
     ["decks", "--help"],
@@ -263,7 +263,7 @@ describe("nf anki decks", (): void => {
 
   test("diagnoses a failed best-effort parent-deck lookup", async (): Promise<void> => {
     const events: unknown[] = [];
-    const diagnostics = channel("nf.anki");
+    const diagnostics = channel("nnf.anki");
     const receive = (message: unknown): void => void events.push(message);
     diagnostics.subscribe(receive);
     try {

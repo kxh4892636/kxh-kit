@@ -31,7 +31,7 @@ afterEach(async (): Promise<void> => {
 describe("HttpAnkiPort", (): void => {
   test("routes filtered logger events through diagnostics without CLI output", (): void => {
     const events: unknown[] = [];
-    const diagnostics = channel("nf.anki");
+    const diagnostics = channel("nnf.anki");
     const receive = (message: unknown): void => void events.push(message);
     diagnostics.subscribe(receive);
     try {

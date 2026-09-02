@@ -6,7 +6,7 @@ import { z } from "zod";
 import { errorMessage, hasErrorCode } from "./workspace-error";
 import type { JsonValue } from "../../cli/types";
 
-const workspaceDiagnostics = channel("nf.workspace");
+const workspaceDiagnostics = channel("nnf.workspace");
 
 export const WORKSPACE_CONFIG_FILE = "workspace.yaml";
 
@@ -123,7 +123,7 @@ export const findWorkspaceRoot = async (cwd: string): Promise<string> => {
     const parent = path.dirname(current);
     if (parent === current) {
       throw new WorkspaceConfigError(`No ${WORKSPACE_CONFIG_FILE} found from ${cwd} upwards`, {
-        hint: `Run 'nf workspace config init' to create ${WORKSPACE_CONFIG_FILE} first`,
+        hint: `Run 'nnf workspace config init' to create ${WORKSPACE_CONFIG_FILE} first`,
       });
     }
     current = parent;
@@ -379,7 +379,7 @@ export const prepareUpdateRepository = async (
   if (await isMaterializedRepository(repositoryPath)) {
     throw new WorkspaceConfigError(`Repository is materialized at ${repositoryPath}`, {
       details: { name, path: repositoryPath },
-      hint: `Run 'nf workspace repository remove --name ${name} --yes' before updating its configuration`,
+      hint: `Run 'nnf workspace repository remove --name ${name} --yes' before updating its configuration`,
     });
   }
   const updated = {
@@ -421,7 +421,7 @@ export const prepareRemoveRepository = async (
   if (await isMaterializedRepository(repositoryPath)) {
     throw new WorkspaceConfigError(`Repository is materialized at ${repositoryPath}`, {
       details: { name, path: repositoryPath },
-      hint: `Run 'nf workspace repository remove --name ${name} --yes' before removing its configuration`,
+      hint: `Run 'nnf workspace repository remove --name ${name} --yes' before removing its configuration`,
     });
   }
   repositorySequence(document, config).delete(plan.index);
