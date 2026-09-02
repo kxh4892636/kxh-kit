@@ -496,6 +496,34 @@ importers:
         specifier: ^4.1.10
         version: 4.1.10(@types/node@24.12.4)(@vitest/browser-playwright@4.1.10)(@vitest/browser-preview@4.1.10)(@vitest/coverage-v8@4.1.10)(@voidzero-dev/vite-plus-core@0.2.6(@types/node@24.12.4)(@typescript/typescript6@6.0.2)(esbuild@0.28.0)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0))(happy-dom@20.11.2)
 
+  packages/pi-nested-skill:
+    dependencies:
+      ignore:
+        specifier: 7.0.5
+        version: 7.0.5
+    devDependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: 0.84.4
+        version: 0.84.4(supports-color@8.1.1)(ws@8.21.0)(zod@4.4.3)
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.12.4
+      '@typescript/native':
+        specifier: 'catalog:'
+        version: typescript@7.0.2
+      '@vitest/coverage-v8':
+        specifier: 'catalog:'
+        version: 4.1.10(@vitest/browser@4.1.10)(vitest@4.1.10)
+      typescript:
+        specifier: 'catalog:'
+        version: '@typescript/typescript6@6.0.2'
+      vite-plus:
+        specifier: 'catalog:'
+        version: 0.2.6(@types/node@24.12.4)(@typescript/typescript6@6.0.2)(@vitest/browser-playwright@4.1.10)(@vitest/coverage-v8@4.1.10)(@voidzero-dev/vite-plus-core@0.2.6(@types/node@24.12.4)(@typescript/typescript6@6.0.2)(esbuild@0.28.0)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0))(esbuild@0.28.0)(happy-dom@20.11.2)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0)
+      vitest:
+        specifier: ^4.1.10
+        version: 4.1.10(@types/node@24.12.4)(@vitest/browser-playwright@4.1.10)(@vitest/browser-preview@4.1.10)(@vitest/coverage-v8@4.1.10)(@voidzero-dev/vite-plus-core@0.2.6(@types/node@24.12.4)(@typescript/typescript6@6.0.2)(esbuild@0.28.0)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0))(happy-dom@20.11.2)
+
 packages:
 
   '@adobe/css-tools@4.5.0':
