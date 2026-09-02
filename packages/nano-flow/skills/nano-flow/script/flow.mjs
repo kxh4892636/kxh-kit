@@ -41,6 +41,13 @@ const HOOKABLE_SKILLS = new Set(
   [...PLANNING_FLOW, ...DELIVERY_FLOW].filter((step) => step.skill).map((step) => step.skill),
 );
 
+const FLOW_MODES = new Set(["auto", "manual"]);
+const DEFAULT_FLOW_MODE = "manual";
+const MANUAL_MODE_HOOK =
+  "Flow 主流程的 skill 执行结束后, 询问用户当前 skill 是否完成 + 是否进入下一个 skill, 用户同意后, 执行 flow.mjs, 然后自动调用下一个 skill(无须用户确认).";
+const AUTO_MODE_HOOK = "Flow 主流程的 skill 执行结束后, 无需用户确认, 自动调用下一个 skill";
+const MODE_HOOK_SKILLS = new Set(PLANNING_FLOW.map((step) => step.skill));
+
 const ENTRY_CURSORS = {
   "quest-with-domain": 1,
   "to-story": 0,
@@ -102,11 +109,19 @@ const loadHooks = async (hooksPath = HOOKS_PATH) => {
   }
 };
 
-const messageForSkill = (config, skill) =>
-  config.hooks
-    .filter((hook) => hook.match === "all" || hook.match.includes(normalizeSkill(skill)))
-    .map((hook) => hook.message)
+const messageForSkill = (config, skill, mode) => {
+  const normalized = normalizeSkill(skill);
+  const messages = MODE_HOOK_SKILLS.has(normalized)
+    ? [mode === "auto" ? AUTO_MODE_HOOK : MANUAL_MODE_HOOK]
+    : [];
+  return messages
+    .concat(
+      config.hooks
+        .filter((hook) => hook.match === "all" || hook.match.includes(normalized))
+        .map((hook) => hook.message),
+    )
     .join("\n");
+};
 
 const requireOption = (options, name) => {
   const value = options[name];
@@ -201,7 +216,8 @@ const validateState = (state) => {
       plan.issues === null ||
       typeof plan.issues !== "object" ||
       Array.isArray(plan.issues) ||
-      (plan.lease !== null && (typeof plan.lease !== "object" || Array.isArray(plan.lease)))
+      (plan.lease !== null && (typeof plan.lease !== "object" || Array.isArray(plan.lease))) ||
+      (plan.mode !== undefined && !FLOW_MODES.has(plan.mode))
     ) {
       fail("Flow Plan 状态格式无效");
     }
@@ -495,6 +511,7 @@ const handleInit = (state, workspace, options, now) => {
     cursor: ENTRY_CURSORS[entry],
     issues: {},
     lease: makeLease(session, leaseSeconds(options), now),
+    mode: options.mode ?? DEFAULT_FLOW_MODE,
     phase: "planning",
     receipts: [],
   };
@@ -518,6 +535,8 @@ const handleEnterPlan = (state, workspace, options, now) => {
   if (ENTRY_CURSORS[entrySkill] === undefined) {
     fail("--entry 必须是 /to-story | /quest-with-domain");
   }
+  const mode = options.mode?.trim();
+  if (mode !== undefined && !FLOW_MODES.has(mode)) fail("--mode 必须是 manual | auto");
   if (options.plan === undefined) fail(`/${entrySkill} 进入流程前必须提供 --plan`);
   const planInput = requireOption(options, "plan");
   const planKey = normalizePlanPath(workspace, planInput);
@@ -531,7 +550,7 @@ const handleEnterPlan = (state, workspace, options, now) => {
     return handleInit(
       state,
       workspace,
-      { ...options, entry: entrySkill, plan: planKey, session },
+      { ...options, entry: entrySkill, mode: mode ?? options.mode, plan: planKey, session },
       now,
     );
   }
@@ -546,8 +565,10 @@ const handleEnterPlan = (state, workspace, options, now) => {
     if (!requestedSession || plan.lease.owner_session !== requestedSession) {
       fail(`资源由会话 ${plan.lease.owner_session} 持有`);
     }
+    const modeChanged = mode !== undefined && mode !== plan.mode;
+    if (modeChanged) plan.mode = mode;
     return {
-      changed: false,
+      changed: modeChanged,
       output: {
         ...stepOutput(expected),
         phase: plan.phase,
@@ -558,6 +579,7 @@ const handleEnterPlan = (state, workspace, options, now) => {
   }
   const session = requestedSession || randomUUID();
   plan.lease = makeLease(session, leaseSeconds(options), now);
+  if (mode !== undefined) plan.mode = mode;
   return {
     changed: true,
     output: {
@@ -842,11 +864,15 @@ export const executeFlow = async ({
 }) => {
   const root = path.resolve(workspace);
   const hookConfig = hooks === undefined ? await loadHooks() : validateHooks(hooks);
-  const result = await withStateTransaction(root, now, (state, transactionTime) =>
-    dispatch(state, root, command, options, transactionTime),
-  );
+  let mode = DEFAULT_FLOW_MODE;
+  const result = await withStateTransaction(root, now, async (state, transactionTime) => {
+    const transaction = await dispatch(state, root, command, options, transactionTime);
+    const planKey = transaction.output?.plan;
+    if (typeof planKey === "string") mode = state.plans[planKey]?.mode ?? DEFAULT_FLOW_MODE;
+    return transaction;
+  });
   if (!result.next_skill) return result;
-  const message = messageForSkill(hookConfig, result.next_skill);
+  const message = messageForSkill(hookConfig, result.next_skill, mode);
   return message === "" ? result : { ...result, message };
 };
 
@@ -871,7 +897,7 @@ const parseCli = (argumentsList) => {
 };
 
 const usage = `用法:
-  flow.mjs enter-plan --plan <path> --skill /nano-flow --entry </to-story|/quest-with-domain> [--session <id>]
+  flow.mjs enter-plan --plan <path> --skill /nano-flow --entry </to-story|/quest-with-domain> [--session <id>] [--mode <manual|auto>]
   flow.mjs record-plan --plan <path> --session <id> (--skill </skill>|--action <action>) --result <result> --evidence <ref>
   flow.mjs claim-issue --plan <path> --issue <NN> [--session <id>]
   flow.mjs record-issue --plan <path> --issue <NN> --session <id> (--skill </skill>|--action <action>) --result <result> --evidence <ref>

@@ -24,8 +24,12 @@ const execFileAsync = promisify(execFile);
 const FLOW_PATH = fileURLToPath(new URL("./flow.mjs", import.meta.url));
 const DEFAULT_HOOK_MESSAGE =
   "Flow 主流程的 skill 执行结束后, 询问用户当前 skill 是否完成 + 是否进入下一个 skill, 用户同意后, 执行 flow.mjs, 然后自动调用下一个 skill(无须用户确认).";
-const DEV_GATE_HOOK_MESSAGE = `${DEFAULT_HOOK_MESSAGE}\n任何准入判断前先完整读取 \`<nano-flow-skill-root-dir>/extensions/QUESTIONS.md\` 和 \`<nano-flow-skill-root-dir>/extensions/workflows/README.md\`，以用户输入和当前上下文作为已有答案，选择并询问全部相关问题。问题集未清空时结论为 \`not ready\`。`;
-const CODE_DELIVERY_HOOK_MESSAGE = `${DEFAULT_HOOK_MESSAGE}\n交付过程中遇到 block 卡点， 请优先在 \`<nano-flow-skill-root-dir>/extensions/workflows/README.md\` 和对应业务域 workflow 中寻找可能的解决方法.`;
+const AUTO_HOOK_MESSAGE = "Flow 主流程的 skill 执行结束后, 无需用户确认, 自动调用下一个 skill";
+const DEV_GATE_QUESTIONS_MESSAGE =
+  "任何准入判断前先完整读取 `<nano-flow-skill-root-dir>/extensions/QUESTIONS.md` 和 `<nano-flow-skill-root-dir>/extensions/workflows/README.md`，以用户输入和当前上下文作为已有答案，选择并询问全部相关问题。问题集未清空时结论为 `not ready`。";
+const DEV_GATE_HOOK_MESSAGE = `${DEFAULT_HOOK_MESSAGE}\n${DEV_GATE_QUESTIONS_MESSAGE}`;
+const CODE_DELIVERY_HOOK_MESSAGE =
+  "交付过程中遇到 block 卡点， 请优先在 `<nano-flow-skill-root-dir>/extensions/workflows/README.md` 和对应业务域 workflow 中寻找可能的解决方法.";
 
 afterEach(cleanupWorkspaces);
 
@@ -319,7 +323,7 @@ test("hooks 对同一 skill 按声明顺序拼接且只附加到 next_skill", as
       },
       workspace,
     });
-    assert.equal(entered.message, "global\ndiscovery\nstory");
+    assert.equal(entered.message, `${DEFAULT_HOOK_MESSAGE}\nglobal\ndiscovery\nstory`);
 
     const story = await executeFlow({
       command: "record-plan",
@@ -334,7 +338,7 @@ test("hooks 对同一 skill 按声明顺序拼接且只附加到 next_skill", as
       },
       workspace,
     });
-    assert.equal(story.message, "global\ndiscovery");
+    assert.equal(story.message, `${DEFAULT_HOOK_MESSAGE}\nglobal\ndiscovery`);
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }
@@ -342,29 +346,121 @@ test("hooks 对同一 skill 按声明顺序拼接且只附加到 next_skill", as
 
 test("无匹配 hook 时不暴露空 message 字段", async () => {
   const workspace = await createWorkspace();
-  const result = await executeFlow({
-    command: "enter-plan",
-    hooks: {
-      hooks: [{ match: ["dev-gate"], message: "gate only" }],
-      schema_version: 1,
-    },
-    now: () => new Date(TEST_NOW),
-    options: {
+  const hooks = {
+    hooks: [{ match: ["dev-gate"], message: "gate only" }],
+    schema_version: 1,
+  };
+  const now = () => new Date(TEST_NOW);
+  const record = (skill, result) =>
+    executeFlow({
+      command: "record-plan",
+      hooks,
+      now,
+      options: {
+        evidence: [`${skill}-${result}`],
+        plan: PLAN_PATH,
+        result,
+        session: "owner",
+        skill,
+      },
+      workspace,
+    });
+  try {
+    await executeFlow({
+      command: "enter-plan",
+      hooks,
+      now,
+      options: {
+        entry: "/to-story",
+        plan: PLAN_PATH,
+        session: "owner",
+        skill: "/nano-flow",
+      },
+      workspace,
+    });
+    await record("/to-story", "completed");
+    await record("/quest-with-domain", "completed");
+    await record("/to-issues", "skipped");
+    assert.deepEqual(await record("/dev-gate", "ready"), {
+      next_action: null,
+      next_skill: "/code-delivery",
+      phase: "delivering_direct",
+      plan: PLAN_PATH,
+      revision: 5,
+    });
+  } finally {
+    await fs.rm(workspace, { force: true, recursive: true });
+  }
+});
+
+test("auto 模式只为 dev-gate 及之前的 skill 注入自动推进 hook", async () => {
+  const workspace = await createWorkspace();
+  try {
+    const entered = await command(workspace, "enter-plan", {
+      entry: "/to-story",
+      mode: "auto",
+      plan: PLAN_PATH,
+      session: "owner",
+      skill: "/nano-flow",
+    });
+    assert.equal(entered.message, AUTO_HOOK_MESSAGE);
+    const state = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
+    assert.equal(state.plans[PLAN_PATH].mode, "auto");
+
+    const story = await recordPlan(workspace, "owner", "to-story", "completed");
+    assert.equal(story.message, AUTO_HOOK_MESSAGE);
+    await recordPlan(workspace, "owner", "quest-with-domain", "completed");
+    const gated = await recordPlan(workspace, "owner", "to-issues", "skipped");
+    assert.equal(gated.message, `${AUTO_HOOK_MESSAGE}\n${DEV_GATE_QUESTIONS_MESSAGE}`);
+    const delivered = await recordPlan(workspace, "owner", "dev-gate", "ready");
+    assert.equal(delivered.message, CODE_DELIVERY_HOOK_MESSAGE);
+  } finally {
+    await fs.rm(workspace, { force: true, recursive: true });
+  }
+});
+
+test("--mode 随 Plan 持久化、可切换且拒绝非法值", async () => {
+  const workspace = await createWorkspace();
+  try {
+    await assert.rejects(
+      command(workspace, "enter-plan", {
+        entry: "/to-story",
+        mode: "turbo",
+        plan: PLAN_PATH,
+        skill: "/nano-flow",
+      }),
+      /--mode 必须是 manual \| auto/,
+    );
+
+    const entered = await command(workspace, "enter-plan", {
       entry: "/to-story",
       plan: PLAN_PATH,
       session: "owner",
       skill: "/nano-flow",
-    },
-    workspace,
-  });
-  assert.deepEqual(result, {
-    next_action: null,
-    next_skill: "/to-story",
-    phase: "planning",
-    plan: PLAN_PATH,
-    revision: 1,
-    session: "owner",
-  });
+    });
+    assert.equal(entered.message, DEFAULT_HOOK_MESSAGE);
+
+    const switched = await command(workspace, "enter-plan", {
+      entry: "/to-story",
+      mode: "auto",
+      plan: PLAN_PATH,
+      session: "owner",
+      skill: "/nano-flow",
+    });
+    assert.equal(switched.message, AUTO_HOOK_MESSAGE);
+    assert.equal(switched.revision, entered.revision + 1);
+
+    const kept = await command(workspace, "enter-plan", {
+      entry: "/to-story",
+      plan: PLAN_PATH,
+      session: "owner",
+      skill: "/nano-flow",
+    });
+    assert.equal(kept.message, AUTO_HOOK_MESSAGE);
+    assert.equal(kept.revision, switched.revision);
+  } finally {
+    await fs.rm(workspace, { force: true, recursive: true });
+  }
 });
 
 test("to-issues 只接受 completed 或 skipped", async () => {

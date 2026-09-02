@@ -12,6 +12,7 @@ node <nano-flow-skill-root-dir>/script/flow.mjs --help
 
 - 主流程：`/to-story -> /quest-with-domain -> /to-issues -> /dev-gate -> /code-delivery`。
 - Flow 只执行一次 `enter-plan`，由 `/nano-flow` 以 `--entry` 传入用户确认的 `/to-story` 或 `/quest-with-domain`。
+- `--mode` 可选 `manual`（默认）或 `auto`：`/dev-gate` 及之前的步骤完成后，manual 询问用户再推进，auto 直接自动推进。模式随 Plan 持久化，重新进入时传入即切换。
 - `--plan` 是本轮稳定标识。需要进入 `/to-issues` 时，它必须是工作区内的实际 Plan 路径；跳过 `/to-issues` 时只要求它在工作区内唯一且稳定。
 - 已有运行态使用 `status` 查明当前位置，再按返回值恢复。
 - 命令成功且当前调用者持有唯一有效租约、返回的 `next_skill` 与预期入口一致时，进入完成。
