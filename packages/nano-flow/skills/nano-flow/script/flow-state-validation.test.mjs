@@ -89,9 +89,10 @@ test("rejects entering or recording an exhausted planning phase", async () => {
   await readyIssuePlan(workspace);
   await assert.rejects(
     command(workspace, "enter-plan", {
-      skill: "/quest-with-domain",
+      entry: "/quest-with-domain",
       plan: PLAN_PATH,
       session: "plan-session",
+      skill: "/nano-flow",
     }),
     /当前期望 无后续 skill/,
   );

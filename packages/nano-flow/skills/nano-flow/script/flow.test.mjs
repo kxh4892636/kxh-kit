@@ -60,9 +60,10 @@ test("主流程可从 quest-with-domain 开始并跳过 to-issues", async () => 
   const workspace = await createWorkspace();
   try {
     const entered = await command(workspace, "enter-plan", {
+      entry: "/quest-with-domain",
       plan: PLAN_PATH,
       session: "direct-session",
-      skill: "/quest-with-domain",
+      skill: "/nano-flow",
     });
     assert.deepEqual(entered, {
       message: DEFAULT_HOOK_MESSAGE,
@@ -370,9 +371,10 @@ test("to-issues 只接受 completed 或 skipped", async () => {
   const workspace = await createWorkspace();
   try {
     await command(workspace, "enter-plan", {
+      entry: "/quest-with-domain",
       plan: PLAN_PATH,
       session: "decision-session",
-      skill: "/quest-with-domain",
+      skill: "/nano-flow",
     });
     await recordPlan(workspace, "decision-session", "quest-with-domain", "completed");
     await assert.rejects(
@@ -617,6 +619,8 @@ test("CLI 可脱离工作区 package 配置直接运行", async () => {
         "--plan",
         PLAN_PATH,
         "--skill",
+        "/nano-flow",
+        "--entry",
         "/quest-with-domain",
         "--session",
         "cli",

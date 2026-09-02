@@ -511,16 +511,12 @@ const handleInit = (state, workspace, options, now) => {
 
 const handleEnterPlan = (state, workspace, options, now) => {
   const initiator = normalizeSkill(requireOption(options, "skill"));
-  if (initiator !== "nano-flow" && options.entry !== undefined) {
-    fail("只有 /nano-flow 可以指定 --entry");
+  if (initiator !== "nano-flow") {
+    fail("--skill 必须是 /nano-flow");
   }
-  const entrySkill =
-    initiator === "nano-flow" ? normalizeSkill(requireOption(options, "entry")) : initiator;
+  const entrySkill = normalizeSkill(requireOption(options, "entry"));
   if (ENTRY_CURSORS[entrySkill] === undefined) {
-    if (initiator === "nano-flow") {
-      fail("/nano-flow 的 --entry 必须是 /to-story | /quest-with-domain");
-    }
-    fail("--skill 必须是 /nano-flow | /to-story | /quest-with-domain");
+    fail("--entry 必须是 /to-story | /quest-with-domain");
   }
   if (options.plan === undefined) fail(`/${entrySkill} 进入流程前必须提供 --plan`);
   const planInput = requireOption(options, "plan");
@@ -876,7 +872,6 @@ const parseCli = (argumentsList) => {
 
 const usage = `用法:
   flow.mjs enter-plan --plan <path> --skill /nano-flow --entry </to-story|/quest-with-domain> [--session <id>]
-  flow.mjs enter-plan --plan <path> --skill </to-story|/quest-with-domain> [--session <id>]
   flow.mjs record-plan --plan <path> --session <id> (--skill </skill>|--action <action>) --result <result> --evidence <ref>
   flow.mjs claim-issue --plan <path> --issue <NN> [--session <id>]
   flow.mjs record-issue --plan <path> --issue <NN> --session <id> (--skill </skill>|--action <action>) --result <result> --evidence <ref>

@@ -249,7 +249,7 @@ test("enter-plan validates initiators, entries, sessions, and completed Flow reu
       entry: "/to-story",
       plan: PLAN_PATH,
     }),
-    /只有 \/nano-flow 可以指定 --entry/,
+    /--skill 必须是 \/nano-flow/,
   );
   await assert.rejects(command(workspace, "enter-plan", { skill: "/to-issues" }), /--skill 必须是/);
 
@@ -261,15 +261,21 @@ test("enter-plan validates initiators, entries, sessions, and completed Flow reu
   });
   assert.equal(entered.next_skill, "/to-story");
   await assert.rejects(
-    command(workspace, "enter-plan", { skill: "/to-story", plan: PLAN_PATH, session: "other" }),
+    command(workspace, "enter-plan", {
+      entry: "/to-story",
+      plan: PLAN_PATH,
+      session: "other",
+      skill: "/nano-flow",
+    }),
     /资源由会话 owner 持有/,
   );
   assert.equal(
     (
       await command(workspace, "enter-plan", {
-        skill: "/to-story",
+        entry: "/to-story",
         plan: PLAN_PATH,
         session: "owner",
+        skill: "/nano-flow",
       })
     ).session,
     "owner",
@@ -277,7 +283,7 @@ test("enter-plan validates initiators, entries, sessions, and completed Flow reu
   const reacquired = await command(
     workspace,
     "enter-plan",
-    { plan: PLAN_PATH, skill: "/to-story" },
+    { entry: "/to-story", plan: PLAN_PATH, skill: "/nano-flow" },
     () => new Date(TEST_NOW.getTime() + 1_801_000),
   );
   assert.notEqual(reacquired.session, "owner");
@@ -715,8 +721,9 @@ test("derives completed and mixed plan statuses", async () => {
 test("completes and re-enters the main Flow with a generated session", async () => {
   const workspace = await createWorkspace();
   const entered = await command(workspace, "enter-plan", {
-    skill: "/quest-with-domain",
+    entry: "/quest-with-domain",
     plan: "2026-08-27-main-flow",
+    skill: "/nano-flow",
   });
   const session = entered.session;
   const plan = "2026-08-27-main-flow";
@@ -732,7 +739,11 @@ test("completes and re-enters the main Flow with a generated session", async () 
     session,
   });
   assert.equal((await command(workspace, "status", { plan })).plan.phase, "completed");
-  const restarted = await command(workspace, "enter-plan", { skill: "/quest-with-domain", plan });
+  const restarted = await command(workspace, "enter-plan", {
+    entry: "/quest-with-domain",
+    plan,
+    skill: "/nano-flow",
+  });
   assert.equal(restarted.next_skill, "/quest-with-domain");
   assert.notEqual(restarted.session, session);
 });
