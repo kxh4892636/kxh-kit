@@ -122,10 +122,10 @@ caller abort、配置 timeout 与多查询 sibling cancellation 使用组合 sig
 
 ## Issue
 
-| #   | Issue                                                                | 状态        | 阻塞于 | 下一步         |
-| --- | -------------------------------------------------------------------- | ----------- | ------ | -------------- |
-| 01  | [建立 Pi package 与全局配置契约](01-建立pi-package与全局配置契约.md) | completed   | —      | /code-delivery |
-| 02  | [交付 DeepSeek 原生网页搜索](02-交付deepseek原生网页搜索.md)         | completed   | 01     | /code-delivery |
-| 03  | [建立公共网页抓取安全传输](03-建立公共网页抓取安全传输.md)           | in_progress | 01     | /code-delivery |
-| 04  | [交付网页抓取模型工具](04-交付网页抓取模型工具.md)                   | pending     | 01, 03 | /code-delivery |
-| 05  | [完成 package 集成与真实验证](05-完成package集成与真实验证.md)       | pending     | 02, 04 | /code-delivery |
+| #   | Issue                                                                | 状态      | 阻塞于 | 下一步         |
+| --- | -------------------------------------------------------------------- | --------- | ------ | -------------- |
+| 01  | [建立 Pi package 与全局配置契约](01-建立pi-package与全局配置契约.md) | completed | —      | /code-delivery |
+| 02  | [交付 DeepSeek 原生网页搜索](02-交付deepseek原生网页搜索.md)         | completed | 01     | /code-delivery |
+| 03  | [建立公共网页抓取安全传输](03-建立公共网页抓取安全传输.md)           | completed | 01     | /code-delivery |
+| 04  | [交付网页抓取模型工具](04-交付网页抓取模型工具.md)                   | completed | 01, 03 | /code-delivery |
+| 05  | [完成 package 集成与真实验证](05-完成package集成与真实验证.md)       | pending   | 02, 04 | /code-delivery |

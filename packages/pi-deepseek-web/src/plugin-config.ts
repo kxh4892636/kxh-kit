@@ -234,7 +234,7 @@ const parseFetchConfig = (raw: JsonObject): Readonly<FetchConfig> => {
       raw["maxOutputChars"],
       FETCH_DEFAULTS.maxOutputChars,
       "fetch.maxOutputChars",
-      1,
+      4_096,
       1_000_000,
     ),
     maxRedirects: optionalInteger(

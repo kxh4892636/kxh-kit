@@ -101,6 +101,12 @@ describe("configuration validation", (): void => {
       "search.maxUses",
     ],
     [
+      "unsafe output budget",
+      async (): Promise<string> =>
+        JSON.stringify({ search: { apiKey: SENTINEL }, fetch: { maxOutputChars: 4_095 } }),
+      "fetch.maxOutputChars",
+    ],
+    [
       "invalid URL",
       async (): Promise<string> =>
         configText({ baseURL: `https://${SENTINEL}@example.com`, apiKey: SENTINEL }),

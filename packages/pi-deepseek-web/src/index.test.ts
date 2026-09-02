@@ -9,12 +9,15 @@ describe("Pi extension entry", (): void => {
     expect(createGlobalConfigLoader().path).toBe(getConfigPath(getAgentDir()));
   });
 
-  it("registers web_search when loaded as a Pi extension", (): void => {
+  it("registers both web tools when loaded as a Pi extension", (): void => {
     const registerTool = vi.fn();
     const pi = { registerTool } as unknown as ExtensionAPI;
 
     expect(piDeepSeekWeb(pi)).toBeUndefined();
-    expect(registerTool).toHaveBeenCalledOnce();
-    expect(registerTool.mock.calls[0]?.[0]).toMatchObject({ name: "web_search" });
+    expect(registerTool).toHaveBeenCalledTimes(2);
+    expect(registerTool.mock.calls.map((call: unknown[]): unknown => call[0])).toEqual([
+      expect.objectContaining({ name: "web_search" }),
+      expect.objectContaining({ name: "web_fetch" }),
+    ]);
   });
 });
