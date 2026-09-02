@@ -16,13 +16,20 @@ description: 路由从想法到交付的 Nano Flow 主流程；当任务需要�
 | 角色、收益或可验收的用户结果尚未明确         | [`/to-story`](references/skills/to-story/SKILL.md)                   |
 | 用户结果已明确，需要从领域设计开始继续主流程 | [`/quest-with-domain`](references/skills/quest-with-domain/SKILL.md) |
 
+同时按工作性质只推荐一种推进模式：
+
+| 工作性质                               | 模式             |
+| -------------------------------------- | ---------------- |
+| 改动大、需要用户介入与深入交互         | `manual`（默认） |
+| 改动小、无须用户确认、可自动修复或实现 | `auto`           |
+
 已有 Flow 或 Plan 时不创建新路径；读取 [`FLOW.md`](FLOW.md)，从运行态返回的当前位置恢复。
 
-向用户说明推荐入口及区分它与相邻入口的关键事实，并等待明确确认。证据不足时只澄清会改变入口选择的决策。入口唯一且用户已确认时，本步骤完成。
+向用户说明推荐入口与模式，以及区分它们与相邻选择的关键事实，并等待明确确认。证据不足时只澄清会改变入口或模式选择的决策。入口与模式唯一且用户已确认时，本步骤完成。
 
 ## 进入 Flow
 
-确认新入口后，完整读取 [`FLOW.md`](FLOW.md)，以 `/nano-flow` 为发起者执行 `enter-plan`。保存返回的 flow context，只调用返回的 `next_skill`；返回 `message` 时，将它原样携带给该 skill。
+确认新入口后，完整读取 [`FLOW.md`](FLOW.md)，以 `/nano-flow` 为发起者执行 `enter-plan`，并以 `--mode` 传入已确认的模式。保存返回的 flow context，只调用返回的 `next_skill`；返回 `message` 时，将它原样携带给该 skill。
 
 `enter-plan` 成功、返回入口与确认结果一致、完整 context 已传给该入口且没有重复进入 Flow 时，本步骤完成。
 
