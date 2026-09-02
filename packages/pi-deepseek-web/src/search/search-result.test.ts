@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { SearchSource } from "./deepseek-search.js";
-import type { SearchConfig } from "./plugin-config.js";
+import type { SearchConfig } from "../plugin-config.js";
 import {
   formatSearchOutput,
   parseSearchQueries,

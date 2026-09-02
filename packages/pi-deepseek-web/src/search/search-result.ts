@@ -1,4 +1,4 @@
-import type { SearchConfig } from "./plugin-config.js";
+import type { SearchConfig } from "../plugin-config.js";
 import type { SearchSource } from "./deepseek-search.js";
 
 const MAX_QUERIES = 4;

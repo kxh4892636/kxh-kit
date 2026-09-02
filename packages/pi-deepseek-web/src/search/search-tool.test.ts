@@ -2,7 +2,7 @@ import type { ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vitest";
 
 import type { FetchImplementation } from "./deepseek-search.js";
-import type { PluginConfig } from "./plugin-config.js";
+import type { PluginConfig } from "../plugin-config.js";
 import { createSearchTool } from "./search-tool.js";
 
 const SENTINEL = "sentinel-tool-secret";

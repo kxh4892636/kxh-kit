@@ -5,7 +5,7 @@ import {
   searchDeepSeek,
   type FetchImplementation,
 } from "./deepseek-search.js";
-import type { SearchConfig } from "./plugin-config.js";
+import type { SearchConfig } from "../plugin-config.js";
 
 const SENTINEL = "sentinel-search-secret";
 

@@ -2,7 +2,7 @@ import { getAgentDir, type ExtensionAPI } from "@earendil-works/pi-coding-agent"
 
 import { createConfigLoader, type ConfigLoader } from "./plugin-config.js";
 import type { PluginConfig } from "./plugin-config.js";
-import { registerSearchTool } from "./search-tool.js";
+import { registerSearchTool } from "./search/search-tool.js";
 
 const piDeepSeekWeb = (pi: ExtensionAPI): void => {
   registerSearchTool(pi, {

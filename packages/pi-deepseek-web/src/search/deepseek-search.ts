@@ -1,4 +1,4 @@
-import type { SearchConfig } from "./plugin-config.js";
+import type { SearchConfig } from "../plugin-config.js";
 
 const MAX_RESPONSE_BYTES = 5_000_000;
 

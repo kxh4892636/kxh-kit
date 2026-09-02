@@ -8,7 +8,7 @@ import type {
 import { type Static, Type } from "typebox";
 
 import { searchDeepSeek, type FetchImplementation, type SearchSource } from "./deepseek-search.js";
-import type { PluginConfig } from "./plugin-config.js";
+import type { PluginConfig } from "../plugin-config.js";
 import {
   formatSearchOutput,
   parseSearchQueries,
