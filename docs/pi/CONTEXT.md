@@ -58,6 +58,20 @@ _Avoid_: 前置注入、递归展开、逐 skill 参数
 同名冲突时原生 skill 胜过补充发现的嵌套 skill，显式已载入声明不被后代覆盖。
 _Avoid_: 嵌套优先、最后注册优先
 
+### Subagent 委派
+
+**Subagent**:
+由父 agent 委派、拥有独立会话上下文并向父级返回结果的 agent。
+_Avoid_: 子 agent、child agent
+
+**Delegation Depth**:
+Subagent 委派链中 agent 相对 main 的深度；main 为 0，每跨一条委派边加 1。
+_Avoid_: 委派深度、递归层数、agent 层级
+
+**Fresh Subagent**:
+不继承父会话对话历史的 Subagent；它仍可共享 cwd 并重新加载适用的项目 context。
+_Avoid_: forked subagent、空白 agent
+
 ### 目标与自主轮次驱动 (Goal)
 
 **Goal (目标)**:
