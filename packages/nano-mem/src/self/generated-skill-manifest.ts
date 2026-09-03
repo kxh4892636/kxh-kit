@@ -4,10 +4,10 @@ export const nanoMemSkillManifest = {
   files: [
     {
       path: "SKILL.md",
-      sha256: "d6ffde2406015019abb70c4839a6f8fdff9b528bc84790344fd323f53e653b09",
+      sha256: "3c9f0ba86d7a1332fbee9c28a6be20fb09c0ade37ffbb2e827bf002834a92adc",
     },
   ],
   packageVersion: "0.0.1",
   skillName: "nano-mem",
-  treeHash: "bf6b37561a7ef769c1190fc40615e717f474ffd184d8c11fa623a45e953ae011",
+  treeHash: "bdcd0e309cc9ba691f3e036fc19c847209aa995144d99a04d21ba67fa6f540ed",
 } as const satisfies SkillManifest;
