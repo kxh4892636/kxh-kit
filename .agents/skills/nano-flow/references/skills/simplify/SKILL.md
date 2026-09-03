@@ -19,7 +19,7 @@ Simplify 对整个工作区（或用户指定范围）的**增量与存量**代�
 
 ## 2. 读取全部领域约束
 
-按 [`DOMAIN.md`](../../DOMAIN.md) 的定位规则读取范围内触及的**所有**业务域：`CONTEXT-MAP.md` → 每个域的 `docs/{domain}/CONTEXT.md` → 该域**全部** `adr/` → 该域**全部** `plans/`；再读取适用的 `AGENTS.md` 与 `/code-spec`。
+按 `<nano-flow-skill-root-dir>/references/DOMAIN.md` 的定位规则读取范围内触及的**所有**业务域：`CONTEXT-MAP.md` → 每个域的 `docs/{domain}/CONTEXT.md` → 该域**全部** `adr/` → 该域**全部** `plans/`；再读取适用的 `AGENTS.md` 与 `/code-spec`。
 
 - ADR 与 CONTEXT.md 是 **intentional design** 的权威记录：受保护的 seam、契约与术语不作为删减候选；简化主张与 ADR 冲突时，显式列出冲突与重议理由交给用户，不静默绕过。
 - `active` 与 `reference` 的 Plan 是方向约束：候选不得砍掉尚未交付的 requirement，不恢复已确认路线明确排除的形态；`archived` 的 Plan 只作为「为何移除或废弃」的历史证据，不作为权威来源。
