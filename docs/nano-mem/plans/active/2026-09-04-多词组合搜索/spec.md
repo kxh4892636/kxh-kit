@@ -59,7 +59,7 @@ status: completed
 
 ## 执行契约
 
-- 固定比较点为 `main@348ea9ef66a687070da53c746023c4a870497a18`；feature branch 已 rebase 到该提交，并保留其最小检索投影与 `--include` 契约。
+- 最终固定比较点为 `main@ed97ee6c3e47436ec4678d1410d7355cf6ee2d16`；feature branch 已无冲突 rebase 到该提交，并保留此前的最小检索投影、`--include` 契约及新加入但不触及 Nano Mem 的 Pi package。
 - 在独立 worktree `C:/Users/kxh/kxh-awesome/projects/kxh-kit-nano-mem-multi-search` 的分支 `worktree/nano-mem-multi-search-20260904` 中实现、测试、验证和审查；当前主工作树只负责移交 Plan 与最终合并。
 - 将当前主工作树中尚未跟踪的本 Plan 安全复制到 worktree，确认内容一致后再移除主工作树副本，避免最终合并被未跟踪同路径阻塞。
 - Issue 01 通过全部质量门禁与双轴审查后，在 feature branch 创建交付 commit，并以 fast-forward 方式合入本地 `main`；不 push 远端。
