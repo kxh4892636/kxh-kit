@@ -11,7 +11,8 @@ source precedence, collision diagnostics, and the system prompt.
 From this repository checkout:
 
 ```bash
-pi install /path/to/kxh-kit/packages/pi-nested-skill
+pnpm --filter @kxh4892636/pi-nested-skill build
+pi install ./packages/pi-nested-skill
 ```
 
 Use `-l` for a project-local installation. Restart Pi after installation.

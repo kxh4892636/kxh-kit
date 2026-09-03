@@ -10,7 +10,7 @@
 Install the package from a local checkout while developing:
 
 ```powershell
-pi install C:\path\to\kxh-kit\packages\pi-deepseek-web
+pi install .\packages\pi-deepseek-web
 ```
 
 Pi loads `src/index.ts` from the package manifest and registers exactly `web_search` and `web_fetch`.
