@@ -132,6 +132,52 @@ describe("pi-nested-skill extension", (): void => {
     expect(reloadResult.skillPaths).toEqual([reloadedSkillPath]);
   });
 
+  it("expands multiple loaded skill markers through one input hook event", async (): Promise<void> => {
+    const root = await mkdtemp(join(tmpdir(), "pi-nested-multi-skill-"));
+    cleanupPaths.push(root);
+    const storySkillPath = join(root, "nano-flow", "references", "skills", "to-story", "SKILL.md");
+    const domainSkillPath = join(
+      root,
+      "nano-flow",
+      "references",
+      "skills",
+      "quest-with-domain",
+      "SKILL.md",
+    );
+    await mkdir(dirname(storySkillPath), { recursive: true });
+    await mkdir(dirname(domainSkillPath), { recursive: true });
+    await writeFile(
+      storySkillPath,
+      "---\nname: to-story\ndescription: story\n---\n\nStory body.\n",
+      "utf8",
+    );
+    await writeFile(
+      domainSkillPath,
+      "---\nname: quest-with-domain\ndescription: domain\n---\n\nDomain body.\n",
+      "utf8",
+    );
+    const harness = createHarness((): SlashCommandInfo[] => [
+      skillCommand("to-story", storySkillPath),
+      skillCommand("quest-with-domain", domainSkillPath),
+    ]);
+    const context = { ui: { notify: (): void => undefined } } as unknown as ExtensionContext;
+
+    const result = await harness.inputHandler(
+      {
+        type: "input",
+        text: "请 /skill:to-story 梳理故事，然后 /skill:quest-with-domain 拷问领域设计",
+        source: "interactive",
+        streamingBehavior: "steer",
+      },
+      context,
+    );
+
+    expect(result).toEqual({
+      action: "transform",
+      text: `请 <skill name="to-story" location="${storySkillPath}">\nReferences are relative to ${dirname(storySkillPath)}.\n\nStory body.\n</skill> 梳理故事，然后 <skill name="quest-with-domain" location="${domainSkillPath}">\nReferences are relative to ${dirname(domainSkillPath)}.\n\nDomain body.\n</skill> 拷问领域设计`,
+    });
+  });
+
   it("skips extension input and reports only the failed skill name and path", async (): Promise<void> => {
     const root = await mkdtemp(join(tmpdir(), "pi-nested-input-"));
     cleanupPaths.push(root);
