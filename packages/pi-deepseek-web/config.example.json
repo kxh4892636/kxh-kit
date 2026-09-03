@@ -1,0 +1,19 @@
+{
+  "search": {
+    "apiKeyEnv": "DEEPSEEK_API_KEY",
+    "baseURL": "https://api.deepseek.com/anthropic",
+    "model": "deepseek-v4-flash",
+    "apiVersion": "2023-06-01",
+    "maxTokens": 4096,
+    "maxUses": 5,
+    "timeoutMs": 30000,
+    "maxResults": 8
+  },
+  "fetch": {
+    "timeoutMs": 30000,
+    "maxResponseBytes": 5000000,
+    "maxBodyChars": 100000,
+    "maxOutputChars": 200000,
+    "maxRedirects": 5
+  }
+}
