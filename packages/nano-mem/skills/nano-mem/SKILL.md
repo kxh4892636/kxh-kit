@@ -1,62 +1,62 @@
 ---
 name: nano-mem
-description: Recall and maintain durable local agent memories through the nnm CLI. Use when prior project or global decisions could improve a task, when an adopted memory should be reinforced, or when reusable knowledge should be remembered, corrected, forgotten, restored, or permanently deleted. Keep transient task state and raw conversation outside memory.
+description: 通过 nnm CLI 检索并维护持久的本地 agent 记忆；当既有项目或全局决策有助于当前任务、已采用的记忆需要强化，或可复用知识需要记住、纠正、遗忘、恢复或永久删除时使用。将临时任务状态和原始对话排除在记忆之外。
 ---
 
 # Nano Mem
 
-Use `nnm` as the deterministic store. Your judgment supplies concise queries, decides semantic conflicts, and distills durable memories.
+使用 `nnm` 作为确定性存储。由你判断如何构造简洁的查询、处理语义冲突并提炼持久记忆。
 
-## Recall
+## 检索
 
-Before work that could benefit from prior decisions or conventions, run one to three precise queries:
+在开始可能受益于既有决策或约定的工作前，执行一到三次精准查询：
 
 ```text
-nnm search "<discriminative terms>" --limit 5
+nnm search "<有区分度的关键词>" --limit 5
 ```
 
-Default search already combines the current project with global memory. Add `--scope project|global` or `--project <root-directory-name>` only when the task requires a narrower or explicit context.
+默认搜索已经合并当前项目记忆与全局记忆。仅当任务需要更窄或明确的上下文时，才添加 `--scope project|global` 或 `--project <根目录名称>`。
 
-Read the success envelope's `data.memories`. Continue silently when it is empty. Bring only the relevant `content`—and `source` when provenance matters—into working context; leave the JSON envelope and lifecycle internals out.
+读取成功响应中的 `data.memories`。结果为空时静默继续。只将相关的 `content`——以及来源重要时的 `source`——带入工作上下文；不要带入 JSON 响应外壳和生命周期内部信息。
 
-Keep the ID and selector of each memory that materially influences the work. Derive the selector from its DTO:
+保留每条实质影响当前工作的记忆的 ID 和 selector。根据其 DTO 推导 selector：
 
 - `scope: global` → `--scope global`
 - `scope: project` → `--scope project --project "<memory.project>"`
 
-Replay that selector on every ID-based command. After actually applying a memory, record the use:
+每条基于 ID 的命令都要复用该 selector。真正应用一条记忆后，记录本次使用：
 
 ```text
 nnm use <id> <selector>
 ```
 
-Search results alone are not use evidence. Recall is complete when relevant content has been selected or the result is empty; reinforcement is complete only after the adopted memory's `use` succeeds.
+搜索结果本身不能作为使用证据。选出相关内容或确认结果为空时，检索才算完成；只有已采用记忆的 `use` 命令成功后，强化才算完成。
 
-## Remember or resolve
+## 记住或解决冲突
 
-Distill reusable knowledge into one atomic statement. Prefer the project scope; choose global only for knowledge that should apply across projects.
+将可复用知识提炼为一条原子陈述。优先使用项目作用域；只有应跨项目应用的知识才使用全局作用域。
 
-Search for discriminative terms before every add. Then make one explicit semantic choice:
+每次添加前都先搜索有区分度的关键词，然后明确选择一种语义处理方式：
 
-- No semantic match: `nnm add "<atomic memory>" [--source <source>] [--scope global]`.
-- Exact normalized match: accept the idempotent `add` result; do not create a variant.
-- Same knowledge with a correction: `nnm update <id> "<corrected atomic memory>" <selector>`.
-- Conflicting or obsolete knowledge: update the authoritative memory or soft-forget the obsolete memory before adding its replacement.
+- 没有语义匹配：`nnm add "<原子记忆>" [--source <来源>] [--scope global]`。
+- 规范化后完全匹配：接受幂等的 `add` 结果；不要创建变体。
+- 同一知识需要纠正：`nnm update <id> "<纠正后的原子记忆>" <selector>`。
+- 知识冲突或已经过时：更新权威记忆，或先软遗忘过时记忆，再添加替代内容。
 
-The CLI detects exact duplicates; you own semantic duplicate and conflict decisions. Remembering is complete when the pre-search and the selected single mutation both succeed.
+CLI 会检测完全重复的内容；语义重复和冲突则由你判断。预搜索和所选的单次变更都成功后，记忆才算完成。
 
-## Forget, restore, or delete
+## 遗忘、恢复或删除
 
-Use `nnm forget <id> <selector>` for reversible removal from search. Inspect forgotten memory with `nnm get <id> <selector>` or a selector-matched `list`; when it is relevant again, run `nnm restore <id> <selector>` and record `use` only after it is actually applied.
+使用 `nnm forget <id> <selector>` 将记忆从搜索结果中可逆地移除。通过 `nnm get <id> <selector>` 或 selector 匹配的 `list` 检查已遗忘记忆；当它再次适用时，执行 `nnm restore <id> <selector>`，并仅在真正应用后记录 `use`。
 
-Permanent deletion requires the human to identify the target and explicitly request irreversible deletion. Then run:
+永久删除要求人类明确目标，并明确提出不可逆删除请求。然后执行：
 
 ```text
 nnm delete <id> --force <selector>
 ```
 
-Treat a failed envelope as unfinished work. Use its `error.code` and optional `hint` to choose a corrective command; preserve the user's authority boundary when the correction would overwrite or permanently delete data.
+将失败响应视为尚未完成的工作。根据其中的 `error.code` 和可选的 `hint` 选择纠正命令；当纠正会覆盖或永久删除数据时，尊重用户的权限边界。
 
-## Memory quality
+## 记忆质量
 
-Store durable decisions, conventions, constraints, and reusable lessons. Exclude secrets, raw transcripts, tool output, whole files, speculative claims, and state that matters only to the current task. Keep each memory independently understandable and small enough to update or forget without affecting unrelated knowledge.
+只存储持久的决策、约定、约束和可复用经验。排除秘密、原始对话、工具输出、完整文件、推测性断言，以及仅与当前任务有关的状态。每条记忆都应能被独立理解，并且足够小，以便更新或遗忘时不影响无关知识。
