@@ -27,7 +27,7 @@ describe.sequential("explicit live smoke", (): void => {
     expect(text).toContain("Cite the relevant URLs");
   }, 120_000);
 
-  it("returns safe text from one public HTTPS fetch", async (): Promise<void> => {
+  it("returns safe text from one HTTPS fetch", async (): Promise<void> => {
     const loader = createGlobalConfigLoader();
     const tool = createFetchTool({ loadConfig: loader.load });
 

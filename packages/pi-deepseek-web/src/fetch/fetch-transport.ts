@@ -10,7 +10,7 @@ import {
   validateFetchUrl,
   type FetchBodyKind,
 } from "./fetch-policy.js";
-import { publicNetwork, type PinnedResponse, type PublicNetwork } from "./public-network.js";
+import { fetchNetwork, type PinnedResponse, type FetchNetwork } from "./fetch-network.js";
 
 const REQUEST_HEADERS = Object.freeze({
   accept:
@@ -154,7 +154,7 @@ const redirectTarget = (response: Response, currentUrl: URL): URL => {
 const requestOnce = async (
   url: URL,
   signal: AbortSignal,
-  network: PublicNetwork,
+  network: FetchNetwork,
 ): Promise<PinnedResponse> => {
   if (signal.aborted) {
     throw fetchFailure("aborted");
@@ -170,7 +170,7 @@ const followAndRead = async (
   input: string,
   config: Readonly<FetchConfig>,
   signal: AbortSignal,
-  network: PublicNetwork,
+  network: FetchNetwork,
 ): Promise<FetchTransportResult> => {
   let currentUrl = validateFetchUrl(input);
   let redirects = 0;
@@ -200,11 +200,11 @@ const followAndRead = async (
   }
 };
 
-export const fetchPublicPage = async (
+export const fetchHttpPage = async (
   input: string,
   config: Readonly<FetchConfig>,
   callerSignal: AbortSignal | undefined,
-  network: PublicNetwork = publicNetwork,
+  network: FetchNetwork = fetchNetwork,
 ): Promise<FetchTransportResult> => {
   const timeoutSignal = AbortSignal.timeout(config.timeoutMs);
   const signal =

@@ -1,4 +1,3 @@
-import ipaddr from "ipaddr.js";
 import { TextDecoder } from "node:util";
 
 export const MAX_FETCH_URL_LENGTH = 2_048;
@@ -85,23 +84,4 @@ export const createTextDecoder = (charset: string | undefined): TextDecoder => {
   } catch {
     throw fetchFailure("unsupported charset");
   }
-};
-
-const stripIpv6Brackets = (input: string): string =>
-  input.startsWith("[") && input.endsWith("]") ? input.slice(1, -1) : input;
-
-export const isPublicIpAddress = (input: string): boolean => {
-  let parsed: ipaddr.IPv4 | ipaddr.IPv6;
-  try {
-    parsed = ipaddr.parse(stripIpv6Brackets(input));
-  } catch {
-    return false;
-  }
-  if (parsed instanceof ipaddr.IPv4) {
-    return parsed.range() === "unicast";
-  }
-  if (parsed.isIPv4MappedAddress()) {
-    return parsed.toIPv4Address().range() === "unicast";
-  }
-  return parsed.range() === "unicast";
 };

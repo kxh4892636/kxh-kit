@@ -458,9 +458,6 @@ importers:
       '@joplin/turndown-plugin-gfm':
         specifier: 1.0.67
         version: 1.0.67
-      ipaddr.js:
-        specifier: 2.5.0
-        version: 2.5.0
       turndown:
         specifier: 7.2.4
         version: 7.2.4

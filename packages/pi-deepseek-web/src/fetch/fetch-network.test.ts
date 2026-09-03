@@ -5,56 +5,55 @@ import { describe, expect, it, vi } from "vitest";
 import {
   createPinnedLookup,
   requestPinned,
-  resolvePublicAddresses,
+  resolvePinnedAddresses,
   type AddressResolver,
   type PinnedLookup,
   type PinnedResponse,
-  type PublicAddress,
+  type ResolvedAddress,
   type PinnedTransport,
-} from "./public-network.js";
+} from "./fetch-network.js";
 
 const answer = (address: string, family: 4 | 6): LookupAddress => ({ address, family });
-const publicAnswer = (address: string, family: 4 | 6): PublicAddress => ({ address, family });
+const resolvedAnswer = (address: string, family: 4 | 6): ResolvedAddress => ({ address, family });
 
-describe("public address resolution", (): void => {
-  it("returns a complete public answer set", async (): Promise<void> => {
+describe("address resolution", (): void => {
+  it("returns a complete DNS answer set", async (): Promise<void> => {
     const resolver: AddressResolver = async (): Promise<LookupAddress[]> => [
       answer("8.8.8.8", 4),
       answer("1.1.1.1", 4),
     ];
 
     await expect(
-      resolvePublicAddresses("example.com", new AbortController().signal, resolver),
+      resolvePinnedAddresses("example.com", new AbortController().signal, resolver),
     ).resolves.toEqual([answer("8.8.8.8", 4), answer("1.1.1.1", 4)]);
   });
 
-  it("rejects mixed public and private answers before returning either", async (): Promise<void> => {
+  it("allows private and reserved DNS answers", async (): Promise<void> => {
     const resolver: AddressResolver = async (): Promise<LookupAddress[]> => [
-      answer("8.8.8.8", 4),
       answer("127.0.0.1", 4),
+      answer("198.18.1.249", 4),
     ];
 
     await expect(
-      resolvePublicAddresses("example.com", new AbortController().signal, resolver),
-    ).rejects.toThrow("blocked URL");
+      resolvePinnedAddresses("example.com", new AbortController().signal, resolver),
+    ).resolves.toEqual([answer("127.0.0.1", 4), answer("198.18.1.249", 4)]);
   });
 
-  it("rejects an active DNS64 prefix that maps to private IPv4", async (): Promise<void> => {
-    const resolver: AddressResolver = async (hostname: string): Promise<LookupAddress[]> =>
-      hostname === "ipv4only.arpa"
-        ? [answer("2001:4860:64::c000:aa", 6), answer("2001:4860:64::c000:ab", 6)]
-        : [answer("2001:4860:64::7f00:1", 6)];
+  it("rejects malformed DNS answers", async (): Promise<void> => {
+    const resolver: AddressResolver = async (): Promise<LookupAddress[]> => [
+      answer("not-an-ip", 4),
+    ];
 
     await expect(
-      resolvePublicAddresses("example.com", new AbortController().signal, resolver),
-    ).rejects.toThrow("blocked URL");
+      resolvePinnedAddresses("example.com", new AbortController().signal, resolver),
+    ).rejects.toThrow("DNS resolution failed");
   });
 
   it("makes an in-flight resolver cancellable without exposing its reason", async (): Promise<void> => {
     const resolver: AddressResolver = async (): Promise<LookupAddress[]> =>
       new Promise<LookupAddress[]>((): void => undefined);
     const controller = new AbortController();
-    const resolution = resolvePublicAddresses("example.com", controller.signal, resolver);
+    const resolution = resolvePinnedAddresses("example.com", controller.signal, resolver);
     controller.abort("private reason");
 
     await expect(resolution).rejects.toThrow("aborted");
@@ -63,9 +62,9 @@ describe("public address resolution", (): void => {
 
 describe("pinned connector lookup", (): void => {
   it("returns only the previously validated addresses", async (): Promise<void> => {
-    const addresses: PublicAddress[] = [
-      publicAnswer("8.8.8.8", 4),
-      publicAnswer("2001:4860:4860::8888", 6),
+    const addresses: ResolvedAddress[] = [
+      resolvedAnswer("8.8.8.8", 4),
+      resolvedAnswer("2001:4860:4860::8888", 6),
     ];
     const lookup = createPinnedLookup(addresses);
     const result = await new Promise<string | LookupAddress[]>(
@@ -99,7 +98,7 @@ describe("pinned connector lookup", (): void => {
           family?: number,
         ) => void
       >();
-    createPinnedLookup([publicAnswer("8.8.8.8", 4)])(
+    createPinnedLookup([resolvedAnswer("8.8.8.8", 4)])(
       "example.com",
       { family: 6 } as LookupOptions,
       callback,
@@ -109,7 +108,7 @@ describe("pinned connector lookup", (): void => {
   });
 
   it("passes a validated-only lookup into the selected transport", async (): Promise<void> => {
-    const addresses = [publicAnswer("8.8.8.8", 4), publicAnswer("1.1.1.1", 4)];
+    const addresses = [resolvedAnswer("8.8.8.8", 4), resolvedAnswer("1.1.1.1", 4)];
     const transport: PinnedTransport = async (
       _url: URL,
       lookup: PinnedLookup,

@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { fetchPublicPage } from "./fetch-transport.js";
+import { fetchHttpPage } from "./fetch-transport.js";
 import type { FetchConfig } from "../plugin-config.js";
-import type { PinnedResponse, PublicAddress, PublicNetwork } from "./public-network.js";
+import type { PinnedResponse, ResolvedAddress, FetchNetwork } from "./fetch-network.js";
 
 const SENTINEL = "sentinel-search-credential";
 
@@ -15,7 +15,7 @@ const fetchConfig = (overrides: Partial<FetchConfig> = {}): FetchConfig => ({
   ...overrides,
 });
 
-const publicAddress = (address: string = "8.8.8.8"): PublicAddress => ({ address, family: 4 });
+const resolvedAddress = (address: string = "8.8.8.8"): ResolvedAddress => ({ address, family: 4 });
 
 const pinnedResponse = (
   response: Response,
@@ -27,11 +27,11 @@ const pinnedResponse = (
 
 describe("pinned anonymous fetch", (): void => {
   it("dials exactly the resolver-approved addresses with anonymous headers", async (): Promise<void> => {
-    const approved = [publicAddress()];
-    const request = vi.fn<PublicNetwork["request"]>(
+    const approved = [resolvedAddress()];
+    const request = vi.fn<FetchNetwork["request"]>(
       async (
         _url: URL,
-        addresses: readonly PublicAddress[],
+        addresses: readonly ResolvedAddress[],
         headers: Readonly<Record<string, string>>,
       ): Promise<PinnedResponse> => {
         expect(addresses).toBe(approved);
@@ -41,12 +41,12 @@ describe("pinned anonymous fetch", (): void => {
         return pinnedResponse(new Response("hello", { headers: { "content-type": "text/plain" } }));
       },
     );
-    const network: PublicNetwork = {
-      resolve: async (): Promise<PublicAddress[]> => approved,
+    const network: FetchNetwork = {
+      resolve: async (): Promise<ResolvedAddress[]> => approved,
       request,
     };
 
-    const result = await fetchPublicPage("https://example.com/", fetchConfig(), undefined, network);
+    const result = await fetchHttpPage("https://example.com/", fetchConfig(), undefined, network);
 
     expect(result).toMatchObject({
       content: "hello",
@@ -58,12 +58,15 @@ describe("pinned anonymous fetch", (): void => {
   });
 
   it("re-resolves and re-pins every same-origin redirect hop", async (): Promise<void> => {
-    const addressSets = [[publicAddress("8.8.8.8")], [publicAddress("1.1.1.1")]];
-    const dialed: PublicAddress[][] = [];
+    const addressSets = [[resolvedAddress("8.8.8.8")], [resolvedAddress("1.1.1.1")]];
+    const dialed: ResolvedAddress[][] = [];
     let requestIndex = 0;
-    const network: PublicNetwork = {
-      resolve: async (): Promise<PublicAddress[]> => addressSets.shift() ?? [],
-      request: async (_url: URL, addresses: readonly PublicAddress[]): Promise<PinnedResponse> => {
+    const network: FetchNetwork = {
+      resolve: async (): Promise<ResolvedAddress[]> => addressSets.shift() ?? [],
+      request: async (
+        _url: URL,
+        addresses: readonly ResolvedAddress[],
+      ): Promise<PinnedResponse> => {
         dialed.push([...addresses]);
         requestIndex += 1;
         return requestIndex === 1
@@ -72,7 +75,7 @@ describe("pinned anonymous fetch", (): void => {
       },
     };
 
-    const result = await fetchPublicPage(
+    const result = await fetchHttpPage(
       "https://example.com/start",
       fetchConfig(),
       undefined,
@@ -80,12 +83,12 @@ describe("pinned anonymous fetch", (): void => {
     );
 
     expect(result.url).toBe("https://example.com/next");
-    expect(dialed).toEqual([[publicAddress("8.8.8.8")], [publicAddress("1.1.1.1")]]);
+    expect(dialed).toEqual([[resolvedAddress("8.8.8.8")], [resolvedAddress("1.1.1.1")]]);
   });
 
   it("blocks a cross-origin redirect before resolving the target", async (): Promise<void> => {
-    const resolve = vi.fn(async (): Promise<PublicAddress[]> => [publicAddress()]);
-    const network: PublicNetwork = {
+    const resolve = vi.fn(async (): Promise<ResolvedAddress[]> => [resolvedAddress()]);
+    const network: FetchNetwork = {
       resolve,
       request: async (): Promise<PinnedResponse> =>
         pinnedResponse(
@@ -94,35 +97,35 @@ describe("pinned anonymous fetch", (): void => {
     };
 
     await expect(
-      fetchPublicPage("https://example.com/", fetchConfig(), undefined, network),
+      fetchHttpPage("https://example.com/", fetchConfig(), undefined, network),
     ).rejects.toThrow("redirect blocked");
     expect(resolve).toHaveBeenCalledOnce();
   });
 
   it("enforces the redirect hop cap before resolving another target", async (): Promise<void> => {
-    const resolve = vi.fn(async (): Promise<PublicAddress[]> => [publicAddress()]);
-    const network: PublicNetwork = {
+    const resolve = vi.fn(async (): Promise<ResolvedAddress[]> => [resolvedAddress()]);
+    const network: FetchNetwork = {
       resolve,
       request: async (): Promise<PinnedResponse> =>
         pinnedResponse(new Response(null, { status: 302, headers: { location: "/next" } })),
     };
 
     await expect(
-      fetchPublicPage("https://example.com/", fetchConfig({ maxRedirects: 0 }), undefined, network),
+      fetchHttpPage("https://example.com/", fetchConfig({ maxRedirects: 0 }), undefined, network),
     ).rejects.toThrow("redirect blocked");
     expect(resolve).toHaveBeenCalledOnce();
   });
 });
 
 describe("bounded response body", (): void => {
-  const networkFor = (response: Response): PublicNetwork => ({
-    resolve: async (): Promise<PublicAddress[]> => [publicAddress()],
+  const networkFor = (response: Response): FetchNetwork => ({
+    resolve: async (): Promise<ResolvedAddress[]> => [resolvedAddress()],
     request: async (): Promise<PinnedResponse> => pinnedResponse(response),
   });
 
   it("truncates a streamed body at the byte cap", async (): Promise<void> => {
     const response = new Response("abcdef", { headers: { "content-type": "text/plain" } });
-    const result = await fetchPublicPage(
+    const result = await fetchHttpPage(
       "https://example.com/",
       fetchConfig({ maxResponseBytes: 3 }),
       undefined,
@@ -138,7 +141,7 @@ describe("bounded response body", (): void => {
     });
 
     await expect(
-      fetchPublicPage(
+      fetchHttpPage(
         "https://example.com/",
         fetchConfig({ maxResponseBytes: 3 }),
         undefined,
@@ -149,7 +152,7 @@ describe("bounded response body", (): void => {
 
   it("applies the decoded character cap", async (): Promise<void> => {
     const response = new Response("abcdef", { headers: { "content-type": "text/plain" } });
-    const result = await fetchPublicPage(
+    const result = await fetchHttpPage(
       "https://example.com/",
       fetchConfig({ maxBodyChars: 3 }),
       undefined,
@@ -164,7 +167,7 @@ describe("bounded response body", (): void => {
       status: 404,
       headers: { "content-type": "text/plain" },
     });
-    const result = await fetchPublicPage(
+    const result = await fetchHttpPage(
       "https://example.com/missing",
       fetchConfig(),
       undefined,
@@ -181,18 +184,18 @@ describe("bounded response body", (): void => {
       new Response("data", { headers: { "content-type": "text/plain; charset=not-a-charset" } }),
     ]) {
       await expect(
-        fetchPublicPage("https://example.com/", fetchConfig(), undefined, networkFor(response)),
+        fetchHttpPage("https://example.com/", fetchConfig(), undefined, networkFor(response)),
       ).rejects.toThrow();
     }
   });
 });
 
 describe("fetch cancellation", (): void => {
-  const waitingNetwork = (): PublicNetwork => ({
-    resolve: async (): Promise<PublicAddress[]> => [publicAddress()],
+  const waitingNetwork = (): FetchNetwork => ({
+    resolve: async (): Promise<ResolvedAddress[]> => [resolvedAddress()],
     request: async (
       _url: URL,
-      _addresses: readonly PublicAddress[],
+      _addresses: readonly ResolvedAddress[],
       _headers: Readonly<Record<string, string>>,
       signal: AbortSignal,
     ): Promise<PinnedResponse> =>
@@ -212,7 +215,7 @@ describe("fetch cancellation", (): void => {
 
   it("classifies the configured timeout", async (): Promise<void> => {
     await expect(
-      fetchPublicPage(
+      fetchHttpPage(
         "https://example.com/",
         fetchConfig({ timeoutMs: 1 }),
         undefined,
@@ -223,7 +226,7 @@ describe("fetch cancellation", (): void => {
 
   it("classifies caller cancellation without exposing its reason", async (): Promise<void> => {
     const controller = new AbortController();
-    const operation = fetchPublicPage(
+    const operation = fetchHttpPage(
       "https://example.com/",
       fetchConfig(),
       controller.signal,

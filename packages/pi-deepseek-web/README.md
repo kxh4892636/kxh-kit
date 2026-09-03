@@ -3,13 +3,14 @@
 `@kxh4892636/pi-deepseek-web` is a Pi package that registers two model tools:
 
 - `web_search` sends one DeepSeek Anthropic-compatible Messages request per query and consumes only native `web_search_tool_result` blocks.
-- `web_fetch` anonymously reads one public HTTP(S) text page through a DNS-pinned transport and returns bounded text or sanitized GFM Markdown.
+- `web_fetch` anonymously reads one HTTP(S) text page through a DNS-pinned transport and returns bounded text or sanitized GFM Markdown.
 
 ## Install
 
 Install the package from a local checkout while developing:
 
 ```powershell
+pnpm --filter @kxh4892636/pi-deepseek-web build
 pi install .\packages\pi-deepseek-web
 ```
 
@@ -45,7 +46,7 @@ Distinct queries run concurrently. Results are taken only from native structured
 { "url": "https://example.com/" }
 ```
 
-Only anonymous public HTTP(S) destinations are allowed. Local, private, reserved, credential-bearing, and DNS64-mapped private addresses are rejected. Redirects must remain on the same origin and are resolved and pinned again. HTML/XHTML, `text/*`, JSON, and XML are supported; binary or missing content types and unsupported charsets fail closed. Non-2xx pages remain readable results with their status code.
+Only anonymous HTTP(S) URLs without embedded credentials are allowed. Local, private, reserved, and fake-ip DNS answers are allowed by the DNS-pinned transport. Redirects must remain on the same origin and are resolved and pinned again. HTML/XHTML, `text/*`, JSON, and XML are supported; binary or missing content types and unsupported charsets fail closed. Non-2xx pages remain readable results with their status code.
 
 ## Trust and output limits
 
@@ -64,7 +65,7 @@ pnpm --filter @kxh4892636/pi-deepseek-web test:coverage
 pnpm --filter @kxh4892636/pi-deepseek-web build
 ```
 
-An explicit live smoke reads the global configuration, makes exactly one single-query DeepSeek search and one public HTTPS fetch, and does not retry:
+An explicit live smoke reads the global configuration, makes exactly one single-query DeepSeek search and one HTTPS fetch, and does not retry:
 
 ```powershell
 pnpm --filter @kxh4892636/pi-deepseek-web test:live

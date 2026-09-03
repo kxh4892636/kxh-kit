@@ -4,7 +4,6 @@ import {
   classifyContentType,
   createTextDecoder,
   isFetchFailure,
-  isPublicIpAddress,
   parseCharset,
   validateFetchUrl,
 } from "./fetch-policy.js";
@@ -28,32 +27,6 @@ describe("fetch URL policy", (): void => {
     expect(isFetchFailure(Object.assign(new Error("external"), { category: "blocked URL" }))).toBe(
       false,
     );
-  });
-});
-
-describe("public IP classification", (): void => {
-  it.each(["8.8.8.8", "1.1.1.1", "2001:4860:4860::8888"])(
-    "accepts public unicast %s",
-    (address: string): void => {
-      expect(isPublicIpAddress(address)).toBe(true);
-    },
-  );
-
-  it.each([
-    "127.0.0.1",
-    "10.0.0.1",
-    "100.64.0.1",
-    "169.254.1.1",
-    "192.0.2.1",
-    "224.0.0.1",
-    "::1",
-    "fc00::1",
-    "fe80::1",
-    "2001:db8::1",
-    "::ffff:127.0.0.1",
-    "invalid",
-  ])("rejects non-public address %s", (address: string): void => {
-    expect(isPublicIpAddress(address)).toBe(false);
   });
 });
 
