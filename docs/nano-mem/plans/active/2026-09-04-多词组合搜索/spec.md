@@ -47,7 +47,7 @@ status: completed
 
 ### 输出与副作用
 
-- `nnm search` 的参数、`--limit` 范围和成功输出继续使用现有 `MemoryRecord` JSON，不公开覆盖数或评分。
+- `nnm search` 的参数、`--limit` 范围及现有最小检索投影保持不变：默认返回 `id/content/scope/project?`，`--include source|createdAt|updatedAt` 继续按需追加元数据；不公开覆盖数或评分。
 - 跨词组命中的同一记忆只返回一次。仅最终返回的去重记忆各产生一次检索事件并增加一次 `retrieval_count`；未返回层、边界层被截掉的记录、`get` 与 `list` 均不增加。
 - 候选读取、最终选择与检索计数更新保持现有事务原子性；失败不能留下部分计数。
 
@@ -59,7 +59,7 @@ status: completed
 
 ## 执行契约
 
-- 固定比较点为 `main@cff04d5bbdc30bae60ca6fef733dec6e82d8e6a2`。
+- 固定比较点为 `main@348ea9ef66a687070da53c746023c4a870497a18`；feature branch 已 rebase 到该提交，并保留其最小检索投影与 `--include` 契约。
 - 在独立 worktree `C:/Users/kxh/kxh-awesome/projects/kxh-kit-nano-mem-multi-search` 的分支 `worktree/nano-mem-multi-search-20260904` 中实现、测试、验证和审查；当前主工作树只负责移交 Plan 与最终合并。
 - 将当前主工作树中尚未跟踪的本 Plan 安全复制到 worktree，确认内容一致后再移除主工作树副本，避免最终合并被未跟踪同路径阻塞。
 - Issue 01 通过全部质量门禁与双轴审查后，在 feature branch 创建交付 commit，并以 fast-forward 方式合入本地 `main`；不 push 远端。
@@ -72,12 +72,11 @@ status: completed
 - 移除会破坏层内正确性的 BM25 前 50 候选预截断。
 - 保持 scope、遗忘过滤、FTS 文本安全、输出与检索计数事务契约。
 - 增加 tokenizer、repository、CLI 的回归和边界测试，并更新 `packages/nano-mem/README.md` 的搜索说明。
-- 同步固定比较点中已变更 skill 内容却未更新的 generated skill manifest，使包级 `check` 与 `build` 门禁恢复一致；不修改 skill 内容或策略。
 
 ## 非范围
 
 - embedding、向量搜索、同义词、翻译、模糊或语义匹配。
-- 修改记忆 schema、FTS tokenizer 版本、生命周期公式、CLI 参数或 `MemoryRecord` DTO。
+- 修改记忆 schema、FTS tokenizer 版本、生命周期公式、现有最小检索投影、`--include` 参数或 maintenance `MemoryRecord` DTO。
 - 向输出增加 matched terms、覆盖数、分数或调试解释。
 - 为查询词数增加新的公开上限。
 - 改变 `nano-mem` skill 的内容或检索/使用/写入策略。
@@ -90,6 +89,7 @@ status: completed
 
 - [Nano Mem 领域语言](../../../CONTEXT.md)
 - [ADR 0002：采用全文候选与生命周期重排](../../../adr/0002-采用全文候选与生命周期重排.md)
+- [ADR 0005：检索采用最小投影与按需元数据](../../../adr/0005-检索采用最小投影与按需元数据.md)
 - [既有 Agent 记忆架构 spec](../2026-09-01-agent记忆架构/spec.md)
 - [既有全文检索交付记录](../2026-09-01-agent记忆架构/03-交付中文与代码全文检索.md)
 - [Quest 审阅记录](../../../../../.flow/quest/2026-09-04-nano-mem多词组合搜索.md)
