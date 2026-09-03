@@ -6,12 +6,15 @@ import type {
   InputEventResult,
   SlashCommandInfo,
 } from "@earendil-works/pi-coding-agent";
+import { summarizeSkillBlocksForMarkdown } from "./display.ts";
 import { discoverNestedSkillPaths } from "./discovery.ts";
 import { expandSkillMarkers, type SkillReadWarning } from "./expansion.ts";
 
 type ResourcesDiscoverEvent = Extract<ExtensionEvent, { type: "resources_discover" }>;
 
 const piNestedSkill = (pi: ExtensionAPI): void => {
+  pi.registerMarkdownTransformer(summarizeSkillBlocksForMarkdown);
+
   pi.on(
     "resources_discover",
     async (_event: ResourcesDiscoverEvent): Promise<{ skillPaths: string[] }> => {

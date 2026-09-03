@@ -7,6 +7,7 @@ import type {
   ExtensionEvent,
   InputEvent,
   InputEventResult,
+  MarkdownTransformer,
   SlashCommandInfo,
 } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it } from "vitest";
@@ -21,6 +22,7 @@ type InputHandler = (event: InputEvent, context: ExtensionContext) => Promise<In
 interface ExtensionHarness {
   resourcesHandler: ResourcesDiscoverHandler;
   inputHandler: InputHandler;
+  markdownTransformers: MarkdownTransformer[];
 }
 
 const cleanupPaths: string[] = [];
@@ -28,17 +30,21 @@ const cleanupPaths: string[] = [];
 const createHarness = (getCommands: () => SlashCommandInfo[]): ExtensionHarness => {
   let resourcesHandler: ResourcesDiscoverHandler | undefined;
   let inputHandler: InputHandler | undefined;
+  const markdownTransformers: MarkdownTransformer[] = [];
   const pi = {
     getCommands,
     on: (event: string, candidate: ResourcesDiscoverHandler | InputHandler): void => {
       if (event === "resources_discover") resourcesHandler = candidate as ResourcesDiscoverHandler;
       if (event === "input") inputHandler = candidate as InputHandler;
     },
+    registerMarkdownTransformer: (transformer: MarkdownTransformer): void => {
+      markdownTransformers.push(transformer);
+    },
   } as unknown as ExtensionAPI;
   piNestedSkill(pi);
   if (resourcesHandler === undefined || inputHandler === undefined)
     throw new Error("extension handlers not registered");
-  return { resourcesHandler, inputHandler };
+  return { resourcesHandler, inputHandler, markdownTransformers };
 };
 
 const skillCommand = (name: string, path: string): SlashCommandInfo => ({
@@ -176,6 +182,14 @@ describe("pi-nested-skill extension", (): void => {
       action: "transform",
       text: `请 <skill name="to-story" location="${storySkillPath}">\nReferences are relative to ${dirname(storySkillPath)}.\n\nStory body.\n</skill> 梳理故事，然后 <skill name="quest-with-domain" location="${domainSkillPath}">\nReferences are relative to ${dirname(domainSkillPath)}.\n\nDomain body.\n</skill> 拷问领域设计`,
     });
+    expect(harness.markdownTransformers).toHaveLength(1);
+    expect(
+      harness.markdownTransformers[0]?.(result.action === "transform" ? result.text : "", {
+        availableWidth: 80,
+        isStreaming: false,
+        messageType: "user",
+      }),
+    ).toBe("请 **[skill]** to-story 梳理故事，然后 **[skill]** quest-with-domain 拷问领域设计");
   });
 
   it("skips extension input and reports only the failed skill name and path", async (): Promise<void> => {
