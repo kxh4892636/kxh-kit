@@ -23,11 +23,10 @@ import {
 const execFileAsync = promisify(execFile);
 const FLOW_PATH = fileURLToPath(new URL("./flow.mjs", import.meta.url));
 const DEFAULT_HOOK_MESSAGE =
-  "Flow 主流程的 skill 执行结束后, 询问用户当前 skill 是否完成 + 是否进入下一个 skill, 用户同意后, 执行 flow.mjs, 然后自动调用下一个 skill(无须用户确认).";
-const AUTO_HOOK_MESSAGE = "Flow 主流程的 skill 执行结束后, 无需用户确认, 自动调用下一个 skill";
+  "当前 skill 执行结束后, 询问用户当前 skill 是否完成 + 是否进入下一个 skill, 用户同意后, 执行 flow.mjs, 然后自动调用下一个 skill(无须用户确认).";
+const AUTO_HOOK_MESSAGE = "当前 skill 执行结束后, 无需用户确认, 自动调用下一个 skill";
 const DEV_GATE_QUESTIONS_MESSAGE =
   "任何准入判断前先完整读取 `<nano-flow-skill-root-dir>/extensions/QUESTIONS.md` 和 `<nano-flow-skill-root-dir>/extensions/workflows/README.md`，以用户输入和当前上下文作为已有答案，选择并询问全部相关问题。问题集未清空时结论为 `not ready`。";
-const DEV_GATE_HOOK_MESSAGE = `${DEFAULT_HOOK_MESSAGE}\n${DEV_GATE_QUESTIONS_MESSAGE}`;
 const CODE_DELIVERY_HOOK_MESSAGE =
   "交付过程中遇到 block 卡点， 请优先在 `<nano-flow-skill-root-dir>/extensions/workflows/README.md` 和对应业务域 workflow 中寻找可能的解决方法.";
 
@@ -91,7 +90,7 @@ test("主流程可从 quest-with-domain 开始并跳过 to-issues", async () => 
       },
     );
     assert.deepEqual(await recordPlan(workspace, entered.session, "to-issues", "skipped"), {
-      message: DEV_GATE_HOOK_MESSAGE,
+      message: DEV_GATE_QUESTIONS_MESSAGE,
       next_action: null,
       next_skill: "/dev-gate",
       phase: "planning",
@@ -393,7 +392,7 @@ test("无匹配 hook 时不暴露空 message 字段", async () => {
   }
 });
 
-test("auto 模式只为 dev-gate 及之前的 skill 注入自动推进 hook", async () => {
+test("auto 模式只为 dev-gate 之前的 skill 注入自动推进 hook", async () => {
   const workspace = await createWorkspace();
   try {
     const entered = await command(workspace, "enter-plan", {
@@ -411,7 +410,7 @@ test("auto 模式只为 dev-gate 及之前的 skill 注入自动推进 hook", as
     assert.equal(story.message, AUTO_HOOK_MESSAGE);
     await recordPlan(workspace, "owner", "quest-with-domain", "completed");
     const gated = await recordPlan(workspace, "owner", "to-issues", "skipped");
-    assert.equal(gated.message, `${AUTO_HOOK_MESSAGE}\n${DEV_GATE_QUESTIONS_MESSAGE}`);
+    assert.equal(gated.message, DEV_GATE_QUESTIONS_MESSAGE);
     const delivered = await recordPlan(workspace, "owner", "dev-gate", "ready");
     assert.equal(delivered.message, CODE_DELIVERY_HOOK_MESSAGE);
   } finally {

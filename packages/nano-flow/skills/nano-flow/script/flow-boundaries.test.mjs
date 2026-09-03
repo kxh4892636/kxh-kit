@@ -292,7 +292,7 @@ test("enter-plan validates initiators, entries, sessions, and completed Flow reu
     { ...reacquired, session: "generated" },
     {
       message:
-        "Flow 主流程的 skill 执行结束后, 询问用户当前 skill 是否完成 + 是否进入下一个 skill, 用户同意后, 执行 flow.mjs, 然后自动调用下一个 skill(无须用户确认).",
+        "当前 skill 执行结束后, 询问用户当前 skill 是否完成 + 是否进入下一个 skill, 用户同意后, 执行 flow.mjs, 然后自动调用下一个 skill(无须用户确认).",
       next_action: null,
       next_skill: "/to-story",
       phase: "planning",
