@@ -28,9 +28,10 @@ Use /skill:to-story to shape this request, then /skill:code-design to design it.
 Every occurrence is replaced from left to right with the same `<skill>` block Pi
 uses for a native skill command. The surrounding text and image attachments are
 preserved as one shared user input. Repeating a marker repeats its skill block.
-In the interactive transcript, inline skill blocks are summarized as visible
-`[skill] <name>` markers so later expanded skills do not disappear inside
-Markdown HTML rendering.
+In the interactive editor, typing `/skill:` at the beginning of input or after
+other text opens the loaded skill completion list. In the interactive transcript,
+inline skill blocks are summarized as visible `[skill] <name>` markers so later
+expanded skills do not disappear inside Markdown HTML rendering.
 
 Markers work in interactive and RPC input, including input-hook steer and
 follow-up delivery. Extension-injected messages are not transformed.

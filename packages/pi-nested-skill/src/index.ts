@@ -6,6 +6,7 @@ import type {
   InputEventResult,
   SlashCommandInfo,
 } from "@earendil-works/pi-coding-agent";
+import { createSkillMarkerAutocomplete } from "./autocomplete.ts";
 import { summarizeSkillBlocksForMarkdown } from "./display.ts";
 import { discoverNestedSkillPaths } from "./discovery.ts";
 import { expandSkillMarkers, type SkillReadWarning } from "./expansion.ts";
@@ -14,6 +15,12 @@ type ResourcesDiscoverEvent = Extract<ExtensionEvent, { type: "resources_discove
 
 const piNestedSkill = (pi: ExtensionAPI): void => {
   pi.registerMarkdownTransformer(summarizeSkillBlocksForMarkdown);
+
+  pi.on("session_start", (_event: ExtensionEvent, context: ExtensionContext): void => {
+    context.ui.addAutocompleteProvider(
+      createSkillMarkerAutocomplete((): SlashCommandInfo[] => pi.getCommands()),
+    );
+  });
 
   pi.on(
     "resources_discover",

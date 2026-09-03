@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type {
+  AutocompleteProviderFactory,
   ExtensionAPI,
   ExtensionContext,
   ExtensionEvent,
@@ -18,10 +19,16 @@ type ResourcesDiscoverHandler = (
   event: ResourcesDiscoverEvent,
 ) => Promise<{ skillPaths: string[] }>;
 type InputHandler = (event: InputEvent, context: ExtensionContext) => Promise<InputEventResult>;
+type SessionStartEvent = Extract<ExtensionEvent, { type: "session_start" }>;
+type SessionStartHandler = (
+  event: SessionStartEvent,
+  context: ExtensionContext,
+) => Promise<void> | void;
 
 interface ExtensionHarness {
   resourcesHandler: ResourcesDiscoverHandler;
   inputHandler: InputHandler;
+  sessionHandler: SessionStartHandler;
   markdownTransformers: MarkdownTransformer[];
 }
 
@@ -30,21 +37,26 @@ const cleanupPaths: string[] = [];
 const createHarness = (getCommands: () => SlashCommandInfo[]): ExtensionHarness => {
   let resourcesHandler: ResourcesDiscoverHandler | undefined;
   let inputHandler: InputHandler | undefined;
+  let sessionHandler: SessionStartHandler | undefined;
   const markdownTransformers: MarkdownTransformer[] = [];
   const pi = {
     getCommands,
-    on: (event: string, candidate: ResourcesDiscoverHandler | InputHandler): void => {
+    on: (
+      event: string,
+      candidate: ResourcesDiscoverHandler | InputHandler | SessionStartHandler,
+    ): void => {
       if (event === "resources_discover") resourcesHandler = candidate as ResourcesDiscoverHandler;
       if (event === "input") inputHandler = candidate as InputHandler;
+      if (event === "session_start") sessionHandler = candidate as SessionStartHandler;
     },
     registerMarkdownTransformer: (transformer: MarkdownTransformer): void => {
       markdownTransformers.push(transformer);
     },
   } as unknown as ExtensionAPI;
   piNestedSkill(pi);
-  if (resourcesHandler === undefined || inputHandler === undefined)
+  if (resourcesHandler === undefined || inputHandler === undefined || sessionHandler === undefined)
     throw new Error("extension handlers not registered");
-  return { resourcesHandler, inputHandler, markdownTransformers };
+  return { resourcesHandler, inputHandler, sessionHandler, markdownTransformers };
 };
 
 const skillCommand = (name: string, path: string): SlashCommandInfo => ({
@@ -88,6 +100,15 @@ describe("pi-nested-skill extension", (): void => {
     );
     const commands = [skillCommand("nano-flow", nativeSkillPath)];
     const harness = createHarness((): SlashCommandInfo[] => commands);
+    const autocompleteProviderFactories: AutocompleteProviderFactory[] = [];
+    await harness.sessionHandler({ type: "session_start", reason: "startup" }, {
+      ui: {
+        addAutocompleteProvider: (providerFactory: AutocompleteProviderFactory): void => {
+          autocompleteProviderFactories.push(providerFactory);
+        },
+      },
+    } as unknown as ExtensionContext);
+    expect(autocompleteProviderFactories).toHaveLength(1);
 
     const startupResult = await harness.resourcesHandler({
       type: "resources_discover",
