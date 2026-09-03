@@ -82,7 +82,7 @@ MemoryRecord
 
 - [Nano Mem 领域语言](../../../CONTEXT.md)
 - [ADR 0005：检索采用最小投影与按需元数据](../../../adr/0005-检索采用最小投影与按需元数据.md)
-- [原 Agent 记忆架构](../2026-09-01-agent记忆架构/spec.md)
+- [原 Agent 记忆架构](../../active/2026-09-01-agent记忆架构/spec.md)
 - [Quest 审阅记录](../../../../../.flow/quest/2026-09-04-nnm检索最小投影.md)
 
 ## Issue
