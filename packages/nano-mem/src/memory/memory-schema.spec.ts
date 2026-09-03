@@ -1,7 +1,7 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, test } from "vitest";
 import { createMemoryRepository, MemoryScope } from "./memory-repository.js";
-import { migrateMemoryDatabase, rebuildMemorySearchIndex } from "./memory-schema.js";
+import { migrateMemoryDatabase } from "./memory-schema.js";
 
 describe("memory database migration", (): void => {
   test("creates the versioned schema and can run repeatedly", (): void => {
@@ -21,7 +21,7 @@ describe("memory database migration", (): void => {
     database.close();
   });
 
-  test("migrates and explicitly rebuilds tokenizer-derived search terms", (): void => {
+  test("migrates and rebuilds tokenizer-derived search terms", (): void => {
     const database = new DatabaseSync(":memory:");
     migrateMemoryDatabase(database);
     const repository = createMemoryRepository({ database });
@@ -36,11 +36,6 @@ describe("memory database migration", (): void => {
     expect(
       database.prepare("SELECT search_terms FROM memories WHERE id = ?").get(memory.id),
     ).toEqual(expect.objectContaining({ search_terms: expect.stringContaining("policy") }));
-    database.prepare("UPDATE memories SET search_terms = 'stale' WHERE id = ?").run(memory.id);
-    rebuildMemorySearchIndex(database);
-    expect(
-      database.prepare("SELECT search_terms FROM memories WHERE id = ?").get(memory.id),
-    ).toEqual(expect.objectContaining({ search_terms: expect.stringContaining("使用") }));
     database.close();
   });
 

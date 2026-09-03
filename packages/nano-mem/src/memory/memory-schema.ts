@@ -64,10 +64,6 @@ const rebuildSearchTerms = (database: DatabaseSync): void => {
   database.exec("INSERT INTO memories_fts(memories_fts) VALUES ('rebuild')");
 };
 
-export const rebuildMemorySearchIndex = (database: DatabaseSync): void => {
-  runImmediateTransaction(database, (): void => rebuildSearchTerms(database));
-};
-
 export const migrateMemoryDatabase = (database: DatabaseSync): void => {
   database.exec("PRAGMA foreign_keys = ON; PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
   const versionRow = database.prepare("PRAGMA user_version").get() as

@@ -2,7 +2,6 @@ import type { Command } from "commander";
 import type { CommandContext, CommandRegistrar } from "../cli.js";
 import {
   createManagedSkillService,
-  type ManagedSkillFileSystem,
   type SkillManifest,
   type SkillMutation,
 } from "./managed-skill.js";
@@ -10,9 +9,6 @@ import { createNpmPackageExecutor, type NanoMemPackageExecutor } from "./npm-pac
 import { executeSelfUpdate } from "./self-updater.js";
 
 export interface SelfCommandDependencies {
-  createId?: () => string;
-  currentVersion?: string;
-  fileSystem?: ManagedSkillFileSystem;
   manifest: SkillManifest;
   packageExecutor?: NanoMemPackageExecutor;
   sourceDirectory: string;
@@ -67,8 +63,6 @@ export const createSelfCommandRegistrar =
       cwd: context.runtime.paths.cwd,
       manifest: dependencies.manifest,
       sourceDirectory: dependencies.sourceDirectory,
-      ...(dependencies.createId === undefined ? {} : { createId: dependencies.createId }),
-      ...(dependencies.fileSystem === undefined ? {} : { fileSystem: dependencies.fileSystem }),
     });
     const self = program.command("self").description("Manage the nano-mem installation");
     const skill = self.command("skill").description("Manage the packaged nano-mem skill");
@@ -94,15 +88,11 @@ export const createSelfCommandRegistrar =
               manifest: dependencies.manifest,
               sourceDirectory: dependencies.sourceDirectory,
             },
-            currentVersion: dependencies.currentVersion ?? dependencies.manifest.packageVersion,
+            currentVersion: dependencies.manifest.packageVersion,
             cwd: context.runtime.paths.cwd,
             packageExecutor:
               dependencies.packageExecutor ??
               createNpmPackageExecutor({ processExecutor: context.runtime.processExecutor }),
-            ...(dependencies.createId === undefined ? {} : { createId: dependencies.createId }),
-            ...(dependencies.fileSystem === undefined
-              ? {}
-              : { fileSystem: dependencies.fileSystem }),
           },
           {
             dryRun: options.dryRun === true,

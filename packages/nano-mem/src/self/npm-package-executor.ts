@@ -1,10 +1,22 @@
-import { createHash } from "node:crypto";
-import { lstatSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from "node:fs";
+import {
+  lstatSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  rmSync,
+  type Dirent,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, isAbsolute, join, relative } from "node:path";
 import { compare, prerelease, valid, validRange } from "semver";
 import type { ProcessExecutor, ProcessRequest } from "../runtime.js";
-import type { SkillManifest, SkillManifestFile } from "./managed-skill.js";
+import {
+  hashFileList,
+  hashSha256,
+  type SkillManifest,
+  type SkillManifestFile,
+} from "./managed-skill.js";
 
 const packageName = "@kxh4892636/nano-mem";
 
@@ -26,7 +38,6 @@ export interface NanoMemPackageExecutor {
 interface NpmPackageExecutorDependencies {
   execPath?: string;
   platform?: NodeJS.Platform;
-  prefix?: string;
   processExecutor: ProcessExecutor;
 }
 
@@ -67,23 +78,20 @@ const parsePackFilename = (stdout: string): string => {
   return basename(value[0].filename);
 };
 
-const hash = (content: string | Buffer): string =>
-  createHash("sha256").update(content).digest("hex");
-
 const readManifest = (sourceDirectory: string, version: string): SkillManifest => {
   const files: SkillManifestFile[] = readdirSync(sourceDirectory, {
     recursive: true,
     withFileTypes: true,
   })
-    .filter((entry: import("node:fs").Dirent): boolean => !entry.isDirectory())
-    .map((entry: import("node:fs").Dirent): SkillManifestFile => {
+    .filter((entry: Dirent): boolean => !entry.isDirectory())
+    .map((entry: Dirent): SkillManifestFile => {
       const absolutePath = join(entry.parentPath, entry.name);
       if (!entry.isFile() || lstatSync(absolutePath).isSymbolicLink()) {
         throw new Error("The downloaded nano-mem skill contains a non-file entry.");
       }
       return {
         path: relative(sourceDirectory, absolutePath).replaceAll("\\", "/"),
-        sha256: hash(readFileSync(absolutePath)),
+        sha256: hashSha256(readFileSync(absolutePath)),
       };
     })
     .sort((left: SkillManifestFile, right: SkillManifestFile): number =>
@@ -96,9 +104,7 @@ const readManifest = (sourceDirectory: string, version: string): SkillManifest =
     files,
     packageVersion: version,
     skillName: "nano-mem",
-    treeHash: hash(
-      files.map((file: SkillManifestFile): string => `${file.path}\0${file.sha256}\n`).join(""),
-    ),
+    treeHash: hashFileList(files),
   };
 };
 
@@ -121,33 +127,28 @@ const assertPackageIdentity = (packageRoot: string, version: string): string => 
       "The downloaded package identity does not match the resolved nano-mem version.",
     );
   }
-  return assertContainedFile(packageRoot, join(packageRoot, "dist", "main.mjs"));
+  return assertContainedPath(packageRoot, join(packageRoot, "dist", "main.mjs"), "file");
 };
 
-const assertContainedDirectory = (root: string, path: string): string => {
+const assertContainedPath = (root: string, path: string, kind: "directory" | "file"): string => {
   const stat = lstatSync(path);
-  if (stat.isSymbolicLink() || !stat.isDirectory()) {
-    throw new Error("The downloaded package contains an unsafe directory boundary.");
+  const matchesKind = kind === "directory" ? stat.isDirectory() : stat.isFile();
+  if (stat.isSymbolicLink() || !matchesKind) {
+    throw new Error(
+      kind === "directory"
+        ? "The downloaded package contains an unsafe directory boundary."
+        : "npm produced an unsafe package archive.",
+    );
   }
   const canonicalRoot = realpathSync(root);
   const canonicalPath = realpathSync(path);
   const pathFromRoot = relative(canonicalRoot, canonicalPath);
   if (pathFromRoot === "" || pathFromRoot.startsWith("..") || isAbsolute(pathFromRoot)) {
-    throw new Error("The downloaded package escaped its temporary root.");
-  }
-  return canonicalPath;
-};
-
-const assertContainedFile = (root: string, path: string): string => {
-  const stat = lstatSync(path);
-  if (stat.isSymbolicLink() || !stat.isFile()) {
-    throw new Error("npm produced an unsafe package archive.");
-  }
-  const canonicalRoot = realpathSync(root);
-  const canonicalPath = realpathSync(path);
-  const pathFromRoot = relative(canonicalRoot, canonicalPath);
-  if (pathFromRoot === "" || pathFromRoot.startsWith("..") || isAbsolute(pathFromRoot)) {
-    throw new Error("The package archive escaped its temporary root.");
+    throw new Error(
+      kind === "directory"
+        ? "The downloaded package escaped its temporary root."
+        : "The package archive escaped its temporary root.",
+    );
   }
   return canonicalPath;
 };
@@ -207,14 +208,6 @@ const runCliSmoke = async (
   }
 };
 
-const globalArguments = (
-  dependencies: NpmPackageExecutorDependencies,
-  argumentsList: readonly string[],
-): readonly string[] =>
-  dependencies.prefix === undefined
-    ? argumentsList
-    : [...argumentsList, "--prefix", dependencies.prefix];
-
 const resolveVersion = async (
   dependencies: NpmPackageExecutorDependencies,
   selector: string | undefined,
@@ -261,15 +254,17 @@ const inspectArchive = async (
       archive,
     ]),
   );
-  const packageRoot = assertContainedDirectory(
+  const packageRoot = assertContainedPath(
     temporaryRoot,
     join(extracted, "node_modules", "@kxh4892636", "nano-mem"),
+    "directory",
   );
   const entryPath = assertPackageIdentity(packageRoot, version);
   if (runSmoke) await runCliSmoke(dependencies, entryPath, version);
-  const sourceDirectory = assertContainedDirectory(
+  const sourceDirectory = assertContainedPath(
     temporaryRoot,
     join(packageRoot, "skills", "nano-mem"),
+    "directory",
   );
   return { manifest: readManifest(sourceDirectory, version), sourceDirectory };
 };
@@ -290,9 +285,10 @@ const retrievePackage = async (
         "--ignore-scripts",
       ]),
     );
-    const archive = assertContainedFile(
+    const archive = assertContainedPath(
       temporaryRoot,
       join(temporaryRoot, parsePackFilename(packed.stdout)),
+      "file",
     );
     const inspected = await inspectArchive(dependencies, temporaryRoot, archive, version, false);
     return {
@@ -313,10 +309,14 @@ const captureInstalled = async (
   const temporaryRoot = mkdtempSync(join(tmpdir(), "nano-mem-rollback-"));
   try {
     const npmRootResult = await dependencies.processExecutor.execute(
-      npmRequest(dependencies, globalArguments(dependencies, ["root", "--global"])),
+      npmRequest(dependencies, ["root", "--global"]),
     );
     const npmRoot = realpathSync(npmRootResult.stdout.trim());
-    const packageRoot = assertContainedDirectory(npmRoot, join(npmRoot, "@kxh4892636", "nano-mem"));
+    const packageRoot = assertContainedPath(
+      npmRoot,
+      join(npmRoot, "@kxh4892636", "nano-mem"),
+      "directory",
+    );
     assertPackageIdentity(packageRoot, version);
     const packed = await dependencies.processExecutor.execute(
       npmRequest(dependencies, [
@@ -328,9 +328,10 @@ const captureInstalled = async (
         "--ignore-scripts",
       ]),
     );
-    const archivePath = assertContainedFile(
+    const archivePath = assertContainedPath(
       temporaryRoot,
       join(temporaryRoot, parsePackFilename(packed.stdout)),
+      "file",
     );
     const inspected = await inspectArchive(dependencies, temporaryRoot, archivePath, version, true);
     return {
@@ -352,7 +353,8 @@ export const createNpmPackageExecutor = (
   install: async (artifact: ResolvedNanoMemPackage): Promise<void> => {
     await dependencies.processExecutor.execute(
       npmRequest(dependencies, [
-        ...globalArguments(dependencies, ["install", "--global"]),
+        "install",
+        "--global",
         "--ignore-scripts",
         "--offline",
         artifact.archivePath,
@@ -363,10 +365,7 @@ export const createNpmPackageExecutor = (
     retrievePackage(dependencies, await resolveVersion(dependencies, selector)),
   verifyInstalled: async (version: string): Promise<void> => {
     const result = await dependencies.processExecutor.execute(
-      npmRequest(
-        dependencies,
-        globalArguments(dependencies, ["list", "--global", packageName, "--depth=0", "--json"]),
-      ),
+      npmRequest(dependencies, ["list", "--global", packageName, "--depth=0", "--json"]),
     );
     const value = parseJson(result.stdout, "global package status");
     const installed =
@@ -382,10 +381,14 @@ export const createNpmPackageExecutor = (
       throw new Error(`Expected global ${packageName}@${version}, observed ${String(installed)}.`);
     }
     const npmRootResult = await dependencies.processExecutor.execute(
-      npmRequest(dependencies, globalArguments(dependencies, ["root", "--global"])),
+      npmRequest(dependencies, ["root", "--global"]),
     );
     const npmRoot = realpathSync(npmRootResult.stdout.trim());
-    const packageRoot = assertContainedDirectory(npmRoot, join(npmRoot, "@kxh4892636", "nano-mem"));
+    const packageRoot = assertContainedPath(
+      npmRoot,
+      join(npmRoot, "@kxh4892636", "nano-mem"),
+      "directory",
+    );
     const entryPath = assertPackageIdentity(packageRoot, version);
     await runCliSmoke(dependencies, entryPath, version);
   },

@@ -1,4 +1,4 @@
-export const RETENTION_POLICY_VERSION = 1;
+const RETENTION_POLICY_VERSION = 1;
 export const INITIAL_STABILITY_DAYS = 2.3065;
 
 export const FSRS6_DEFAULT_WEIGHTS = Object.freeze([
@@ -64,7 +64,7 @@ export interface RetentionStatus {
 const thresholdDays = (stability: number): number =>
   (stability / factor) * (forgetThreshold ** (1 / decay) - 1);
 
-export const naturalForgetAt = (anchorAtMs: number, stability: number): number =>
+const naturalForgetAt = (anchorAtMs: number, stability: number): number =>
   anchorAtMs + Math.floor(thresholdDays(stability) * millisecondsPerDay) + 1;
 
 export const retrievability = (

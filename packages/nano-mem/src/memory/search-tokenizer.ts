@@ -39,11 +39,6 @@ const quoteMatchTerm = (term: string): string => `"${term.replaceAll('"', '""')}
 const toMatchQuery = (tokens: readonly string[], operator: "AND" | "OR"): string =>
   tokens.map(quoteMatchTerm).join(` ${operator} `);
 
-export const toFtsMatchQuery = (text: string): string | undefined => {
-  const tokens = tokenizeSearchText(text);
-  return tokens.length === 0 ? undefined : toMatchQuery(tokens, "AND");
-};
-
 export const toSearchQueryPlan = (text: string): SearchQueryPlan | undefined => {
   const words = text.split(/\s+/u);
   const groupTokens = new Map<string, readonly string[]>();

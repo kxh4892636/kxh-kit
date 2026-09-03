@@ -1,7 +1,6 @@
 import { describe, expect, test } from "vitest";
 import {
   SEARCH_TOKENIZER_VERSION,
-  toFtsMatchQuery,
   toSearchQueryPlan,
   tokenizeSearchText,
 } from "./search-tokenizer.js";
@@ -41,13 +40,6 @@ describe("search tokenizer", (): void => {
         "ts",
       ]),
     );
-  });
-
-  test("turns operators and punctuation into quoted literal terms", (): void => {
-    expect(toFtsMatchQuery('OR title:"x" -drop (table);')).toBe(
-      '"or" AND "title" AND "x" AND "drop" AND "table"',
-    );
-    expect(toFtsMatchQuery("---:::()")).toBeUndefined();
   });
 
   test("plans strict word groups with a flat relevance query", (): void => {

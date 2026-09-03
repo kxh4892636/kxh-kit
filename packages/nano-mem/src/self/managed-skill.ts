@@ -81,11 +81,13 @@ interface InstalledTree {
   valid: boolean;
 }
 
-const hash = (content: Buffer | string): string =>
+export const hashSha256 = (content: Buffer | string): string =>
   createHash("sha256").update(content).digest("hex");
 
-const hashFileList = (files: readonly SkillManifestFile[]): string =>
-  hash(files.map((file: SkillManifestFile): string => `${file.path}\0${file.sha256}\n`).join(""));
+export const hashFileList = (files: readonly SkillManifestFile[]): string =>
+  hashSha256(
+    files.map((file: SkillManifestFile): string => `${file.path}\0${file.sha256}\n`).join(""),
+  );
 
 const safeRelativePath = (path: string): boolean =>
   path !== "" &&
@@ -184,7 +186,7 @@ const inspectTree = (fileSystem: ManagedSkillFileSystem, root: string): Installe
     if (!safeRelativePath(path) || fileSystem.kind(absolutePath) !== "file") {
       return { files: [], treeHash: "", valid: false };
     }
-    files.push({ path, sha256: hash(fileSystem.readFile(absolutePath)) });
+    files.push({ path, sha256: hashSha256(fileSystem.readFile(absolutePath)) });
   }
   files.sort((left: SkillManifestFile, right: SkillManifestFile): number =>
     left.path.localeCompare(right.path),
@@ -351,7 +353,7 @@ const replaceSkill = (
   operation: "install" | "update",
   force: boolean,
 ): void => {
-  const suffix = hash(dependencies.createId()).slice(0, 16);
+  const suffix = hashSha256(dependencies.createId()).slice(0, 16);
   const staging = join(paths.root, `.nano-mem.staging-${suffix}`);
   const backup = join(paths.root, `.nano-mem.backup-${suffix}`);
   if (dependencies.fileSystem.exists(staging) || dependencies.fileSystem.exists(backup)) {
@@ -410,7 +412,7 @@ const uninstallSkill = (
   paths: TargetPaths,
   force: boolean,
 ): void => {
-  const suffix = hash(dependencies.createId()).slice(0, 16);
+  const suffix = hashSha256(dependencies.createId()).slice(0, 16);
   const backup = join(paths.root, `.nano-mem.backup-${suffix}`);
   if (dependencies.fileSystem.exists(backup)) {
     throw new CliError(

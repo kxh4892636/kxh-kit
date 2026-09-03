@@ -69,12 +69,10 @@ export interface MemoryRepository {
 
 interface MemoryRow {
   content: string;
-  content_hash: string;
   created_at_ms: number;
   difficulty: number;
   explicit_forgotten_at_ms: number | null;
   id: string;
-  identity_text: string;
   last_used_at_ms: number | null;
   natural_forget_at_ms: number;
   policy_version: number;
@@ -82,7 +80,6 @@ interface MemoryRow {
   retention_anchor_at_ms: number;
   retrieval_count: number;
   scope: MemoryScope;
-  search_terms: string;
   source: string | null;
   stability: number;
   updated_at_ms: number;
@@ -107,7 +104,7 @@ interface RepositoryRuntime {
 }
 
 const selectedColumns = `
-  id, content, identity_text, content_hash, search_terms, source, scope, project_id,
+  id, content, source, scope, project_id,
   created_at_ms, updated_at_ms,
   policy_version, stability, difficulty, retention_anchor_at_ms,
   natural_forget_at_ms, explicit_forgotten_at_ms, last_used_at_ms,
@@ -302,10 +299,16 @@ const updateMemory = (runtime: RepositoryRuntime, input: UpdateMemoryInput): Mem
     if (normalized !== undefined) {
       assertNoIdentityCollision(runtime.database, existing, normalized.hash);
     }
-    const contentChanged = normalized !== undefined && normalized.content !== existing.content;
     const nowMs = runtime.now().getTime();
-    const retention = contentChanged ? initialRetentionState(nowMs) : toRecord(existing);
     const source = input.sourceSpecified ? normalizeSource(input.source) : existing.source;
+    if (normalized === undefined || normalized.content === existing.content) {
+      // 内容未变的更新不触碰 content/search_terms 列：FTS trigger 在同值赋值时也会重建索引项。
+      runtime.database
+        .prepare("UPDATE memories SET source = ?, updated_at_ms = ? WHERE id = ?")
+        .run(source, nowMs, existing.id);
+      return toRecord(requireById(runtime.database, existing.id, input.selector));
+    }
+    const retention = initialRetentionState(nowMs);
     runtime.database
       .prepare(
         `UPDATE memories SET
@@ -315,10 +318,10 @@ const updateMemory = (runtime: RepositoryRuntime, input: UpdateMemoryInput): Mem
           last_used_at_ms = ?, use_count = ?, retrieval_count = ? WHERE id = ?`,
       )
       .run(
-        normalized?.content ?? existing.content,
-        normalized?.identity ?? existing.identity_text,
-        normalized?.hash ?? existing.content_hash,
-        normalized === undefined ? existing.search_terms : toSearchTerms(normalized.content),
+        normalized.content,
+        normalized.identity,
+        normalized.hash,
+        toSearchTerms(normalized.content),
         source,
         nowMs,
         retention.policyVersion,
@@ -502,7 +505,6 @@ const tieredSearchSql = (predicateSql: string): string => `
   JOIN eligible_counts AS counts ON counts.rowid = m.rowid
   CROSS JOIN boundary
   WHERE memories_fts MATCH ? AND counts.matched_group_count >= boundary.matched_group_count
-  ORDER BY counts.matched_group_count DESC, lexical_rank ASC, m.id ASC
 `;
 
 const rankCandidateTiers = (

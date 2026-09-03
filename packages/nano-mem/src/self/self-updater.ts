@@ -98,7 +98,7 @@ const runUpdateTransaction = async (execution: UpdateExecution): Promise<unknown
     candidateCleaned = true;
     stage = "skill-finalize";
     skill.finalize();
-    return { ...plan, changed: true, dryRun: false };
+    return { ...plan, changed: true };
   } catch (error) {
     const recovery: RecoveryResult = {
       cli: recoveryStep("not_needed"),

@@ -1,3 +1,4 @@
+import { text } from "node:stream/consumers";
 import { Command, CommanderError } from "commander";
 import packageJson from "../package.json" with { type: "json" };
 import { asCliError, CliError, CliErrorKind } from "./cli-error.js";
@@ -25,19 +26,15 @@ export interface RunCliOptions {
   runtime?: RuntimeDependencies;
 }
 
+const cliName = "nnm";
+
 const defaultIo: CliIo = {
   stderr: process.stderr.write.bind(process.stderr),
   stdout: process.stdout.write.bind(process.stdout),
 };
 
-const readProcessStdin = async (): Promise<string> => {
-  const chunks: Buffer[] = [];
-  for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
-  return Buffer.concat(chunks).toString("utf8");
-};
-
 const defaultInput: CliInput = {
-  readStdin: readProcessStdin,
+  readStdin: (): Promise<string> => text(process.stdin),
   stdinIsTerminal: process.stdin.isTTY === true,
 };
 
@@ -53,12 +50,9 @@ const extractPretty = (argumentsList: string[]): { argumentsList: string[]; pret
   return { argumentsList: retained, pretty };
 };
 
-const rootOption = (argumentsList: string[]): string | undefined =>
-  argumentsList.find((argument: string): boolean => argument !== "--pretty");
-
 export const createProgram = (): Command =>
   new Command()
-    .name("nnm")
+    .name(cliName)
     .description(packageJson.description)
     .version(packageJson.version)
     .option("--pretty", "Pretty-print JSON output")
@@ -125,7 +119,12 @@ const createApplication = (
 };
 
 const commanderError = (error: CommanderError): CliError =>
-  new CliError("USAGE_ERROR", error.message, CliErrorKind.usage, "Run nnm --help for usage.");
+  new CliError(
+    "USAGE_ERROR",
+    error.message,
+    CliErrorKind.usage,
+    `Run ${cliName} --help for usage.`,
+  );
 
 export const runCli = async (options: RunCliOptions = {}): Promise<number> => {
   const io = options.io ?? defaultIo;
@@ -140,12 +139,16 @@ export const runCli = async (options: RunCliOptions = {}): Promise<number> => {
       options.registrars ?? [],
     );
     const { program } = application;
-    const firstOption = rootOption(extracted.argumentsList);
-    if (extracted.argumentsList.length === 0 || firstOption === "--help" || firstOption === "-h") {
-      writeSuccess(io, { command: "nnm", usage: program.helpInformation() }, pretty);
+    const firstArgument = extracted.argumentsList[0];
+    if (
+      extracted.argumentsList.length === 0 ||
+      firstArgument === "--help" ||
+      firstArgument === "-h"
+    ) {
+      writeSuccess(io, { command: cliName, usage: program.helpInformation() }, pretty);
       return 0;
     }
-    if (firstOption === "--version" || firstOption === "-V") {
+    if (firstArgument === "--version" || firstArgument === "-V") {
       writeSuccess(io, { version: packageJson.version }, pretty);
       return 0;
     }
@@ -161,8 +164,12 @@ export const runCli = async (options: RunCliOptions = {}): Promise<number> => {
     writeSuccess(io, response, pretty);
     return 0;
   } catch (error) {
-    if (error instanceof CommanderError && error.code === "commander.helpDisplayed") {
-      writeSuccess(io, { command: "nnm", usage: application?.readCommanderOutput() ?? "" }, pretty);
+    if (
+      error instanceof CommanderError &&
+      error.code === "commander.helpDisplayed" &&
+      application !== undefined
+    ) {
+      writeSuccess(io, { command: cliName, usage: application.readCommanderOutput() }, pretty);
       return 0;
     }
     const cliError = error instanceof CommanderError ? commanderError(error) : asCliError(error);

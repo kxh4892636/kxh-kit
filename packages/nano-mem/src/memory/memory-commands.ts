@@ -19,11 +19,7 @@ interface ScopeOptions {
   scope: string;
 }
 
-interface AddOptions extends ScopeOptions {
-  source?: string;
-}
-
-interface UpdateOptions extends ScopeOptions {
+interface WriteOptions extends ScopeOptions {
   source?: string;
 }
 
@@ -135,25 +131,20 @@ const toSearchProjection = (
     : {}),
 });
 
-const selector = (options: ScopeOptions, context: MemoryContext): MemorySelector => ({
+const selector = (
+  options: ScopeOptions,
+  context: MemoryContext,
+  parseScope: (value: string) => ReadScope,
+): MemorySelector => ({
   projectId: context.projectId,
-  scope: readScope(options.scope),
+  scope: parseScope(options.scope),
 });
 
-const writeSelector = (options: ScopeOptions, context: MemoryContext): MemorySelector => ({
-  projectId: context.projectId,
-  scope: writeScope(options.scope),
-});
+const writeSelector = (options: ScopeOptions, context: MemoryContext): MemorySelector =>
+  selector(options, context, writeScope);
 
 const searchLimit = (value: string): number => {
-  if (!/^\d+$/u.test(value)) {
-    throw new CliError(
-      "INVALID_LIMIT",
-      "Search limit must be an integer from 1 to 50.",
-      CliErrorKind.usage,
-    );
-  }
-  const limit = Number(value);
+  const limit = /^\d+$/u.test(value) ? Number(value) : Number.NaN;
   if (limit >= 1 && limit <= 50) return limit;
   throw new CliError(
     "INVALID_LIMIT",
@@ -193,7 +184,7 @@ const registerAdd = (program: Command, context: CommandContext): void => {
     MemoryScope.project,
   ).option("--source <source>", "Optional memory source");
   command.action(async (content: string | undefined): Promise<void> => {
-    const options = command.opts<AddOptions>();
+    const options = command.opts<WriteOptions>();
     const text = await resolveTextInput({
       ...context.input,
       ...(content === undefined ? {} : { positional: content }),
@@ -224,7 +215,7 @@ const registerGet = (program: Command, context: CommandContext): void => {
       context,
       options.project,
       (repository: MemoryRepository, memoryContext: MemoryContext): MemoryRecord =>
-        repository.get(id, selector(options, memoryContext)),
+        repository.get(id, selector(options, memoryContext, readScope)),
     );
     context.respond(currentDto(context, memory));
   });
@@ -237,10 +228,12 @@ const registerList = (program: Command, context: CommandContext): void => {
     const memories = await withRepository(
       context,
       options.project,
-      (repository: MemoryRepository, memoryContext: MemoryContext): readonly MemoryDto[] =>
-        repository
-          .list(selector(options, memoryContext))
-          .map((memory: MemoryRecord): MemoryDto => currentDto(context, memory)),
+      (repository: MemoryRepository, memoryContext: MemoryContext): readonly MemoryDto[] => {
+        const nowMs = context.runtime.clock.now().getTime();
+        return repository
+          .list(selector(options, memoryContext, readScope))
+          .map((memory: MemoryRecord): MemoryDto => toDto(memory, nowMs));
+      },
     );
     context.respond({ memories });
   });
@@ -273,7 +266,7 @@ const registerSearch = (program: Command, context: CommandContext): void => {
           .search({
             limit: searchLimit(options.limit),
             query: text,
-            selector: selector(options, memoryContext),
+            selector: selector(options, memoryContext, readScope),
           })
           .map((memory: MemoryRecord): SearchProjection => toSearchProjection(memory, includes)),
     );
@@ -287,7 +280,7 @@ const registerUpdate = (program: Command, context: CommandContext): void => {
     MemoryScope.project,
   ).option("--source <source>", "Replace the memory source");
   command.action(async (id: string, content: string | undefined): Promise<void> => {
-    const options = command.opts<UpdateOptions>();
+    const options = command.opts<WriteOptions>();
     const text = await resolveOptionalTextInput({
       ...context.input,
       ...(content === undefined ? {} : { positional: content }),

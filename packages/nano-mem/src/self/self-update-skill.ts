@@ -1,8 +1,9 @@
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { CliError, CliErrorKind } from "../cli-error.js";
 import {
   createManagedSkillService,
+  hashSha256,
   nodeManagedSkillFileSystem,
   type ManagedSkillFileSystem,
   type ManagedSkillService,
@@ -46,8 +47,7 @@ interface SkillTransactionState {
   ownsDiscardRoot: boolean;
 }
 
-const transactionName = (id: string): string =>
-  createHash("sha256").update(id).digest("hex").slice(0, 16);
+const transactionName = (id: string): string => hashSha256(id).slice(0, 16);
 
 const transactionPaths = (root: string, id: string): SkillTransactionPaths => {
   const suffix = transactionName(id);

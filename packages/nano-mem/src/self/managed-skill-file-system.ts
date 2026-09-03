@@ -9,6 +9,7 @@ import {
   renameSync,
   rmSync,
   writeFileSync,
+  type Dirent,
 } from "node:fs";
 import { join, relative } from "node:path";
 
@@ -37,10 +38,8 @@ export const nodeManagedSkillFileSystem: ManagedSkillFileSystem = {
   kind: fileKind,
   listFiles: (root: string): readonly string[] =>
     readdirSync(root, { recursive: true, withFileTypes: true })
-      .filter(
-        (entry: import("node:fs").Dirent): boolean => entry.isFile() || entry.isSymbolicLink(),
-      )
-      .map((entry: import("node:fs").Dirent): string =>
+      .filter((entry: Dirent): boolean => entry.isFile() || entry.isSymbolicLink())
+      .map((entry: Dirent): string =>
         relative(root, join(entry.parentPath, entry.name)).replaceAll("\\", "/"),
       )
       .sort((left: string, right: string): number => left.localeCompare(right)),
