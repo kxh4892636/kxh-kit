@@ -40,7 +40,7 @@ const createCurrentProvider = (): AutocompleteProvider => ({
 });
 
 describe("skill marker autocomplete", (): void => {
-  it("suggests all loaded skills for an empty inline /skill: marker", async (): Promise<void> => {
+  it("suggests all loaded skills as soon as an inline slash marker starts", async (): Promise<void> => {
     const provider = createSkillMarkerAutocomplete((): SlashCommandInfo[] => [
       skillCommand("to-story", "story"),
       skillCommand("quest-with-domain"),
@@ -48,11 +48,11 @@ describe("skill marker autocomplete", (): void => {
     ])(createCurrentProvider());
 
     await expect(
-      provider.getSuggestions(["请 /skill:"], 0, "请 /skill:".length, {
+      provider.getSuggestions(["请 /"], 0, "请 /".length, {
         signal: abortController.signal,
       }),
     ).resolves.toEqual({
-      prefix: "/skill:",
+      prefix: "/",
       items: [
         { value: "/skill:quest-with-domain", label: "/skill:quest-with-domain" },
         { value: "/skill:to-story", label: "/skill:to-story", description: "story" },
@@ -92,6 +92,26 @@ describe("skill marker autocomplete", (): void => {
     });
   });
 
+  it("delegates leading slash command suggestions to Pi's built-in provider", async (): Promise<void> => {
+    const provider = createSkillMarkerAutocomplete((): SlashCommandInfo[] => [
+      skillCommand("to-story"),
+    ])({
+      ...createCurrentProvider(),
+      async getSuggestions(): Promise<{
+        prefix: string;
+        items: Array<{ value: string; label: string }>;
+      }> {
+        return { prefix: "/", items: [{ value: "help", label: "help" }] };
+      },
+    });
+
+    await expect(
+      provider.getSuggestions(["/"], 0, "/".length, {
+        signal: abortController.signal,
+      }),
+    ).resolves.toEqual({ prefix: "/", items: [{ value: "help", label: "help" }] });
+  });
+
   it("delegates non skill-marker suggestions to the wrapped provider", async (): Promise<void> => {
     const provider = createSkillMarkerAutocomplete((): SlashCommandInfo[] => [
       skillCommand("to-story"),
@@ -112,13 +132,13 @@ describe("skill marker autocomplete", (): void => {
     ).resolves.toEqual({ prefix: "@REA", items: [{ value: "README.md", label: "README.md" }] });
   });
 
-  it("returns no suggestions when a skill marker query matches no skill", async (): Promise<void> => {
+  it("delegates when an inline slash query matches no skill", async (): Promise<void> => {
     const provider = createSkillMarkerAutocomplete((): SlashCommandInfo[] => [
       skillCommand("to-story"),
     ])(createCurrentProvider());
 
     await expect(
-      provider.getSuggestions(["/skill:zzz"], 0, "/skill:zzz".length, {
+      provider.getSuggestions(["请 /zzz"], 0, "请 /zzz".length, {
         signal: abortController.signal,
       }),
     ).resolves.toBeNull();
@@ -131,11 +151,11 @@ describe("skill marker autocomplete", (): void => {
 
     expect(
       provider.applyCompletion(
-        ["请 /skill:to 梳理，然后 /skill:q 拷问"],
+        ["请 /skill:to 梳理，然后 / 拷问"],
         0,
-        "请 /skill:to 梳理，然后 /skill:q".length,
+        "请 /skill:to 梳理，然后 /".length,
         { value: "/skill:quest-with-domain", label: "/skill:quest-with-domain" },
-        "/skill:q",
+        "/",
       ),
     ).toEqual({
       lines: ["请 /skill:to 梳理，然后 /skill:quest-with-domain 拷问"],

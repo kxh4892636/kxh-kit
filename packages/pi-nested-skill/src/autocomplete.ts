@@ -5,7 +5,7 @@ import type {
 
 const SKILL_COMMAND_PREFIX = "skill:";
 const SKILL_MARKER_PREFIX = "/skill:";
-const SKILL_MARKER_AUTOCOMPLETE_PATTERN = /(?:^|\s)\/skill:([a-z0-9-]*)$/u;
+const INLINE_SLASH_AUTOCOMPLETE_PATTERN = /(?:^|\s)(\/[a-z0-9:-]*)$/u;
 
 interface SkillMarkerCompletionItem {
   value: string;
@@ -29,10 +29,12 @@ interface SkillCommandEntry {
   description?: string;
 }
 
-const getSkillMarkerPrefix = (textBeforeCursor: string): string | null => {
-  const match = textBeforeCursor.match(SKILL_MARKER_AUTOCOMPLETE_PATTERN);
-  if (match?.[1] === undefined) return null;
-  return `${SKILL_MARKER_PREFIX}${match[1]}`;
+const getInlineSlashPrefix = (textBeforeCursor: string): string | null => {
+  const match = textBeforeCursor.match(INLINE_SLASH_AUTOCOMPLETE_PATTERN);
+  const prefix = match?.[1];
+  if (prefix === undefined) return null;
+  if (textBeforeCursor.length === prefix.length) return null;
+  return prefix;
 };
 
 const fuzzyIncludes = (value: string, query: string): boolean => {
@@ -51,8 +53,10 @@ const compareSkillCommands = (
   left: SkillCommandEntry,
   right: SkillCommandEntry,
 ): number => {
-  const leftPrefix = left.name.startsWith(query) ? 0 : 1;
-  const rightPrefix = right.name.startsWith(query) ? 0 : 1;
+  const leftCommandName = `${SKILL_COMMAND_PREFIX}${left.name}`;
+  const rightCommandName = `${SKILL_COMMAND_PREFIX}${right.name}`;
+  const leftPrefix = left.name.startsWith(query) || leftCommandName.startsWith(query) ? 0 : 1;
+  const rightPrefix = right.name.startsWith(query) || rightCommandName.startsWith(query) ? 0 : 1;
   if (leftPrefix !== rightPrefix) return leftPrefix - rightPrefix;
   return left.name.localeCompare(right.name);
 };
@@ -75,11 +79,17 @@ const getSkillMarkerSuggestions = (
   commands: SlashCommandInfo[],
   prefix: string,
 ): SkillMarkerSuggestions | null => {
-  const query = prefix.slice(SKILL_MARKER_PREFIX.length);
+  const commandQuery = prefix.slice(1);
+  const markerQuery = commandQuery.startsWith(SKILL_COMMAND_PREFIX)
+    ? commandQuery.slice(SKILL_COMMAND_PREFIX.length)
+    : commandQuery;
   const items = getSkillCommands(commands)
-    .filter((skill: SkillCommandEntry): boolean => fuzzyIncludes(skill.name, query))
+    .filter((skill: SkillCommandEntry): boolean => {
+      const commandName = `${SKILL_COMMAND_PREFIX}${skill.name}`;
+      return fuzzyIncludes(skill.name, markerQuery) || fuzzyIncludes(commandName, commandQuery);
+    })
     .sort((left: SkillCommandEntry, right: SkillCommandEntry): number =>
-      compareSkillCommands(query, left, right),
+      compareSkillCommands(markerQuery, left, right),
     )
     .map(
       (skill: SkillCommandEntry): SkillMarkerCompletionItem => ({
@@ -95,7 +105,7 @@ const getSkillMarkerSuggestions = (
 export const createSkillMarkerAutocomplete =
   (getCommands: () => SlashCommandInfo[]): AutocompleteProviderFactory =>
   (current) => ({
-    triggerCharacters: [":"],
+    triggerCharacters: ["/", ":"],
     async getSuggestions(
       lines,
       cursorLine,
@@ -103,9 +113,12 @@ export const createSkillMarkerAutocomplete =
       options,
     ): Promise<SkillMarkerSuggestions | null> {
       const line = lines[cursorLine] ?? "";
-      const prefix = getSkillMarkerPrefix(line.slice(0, cursorCol));
+      const prefix = getInlineSlashPrefix(line.slice(0, cursorCol));
       if (prefix === null) return current.getSuggestions(lines, cursorLine, cursorCol, options);
-      return getSkillMarkerSuggestions(getCommands(), prefix);
+      return (
+        getSkillMarkerSuggestions(getCommands(), prefix) ??
+        current.getSuggestions(lines, cursorLine, cursorCol, options)
+      );
     },
     applyCompletion(
       lines,
@@ -114,7 +127,7 @@ export const createSkillMarkerAutocomplete =
       item: SkillMarkerCompletionItem,
       prefix,
     ): CompletionApplyResult {
-      if (!prefix.startsWith(SKILL_MARKER_PREFIX)) {
+      if (!prefix.startsWith("/") || !item.value.startsWith(SKILL_MARKER_PREFIX)) {
         return current.applyCompletion(lines, cursorLine, cursorCol, item, prefix);
       }
       const currentLine = lines[cursorLine] ?? "";

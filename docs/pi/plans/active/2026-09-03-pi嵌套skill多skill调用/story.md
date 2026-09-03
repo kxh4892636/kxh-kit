@@ -16,7 +16,7 @@ packages/pi-nested-skill 支持嵌套 skill 了, 但不支持一次输入, 调�
 
 - [x] 输入 `请 /skill:to-story 梳理故事，然后 /skill:quest-with-domain 拷问领域设计` 时，两个已载入 skill 的 block 都按出现顺序插入，剩余中文文本保持原序，并作为同一轮共享用户输入交给 agent。
 - [x] 当同一条输入出现多个未转义、精确命名已载入 skill 的 marker 时，不只展开第一个 marker。
-- [x] 在 interactive editor 中，输入开头或中段的 `/skill:` 都出现已载入 skill 搜索/补全列表，补全只替换当前 marker，不删除其他文本。
+- [x] 在 interactive editor 中，输入开头的 `/` 维持 Pi 原生补全；输入中段的 `/` 立即出现已载入 skill 搜索/补全列表，补全只替换当前 marker，不删除其他文本。
 
 ## 迷雾
 
