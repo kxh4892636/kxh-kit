@@ -12,6 +12,7 @@ Memory commands:
 ```powershell
 nnm add "..." --source "..."
 nnm search "..."
+nnm search "..." --include source --include updatedAt
 nnm use <memory-id>
 nnm get <memory-id>
 nnm list
@@ -21,7 +22,7 @@ nnm restore <memory-id>
 nnm delete <memory-id> --force
 ```
 
-Use `--scope global` for global memory or `--project <name>` for an explicit project. Without either option, the Git root directory name is the project scope. `NANO_MEM_HOME` overrides the user data directory.
+Search results default to the selector-ready fields `id`, `content`, and `scope`, plus `project` for project memories. Repeat `--include <field>` to add `source`, `createdAt`, or `updatedAt`; unsupported and comma-separated values are rejected. Use `--scope global` for global memory or `--project <name>` for an explicit project. Without either option, the Git root directory name is the project scope. `NANO_MEM_HOME` overrides the user data directory.
 
 The package also contains one managed agent skill:
 

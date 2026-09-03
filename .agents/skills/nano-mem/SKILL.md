@@ -15,11 +15,11 @@ description: 主动使用 nnm CLI 检索并维护任何可能帮助任务的本�
 nnm search "<有区分度的关键词>" --limit 5
 ```
 
-默认搜索已经合并当前项目记忆与全局记忆。仅当任务需要更窄或明确的上下文时，才添加 `--scope project|global` 或 `--project <根目录名称>`。
+默认搜索已经合并当前项目记忆与全局记忆。仅当任务需要更窄或明确的上下文时，才添加 `--scope project|global` 或 `--project <根目录名称>`；仅当任务依赖来源时添加 `--include source`，需要诊断时间时才按需添加 `--include createdAt` 或 `--include updatedAt`。
 
-读取成功响应中的 `data.memories`。结果为空时静默继续。只将相关的 `content`——以及来源重要时的 `source`——带入工作上下文；不要带入 JSON 响应外壳和生命周期内部信息。
+读取成功响应中的 `data.memories`。默认检索投影只携带 `id`、`content`、`scope`，project 记忆还携带 `project`。结果为空时静默继续。只将相关的 `content`——以及已按需请求且确实重要的 `source`——带入工作上下文；不要带入 JSON 响应外壳和时间元数据。
 
-保留每条实质影响当前工作的记忆的 ID 和 selector。根据其 DTO 推导 selector：
+保留每条实质影响当前工作的记忆的 ID 和 selector。根据其检索投影推导 selector：
 
 - `scope: global` → `--scope global`
 - `scope: project` → `--scope project --project "<memory.project>"`

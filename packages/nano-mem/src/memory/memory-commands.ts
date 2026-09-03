@@ -32,7 +32,26 @@ interface DeleteOptions extends ScopeOptions {
 }
 
 interface SearchOptions extends ScopeOptions {
+  include: string[];
   limit: string;
+}
+
+const SearchMetadata = {
+  createdAt: "createdAt",
+  source: "source",
+  updatedAt: "updatedAt",
+} as const;
+
+type SearchMetadata = (typeof SearchMetadata)[keyof typeof SearchMetadata];
+
+interface SearchProjection {
+  content: string;
+  createdAt?: string;
+  id: string;
+  project?: string;
+  scope: MemoryScope;
+  source?: string | null;
+  updatedAt?: string;
 }
 
 interface MemoryDto {
@@ -79,6 +98,42 @@ const toDto = (memory: MemoryRecord, nowMs: number): MemoryDto => {
 
 const currentDto = (context: CommandContext, memory: MemoryRecord): MemoryDto =>
   toDto(memory, context.runtime.clock.now().getTime());
+
+const collectSearchInclude = (value: string, previous: string[]): string[] => [...previous, value];
+
+const searchIncludes = (values: readonly string[]): ReadonlySet<SearchMetadata> => {
+  const includes = new Set<SearchMetadata>();
+  for (const value of values) {
+    if (value === SearchMetadata.source) includes.add(SearchMetadata.source);
+    else if (value === SearchMetadata.createdAt) includes.add(SearchMetadata.createdAt);
+    else if (value === SearchMetadata.updatedAt) includes.add(SearchMetadata.updatedAt);
+    else {
+      throw new CliError(
+        "INVALID_INCLUDE",
+        "Search include must be source, createdAt, or updatedAt.",
+        CliErrorKind.usage,
+      );
+    }
+  }
+  return includes;
+};
+
+const toSearchProjection = (
+  memory: MemoryRecord,
+  includes: ReadonlySet<SearchMetadata>,
+): SearchProjection => ({
+  id: memory.id,
+  content: memory.content,
+  scope: memory.scope,
+  ...(memory.scope === MemoryScope.project ? { project: memory.projectId } : {}),
+  ...(includes.has(SearchMetadata.source) ? { source: memory.source } : {}),
+  ...(includes.has(SearchMetadata.createdAt)
+    ? { createdAt: new Date(memory.createdAtMs).toISOString() }
+    : {}),
+  ...(includes.has(SearchMetadata.updatedAt)
+    ? { updatedAt: new Date(memory.updatedAtMs).toISOString() }
+    : {}),
+});
 
 const selector = (options: ScopeOptions, context: MemoryContext): MemorySelector => ({
   projectId: context.projectId,
@@ -195,9 +250,17 @@ const registerSearch = (program: Command, context: CommandContext): void => {
   const command = addScopeOptions(
     program.command("search [query]").description("Search active memories"),
     "all",
-  ).option("--limit <count>", "Maximum memories to return", "10");
+  )
+    .option("--limit <count>", "Maximum memories to return", "10")
+    .option(
+      "--include <field>",
+      "Include source, createdAt, or updatedAt metadata (repeatable)",
+      collectSearchInclude,
+      [],
+    );
   command.action(async (query: string | undefined): Promise<void> => {
     const options = command.opts<SearchOptions>();
+    const includes = searchIncludes(options.include);
     const text = await resolveTextInput({
       ...context.input,
       ...(query === undefined ? {} : { positional: query }),
@@ -205,14 +268,14 @@ const registerSearch = (program: Command, context: CommandContext): void => {
     const memories = await withRepository(
       context,
       options.project,
-      (repository: MemoryRepository, memoryContext: MemoryContext): readonly MemoryDto[] =>
+      (repository: MemoryRepository, memoryContext: MemoryContext): readonly SearchProjection[] =>
         repository
           .search({
             limit: searchLimit(options.limit),
             query: text,
             selector: selector(options, memoryContext),
           })
-          .map((memory: MemoryRecord): MemoryDto => currentDto(context, memory)),
+          .map((memory: MemoryRecord): SearchProjection => toSearchProjection(memory, includes)),
     );
     context.respond({ memories });
   });

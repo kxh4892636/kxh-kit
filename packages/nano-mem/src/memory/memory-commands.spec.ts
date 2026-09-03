@@ -15,6 +15,8 @@ interface CliResult {
   stdout: string;
 }
 
+type SearchMemory = Record<string, unknown> & { id: string };
+
 let temporaryRoot = "";
 let runtime: RuntimeDependencies;
 let currentTime = 0;
@@ -78,6 +80,9 @@ const execute = async (argumentsList: string[], input?: CliInput): Promise<CliRe
 const memoryId = (result: CliResult): string =>
   (result.output as { data: { memory: { id: string } } }).data.memory.id;
 
+const searchMemories = (result: CliResult): SearchMemory[] =>
+  (result.output as { data: { memories: SearchMemory[] } }).data.memories;
+
 describe("memory CLI storage and input", (): void => {
   test("stores project and global memories without crossing project boundaries", async (): Promise<void> => {
     await execute(["add", "current memory"]);
@@ -130,7 +135,20 @@ describe("memory CLI maintenance", (): void => {
     const retrieved = await execute(["get", id]);
     expect(sourceUpdated.output).toMatchObject({ data: { content: "before", source: "second" } });
     expect(contentUpdated.output).toMatchObject({ data: { content: "after", id } });
-    expect(retrieved.output).toMatchObject({ data: { content: "after", id, source: "second" } });
+    expect(retrieved.output).toEqual({
+      data: {
+        content: "after",
+        createdAt: "2026-09-02T00:00:00.000Z",
+        forgottenReason: null,
+        id,
+        project: "current-project",
+        scope: "project",
+        source: "second",
+        status: "active",
+        updatedAt: "2026-09-02T00:00:00.000Z",
+      },
+      ok: true,
+    });
   });
 
   test("requires force for permanent deletion", async (): Promise<void> => {
@@ -177,6 +195,121 @@ describe("memory CLI maintenance", (): void => {
 });
 
 describe("memory CLI search", (): void => {
+  test("returns only the selector-ready default projection", async (): Promise<void> => {
+    const project = await execute([
+      "add",
+      "project projection target",
+      "--source",
+      "project-source",
+    ]);
+    const global = await execute(["add", "global projection target", "--scope", "global"]);
+
+    const result = await execute(["search", "projection target"]);
+    const memories = searchMemories(result);
+
+    expect(result.code).toBe(0);
+    expect(memories).toHaveLength(2);
+    expect(
+      memories.find((memory: SearchMemory): boolean => memory.id === memoryId(project)),
+    ).toEqual({
+      id: memoryId(project),
+      content: "project projection target",
+      scope: "project",
+      project: "current-project",
+    });
+    expect(
+      memories.find((memory: SearchMemory): boolean => memory.id === memoryId(global)),
+    ).toEqual({
+      id: memoryId(global),
+      content: "global projection target",
+      scope: "global",
+    });
+  });
+
+  test("includes requested metadata in a canonical projection", async (): Promise<void> => {
+    const project = await execute(["add", "project metadata target", "--source", "project-source"]);
+    const global = await execute(["add", "global metadata target", "--scope", "global"]);
+
+    const sourceOnly = await execute(["search", "metadata target", "--include", "source"]);
+    const combined = await execute([
+      "search",
+      "metadata target",
+      "--include",
+      "updatedAt",
+      "--include",
+      "source",
+      "--include",
+      "createdAt",
+      "--include",
+      "source",
+    ]);
+    const sourceOnlyProject = searchMemories(sourceOnly).find(
+      (memory: SearchMemory): boolean => memory.id === memoryId(project),
+    );
+    const combinedProject = searchMemories(combined).find(
+      (memory: SearchMemory): boolean => memory.id === memoryId(project),
+    );
+    const combinedGlobal = searchMemories(combined).find(
+      (memory: SearchMemory): boolean => memory.id === memoryId(global),
+    );
+
+    expect(sourceOnlyProject).toEqual({
+      id: memoryId(project),
+      content: "project metadata target",
+      scope: "project",
+      project: "current-project",
+      source: "project-source",
+    });
+    expect(combinedProject).toEqual({
+      id: memoryId(project),
+      content: "project metadata target",
+      scope: "project",
+      project: "current-project",
+      source: "project-source",
+      createdAt: "2026-09-02T00:00:00.000Z",
+      updatedAt: "2026-09-02T00:00:00.000Z",
+    });
+    expect(Object.keys(combinedProject ?? {})).toEqual([
+      "id",
+      "content",
+      "scope",
+      "project",
+      "source",
+      "createdAt",
+      "updatedAt",
+    ]);
+    expect(combinedGlobal).toEqual({
+      id: memoryId(global),
+      content: "global metadata target",
+      scope: "global",
+      source: null,
+      createdAt: "2026-09-02T00:00:00.000Z",
+      updatedAt: "2026-09-02T00:00:00.000Z",
+    });
+    expect(Object.keys(combinedGlobal ?? {})).toEqual([
+      "id",
+      "content",
+      "scope",
+      "source",
+      "createdAt",
+      "updatedAt",
+    ]);
+  });
+
+  test.each(["unknown", "Source", "source,createdAt"])(
+    "rejects invalid include field %s as usage",
+    async (field: string): Promise<void> => {
+      const result = await execute(["search", "target", "--include", field]);
+
+      expect(result).toMatchObject({
+        code: 2,
+        error: { error: { code: "INVALID_INCLUDE" }, ok: false },
+        output: undefined,
+        stdout: "",
+      });
+    },
+  );
+
   test("searches current project and global memories by default", async (): Promise<void> => {
     await execute(["add", "当前项目使用缓存策略"]);
     await execute(["add", "global cache policy", "--scope", "global"]);
