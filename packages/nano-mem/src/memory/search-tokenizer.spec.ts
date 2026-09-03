@@ -2,6 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
   SEARCH_TOKENIZER_VERSION,
   toFtsMatchQuery,
+  toSearchQueryPlan,
   tokenizeSearchText,
 } from "./search-tokenizer.js";
 
@@ -47,5 +48,28 @@ describe("search tokenizer", (): void => {
       '"or" AND "title" AND "x" AND "drop" AND "table"',
     );
     expect(toFtsMatchQuery("---:::()")).toBeUndefined();
+  });
+
+  test("plans strict word groups with a flat relevance query", (): void => {
+    expect(toSearchQueryPlan("Pi\u2003subagent Ｐｉ getUserProfile")).toEqual({
+      flatMatchQuery: '"pi" OR "subagent" OR "getuserprofile" OR "get" OR "user" OR "profile"',
+      groupMatchQueries: [
+        '"pi"',
+        '"subagent"',
+        '"getuserprofile" AND "get" AND "user" AND "profile"',
+      ],
+    });
+  });
+
+  test("keeps CJK ngrams inside one group and discards empty groups", (): void => {
+    expect(toSearchQueryPlan("缓存 --- 缓存")).toEqual({
+      flatMatchQuery: '"缓" OR "存" OR "缓存"',
+      groupMatchQueries: ['"缓" AND "存" AND "缓存"'],
+    });
+    expect(toSearchQueryPlan("foo¨bar")).toEqual({
+      flatMatchQuery: '"foo" OR "bar"',
+      groupMatchQueries: ['"foo" AND "bar"'],
+    });
+    expect(toSearchQueryPlan(" ---:::() \t ")).toBeUndefined();
   });
 });

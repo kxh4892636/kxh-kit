@@ -289,7 +289,10 @@ describe("memory repository full-text search", (): void => {
       query: 'title OR "memory" -drop:(); DROP TABLE memories;',
       selector: { projectId: "one", scope: "all" },
     });
-    expect(literalSyntax).toEqual([]);
+    expect(literalSyntax.map((memory: MemoryRecord): string => memory.id)).toEqual(
+      expect.arrayContaining([current.id, global.id]),
+    );
+    expect(literalSyntax).toHaveLength(2);
     const results = repository.search({
       limit: 10,
       query: "title memory",
@@ -319,6 +322,95 @@ describe("memory repository full-text search", (): void => {
       selector: { projectId: "one", scope: "all" },
     });
     expect(results[0]?.id).toBe(exact.id);
+  });
+
+  test("fills results from complete word-match tiers before lower tiers", (): void => {
+    const fixture = createFixture();
+    const memories = [
+      "pi subagent domain glossary adr",
+      "pi subagent domain glossary",
+      "pi subagent domain",
+      "pi subagent",
+      "pi",
+    ].map(
+      (content: string): MemoryRecord =>
+        fixture.repository.add({ content, projectId: "one", scope: MemoryScope.project }).memory,
+    );
+    const results = fixture.repository.search({
+      limit: 4,
+      query: "Pi subagent domain glossary ADR",
+      selector: { projectId: "one", scope: "all" },
+    });
+    expect(results.map((memory: MemoryRecord): string => memory.id)).toEqual(
+      memories.slice(0, 4).map((memory: MemoryRecord): string => memory.id),
+    );
+    expect(
+      fixture.repository.get(memories[4]!.id, { projectId: "one", scope: "all" }),
+    ).toMatchObject({ retrievalCount: 0 });
+  });
+  test("deduplicates groups and rejects partial CJK group matches", (): void => {
+    const fixture = createFixture();
+    const both = fixture.repository.add({
+      content: "pi subagent",
+      projectId: "one",
+      scope: MemoryScope.project,
+    }).memory;
+    const piOnly = fixture.repository.add({
+      content: "pi",
+      projectId: "one",
+      scope: MemoryScope.project,
+    }).memory;
+    const cjk = fixture.repository.add({
+      content: "缓存命中",
+      projectId: "one",
+      scope: MemoryScope.project,
+    }).memory;
+    fixture.repository.add({ content: "缓慢", projectId: "one", scope: MemoryScope.project });
+    expect(
+      fixture.repository
+        .search({
+          limit: 2,
+          query: "pi pi subagent",
+          selector: { projectId: "one", scope: "all" },
+        })
+        .map((memory: MemoryRecord): string => memory.id),
+    ).toEqual([both.id, piOnly.id]);
+    expect(
+      fixture.repository
+        .search({
+          limit: 10,
+          query: "缓存 absent",
+          selector: { projectId: "one", scope: "all" },
+        })
+        .map((memory: MemoryRecord): string => memory.id),
+    ).toEqual([cjk.id]);
+  });
+
+  test("ranks the complete single-word tier without a fifty-candidate pre-limit", (): void => {
+    const fixture = createFixture();
+    const candidates = Array.from(
+      { length: 51 },
+      (_value: unknown, index: number): MemoryRecord =>
+        fixture.repository.add({
+          content: `needle candidate ${String(index + 1).padStart(3, "0")}`,
+          projectId: "one",
+          scope: MemoryScope.project,
+        }).memory,
+    );
+    const lastId = candidates
+      .map((memory: MemoryRecord): string => memory.id)
+      .sort()
+      .at(-1)!;
+    fixture.database
+      .prepare("UPDATE memories SET use_count = 100, retrieval_count = 100 WHERE id = ?")
+      .run(lastId);
+    expect(
+      fixture.repository.search({
+        limit: 1,
+        query: "needle",
+        selector: { projectId: "one", scope: "all" },
+      })[0]?.id,
+    ).toBe(lastId);
   });
 });
 

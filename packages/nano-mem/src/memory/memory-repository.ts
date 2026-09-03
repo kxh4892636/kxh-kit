@@ -9,7 +9,7 @@ import {
   type RetentionState,
 } from "./retention-state.js";
 import { runImmediateTransaction } from "./memory-transaction.js";
-import { toFtsMatchQuery, toSearchTerms } from "./search-tokenizer.js";
+import { toSearchQueryPlan, toSearchTerms } from "./search-tokenizer.js";
 
 export const MemoryScope = {
   global: "global",
@@ -91,6 +91,7 @@ interface MemoryRow {
 
 interface SearchCandidateRow extends MemoryRow {
   lexical_rank: number;
+  matched_group_count: number;
 }
 
 interface RepositoryDependencies {
@@ -465,6 +466,65 @@ const rankCandidates = (
   });
 };
 
+const tieredSearchSql = (predicateSql: string): string => `
+  WITH query_groups(match_query) AS (SELECT value FROM json_each(?)),
+  group_matches(rowid) AS (
+    SELECT memories_fts.rowid FROM query_groups JOIN memories_fts
+    WHERE memories_fts MATCH query_groups.match_query
+  ),
+  match_counts AS (
+    SELECT rowid, COUNT(*) AS matched_group_count
+    FROM group_matches GROUP BY rowid
+  ),
+  eligible_counts AS (
+    SELECT counts.rowid, counts.matched_group_count
+    FROM match_counts AS counts JOIN memories AS eligible ON eligible.rowid = counts.rowid
+    WHERE eligible.explicit_forgotten_at_ms IS NULL
+      AND eligible.natural_forget_at_ms > ? AND ${predicateSql}
+  ),
+  layers AS (
+    SELECT matched_group_count,
+      SUM(COUNT(*)) OVER (ORDER BY matched_group_count DESC) AS cumulative_count
+    FROM eligible_counts GROUP BY matched_group_count
+  ),
+  boundary AS (
+    SELECT COALESCE(
+      (SELECT matched_group_count FROM layers WHERE cumulative_count >= ?
+       ORDER BY matched_group_count DESC LIMIT 1),
+      (SELECT MIN(matched_group_count) FROM layers)
+    ) AS matched_group_count
+  )
+  SELECT ${qualifiedSelectedColumns},
+    bm25(memories_fts, 1.0, 3.0) AS lexical_rank,
+    counts.matched_group_count
+  FROM memories_fts
+  JOIN memories AS m ON m.rowid = memories_fts.rowid
+  JOIN eligible_counts AS counts ON counts.rowid = m.rowid
+  CROSS JOIN boundary
+  WHERE memories_fts MATCH ? AND counts.matched_group_count >= boundary.matched_group_count
+  ORDER BY counts.matched_group_count DESC, lexical_rank ASC, m.id ASC
+`;
+
+const rankCandidateTiers = (
+  rows: readonly SearchCandidateRow[],
+  nowMs: number,
+): readonly SearchCandidateRow[] => {
+  const tiers = new Map<number, SearchCandidateRow[]>();
+  for (const row of rows) {
+    const tier = tiers.get(row.matched_group_count) ?? [];
+    tier.push(row);
+    tiers.set(row.matched_group_count, tier);
+  }
+  return [...tiers.entries()]
+    .sort(
+      ([left]: [number, SearchCandidateRow[]], [right]: [number, SearchCandidateRow[]]): number =>
+        right - left,
+    )
+    .flatMap(([, tier]: [number, SearchCandidateRow[]]): readonly SearchCandidateRow[] =>
+      rankCandidates(tier, nowMs),
+    );
+};
+
 const searchMemories = (
   runtime: RepositoryRuntime,
   input: SearchMemoryInput,
@@ -476,21 +536,21 @@ const searchMemories = (
       CliErrorKind.usage,
     );
   }
-  const matchQuery = toFtsMatchQuery(input.query);
-  if (matchQuery === undefined) return [];
-  const predicate = scopePredicate(input.selector, "m.");
+  const queryPlan = toSearchQueryPlan(input.query);
+  if (queryPlan === undefined) return [];
+  const predicate = scopePredicate(input.selector, "eligible.");
   return runImmediateTransaction(runtime.database, (): readonly MemoryRecord[] => {
     const nowMs = runtime.now().getTime();
     const rows = runtime.database
-      .prepare(
-        `SELECT ${qualifiedSelectedColumns}, bm25(memories_fts, 1.0, 3.0) AS lexical_rank
-         FROM memories_fts JOIN memories AS m ON m.rowid = memories_fts.rowid
-         WHERE memories_fts MATCH ? AND m.explicit_forgotten_at_ms IS NULL
-           AND m.natural_forget_at_ms > ? AND ${predicate.sql}
-         ORDER BY lexical_rank ASC, m.updated_at_ms DESC, m.id ASC LIMIT 50`,
-      )
-      .all(matchQuery, nowMs, ...predicate.parameters) as unknown as SearchCandidateRow[];
-    const returned = rankCandidates(rows, nowMs).slice(0, input.limit);
+      .prepare(tieredSearchSql(predicate.sql))
+      .all(
+        JSON.stringify(queryPlan.groupMatchQueries),
+        nowMs,
+        ...predicate.parameters,
+        input.limit,
+        queryPlan.flatMatchQuery,
+      ) as unknown as SearchCandidateRow[];
+    const returned = rankCandidateTiers(rows, nowMs).slice(0, input.limit);
     const increment = runtime.database.prepare(
       "UPDATE memories SET retrieval_count = retrieval_count + 1 WHERE id = ?",
     );

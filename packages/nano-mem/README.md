@@ -24,6 +24,8 @@ nnm delete <memory-id> --force
 
 Search results default to the selector-ready fields `id`, `content`, and `scope`, plus `project` for project memories. Repeat `--include <field>` to add `source`, `createdAt`, or `updatedAt`; unsupported and comma-separated values are rejected. Use `--scope global` for global memory or `--project <name>` for an explicit project. Without either option, the Git root directory name is the project scope. `NANO_MEM_HOME` overrides the user data directory.
 
+Search splits a query on Unicode whitespace. Every derived token inside one word must match, while results are filled from memories matching the most complete words down to fewer words until `--limit` is reached. For example, `nnm search "Pi subagent domain glossary ADR"` can return a memory containing only `Pi` and `subagent` when higher-coverage results do not fill the limit.
+
 The package also contains one managed agent skill:
 
 ```powershell

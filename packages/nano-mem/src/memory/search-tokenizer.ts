@@ -29,9 +29,37 @@ export const tokenizeSearchText = (text: string): readonly string[] => {
 
 export const toSearchTerms = (text: string): string => tokenizeSearchText(text).join(" ");
 
+export interface SearchQueryPlan {
+  flatMatchQuery: string;
+  groupMatchQueries: readonly string[];
+}
+
 const quoteMatchTerm = (term: string): string => `"${term.replaceAll('"', '""')}"`;
+
+const toMatchQuery = (tokens: readonly string[], operator: "AND" | "OR"): string =>
+  tokens.map(quoteMatchTerm).join(` ${operator} `);
 
 export const toFtsMatchQuery = (text: string): string | undefined => {
   const tokens = tokenizeSearchText(text);
-  return tokens.length === 0 ? undefined : tokens.map(quoteMatchTerm).join(" AND ");
+  return tokens.length === 0 ? undefined : toMatchQuery(tokens, "AND");
+};
+
+export const toSearchQueryPlan = (text: string): SearchQueryPlan | undefined => {
+  const words = text.split(/\s+/u);
+  const groupTokens = new Map<string, readonly string[]>();
+  for (const word of words) {
+    const tokens = tokenizeSearchText(word);
+    if (tokens.length === 0) continue;
+    const key = [...tokens].sort().join("\u0000");
+    if (!groupTokens.has(key)) groupTokens.set(key, tokens);
+  }
+  if (groupTokens.size === 0) return undefined;
+  const groups = [...groupTokens.values()];
+  const flatTokens = [...new Set(groups.flat())];
+  return {
+    flatMatchQuery: toMatchQuery(flatTokens, "OR"),
+    groupMatchQueries: groups.map((tokens: readonly string[]): string =>
+      toMatchQuery(tokens, "AND"),
+    ),
+  };
 };

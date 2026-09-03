@@ -335,6 +335,22 @@ describe("memory CLI search", (): void => {
     expect(JSON.stringify(chinese.output)).toContain("当前项目使用缓存策略");
   });
 
+  test("returns lower complete-word tiers for a multi-word query", async (): Promise<void> => {
+    await execute(["add", "Pi subagent domain glossary ADR"]);
+    await execute(["add", "Pi subagent"]);
+    await execute(["add", "unrelated memory"]);
+    const result = await execute(["search", "Pi subagent domain glossary ADR", "--limit", "5"]);
+    expect(result).toMatchObject({
+      code: 0,
+      output: {
+        data: {
+          memories: [{ content: "Pi subagent domain glossary ADR" }, { content: "Pi subagent" }],
+        },
+        ok: true,
+      },
+    });
+  });
+
   test("accepts literal punctuation and validates search limits", async (): Promise<void> => {
     await execute(["add", "title operator memory"]);
     const punctuation = await execute(["search", 'title OR "memory" -drop:();']);
