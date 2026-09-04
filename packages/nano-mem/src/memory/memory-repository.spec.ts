@@ -336,6 +336,9 @@ describe("memory repository full-text search", (): void => {
       (content: string): MemoryRecord =>
         fixture.repository.add({ content, projectId: "one", scope: MemoryScope.project }).memory,
     );
+    for (let count = 0; count < 100; count += 1) {
+      fixture.repository.use(memories[4]!.id, { projectId: "one", scope: MemoryScope.project });
+    }
     const results = fixture.repository.search({
       limit: 4,
       query: "Pi subagent domain glossary ADR",
@@ -489,48 +492,39 @@ describe("memory repository retrieval accounting", (): void => {
 });
 
 describe("memory repository use and ranking", (): void => {
-  test("repeated Good uses increase stability, forget time, and rank", (): void => {
-    const fixture = createFixture();
-    const lessUsed = fixture.repository.add({
-      content: "shared ranking alpha",
-      projectId: "one",
-      scope: MemoryScope.project,
-    }).memory;
-    const moreUsed = fixture.repository.add({
-      content: "shared ranking beta",
-      projectId: "one",
-      scope: MemoryScope.project,
-    }).memory;
-    fixture.advance(10 * 86_400_000);
-    fixture.repository.use(lessUsed.id, { projectId: "one", scope: MemoryScope.project });
-    fixture.repository.use(moreUsed.id, { projectId: "one", scope: MemoryScope.project });
-    fixture.advance(10 * 86_400_000);
-    fixture.repository.use(moreUsed.id, { projectId: "one", scope: MemoryScope.project });
-    const lessUsedAfter = fixture.repository.get(lessUsed.id, { projectId: "one", scope: "all" });
-    const moreUsedAfter = fixture.repository.get(moreUsed.id, { projectId: "one", scope: "all" });
-    const ranked = fixture.repository.search({
-      limit: 2,
-      query: "shared ranking",
-      selector: { projectId: "one", scope: "all" },
-    });
-    expect(moreUsedAfter.stability).toBeGreaterThanOrEqual(lessUsedAfter.stability);
-    expect(moreUsedAfter.naturalForgetAtMs).toBeGreaterThan(lessUsedAfter.naturalForgetAtMs);
-    expect(ranked[0]?.id).toBe(moreUsed.id);
-  });
+  test.each([
+    "shared ranking beta",
+    "shared ranking beta extra unrelated words around the candidate",
+  ])(
+    "actual use can promote a same-tier candidate with additive scoring: %s",
+    (content: string): void => {
+      const { repository } = createFixture();
+      const selector = { projectId: "one", scope: MemoryScope.project };
+      const first = repository.add({ ...selector, content: "shared ranking alpha" }).memory;
+      const used = repository.add({ ...selector, content }).memory;
+      const search = { limit: 2, query: "shared ranking", selector };
+      expect(repository.search(search).map((memory: MemoryRecord): string => memory.id)).toEqual([
+        first.id,
+        used.id,
+      ]);
+      for (let count = 0; count < 100; count += 1) repository.use(used.id, selector);
+      expect(repository.search(search).map((memory: MemoryRecord): string => memory.id)).toEqual([
+        used.id,
+        first.id,
+      ]);
+    },
+  );
 
-  test("search heats results without changing FSRS lifecycle state", (): void => {
+  test("search counts retrievals without changing rank or FSRS lifecycle state", (): void => {
     const fixture = createFixture();
-    const added = fixture.repository.add({
-      content: "retrieval-only signal",
-      projectId: "one",
-      scope: MemoryScope.project,
+    const selector = { projectId: "one", scope: MemoryScope.project };
+    const first = fixture.repository.add({
+      ...selector,
+      content: "retrieval-only baseline",
     }).memory;
+    const added = fixture.repository.add({ ...selector, content: "retrieval-only signal" }).memory;
     fixture.advance(5 * 86_400_000);
-    fixture.repository.search({
-      limit: 10,
-      query: "retrieval signal",
-      selector: { projectId: "one", scope: "all" },
-    });
+    fixture.repository.search({ limit: 10, query: "signal", selector });
     const retrieved = fixture.repository.get(added.id, { projectId: "one", scope: "all" });
     expect(retrieved).toMatchObject({
       lastUsedAtMs: added.lastUsedAtMs,
@@ -539,6 +533,11 @@ describe("memory repository use and ranking", (): void => {
       stability: added.stability,
       useCount: 0,
     });
+    expect(
+      fixture.repository
+        .search({ limit: 2, query: "retrieval-only", selector: { projectId: "one", scope: "all" } })
+        .map((memory: MemoryRecord): string => memory.id),
+    ).toEqual([first.id, added.id]);
   });
 });
 

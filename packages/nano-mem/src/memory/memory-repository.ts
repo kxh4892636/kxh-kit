@@ -4,7 +4,8 @@ import { CliError, CliErrorKind } from "../cli-error.js";
 import {
   applyGoodUse,
   initialRetentionState,
-  lifecycleBoost,
+  LIFECYCLE_WEIGHT,
+  lifecycleScore,
   retentionStatus,
   type RetentionState,
 } from "./retention-state.js";
@@ -439,14 +440,8 @@ const useMemory = (
     return toRecord(requireById(runtime.database, id, selector));
   });
 
-const normalizedLexicalScore = (
-  rank: number,
-  leastRelevant: number,
-  mostRelevant: number,
-): number => {
-  if (mostRelevant === leastRelevant) return 1;
-  return (-rank - leastRelevant) / (mostRelevant - leastRelevant);
-};
+const normalizedLexicalScore = (rank: number, mostRelevant: number): number =>
+  mostRelevant === 0 ? 1 : -rank / mostRelevant;
 
 const rankCandidates = (
   rows: readonly SearchCandidateRow[],
@@ -454,13 +449,13 @@ const rankCandidates = (
 ): readonly SearchCandidateRow[] => {
   if (rows.length < 2) return rows;
   const relevances = rows.map((row: SearchCandidateRow): number => -row.lexical_rank);
-  const leastRelevant = Math.min(...relevances);
   const mostRelevant = Math.max(...relevances);
   return [...rows].sort((left: SearchCandidateRow, right: SearchCandidateRow): number => {
-    const leftLexical = normalizedLexicalScore(left.lexical_rank, leastRelevant, mostRelevant);
-    const rightLexical = normalizedLexicalScore(right.lexical_rank, leastRelevant, mostRelevant);
-    const leftScore = leftLexical * (1 + lifecycleBoost(toRecord(left), nowMs));
-    const rightScore = rightLexical * (1 + lifecycleBoost(toRecord(right), nowMs));
+    const leftLexical = normalizedLexicalScore(left.lexical_rank, mostRelevant);
+    const rightLexical = normalizedLexicalScore(right.lexical_rank, mostRelevant);
+    const leftScore = leftLexical * (1 - LIFECYCLE_WEIGHT) + lifecycleScore(toRecord(left), nowMs);
+    const rightScore =
+      rightLexical * (1 - LIFECYCLE_WEIGHT) + lifecycleScore(toRecord(right), nowMs);
     return (
       rightScore - leftScore ||
       left.lexical_rank - right.lexical_rank ||

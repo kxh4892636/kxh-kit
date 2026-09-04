@@ -3,7 +3,7 @@ import {
   applyGoodUse,
   FSRS6_DEFAULT_WEIGHTS,
   initialRetentionState,
-  lifecycleBoost,
+  lifecycleScore,
   retentionStatus,
   retrievability,
 } from "./retention-state.js";
@@ -41,11 +41,27 @@ describe("FSRS retention policy", (): void => {
     expect(later.useCount).toBe(2);
   });
 
-  test("caps the golden-ratio lifecycle boost at 38.2 percent", (): void => {
+  test("caps the lifecycle contribution at 38.2 percent", (): void => {
     const state = initialRetentionState(0);
-    const maximum = { ...state, retrievalCount: 1_000, useCount: 1_000 };
-    expect(lifecycleBoost(maximum, 0)).toBeCloseTo(0.382, 10);
-    expect(lifecycleBoost(maximum, 10 * day)).toBeLessThan(0.382);
+    const maximum = { ...state, useCount: 100 };
+    expect(lifecycleScore(maximum, 0)).toBeCloseTo(0.382, 10);
+    expect(lifecycleScore({ ...maximum, useCount: 1_000 }, 0)).toBeCloseTo(0.382, 10);
+    expect(lifecycleScore(maximum, 10 * day)).toBeLessThan(0.382);
+  });
+
+  test("splits lifecycle weight 61.8 percent to retrievability and 38.2 percent to use", (): void => {
+    const state = initialRetentionState(0);
+    expect(lifecycleScore(state, 0)).toBeCloseTo(0.236076, 10);
+    expect(lifecycleScore(state, state.stability * day)).toBeCloseTo(0.2124684, 10);
+    expect(lifecycleScore({ ...state, useCount: 100 }, state.stability * day)).toBeCloseTo(
+      0.3583924,
+      10,
+    );
+  });
+
+  test("retrieval counts do not affect lifecycle score", (): void => {
+    const state = initialRetentionState(0);
+    expect(lifecycleScore({ ...state, retrievalCount: 1_000 }, 0)).toBe(lifecycleScore(state, 0));
   });
 
   test("keeps explicit forgetting authoritative", (): void => {

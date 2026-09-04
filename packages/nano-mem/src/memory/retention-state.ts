@@ -24,10 +24,9 @@ const forgetThreshold = 0.5;
 const millisecondsPerDay = 86_400_000;
 const stabilityMinimum = 0.001;
 const stabilityMaximum = 36_500;
-const goldenRatioBoostMaximum = 0.382;
-const retrievabilityBoostMaximum = goldenRatioBoostMaximum * 0.4;
-const useCountBoostMaximum = goldenRatioBoostMaximum * 0.4;
-const retrievalCountBoostMaximum = goldenRatioBoostMaximum * 0.2;
+export const LIFECYCLE_WEIGHT = 0.382;
+const retrievabilityWeight = 0.618;
+const useCountWeight = 0.382;
 
 const roundToEight = (value: number): number => Math.round(value * 1e8) / 1e8;
 const clamp = (value: number, minimum: number, maximum: number): number =>
@@ -122,10 +121,10 @@ export const applyGoodUse = (state: RetentionState, nowMs: number): RetentionSta
 const cappedLogCount = (count: number): number =>
   Math.min(Math.log1p(Math.max(0, count)) / Math.log1p(100), 1);
 
-export const lifecycleBoost = (state: RetentionState, nowMs: number): number =>
-  retrievability(state, nowMs) * retrievabilityBoostMaximum +
-  cappedLogCount(state.useCount) * useCountBoostMaximum +
-  cappedLogCount(state.retrievalCount) * retrievalCountBoostMaximum;
+export const lifecycleScore = (state: RetentionState, nowMs: number): number =>
+  LIFECYCLE_WEIGHT *
+  (retrievability(state, nowMs) * retrievabilityWeight +
+    cappedLogCount(state.useCount) * useCountWeight);
 
 export const initialRetentionState = (nowMs: number): RetentionState => ({
   difficulty: INITIAL_DIFFICULTY,
