@@ -417,7 +417,7 @@ describe("memory repository full-text search", (): void => {
   });
 });
 
-describe("memory repository retrieval accounting", (): void => {
+describe("memory repository read-only search", (): void => {
   test("enforces the public search limit invariant", (): void => {
     const { repository } = createFixture();
     expect((): void => {
@@ -429,7 +429,7 @@ describe("memory repository retrieval accounting", (): void => {
     }).toThrowError(expect.objectContaining({ code: "INVALID_LIMIT" }));
   });
 
-  test("increments only returned results and leaves empty searches unchanged", (): void => {
+  test("repeated, limited, and empty searches leave all stored memories unchanged", (): void => {
     const fixture = createFixture();
     for (const suffix of ["a", "b", "c"]) {
       fixture.repository.add({
@@ -438,21 +438,14 @@ describe("memory repository retrieval accounting", (): void => {
         scope: MemoryScope.project,
       });
     }
-    expect(
-      fixture.repository.search({
-        limit: 2,
-        query: "bounded candidate",
-        selector: { projectId: "one", scope: "all" },
-      }),
-    ).toHaveLength(2);
-    const counts = fixture.database
-      .prepare("SELECT retrieval_count FROM memories ORDER BY id")
-      .all() as Array<{ retrieval_count: number }>;
-    expect(
-      counts
-        .map((row: { retrieval_count: number }): number => row.retrieval_count)
-        .sort((left: number, right: number): number => left - right),
-    ).toEqual([0, 1, 1]);
+    fixture.database.exec("UPDATE memories SET retrieval_count = 7");
+    const selector = { projectId: "one", scope: MemoryScope.project };
+    const before = fixture.repository.list(selector);
+    const search = { limit: 2, query: "bounded candidate", selector };
+    const first = fixture.repository.search(search);
+    expect(first).toHaveLength(2);
+    expect(fixture.repository.search(search)).toEqual(first);
+    expect(first.every((memory: MemoryRecord): boolean => memory.retrievalCount === 7)).toBe(true);
     expect(
       fixture.repository.search({
         limit: 10,
@@ -460,34 +453,17 @@ describe("memory repository retrieval accounting", (): void => {
         selector: { projectId: "one", scope: "all" },
       }),
     ).toEqual([]);
-    expect(fixture.repository.list({ projectId: "one", scope: "all" })).toHaveLength(3);
+    expect(fixture.repository.list(selector)).toEqual(before);
   });
 
-  test("rolls back all retrieval counts when incrementing a result fails", (): void => {
+  test("search works on a query-only database connection", (): void => {
     const fixture = createFixture();
-    fixture.repository.add({
-      content: "atomic result one",
-      projectId: "one",
-      scope: MemoryScope.project,
-    });
-    fixture.repository.add({
-      content: "atomic result two",
-      projectId: "one",
-      scope: MemoryScope.project,
-    });
-    fixture.database.exec(
-      "CREATE TRIGGER reject_retrieval BEFORE UPDATE OF retrieval_count ON memories BEGIN SELECT RAISE(ABORT, 'rejected'); END;",
-    );
-    expect((): void => {
-      fixture.repository.search({
-        limit: 2,
-        query: "atomic result",
-        selector: { projectId: "one", scope: "all" },
-      });
-    }).toThrow();
-    expect(
-      fixture.database.prepare("SELECT sum(retrieval_count) AS total FROM memories").get(),
-    ).toEqual({ total: 0 });
+    const selector = { projectId: "one", scope: MemoryScope.project };
+    const added = fixture.repository.add({ ...selector, content: "read-only result" }).memory;
+    fixture.database.exec("PRAGMA query_only = ON");
+    expect(fixture.repository.search({ limit: 2, query: "read-only", selector })).toEqual([added]);
+    expect(fixture.repository.search({ limit: 2, query: "missing", selector })).toEqual([]);
+    expect(fixture.repository.search({ limit: 2, query: "---", selector })).toEqual([]);
   });
 });
 
@@ -515,7 +491,7 @@ describe("memory repository use and ranking", (): void => {
     },
   );
 
-  test("search counts retrievals without changing rank or FSRS lifecycle state", (): void => {
+  test("search leaves rank and FSRS lifecycle state unchanged", (): void => {
     const fixture = createFixture();
     const selector = { projectId: "one", scope: MemoryScope.project };
     const first = fixture.repository.add({
@@ -529,7 +505,7 @@ describe("memory repository use and ranking", (): void => {
     expect(retrieved).toMatchObject({
       lastUsedAtMs: added.lastUsedAtMs,
       naturalForgetAtMs: added.naturalForgetAtMs,
-      retrievalCount: 1,
+      retrievalCount: 0,
       stability: added.stability,
       useCount: 0,
     });

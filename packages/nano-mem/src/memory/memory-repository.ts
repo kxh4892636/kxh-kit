@@ -536,30 +536,20 @@ const searchMemories = (
   const queryPlan = toSearchQueryPlan(input.query);
   if (queryPlan === undefined) return [];
   const predicate = scopePredicate(input.selector, "eligible.");
-  return runImmediateTransaction(runtime.database, (): readonly MemoryRecord[] => {
-    const nowMs = runtime.now().getTime();
-    const rows = runtime.database
-      .prepare(tieredSearchSql(predicate.sql))
-      .all(
-        JSON.stringify(queryPlan.groupMatchQueries),
-        nowMs,
-        ...predicate.parameters,
-        input.limit,
-        queryPlan.flatMatchQuery,
-      ) as unknown as SearchCandidateRow[];
-    const returned = rankCandidateTiers(rows, nowMs).slice(0, input.limit);
-    const increment = runtime.database.prepare(
-      "UPDATE memories SET retrieval_count = retrieval_count + 1 WHERE id = ?",
-    );
-    for (const row of returned) increment.run(row.id);
-    return returned.map(
-      (row: MemoryRow): MemoryRecord =>
-        toRecord({
-          ...row,
-          retrieval_count: row.retrieval_count + 1,
-        }),
-    );
-  });
+  const nowMs = runtime.now().getTime();
+  // 候选由单条 SELECT 在一致快照中读取，重排仅使用内存数据，无需申请写事务。
+  const rows = runtime.database
+    .prepare(tieredSearchSql(predicate.sql))
+    .all(
+      JSON.stringify(queryPlan.groupMatchQueries),
+      nowMs,
+      ...predicate.parameters,
+      input.limit,
+      queryPlan.flatMatchQuery,
+    ) as unknown as SearchCandidateRow[];
+  return rankCandidateTiers(rows, nowMs)
+    .slice(0, input.limit)
+    .map((row: MemoryRow): MemoryRecord => toRecord(row));
 };
 
 export const createMemoryRepository = (dependencies: RepositoryDependencies): MemoryRepository => {

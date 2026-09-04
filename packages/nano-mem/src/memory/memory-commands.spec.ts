@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import type { ExecFileException } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { runCli, type CliInput } from "../cli.js";
 import { nodeRuntime, ProcessExecutionError, type RuntimeDependencies } from "../runtime.js";
@@ -84,6 +85,24 @@ const searchMemories = (result: CliResult): SearchMemory[] =>
   (result.output as { data: { memories: SearchMemory[] } }).data.memories;
 
 describe("memory CLI storage and input", (): void => {
+  test("search reads committed memories while another connection holds a write transaction", async (): Promise<void> => {
+    const added = await execute(["add", "committed search result"]);
+    const id = memoryId(added);
+    const writer = new DatabaseSync(join(temporaryRoot, "data", "nano-mem.db"));
+    try {
+      writer.exec("BEGIN IMMEDIATE");
+      writer.prepare("UPDATE memories SET content = ? WHERE id = ?").run("uncommitted edit", id);
+      const result = await execute(["search", "committed", "--scope", "project"]);
+      expect(result.code).toBe(0);
+      expect(searchMemories(result)).toEqual([
+        { id, content: "committed search result", project: "current-project", scope: "project" },
+      ]);
+    } finally {
+      if (writer.isTransaction) writer.exec("ROLLBACK");
+      writer.close();
+    }
+  });
+
   test("stores project and global memories without crossing project boundaries", async (): Promise<void> => {
     await execute(["add", "current memory"]);
     await execute(["add", "global memory", "--scope", "global"]);
