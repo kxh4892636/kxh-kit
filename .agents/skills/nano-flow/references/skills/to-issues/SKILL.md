@@ -22,7 +22,7 @@ argument-hint: "要持久化并推进什么长任务?"
    - 落盘内容是确认后的结论, 不是对话记录; 无对应小节的按模板扩展处理;
    - 使用**tracer-bullet 规则**创建 issue 文件;
 3. **用户确认**：反复确认并迭代，直至通过；
-4. **校验并交接**：从工作区根运行 `node <nano-flow-skill-root-dir>/script/check-domain.mjs .`。
+4. **校验并交接**：从工作区根运行 `node <nano-flow-skill-root-dir>/scripts/check-domain.mjs .`。
 
 tracer-bullet 规则:
 

@@ -29,7 +29,7 @@ description: 路由从想法到交付的 Nano Flow 主流程；当任务需要�
 
 ## 进入 Flow
 
-确认新入口后，完整读取 [`FLOW.md`](FLOW.md)，以 `/nano-flow` 为发起者执行 `enter-plan`，并以 `--mode` 传入已确认的模式。保存返回的 flow context，只调用返回的 `next_skill`；返回 `message` 时，将它原样携带给该 skill。
+确认新入口后，完整读取 [`FLOW.md`](FLOW.md)，以 `/nano-flow` 为发起者执行 `enter-plan`，并以 `--entry` 和 `--mode` 传入已确认的入口和模式。保存返回的 flow context，只调用返回的 `next_skill`；返回 `message` 时，将它原样携带给该 skill。
 
 `enter-plan` 成功、返回入口与确认结果一致、完整 context 已传给该入口且没有重复进入 Flow 时，本步骤完成。
 

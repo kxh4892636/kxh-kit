@@ -43,7 +43,7 @@ frontier 为空、代码与口头模型的矛盾已解决或明确记录、用�
 修改领域文档后，从工作区根执行：
 
 ```powershell
-node <nano-flow-skill-root-dir>/script/check-domain.mjs .
+node <nano-flow-skill-root-dir>/scripts/check-domain.mjs .
 ```
 
 校验通过后，本步骤完成。
