@@ -53,4 +53,4 @@ design tree 的每个可达分支都已访问，frontier 为空且没有静默�
 
 逐项核对原始想法与故事地图：每条故事有唯一且单调递增的 `US-NNN`、明确角色与收益、至少一项可判定验收；迷雾为空或每个保留项都获用户明确接受；每个原始意图都恰好映射到故事或已接受的非范围。
 
-从工作区根执行 `node <nano-flow-skill-root-dir>/script/check-domain.mjs .`。校验通过且用户确认故事集覆盖原始想法后，本步骤完成。
+从工作区根执行 `node <nano-flow-skill-root-dir>/scripts/check-domain.mjs .`。校验通过且用户确认故事集覆盖原始想法后，本步骤完成。

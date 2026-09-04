@@ -7,7 +7,7 @@ const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const skillsRoot = path.join(packageRoot, "skills");
 const outputPath = path.join(packageRoot, "src", "builtins", "self", "generated-skill-manifest.ts");
 const isShippedSkillFile = (file) =>
-  !file.path.endsWith(".test.mjs") && !file.path.startsWith("script/testing/");
+  !file.path.endsWith(".test.mjs") && !file.path.startsWith("scripts/testing/");
 
 const generateManifest = async () => {
   const packageMetadata = JSON.parse(

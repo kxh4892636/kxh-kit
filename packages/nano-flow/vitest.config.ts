@@ -12,16 +12,16 @@ const stripScriptShebang = (): Plugin => ({
 export default defineConfig({
   plugins: [stripScriptShebang()],
   test: {
-    include: ["src/**/*.spec.ts", "skills/**/script/*.test.mjs", "test/**/*.spec.ts"],
+    include: ["src/**/*.spec.ts", "skills/**/scripts/*.test.mjs", "test/**/*.spec.ts"],
     coverage: {
       provider: "v8",
-      include: ["src/**/*.ts", "skills/**/script/*.mjs"],
+      include: ["src/**/*.ts", "skills/**/scripts/*.mjs"],
       exclude: [
         "src/**/*.spec.ts",
         "src/**/*.d.ts",
         "src/**/testing/**",
         "src/**/generated-skill-manifest.ts",
-        "skills/**/script/*.test.mjs",
+        "skills/**/scripts/*.test.mjs",
       ],
       excludeAfterRemap: true,
       reporter: ["text", "json", "html"],

@@ -318,7 +318,7 @@ const verifyDistributionSurface = async (fixture: DistributionFixture): Promise<
   expect(skillTree.every((file: string): boolean => !file.includes(".test.mjs:"))).toBe(true);
   expect(
     skillTree.every(
-      (file: string): boolean => !file.replaceAll("\\", "/").includes("/script/testing/"),
+      (file: string): boolean => !file.replaceAll("\\", "/").includes("/scripts/testing/"),
     ),
   ).toBe(true);
   for (const commandPath of helpPaths) {
@@ -346,7 +346,7 @@ const verifySkillLifecycle = async (fixture: DistributionFixture): Promise<void>
   expect(before.every((file: string): boolean => !file.includes(".test.mjs:"))).toBe(true);
   expect(
     before.every(
-      (file: string): boolean => !file.replaceAll("\\", "/").includes("/script/testing/"),
+      (file: string): boolean => !file.replaceAll("\\", "/").includes("/scripts/testing/"),
     ),
   ).toBe(true);
   expect(await invoke(["update", "--name", "nano-flow", "--dry-run"])).toMatchObject({
