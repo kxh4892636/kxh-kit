@@ -38,6 +38,7 @@ release
 
 # Nano Flow runtime state
 **/.flow
+.worktrees
 
 # Test coverage reports
 coverage
