@@ -45,7 +45,7 @@ const FLOW_MODES = new Set(["auto", "manual"]);
 const DEFAULT_FLOW_MODE = "manual";
 const MANUAL_MODE_HOOK =
   "当前 skill 执行结束后, 询问用户当前 skill 是否完成 + 是否进入下一个 skill, 用户同意后, 执行 flow.mjs, 然后自动调用下一个 skill(无须用户确认).";
-const AUTO_MODE_HOOK = "当前 skill 执行结束后, 无需用户确认, 自动调用下一个 skill";
+const AUTO_MODE_HOOK = "当前 skill 内部确认及其执行结束后, 无需用户确认, 自动调用下一个 skill";
 const MODE_HOOK_SKILLS = new Set(
   PLANNING_FLOW.filter((step) => step.skill !== "dev-gate").map((step) => step.skill),
 );
