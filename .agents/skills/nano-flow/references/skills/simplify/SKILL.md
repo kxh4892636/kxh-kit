@@ -11,7 +11,7 @@ Simplify 对整个工作区（或用户指定范围）的**增量与存量**代�
 贯穿全程的两个词：
 
 - **证据**：每条发现都给出 file:line、消费方证据与现状成本；说不出代价的「看起来复杂」是 nit，不是候选。
-- **删减**：deletion over addition；成功的度量是代码变少，不是变多。
+- **删减**：deletion over addition；成功以保持行为与约束、降低复杂度为准，净删除规模作为辅助证据。
 
 ## 1. 确定范围
 
@@ -35,7 +35,7 @@ Simplify 对整个工作区（或用户指定范围）的**增量与存量**代�
 - **深度**：generic path 上为单一调用方打的 special case、叠在旧 workaround 上的 workaround、为绕过真实修复而加的 wrapper。深层修复只标记，不在本 pass 实施。
 - **性能**：不必要的工作（冗余计算、重复读取或调用、N+1 访问）、可并行却串行的独立操作、热路径（启动、per-request）上的重活、过宽读取、无界增长或未清理的 listener/handle；先检查后操作改为直接操作并处理错误（TOCTOU）。并发化与访问模式重构按 RISKY 呈现。
 
-调查纪律（Chesterton's fence）：标记删除前用 `git blame`、消费方检索与第 2 步约束确认存在理由；理由不明标注 `confidence: low`，靠猜的发现直接丢弃。每个符号的消费方先分类：只有测试或文档消费且行为不承重的是强候选；存在 production 消费方的是 feature decision，不是 cleanup。第一个好候选不停止 survey。
+调查纪律（Chesterton's fence）：标记删除前用 `git blame`、消费方检索与第 2 步约束确认存在理由；理由不明标注 `confidence: low`，靠猜的发现直接丢弃。每个符号的消费方先分类：只有测试或文档消费且行为不承重的是强候选；删除 production 消费方依赖的行为属于 feature decision，保持行为的结构简化仍属 cleanup。第一个好候选不停止 survey。
 
 每条发现按统一格式报告：`file:line → 问题 → 现状成本 → 建议 | confidence: high/medium/low | risk: SAFE/CAREFUL/RISKY`。
 
@@ -43,7 +43,7 @@ Simplify 对整个工作区（或用户指定范围）的**增量与存量**代�
 - **CAREFUL**：语义保持（extract、inline、局部重命名、拍平嵌套）。
 - **RISKY**：触及公共契约、行为可能变化或命中受保护设计。
 
-每个分区都被全部角度完整覆盖、每条发现具备可复核位置与成本时，本步骤完成。
+每个分区都被选定角度（默认全部四个）完整覆盖、每条发现具备可复核位置与成本时，本步骤完成。
 
 ## 4. 汇总与应用
 
@@ -53,13 +53,13 @@ Simplify 对整个工作区（或用户指定范围）的**增量与存量**代�
 - **CAREFUL**：逐文件应用并运行该文件的 targeted tests，破坏即回退该条。
 - **RISKY**：只呈现——风险、测试覆盖状态、建议跟进方式（新 issue 或 `/quest-with-domain`），不自动应用。
 
-用户要求只报告时全部呈现、不修改。修改范围限于发现本身及修复所需的最小邻域。所有 SAFE 与 CAREFUL 项已应用或回退、RISKY 项已逐条呈现时，本步骤完成。
+用户要求只报告时全部呈现、不修改，以发现及建议已呈现为完成条件。应用模式下，修改范围限于发现本身及修复所需的最小邻域；所有 SAFE 与 CAREFUL 项已应用或回退、RISKY 项已逐条呈现时，本步骤完成。
 
 ## 5. 验证与收口
 
-运行触及文件的 targeted tests 与仓库 linter/typecheck；任一修复破坏验证则单独回退并报告。有意保留的已知上限（全局锁、O(n²) 扫描、naive heuristic）按 `/code-spec` 写说明性注释，点名上限与升级触发条件。
+有实际修改时，运行触及文件的 targeted tests 与仓库 linter/typecheck；任一修复破坏验证则单独回退并报告。本次修改中有意保留的已知上限（全局锁、O(n²) 扫描、naive heuristic）按 `/code-spec` 写说明性注释，点名上限与升级触发条件。只报告或无修改时，修改后验证不适用。
 
-汇报按分区、角度与 tier 分组：已应用的修复、有意跳过及理由、净删除规模；inline 顺序执行时显式说明。验证通过、汇报完整时，本 skill 完成。
+汇报按分区、角度与 tier 分组：发现及建议、已应用的修复、有意跳过及理由、净删除规模；inline 顺序执行时显式说明。适用的验证通过、汇报完整时，本 skill 完成。
 
 ## 边界
 
