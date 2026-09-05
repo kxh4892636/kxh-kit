@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
-import path from "node:path";
 import { afterEach, test } from "vitest";
 
 import { executeFlow } from "./flow.mjs";
@@ -8,79 +7,56 @@ import {
   cleanupWorkspaces,
   createWorkspace,
   PLAN_PATH,
+  statePath,
   TEST_NOW,
 } from "./testing/flow-workspace.mjs";
 
 afterEach(cleanupWorkspaces);
 
+const invoke = (workspace, hooks, command, options = {}) =>
+  executeFlow({
+    command,
+    hooks,
+    now: () => new Date(TEST_NOW),
+    options: { plan: PLAN_PATH, session: "owner", ...options },
+    workspace,
+  });
+
 test.each(["manual", "auto"])(
-  "hooks 在 %s 模式同时匹配 skill 与 mode，并按声明顺序拼接",
+  "%s hooks match skill and mode in declaration order",
   async (mode) => {
     const workspace = await createWorkspace();
     const hooks = {
       schema_version: 1,
       hooks: [
-        { match: "all", message: "default mode" },
+        { match: "all", message: "default" },
         { match: ["questing"], mode: "auto", message: "auto story" },
-        { match: "all", mode: "all", message: "explicit all" },
+        { match: "all", mode: "all", message: "all" },
         { match: ["questing"], mode: "manual", message: "manual story" },
-        { match: ["code-delivery"], mode, message: "other skill" },
-        { match: "all", mode, message: "selected mode" },
+        { match: ["code-delivery"], mode, message: "delivery" },
+        { match: "all", mode, message: "selected" },
       ],
     };
-    const invoke = (command, options) =>
-      executeFlow({
-        command,
-        hooks,
-        now: () => new Date(TEST_NOW),
-        options: { plan: PLAN_PATH, session: "owner", ...options },
-        workspace,
-      });
-
-    const entered = await invoke("enter-plan", {
-      entry: "/questing",
-      mode,
-      skill: "/nano-flow",
-    });
-    assert.equal(
-      entered.message,
+    const entered = await invoke(workspace, hooks, "acquire", { mode });
+    const expected =
       mode === "auto"
-        ? "default mode\nauto story\nexplicit all\nselected mode"
-        : "default mode\nexplicit all\nmanual story\nselected mode",
-    );
-
-    const next = await invoke("record-plan", {
-      evidence: ["story-completed"],
+        ? "default\nauto story\nall\nselected"
+        : "default\nall\nmanual story\nselected";
+    assert.equal(entered.next.message, expected);
+    assert.equal(Object.hasOwn(entered, "message"), false);
+    const status = await invoke(workspace, hooks, "status");
+    assert.deepEqual(status.next, entered.next);
+    const next = await invoke(workspace, hooks, "report", {
+      evidence: ["story.md"],
       result: "completed",
-      skill: "/questing",
+      step: "/questing",
     });
-    assert.equal(next.next_skill, "/to-issues");
-    assert.equal(next.message, "default mode\nexplicit all\nselected mode");
+    assert.equal(next.next.skill, "/to-issues");
+    assert.equal(next.next.message, "default\nall\nselected");
   },
 );
 
-test.each(["manual", "auto"])("%s 模式没有匹配 hook 时不注入默认提示", async (mode) => {
-  const workspace = await createWorkspace();
-  const oppositeMode = mode === "manual" ? "auto" : "manual";
-  for (const hooks of [[], [{ match: "all", mode: oppositeMode, message: "other mode" }]]) {
-    const entered = await executeFlow({
-      command: "enter-plan",
-      hooks: { schema_version: 1, hooks },
-      now: () => new Date(TEST_NOW),
-      options: {
-        entry: "/questing",
-        mode,
-        plan: PLAN_PATH,
-        session: "owner",
-        skill: "/nano-flow",
-      },
-      workspace,
-    });
-    assert.equal(Object.hasOwn(entered, "message"), false);
-  }
-});
-
-test("mode hook 可由配置应用到 code-delivery，并随 Plan 模式切换", async () => {
+test("mode is fixed for the Flow and completion has no next", async () => {
   const workspace = await createWorkspace();
   const hooks = {
     schema_version: 1,
@@ -89,63 +65,50 @@ test("mode hook 可由配置应用到 code-delivery，并随 Plan 模式切换",
       { match: ["code-delivery"], mode: "auto", message: "auto delivery" },
     ],
   };
-  const invoke = (command, options) =>
-    executeFlow({
-      command,
-      hooks,
-      now: () => new Date(TEST_NOW),
-      options: { plan: PLAN_PATH, session: "owner", ...options },
-      workspace,
-    });
-
-  await invoke("enter-plan", { entry: "/questing", skill: "/nano-flow" });
-  await invoke("enter-plan", {
-    entry: "/questing",
-    mode: "auto",
-    skill: "/nano-flow",
-  });
-  const switched = await invoke("enter-plan", {
-    entry: "/questing",
-    mode: "manual",
-    skill: "/nano-flow",
-  });
-  assert.equal(Object.hasOwn(switched, "message"), false);
-  await invoke("record-plan", {
-    evidence: ["domain-completed"],
+  await invoke(workspace, hooks, "acquire", { mode: "auto" });
+  await assert.rejects(invoke(workspace, hooks, "acquire", { mode: "manual" }), /模式.*固定/);
+  await invoke(workspace, hooks, "report", {
+    step: "/questing",
     result: "completed",
-    skill: "/questing",
+    evidence: ["story"],
   });
-  const delivery = await invoke("record-plan", {
-    evidence: ["issues-skipped"],
+  const delivery = await invoke(workspace, hooks, "report", {
+    step: "/to-issues",
     result: "skipped",
-    skill: "/to-issues",
+    evidence: ["small task"],
   });
-  assert.equal(delivery.message, "manual delivery");
-  const commit = await invoke("record-plan", {
-    evidence: ["delivery-started"],
-    result: "started",
-    skill: "/code-delivery",
+  assert.equal(delivery.next.message, "auto delivery");
+  const finished = await invoke(workspace, hooks, "report", {
+    step: "/code-delivery",
+    result: "completed",
+    evidence: ["commit and gates"],
   });
-  assert.equal(commit.next_action, "commit");
-  assert.equal(Object.hasOwn(commit, "message"), false);
+  assert.equal(finished.next, null);
+  assert.equal(Object.hasOwn(finished, "message"), false);
 });
 
-test.each([null, "", "turbo", "AUTO", 0, false, ["auto"], {}])(
-  "非法 hook mode %j 在创建 Flow 状态前拒绝",
-  async (mode) => {
-    const workspace = await createWorkspace();
-    await assert.rejects(
-      executeFlow({
-        command: "enter-plan",
-        hooks: {
-          schema_version: 1,
-          hooks: [{ match: "all", mode, message: "invalid mode" }],
-        },
-        options: { entry: "/questing", plan: PLAN_PATH, skill: "/nano-flow" },
-        workspace,
-      }),
-      /Hook 1 的 mode 必须是 all \| manual \| auto/,
-    );
-    await assert.rejects(fs.access(path.join(workspace, ".flow", "state")));
-  },
-);
+test("unmatched hooks leave next.message absent", async () => {
+  const workspace = await createWorkspace();
+  for (const hooks of [[], [{ match: "all", mode: "auto", message: "auto only" }]]) {
+    const result = await invoke(workspace, { schema_version: 1, hooks }, "acquire");
+    assert.equal(Object.hasOwn(result.next, "message"), false);
+  }
+});
+
+test.each([
+  null,
+  { schema_version: 2, hooks: [] },
+  { schema_version: 1, hooks: [null] },
+  { schema_version: 1, hooks: [{ match: [], message: "x" }] },
+  { schema_version: 1, hooks: [{ match: ["unknown"], message: "x" }] },
+  { schema_version: 1, hooks: [{ match: "all", message: "" }] },
+  { schema_version: 1, hooks: [{ match: "all", message: "two\nlines" }] },
+  ...[null, "", "turbo", "AUTO", 0, false, ["auto"], {}].map((mode) => ({
+    schema_version: 1,
+    hooks: [{ match: "all", mode, message: "x" }],
+  })),
+])("invalid hooks are rejected before state changes: %j", async (hooks) => {
+  const workspace = await createWorkspace();
+  await assert.rejects(invoke(workspace, hooks, "acquire"), /Hook/);
+  await assert.rejects(fs.access(statePath(workspace)));
+});

@@ -1,124 +1,94 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { afterEach, test, vi } from "vitest";
+import { afterEach, test } from "vitest";
 
 import { runFlowCli } from "./flow.mjs";
-import { cleanupWorkspaces, createWorkspace, PLAN_PATH } from "./testing/flow-workspace.mjs";
+import {
+  cleanupWorkspaces,
+  createWorkspace,
+  PLAN_PATH,
+  statePath,
+} from "./testing/flow-workspace.mjs";
 
 afterEach(cleanupWorkspaces);
 
-test("CLI wrapper renders help, parses repeated evidence, and returns JSON errors", async () => {
+const invoke = async (argumentsList, cwd) => {
+  const output = [];
+  const errors = [];
+  const code = await runFlowCli({
+    argumentsList,
+    cwd,
+    stdout: (message) => output.push(message),
+    stderr: (message) => errors.push(message),
+  });
+  return { code, output, errors };
+};
+
+test.each([[], ["help"], ["--help"], ["-h"]].map((args) => ({ args })))(
+  "help exposes three commands: $args",
+  async ({ args }) => {
+    const result = await invoke(args);
+    assert.equal(result.code, 0);
+    for (const name of ["status", "acquire", "report"])
+      assert.match(result.output[0], new RegExp(name));
+    assert.doesNotMatch(result.output[0], /enter-plan|record-plan|claim-issue|sync-plan/);
+  },
+);
+
+test("CLI uses workspace override and preserves repeated evidence", async () => {
   const workspace = await createWorkspace();
   const wrongCwd = path.join(workspace, "wrong-cwd");
-  const help = [];
-  assert.equal(await runFlowCli({ argumentsList: [], stdout: (message) => help.push(message) }), 0);
-  assert.ok(help[0].includes("flow.mjs enter-plan"));
-  assert.equal(help[0].includes("flow.mjs init"), false);
-
-  const entered = [];
-  assert.equal(
-    await runFlowCli({
-      argumentsList: [
-        "enter-plan",
-        "--workspace",
-        workspace,
-        "--plan",
-        PLAN_PATH,
-        "--skill",
-        "/nano-flow",
-        "--entry",
-        "/questing",
-        "--session",
-        "cli-session",
-      ],
-      cwd: wrongCwd,
-      stdout: (message) => entered.push(message),
-    }),
-    0,
+  const scope = ["--workspace", workspace, "--plan", PLAN_PATH];
+  const acquired = await invoke(["acquire", ...scope, "--session", "cli-session"], wrongCwd);
+  assert.equal(acquired.code, 0, acquired.errors.join("\n"));
+  assert.equal(JSON.parse(acquired.output[0]).next.skill, "/questing");
+  const reported = await invoke(
+    [
+      "report",
+      ...scope,
+      "--session",
+      "cli-session",
+      "--step",
+      "/questing",
+      "--result",
+      "completed",
+      "--evidence",
+      "first",
+      "--evidence",
+      "second",
+    ],
+    wrongCwd,
   );
-  assert.equal(JSON.parse(entered[0]).success, true);
-
-  const recorded = [];
-  assert.equal(
-    await runFlowCli({
-      argumentsList: [
-        "record-plan",
-        "--workspace",
-        workspace,
-        "--plan",
-        PLAN_PATH,
-        "--session",
-        "cli-session",
-        "--skill",
-        "/questing",
-        "--result",
-        "completed",
-        "--evidence",
-        "first",
-        "--evidence",
-        "second",
-      ],
-      cwd: wrongCwd,
-      stdout: (message) => recorded.push(message),
-    }),
-    0,
-  );
-  assert.equal(JSON.parse(recorded[0]).success, true);
-
-  const status = [];
-  assert.equal(
-    await runFlowCli({
-      argumentsList: ["status", "--workspace", workspace, "--plan", PLAN_PATH],
-      cwd: wrongCwd,
-      stdout: (message) => status.push(message),
-    }),
-    0,
-  );
-  assert.deepEqual(JSON.parse(status[0]).plan.receipts[0].evidence, ["first", "second"]);
-  assert.ok(
-    (await fs.readdir(path.join(workspace, ".flow", "state"))).some((name) =>
-      name.endsWith("-state.json"),
-    ),
-  );
+  assert.equal(reported.code, 0, reported.errors.join("\n"));
+  const status = await invoke(["status", ...scope], wrongCwd);
+  assert.equal(status.code, 0);
+  const body = JSON.parse(status.output[0]);
+  assert.equal(body.success, true);
+  assert.deepEqual(body.receipts[0].evidence, ["first", "second"]);
+  await fs.access(statePath(workspace));
   await assert.rejects(fs.access(path.join(wrongCwd, ".flow")));
-
-  for (const [argumentsList, error] of [
-    [["unknown"], "未知命令 unknown"],
-    [["enter-plan", "positional"], "无法识别参数 positional"],
-    [["enter-plan", "--plan"], "--plan 缺少值"],
-    [["enter-plan", "--plan", "--skill", "/questing"], "--plan 缺少值"],
-  ]) {
-    const stderr = [];
-    assert.equal(await runFlowCli({ argumentsList, stderr: (message) => stderr.push(message) }), 1);
-    assert.deepEqual(JSON.parse(stderr[0]), { error, success: false });
-  }
 });
 
-test("CLI wrapper supports explicit help aliases and default dependency callbacks", async () => {
-  for (const alias of ["help", "--help", "-h"]) {
-    const output = [];
-    assert.equal(
-      await runFlowCli({ argumentsList: [alias], stdout: (message) => output.push(message) }),
-      0,
-    );
-    assert.match(output[0], /flow\.mjs enter-plan/);
-  }
-  const originalArgv = process.argv;
-  const stderr = vi.spyOn(console, "error").mockImplementation(() => undefined);
-  const stdout = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
-  process.argv = [process.execPath, "vitest", "unknown-default-command"];
-  try {
-    assert.equal(await runFlowCli({}), 1);
-    assert.deepEqual(JSON.parse(stderr.mock.calls[0][0]), {
-      error: "未知命令 unknown-default-command",
-      success: false,
-    });
-    process.argv = [process.execPath, "vitest", "--help"];
-    assert.equal(await runFlowCli({}), 0);
-    assert.match(stdout.mock.calls[0][0], /^用法:/u);
-  } finally {
-    process.argv = originalArgv;
-    vi.restoreAllMocks();
-  }
+test.each(
+  [
+    ["unknown"],
+    ["enter-plan"],
+    ["acquire", "positional"],
+    ["acquire", "--plan"],
+    ["acquire", "--plan", "--session", "owner"],
+    ["acquire", "--plan", PLAN_PATH, "--unknown", "value"],
+    ["acquire", "--plan", PLAN_PATH, "--plan", PLAN_PATH],
+    ["acquire", "--plan", PLAN_PATH, "--session", "one", "--session", "two"],
+    ["status", "--plan", PLAN_PATH, "--lease-seconds", "30"],
+  ].map((args) => ({ args })),
+)("CLI rejects malformed options without creating state: $args", async ({ args }) => {
+  const workspace = await createWorkspace();
+  const result = await invoke(args, workspace);
+  assert.equal(result.code, 1);
+  assert.equal(result.output.length, 0);
+  const error = JSON.parse(result.errors[0]);
+  assert.equal(error.success, false);
+  assert.ok(error.error.length > 0);
+  await assert.rejects(fs.access(statePath(workspace)));
 });

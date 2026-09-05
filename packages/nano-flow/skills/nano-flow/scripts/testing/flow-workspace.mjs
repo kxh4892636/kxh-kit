@@ -52,14 +52,26 @@ export const createWorkspace = async (issues = [{ dependencies: [], id: "01" }])
 };
 
 export const cleanupWorkspaces = async () => {
+  for (const workspace of workspaces) {
+    const relative = path.relative(os.tmpdir(), path.resolve(workspace));
+    if (
+      relative.startsWith("..") ||
+      path.isAbsolute(relative) ||
+      !relative.startsWith("loop-flow-")
+    ) {
+      throw new Error(`测试清理目录越界: ${workspace}`);
+    }
+  }
   await Promise.all(
     [...workspaces].map((workspace) => fs.rm(workspace, { force: true, recursive: true })),
   );
   workspaces.clear();
 };
 
-export const statePath = (workspace) =>
-  path.join(workspace, ".flow", "state", "2026-08-27-state.json");
+export const statePath = (workspace) => path.join(workspace, ".flow", "state.json");
+
+export const issuePath = (workspace, issueId) =>
+  path.join(workspace, PLAN_PATH, `${issueId}-订单能力.md`);
 
 export const command = async (
   workspace,
@@ -69,8 +81,8 @@ export const command = async (
 ) => executeFlow({ command: commandName, now, options, workspace });
 
 export const recordPlan = (workspace, session, step, result, extra = {}) =>
-  command(workspace, "record-plan", {
-    ...(step === "commit" ? { action: "commit" } : { skill: `/${step}` }),
+  command(workspace, "report", {
+    step: `/${step.replace(/^\//u, "")}`,
     evidence: [`${step}-${result}`],
     plan: PLAN_PATH,
     result,
@@ -78,22 +90,21 @@ export const recordPlan = (workspace, session, step, result, extra = {}) =>
     ...extra,
   });
 
-export const recordIssue = (workspace, issue, session, step, result) =>
-  command(workspace, "record-issue", {
-    ...(step === "commit" ? { action: "commit" } : { skill: `/${step}` }),
+export const recordIssue = (workspace, issue, session, step, result, extra = {}) =>
+  command(workspace, "report", {
+    step: `/${step.replace(/^\//u, "")}`,
     evidence: [`${step}-${result}`],
     issue,
     plan: PLAN_PATH,
     result,
     session,
+    ...extra,
   });
 
 export const readyIssuePlan = async (workspace, session = "plan-session") => {
-  await command(workspace, "enter-plan", {
-    entry: "/questing",
+  await command(workspace, "acquire", {
     plan: PLAN_PATH,
     session,
-    skill: "/nano-flow",
   });
   await recordPlan(workspace, session, "questing", "completed");
   return recordPlan(workspace, session, "to-issues", "completed");

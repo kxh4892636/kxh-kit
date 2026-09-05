@@ -1,93 +1,74 @@
 # Flow 运行协议
 
-本文件定义 `/nano-flow` 如何驱动 `flow.mjs`；主流程中的其他 skill 不触发该脚本。脚本返回的 JSON 是当前步骤、租约与状态的运行态事实源。脚本命令及 options 以现场帮助为准：
+`/nano-flow` 驱动 `scripts/flow.mjs`；各 skill 拥有产物和完成标准。首次调用前从工作区根目录运行 `node <nano-flow-skill-root-dir>/scripts/flow.mjs --help`，以现场帮助查询参数。
 
-```powershell
-node <nano-flow-skill-root-dir>/scripts/flow.mjs --help
-```
+## 打开、执行、报告
 
-所有命令从工作区根目录执行。首次使用一个命令前查看其帮助；保留成功结果中的 `plan`、`session`、`issue`、`next_skill`、`next_action` 与 `message`，后续调用原样复用对应标识和消息。
+1. 新 Flow 用 `acquire --plan <path>` 创建并取得租约；已有 Flow 用 `status --plan <path>` 查看，再用 `acquire` 恢复。模式在创建时通过 `--mode manual|auto` 设置，默认 manual，创建后固定；新模式使用新 Flow 标识。
+2. 仅在返回 `state=owned` 时，完整读取并执行 `next.skill`，原样传递 `next.message` 与 Flow context。
+3. skill 完成标准成立后，用 `report --session <id> --step </skill> --result completed --evidence <ref>` 登记；只执行新返回的下一步。
 
-## 进入与恢复
+所有命令携带稳定的 `--plan`；Issue 操作另带 `--issue <NN>`。后续原样复用返回的 plan、issue、session。Plan 标识必须位于工作区内；采用 Issue 图时，它必须指向实际 Plan 目录。
 
-- 主流程：`/questing -> /to-issues -> /code-delivery`。
-- Flow 只执行一次 `enter-plan`，由 `/nano-flow` 以 `--entry /questing` 进入已确认的 Flow。
-- `--mode` 可选 `manual`（默认）或 `auto`，用于匹配 hook。模式随 Plan 持久化，重新进入时传入即切换。
-- `--plan` 是本轮稳定标识。需要进入 `/to-issues` 时，它必须是工作区内的实际 Plan 路径；跳过 `/to-issues` 时只要求它在工作区内唯一且稳定。
-- 已有运行态使用 `status` 查明当前位置，再按返回值恢复。
-- 命令成功且当前调用者持有唯一有效租约、返回的 `next_skill` 与预期入口一致时，进入完成。
-
-## Hooks 与确认
-
-确认与推进提示词由 [extensions/hooks.json](extensions/hooks.json) 管理，脚本只校验、匹配和返回：`match` 为 `all` 或主流程 skill 名称数组；可选 `mode` 为 `all | manual | auto`（缺省 `all`）；`message` 为非空单行提示词。
-
-同时匹配 `next_skill` 与当前 Plan 模式的 hook 按配置顺序拼接；只在有匹配消息时返回 `message`。携带 Flow context 时，当前 skill 及其内部调用的确认方式按返回的 hook 消息执行；产物与证据仍须满足实际完成条件。
-
-## Receipt chain
-
-`next_skill` 或 `next_action` 是唯一获准的下一步：
-
-1. 完整读取并执行返回的 skill；action 则等待其前置 skill 交付控制权。
-2. 只在该 skill 的完成标准真实成立后，使用 `record-plan` 或 `record-issue` 登记结果和至少一项可核查证据。
-3. 登记成功后丢弃旧的 next 值，只执行新返回值。
-
-`/questing` 完成后进入 `/to-issues`，由它判断任务是否需要可恢复的 issue graph，再由 `/nano-flow` 登记其 `completed` 或 `skipped` 结果。
-
-`delivering_direct` 返回 Plan 级 `/code-delivery`；`delivering_issues` 由 `claim-issue` 返回 Issue 级 `/code-delivery`。
-
-`/code-delivery` 完成准入、执行基线为 `ready` 后登记 `started`，并保留返回的 `commit` action；准入、代码、`/code-test`、`/verifying` 与 `/code-review` 均在它内部完成，不另记 Flow receipt。全部门禁仍适用于当前 diff 后，才执行并登记 `commit=committed`。
-
-每条 receipt 引用本轮真实产物或结果，证据存在、对应当前目标与 diff 且足以复核声明时完成。
-
-## Issue 推进
-
-本节由 `/nano-flow` 执行；`/to-issues` 只负责建立或维护 spec 与 issue 图。
-
-- 仅当 `/to-issues=completed` 且 Plan 到达 `delivering_issues` 后，从 spec 派生表定位 `pending` 且直接依赖均已 `completed` 的 frontier，并以运行态核对；有多个候选时使用用户已确认的优先级。以 `claim-issue` 领取一个 issue，首次领取保留脚本生成的 issue session。
-- 一个 session 串行推进自己领取的 issue，交付或形成真实 blocked 结果后才领取下一个。不同 session 可以并行领取互不阻塞的 issue；同一 issue 只有一个有效租约。
-- 新事实或新工作按 `/to-issues` 的文档维护规则更新 Plan；符合 ADR 资格的长期 trade-off 由 `/questing`写入领域文档。
-- 交付前，issue 的「交付记录」包含交付物与验证证据；脚本据此允许完成状态与 commit receipt。
-- 每次暂停前同步 issue 状态、spec 派生视图与证据；恢复时只信任文件与运行态。
-- 所有 issue 完成后，Plan 自动进入 `completed`；再以 `sync-plan` 刷新派生视图，与用户确认参考价值，按 [`DOMAIN.md`](references/DOMAIN.md) 把整个 Plan 移入 `reference/` 或 `archived/`，并重新运行领域校验。
-
-一个领取结果有且只有一个终态、状态与 spec 派生视图一致、证据链可复核时，本轮推进完成。
-
-## 租约、阻塞与恢复
-
-- 较长操作用 `heartbeat-plan` 或 `heartbeat-issue` 续租；主动暂停用 `release-plan` 或 `release-issue`。
-- 租约过期后用 `claim-plan` 或 `resume-issue` 接管。
-- 真实障碍用 `block-issue` 记录原因和可判定的解除条件，并释放租约。
-- 异常退出或移动 Plan 后用 `sync-plan` 从 issue frontmatter 重建 spec 派生视图。
-
-写命令失败时保留现场，依据错误信息恢复前置条件。
-
-## 持久状态
-
-`.flow/state/YYYY-MM-DD-state.json` 按本地日期保存当日阶段、租约、游标与 receipt。不读取无日期前缀或其他日期的状态文件。
-
-Plan 的 `phase` 是显式执行阶段：
+主流程由已登记证据推导：
 
 ```text
-planning
-  ├─ /to-issues=skipped
-  │      ↓
-  │  delivering_direct ── commit=committed ─→ completed
-  │
-  └─ /to-issues=completed
-         ↓
-     delivering_issues ── all issues completed ─→ completed
+/questing → /to-issues
+               ├─ skipped   → /code-delivery → completed
+               └─ completed → 逐个 Issue 的 /code-delivery → 全部 completed
 ```
 
-`cursor` 只表示当前阶段内的位置，切换阶段时归零；`lease` 与阶段正交。Plan 运行态直接保存为 `{ phase, cursor, lease, receipts, issues }`。
+`/to-issues` 判断是否需要可恢复的 Issue 图，允许报告 `completed` 或 `skipped`，两者均须证据。其他 skill 只接受 `completed`。
 
-issue frontmatter 的 `status` 是持久化 Issue 执行状态的事实源，spec 状态与 Issue 表是派生视图：
+`/code-delivery` 内部完成准入、实现、测试、验证、审查和提交，提交成功后才报告 `completed`；证据引用本轮实际提交、交付物与验证结果。Flow 不登记中途准入，不执行 Git 提交，也不证明证据真实性。
+
+## 统一快照
+
+三个命令均返回 `{ plan, issue, session, mode, state, next, lease, issues, receipts }`。`next` 为 null 或 `{ skill, results, message? }`；`issues` 含 `{ id, status, lease, ready }`；receipts 始终为整个 Plan 的证据链，通过每项的 issue 区分 Plan 和 Issue 登记。
+
+| state     | 调用方动作                                 |
+| --------- | ------------------------------------------ |
+| available | acquire 取得租约后执行                     |
+| owned     | 执行 next；长操作用 acquire 续租           |
+| busy      | 等持有人释放或租约过期                     |
+| blocked   | 解除障碍并提供证据后 acquire               |
+| issues    | 按已确认优先级选择 ready Issue，再 acquire |
+| completed | 本目标结束                                 |
+
+`status --session <id>` 仅用于识别该 session 已有的有效租约，既不领取也不续租；显示 next 不代表取得执行权。`state`、下一步和 Issue readiness 均为派生信息，不另存运行状态副本。
+
+## Issue 与租约
+
+`/to-issues=completed` 后，Plan 返回 Issue 集合；显式选择 Issue，脚本不自动挑选。领取要求直接依赖全部 completed。同一 session 在一个 Plan 内最多持有一个 Issue；不同 session 可并行领取互不阻塞的 Issue，每个目标只有一个有效租约。
+
+`acquire` 首次生成 session；同一持有人携带 session 再次调用即续租，租约过期后可接管。默认租期 30 分钟，可用 `--lease-seconds` 调整。租约过期只影响执行权，保留已登记证据与文档执行状态。
+
+暂停用 `report --session <id> --result paused` 释放租约，恢复仍用 acquire。真实阻塞仅用于 Issue：`report --session <id> --result blocked --reason <text> --release-condition <condition>` 写入障碍与解除条件并释放租约。暂停与阻塞无需 step 或 evidence。
+
+恢复 blocked Issue 须用 `acquire --evidence <ref>` 提供解除证据；不会因再次领取自动视为障碍已解决。交付完成前，Issue 的「交付记录」须包含交付物与验证证据。
+
+Issue frontmatter 的 status 是执行状态事实源：
 
 ```text
-pending -> in_progress -> completed
-              |
-              +-> blocked -> in_progress
+pending → in_progress → completed
+              ↕
+           blocked
 ```
 
-`blocked` 必须带障碍与解除条件；`completed` 必须带交付物与验证证据，后续修正以新 issue 表达。Plan 的 `active -> reference | archived` 生命周期与执行状态正交。
+所有涉及 Issue 的写操作自动刷新 spec 派生状态与 Issue 表。全部 Issue completed 后，Plan 返回 completed；已有完成目标不会被重新初始化。后续修正创建新 Issue，新一轮 Flow 使用新 Plan 标识。
 
-`flow.mjs` 约束顺序与状态，不证明证据真实性。只有可复核证据与登记结果一致时，Flow 步骤才算完成。
+完成后按 [DOMAIN.md](references/DOMAIN.md) 判断参考价值，将 Plan 移入 reference/ 或 archived/ 并重新运行领域校验；文档生命周期与执行状态正交。
+
+## Hooks
+
+[extensions/hooks.json](extensions/hooks.json) 拥有确认与推进提示：`match` 为 all 或主流程 skill 名称数组，mode 为 all、manual 或 auto，message 为非空单行文字。脚本将匹配当前 skill 和模式的消息按配置顺序拼入 next.message。
+
+携带 Flow context 的 skill 及其内部调用按该消息执行确认；复用已有有效授权，产物与证据仍须达到各 skill 的完成标准。
+
+## 存储与失败恢复
+
+schema 7 使用固定 `.flow/state.json`，保存 `plans[plan] = { mode, receipts, leases }`。Plan 短证据链和 Issue 文档共同决定当前位置；没有 phase、cursor 或 Issue status 副本。跨日继续读取同一文件；旧日文件保留但不读取，不迁移旧 schema。
+
+写入前验证参数、租约、顺序、依赖、证据与文档更新。多文件写入通过 pending journal 恢复：中断后，下一次 acquire 先恢复未完成写入。status 遇到 pending 时明确提示先 acquire，不返回可执行快照。
+
+恢复在预检和逐文件写入前比对内容，发现外部修改时保留现场并报冲突，核对并解决冲突后重试。外部编辑器不参与 Flow 写锁，检查与替换也不是原子操作；恢复期间暂停编辑同批文件。文档中的完成状态不会补造 receipt。完成登记必须同时保留本次证据与文档状态，校验失败不能留下部分更新。
