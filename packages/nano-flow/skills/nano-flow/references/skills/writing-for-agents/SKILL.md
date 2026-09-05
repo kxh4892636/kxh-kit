@@ -42,6 +42,14 @@ pointer 做两件事: 说明材料是什么, 列出应该触发到达该材料�
 
 **Sprawl** 是这里的 failure mode: 即使每一行都有效且独一无二, 文档仍然过长. 注意力会被过量内容稀释, 每增加一行, 就多一行需要保持 relevance. 解决方法是 ladder: 将 reference 披露到 pointers 后面, 并按 branch 或 sequence 拆分, 让每条路径只携带自身需要的内容.
 
+## Loops and workflows
+
+**循环（loop）** 是反复出现且有可辨认起止边界的活动。
+
+**工作流（workflow）** 是指导循环每次运行的规格；可以规定固定步骤，提供用于现场派生步骤的上下文，或混合两者。
+
+一份工作流只规格化一个循环，结构由循环决定。先明确触发、输入、前置条件、结束边界、输出与完成证据，再组织步骤和上下文。
+
 ## Steps and completion criteria
 
 每个 step 都以 **completion criterion** 结束, 它是告诉 agent 工作已经完成的条件. 两个属性使其成为杠杆:
