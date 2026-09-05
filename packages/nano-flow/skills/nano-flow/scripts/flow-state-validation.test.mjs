@@ -11,6 +11,7 @@ import {
   readyIssuePlan,
   specDocument,
   statePath,
+  TEST_NOW,
 } from "./testing/flow-workspace.mjs";
 
 afterEach(cleanupWorkspaces);
@@ -135,4 +136,61 @@ test("sync creates completed and blocked runtime defaults", async () => {
   assert.equal(plan.issues["02"].cursor, 0);
   assert.equal(plan.issues["02"].status, "blocked");
   assert.equal(plan.phase, "planning");
+});
+
+test.each([
+  ["skipped", "delivering_direct", "heartbeat-plan", {}],
+  ["completed", "delivering_issues", "claim-issue", { issue: "01" }],
+])("旧准入位置按 to-issues=%s 恢复交付", async (decision, phase, resumeCommand, options) => {
+  const workspace = await createWorkspace();
+  await enterPlan(workspace, {
+    entry: "/quest-with-domain",
+    plan: PLAN_PATH,
+    session: "owner",
+  });
+  const state = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
+  const oldPlan = state.plans[PLAN_PATH];
+  oldPlan.cursor = 3;
+  oldPlan.receipts = [
+    {
+      evidence: ["existing-plan"],
+      kind: "skill",
+      reason: null,
+      recorded_at: TEST_NOW.toISOString(),
+      result: decision,
+      step: "/to-issues",
+    },
+  ];
+  await fs.writeFile(statePath(workspace), JSON.stringify(state));
+
+  const status = await command(workspace, "status", { plan: PLAN_PATH });
+  assert.equal(status.plan.phase, phase);
+  assert.equal(status.plan.cursor, 0);
+  assert.deepEqual(status.plan.receipts, oldPlan.receipts);
+  assert.deepEqual(status.plan.lease, decision === "skipped" ? oldPlan.lease : null);
+
+  const resumed = await command(workspace, resumeCommand, {
+    plan: PLAN_PATH,
+    session: "owner",
+    ...options,
+  });
+  assert.equal(resumed.next_skill, "/code-delivery");
+  assert.match(resumed.message, /任何准入判断前/);
+  const saved = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
+  assert.equal(saved.plans[PLAN_PATH].phase, phase);
+  assert.deepEqual(saved.plans[PLAN_PATH].receipts, oldPlan.receipts);
+});
+
+test.each([null, "pending"])("旧准入位置缺少有效拆分结果 %j 时拒绝推进", async (result) => {
+  const workspace = await createWorkspace();
+  await enterPlan(workspace, { entry: "/to-story", plan: PLAN_PATH, session: "owner" });
+  const state = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
+  state.plans[PLAN_PATH].cursor = 3;
+  state.plans[PLAN_PATH].receipts = result === null ? [] : [{ step: "/to-issues", result }];
+  await fs.writeFile(statePath(workspace), JSON.stringify(state));
+  await assert.rejects(
+    command(workspace, "status", { plan: PLAN_PATH }),
+    /进入交付前必须有 \/to-issues 的 completed 或 skipped 结果/,
+  );
+  assert.deepEqual(JSON.parse(await fs.readFile(statePath(workspace), "utf8")), state);
 });

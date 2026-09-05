@@ -24,7 +24,7 @@ test.each(["manual", "auto"])(
         { match: ["to-story"], mode: "auto", message: "auto story" },
         { match: "all", mode: "all", message: "explicit all" },
         { match: ["to-story"], mode: "manual", message: "manual story" },
-        { match: ["dev-gate"], mode, message: "other skill" },
+        { match: ["code-delivery"], mode, message: "other skill" },
         { match: "all", mode, message: "selected mode" },
       ],
     };
@@ -80,13 +80,13 @@ test.each(["manual", "auto"])("%s 模式没有匹配 hook 时不注入默认提�
   }
 });
 
-test("mode hook 可由配置应用到 dev-gate，并随 Plan 模式切换", async () => {
+test("mode hook 可由配置应用到 code-delivery，并随 Plan 模式切换", async () => {
   const workspace = await createWorkspace();
   const hooks = {
     schema_version: 1,
     hooks: [
-      { match: ["dev-gate"], mode: "manual", message: "manual gate" },
-      { match: ["dev-gate"], mode: "auto", message: "auto gate" },
+      { match: ["code-delivery"], mode: "manual", message: "manual delivery" },
+      { match: ["code-delivery"], mode: "auto", message: "auto delivery" },
     ],
   };
   const invoke = (command, options) =>
@@ -115,19 +115,12 @@ test("mode hook 可由配置应用到 dev-gate，并随 Plan 模式切换", asyn
     result: "completed",
     skill: "/quest-with-domain",
   });
-  const gate = await invoke("record-plan", {
+  const delivery = await invoke("record-plan", {
     evidence: ["issues-skipped"],
     result: "skipped",
     skill: "/to-issues",
   });
-  assert.equal(gate.message, "manual gate");
-
-  const delivery = await invoke("record-plan", {
-    evidence: ["gate-ready"],
-    result: "ready",
-    skill: "/dev-gate",
-  });
-  assert.equal(Object.hasOwn(delivery, "message"), false);
+  assert.equal(delivery.message, "manual delivery");
   const commit = await invoke("record-plan", {
     evidence: ["delivery-started"],
     result: "started",

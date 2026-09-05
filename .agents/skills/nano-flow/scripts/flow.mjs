@@ -30,7 +30,6 @@ const PLANNING_FLOW = [
   { skill: "to-story", results: ["completed"] },
   { skill: "quest-with-domain", results: ["completed"] },
   { skill: "to-issues", results: ["completed", "skipped"] },
-  { skill: "dev-gate", results: ["ready"] },
 ];
 
 const ISSUE_FLOW = DELIVERY_FLOW;
@@ -232,7 +231,14 @@ const readState = async (statePath) => {
   const content = await readText(statePath, true);
   if (content === null) return emptyState();
   try {
-    return validateState(JSON.parse(content));
+    const state = validateState(JSON.parse(content));
+    for (const plan of Object.values(state.plans)) {
+      // 旧流程停在已合入交付的准入位置时，沿已有拆分结果恢复。
+      if (plan.phase === "planning" && plan.cursor === PLANNING_FLOW.length) {
+        enterDelivery(plan);
+      }
+    }
+    return state;
   } catch (error) {
     if (error instanceof SyntaxError) fail(`解析 ${statePath} 失败: ${error.message}`);
     throw error;
@@ -341,6 +347,16 @@ const nextStep = (sequence, cursor) => sequence[cursor] ?? null;
 
 const issuesDecision = (plan) =>
   plan.receipts.find((receipt) => receipt.step === "/to-issues")?.result ?? null;
+
+const enterDelivery = (plan) => {
+  const decision = issuesDecision(plan);
+  if (decision !== "completed" && decision !== "skipped") {
+    fail("进入交付前必须有 /to-issues 的 completed 或 skipped 结果");
+  }
+  plan.cursor = 0;
+  plan.phase = decision === "skipped" ? "delivering_direct" : "delivering_issues";
+  if (decision === "completed") plan.lease = null;
+};
 
 const planSequence = (plan) => {
   if (plan.phase === "planning") return PLANNING_FLOW;
@@ -619,15 +635,10 @@ const handleRecordPlan = (state, workspace, options, now) => {
   let next = recordReceipt(plan, sequence, options, now);
   if (next) {
     plan.lease = makeLease(session, leaseSeconds(options), now);
-  } else if (plan.phase === "planning" && issuesDecision(plan) === "skipped") {
-    plan.cursor = 0;
-    plan.phase = "delivering_direct";
-    plan.lease = makeLease(session, leaseSeconds(options), now);
-    next = currentPlanStep(plan);
   } else if (plan.phase === "planning") {
-    plan.cursor = 0;
-    plan.lease = null;
-    plan.phase = "delivering_issues";
+    enterDelivery(plan);
+    next = currentPlanStep(plan);
+    if (next) plan.lease = makeLease(session, leaseSeconds(options), now);
   } else {
     plan.lease = null;
     plan.phase = "completed";

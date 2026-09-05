@@ -11,7 +11,7 @@ description: 在实现代码完成后编写和评估测试；当 feature、bug f
 
 ## 流程
 
-1. 使用 `/dev-gate` 已确认的质量门禁、public interfaces、critical paths 和 seams，负责其中的测试类门禁。
+1. 使用 `/code-delivery` 执行基线中的质量门禁、public interfaces、critical paths 和 seams，负责其中的测试类门禁。
    - 直接调用本 skill 时，在写测试前写下受测 seams 并与用户确认。
    - interface 形态仍未确定时，使用 `/code-design` 的 module、interface、depth 和 seam vocabulary 先确定边界。
 2. 在生产代码完成后编写测试。测试通过 public interfaces 验证 observable behavior，覆盖 spec 中的成功路径、失败路径和关键边界；expected values 来自 spec、worked example 或 known-good literal 等独立事实源。

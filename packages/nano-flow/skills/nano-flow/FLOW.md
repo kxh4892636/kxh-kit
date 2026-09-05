@@ -10,7 +10,7 @@ node <nano-flow-skill-root-dir>/scripts/flow.mjs --help
 
 ## 进入与恢复
 
-- 主流程：`/to-story -> /quest-with-domain -> /to-issues -> /dev-gate -> /code-delivery`。
+- 主流程：`/to-story -> /quest-with-domain -> /to-issues -> /code-delivery`。
 - Flow 只执行一次 `enter-plan`，由 `/nano-flow` 以 `--entry` 传入用户确认的 `/to-story` 或 `/quest-with-domain`。
 - `--mode` 可选 `manual`（默认）或 `auto`，用于匹配 hook。模式随 Plan 持久化，重新进入时传入即切换。
 - `--plan` 是本轮稳定标识。需要进入 `/to-issues` 时，它必须是工作区内的实际 Plan 路径；跳过 `/to-issues` 时只要求它在工作区内唯一且稳定。
@@ -39,7 +39,7 @@ node <nano-flow-skill-root-dir>/scripts/flow.mjs --help
 
 `delivering_direct` 返回 Plan 级 `/code-delivery`；`delivering_issues` 由 `claim-issue` 返回 Issue 级 `/code-delivery`。
 
-`/code-delivery` 进入后先登记 `started` 并保留返回的 `commit` action；代码、`/code-test`、`/verifying` 与 `/code-review` 是它返回前的内部门禁，不另记 Flow receipt。全部门禁仍适用于当前 diff 后，才执行并登记 `commit=committed`。
+`/code-delivery` 完成准入、执行基线为 `ready` 后登记 `started`，并保留返回的 `commit` action；准入、代码、`/code-test`、`/verifying` 与 `/code-review` 均在它内部完成，不另记 Flow receipt。全部门禁仍适用于当前 diff 后，才执行并登记 `commit=committed`。
 
 每条 receipt 都引用本轮真实产物或结果。证据存在、与当前目标和 diff 对应，且足以复核声明时，本步骤完成。
 
@@ -73,11 +73,11 @@ Plan 的 `phase` 是显式执行阶段：
 
 ```text
 planning
-  ├─ /to-issues=skipped + /dev-gate=ready
+  ├─ /to-issues=skipped
   │      ↓
   │  delivering_direct ── commit=committed ─→ completed
   │
-  └─ /to-issues=completed + /dev-gate=ready
+  └─ /to-issues=completed
          ↓
      delivering_issues ── all issues completed ─→ completed
 ```

@@ -25,7 +25,7 @@ status: completed
 
 ## 实施决策
 
-- 权威入口是本 Plan；固定比较点为 `41855c6ce31e13045ae4112ec0e63de806d02d85`。实现只修改 `apps/diff-viewer` 与本 Plan 的交付记录，保留工作区内其他既有变更；固定点或范围发生实质漂移时重新打开 `/dev-gate`。
+- 权威入口是本 Plan；固定比较点为 `41855c6ce31e13045ae4112ec0e63de806d02d85`。实现只修改 `apps/diff-viewer` 与本 Plan 的交付记录，保留工作区内其他既有变更；固定点或范围发生实质漂移时重新执行 `/code-delivery` 的准入检查。
 - 严格按 Issue 01 → Issue 02 推进。Issue 01 只交付诊断 harness、基线与 causal hotspot，无法形成稳定失败证据时进入 blocked；Issue 02 只实施 Issue 01 证实的最小修复。
 - 公共验证 seam 是真实 Electron UI：项目/仓库对比加载完成、页面静止、代表性工具栏交互与主滚动容器；React DOM 组件 seam 只证明 DOM 有界和导航 observable behavior，不以私有 virtualizer 状态作为交付断言。
 - 性能预算不预设跨机器绝对值；由同机健康小对比和失败 fixture 在修复前共同锁定，至少覆盖首次稳定、静止期收敛、代表性按钮响应、滚动响应和 long task。

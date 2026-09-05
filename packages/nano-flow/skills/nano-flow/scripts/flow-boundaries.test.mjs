@@ -314,7 +314,7 @@ test("record-plan rejects wrong order, result, evidence, lease, and exhausted Fl
     recordPlan(workspace, "other", "to-story", "completed"),
     /资源由会话 owner 持有/,
   );
-  await assert.rejects(recordPlan(workspace, "owner", "dev-gate", "ready"), /步骤顺序错误/);
+  await assert.rejects(recordPlan(workspace, "owner", "code-delivery", "started"), /步骤顺序错误/);
   await assert.rejects(
     recordPlan(workspace, "owner", "to-story", "invalid"),
     /result 必须是 completed/,
@@ -332,9 +332,8 @@ test("record-plan rejects wrong order, result, evidence, lease, and exhausted Fl
   await recordPlan(workspace, "owner", "to-story", "completed");
   await recordPlan(workspace, "owner", "quest-with-domain", "completed");
   await recordPlan(workspace, "owner", "to-issues", "completed");
-  await recordPlan(workspace, "owner", "dev-gate", "ready");
   await assert.rejects(
-    recordPlan(workspace, "owner", "dev-gate", "ready"),
+    recordPlan(workspace, "owner", "code-delivery", "started"),
     /当前阶段 delivering_issues 不接受 record-plan/,
   );
 });
@@ -575,13 +574,13 @@ test("sync-plan reconciles pending, completed, blocked, and in-progress issue do
   assert.deepEqual(firstSync, {
     phase: "delivering_issues",
     plan: PLAN_PATH,
-    revision: 10,
+    revision: 9,
     synced: true,
   });
   assert.deepEqual(await command(workspace, "sync-plan", { plan: PLAN_PATH }), firstSync);
 
   const status = await command(workspace, "status", { plan: PLAN_PATH });
-  assert.equal(status.revision, 10);
+  assert.equal(status.revision, 9);
   assert.deepEqual(status.plan.issues, {
     "02": { cursor: 2, lease: null, receipts: [], status: "completed" },
     "03": { cursor: 0, lease: null, receipts: [], status: "blocked" },
@@ -603,7 +602,7 @@ test("sync-plan persists an isolated pending runtime removal", async () => {
   assert.deepEqual(await command(workspace, "sync-plan", { plan: PLAN_PATH }), {
     phase: "delivering_issues",
     plan: PLAN_PATH,
-    revision: 8,
+    revision: 7,
     synced: true,
   });
   assert.deepEqual((await command(workspace, "status", { plan: PLAN_PATH })).plan.issues, {});
@@ -624,7 +623,7 @@ test("sync-plan persists an isolated completed runtime", async () => {
   assert.deepEqual(await command(workspace, "sync-plan", { plan: PLAN_PATH }), {
     phase: "delivering_issues",
     plan: PLAN_PATH,
-    revision: 7,
+    revision: 6,
     synced: true,
   });
   assert.equal(
@@ -729,7 +728,6 @@ test("completes and re-enters the main Flow with a generated session", async () 
   const plan = "2026-08-27-main-flow";
   await recordPlan(workspace, session, "quest-with-domain", "completed", { plan });
   await recordPlan(workspace, session, "to-issues", "skipped", { plan });
-  await recordPlan(workspace, session, "dev-gate", "ready", { plan });
   await recordPlan(workspace, session, "code-delivery", "started", { plan });
   await command(workspace, "record-plan", {
     action: "commit",
