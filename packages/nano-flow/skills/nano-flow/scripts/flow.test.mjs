@@ -24,7 +24,7 @@ const execFileAsync = promisify(execFile);
 const FLOW_PATH = fileURLToPath(new URL("./flow.mjs", import.meta.url));
 const DEFAULT_HOOK_MESSAGE =
   "当前 skill 执行结束后, 询问用户当前 skill 是否完成 + 是否进入下一个 skill, 用户同意后, 执行 flow.mjs, 然后自动调用下一个 skill(无须用户确认).";
-const AUTO_HOOK_MESSAGE = "当前 skill 执行结束后, 无需用户确认, 自动调用下一个 skill";
+const AUTO_HOOK_MESSAGE = "当前 skill 内部确认及其执行结束后, 无需用户确认, 自动调用下一个 skill";
 const DEV_GATE_QUESTIONS_MESSAGE =
   "任何准入判断前先完整读取 `<nano-flow-skill-root-dir>/extensions/QUESTIONS.md` 和 `<nano-flow-skill-root-dir>/extensions/workflows/README.md`，以用户输入和当前上下文作为已有答案，选择并询问全部相关问题。问题集未清空时结论为 `not ready`。";
 const CODE_DELIVERY_HOOK_MESSAGE =
@@ -322,7 +322,7 @@ test("hooks 对同一 skill 按声明顺序拼接且只附加到 next_skill", as
       },
       workspace,
     });
-    assert.equal(entered.message, `${DEFAULT_HOOK_MESSAGE}\nglobal\ndiscovery\nstory`);
+    assert.equal(entered.message, "global\ndiscovery\nstory");
 
     const story = await executeFlow({
       command: "record-plan",
@@ -337,7 +337,7 @@ test("hooks 对同一 skill 按声明顺序拼接且只附加到 next_skill", as
       },
       workspace,
     });
-    assert.equal(story.message, `${DEFAULT_HOOK_MESSAGE}\nglobal\ndiscovery`);
+    assert.equal(story.message, "global\ndiscovery");
   } finally {
     await fs.rm(workspace, { force: true, recursive: true });
   }

@@ -43,12 +43,6 @@ const HOOKABLE_SKILLS = new Set(
 
 const FLOW_MODES = new Set(["auto", "manual"]);
 const DEFAULT_FLOW_MODE = "manual";
-const MANUAL_MODE_HOOK =
-  "当前 skill 执行结束后, 询问用户当前 skill 是否完成 + 是否进入下一个 skill, 用户同意后, 执行 flow.mjs, 然后自动调用下一个 skill(无须用户确认).";
-const AUTO_MODE_HOOK = "当前 skill 内部确认及其执行结束后, 无需用户确认, 自动调用下一个 skill";
-const MODE_HOOK_SKILLS = new Set(
-  PLANNING_FLOW.filter((step) => step.skill !== "dev-gate").map((step) => step.skill),
-);
 
 const ENTRY_CURSORS = {
   "quest-with-domain": 1,
@@ -83,6 +77,9 @@ const validateHooks = (config) => {
     ) {
       fail(`Hook ${index + 1} 的 match 必须是 "all" 或主流程 Skill 数组`);
     }
+    if (hook.mode !== undefined && hook.mode !== "all" && !FLOW_MODES.has(hook.mode)) {
+      fail(`Hook ${index + 1} 的 mode 必须是 all | manual | auto`);
+    }
     if (
       typeof hook.message !== "string" ||
       hook.message.trim() === "" ||
@@ -113,15 +110,10 @@ const loadHooks = async (hooksPath = HOOKS_PATH) => {
 
 const messageForSkill = (config, skill, mode) => {
   const normalized = normalizeSkill(skill);
-  const messages = MODE_HOOK_SKILLS.has(normalized)
-    ? [mode === "auto" ? AUTO_MODE_HOOK : MANUAL_MODE_HOOK]
-    : [];
-  return messages
-    .concat(
-      config.hooks
-        .filter((hook) => hook.match === "all" || hook.match.includes(normalized))
-        .map((hook) => hook.message),
-    )
+  return config.hooks
+    .filter((hook) => hook.match === "all" || hook.match.includes(normalized))
+    .filter((hook) => hook.mode === undefined || hook.mode === "all" || hook.mode === mode)
+    .map((hook) => hook.message)
     .join("\n");
 };
 

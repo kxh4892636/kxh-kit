@@ -12,10 +12,20 @@ node <nano-flow-skill-root-dir>/scripts/flow.mjs --help
 
 - 主流程：`/to-story -> /quest-with-domain -> /to-issues -> /dev-gate -> /code-delivery`。
 - Flow 只执行一次 `enter-plan`，由 `/nano-flow` 以 `--entry` 传入用户确认的 `/to-story` 或 `/quest-with-domain`。
-- `--mode` 可选 `manual`（默认）或 `auto`：`/dev-gate` 之前的步骤完成后，manual 询问用户再推进，auto 直接自动推进。模式随 Plan 持久化，重新进入时传入即切换。
+- `--mode` 可选 `manual`（默认）或 `auto`，用于匹配 hook。模式随 Plan 持久化，重新进入时传入即切换。
 - `--plan` 是本轮稳定标识。需要进入 `/to-issues` 时，它必须是工作区内的实际 Plan 路径；跳过 `/to-issues` 时只要求它在工作区内唯一且稳定。
 - 已有运行态使用 `status` 查明当前位置，再按返回值恢复。
 - 命令成功且当前调用者持有唯一有效租约、返回的 `next_skill` 与预期入口一致时，进入完成。
+
+## Hooks 与确认
+
+确认与推进提示词由 [`extensions/hooks.json`](extensions/hooks.json) 统一管理，`flow.mjs` 只校验、匹配并返回消息。每条 hook 包含：
+
+- `match`：`all` 或主流程 skill 名称数组。
+- `mode`：可选，取值 `all | manual | auto`，缺省为 `all`。
+- `message`：非空单行提示词。
+
+同时匹配 `next_skill` 与当前 Plan 模式的 hook 按配置顺序拼接；只在有匹配消息时返回 `message`。携带 Flow context 时，当前 skill 及其内部调用的确认方式按返回的 hook 消息执行；产物与证据仍须满足实际完成条件。
 
 ## Receipt chain
 
@@ -25,7 +35,7 @@ node <nano-flow-skill-root-dir>/scripts/flow.mjs --help
 2. 只在该 skill 的完成标准真实成立后，使用 `record-plan` 或 `record-issue` 登记结果和至少一项可核查证据。
 3. 登记成功后丢弃旧的 next 值，只执行新返回值。
 
-`/to-story` 完成后直接进入 `/quest-with-domain`。`/quest-with-domain` 完成后必须进入 `/to-issues`，由它根据任务是否需要可恢复的 issue graph 登记 `completed` 或 `skipped`。
+`/to-story` 完成后直接进入 `/quest-with-domain`。`/quest-with-domain` 完成后必须进入 `/to-issues`，由它判断任务是否需要可恢复的 issue graph，再由 `/nano-flow` 登记其 `completed` 或 `skipped` 结果。
 
 `delivering_direct` 返回 Plan 级 `/code-delivery`；`delivering_issues` 由 `claim-issue` 返回 Issue 级 `/code-delivery`。
 
@@ -35,10 +45,16 @@ node <nano-flow-skill-root-dir>/scripts/flow.mjs --help
 
 ## Issue 推进
 
-- 仅当 `/to-issues=completed` 且 Plan 到达 `delivering_issues` 后，以 `claim-issue` 领取直接依赖均已完成的 issue；首次领取保留脚本生成的 issue session。
-- 一个 session 串行推进自己领取的 issue。不同 session 可以并行领取互不阻塞的 issue；同一 issue 只有一个有效租约。
+本节由 `/nano-flow` 执行；`/to-issues` 只负责建立或维护 spec 与 issue 图。
+
+- 仅当 `/to-issues=completed` 且 Plan 到达 `delivering_issues` 后，从 spec 派生表定位 `pending` 且直接依赖均已 `completed` 的 frontier，并以运行态核对；有多个候选时使用用户已确认的优先级。以 `claim-issue` 领取一个 issue，首次领取保留脚本生成的 issue session。
+- 一个 session 串行推进自己领取的 issue，交付或形成真实 blocked 结果后才领取下一个。不同 session 可以并行领取互不阻塞的 issue；同一 issue 只有一个有效租约。
+- 新事实或新工作按 `/to-issues` 的文档维护规则更新 Plan；符合 ADR 资格的长期 trade-off 由 `/quest-with-domain` 写入领域文档。
 - 交付前，issue 的「交付记录」包含交付物与验证证据；脚本据此允许完成状态与 commit receipt。
-- 所有 issue 完成后，Plan 自动进入 `completed`；再以 `sync-plan` 刷新派生视图，并按 [`DOMAIN.md`](references/DOMAIN.md) 处理 Plan 生命周期。
+- 每次暂停前同步 issue 状态、spec 派生视图与证据；恢复时只信任文件与运行态。
+- 所有 issue 完成后，Plan 自动进入 `completed`；再以 `sync-plan` 刷新派生视图，与用户确认参考价值，按 [`DOMAIN.md`](references/DOMAIN.md) 把整个 Plan 移入 `reference/` 或 `archived/`，并重新运行领域校验。
+
+一个领取结果有且只有一个终态、状态与 spec 派生视图一致、证据链可复核时，本轮推进完成。
 
 ## 租约、阻塞与恢复
 
