@@ -84,7 +84,7 @@ blocked_by: []
 
 ## 下一步
 
-{决策已澄清: /code-delivery; 仍需澄清: /quest-with-domain}
+{决策已澄清: /code-delivery; 仍需澄清: /questing}
 
 ## 阻塞记录
 

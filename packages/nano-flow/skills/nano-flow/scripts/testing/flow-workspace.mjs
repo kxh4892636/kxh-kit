@@ -90,13 +90,12 @@ export const recordIssue = (workspace, issue, session, step, result) =>
 
 export const readyIssuePlan = async (workspace, session = "plan-session") => {
   await command(workspace, "enter-plan", {
-    entry: "/to-story",
+    entry: "/questing",
     plan: PLAN_PATH,
     session,
     skill: "/nano-flow",
   });
-  await recordPlan(workspace, session, "to-story", "completed");
-  await recordPlan(workspace, session, "quest-with-domain", "completed");
+  await recordPlan(workspace, session, "questing", "completed");
   return recordPlan(workspace, session, "to-issues", "completed");
 };
 

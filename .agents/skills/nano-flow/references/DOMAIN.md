@@ -8,7 +8,7 @@
 2. 阅读对应业务域的 `docs/{domain-name}/CONTEXT.md`。
 3. 阅读该业务域中与当前工作相关的 `adr/`。
 
-跨业务域工作覆盖所有相关业务域，并读取 `CONTEXT-MAP.md` 中的关系。任一文件不存在时静默继续；术语或决策得到确认后，由 `/quest-with-domain` 按需创建或维护。
+跨业务域工作覆盖所有相关业务域，并读取 `CONTEXT-MAP.md` 中的关系。任一文件不存在时静默继续；术语或决策得到确认后，由 `/questing`按需创建或维护。
 
 ## 布局
 
@@ -38,7 +38,7 @@
 - `docs/common/` 承载多个业务域共同贡献的领域术语和 ADR。
 - `docs/{domain-name}/CONTEXT.md` 只承载该业务域的 glossary，不承载 spec 或实现细节。
 - `docs/{domain-name}/adr/` 承载该业务域拥有的 ADR；跨域决策只选择一个 owner，其他域使用链接引用。
-- `docs/{domain-name}/plans/` 承载 `/to-story` 和 `/to-issues` 维护的 Plan。
+- `docs/{domain-name}/plans/` 承载 `/questing`和 `/to-issues` 维护的 Plan。
 - `domain-name` 使用稳定、简短的 kebab-case；新增业务域时同步创建 `CONTEXT.md` 并加入 `CONTEXT-MAP.md`。
 
 ## 文档约束
@@ -66,5 +66,5 @@ Plan 生命周期与 Plan 内的执行状态正交：目录位置表达活性与
 ## 领域语言与决策
 
 - 命名 Issue、测试、假设和重构提案时，使用对应 `CONTEXT.md` 中的 canonical term，不使用 glossary 明确排除的同义词。
-- 所需概念尚未收录时，先判断它是否只是项目未使用的语言；确认存在领域缺口后，由 `/quest-with-domain` 维护 glossary。
+- 所需概念尚未收录时，先判断它是否只是项目未使用的语言；确认存在领域缺口后，由 `/questing`维护 glossary。
 - 输出与现有 ADR 冲突时显式指出冲突及重新讨论的理由，不静默覆盖。

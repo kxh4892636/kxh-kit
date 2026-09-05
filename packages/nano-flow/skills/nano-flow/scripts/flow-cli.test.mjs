@@ -28,7 +28,7 @@ test("CLI wrapper renders help, parses repeated evidence, and returns JSON error
         "--skill",
         "/nano-flow",
         "--entry",
-        "/to-story",
+        "/questing",
         "--session",
         "cli-session",
       ],
@@ -51,7 +51,7 @@ test("CLI wrapper renders help, parses repeated evidence, and returns JSON error
         "--session",
         "cli-session",
         "--skill",
-        "/to-story",
+        "/questing",
         "--result",
         "completed",
         "--evidence",
@@ -87,7 +87,7 @@ test("CLI wrapper renders help, parses repeated evidence, and returns JSON error
     [["unknown"], "未知命令 unknown"],
     [["enter-plan", "positional"], "无法识别参数 positional"],
     [["enter-plan", "--plan"], "--plan 缺少值"],
-    [["enter-plan", "--plan", "--skill", "/to-story"], "--plan 缺少值"],
+    [["enter-plan", "--plan", "--skill", "/questing"], "--plan 缺少值"],
   ]) {
     const stderr = [];
     assert.equal(await runFlowCli({ argumentsList, stderr: (message) => stderr.push(message) }), 1);

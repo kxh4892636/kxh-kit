@@ -7,19 +7,19 @@ Nano Flow 将想法路由为可验收的设计、Plan 和交付 Flow，并以单
 ### Flow
 
 **Flow 发起者**：
-请求进入一次 Flow 路径的 skill；`/nano-flow` 动态选择入口 skill，固定入口 skill 则选择自身。
+请求进入一次 Flow 路径的 skill；由 `/nano-flow` 选择并进入已确认的起点。
 _避免使用_：当前 skill
 
 **入口 skill**：
-经用户确认后开始一条 Flow 路径的 skill，限于 `/grill-with-docs`、`/to-story` 或 `/to-issues`。
+经用户确认后开始一条 Flow 路径的 skill；当前为 `/questing`。
 _避免使用_：next skill
 
 **Flow 路径**：
-与入口 skill 一一对应的有序卡点与交付 receipt 链，分为 `main`、`story` 和 `issues`。
+从入口开始的有序步骤与交付 receipt 链；拷问和 issue 拆分之后，按拆分结果进入直接交付或 issue 交付。
 _避免使用_：模式
 
 **Flow 标识**：
-`YYYY-MM-DD-{name}` 形态的可读标识，用于区分不依附领域 Plan 的 `/grill-with-docs` 运行；它不是文件系统目录。
+工作区内稳定且唯一的 Plan 标识；需要持久化 issue 图时，使用实际 Plan 路径。
 _避免使用_：Plan 路径、flow ID
 
 ### CLI

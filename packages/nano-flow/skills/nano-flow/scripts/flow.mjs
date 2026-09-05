@@ -13,7 +13,7 @@ import {
   parseIssueDependencies,
 } from "./plan-document.mjs";
 
-const SCHEMA_VERSION = 5;
+const SCHEMA_VERSION = 6;
 const DEFAULT_LEASE_SECONDS = 1800;
 const DEFAULT_STATE_RETENTION_DAYS = 30;
 const LOCK_STALE_MS = 30000;
@@ -27,8 +27,7 @@ const DELIVERY_FLOW = [
 ];
 
 const PLANNING_FLOW = [
-  { skill: "to-story", results: ["completed"] },
-  { skill: "quest-with-domain", results: ["completed"] },
+  { skill: "questing", results: ["completed"] },
   { skill: "to-issues", results: ["completed", "skipped"] },
 ];
 
@@ -42,11 +41,6 @@ const HOOKABLE_SKILLS = new Set(
 
 const FLOW_MODES = new Set(["auto", "manual"]);
 const DEFAULT_FLOW_MODE = "manual";
-
-const ENTRY_CURSORS = {
-  "quest-with-domain": 1,
-  "to-story": 0,
-};
 
 const fail = (message) => {
   throw new Error(message);
@@ -191,7 +185,7 @@ const emptyState = () => ({
 const validateState = (state) => {
   if (
     state === null ||
-    state.schema_version !== SCHEMA_VERSION ||
+    ![5, SCHEMA_VERSION].includes(state.schema_version) ||
     !Number.isInteger(state.revision) ||
     state.plans === null ||
     typeof state.plans !== "object" ||
@@ -232,6 +226,13 @@ const readState = async (statePath) => {
   if (content === null) return emptyState();
   try {
     const state = validateState(JSON.parse(content));
+    if (state.schema_version === 5) {
+      // 旧规划阶段的前两步合为一步；保留历史凭据，仅收敛游标。
+      for (const plan of Object.values(state.plans)) {
+        if (plan.phase === "planning" && plan.cursor > 0) plan.cursor -= 1;
+      }
+      state.schema_version = SCHEMA_VERSION;
+    }
     for (const plan of Object.values(state.plans)) {
       // 旧流程停在已合入交付的准入位置时，沿已有拆分结果恢复。
       if (plan.phase === "planning" && plan.cursor === PLANNING_FLOW.length) {
@@ -511,14 +512,10 @@ const recordReceipt = (subject, sequence, options, now) => {
 const handleInit = (state, workspace, options, now) => {
   const planInput = requireOption(options, "plan");
   const planKey = normalizePlanPath(workspace, planInput);
-  const entry = normalizeSkill(requireOption(options, "entry"));
   const session = requireOption(options, "session");
-  if (ENTRY_CURSORS[entry] === undefined) {
-    fail("--entry 必须是 /to-story | /quest-with-domain");
-  }
   if (state.plans[planKey]) fail(`Plan ${planKey} 已经初始化`);
   state.plans[planKey] = {
-    cursor: ENTRY_CURSORS[entry],
+    cursor: 0,
     issues: {},
     lease: makeLease(session, leaseSeconds(options), now),
     mode: options.mode ?? DEFAULT_FLOW_MODE,
@@ -542,8 +539,8 @@ const handleEnterPlan = (state, workspace, options, now) => {
     fail("--skill 必须是 /nano-flow");
   }
   const entrySkill = normalizeSkill(requireOption(options, "entry"));
-  if (ENTRY_CURSORS[entrySkill] === undefined) {
-    fail("--entry 必须是 /to-story | /quest-with-domain");
+  if (entrySkill !== "questing") {
+    fail("--entry 必须是 /questing");
   }
   const mode = options.mode?.trim();
   if (mode !== undefined && !FLOW_MODES.has(mode)) fail("--mode 必须是 manual | auto");
@@ -902,7 +899,7 @@ const parseCli = (argumentsList) => {
 };
 
 const usage = `用法:
-  flow.mjs enter-plan --plan <path> --skill /nano-flow --entry </to-story|/quest-with-domain> [--session <id>] [--mode <manual|auto>]
+  flow.mjs enter-plan --plan <path> --skill /nano-flow --entry /questing [--session <id>] [--mode <manual|auto>]
   flow.mjs record-plan --plan <path> --session <id> (--skill </skill>|--action <action>) --result <result> --evidence <ref>
   flow.mjs claim-issue --plan <path> --issue <NN> [--session <id>]
   flow.mjs record-issue --plan <path> --issue <NN> --session <id> (--skill </skill>|--action <action>) --result <result> --evidence <ref>

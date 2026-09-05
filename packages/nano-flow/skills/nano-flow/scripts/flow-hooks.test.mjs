@@ -21,9 +21,9 @@ test.each(["manual", "auto"])(
       schema_version: 1,
       hooks: [
         { match: "all", message: "default mode" },
-        { match: ["to-story"], mode: "auto", message: "auto story" },
+        { match: ["questing"], mode: "auto", message: "auto story" },
         { match: "all", mode: "all", message: "explicit all" },
-        { match: ["to-story"], mode: "manual", message: "manual story" },
+        { match: ["questing"], mode: "manual", message: "manual story" },
         { match: ["code-delivery"], mode, message: "other skill" },
         { match: "all", mode, message: "selected mode" },
       ],
@@ -38,7 +38,7 @@ test.each(["manual", "auto"])(
       });
 
     const entered = await invoke("enter-plan", {
-      entry: "/to-story",
+      entry: "/questing",
       mode,
       skill: "/nano-flow",
     });
@@ -52,9 +52,9 @@ test.each(["manual", "auto"])(
     const next = await invoke("record-plan", {
       evidence: ["story-completed"],
       result: "completed",
-      skill: "/to-story",
+      skill: "/questing",
     });
-    assert.equal(next.next_skill, "/quest-with-domain");
+    assert.equal(next.next_skill, "/to-issues");
     assert.equal(next.message, "default mode\nexplicit all\nselected mode");
   },
 );
@@ -68,7 +68,7 @@ test.each(["manual", "auto"])("%s 模式没有匹配 hook 时不注入默认提�
       hooks: { schema_version: 1, hooks },
       now: () => new Date(TEST_NOW),
       options: {
-        entry: "/to-story",
+        entry: "/questing",
         mode,
         plan: PLAN_PATH,
         session: "owner",
@@ -98,14 +98,14 @@ test("mode hook 可由配置应用到 code-delivery，并随 Plan 模式切换",
       workspace,
     });
 
-  await invoke("enter-plan", { entry: "/quest-with-domain", skill: "/nano-flow" });
+  await invoke("enter-plan", { entry: "/questing", skill: "/nano-flow" });
   await invoke("enter-plan", {
-    entry: "/quest-with-domain",
+    entry: "/questing",
     mode: "auto",
     skill: "/nano-flow",
   });
   const switched = await invoke("enter-plan", {
-    entry: "/quest-with-domain",
+    entry: "/questing",
     mode: "manual",
     skill: "/nano-flow",
   });
@@ -113,7 +113,7 @@ test("mode hook 可由配置应用到 code-delivery，并随 Plan 模式切换",
   await invoke("record-plan", {
     evidence: ["domain-completed"],
     result: "completed",
-    skill: "/quest-with-domain",
+    skill: "/questing",
   });
   const delivery = await invoke("record-plan", {
     evidence: ["issues-skipped"],
@@ -141,7 +141,7 @@ test.each([null, "", "turbo", "AUTO", 0, false, ["auto"], {}])(
           schema_version: 1,
           hooks: [{ match: "all", mode, message: "invalid mode" }],
         },
-        options: { entry: "/to-story", plan: PLAN_PATH, skill: "/nano-flow" },
+        options: { entry: "/questing", plan: PLAN_PATH, skill: "/nano-flow" },
         workspace,
       }),
       /Hook 1 的 mode 必须是 all \| manual \| auto/,

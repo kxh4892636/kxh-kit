@@ -30,7 +30,7 @@ test("状态文件使用本地日期前缀且不读取旧 state.json", async () 
   );
 
   const initialized = await enterPlan(workspace, {
-    entry: "/to-story",
+    entry: "/questing",
     plan: PLAN_PATH,
     session: "dated-state-session",
   });
@@ -47,7 +47,7 @@ test.each([
   ["empty match", { hooks: [{ match: [], message: "x" }], schema_version: 1 }, /match 必须/],
   [
     "unknown skill",
-    { hooks: [{ match: ["questing"], message: "x" }], schema_version: 1 },
+    { hooks: [{ match: ["unknown"], message: "x" }], schema_version: 1 },
     /match 必须/,
   ],
   ["empty message", { hooks: [{ match: "all", message: "" }], schema_version: 1 }, /message 必须/],
@@ -63,7 +63,7 @@ test.each([
       command: "enter-plan",
       hooks,
       options: {
-        entry: "/to-story",
+        entry: "/questing",
         plan: PLAN_PATH,
         session: "invalid-hook",
         skill: "/nano-flow",
@@ -88,7 +88,7 @@ test("状态事务只清理三十天窗口之前的日期状态文件", async ()
   }
 
   await enterPlan(workspace, {
-    entry: "/to-story",
+    entry: "/questing",
     plan: PLAN_PATH,
     session: "retention-session",
   });
@@ -103,26 +103,26 @@ test("状态事务只清理三十天窗口之前的日期状态文件", async ()
 });
 
 test.each([
-  ["缺少 plan", { entry: "/to-story", session: "s" }, "提供 --plan"],
+  ["缺少 plan", { entry: "/questing", session: "s" }, "提供 --plan"],
   ["非法 entry", { entry: "/invalid", plan: PLAN_PATH, session: "s" }, "--entry 必须是"],
   [
     "过短 lease",
-    { entry: "/to-story", plan: PLAN_PATH, session: "s", "lease-seconds": "29" },
+    { entry: "/questing", plan: PLAN_PATH, session: "s", "lease-seconds": "29" },
     "--lease-seconds",
   ],
   [
     "过长 lease",
-    { entry: "/to-story", plan: PLAN_PATH, session: "s", "lease-seconds": "86401" },
+    { entry: "/questing", plan: PLAN_PATH, session: "s", "lease-seconds": "86401" },
     "--lease-seconds",
   ],
   [
     "非整数 lease",
-    { entry: "/to-story", plan: PLAN_PATH, session: "s", "lease-seconds": "30.5" },
+    { entry: "/questing", plan: PLAN_PATH, session: "s", "lease-seconds": "30.5" },
     "--lease-seconds",
   ],
   [
     "工作区外 plan",
-    { entry: "/to-story", plan: "../outside", session: "s" },
+    { entry: "/questing", plan: "../outside", session: "s" },
     "--plan 必须位于工作区内",
   ],
 ])("enter-plan 拒绝%s", async (_name, options, expected) => {
@@ -135,12 +135,12 @@ test("enter-plan applies default and boundary leases, rejects competing owners, 
   const now = () => new Date(TEST_NOW);
   const initialized = await enterPlan(
     workspace,
-    { entry: "/to-story", plan: PLAN_PATH, session: "session", "lease-seconds": "30" },
+    { entry: "/questing", plan: PLAN_PATH, session: "session", "lease-seconds": "30" },
     now,
   );
   assert.equal(initialized.session, "session");
   await assert.rejects(
-    enterPlan(workspace, { entry: "/to-story", plan: PLAN_PATH, session: "other" }, now),
+    enterPlan(workspace, { entry: "/questing", plan: PLAN_PATH, session: "other" }, now),
     /资源由会话 session 持有/,
   );
   const plan = (await command(workspace, "status", { plan: PLAN_PATH })).plan;
@@ -149,7 +149,7 @@ test("enter-plan applies default and boundary leases, rejects competing owners, 
   assert.equal(Date.parse(plan.lease.expires_at) - TEST_NOW.getTime(), 30_000);
 
   await enterPlan(workspace, {
-    entry: "/to-story",
+    entry: "/questing",
     plan: "default-plan",
     session: "default-session",
   });
@@ -157,7 +157,7 @@ test("enter-plan applies default and boundary leases, rejects competing owners, 
   assert.equal(Date.parse(defaultPlan.lease.expires_at) - TEST_NOW.getTime(), 1_800_000);
 
   await enterPlan(workspace, {
-    entry: "/to-story",
+    entry: "/questing",
     plan: "maximum-plan",
     session: "maximum-session",
     "lease-seconds": "86400",
@@ -245,8 +245,8 @@ test("enter-plan validates initiators, entries, sessions, and completed Flow reu
   );
   await assert.rejects(
     command(workspace, "enter-plan", {
-      skill: "/quest-with-domain",
-      entry: "/to-story",
+      skill: "/questing",
+      entry: "/questing",
       plan: PLAN_PATH,
     }),
     /--skill 必须是 \/nano-flow/,
@@ -255,14 +255,14 @@ test("enter-plan validates initiators, entries, sessions, and completed Flow reu
 
   const entered = await command(workspace, "enter-plan", {
     skill: "/nano-flow",
-    entry: "/to-story",
+    entry: "/questing",
     plan: PLAN_PATH,
     session: "owner",
   });
-  assert.equal(entered.next_skill, "/to-story");
+  assert.equal(entered.next_skill, "/questing");
   await assert.rejects(
     command(workspace, "enter-plan", {
-      entry: "/to-story",
+      entry: "/questing",
       plan: PLAN_PATH,
       session: "other",
       skill: "/nano-flow",
@@ -272,7 +272,7 @@ test("enter-plan validates initiators, entries, sessions, and completed Flow reu
   assert.equal(
     (
       await command(workspace, "enter-plan", {
-        entry: "/to-story",
+        entry: "/questing",
         plan: PLAN_PATH,
         session: "owner",
         skill: "/nano-flow",
@@ -283,7 +283,7 @@ test("enter-plan validates initiators, entries, sessions, and completed Flow reu
   const reacquired = await command(
     workspace,
     "enter-plan",
-    { entry: "/to-story", plan: PLAN_PATH, skill: "/nano-flow" },
+    { entry: "/questing", plan: PLAN_PATH, skill: "/nano-flow" },
     () => new Date(TEST_NOW.getTime() + 1_801_000),
   );
   assert.notEqual(reacquired.session, "owner");
@@ -294,7 +294,7 @@ test("enter-plan validates initiators, entries, sessions, and completed Flow reu
       message:
         "当前 skill 执行结束后, 询问用户当前 skill 是否完成 + 是否进入下一个 skill, 用户同意后, 执行 flow.mjs, 然后自动调用下一个 skill(无须用户确认).",
       next_action: null,
-      next_skill: "/to-story",
+      next_skill: "/questing",
       phase: "planning",
       plan: PLAN_PATH,
       revision: 2,
@@ -306,17 +306,17 @@ test("enter-plan validates initiators, entries, sessions, and completed Flow reu
 test("record-plan rejects wrong order, result, evidence, lease, and exhausted Flow", async () => {
   const workspace = await createWorkspace();
   await enterPlan(workspace, {
-    entry: "/to-story",
+    entry: "/questing",
     plan: PLAN_PATH,
     session: "owner",
   });
   await assert.rejects(
-    recordPlan(workspace, "other", "to-story", "completed"),
+    recordPlan(workspace, "other", "questing", "completed"),
     /资源由会话 owner 持有/,
   );
   await assert.rejects(recordPlan(workspace, "owner", "code-delivery", "started"), /步骤顺序错误/);
   await assert.rejects(
-    recordPlan(workspace, "owner", "to-story", "invalid"),
+    recordPlan(workspace, "owner", "questing", "invalid"),
     /result 必须是 completed/,
   );
   await assert.rejects(
@@ -324,13 +324,12 @@ test("record-plan rejects wrong order, result, evidence, lease, and exhausted Fl
       plan: PLAN_PATH,
       result: "completed",
       session: "owner",
-      skill: "/to-story",
+      skill: "/questing",
     }),
     /至少需要一个 --evidence/,
   );
 
-  await recordPlan(workspace, "owner", "to-story", "completed");
-  await recordPlan(workspace, "owner", "quest-with-domain", "completed");
+  await recordPlan(workspace, "owner", "questing", "completed");
   await recordPlan(workspace, "owner", "to-issues", "completed");
   await assert.rejects(
     recordPlan(workspace, "owner", "code-delivery", "started"),
@@ -341,7 +340,7 @@ test("record-plan rejects wrong order, result, evidence, lease, and exhausted Fl
 test("lease commands heartbeat, release, reclaim, and enforce owners", async () => {
   const workspace = await createWorkspace();
   await enterPlan(workspace, {
-    entry: "/to-story",
+    entry: "/questing",
     plan: PLAN_PATH,
     session: "owner",
   });
@@ -373,7 +372,7 @@ test("issue commands reject invalid IDs, unready plans, missing runtime, and inc
     { id: "02", dependencies: ["01"] },
   ]);
   await enterPlan(workspace, {
-    entry: "/to-story",
+    entry: "/questing",
     plan: PLAN_PATH,
     session: "owner",
   });
@@ -574,13 +573,13 @@ test("sync-plan reconciles pending, completed, blocked, and in-progress issue do
   assert.deepEqual(firstSync, {
     phase: "delivering_issues",
     plan: PLAN_PATH,
-    revision: 9,
+    revision: 8,
     synced: true,
   });
   assert.deepEqual(await command(workspace, "sync-plan", { plan: PLAN_PATH }), firstSync);
 
   const status = await command(workspace, "status", { plan: PLAN_PATH });
-  assert.equal(status.revision, 9);
+  assert.equal(status.revision, 8);
   assert.deepEqual(status.plan.issues, {
     "02": { cursor: 2, lease: null, receipts: [], status: "completed" },
     "03": { cursor: 0, lease: null, receipts: [], status: "blocked" },
@@ -602,7 +601,7 @@ test("sync-plan persists an isolated pending runtime removal", async () => {
   assert.deepEqual(await command(workspace, "sync-plan", { plan: PLAN_PATH }), {
     phase: "delivering_issues",
     plan: PLAN_PATH,
-    revision: 7,
+    revision: 6,
     synced: true,
   });
   assert.deepEqual((await command(workspace, "status", { plan: PLAN_PATH })).plan.issues, {});
@@ -623,7 +622,7 @@ test("sync-plan persists an isolated completed runtime", async () => {
   assert.deepEqual(await command(workspace, "sync-plan", { plan: PLAN_PATH }), {
     phase: "delivering_issues",
     plan: PLAN_PATH,
-    revision: 6,
+    revision: 5,
     synced: true,
   });
   assert.equal(
@@ -720,13 +719,13 @@ test("derives completed and mixed plan statuses", async () => {
 test("completes and re-enters the main Flow with a generated session", async () => {
   const workspace = await createWorkspace();
   const entered = await command(workspace, "enter-plan", {
-    entry: "/quest-with-domain",
+    entry: "/questing",
     plan: "2026-08-27-main-flow",
     skill: "/nano-flow",
   });
   const session = entered.session;
   const plan = "2026-08-27-main-flow";
-  await recordPlan(workspace, session, "quest-with-domain", "completed", { plan });
+  await recordPlan(workspace, session, "questing", "completed", { plan });
   await recordPlan(workspace, session, "to-issues", "skipped", { plan });
   await recordPlan(workspace, session, "code-delivery", "started", { plan });
   await command(workspace, "record-plan", {
@@ -738,11 +737,11 @@ test("completes and re-enters the main Flow with a generated session", async () 
   });
   assert.equal((await command(workspace, "status", { plan })).plan.phase, "completed");
   const restarted = await command(workspace, "enter-plan", {
-    entry: "/quest-with-domain",
+    entry: "/questing",
     plan,
     skill: "/nano-flow",
   });
-  assert.equal(restarted.next_skill, "/quest-with-domain");
+  assert.equal(restarted.next_skill, "/questing");
   assert.notEqual(restarted.session, session);
 });
 

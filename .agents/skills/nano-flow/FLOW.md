@@ -10,8 +10,8 @@ node <nano-flow-skill-root-dir>/scripts/flow.mjs --help
 
 ## 进入与恢复
 
-- 主流程：`/to-story -> /quest-with-domain -> /to-issues -> /code-delivery`。
-- Flow 只执行一次 `enter-plan`，由 `/nano-flow` 以 `--entry` 传入用户确认的 `/to-story` 或 `/quest-with-domain`。
+- 主流程：`/questing -> /to-issues -> /code-delivery`。
+- Flow 只执行一次 `enter-plan`，由 `/nano-flow` 以 `--entry /questing` 进入已确认的 Flow。
 - `--mode` 可选 `manual`（默认）或 `auto`，用于匹配 hook。模式随 Plan 持久化，重新进入时传入即切换。
 - `--plan` 是本轮稳定标识。需要进入 `/to-issues` 时，它必须是工作区内的实际 Plan 路径；跳过 `/to-issues` 时只要求它在工作区内唯一且稳定。
 - 已有运行态使用 `status` 查明当前位置，再按返回值恢复。
@@ -35,7 +35,7 @@ node <nano-flow-skill-root-dir>/scripts/flow.mjs --help
 2. 只在该 skill 的完成标准真实成立后，使用 `record-plan` 或 `record-issue` 登记结果和至少一项可核查证据。
 3. 登记成功后丢弃旧的 next 值，只执行新返回值。
 
-`/to-story` 完成后直接进入 `/quest-with-domain`。`/quest-with-domain` 完成后必须进入 `/to-issues`，由它判断任务是否需要可恢复的 issue graph，再由 `/nano-flow` 登记其 `completed` 或 `skipped` 结果。
+`/questing` 完成后进入 `/to-issues`，由它判断任务是否需要可恢复的 issue graph，再由 `/nano-flow` 登记其 `completed` 或 `skipped` 结果。
 
 `delivering_direct` 返回 Plan 级 `/code-delivery`；`delivering_issues` 由 `claim-issue` 返回 Issue 级 `/code-delivery`。
 
@@ -49,7 +49,7 @@ node <nano-flow-skill-root-dir>/scripts/flow.mjs --help
 
 - 仅当 `/to-issues=completed` 且 Plan 到达 `delivering_issues` 后，从 spec 派生表定位 `pending` 且直接依赖均已 `completed` 的 frontier，并以运行态核对；有多个候选时使用用户已确认的优先级。以 `claim-issue` 领取一个 issue，首次领取保留脚本生成的 issue session。
 - 一个 session 串行推进自己领取的 issue，交付或形成真实 blocked 结果后才领取下一个。不同 session 可以并行领取互不阻塞的 issue；同一 issue 只有一个有效租约。
-- 新事实或新工作按 `/to-issues` 的文档维护规则更新 Plan；符合 ADR 资格的长期 trade-off 由 `/quest-with-domain` 写入领域文档。
+- 新事实或新工作按 `/to-issues` 的文档维护规则更新 Plan；符合 ADR 资格的长期 trade-off 由 `/questing`写入领域文档。
 - 交付前，issue 的「交付记录」包含交付物与验证证据；脚本据此允许完成状态与 commit receipt。
 - 每次暂停前同步 issue 状态、spec 派生视图与证据；恢复时只信任文件与运行态。
 - 所有 issue 完成后，Plan 自动进入 `completed`；再以 `sync-plan` 刷新派生视图，与用户确认参考价值，按 [`DOMAIN.md`](references/DOMAIN.md) 把整个 Plan 移入 `reference/` 或 `archived/`，并重新运行领域校验。

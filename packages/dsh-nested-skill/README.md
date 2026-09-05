@@ -12,7 +12,7 @@ Typical layout it discovers:
     └── nano-flow/
         └── references/
             └── skills/
-                └── to-story/
+                └── questing/
                     └── SKILL.md
 ```
 
@@ -33,8 +33,8 @@ the plugin activates without a restart.
 
 ## Verify
 
-Start a new session in the GUI: the nested skills (for example `to-story`,
-`quest-with-domain`) appear in the skill catalog, while existing top-level
+Start a new session in the GUI: the nested skills (for example `questing`,
+`code-delivery`) appear in the skill catalog, while existing top-level
 skills stay visible.
 
 ## Uninstall

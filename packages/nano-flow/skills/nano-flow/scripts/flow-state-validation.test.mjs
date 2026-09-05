@@ -9,6 +9,7 @@ import {
   createWorkspace,
   PLAN_PATH,
   readyIssuePlan,
+  recordPlan,
   specDocument,
   statePath,
   TEST_NOW,
@@ -16,8 +17,63 @@ import {
 
 afterEach(cleanupWorkspaces);
 
+test.each([
+  [0, "/questing", []],
+  [1, "/questing", [{ step: "/to-story", result: "completed", evidence: ["story.md"] }]],
+  [
+    2,
+    "/to-issues",
+    [{ step: "/quest-with-domain", result: "completed", evidence: ["CONTEXT.md"] }],
+  ],
+])("旧 planning cursor=%s 恢复正确步骤且保留 receipt", async (cursor, nextSkill, receipts) => {
+  const workspace = await createWorkspace();
+  await command(workspace, "enter-plan", {
+    entry: "/questing",
+    plan: PLAN_PATH,
+    session: "owner",
+    skill: "/nano-flow",
+  });
+  const state = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
+  state.schema_version = 5;
+  Object.assign(state.plans[PLAN_PATH], { cursor, receipts, lease: null });
+  await fs.writeFile(statePath(workspace), JSON.stringify(state));
+
+  const resumed = await command(workspace, "claim-plan", { plan: PLAN_PATH, session: "new" });
+  assert.equal(resumed.next_skill, nextSkill);
+  assert.equal(Object.hasOwn(resumed, "next_branch"), false);
+  assert.deepEqual(
+    (await command(workspace, "status", { plan: PLAN_PATH })).plan.receipts,
+    receipts,
+  );
+  if (nextSkill === "/questing") {
+    await recordPlan(workspace, "new", "questing", "completed");
+    const saved = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
+    assert.equal(saved.schema_version, 6);
+    assert.equal(saved.plans[PLAN_PATH].cursor, 1);
+    assert.deepEqual(saved.plans[PLAN_PATH].receipts.slice(0, -1), receipts);
+    assert.equal(saved.plans[PLAN_PATH].receipts.at(-1).step, "/questing");
+  }
+});
+
 const enterPlan = (workspace, options = {}) =>
   command(workspace, "enter-plan", { skill: "/nano-flow", ...options });
+
+test.each(["delivering_direct", "delivering_issues", "completed"])(
+  "升级旧状态保留 %s 的游标、凭据与模式",
+  async (phase) => {
+    const workspace = await createWorkspace();
+    await enterPlan(workspace, { entry: "/questing", plan: PLAN_PATH, session: "owner" });
+    const state = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
+    state.schema_version = 5;
+    const oldPlan = { ...state.plans[PLAN_PATH], cursor: 1, phase, mode: "auto" };
+    state.plans[PLAN_PATH] = oldPlan;
+    await fs.writeFile(statePath(workspace), JSON.stringify(state));
+    await enterPlan(workspace, { entry: "/questing", plan: "new-flow", session: "new" });
+    const saved = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
+    assert.equal(saved.schema_version, 6);
+    assert.deepEqual(saved.plans[PLAN_PATH], oldPlan);
+  },
+);
 
 test("reports a non-missing state read failure", async () => {
   const workspace = await createWorkspace();
@@ -90,7 +146,7 @@ test("rejects entering or recording an exhausted planning phase", async () => {
   await readyIssuePlan(workspace);
   await assert.rejects(
     command(workspace, "enter-plan", {
-      entry: "/quest-with-domain",
+      entry: "/questing",
       plan: PLAN_PATH,
       session: "plan-session",
       skill: "/nano-flow",
@@ -124,7 +180,7 @@ test("sync creates completed and blocked runtime defaults", async () => {
     { id: "02", dependencies: [], status: "blocked" },
   ]);
   await enterPlan(workspace, {
-    entry: "/to-story",
+    entry: "/questing",
     plan: PLAN_PATH,
     session: "owner",
   });
@@ -144,11 +200,12 @@ test.each([
 ])("旧准入位置按 to-issues=%s 恢复交付", async (decision, phase, resumeCommand, options) => {
   const workspace = await createWorkspace();
   await enterPlan(workspace, {
-    entry: "/quest-with-domain",
+    entry: "/questing",
     plan: PLAN_PATH,
     session: "owner",
   });
   const state = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
+  state.schema_version = 5;
   const oldPlan = state.plans[PLAN_PATH];
   oldPlan.cursor = 3;
   oldPlan.receipts = [
@@ -183,8 +240,9 @@ test.each([
 
 test.each([null, "pending"])("旧准入位置缺少有效拆分结果 %j 时拒绝推进", async (result) => {
   const workspace = await createWorkspace();
-  await enterPlan(workspace, { entry: "/to-story", plan: PLAN_PATH, session: "owner" });
+  await enterPlan(workspace, { entry: "/questing", plan: PLAN_PATH, session: "owner" });
   const state = JSON.parse(await fs.readFile(statePath(workspace), "utf8"));
+  state.schema_version = 5;
   state.plans[PLAN_PATH].cursor = 3;
   state.plans[PLAN_PATH].receipts = result === null ? [] : [{ step: "/to-issues", result }];
   await fs.writeFile(statePath(workspace), JSON.stringify(state));
