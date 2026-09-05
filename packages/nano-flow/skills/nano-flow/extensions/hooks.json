@@ -18,11 +18,7 @@
     },
     {
       "match": ["code-delivery"],
-      "message": "任何准入判断前先完整读取 `<nano-flow-skill-root-dir>/extensions/QUESTIONS.md` 和 `<nano-flow-skill-root-dir>/extensions/workflows/README.md`，以用户输入和当前上下文作为已有答案，选择并询问全部相关问题。问题集未清空时结论为 `not ready`。基线首次建立或实质漂移时，向用户提交简短基线卡并等待确认；仍适用的既有确认直接复用。"
-    },
-    {
-      "match": ["code-delivery"],
-      "message": "交付过程中遇到 block 卡点， 请优先在 `<nano-flow-skill-root-dir>/extensions/workflows/README.md` 和对应业务域 workflow 中寻找可能的解决方法."
+      "message": "任何准入判断前先完整读取 `<nano-flow-skill-root-dir>/extensions/QUESTIONS.md` 和 `<nano-flow-skill-root-dir>/extensions/workflows/README.md`，以用户输入和当前上下文作为已有答案，选择并询问全部相关问题。问题集未清空时结论为 `not ready`。基线首次建立或实质漂移时，向用户提交简短基线卡并等待确认；仍适用的既有确认直接复用。交付遇到 block 时，优先从该 workflows 索引及对应业务域 workflow 寻找解决方法。"
     }
   ]
 }
