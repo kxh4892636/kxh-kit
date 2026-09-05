@@ -26,4 +26,4 @@ React 官方文档（react.dev）学习与参考笔记，基于 `src/content/lea
 - 覆盖 react.dev 当前主分支内容;
 - 排除 experimental / legacy / React Compiler 配置细节 / ESLint 各 lint 细节 / DevTools 性能细节;
 - 内部机制与生态为补充笔记，非官方教程主线;
-- 每个笔记使用 to-note 模板，含 UUID。
+- 每个笔记使用 learning 模板，含 UUID。
