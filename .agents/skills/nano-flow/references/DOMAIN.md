@@ -12,7 +12,7 @@
 
 ## 布局
 
-领域内容只创建在工作区根目录的 multi-context 布局中；本约束文件随 `/nano-flow` 分发：
+领域内容只创建在工作区根目录的 multi-context 布局中：
 
 ```text
 /

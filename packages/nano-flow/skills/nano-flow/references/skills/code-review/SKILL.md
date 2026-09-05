@@ -1,40 +1,41 @@
 ---
 name: code-review
-description: 双轴审查 fixed point 以来的 branch 或工作区 diff；当用户要求 review PR、branch、commit range 或 WIP 变更时使用。
+description: 审查 PR、branch、commit range 或 WIP diff 时使用；分别检查 Standards 与 Spec。
 ---
 
 # Code Review
 
-**Standards** 与 **Spec** 是独立轴：代码可以忠实实现错误规范，也可以正确实现需求却违反仓库规则。使用两个并行 sub-agents 隔离 context，最后保持双轴报告。
+**Standards** 与 **Spec** 独立：符合规范不保证需求正确，实现需求也不保证符合仓库规则。用并行 sub-agents 隔离 context，保留双轴报告。
 
-## 1. 固定审查范围
+## 1. 固定范围
 
-解析用户给出的 commit、branch、tag 或 merge-base。用户未指定时，从执行契约或 PR/branch 上下文推断；仍有多个合理基准才询问。
+解析用户指定的 commit、branch、tag 或 merge-base；未指定时从执行契约或 PR/branch 推断，仍有多个合理基准才询问。
 
-- 只审查已提交 branch：使用 `git diff <fixed-point>...HEAD`。
-- 审查 staged 或 unstaged WIP：使用 `git diff <fixed-point>`，使 HEAD 后提交和当前工作区都进入范围。
+- 已提交 branch：`git diff <fixed-point>...HEAD`。
+- staged/unstaged WIP：`git diff <fixed-point>`，包含基准后的提交与工作区变更。
 
-记录可复现的 diff 命令与 `git log <fixed-point>..HEAD --oneline`。fixed point 可解析、diff 非空、工作区变更是否纳入已明确时，本步骤完成。
+记录 diff 命令及 `git log <fixed-point>..HEAD --oneline`。fixed point 可解析、diff 非空、工作区是否纳入明确时完成。
 
-## 2. 定位两轴来源
+## 2. 定位来源
 
-Spec 按顺序取自：用户指定路径；与 branch/feature 匹配的 `docs/{domain-name}/plans/`；用户确认的其他来源。用户确认不存在 spec 时，Spec 轴记为 `not available`。
+- **Spec**：依次采用用户指定路径、匹配 branch/feature 的 `docs/{domain-name}/plans/`、用户确认的其他来源。用户确认不存在时记为 `not available`。
+- **Standards**：适用的 `AGENTS.md`、`CONTRIBUTING.md`、编码规范与 `/code-spec`；完整读取 [SMELL-BASELINE.md](SMELL-BASELINE.md) 的判断型 heuristics。
 
-Standards 包括仓库中实际适用于 diff 的 `AGENTS.md`、`CONTRIBUTING.md`、编码规范与 `/code-spec`。完整读取 [`SMELL-BASELINE.md`](SMELL-BASELINE.md)；它只提供判断型 heuristics。
-
-每个变更文件都映射到适用 standards，每项 spec 要求都有可引用位置时，本步骤完成。
+每个变更文件映射到适用 standards，每项可用 spec 要求有引用位置时完成。
 
 ## 3. 并行审查
 
-同时派遣两个 sub-agents，并给每个 agent 相同的 diff 命令、commit 列表和审查范围：
+给两个 agent 相同的 diff 命令、commit 列表与范围：
 
-- **Standards agent**：读取全部 standards 来源与 `SMELL-BASELINE.md`。按文件和 hunk 报告违反的仓库规则，并分别标注 baseline smell；每项引用代码位置与规则来源，区分硬规则和 judgement，不超过 400 字。
-- **Spec agent**：读取全部 spec 来源。报告缺失或部分实现的 requirement、scope creep、以及行为存在但实现不符合要求的项；每项同时引用代码与 spec 位置，不超过 400 字。没有 spec 时不派遣该 agent。
+| Agent         | 来源与输出                                                                                                                                  |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Standards** | 读取全部 standards 与 smell baseline；按文件、hunk 报告规则违反，另标 baseline smell，区分硬规则与 judgement；引用代码与规则，不超过 400 字 |
+| **Spec**      | 读取全部 spec；报告缺失/部分实现、scope creep、行为存在但实现不符的要求；引用代码与 spec，不超过 400 字。Spec 不可用时不派遣                |
 
-两个 agent 都覆盖完整 diff，且每项发现具备可复核位置、违反的规则或 requirement、影响与理由时，本步骤完成。
+每个已派遣 agent 均覆盖完整 diff，每项发现包含可复核位置、规则或 requirement、影响和理由时完成。
 
 ## 4. 汇总
 
-在 `## Standards` 与 `## Spec` 下分别呈现发现，保持各 agent 的严重度与顺序；Spec 不可用时明确说明。最后分别给出每轴发现数量与该轴最高严重度问题，不跨轴生成总排名。
+在 `## Standards` 与 `## Spec` 分别呈现发现，保留各 agent 的严重度和顺序，各报发现数及最高严重度；不跨轴总排名。
 
-双轴均有明确结论、每项 finding 可追溯、无发现的轴显式报告 pass 时，本 review 完成。
+双轴均有明确结论、findings 可追溯时完成；已审查且无发现的轴报告 pass，Spec 不可用时明确说明。

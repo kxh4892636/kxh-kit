@@ -1,35 +1,23 @@
 # Deepening
 
-如何根据依赖安全地 deepen 一组 shallow modules. 本文假定使用 [SKILL.md](SKILL.md) 中的 vocabulary - **module**, **interface**, **seam**, **adapter**.
+按依赖类别 deepen shallow modules；术语见 [SKILL.md](SKILL.md)。
 
 ## Dependency categories
 
-评估 deepening 候选项时, 对它的依赖进行分类. category 决定如何跨越 seam 测试 deepened module.
-
-### 1. In-process
-
-纯计算, in-memory state, 无 I/O. 始终可以 deepen. 合并 modules, 直接通过新 interface 进行测试. 不需要 adapter.
-
-### 2. Local-substitutable
-
-拥有本地 test stand-ins 的依赖(Postgres 使用 PGLite, 文件系统使用 in-memory filesystem). 如果存在 stand-in, 就可以 deepen. 运行 test suite 时, 使用 stand-in 测试 deepened module. seam 是 internal 的, module 的 external interface 上没有 port.
-
-### 3. Remote but owned (Ports & Adapters)
-
-跨越网络边界的自有服务(microservices, internal APIs). 在 seam 上定义 **port**(interface). deep module 拥有逻辑, transport 以 **adapter** 形式注入. 测试使用 in-memory adapter. 生产环境使用 HTTP/gRPC/queue adapter.
-
-### 4. True external (Mock)
-
-不受你控制的第三方服务(Stripe, Twilio 等). deepened module 将外部依赖作为注入的 port 接收. 测试提供 mock adapter.
+| 类别                    | 合并与依赖策略                                                                                                     | 测试                   |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------ | ---------------------- |
+| **In-process**          | 纯计算、内存状态、无 I/O；可直接合并，无须 adapter                                                                 | 通过新 interface 测试  |
+| **Local-substitutable** | 有本地 stand-in（如 Postgres/PGLite、内存文件系统）即可 deepen；seam 保持 internal，external interface 不暴露 port | 用 stand-in 运行 suite |
+| **Remote but owned**    | 自有远程服务使用 Ports & Adapters：module 拥有逻辑，port 定义契约，注入 HTTP/gRPC/queue transport adapter          | in-memory adapter      |
+| **True external**       | 不受控制的第三方服务通过注入 port 接入                                                                             | mock adapter           |
 
 ## Seam discipline
 
-- **One adapter means a hypothetical seam. Two adapters means a real one.** 至少两个合理 adapters(通常是生产环境 + 测试)使 port 成为真实 seam；single-adapter 形态保持 inline.
-- **Internal seams vs external seams.** 测试专用 variation 保持为 implementation 私有的 internal seam；调用方需要替换的 variation 才进入 external interface.
+- **Two adapters make a real seam**：至少两个合理 adapter（通常为生产与测试）才构成真实 port；single-adapter 形态保持 inline。
+- 仅测试需要的 variation 留作 implementation 私有的 internal seam；调用方需要替换的 variation 才进入 external interface。
 
-## Testing strategy: replace, don't layer
+## Replace, don't layer
 
-- 一旦 deepened module 的 interface 上有了测试, shallow modules 上的旧 unit tests 就变成浪费, 删除它们.
-- 在 deepened module 的 interface 上编写新测试. **interface is the test surface**.
-- 测试通过 interface 对可观察结果作出断言, 而不是对内部状态作出断言.
-- 测试应该能经受内部重构. 它们描述行为, 而不是 implementation. 如果 implementation 变化时测试必须变化, 它测试的范围就越过了 interface.
+在 deepened module 的 interface 上迁移测试，通过可观察结果验证行为。原有行为覆盖迁移后，删除 shallow modules 上被替代的旧 unit tests，避免层层叠加。
+
+内部重构而行为不变时测试应继续通过；需随 implementation 改动的断言，检查是否越过 interface 或依赖内部状态。

@@ -19,11 +19,7 @@ node <nano-flow-skill-root-dir>/scripts/flow.mjs --help
 
 ## Hooks 与确认
 
-确认与推进提示词由 [`extensions/hooks.json`](extensions/hooks.json) 统一管理，`flow.mjs` 只校验、匹配并返回消息。每条 hook 包含：
-
-- `match`：`all` 或主流程 skill 名称数组。
-- `mode`：可选，取值 `all | manual | auto`，缺省为 `all`。
-- `message`：非空单行提示词。
+确认与推进提示词由 [extensions/hooks.json](extensions/hooks.json) 管理，脚本只校验、匹配和返回：`match` 为 `all` 或主流程 skill 名称数组；可选 `mode` 为 `all | manual | auto`（缺省 `all`）；`message` 为非空单行提示词。
 
 同时匹配 `next_skill` 与当前 Plan 模式的 hook 按配置顺序拼接；只在有匹配消息时返回 `message`。携带 Flow context 时，当前 skill 及其内部调用的确认方式按返回的 hook 消息执行；产物与证据仍须满足实际完成条件。
 
@@ -41,7 +37,7 @@ node <nano-flow-skill-root-dir>/scripts/flow.mjs --help
 
 `/code-delivery` 完成准入、执行基线为 `ready` 后登记 `started`，并保留返回的 `commit` action；准入、代码、`/code-test`、`/verifying` 与 `/code-review` 均在它内部完成，不另记 Flow receipt。全部门禁仍适用于当前 diff 后，才执行并登记 `commit=committed`。
 
-每条 receipt 都引用本轮真实产物或结果。证据存在、与当前目标和 diff 对应，且足以复核声明时，本步骤完成。
+每条 receipt 引用本轮真实产物或结果，证据存在、对应当前目标与 diff 且足以复核声明时完成。
 
 ## Issue 推进
 

@@ -2,7 +2,7 @@
 
 仅在讨论需要改变领域模型或 ADR 时使用；读取领域语言供其他任务使用不触发维护。
 
-1. **定域**：完整读取 `<nano-flow-skill-root-dir>/references/DOMAIN.md`，从 `CONTEXT-MAP.md` 定位所有相关业务域，读取对应 `CONTEXT.md` 与 ADR。归属仍需判断时，将带推荐答案的问题纳入 design tree；相关域与跨域关系均确定时完成。
+1. **定域**：完整读取 领域布局与定位规则（`<nano-flow-skill-root-dir>/references/DOMAIN.md`），从 `CONTEXT-MAP.md` 定位所有相关业务域，读取对应 `CONTEXT.md` 与 ADR。归属仍需判断时，将带推荐答案的问题纳入 design tree；相关域与跨域关系均确定时完成。
 2. **拷问**：以现有 glossary 与 ADR 约束设计。术语冲突时区分 canonical term 与新概念；关系与规则含糊时用 scenario 和 edge case 暴露边界；用代码核对用户对现状的描述，将矛盾纳入 frontier。环境事实由 agent 查明，trade-off 与领域选择按设计分支形成 draft 并由用户评价。
 3. **维护语言**：已确认的新域、术语与跨域关系按 [Context 格式](#context-格式) 在成立的同一轮就地更新。每项内容只有一个权威位置，map 链接可解析，canonical term 与 `_Avoid_` 互不冲突时完成。
 4. **记录 ADR**：架构形态、跨域集成、技术锁定、scope owner 或其他长期 trade-off，按 [ADR 格式](#adr-格式) 的资格门槛逐项判断；达标的决策只写入唯一 owner 一次，理由与已确认取舍一致时完成。
@@ -19,13 +19,9 @@
 
 ## Language
 
-**Order**:
+**{Canonical term}**:
 {一到两句话定义它是什么}
-_Avoid_: Purchase, transaction
-
-**Invoice**:
-交付后发送给 customer 的付款请求。
-_Avoid_: Bill, payment request
+_Avoid_: {会造成歧义的同义词}
 ```
 
 - 一个概念选择一个 canonical term，把会造成歧义的同义词列入 `_Avoid_`。
@@ -48,13 +44,11 @@ _Avoid_: Bill, payment request
 - **Ordering → Billing**: Ordering 发出 `OrderCompleted`；Billing 消费它并生成 invoice。
 ```
 
-map 只承担索引与跨域关系；每项关系只记录一次。没有跨域关系时省略 `Relationships`。
-
-新业务域使用稳定、简短的 kebab-case `domain-name`，同时创建 `docs/{domain-name}/CONTEXT.md` 和 map entry，使每条链接可解析。
+map 按领域布局维护索引与唯一跨域关系；新域同时创建 CONTEXT 与 map entry，链接可解析。没有跨域关系时省略 `Relationships`。
 
 ## ADR 格式
 
-ADR 位于唯一 owner 的 `docs/{domain-name}/adr/`，文件名按域内顺序使用 `0001-中文决策名.md`。目录在首份 ADR 出现时创建；跨域决策由其他域链接引用。
+ADR 按领域布局的 owner、路径与编号规则创建；目录在首份 ADR 出现时创建，跨域决策由其他域链接引用。
 
 ### 资格门槛
 
