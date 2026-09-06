@@ -109,6 +109,12 @@ func TestNativeWindowSettingsAndServiceActions(t *testing.T) {
 		t.Fatalf("端口显示 %q", got)
 	}
 	command(idSave)
+	win.SendMessage(win.GetDlgItem(hwnd, idAutoUpdate), win.BM_SETCHECK, win.BST_CHECKED, 0)
+	command(idAutoUpdate)
+	waitFor(t, func() bool { return m.Snapshot().Config.AutoUpdate && !m.Snapshot().OptionsBusy })
+	win.SendMessage(win.GetDlgItem(hwnd, idAutoUpdate), win.BM_SETCHECK, win.BST_UNCHECKED, 0)
+	command(idAutoUpdate)
+	waitFor(t, func() bool { return !m.Snapshot().Config.AutoUpdate && !m.Snapshot().OptionsBusy })
 	command(idStart)
 	waitFor(t, func() bool { return m.Snapshot().Running })
 	waitFor(t, func() bool { return !win.IsWindowEnabled(win.GetDlgItem(hwnd, idStart)) })

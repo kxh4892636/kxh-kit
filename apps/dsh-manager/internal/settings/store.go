@@ -10,22 +10,26 @@ import (
 )
 
 type Config struct {
-	Port      int    `json:"port"`
-	Directory string `json:"directory"`
-	Node      string `json:"node"`
-	KeepAlive bool   `json:"keepAlive"`
-	Login     bool   `json:"login"`
+	Port       int    `json:"port"`
+	Directory  string `json:"directory"`
+	Node       string `json:"node"`
+	KeepAlive  bool   `json:"keepAlive"`
+	Login      bool   `json:"login"`
+	AutoUpdate bool   `json:"autoUpdate"`
 }
 
 type Versions struct {
-	Current string `json:"current"`
+	Current  string `json:"current"`
+	Previous string `json:"previous,omitempty"`
+	Pending  string `json:"pending,omitempty"`
+	Failed   string `json:"failed,omitempty"`
 }
 
 type Store struct{ Root string }
 
 func Default() Config {
 	dir, _ := os.UserHomeDir()
-	return Config{Port: 3080, Directory: dir, KeepAlive: true}
+	return Config{Port: 3080, Directory: dir, KeepAlive: true, AutoUpdate: true}
 }
 
 func (s Store) LoadConfig() (Config, error) {

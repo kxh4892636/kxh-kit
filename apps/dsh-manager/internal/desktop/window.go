@@ -62,6 +62,8 @@ func Run(m *manager.Manager, hidden bool) error {
 	active = w
 	defer func() { active = nil; close(w.done) }()
 	go w.listen()
+	m.Background()
+	defer m.Close()
 	w.taskbarMessage = win.RegisterWindowMessage(text("TaskbarCreated"))
 	w.addTray()
 	if !hidden || !w.tray {
@@ -175,7 +177,7 @@ func dispatch(hwnd win.HWND, msg uint32, wp, lp uintptr) uintptr {
 		return 1
 	case win.WM_ENDSESSION:
 		if wp != 0 {
-			w.manager.Stop()
+			w.manager.Close()
 		}
 		return 0
 	case wmExit:
@@ -216,7 +218,7 @@ func (w *Window) exit() {
 	}
 	w.closing = true
 	win.EnableWindow(w.hwnd, false)
-	go func() { w.manager.Stop(); win.PostMessage(w.hwnd, wmExit, 0, 0) }()
+	go func() { w.manager.Close(); win.PostMessage(w.hwnd, wmExit, 0, 0) }()
 }
 func ShowError(err error) {
 	win.MessageBox(0, text(err.Error()), text(title), win.MB_OK|win.MB_ICONERROR)

@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sync"
 	"time"
 )
 
@@ -19,6 +20,8 @@ const Registry = "https://registry.npmjs.org/@deepseek-ai%2fdsh/latest"
 var versionPattern = regexp.MustCompile(`^[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9.-]+)?(?:\+[A-Za-z0-9.-]+)?$`)
 
 type Repository struct {
+	once   sync.Once
+	gate   chan struct{}
 	Root   string
 	URL    string
 	Client *http.Client
@@ -82,6 +85,13 @@ func validateBin(dir, v string) (string, error) {
 	return bin, nil
 }
 func (r *Repository) Install(ctx context.Context, n runtime.Node, v string, log io.Writer) (string, error) {
+	if err := r.lock(ctx); err != nil {
+		return "", err
+	}
+	defer r.unlock()
+	if ctx.Err() != nil {
+		return "", ctx.Err()
+	}
 	if !ValidVersion(v) {
 		return "", fmt.Errorf("无效版本")
 	}

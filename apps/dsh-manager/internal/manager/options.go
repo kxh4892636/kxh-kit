@@ -7,14 +7,19 @@ import (
 	"os"
 )
 
-func (m *Manager) SetOptions(keepAlive, login bool) error {
-	return m.applyOptions(m.claimOptions(), keepAlive, login)
+func (m *Manager) SetOptions(keepAlive, login bool, autoUpdate ...bool) error {
+	return m.applyOptions(m.claimOptions(), keepAlive, login, autoUpdate...)
 }
-func (m *Manager) RequestOptions(keepAlive, login bool) {
+func (m *Manager) RequestOptions(keepAlive, login bool, autoUpdate ...bool) {
 	intent := m.claimOptions()
 	go func() {
-		if err := m.applyOptions(intent, keepAlive, login); err != nil && err != context.Canceled {
-			m.ReportError(err)
+		if err := m.applyOptions(intent, keepAlive, login, autoUpdate...); err != nil && err != context.Canceled {
+			m.mu.Lock()
+			if m.optionIntent == intent && !m.closed {
+				m.problem = err.Error()
+				m.signal()
+			}
+			m.mu.Unlock()
 		}
 	}()
 }
@@ -34,11 +39,11 @@ func (m *Manager) finishOptions(intent uint64) {
 		m.signal()
 	}
 }
-func (m *Manager) applyOptions(intent uint64, keepAlive, login bool) error {
+func (m *Manager) applyOptions(intent uint64, keepAlive, login bool, autoUpdate ...bool) error {
 	m.op.Lock()
 	defer m.op.Unlock()
 	m.mu.Lock()
-	if m.optionIntent != intent {
+	if m.optionIntent != intent || m.closed {
 		m.mu.Unlock()
 		return context.Canceled
 	}
@@ -48,6 +53,9 @@ func (m *Manager) applyOptions(intent uint64, keepAlive, login bool) error {
 	defer m.finishOptions(intent)
 	c.KeepAlive = keepAlive
 	c.Login = login
+	if len(autoUpdate) > 0 {
+		c.AutoUpdate = autoUpdate[0]
+	}
 	executable, err := os.Executable()
 	if err != nil {
 		return err

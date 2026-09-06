@@ -13,46 +13,61 @@ import (
 )
 
 type Snapshot struct {
-	Config       settings.Config
-	Status       string
-	Version      string
-	Error        string
-	Log          string
-	Busy         bool
-	Running      bool
-	Address      string
-	RetrySeconds int
-	OptionsBusy  bool
+	Config                        settings.Config
+	Status                        string
+	Version                       string
+	Error                         string
+	Log                           string
+	Busy                          bool
+	Running                       bool
+	Address                       string
+	RetrySeconds                  int
+	OptionsBusy                   bool
+	Latest, Pending, UpdateStatus string
+	Updating                      bool
 }
 type Manager struct {
-	mu           sync.Mutex
-	op           sync.Mutex
-	store        settings.Store
-	repo         *releases.Repository
-	config       settings.Config
-	versions     settings.Versions
-	status       string
-	problem      string
-	log          string
-	busy         bool
-	proc         *process.Process
-	cancel       context.CancelFunc
-	intent       uint64
-	address      string
-	wanted       bool
-	failures     int
-	started      time.Time
-	clock        Clock
-	retrySeconds int
-	optionIntent uint64
-	optionsBusy  bool
-	changes      chan struct{}
+	mu                                  sync.Mutex
+	op                                  sync.Mutex
+	store                               settings.Store
+	repo                                *releases.Repository
+	config                              settings.Config
+	versions                            settings.Versions
+	status                              string
+	problem                             string
+	log                                 string
+	busy                                bool
+	proc                                *process.Process
+	cancel                              context.CancelFunc
+	intent                              uint64
+	address                             string
+	wanted                              bool
+	failures                            int
+	started                             time.Time
+	clock                               Clock
+	retrySeconds                        int
+	optionIntent                        uint64
+	optionsBusy                         bool
+	changes                             chan struct{}
+	updateMu                            sync.Mutex
+	updateCancel                        context.CancelFunc
+	backgroundCancel                    context.CancelFunc
+	backgroundOnce                      sync.Once
+	closed                              bool
+	latest, updateVersion, updateStatus string
+	updating                            bool
 }
 
 func New(root string) (*Manager, error) {
 	return NewWithClock(root, wallClock{})
 }
 func NewWithClock(root string, clock Clock) (*Manager, error) {
+	return NewWithRepository(root, clock, releases.New(root))
+}
+func NewWithRepository(root string, clock Clock, repo *releases.Repository) (*Manager, error) {
+	if clock == nil {
+		clock = wallClock{}
+	}
 	s := settings.Store{Root: root}
 	c, err := s.LoadConfig()
 	if err != nil {
@@ -62,10 +77,12 @@ func NewWithClock(root string, clock Clock) (*Manager, error) {
 	if err != nil {
 		return nil, err
 	}
-	if v.Current != "" && !releases.ValidVersion(v.Current) {
-		return nil, fmt.Errorf("版本记录无效")
+	for _, version := range []string{v.Current, v.Previous, v.Pending, v.Failed} {
+		if version != "" && !releases.ValidVersion(version) {
+			return nil, fmt.Errorf("版本记录无效")
+		}
 	}
-	return &Manager{store: s, repo: releases.New(root), config: c, versions: v, status: "已停止", clock: clock, changes: make(chan struct{}, 1)}, nil
+	return &Manager{store: s, repo: repo, config: c, versions: v, status: "已停止", clock: clock, changes: make(chan struct{}, 1)}, nil
 }
 func (m *Manager) Changes() <-chan struct{} { return m.changes }
 func (m *Manager) ReportError(err error) {
@@ -83,7 +100,7 @@ func (m *Manager) signal() {
 func (m *Manager) Snapshot() Snapshot {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return Snapshot{Config: m.config, Status: m.status, Version: m.versions.Current, Error: m.problem, Log: m.log, Busy: m.busy, Running: m.proc != nil, Address: m.address, RetrySeconds: m.retrySeconds, OptionsBusy: m.optionsBusy}
+	return Snapshot{Config: m.config, Status: m.status, Version: m.versions.Current, Error: m.problem, Log: m.log, Busy: m.busy, Running: m.proc != nil, Address: m.address, RetrySeconds: m.retrySeconds, OptionsBusy: m.optionsBusy, Latest: m.latest, Pending: m.versions.Pending, Updating: m.updating, UpdateStatus: m.updateStatus}
 }
 func (m *Manager) Save(c settings.Config) error {
 	if !m.op.TryLock() {
@@ -167,7 +184,7 @@ func (m *Manager) launchAction(restart bool, intent uint64) error {
 	m.op.Lock()
 	defer m.op.Unlock()
 	m.mu.Lock()
-	if intent != m.intent {
+	if intent != m.intent || m.closed {
 		m.mu.Unlock()
 		return context.Canceled
 	}
@@ -183,6 +200,7 @@ func (m *Manager) launchAction(restart bool, intent uint64) error {
 	m.cancel = cancel
 	c := m.config
 	v := m.versions.Current
+	pending := m.versions.Pending
 	m.mu.Unlock()
 	defer cancel()
 	if p != nil {
@@ -190,7 +208,7 @@ func (m *Manager) launchAction(restart bool, intent uint64) error {
 		m.stopOwned(p)
 	}
 	m.state("正在准备", true, nil)
-	err := m.start(ctx, c, v)
+	err := m.startPending(ctx, c, v, pending)
 	if err != nil {
 		m.state("启动失败", false, err)
 		fmt.Fprintln(m, err)
@@ -240,7 +258,19 @@ func (m *Manager) start(ctx context.Context, c settings.Config, v string) error 
 		p.Stop(0)
 		return err
 	}
-	versions := settings.Versions{Current: v}
+	m.mu.Lock()
+	versions := m.versions
+	m.mu.Unlock()
+	if versions.Current != v {
+		versions.Previous = versions.Current
+		versions.Current = v
+	}
+	if versions.Pending == v {
+		versions.Pending = ""
+	}
+	if versions.Failed == v {
+		versions.Failed = ""
+	}
 	if err = m.store.SaveVersions(versions); err != nil {
 		p.Stop(time.Second)
 		return err

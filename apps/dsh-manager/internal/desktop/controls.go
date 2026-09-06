@@ -10,9 +10,13 @@ import (
 )
 
 const (
-	idExit      = 400
-	idKeepAlive = 301
-	idLogin     = 302
+	idExit        = 400
+	idKeepAlive   = 301
+	idLogin       = 302
+	idAutoUpdate  = 303
+	idCheckUpdate = 304
+	idApplyUpdate = 305
+	idUpdateState = 306
 )
 const (
 	idPort = 101 + iota
@@ -62,6 +66,10 @@ func (w *Window) build() error {
 		{idLog, "EDIT", "", win.WS_BORDER | win.WS_VSCROLL | win.ES_MULTILINE | win.ES_READONLY | win.ES_AUTOVSCROLL},
 		{idKeepAlive, "BUTTON", "异常退出自动重启", win.WS_TABSTOP | win.BS_AUTOCHECKBOX},
 		{idLogin, "BUTTON", "登录时启动并保活", win.WS_TABSTOP | win.BS_AUTOCHECKBOX},
+		{idAutoUpdate, "BUTTON", "自动下载更新", win.WS_TABSTOP | win.BS_AUTOCHECKBOX},
+		{idCheckUpdate, "BUTTON", "检查更新", win.WS_TABSTOP},
+		{idApplyUpdate, "BUTTON", "更新并重启", win.WS_TABSTOP},
+		{idUpdateState, "STATIC", "", 0},
 		{idExit, "BUTTON", "退出并停止服务", win.WS_TABSTOP},
 	}
 	for _, i := range items {
@@ -105,7 +113,10 @@ func (w *Window) layout() {
 		idState: {20, 168, width - 155, 44}, idVersion: {20, 210, width - 42, 24},
 		idStart: {20, 248, 144, 34}, idStop: {176, 248, 78, 34}, idRestart: {266, 248, 78, 34}, idOpen: {356, 248, 140, 34},
 		idExit: {508, 248, 180, 34}, idKeepAlive: {20, 296, 220, 24}, idLogin: {270, 296, 230, 24},
-		204: {20, 335, 120, 24}, idLog: {20, 363, width - 42, height - 383},
+		idAutoUpdate:  {510, 296, 190, 24},
+		idCheckUpdate: {20, 330, 110, 30}, idApplyUpdate: {142, 330, 130, 30},
+		idUpdateState: {285, 330, width - 307, 48},
+		204:           {20, 383, 120, 24}, idLog: {20, 411, width - 42, height - 431},
 	}
 	for id, p := range positions {
 		win.MoveWindow(w.controls[id], scale(p[0]), scale(p[1]), scale(p[2]), scale(p[3]), true)
@@ -162,6 +173,16 @@ func (w *Window) refresh() {
 		version += fmt.Sprintf(" · http://127.0.0.1:%d/", s.Config.Port)
 	}
 	setText(w.controls[idVersion], "DSH "+version)
+	update := s.UpdateStatus
+	if s.Latest != "" {
+		update = "最新 " + s.Latest + " · " + update
+	}
+	if s.Pending != "" && !strings.Contains(update, s.Pending) {
+		update += " · 待应用 " + s.Pending
+	}
+	setText(w.controls[idUpdateState], update)
+	win.EnableWindow(w.controls[idCheckUpdate], !s.Updating && !s.Busy)
+	win.EnableWindow(w.controls[idApplyUpdate], !s.Updating && !s.Busy)
 	log := strings.ReplaceAll(strings.ReplaceAll(s.Log, "\r\n", "\n"), "\n", "\r\n")
 	if value(w.controls[idLog]) != log {
 		setText(w.controls[idLog], log)
@@ -177,7 +198,7 @@ func (w *Window) refresh() {
 	win.EnableWindow(w.controls[idOpen], s.Running)
 	w.updateTray(s.Status)
 	if !s.OptionsBusy {
-		for id, checked := range map[int]bool{idKeepAlive: s.Config.KeepAlive, idLogin: s.Config.Login} {
+		for id, checked := range map[int]bool{idKeepAlive: s.Config.KeepAlive, idLogin: s.Config.Login, idAutoUpdate: s.Config.AutoUpdate} {
 			value := uintptr(win.BST_UNCHECKED)
 			if checked {
 				value = win.BST_CHECKED
@@ -187,6 +208,7 @@ func (w *Window) refresh() {
 	}
 	win.EnableWindow(w.controls[idKeepAlive], !s.OptionsBusy && !s.Busy)
 	win.EnableWindow(w.controls[idLogin], !s.OptionsBusy && !s.Busy)
+	win.EnableWindow(w.controls[idAutoUpdate], !s.OptionsBusy && !s.Busy)
 }
 func (w *Window) save() bool {
 	c := w.manager.Snapshot().Config
@@ -206,10 +228,13 @@ func (w *Window) save() bool {
 }
 func (w *Window) command(id int) {
 	switch id {
-	case idKeepAlive, idLogin:
+	case idKeepAlive, idLogin, idAutoUpdate:
 		keep := win.SendMessage(w.controls[idKeepAlive], win.BM_GETCHECK, 0, 0) == win.BST_CHECKED
 		login := win.SendMessage(w.controls[idLogin], win.BM_GETCHECK, 0, 0) == win.BST_CHECKED
-		w.manager.RequestOptions(keep, login)
+		autoUpdate := win.SendMessage(w.controls[idAutoUpdate], win.BM_GETCHECK, 0, 0) == win.BST_CHECKED
+		w.manager.RequestOptions(keep, login, autoUpdate)
+	case idCheckUpdate, idApplyUpdate:
+		w.manager.RequestUpdate(id == idApplyUpdate)
 	case idExit:
 		w.exit()
 	case idSave:

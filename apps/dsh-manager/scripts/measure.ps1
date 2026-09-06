@@ -1,4 +1,4 @@
-param([string]$Executable = (Join-Path $PSScriptRoot '../dist/dsh-manager.exe'), [int]$IdleSeconds = 60)
+param([string]$Executable = (Join-Path $PSScriptRoot '../dist/dsh-manager.exe'), [int]$IdleSeconds = 60, [string]$Screenshot = '')
 $ErrorActionPreference = 'Stop'
 Add-Type @'
 using System;
@@ -9,6 +9,11 @@ public static class DshMeasurement {
  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr window, out uint process);
  [DllImport("user32.dll")] public static extern IntPtr GetDlgItem(IntPtr window, int id);
  [DllImport("user32.dll")] public static extern bool PostMessage(IntPtr window, uint message, IntPtr w, IntPtr l);
+ [DllImport("user32.dll")] public static extern bool PrintWindow(IntPtr window, IntPtr dc, uint flags);
+ [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr window, int show);
+ [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr window, out Rect rect);
+ [DllImport("user32.dll")] public static extern IntPtr SetThreadDpiAwarenessContext(IntPtr context);
+ [StructLayout(LayoutKind.Sequential)] public struct Rect { public int left,top,right,bottom; }
  public static IntPtr Find(int pid) {
   IntPtr result=IntPtr.Zero;
   EnumWindows((h,p)=>{uint owner;GetWindowThreadProcessId(h,out owner);if(owner==pid && GetDlgItem(h,112)!=IntPtr.Zero){result=h;return false;}return true;},IntPtr.Zero);
@@ -38,6 +43,21 @@ try {
    $timer.Stop();$startup=$timer.Elapsed.TotalMilliseconds
    $cpuSeconds=$null
    if ($sample -eq 5) {
+    if ($Screenshot) {
+     Add-Type -AssemblyName System.Drawing
+     [void][DshMeasurement]::ShowWindow($window,4)
+     Start-Sleep -Milliseconds 200
+     $previousDpi=[DshMeasurement]::SetThreadDpiAwarenessContext([IntPtr](-4))
+     $rect=New-Object DshMeasurement+Rect
+     [void][DshMeasurement]::GetWindowRect($window,[ref]$rect)
+     $bitmap=New-Object Drawing.Bitmap ($rect.right-$rect.left),($rect.bottom-$rect.top)
+     $graphics=[Drawing.Graphics]::FromImage($bitmap)
+     $dc=$graphics.GetHdc()
+     try { [void][DshMeasurement]::PrintWindow($window,$dc,0) } finally { $graphics.ReleaseHdc($dc) }
+     try { $bitmap.Save([IO.Path]::GetFullPath($Screenshot),[Drawing.Imaging.ImageFormat]::Png) } finally { $graphics.Dispose();$bitmap.Dispose() }
+     [void][DshMeasurement]::SetThreadDpiAwarenessContext($previousDpi)
+     [void][DshMeasurement]::ShowWindow($window,0)
+    }
     Start-Sleep -Seconds 2
     $child.Refresh();$before=$child.TotalProcessorTime.TotalSeconds
     Start-Sleep -Seconds $IdleSeconds
