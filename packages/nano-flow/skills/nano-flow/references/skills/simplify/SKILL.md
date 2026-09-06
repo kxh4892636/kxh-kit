@@ -1,6 +1,6 @@
 ---
 name: simplify
-description: 对整个工作区或指定范围的增量与存量代码做简化审查和清理，覆盖复用、删减、深度与性能；先读取全部领域 ADR 与 Plan。
+description: 对整个工作区或指定范围的增量与存量代码做简化审查和清理，覆盖复用、删减、深度与性能。
 disable-model-invocation: true
 ---
 
@@ -18,10 +18,10 @@ disable-model-invocation: true
 
 ## 2. 读取领域约束
 
-按 DOMAIN.md（`<nano-flow-skill-root-dir>/references/DOMAIN.md`） 定位范围内所有业务域，读取 map、各域 `CONTEXT.md`、**全部 ADR 与 Plan**，以及适用 `AGENTS.md` 和 `/code-spec`。
+按 DOMAIN.md（`<nano-flow-skill-root-dir>/references/DOMAIN.md`） 定位范围内所有业务域，读取 map、各域 `CONTEXT.md`，以及适用 `AGENTS.md` 和 `/code-spec`；按涉及的职责、契约与术语检索 ADR 和 active/reference Plan，完整读取相关文档。
 
 - ADR 与 CONTEXT 保护 intentional design、seam、契约和术语。候选与 ADR 冲突时列出冲突及重议理由，交用户决定。
-- active/reference Plan 约束方向：保留未交付 requirement 和已确认路线；archived Plan 只解释废弃历史。
+- active/reference Plan 约束方向：保留未交付 requirement 和已确认路线；需解释设计理由时再读取相关 archived Plan，仅作历史依据。
 
 全部相关约束已读取、受保护设计已列出时完成。
 
