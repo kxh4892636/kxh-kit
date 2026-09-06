@@ -3,6 +3,8 @@ packages:
   - packages/*
 
 allowBuilds:
+  # v13 自带原生预编译文件，避免 pnpm 隐式触发 node-gyp。
+  better-sqlite3: false
   "@bufbuild/buf": true
   "@google/genai": false
   "@swc/core": false
@@ -13,6 +15,12 @@ allowBuilds:
   protobufjs: false
 
 catalog:
+  hono: 4.13.7
+  "@hono/node-server": 2.1.1
+  drizzle-orm: 0.45.2
+  drizzle-kit: 0.31.10
+  better-sqlite3: 13.0.3
+  zod: 4.5.4
   "@tanstack/react-virtual": ^3.14.10
   "@types/node": ^24.12.4
   "@types/react": ^19.2.14
