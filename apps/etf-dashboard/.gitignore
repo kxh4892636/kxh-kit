@@ -1,0 +1,4 @@
+e2e/.backend/
+e2e/evidence/
+e2e/test-results/
+playwright-report/
