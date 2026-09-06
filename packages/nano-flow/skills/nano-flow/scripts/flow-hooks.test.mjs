@@ -34,6 +34,7 @@ test.each(["manual", "auto"])(
         { match: "all", mode: "all", message: "all" },
         { match: ["questing"], mode: "manual", message: "manual story" },
         { match: ["code-delivery"], mode, message: "delivery" },
+        { match: ["dev-gate"], mode, message: "admission" },
         { match: "all", mode, message: "selected" },
       ],
     };
@@ -53,6 +54,20 @@ test.each(["manual", "auto"])(
     });
     assert.equal(next.next.skill, "/to-issues");
     assert.equal(next.next.message, "default\nall\nselected");
+    const gate = await invoke(workspace, hooks, "report", {
+      evidence: ["small task"],
+      result: "skipped",
+      step: "/to-issues",
+    });
+    assert.equal(gate.next.skill, "/dev-gate");
+    assert.equal(gate.next.message, "default\nall\nadmission\nselected");
+    const delivery = await invoke(workspace, hooks, "report", {
+      evidence: ["confirmed baseline"],
+      result: "ready",
+      step: "/dev-gate",
+    });
+    assert.equal(delivery.next.skill, "/code-delivery");
+    assert.equal(delivery.next.message, "default\nall\ndelivery\nselected");
   },
 );
 
@@ -72,10 +87,15 @@ test("mode is fixed for the Flow and completion has no next", async () => {
     result: "completed",
     evidence: ["story"],
   });
-  const delivery = await invoke(workspace, hooks, "report", {
+  await invoke(workspace, hooks, "report", {
     step: "/to-issues",
     result: "skipped",
     evidence: ["small task"],
+  });
+  const delivery = await invoke(workspace, hooks, "report", {
+    step: "/dev-gate",
+    result: "ready",
+    evidence: ["confirmed baseline"],
   });
   assert.equal(delivery.next.message, "auto delivery");
   const finished = await invoke(workspace, hooks, "report", {

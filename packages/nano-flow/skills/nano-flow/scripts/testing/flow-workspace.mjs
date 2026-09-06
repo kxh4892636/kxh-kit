@@ -107,7 +107,8 @@ export const readyIssuePlan = async (workspace, session = "plan-session") => {
     session,
   });
   await recordPlan(workspace, session, "questing", "completed");
-  return recordPlan(workspace, session, "to-issues", "completed");
+  await recordPlan(workspace, session, "to-issues", "completed");
+  return recordPlan(workspace, session, "dev-gate", "ready");
 };
 
 export const addDeliveryEvidence = async (workspace, issueId) => {

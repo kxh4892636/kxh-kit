@@ -9,7 +9,7 @@ description: 实现完成后，需要编写或评估 unit/integration tests、�
 
 ## 流程
 
-1. 从 `/code-delivery` 基线取得质量门禁、public interfaces、critical paths 与 seams，承担测试类门禁。直接调用时，写测试前列出受测 seams 并与用户确认；interface 未定时使用 `/code-design` 确定边界。
+1. 从 `/dev-gate` 基线取得质量门禁、public interfaces、critical paths 与 seams，承担测试类门禁。直接调用时，写测试前列出受测 seams 并与用户确认；interface 未定时使用 `/code-design` 确定边界。
 2. 通过 public interfaces 测试 observable behavior，覆盖 spec 的成功、失败与关键边界。expected values 来自 spec、worked example 或 known-good literal 等独立事实源。
 3. 先运行受影响的单个测试文件，按 public contract 判断失败来自测试还是实现；生产代码修正后从受影响测试重新开始。
 4. 按仓库配置运行 coverage，记录命令、通过结果与报告。下方硬门禁全部成立时测试阶段完成；由调用者进入 `/verifying`，独立调用时继续执行该 skill。

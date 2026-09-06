@@ -70,6 +70,7 @@ test.each([
   { step: "/questing", result: "completed" },
   { step: "/questing", result: "completed", evidence: [" "] },
   { step: "/questing", result: "skipped", evidence: ["invalid result"] },
+  { step: "/questing", result: "ready", evidence: ["invalid result"] },
   { step: "/code-delivery", result: "started", evidence: ["removed step"] },
 ])("invalid report does not mutate state or documents: %j", async (options) => {
   const workspace = await createWorkspace();
@@ -129,8 +130,9 @@ test.each([
   const workspace = await createWorkspace();
   await command(workspace, "acquire", { plan: PLAN_PATH, session: "owner" });
   await recordPlan(workspace, "owner", "questing", "completed");
+  await recordPlan(workspace, "owner", "to-issues", "completed");
   await fs.writeFile(path.join(workspace, PLAN_PATH, "01-订单能力.md"), content);
   const before = await snapshot(workspace);
-  await assert.rejects(recordPlan(workspace, "owner", "to-issues", "completed"));
+  await assert.rejects(recordPlan(workspace, "owner", "dev-gate", "ready"));
   assert.deepEqual(await snapshot(workspace), before);
 });

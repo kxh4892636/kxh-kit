@@ -1,6 +1,6 @@
 ---
 name: nano-flow
-description: 进入、恢复或推进从故事与设计、issue 拆分到交付的 Flow，或判断下一步 skill 时使用。
+description: 进入、恢复或推进从故事与设计、issue 拆分、准入到交付的 Flow，或判断下一步 skill 时使用。
 ---
 
 # Nano Flow

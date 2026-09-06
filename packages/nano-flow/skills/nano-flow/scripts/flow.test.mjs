@@ -24,7 +24,7 @@ const status = (workspace, options = {}, now) =>
   command(workspace, "status", { plan: PLAN_PATH, ...options }, now);
 const afterSeconds = (seconds) => () => new Date(TEST_NOW.getTime() + seconds * 1000);
 
-test("直接交付只需三个 skill receipt，完成后不会自动重开", async () => {
+test("直接交付先经 dev-gate 准入，完成后不会自动重开", async () => {
   const workspace = await createWorkspace();
   const entered = await acquire(workspace);
   assert.equal(typeof entered.session, "string");
@@ -38,7 +38,11 @@ test("直接交付只需三个 skill receipt，完成后不会自动重开", asy
   const planning = await recordPlan(workspace, entered.session, "questing", "completed");
   assert.equal(planning.next.skill, "/to-issues");
   assert.deepEqual(planning.next.results, ["completed", "skipped"]);
-  const delivery = await recordPlan(workspace, entered.session, "to-issues", "skipped");
+  const gate = await recordPlan(workspace, entered.session, "to-issues", "skipped");
+  assert.equal(gate.next.skill, "/dev-gate");
+  assert.deepEqual(gate.next.results, ["ready"]);
+  assert.equal(gate.state, "owned");
+  const delivery = await recordPlan(workspace, entered.session, "dev-gate", "ready");
   assert.equal(delivery.next.skill, "/code-delivery");
   const completed = await recordPlan(workspace, entered.session, "code-delivery", "completed");
   assert.equal(completed.state, "completed");
@@ -46,12 +50,52 @@ test("直接交付只需三个 skill receipt，完成后不会自动重开", asy
   assert.equal(completed.lease, null);
   assert.deepEqual(
     completed.receipts.map(({ step }) => step),
-    ["/questing", "/to-issues", "/code-delivery"],
+    ["/questing", "/to-issues", "/dev-gate", "/code-delivery"],
   );
   const reopened = await acquire(workspace);
   assert.equal(reopened.state, "completed");
-  assert.equal(reopened.receipts.length, 3);
+  assert.equal(reopened.receipts.length, 4);
 });
+
+test.each(["skipped", "completed"])(
+  "to-issues=%s 后未准入不能交付，暂停与接管保留 gate",
+  async (split) => {
+    const workspace = await createWorkspace();
+    await acquire(workspace, { session: "owner" });
+    await recordPlan(workspace, "owner", "questing", "completed");
+    const gate = await recordPlan(workspace, "owner", "to-issues", split);
+    assert.equal(gate.next.skill, "/dev-gate");
+    assert.deepEqual(gate.next.results, ["ready"]);
+    assert.deepEqual(gate.issues, []);
+    const before = await fs.readFile(statePath(workspace), "utf8");
+    await assert.rejects(recordPlan(workspace, "owner", "code-delivery", "completed"), /顺序/);
+    await assert.rejects(acquire(workspace, { issue: "01", session: "worker" }), /尚未进入/);
+    for (const result of ["completed", "skipped", "not ready"])
+      await assert.rejects(recordPlan(workspace, "owner", "dev-gate", result), /result/);
+    await assert.rejects(
+      recordPlan(workspace, "owner", "dev-gate", "ready", { evidence: [] }),
+      /evidence/,
+    );
+    assert.equal(await fs.readFile(statePath(workspace), "utf8"), before);
+    const paused = await command(workspace, "report", {
+      plan: PLAN_PATH,
+      session: "owner",
+      result: "paused",
+    });
+    assert.equal(paused.state, "available");
+    assert.equal(paused.next.skill, "/dev-gate");
+    const resumed = await acquire(workspace, { session: "next" });
+    assert.equal(resumed.state, "owned");
+    assert.equal(resumed.next.skill, "/dev-gate");
+    assert.equal(resumed.receipts.length, 2);
+    const admitted = await recordPlan(workspace, "next", "dev-gate", "ready");
+    assert.deepEqual(admitted.receipts.at(-1).evidence, ["dev-gate-ready"]);
+    assert.equal(admitted.receipts.at(-1).issue, null);
+    assert.equal(admitted.state, split === "completed" ? "issues" : "owned");
+    if (split === "skipped") assert.equal(admitted.next.skill, "/code-delivery");
+    await assert.rejects(recordPlan(workspace, "next", "dev-gate", "ready"));
+  },
+);
 
 test("status 只读展示下一步，不授予租约或修改文件", async () => {
   const workspace = await createWorkspace();
@@ -155,7 +199,7 @@ test("跨日接管 Issue 保留执行状态和已有 Plan receipt", async () => 
   const resumed = await acquire(workspace, { issue: "01", session: "today" }, afterSeconds(86400));
   assert.equal(resumed.next.skill, "/code-delivery");
   assert.equal(resumed.state, "owned");
-  assert.equal(resumed.receipts.length, 2);
+  assert.equal(resumed.receipts.length, 3);
   assert.equal(resumed.issues[0].status, "in_progress");
   await assert.rejects(
     command(

@@ -32,6 +32,8 @@ test.each([[], ["help"], ["--help"], ["-h"]].map((args) => ({ args })))(
     assert.equal(result.code, 0);
     for (const name of ["status", "acquire", "report"])
       assert.match(result.output[0], new RegExp(name));
+    assert.match(result.output[0], /\/dev-gate/);
+    assert.match(result.output[0], /ready/);
     assert.doesNotMatch(result.output[0], /enter-plan|record-plan|claim-issue|sync-plan/);
   },
 );

@@ -5,7 +5,13 @@ import path from "node:path";
 import process from "node:process";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { canonicalPlanKey, fail, planKey, withFlowStore } from "./flow-store.mjs";
+import {
+  canonicalPlanKey,
+  fail,
+  FLOW_SCHEMA_VERSION,
+  planKey,
+  withFlowStore,
+} from "./flow-store.mjs";
 import {
   loadDocuments,
   issueReady,
@@ -15,7 +21,13 @@ import {
   stageDocuments,
 } from "./flow-documents.mjs";
 
-const SKILLS = ["questing", "to-issues", "code-delivery"];
+const SKILL_RESULTS = {
+  questing: ["completed"],
+  "to-issues": ["completed", "skipped"],
+  "dev-gate": ["ready"],
+  "code-delivery": ["completed"],
+};
+const SKILLS = Object.keys(SKILL_RESULTS);
 const HOOK_SCHEMA_VERSION = 1;
 const HOOKS_PATH = fileURLToPath(new URL("../extensions/hooks.json", import.meta.url));
 const HOOKABLE_SKILLS = new Set(SKILLS);
@@ -141,8 +153,8 @@ const parseOptions = (command, options, workspace) => {
   if (command !== "report") return input;
   input.session = requireOption(options, "session");
   input.result = requireOption(options, "result");
-  if (!["completed", "skipped", "paused", "blocked"].includes(input.result))
-    fail("--result 必须是 completed | skipped | paused | blocked");
+  if (!["completed", "skipped", "ready", "paused", "blocked"].includes(input.result))
+    fail("--result 必须是 completed | skipped | ready | paused | blocked");
   if (input.result === "blocked") {
     if (!issue) fail("blocked 仅适用于 Issue");
     input.reason = requireOption(options, "reason");
@@ -165,8 +177,9 @@ const planStep = (plan) => {
   const receipts = planReceipts(plan);
   if (!receipts.length) return "questing";
   if (receipts.length === 1) return "to-issues";
+  if (receipts.length === 2) return "dev-gate";
   if (receipts[1].result === "completed") return "issues";
-  return receipts.length === 2 ? "code-delivery" : "completed";
+  return receipts.length === 3 ? "code-delivery" : "completed";
 };
 
 const validatePlan = (plan) => {
@@ -196,10 +209,7 @@ const validatePlan = (plan) => {
       if (
         receipt.step !== `/${expected}` ||
         !SKILLS.includes(expected) ||
-        !(
-          receipt.result === "completed" ||
-          (expected === "to-issues" && receipt.result === "skipped")
-        )
+        !SKILL_RESULTS[expected].includes(receipt.result)
       )
         fail("Flow receipt 顺序或结果无效");
     } else {
@@ -233,8 +243,8 @@ const validatePlan = (plan) => {
 };
 
 const validateState = (state, workspace) => {
-  if (!isObject(state) || state.schema_version !== 7 || !isObject(state.plans))
-    fail("Flow 状态格式无效或版本不受支持；需要 schema_version=7");
+  if (!isObject(state) || state.schema_version !== FLOW_SCHEMA_VERSION || !isObject(state.plans))
+    fail(`Flow 状态格式无效或版本不受支持；需要 schema_version=${FLOW_SCHEMA_VERSION}`);
   for (const [key, plan] of Object.entries(state.plans)) {
     if (key !== planKey(workspace, key)) fail("Flow 标识无效");
     validatePlan(plan);
@@ -275,7 +285,7 @@ const project = (plan, documents, input, now, hooks) => {
     !done && step !== "issues"
       ? {
           skill: `/${step}`,
-          results: step === "to-issues" ? ["completed", "skipped"] : ["completed"],
+          results: [...SKILL_RESULTS[step]],
         }
       : null;
   if (next) {
@@ -346,8 +356,8 @@ const report = (plan, documents, input, now) => {
   }
   const step = issue ? "code-delivery" : planStep(plan);
   if (input.step !== `/${step}`) fail(`步骤顺序错误: 期望 /${step}，实际 ${input.step}`);
-  if (input.result === "skipped" && step !== "to-issues")
-    fail(`${input.step} 的 result 必须是 completed`);
+  if (!SKILL_RESULTS[step].includes(input.result))
+    fail(`${input.step} 的 result 必须是 ${SKILL_RESULTS[step].join(" | ")}`);
   if (issue) {
     if (!issueReady(documents, issue)) fail(`Issue ${issue.id} 的直接依赖尚未 completed`);
     if (!hasDeliveryEvidence(issue.content))
@@ -438,12 +448,12 @@ const parseCli = (argumentsList) => {
 const usage = `用法:
   flow.mjs status --plan <path> [--issue <NN>] [--session <id>]
   flow.mjs acquire --plan <path> [--issue <NN>] [--session <id>] [--mode <manual|auto>] [--lease-seconds <30..86400>] [--evidence <解除阻塞证据>]
-  flow.mjs report --plan <path> [--issue <NN>] --session <id> --step </questing|/to-issues|/code-delivery> --result <completed|skipped> --evidence <ref>
+  flow.mjs report --plan <path> [--issue <NN>] --session <id> --step </questing|/to-issues|/dev-gate|/code-delivery> --result <completed|skipped|ready> --evidence <ref>
   flow.mjs report --plan <path> [--issue <NN>] --session <id> --result paused
   flow.mjs report --plan <path> --issue <NN> --session <id> --result blocked --reason <text> --release-condition <text>
 
 acquire 统一进入、恢复及续租；report completed 表示 skill 的全部工作已完成。
-仅 /to-issues 接受 skipped。--evidence 可重复；所有命令可用 --workspace <path>。
+/dev-gate 仅接受 ready；仅 /to-issues 接受 skipped。--evidence 可重复；所有命令可用 --workspace <path>。
 `;
 
 export const runFlowCli = async ({

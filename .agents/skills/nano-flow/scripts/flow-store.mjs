@@ -3,6 +3,8 @@ import path from "node:path";
 import process from "node:process";
 import { randomUUID } from "node:crypto";
 
+export const FLOW_SCHEMA_VERSION = 8;
+
 export const fail = (message) => {
   throw new Error(message);
 };
@@ -199,7 +201,9 @@ export const withFlowStore = async (workspace, readonly, action) => {
     };
     const stateText = await read(".flow/state.json");
     const state =
-      stateText === null ? { schema_version: 7, plans: {} } : parseJson(stateText, "Flow 状态");
+      stateText === null
+        ? { schema_version: FLOW_SCHEMA_VERSION, plans: {} }
+        : parseJson(stateText, "Flow 状态");
     const output = await action({ state, read, stage });
     if (!readonly) {
       await stage(".flow/state.json", `${JSON.stringify(state, null, 2)}\n`);

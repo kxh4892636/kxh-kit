@@ -6,7 +6,7 @@
 
 1. 新 Flow 用 `acquire --plan <path>` 创建并取得租约；已有 Flow 用 `status --plan <path>` 查看，再用 `acquire` 恢复。模式在创建时通过 `--mode manual|auto` 设置，默认 manual，创建后固定；新模式使用新 Flow 标识。
 2. 仅在返回 `state=owned` 时，完整读取并执行 `next.skill`，原样传递 `next.message` 与 Flow context。
-3. skill 完成标准成立后，用 `report --session <id> --step </skill> --result completed --evidence <ref>` 登记；只执行新返回的下一步。
+3. skill 完成标准成立后，用 `report --session <id> --step </skill> --result <result> --evidence <ref>` 登记，result 取自 `next.results`；只执行新返回的下一步。
 
 所有命令携带稳定的 `--plan`；Issue 操作另带 `--issue <NN>`。后续原样复用返回的 plan、issue、session。Plan 标识必须位于工作区内；采用 Issue 图时，它必须指向实际 Plan 目录。
 
@@ -14,13 +14,13 @@
 
 ```text
 /questing → /to-issues
-               ├─ skipped   → /code-delivery → completed
-               └─ completed → 逐个 Issue 的 /code-delivery → 全部 completed
+               ├─ skipped   → /dev-gate=ready → /code-delivery → completed
+               └─ completed → /dev-gate=ready → 逐个 Issue 的 /code-delivery → 全部 completed
 ```
 
-`/to-issues` 判断是否需要可恢复的 Issue 图，允许报告 `completed` 或 `skipped`，两者均须证据。其他 skill 只接受 `completed`。
+`/to-issues` 判断是否需要可恢复的 Issue 图，允许报告 `completed` 或 `skipped`，两者均须证据。`/dev-gate` 只接受 `ready`，证据引用已确认的执行基线；`not ready` 时继续澄清，需暂停则报告 `paused`。其他 skill 只接受 `completed`。
 
-`/code-delivery` 内部完成准入、实现、测试、验证、审查和提交，提交成功后才报告 `completed`；证据引用本轮实际提交、交付物与验证结果。Flow 不登记中途准入，不执行 Git 提交，也不证明证据真实性。
+`/dev-gate` 在 Plan 级确认工作环境、执行契约和质量门禁，准入后才进入直接交付或领取 Issue。`/code-delivery` 内部完成实现、测试、验证、审查和提交，提交成功后才报告 `completed`；证据引用本轮实际提交、交付物与验证结果。交付中重新准入由 `/code-delivery` 调用 `/dev-gate`，更新后的基线计入交付证据。Flow 不执行 Git 提交，也不证明证据真实性。
 
 ## 统一快照
 
@@ -39,7 +39,7 @@
 
 ## Issue 与租约
 
-`/to-issues=completed` 后，Plan 返回 Issue 集合；显式选择 Issue，脚本不自动挑选。领取要求直接依赖全部 completed。同一 session 在一个 Plan 内最多持有一个 Issue；不同 session 可并行领取互不阻塞的 Issue，每个目标只有一个有效租约。
+`/to-issues=completed` 且 `/dev-gate=ready` 后，Plan 返回 Issue 集合；显式选择 Issue，脚本不自动挑选。领取要求直接依赖全部 completed。同一 session 在一个 Plan 内最多持有一个 Issue；不同 session 可并行领取互不阻塞的 Issue，每个目标只有一个有效租约。
 
 `acquire` 首次生成 session；同一持有人携带 session 再次调用即续租，租约过期后可接管。默认租期 30 分钟，可用 `--lease-seconds` 调整。租约过期只影响执行权，保留已登记证据与文档执行状态。
 
@@ -67,7 +67,7 @@ pending → in_progress → completed
 
 ## 存储与失败恢复
 
-schema 7 使用固定 `.flow/state.json`，保存 `plans[plan] = { mode, receipts, leases }`。Plan 短证据链和 Issue 文档共同决定当前位置；没有 phase、cursor 或 Issue status 副本。跨日继续读取同一文件；旧日文件保留但不读取，不迁移旧 schema。
+schema 8 使用固定 `.flow/state.json`，保存 `plans[plan] = { mode, receipts, leases }`。Plan 短证据链和 Issue 文档共同决定当前位置；没有 phase、cursor 或 Issue status 副本。跨日继续读取同一文件；旧日文件保留但不读取，不迁移旧 schema。
 
 写入前验证参数、租约、顺序、依赖、证据与文档更新。多文件写入通过 pending journal 恢复：中断后，下一次 acquire 先恢复未完成写入。status 遇到 pending 时明确提示先 acquire，不返回可执行快照。
 
