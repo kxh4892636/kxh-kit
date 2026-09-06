@@ -1,0 +1,328 @@
+[
+  {
+    "argv": ["config", "remove", "--name", "wiki"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"remove\",\"removed\":{\"name\":\"wiki\",\"url\":\"file:///<TMP>/nf-workspace-worktree-<RAND>/wiki.git\",\"path\":\"repositories/wiki\",\"branch\":\"main\"},\"config\":\"<CWD>/workspace.yaml\"}\n"
+  },
+  {
+    "argv": ["config", "remove", "--name", "wiki"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Repository is materialized at <CWD>/repositories/wiki\",\"hint\":\"Run 'nnf workspace repository remove --name wiki --yes' before removing its configuration\",\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["repository", "clone"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"clone-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"status\":\"cloned\"}]}\n"
+  },
+  {
+    "argv": ["repository", "pull"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"One or more repositories failed during pull-repositories\",\"action\":\"pull-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"status\":\"failed\",\"reason\":\"Path resolves outside the workspace: <CWD>/repositories/wiki\"}]}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["repository", "remove", "--name", "wiki", "--yes"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"remove-repository\",\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"force\":false}\n"
+  },
+  {
+    "argv": ["repository", "remove", "--name", "wiki", "--yes"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Repository has additional worktrees: wiki\",\"hint\":\"Remove every additional worktree before removing the repository clone\",\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["repository", "status"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":false,\"action\":\"status-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"baseBranch\":\"main\",\"status\":\"failed\",\"reason\":\"Path resolves outside the workspace: <CWD>/repositories/wiki\",\"worktrees\":[]}]}\n"
+  },
+  {
+    "argv": ["worktree", "add", "--name", "wiki", "--path", "../outside"],
+    "code": 2,
+    "stderr": "{\"success\":false,\"error\":\"--path must be relative to the workspace root and must not contain '..'\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": [
+      "worktree",
+      "add",
+      "--name",
+      "wiki",
+      "--path",
+      "..feature/wiki",
+      "--branch",
+      "feature/dotted-path"
+    ],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"add-worktree\",\"name\":\"wiki\",\"path\":\"<CWD>/..feature/wiki\",\"branch\":\"feature/dotted-path\",\"createdBranch\":true,\"base\":\"main\"}\n"
+  },
+  {
+    "argv": ["worktree", "add", "--name", "wiki", "--path", "repositories/wiki"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Cannot add a worktree at the primary clone: <CWD>/repositories/wiki\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": [
+      "worktree",
+      "add",
+      "--name",
+      "wiki",
+      "--path",
+      "worktrees/existing",
+      "--branch",
+      "feature/existing"
+    ],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"add-worktree\",\"name\":\"wiki\",\"path\":\"<CWD>/worktrees/existing\",\"branch\":\"feature/existing\",\"createdBranch\":false}\n"
+  },
+  {
+    "argv": ["worktree", "add", "--name", "wiki", "--path", "worktrees/preview", "--dry-run"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"dryRun\":true,\"preview\":{\"action\":\"add-worktree\",\"name\":\"wiki\",\"path\":\"<CWD>/worktrees/preview\",\"branch\":\"worktree/<TIMESTAMP>\",\"createdBranch\":true,\"base\":\"main\"}}\n"
+  },
+  {
+    "argv": [
+      "worktree",
+      "add",
+      "--name",
+      "wiki",
+      "--path",
+      "worktrees/stale",
+      "--branch",
+      "feature/stale"
+    ],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"add-worktree\",\"name\":\"wiki\",\"path\":\"<CWD>/worktrees/stale\",\"branch\":\"feature/stale\",\"createdBranch\":true,\"base\":\"main\"}\n"
+  },
+  {
+    "argv": [
+      "worktree",
+      "add",
+      "--name",
+      "wiki",
+      "--path",
+      "worktrees/wiki",
+      "--branch",
+      "feature/old"
+    ],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"add-worktree\",\"name\":\"wiki\",\"path\":\"<CWD>/worktrees/wiki\",\"branch\":\"feature/old\",\"createdBranch\":true,\"base\":\"main\"}\n"
+  },
+  {
+    "argv": [
+      "worktree",
+      "add",
+      "--name",
+      "wiki",
+      "--path",
+      "worktrees/wiki",
+      "--branch",
+      "feature/outside"
+    ],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Path resolves outside the workspace: <CWD>/worktrees/wiki\",\"root\":\"<CWD>\",\"path\":\"<CWD>/worktrees/wiki\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": [
+      "worktree",
+      "add",
+      "--name",
+      "wiki",
+      "--path",
+      "worktrees/wiki",
+      "--branch",
+      "feature/unmerged"
+    ],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"add-worktree\",\"name\":\"wiki\",\"path\":\"<CWD>/worktrees/wiki\",\"branch\":\"feature/unmerged\",\"createdBranch\":true,\"base\":\"main\"}\n"
+  },
+  {
+    "argv": [
+      "worktree",
+      "add",
+      "--name",
+      "wiki",
+      "--path",
+      "worktrees/wiki",
+      "--branch",
+      "feature/wiki"
+    ],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"add-worktree\",\"name\":\"wiki\",\"path\":\"<CWD>/worktrees/wiki\",\"branch\":\"feature/wiki\",\"createdBranch\":true,\"base\":\"main\"}\n"
+  },
+  {
+    "argv": ["worktree", "add", "--name", "wiki", "--path", "worktrees/wiki"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Path resolves outside the workspace: <CWD>/repositories/wiki\",\"root\":\"<CWD>\",\"path\":\"<CWD>/repositories/wiki\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["worktree", "add", "--name", "wiki"],
+    "code": 2,
+    "stderr": "{\"success\":false,\"error\":\"error: required option '--path <value>' not specified\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["worktree", "list", "--name", "unknown"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Repository not found in workspace.yaml: unknown\",\"name\":\"unknown\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["worktree", "list"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"repositories\":[{\"name\":\"missing\",\"repositoryPath\":\"<CWD>/repositories/missing\",\"status\":\"not-materialized\",\"worktrees\":[]}]}\n"
+  },
+  {
+    "argv": ["worktree", "list"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"repositories\":[{\"name\":\"wiki\",\"repositoryPath\":\"<CWD>/repositories/wiki\",\"status\":\"materialized\",\"worktrees\":[{\"path\":\"<CWD>/repositories/wiki\",\"head\":\"<GIT_SHA>\",\"branch\":\"main\",\"primary\":true,\"locked\":false},{\"path\":\"<CWD>/worktrees/wiki\",\"head\":\"<GIT_SHA>\",\"branch\":\"feature/wiki\",\"primary\":false,\"locked\":true}]}]}\n"
+  },
+  {
+    "argv": ["worktree", "list"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"repositories\":[{\"name\":\"wiki\",\"repositoryPath\":\"<CWD>/repositories/wiki\",\"status\":\"materialized\",\"worktrees\":[{\"path\":\"<CWD>/repositories/wiki\",\"head\":\"<GIT_SHA>\",\"primary\":true,\"locked\":false}]}]}\n"
+  },
+  {
+    "argv": ["worktree", "list"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Path resolves outside the workspace: <CWD>/repositories/wiki\",\"root\":\"<CWD>\",\"path\":\"<CWD>/repositories/wiki\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["worktree", "prune"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"prune-worktrees\",\"repositories\":[{\"name\":\"wiki\",\"status\":\"not-materialized\",\"pruned\":[]}]}\n"
+  },
+  {
+    "argv": ["worktree", "prune"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"prune-worktrees\",\"repositories\":[{\"name\":\"wiki\",\"status\":\"pruned\",\"pruned\":[{\"path\":\"<CWD>/worktrees/stale\",\"head\":\"<GIT_SHA>\",\"branch\":\"feature/stale\"}]}]}\n"
+  },
+  {
+    "argv": ["worktree", "prune"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Path resolves outside the workspace: <CWD>/repositories/wiki\",\"root\":\"<CWD>\",\"path\":\"<CWD>/repositories/wiki\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["worktree", "remove", "--name", "wiki", "--path", "repositories/wiki"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Cannot operate on the primary clone: <CWD>/repositories/wiki\",\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": [
+      "worktree",
+      "remove",
+      "--name",
+      "wiki",
+      "--path",
+      "worktrees/detached",
+      "--delete-branch"
+    ],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Cannot delete a branch for detached worktree: <CWD>/worktrees/detached\",\"name\":\"wiki\",\"path\":\"<CWD>/worktrees/detached\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["worktree", "remove", "--name", "wiki", "--path", "worktrees/detached-remove"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"remove-worktree\",\"name\":\"wiki\",\"path\":\"<CWD>/worktrees/detached-remove\",\"branchDeleted\":false}\n"
+  },
+  {
+    "argv": ["worktree", "remove", "--name", "wiki", "--path", "worktrees/wiki", "--delete-branch"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"remove-worktree\",\"name\":\"wiki\",\"path\":\"<CWD>/worktrees/wiki\",\"branch\":\"feature/wiki\",\"branchDeleted\":true}\n"
+  },
+  {
+    "argv": ["worktree", "remove", "--name", "wiki", "--path", "worktrees/wiki", "--delete-branch"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Branch is not merged and cannot be deleted: feature/unmerged\",\"hint\":\"Merge the branch before removing it with --delete-branch\",\"name\":\"wiki\",\"path\":\"<CWD>/worktrees/wiki\",\"branch\":\"feature/unmerged\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["worktree", "remove", "--name", "wiki", "--path", "worktrees/wiki", "--force"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"remove-worktree\",\"name\":\"wiki\",\"path\":\"<CWD>/worktrees/wiki\",\"branch\":\"feature/wiki\",\"branchDeleted\":false}\n"
+  },
+  {
+    "argv": ["worktree", "remove", "--name", "wiki", "--path", "worktrees/wiki"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"remove-worktree\",\"name\":\"wiki\",\"path\":\"<CWD>/worktrees/wiki\",\"branch\":\"feature/wiki\",\"branchDeleted\":false}\n"
+  },
+  {
+    "argv": ["worktree", "remove", "--name", "wiki", "--path", "worktrees/wiki"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Git worktree operation failed: fatal: '<CWD>/worktrees/wiki' contains modified or untracked files, use --force to delete it\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": [
+      "worktree",
+      "switch",
+      "--name",
+      "wiki",
+      "--path",
+      "repositories/wiki",
+      "--branch",
+      "feature/x"
+    ],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Cannot operate on the primary clone: <CWD>/repositories/wiki\",\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": [
+      "worktree",
+      "switch",
+      "--name",
+      "wiki",
+      "--path",
+      "worktrees/wiki",
+      "--branch",
+      "feature/existing"
+    ],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"switch-worktree\",\"name\":\"wiki\",\"path\":\"<CWD>/worktrees/wiki\",\"branch\":\"feature/existing\",\"created\":false}\n"
+  },
+  {
+    "argv": [
+      "worktree",
+      "switch",
+      "--name",
+      "wiki",
+      "--path",
+      "worktrees/wiki",
+      "--branch",
+      "feature/new"
+    ],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"switch-worktree\",\"name\":\"wiki\",\"path\":\"<CWD>/worktrees/wiki\",\"branch\":\"feature/new\",\"created\":true,\"base\":\"main\"}\n"
+  }
+]

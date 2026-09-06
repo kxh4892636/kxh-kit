@@ -1,0 +1,184 @@
+[
+  {
+    "argv": [
+      "config",
+      "add",
+      "--name",
+      "docs",
+      "--url",
+      "https://github.com/kxh4892636/docs.git",
+      "--path",
+      "apps/docs",
+      "--branch",
+      "stable"
+    ],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"add\",\"change\":\"added\",\"repository\":{\"name\":\"docs\",\"url\":\"https://github.com/kxh4892636/docs.git\",\"path\":\"apps/docs\",\"branch\":\"stable\"},\"config\":\"<CWD>/workspace.yaml\"}\n"
+  },
+  {
+    "argv": [
+      "config",
+      "add",
+      "--name",
+      "docs",
+      "--url",
+      "https://github.com/kxh4892636/docs.git",
+      "--path",
+      "apps/wiki",
+      "--branch",
+      "main"
+    ],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Repository path 'apps/wiki' is already used by 'wiki'\",\"name\":\"docs\",\"path\":\"apps/wiki\",\"conflict\":\"wiki\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": [
+      "config",
+      "add",
+      "--name",
+      "wiki",
+      "--url",
+      "git@github.com:kxh4892636/wiki.git",
+      "--path",
+      "packages/wiki",
+      "--branch",
+      "dev"
+    ],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Repository already exists in workspace.yaml: wiki\",\"name\":\"wiki\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": [
+      "config",
+      "add",
+      "--name",
+      "wiki",
+      "--url",
+      "https://github.com/kxh4892636/wiki.git",
+      "--path",
+      "apps/wiki",
+      "--branch",
+      "main",
+      "--dry-run"
+    ],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"dryRun\":true,\"preview\":{\"action\":\"add\",\"change\":\"added\",\"repository\":{\"name\":\"wiki\",\"url\":\"https://github.com/kxh4892636/wiki.git\",\"path\":\"apps/wiki\",\"branch\":\"main\"},\"config\":\"<CWD>/workspace.yaml\"}}\n"
+  },
+  {
+    "argv": [
+      "config",
+      "add",
+      "--name",
+      "wiki",
+      "--url",
+      "https://github.com/kxh4892636/wiki.git",
+      "--path",
+      "apps/wiki",
+      "--branch",
+      "main"
+    ],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"add\",\"change\":\"added\",\"repository\":{\"name\":\"wiki\",\"url\":\"https://github.com/kxh4892636/wiki.git\",\"path\":\"apps/wiki\",\"branch\":\"main\"},\"config\":\"<CWD>/workspace.yaml\"}\n"
+  },
+  {
+    "argv": ["config", "add", "--name", "wiki", "--url", "https://x/y.git"],
+    "code": 2,
+    "stderr": "{\"success\":false,\"error\":\"error: required option '--path <value>' not specified\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["config", "init", "--dry-run"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"dryRun\":true,\"preview\":{\"action\":\"init\",\"config\":\"<CWD>/workspace.yaml\"}}\n"
+  },
+  {
+    "argv": ["config", "init"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"root\":\"<CWD>\",\"config\":\"<CWD>/workspace.yaml\"}\n"
+  },
+  {
+    "argv": ["config", "init"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"workspace.yaml already exists at <CWD>/workspace.yaml\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["config", "list", "--name", "docs"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"root\":\"<CWD>\",\"repositories\":[{\"name\":\"docs\",\"url\":\"https://github.com/kxh4892636/docs.git\",\"path\":\"apps/docs\",\"branch\":\"stable\"}]}\n"
+  },
+  {
+    "argv": ["config", "list", "--name", "ghost"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Repository not found in workspace.yaml: ghost\",\"name\":\"ghost\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["config", "list"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"root\":\"<CWD>\",\"repositories\":[{\"name\":\"wiki\",\"url\":\"https://github.com/kxh4892636/wiki.git\",\"path\":\"apps/wiki\",\"branch\":\"main\"},{\"name\":\"docs\",\"url\":\"https://github.com/kxh4892636/docs.git\",\"path\":\"apps/docs\",\"branch\":\"stable\"}]}\n"
+  },
+  {
+    "argv": ["config", "remove", "--name", "ghost"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Repository not found in workspace.yaml: ghost\",\"name\":\"ghost\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["config", "remove", "--name", "wiki", "--dry-run"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"dryRun\":true,\"preview\":{\"action\":\"remove\",\"removed\":{\"name\":\"wiki\",\"url\":\"https://github.com/kxh4892636/wiki.git\",\"path\":\"apps/wiki\",\"branch\":\"main\"},\"config\":\"<CWD>/workspace.yaml\"}}\n"
+  },
+  {
+    "argv": ["config", "remove", "--name", "wiki"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"remove\",\"removed\":{\"name\":\"wiki\",\"url\":\"https://github.com/kxh4892636/wiki.git\",\"path\":\"apps/wiki\",\"branch\":\"main\"},\"config\":\"<CWD>/workspace.yaml\"}\n"
+  },
+  {
+    "argv": ["config", "remove", "--name", "wiki"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Repository is materialized at <CWD>/apps/wiki\",\"hint\":\"Run 'nnf workspace repository remove --name wiki --yes' before removing its configuration\",\"name\":\"wiki\",\"path\":\"<CWD>/apps/wiki\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["config", "update", "--name", "ghost", "--branch", "dev"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Repository not found in workspace.yaml: ghost\",\"name\":\"ghost\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["config", "update", "--name", "wiki", "--branch", "dev"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"update\",\"repository\":{\"name\":\"wiki\",\"url\":\"https://github.com/kxh4892636/wiki.git\",\"path\":\"apps/wiki\",\"branch\":\"dev\"},\"config\":\"<CWD>/workspace.yaml\"}\n"
+  },
+  {
+    "argv": ["config", "update", "--name", "wiki", "--branch", "dev"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Repository is materialized at <CWD>/apps/wiki\",\"hint\":\"Run 'nnf workspace repository remove --name wiki --yes' before updating its configuration\",\"name\":\"wiki\",\"path\":\"<CWD>/apps/wiki\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["config", "update", "--name", "wiki", "--path", "packages/wiki", "--branch", "dev"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"update\",\"repository\":{\"name\":\"wiki\",\"url\":\"https://github.com/kxh4892636/wiki.git\",\"path\":\"packages/wiki\",\"branch\":\"dev\"},\"config\":\"<CWD>/workspace.yaml\"}\n"
+  },
+  {
+    "argv": ["config", "update", "--name", "wiki"],
+    "code": 2,
+    "stderr": "{\"success\":false,\"error\":\"config update requires at least one of --url, --path or --branch\"}\n",
+    "stdout": ""
+  }
+]

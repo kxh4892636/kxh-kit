@@ -1,0 +1,4 @@
+# 格式工具使用 LF，检出时保持一致，避免 Windows 自动转换引发全仓格式失败。
+* text=auto eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf

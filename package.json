@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "ready": "vp check && vp run -r test && vp run -r build",
+    "ready": "vp check && vp run -r --no-cache test && vp run -r build",
     "dev": "vp run @kxh4892636/wiki#start",
     "prepare": "vp config",
     "dev:etf": "vp run --filter @kxh4892636/etf-* --parallel --no-cache dev"

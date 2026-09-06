@@ -1,0 +1,182 @@
+[
+  {
+    "argv": ["pull"],
+    "code": 2,
+    "stderr": "{\"success\":false,\"error\":\"error: unknown command 'pull'\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["repository", "clone", "--dry-run"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"dryRun\":true,\"preview\":{\"action\":\"clone-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"status\":\"cloned\"}]}}\n"
+  },
+  {
+    "argv": ["repository", "clone", "--name", "docs"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"clone-repositories\",\"repositories\":[{\"name\":\"docs\",\"path\":\"<CWD>/repositories/docs\",\"status\":\"cloned\"}]}\n"
+  },
+  {
+    "argv": ["repository", "clone", "--name", "ghost", "--name", "wiki"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"One or more repositories failed during clone-repositories\",\"action\":\"clone-repositories\",\"repositories\":[{\"name\":\"ghost\",\"status\":\"failed\",\"reason\":\"Repository not found in workspace.yaml: ghost\"},{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"status\":\"cloned\"}]}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["repository", "clone", "--name", "wiki"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"clone-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"status\":\"cloned\"}]}\n"
+  },
+  {
+    "argv": ["repository", "clone"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"clone-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"status\":\"cloned\"}]}\n"
+  },
+  {
+    "argv": ["repository", "clone"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"One or more repositories failed during clone-repositories\",\"action\":\"clone-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"status\":\"failed\",\"reason\":\"Clone target already exists: <CWD>/repositories/wiki\"},{\"name\":\"docs\",\"path\":\"<CWD>/repositories/docs\",\"status\":\"cloned\"}]}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["repository", "clone"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"One or more repositories failed during clone-repositories\",\"action\":\"clone-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"status\":\"failed\",\"reason\":\"Path resolves outside the workspace: <CWD>/repositories/wiki\"}]}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["repository", "clone"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"One or more repositories failed during clone-repositories\",\"action\":\"clone-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"status\":\"failed\",\"reason\":\"git clone failed: Cloning into '<CWD>/repositories/wiki'...\\nfatal: unable to access '[redacted-url] Failed to connect to 127.0.0.1:1 after <MS> ms: Could not connect to server\"}]}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["repository", "pull", "--name", "ghost", "--name", "wiki"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"One or more repositories failed during pull-repositories\",\"action\":\"pull-repositories\",\"repositories\":[{\"name\":\"ghost\",\"status\":\"failed\",\"reason\":\"Repository not found in workspace.yaml: ghost\"},{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"status\":\"pulled\"}]}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["repository", "pull"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"pull-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"status\":\"pulled\"}]}\n"
+  },
+  {
+    "argv": ["repository", "pull"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"pull-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"status\":\"skipped\",\"reason\":\"Cannot fast-forward: the primary clone has diverged\"}]}\n"
+  },
+  {
+    "argv": ["repository", "pull"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"pull-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"status\":\"skipped\",\"reason\":\"Cannot fast-forward: the primary clone has local commits\"}]}\n"
+  },
+  {
+    "argv": ["repository", "pull"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"pull-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"status\":\"skipped\",\"reason\":\"Primary clone is on 'other', expected 'main'\"}]}\n"
+  },
+  {
+    "argv": ["repository", "pull"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"pull-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"status\":\"skipped\",\"reason\":\"Repository has uncommitted changes: <CWD>/repositories/wiki\"}]}\n"
+  },
+  {
+    "argv": ["repository", "pull"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"pull-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"status\":\"skipped\",\"reason\":\"Repository is not materialized; run 'nnf workspace repository clone --name wiki'\"}]}\n"
+  },
+  {
+    "argv": ["repository", "pull"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"One or more repositories failed during pull-repositories\",\"action\":\"pull-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"status\":\"failed\",\"reason\":\"git <CWD>/repositories/wiki failed: fatal: not a git repository (or any of the parent directories): .git\"},{\"name\":\"docs\",\"path\":\"<CWD>/repositories/docs\",\"status\":\"pulled\"}]}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["repository", "remove", "--name", "wiki", "--yes", "--force"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"remove-repository\",\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"force\":true}\n"
+  },
+  {
+    "argv": ["repository", "remove", "--name", "wiki", "--yes"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"remove-repository\",\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"force\":false}\n"
+  },
+  {
+    "argv": ["repository", "remove", "--name", "wiki", "--yes"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Repository has additional worktrees: wiki\",\"hint\":\"Remove every additional worktree before removing the repository clone\",\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["repository", "remove", "--name", "wiki", "--yes"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Repository has local data: wiki\",\"hint\":\"Commit and push the local data, or re-run with --force\",\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"dirty\":false,\"localOnlyHistory\":true}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["repository", "remove", "--name", "wiki", "--yes"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Repository has local data: wiki\",\"hint\":\"Commit and push the local data, or re-run with --force\",\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"dirty\":true,\"localOnlyHistory\":true}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["repository", "remove", "--name", "wiki", "--yes"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"Repository is not materialized: wiki\",\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["repository", "remove", "--name", "wiki"],
+    "code": 1,
+    "stderr": "{\"success\":false,\"error\":\"repository remove requires --yes\",\"hint\":\"Re-run with --yes after verifying the resolved repository path\"}\n",
+    "stdout": ""
+  },
+  {
+    "argv": ["repository", "status", "--name", "docs"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"status-repositories\",\"repositories\":[{\"name\":\"docs\",\"path\":\"<CWD>/repositories/docs\",\"baseBranch\":\"main\",\"status\":\"not-materialized\",\"worktrees\":[]}]}\n"
+  },
+  {
+    "argv": ["repository", "status", "--name", "wiki"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"status-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"baseBranch\":\"main\",\"branch\":\"main\",\"dirty\":false,\"ahead\":0,\"behind\":0,\"status\":\"materialized\",\"worktrees\":[{\"path\":\"<CWD>/repositories/wiki\",\"branch\":\"main\"}]}]}\n"
+  },
+  {
+    "argv": ["repository", "status"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"status-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"baseBranch\":\"main\",\"branch\":\"\",\"dirty\":false,\"ahead\":0,\"behind\":0,\"status\":\"materialized\",\"worktrees\":[{\"path\":\"<CWD>/repositories/wiki\"}]}]}\n"
+  },
+  {
+    "argv": ["repository", "status"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"status-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"baseBranch\":\"main\",\"branch\":\"main\",\"dirty\":false,\"ahead\":0,\"behind\":0,\"status\":\"materialized\",\"worktrees\":[{\"path\":\"<CWD>/repositories/wiki\",\"branch\":\"main\"}]},{\"name\":\"docs\",\"path\":\"<CWD>/repositories/docs\",\"baseBranch\":\"main\",\"status\":\"not-materialized\",\"worktrees\":[]}]}\n"
+  },
+  {
+    "argv": ["repository", "status"],
+    "code": 0,
+    "stderr": "",
+    "stdout": "{\"success\":true,\"action\":\"status-repositories\",\"repositories\":[{\"name\":\"wiki\",\"path\":\"<CWD>/repositories/wiki\",\"baseBranch\":\"main\",\"branch\":\"main\",\"dirty\":true,\"ahead\":1,\"behind\":1,\"status\":\"materialized\",\"worktrees\":[{\"path\":\"<CWD>/repositories/wiki\",\"branch\":\"main\"}]}]}\n"
+  },
+  {
+    "argv": ["status"],
+    "code": 2,
+    "stderr": "{\"success\":false,\"error\":\"error: unknown command 'status'\"}\n",
+    "stdout": ""
+  }
+]

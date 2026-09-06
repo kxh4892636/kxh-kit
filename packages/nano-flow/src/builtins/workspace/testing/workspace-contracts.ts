@@ -1,105 +1,45 @@
-import { createHash } from "node:crypto";
+import commandContracts from "./workspace-command-contracts.json";
+import repositoryContracts from "./workspace-repository-contracts.json";
+import worktreeContracts from "./workspace-worktree-contracts.json";
 
-const contracts: Readonly<Record<string, ReadonlySet<string>>> = {
-  command: new Set([
-    "0f6043b2e35dd345250b69fc5b876541c11c8677e1bdd29c731b46894a0d006d",
-    "1302705c4e43a37ea45908d8f84b1a50af79e9a50308051661b6b98d00d4a77c",
-    "1624516f4ac11bb4241ad711cac92ecaa5e420c7a91da5ebf7aafb59226deaf0",
-    "1680a063e9be9111c301e4a6ba7414501fb7d4c017f233bcc55e93bb27ffeee1",
-    "1757f5fd69256587e77c081bcba739dca9e10823bff8d4bc32e085f74103faf7",
-    "3c2a4e25ab4c0c0167a043f4955f004e2cc7db62b75b27ad97df3ed0257c1056",
-    "3efeba0cbd741894408c274a9350e90aabdb4538021ed9ba691bc2022f3f67d2",
-    "41ded73ee99f198439e42895aff13c12b76180f9d0ba8d916962881ec9198ae1",
-    "4307f8b21fa73e61b9b7d0872d31ed10aa070263802dd235d9336c1f9f28c3bc",
-    "4feb9f793b2bb1c524b91d78fc960c643741a1abadb953606455df864e6f10be",
-    "a778a8d070b02cfc723c45ed837a6b903c741cf3a98344da2994552cd9bc3743",
-    "b8b15a6e6d988c9181984dd4d6b5328fdd5816435be1b25e29336ea42d92d4da",
-    "baaf75a2e30dc8d89b1a991866edad060eaacb2d188b44138b644d82022aad3c",
-    "bdb03109ef539174fa085b1bcbfaa30679ea97d13c68a666e475331957d983cd",
-    "c1b8b3d2b1dd5a59340fcd906a1cab2af9c6894f9f9f082b6b95a817060d6e01",
-    "d6f2d63d11c342cc9315284b6ab4427c1e6fcd71b31980a6167816eaf8d3c0c9",
-    "d79b6cf1d16513a3a58e24004d01bf1a79a299f9b3466486074986a27ad25fbd",
-    "ec1d155c68c69872f48d3c5f5633b73f21496194a15682f2645080b847fa79b0",
-    "f7546168a6117928e73f2fe2d11cc91e2eb0480c6a7576288cbaf8de6c0807a2",
-    "f758922f54c8998fda010f483d1eb0ab279b2c01509b4b42f0e258c716afa552",
-    "fa877cf8a870f60dd4afe588ec2afcc045932901c73b4431431304755fe231a8",
+// 保存可读的规范化输出；变更必须核对业务断言和差异，不能追加机器专属摘要。
+const contracts: Readonly<Record<string, ReadonlySet<string>>> = Object.fromEntries(
+  Object.entries({
+    command: commandContracts,
+    repository: repositoryContracts,
+    worktree: worktreeContracts,
+  }).map(([kind, entries]): [string, ReadonlySet<string>] => [
+    kind,
+    new Set(entries.map((entry): string => JSON.stringify(entry))),
   ]),
-  repository: new Set([
-    "06c8e2b4ef0d05881a6a212d48b124ce2bd29b34f9a750da4b2b062ffaa0abda",
-    "0e15c30d314ed68d968ffaa56212f417ca02dd20c266cb1d97bfa57c61a91ad0",
-    "1a274424ad39b35e13130eed11748a696aa3de68085ef47f955987cedb59ceba",
-    "1b620963e8aea61dcb5f97297365093806b5e755849de0f2af1c32575faac0eb",
-    "1f3aec1de16030b343a07a53a428901aa80ae3a24534ad34cc6e431a1fc82c40",
-    "23d64a8226893ae6f249e7fd39415b3a3b9ed7fc22abd1c3b8bc79d3f6d2b60d",
-    "2f4b8341bedc6da8894ce046e1a26826e2512f33f0e88f7c7569d903f277d217",
-    "3bbfeca830e41083df15499b029634d83c54447d83033a3b6888cdf72d839526",
-    "3cc4a745e5521e3df27ded0974624aa640520378ffbaa63b084f45684258dc55",
-    "40eecaff73282b980ef9e8d726856474f1cc0322d1eef4c43551b5b45081817e",
-    "4c58712c1b6d40211944995d7000b56c18e4b70fb164f94ca1430ec43f5e635d",
-    "52dc0fa716651854c320fac4d0565489e1ddbe64aa3c537c4c3d15016a4c0305",
-    "55f16f69409b8267dc02aa36d4d9123066509359f11b79caf3baf2e5d19c424c",
-    "73db124b96f24f32b5c3753e099e27f63ed2ceac45a05d2ba6456debdcae479f",
-    "815d32eae6779d9675e6b21f8f7982be18246362b71459d9f98a7e08f56b1816",
-    "87c682ca4b93f68de9f6942dcddc3059652abfaa8ba2802bb357cfcd5ffa5824",
-    "991e19e58cfd2601e5bd9b72c487bb3b4fb2720251ed387c182e7d97386589b2",
-    "bd7030ea69ec67f50be9e22a54c18c946405554cc29016c6732b7f2a80133263",
-    "c65383605a1a00aa72483644c64ff6bec84749db00b1c972b66f29e1f5b7d049",
-    "c886a382d0bac85000b5595d59c5e776050063745df81d2f91f527c96dc47ce9",
-    "ce17ddbebe4ccfeb3a6a5c0792af8a4a91fe2c0a9ea387ba58c4f2c32af57322",
-    "d3171caabaf7e96b4e100b4ce0a2a81fc265a034b2af90040c6b4de0a710fc92",
-    "e1c7ead84f7ab922952a04d21102885d9b7ceeeb6a87991bcff47f3017838e9d",
-    "e7421eb9f4c2ab4e79c9f9c468a3f14cf5ce8c8261cf22edd7e6b0e516bb29c2",
-    "e9a1434cb559035263cebfebe22be30c7d69f7c13effde88a531365a49bed24c",
-    "eecd8af8ec8300bd94ff8ad1bd015b72e86751f667cbc8cced1199afb60ba948",
-    "ef9c09cefe19c41fd782cbb5640d82a3f25e0871af71e1d8bc00ff4811973803",
-    "f0f62cd0b35247d787c9e1edb0d88e91d092bcb795e5990ddd375a031a0ee18b",
-    "f6aba5d32bd389cb8fc5a857015fa9c8191da281387c27af0416d5644bb4874f",
-    "f84da201273a1e558697d41d946d5568c0eb93fa0635f30d68971ee6ad806fb7",
-  ]),
-  worktree: new Set([
-    "001eead82343a53c702c90f7bae509c184daed95fc6d26297018a6e5c4cb31cf",
-    "0dac2df3bab806cb65a19f375524fa5da46fd8c3a70596e570f8d559268190da",
-    "10f7be424c525e60f06976834b8e959151693953fd9c886da329f5314f1480c7",
-    "13af785db55443abd45a9ecc2589b7b74aebc580d343ff2f7145135514160df9",
-    "1a4fc6318823c0f21057ef62a3be2e7554ce557f9cf7e2e4cd39a6fc3bbdbfd1",
-    "1ad7d888874217c739163678c09730fa3607157e601aefae29485f12d2747b90",
-    "1c490a8330c1d775dbacce14a4988d507483dba57d33c3c1d9da52ee706ae921",
-    "25502b8db386d6f99e84ddc892c04842867c1f08e34c4b82ffebdfbd2c35e768",
-    "25e051bd9dca486918c544fa3fa4a921a1992a54352758448e4d4bc1b03f5509",
-    "2bc9359058a5b456e2b18f580b6d85c06ffbe49c31b6a736bdacfa6c85d757c2",
-    "2d09f25eb5d7eff896af069ddf6eec4ed51f88e77e61038fa4c1b00575657e47",
-    "2f879b249861eb1e7e68b4fba36db11d07e91020ac6f651450c6c6fd0f710dcc",
-    "356c5d25c2903c629b2664eb5789c565ed40bbb7edaae384a91204ec911d3eed",
-    "3c26f2e7038e48b551d1b0189b81c0b0d7c9817a1e8f07a44d4ca6d26d7f5adb",
-    "424f9f62160b1d51660d2db896b5fc85cfe488b90a0f2adf96c87be5ef764c59",
-    "42c1b6b848506c3207ab5dcf117c73c04c1b11958639217e3e045de2030cace4",
-    "4575982184e91aca011e2fd7c708f329046f2253a75f20c0c23e8b86994e9398",
-    "491d21708e6252386674b1d9d403f5c26baea8930c57cabecb448819f02314fb",
-    "4e8a6f4b6786224a9f7627f60c97870571b5b68311bab4738546be7c51a5baad",
-    "6cf65d6e97c5dd502e228e11bbd128b73d8f7f498696e467b19a7925ec2c53a6",
-    "7145e411e75f64ecf1716f96830d36f46af44e21973c8d4795746bf1b9a48bf2",
-    "7247f1d0ab4ba6f0e765b0f6435c7cea9c127c94b39ff97129326ded2db0958c",
-    "845b1751dae11d0f0d661828bde079ee2f15d254527ad6e56c662eab5c35bd89",
-    "8585879d7c213f206acbfe5a9b731be9a29a7a73522fba11b4cf98d5e39d1268",
-    "88fd2bafcf8047d35ce4be9ed592766ef9fc18ec67bbdf0511afcf19f89f4ce9",
-    "8977e6cbc7562c1ca3fc428ce3ad60da9bc1c40e9b4b5d7297a55416ce4e379d",
-    "aaeffdf1c704ea1e8168f54c2c8ac8659dac6ef5cb7457c63e1989cf68ff0330",
-    "b801372e9fcff3340076fcbdee13d0bdd725b8f4b50a5badce45672019fb4d7c",
-    "bdde194f84f2bbaf462a7e39b618268322dfdf9f1363eea91de083ecd13033f5",
-    "c1d7770a4634decf71dbe374a23cac89304c5c5bd925a934d610f9031efa564b",
-    "caa3cf8dacc56c8bf28cb7e00b367a5643482bcbf3498e4f6611c688455fb5e2",
-    "d122fde6057df14660c4ee59597eeba77cc8f7baf51952397864f1f2bb5f6273",
-    "d2cc3da3e423932b6b8ef11b13bbfbf87ee81dfe267643b6575e05253ba524c7",
-    "dd650b78475ca8c04862ce946435b2503e969a7f4bf5786137835bc06b326dde",
-    "de8d70c4a3e526e821877249e3a64f82e9b88378992c6a86e8a8d85bb8c388a1",
-    "e9be89af92a3ae00dc72f042dd73e23b081c3e5d8e3756d0e4ac7f528063a7b1",
-    "f8194fd80be8c21164301e708e6fb4e633c871bd763a47d624370320b80b3444",
-    "f99717fbbeab59a48bc264ffed792ad8a1bdd955af3caeb6281eb2e41cfccee7",
-  ]),
+);
+
+const normalizePaths = (value: unknown, cwd: string): unknown => {
+  if (Array.isArray(value)) return value.map((item: unknown): unknown => normalizePaths(item, cwd));
+  if (value !== null && typeof value === "object")
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]): [string, unknown] => [
+        key,
+        normalizePaths(item, cwd),
+      ]),
+    );
+  if (typeof value !== "string") return value;
+  // CLI 的 stdout/stderr 可能再次封装 JSON；先解码再替换，避免依赖反斜线转义层数。
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (parsed !== null && typeof parsed === "object")
+      return JSON.stringify(normalizePaths(parsed, cwd)) + (value.match(/\s*$/u)?.[0] ?? "");
+  } catch {
+    // 普通文本输出仍按文本比较，不能因为不是 JSON 而丢失契约。
+  }
+  return value
+    .replaceAll(cwd, "<CWD>")
+    .replaceAll(/file:\/\/\/[^"'\r\n]*?\/(?=nf-workspace-)/gu, "file:///<TMP>/")
+    .replaceAll(/<CWD>[^\r\n"']*/gu, (match: string): string => match.replaceAll("\\", "/"));
 };
 
-const normalize = (value: unknown, cwd: string): string =>
-  JSON.stringify(value)
+export const normalizeWorkspaceContract = (value: unknown, cwd: string): string =>
+  JSON.stringify(normalizePaths(value, cwd))
     .replaceAll(JSON.stringify(cwd).slice(1, -1), "<CWD>")
     .replaceAll(cwd, "<CWD>")
     .replaceAll(/(nf-workspace-[a-z-]+-)[A-Za-z0-9]{6}/gu, "$1<RAND>")
@@ -108,11 +48,7 @@ const normalize = (value: unknown, cwd: string): string =>
     .replaceAll(/after \d+ ms/gu, "after <MS> ms");
 
 export const verifyWorkspaceContract = (kind: string, value: unknown, cwd: string): void => {
-  const payload = normalize(value, cwd);
-  const digest = createHash("sha256").update(payload).digest("hex");
-  if (process.env["NANO_FLOW_COLLECT_WORKSPACE_CONTRACTS"] === "1") {
-    console.log(`WORKSPACE_CONTRACT ${kind} ${digest}`);
-  } else if (contracts[kind]?.has(digest) !== true) {
-    throw new Error(`Workspace contract changed (${kind}:${digest}): ${payload}`);
-  }
+  const payload = normalizeWorkspaceContract(value, cwd);
+  if (!contracts[kind]?.has(payload))
+    throw new Error(`Workspace contract changed (${kind}): ${payload}`);
 };
