@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 ---
 
 # Windows 原生 DSH 管理工具
@@ -113,4 +113,4 @@ Windows 本机使用者需要轻量 GUI 完成 DSH 安装更新、指定端口�
 | --- | ------------------------------------------------------ | ------- | ------ | -------------- |
 | 01  | [原生窗口与首次安装启动](01-原生窗口与首次安装启动.md) | completed | —      | /code-delivery |
 | 02  | [托盘保活与登录自启](02-托盘保活与登录自启.md)         | completed | 01     | /code-delivery |
-| 03  | [自动更新回退与最终交付](03-自动更新回退与最终交付.md) | in_progress | 02     | /code-delivery |
+| 03  | [自动更新回退与最终交付](03-自动更新回退与最终交付.md) | completed | 02     | /code-delivery |
