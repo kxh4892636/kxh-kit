@@ -9,7 +9,7 @@ description: 进入、恢复或推进从故事与设计、issue 拆分到交付�
 
 ## 选择模式
 
-已有 Flow 或 Plan 时，读取 [FLOW.md](./FLOW.md)，用 status 查看当前位置并 acquire 恢复。新 Flow 从 `/questing` 进入，按工作性质选择一种模式并说明理由：
+已有 Flow 或 Plan 时，读取 [FLOW.md](./FLOW.md)，用 status 查看当前位置并 acquire 恢复。新 Flow 从 `/questing` 进入，按工作性质选择一种模式并说明理由, 等待用户确认：
 
 | 工作性质                       | 模式             |
 | ------------------------------ | ---------------- |
