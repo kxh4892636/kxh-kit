@@ -1,9 +1,9 @@
-# 领域文档
+# 领域维护
 
 仅在讨论需要改变领域模型或 ADR 时使用；读取领域语言供其他任务使用不触发维护。
 
 1. **定域**：完整读取 领域布局与定位规则（`<nano-flow-skill-root-dir>/references/DOMAIN.md`），从 `CONTEXT-MAP.md` 定位所有相关业务域，读取对应 `CONTEXT.md` 与 ADR。归属仍需判断时，将带推荐答案的问题纳入 design tree；相关域与跨域关系均确定时完成。
-2. **拷问**：以现有 glossary 与 ADR 约束设计。术语冲突时区分 canonical term 与新概念；关系与规则含糊时用 scenario 和 edge case 暴露边界；用代码核对用户对现状的描述，将矛盾纳入 frontier。环境事实由 agent 查明，trade-off 与领域选择按设计分支形成 draft 并由用户评价。
+2. **拷问**：以现有 glossary 与 ADR 约束设计。术语冲突时区分 canonical term 与新概念；关系与规则含糊时用 scenario 和 edge case 暴露边界；用代码核对用户对现状的描述，将矛盾纳入 frontier。环境事实由 agent 查明，trade-off 与领域选择按 `design` 分支形成 draft 并由用户评价。
 3. **维护语言**：已确认的新域、术语与跨域关系按 [Context 格式](#context-格式) 在成立的同一轮就地更新。每项内容只有一个权威位置，map 链接可解析，canonical term 与 `_Avoid_` 互不冲突时完成。
 4. **记录 ADR**：架构形态、跨域集成、技术锁定、scope owner 或其他长期 trade-off，按 [ADR 格式](#adr-格式) 的资格门槛逐项判断；达标的决策只写入唯一 owner 一次，理由与已确认取舍一致时完成。
 5. **校验**：代码与口头模型的矛盾已解决或明确记录、用户确认共同理解，且从工作区根执行 `node <nano-flow-skill-root-dir>/scripts/check-domain.mjs .` 通过时完成。

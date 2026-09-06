@@ -10,7 +10,7 @@
 docs/{domain-name}/plans/active/YYYY-MM-DD-中文工作名/story.md
 ```
 
-owner、Plan 路径、原始想法和相关现有产物均已确定时完成。候选决策只进入 `story.md`；领域术语与 ADR 由 `domain` 分支确认后维护。
+owner、Plan 路径、原始想法和相关现有产物均已确定时完成。候选决策只进入 `story.md`；领域术语与 ADR 由 `design` 分支确认后维护。
 
 ## 2. 逐轮澄清
 
