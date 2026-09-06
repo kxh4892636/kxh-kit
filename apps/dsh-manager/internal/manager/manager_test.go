@@ -14,6 +14,9 @@ import (
 )
 
 func fixture(t *testing.T, script string) (*manager.Manager, int) {
+	return fixtureClock(t, script, nil)
+}
+func fixtureClock(t *testing.T, script string, clock manager.Clock) (*manager.Manager, int) {
 	t.Helper()
 	root := t.TempDir()
 	dir := filepath.Join(root, "versions", "1.2.3", "node_modules", "@deepseek-ai", "dsh")
@@ -32,6 +35,9 @@ func fixture(t *testing.T, script string) (*manager.Manager, int) {
 	os.Mkdir(work, 0700)
 	s.SaveConfig(settings.Config{Port: port, Directory: work})
 	m, e := manager.New(root)
+	if clock != nil {
+		m, e = manager.NewWithClock(root, clock)
+	}
 	if e != nil {
 		t.Fatal(e)
 	}

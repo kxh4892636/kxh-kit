@@ -13,6 +13,8 @@ type Config struct {
 	Port      int    `json:"port"`
 	Directory string `json:"directory"`
 	Node      string `json:"node"`
+	KeepAlive bool   `json:"keepAlive"`
+	Login     bool   `json:"login"`
 }
 
 type Versions struct {
@@ -23,7 +25,7 @@ type Store struct{ Root string }
 
 func Default() Config {
 	dir, _ := os.UserHomeDir()
-	return Config{Port: 3080, Directory: dir}
+	return Config{Port: 3080, Directory: dir, KeepAlive: true}
 }
 
 func (s Store) LoadConfig() (Config, error) {

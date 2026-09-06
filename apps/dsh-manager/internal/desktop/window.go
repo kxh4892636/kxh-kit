@@ -20,15 +20,18 @@ const (
 )
 
 type Window struct {
-	hwnd     win.HWND
-	controls map[int]win.HWND
-	labels   []win.HWND
-	font     win.HFONT
-	dpi      uint32
-	manager  *manager.Manager
-	closing  bool
-	done     chan struct{}
-	posted   atomic.Bool
+	hwnd           win.HWND
+	controls       map[int]win.HWND
+	labels         []win.HWND
+	font           win.HFONT
+	dpi            uint32
+	manager        *manager.Manager
+	closing        bool
+	done           chan struct{}
+	posted         atomic.Bool
+	tray           bool
+	trayStatus     string
+	taskbarMessage uint32
 }
 
 var active *Window
@@ -59,8 +62,13 @@ func Run(m *manager.Manager, hidden bool) error {
 	active = w
 	defer func() { active = nil; close(w.done) }()
 	go w.listen()
-	if !hidden {
+	w.taskbarMessage = win.RegisterWindowMessage(text("TaskbarCreated"))
+	w.addTray()
+	if !hidden || !w.tray {
 		win.ShowWindow(w.hwnd, win.SW_SHOW)
+	}
+	if hidden && m.Snapshot().Config.Login {
+		m.Request("start")
 	}
 	var msg win.MSG
 	for {
@@ -118,7 +126,14 @@ func dispatch(hwnd win.HWND, msg uint32, wp, lp uintptr) uintptr {
 	if w == nil || w.hwnd != hwnd {
 		return win.DefWindowProc(hwnd, msg, wp, lp)
 	}
+	if msg == w.taskbarMessage && msg != 0 {
+		w.addTray()
+		return 0
+	}
 	switch msg {
+	case wmTray:
+		w.trayEvent(uint32(lp))
+		return 0
 	case win.WM_COMMAND:
 		w.command(int(win.LOWORD(uint32(wp))))
 		return 0
@@ -150,7 +165,11 @@ func dispatch(hwnd win.HWND, msg uint32, wp, lp uintptr) uintptr {
 		w.layout()
 		return 0
 	case win.WM_CLOSE:
-		w.exit()
+		if w.tray {
+			win.ShowWindow(hwnd, win.SW_HIDE)
+		} else {
+			w.exit()
+		}
 		return 0
 	case win.WM_QUERYENDSESSION:
 		return 1
@@ -163,6 +182,7 @@ func dispatch(hwnd win.HWND, msg uint32, wp, lp uintptr) uintptr {
 		win.DestroyWindow(hwnd)
 		return 0
 	case win.WM_DESTROY:
+		w.removeTray()
 		if w.font != 0 {
 			win.DeleteObject(win.HGDIOBJ(w.font))
 		}

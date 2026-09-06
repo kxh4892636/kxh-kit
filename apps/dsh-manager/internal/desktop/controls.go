@@ -10,7 +10,9 @@ import (
 )
 
 const (
-	idExit = 400
+	idExit      = 400
+	idKeepAlive = 301
+	idLogin     = 302
 )
 const (
 	idPort = 101 + iota
@@ -58,6 +60,9 @@ func (w *Window) build() error {
 		{idState, "STATIC", "已停止", 0},
 		{idVersion, "STATIC", "DSH 尚未安装", 0},
 		{idLog, "EDIT", "", win.WS_BORDER | win.WS_VSCROLL | win.ES_MULTILINE | win.ES_READONLY | win.ES_AUTOVSCROLL},
+		{idKeepAlive, "BUTTON", "异常退出自动重启", win.WS_TABSTOP | win.BS_AUTOCHECKBOX},
+		{idLogin, "BUTTON", "登录时启动并保活", win.WS_TABSTOP | win.BS_AUTOCHECKBOX},
+		{idExit, "BUTTON", "退出并停止服务", win.WS_TABSTOP},
 	}
 	for _, i := range items {
 		if err := w.add(i.id, i.class, i.label, i.style); err != nil {
@@ -69,6 +74,12 @@ func (w *Window) build() error {
 		if err := w.add(id, "STATIC", s, 0); err != nil {
 			return err
 		}
+	}
+	if c.KeepAlive {
+		win.SendMessage(w.controls[idKeepAlive], win.BM_SETCHECK, win.BST_CHECKED, 0)
+	}
+	if c.Login {
+		win.SendMessage(w.controls[idLogin], win.BM_SETCHECK, win.BST_CHECKED, 0)
 	}
 	w.layout()
 	return nil
@@ -93,7 +104,8 @@ func (w *Window) layout() {
 		203: {104, 132, width - 126, 24}, idSave: {width - 120, 167, 98, 30},
 		idState: {20, 168, width - 155, 44}, idVersion: {20, 210, width - 42, 24},
 		idStart: {20, 248, 144, 34}, idStop: {176, 248, 78, 34}, idRestart: {266, 248, 78, 34}, idOpen: {356, 248, 140, 34},
-		204: {20, 303, 120, 24}, idLog: {20, 331, width - 42, height - 351},
+		idExit: {508, 248, 180, 34}, idKeepAlive: {20, 296, 220, 24}, idLogin: {270, 296, 230, 24},
+		204: {20, 335, 120, 24}, idLog: {20, 363, width - 42, height - 383},
 	}
 	for id, p := range positions {
 		win.MoveWindow(w.controls[id], scale(p[0]), scale(p[1]), scale(p[2]), scale(p[3]), true)
@@ -160,9 +172,21 @@ func (w *Window) refresh() {
 	for _, id := range []int{idPort, idDirectory, idNode, idBrowseNode, idSave, idStart} {
 		win.EnableWindow(w.controls[id], editable)
 	}
-	win.EnableWindow(w.controls[idStop], s.Busy || s.Running)
+	win.EnableWindow(w.controls[idStop], s.Busy || s.Running || s.RetrySeconds > 0)
 	win.EnableWindow(w.controls[idRestart], s.Running && !s.Busy)
 	win.EnableWindow(w.controls[idOpen], s.Running)
+	w.updateTray(s.Status)
+	if !s.OptionsBusy {
+		for id, checked := range map[int]bool{idKeepAlive: s.Config.KeepAlive, idLogin: s.Config.Login} {
+			value := uintptr(win.BST_UNCHECKED)
+			if checked {
+				value = win.BST_CHECKED
+			}
+			win.SendMessage(w.controls[id], win.BM_SETCHECK, value, 0)
+		}
+	}
+	win.EnableWindow(w.controls[idKeepAlive], !s.OptionsBusy && !s.Busy)
+	win.EnableWindow(w.controls[idLogin], !s.OptionsBusy && !s.Busy)
 }
 func (w *Window) save() bool {
 	c := w.manager.Snapshot().Config
@@ -182,6 +206,10 @@ func (w *Window) save() bool {
 }
 func (w *Window) command(id int) {
 	switch id {
+	case idKeepAlive, idLogin:
+		keep := win.SendMessage(w.controls[idKeepAlive], win.BM_GETCHECK, 0, 0) == win.BST_CHECKED
+		login := win.SendMessage(w.controls[idLogin], win.BM_GETCHECK, 0, 0) == win.BST_CHECKED
+		w.manager.RequestOptions(keep, login)
 	case idExit:
 		w.exit()
 	case idSave:

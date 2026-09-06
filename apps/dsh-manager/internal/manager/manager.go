@@ -13,34 +13,46 @@ import (
 )
 
 type Snapshot struct {
-	Config  settings.Config
-	Status  string
-	Version string
-	Error   string
-	Log     string
-	Busy    bool
-	Running bool
-	Address string
+	Config       settings.Config
+	Status       string
+	Version      string
+	Error        string
+	Log          string
+	Busy         bool
+	Running      bool
+	Address      string
+	RetrySeconds int
+	OptionsBusy  bool
 }
 type Manager struct {
-	mu       sync.Mutex
-	op       sync.Mutex
-	store    settings.Store
-	repo     *releases.Repository
-	config   settings.Config
-	versions settings.Versions
-	status   string
-	problem  string
-	log      string
-	busy     bool
-	proc     *process.Process
-	cancel   context.CancelFunc
-	intent   uint64
-	address  string
-	changes  chan struct{}
+	mu           sync.Mutex
+	op           sync.Mutex
+	store        settings.Store
+	repo         *releases.Repository
+	config       settings.Config
+	versions     settings.Versions
+	status       string
+	problem      string
+	log          string
+	busy         bool
+	proc         *process.Process
+	cancel       context.CancelFunc
+	intent       uint64
+	address      string
+	wanted       bool
+	failures     int
+	started      time.Time
+	clock        Clock
+	retrySeconds int
+	optionIntent uint64
+	optionsBusy  bool
+	changes      chan struct{}
 }
 
 func New(root string) (*Manager, error) {
+	return NewWithClock(root, wallClock{})
+}
+func NewWithClock(root string, clock Clock) (*Manager, error) {
 	s := settings.Store{Root: root}
 	c, err := s.LoadConfig()
 	if err != nil {
@@ -53,7 +65,7 @@ func New(root string) (*Manager, error) {
 	if v.Current != "" && !releases.ValidVersion(v.Current) {
 		return nil, fmt.Errorf("版本记录无效")
 	}
-	return &Manager{store: s, repo: releases.New(root), config: c, versions: v, status: "已停止", changes: make(chan struct{}, 1)}, nil
+	return &Manager{store: s, repo: releases.New(root), config: c, versions: v, status: "已停止", clock: clock, changes: make(chan struct{}, 1)}, nil
 }
 func (m *Manager) Changes() <-chan struct{} { return m.changes }
 func (m *Manager) ReportError(err error) {
@@ -71,7 +83,7 @@ func (m *Manager) signal() {
 func (m *Manager) Snapshot() Snapshot {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return Snapshot{Config: m.config, Status: m.status, Version: m.versions.Current, Error: m.problem, Log: m.log, Busy: m.busy, Running: m.proc != nil, Address: m.address}
+	return Snapshot{Config: m.config, Status: m.status, Version: m.versions.Current, Error: m.problem, Log: m.log, Busy: m.busy, Running: m.proc != nil, Address: m.address, RetrySeconds: m.retrySeconds, OptionsBusy: m.optionsBusy}
 }
 func (m *Manager) Save(c settings.Config) error {
 	if !m.op.TryLock() {
@@ -120,10 +132,10 @@ func (m *Manager) state(status string, busy bool, err error) {
 	m.signal()
 }
 func (m *Manager) Start() error {
-	return m.launchAction(false, m.claim(false))
+	return m.launchAction(false, m.claim("start"))
 }
 func (m *Manager) Restart() error {
-	return m.launchAction(true, m.claim(true))
+	return m.launchAction(true, m.claim("restart"))
 }
 
 // UI 请求在返回前登记顺序，后台 goroutine 的调度不能反转用户点击的先后。
@@ -131,18 +143,20 @@ func (m *Manager) Request(action string) {
 	if action != "start" && action != "restart" && action != "stop" {
 		return
 	}
-	intent := m.claim(action != "start")
+	intent := m.claim(action)
 	if action == "stop" {
 		go m.stopIntent(intent)
 	} else {
 		go m.launchAction(action == "restart", intent)
 	}
 }
-func (m *Manager) claim(cancelCurrent bool) uint64 {
+func (m *Manager) claim(action string) uint64 {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.intent++
-	if cancelCurrent && m.cancel != nil {
+	m.wanted = action != "stop"
+	m.retrySeconds = 0
+	if m.cancel != nil {
 		m.cancel()
 	}
 	m.busy = true
@@ -173,7 +187,7 @@ func (m *Manager) launchAction(restart bool, intent uint64) error {
 	defer cancel()
 	if p != nil {
 		m.state("正在重启", true, nil)
-		p.Stop(5 * time.Second)
+		m.stopOwned(p)
 	}
 	m.state("正在准备", true, nil)
 	err := m.start(ctx, c, v)
@@ -234,9 +248,12 @@ func (m *Manager) start(ctx context.Context, c settings.Config, v string) error 
 	m.mu.Lock()
 	m.proc = p
 	m.versions = versions
+	m.started = m.clock.Now()
+	m.retrySeconds = 0
 	m.mu.Unlock()
 	m.state("运行中", false, nil)
 	go m.watch(p)
+	go m.health(p)
 	return nil
 }
 func (m *Manager) watch(p *process.Process) {
@@ -249,12 +266,17 @@ func (m *Manager) watch(p *process.Process) {
 		return
 	}
 	m.proc = nil
+	intent := m.intent
+	if m.clock.Now().Sub(m.started) >= 60*time.Second {
+		m.failures = 0
+	}
 	m.mu.Unlock()
 	p.Stop(0)
 	m.state("服务已退出", false, p.Err())
+	m.scheduleRecovery(intent)
 }
 func (m *Manager) Stop() {
-	m.stopIntent(m.claim(true))
+	m.stopIntent(m.claim("stop"))
 }
 func (m *Manager) stopIntent(intent uint64) {
 	m.op.Lock()
@@ -271,7 +293,12 @@ func (m *Manager) stopIntent(intent uint64) {
 	m.proc = nil
 	m.mu.Unlock()
 	if p != nil {
-		p.Stop(5 * time.Second)
+		m.stopOwned(p)
 	}
 	m.state("已停止", false, nil)
+}
+func (m *Manager) stopOwned(p *process.Process) {
+	if err := p.Stop(5 * time.Second); err != nil {
+		fmt.Fprintln(m, "服务已停止，已清理异常退出或超时的进程树：", err)
+	}
 }
