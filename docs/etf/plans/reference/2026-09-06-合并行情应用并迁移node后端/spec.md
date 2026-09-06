@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 ---
 
 # 合并行情应用并迁移 Node 后端
@@ -96,8 +96,8 @@ status: in_progress
 
 ## Issue
 
-| #   | Issue                                                  | 状态        | 阻塞于 | 下一步         |
-| --- | ------------------------------------------------------ | ----------- | ------ | -------------- |
-| 01  | [Node服务提供证券目录](01-Node服务提供证券目录.md)     | completed   | —      | /code-delivery |
-| 02  | [日线查询与缓存刷新](02-日线查询与缓存刷新.md)         | completed   | 01     | /code-delivery |
-| 03  | [行情看板迁入与完整回归](03-行情看板迁入与完整回归.md) | in_progress | 02     | /code-delivery |
+| #   | Issue                                                  | 状态      | 阻塞于 | 下一步         |
+| --- | ------------------------------------------------------ | --------- | ------ | -------------- |
+| 01  | [Node服务提供证券目录](01-Node服务提供证券目录.md)     | completed | —      | /code-delivery |
+| 02  | [日线查询与缓存刷新](02-日线查询与缓存刷新.md)         | completed | 01     | /code-delivery |
+| 03  | [行情看板迁入与完整回归](03-行情看板迁入与完整回归.md) | completed | 02     | /code-delivery |
