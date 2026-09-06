@@ -53,7 +53,7 @@ describe("证券服务", (): void => {
     for (let index = 0; index < 2; index++) {
       const db = openDatabase(file);
       try {
-        const app = createApp(createSecurityStore(db));
+        const app = createApp({ ...createSecurityStore(db), getDailyBars: vi.fn() });
         expect(await (await app.request("/")).json()).toEqual({ ok: true });
         const response = await app.request("/api/securities");
         expect(response.status).toBe(200);
@@ -111,6 +111,7 @@ describe("证券服务", (): void => {
   ])("稳定映射错误而不泄漏内部细节 %s", async (error, status, code): Promise<void> => {
     vi.spyOn(console, "error").mockImplementation((): void => {});
     const response = await createApp({
+      getDailyBars: vi.fn(),
       listSecurities: () => {
         throw error;
       },

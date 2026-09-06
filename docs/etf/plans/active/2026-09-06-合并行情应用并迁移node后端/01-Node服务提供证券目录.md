@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 blocked_by: []
 ---
 
@@ -38,4 +38,4 @@ blocked_by: []
 
 ## 交付记录
 
-交付物：apps/etf-service，包含真实 SQLite 迁移快照、证券 API、配置和 Node 启停。验证：build、19 项测试、test:coverage 均通过；覆盖率 statements 89.24%、branches 84.21%、functions 85%、lines 90.69%。vp check、check-domain 和 diff check 通过；db:generate 无 schema 变化。真实子进程端口占用返回 EADDRINUSE 和退出码 1。Standards 与 Spec 独立审查通过，初次发现的迁移 snapshot、启动错误和重复错误映射已修复。实际提交由 Flow receipt 记录。
+交付物：apps/etf-service，包含真实 SQLite 迁移快照、证券 API、配置和 Node 启停。验证证据（提交 1adf5aa）：build、19 项测试、test:coverage 均通过；覆盖率 statements 89.24%、branches 84.21%、functions 85%、lines 90.69%。vp check、check-domain 和 diff check 通过；db:generate 无 schema 变化。真实子进程端口占用返回 EADDRINUSE 和退出码 1。Standards 与 Spec 独立审查通过，初次发现的迁移 snapshot、启动错误和重复错误映射已修复。实际提交由 Flow receipt 记录。
