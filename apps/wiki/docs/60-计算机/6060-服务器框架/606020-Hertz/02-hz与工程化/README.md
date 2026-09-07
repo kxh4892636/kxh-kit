@@ -1,4 +1,4 @@
-# 02-hz与工程化
+# 02-代码生成与分层
 
 - [010-hz与ThriftIDL](./010-hz与ThriftIDL.md)
 - [020-HTTP注解与代码生成](./020-HTTP注解与代码生成.md)

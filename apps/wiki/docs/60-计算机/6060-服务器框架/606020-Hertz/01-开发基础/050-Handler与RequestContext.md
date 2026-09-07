@@ -4,7 +4,7 @@ id: 2c5f1c0d-0b18-45e5-b06a-6d2068daac0e
 
 # Handler 与 RequestContext
 
-Handler 签名是什么？中间件数据是什么？生命周期约束如何运作？取消传播是什么？
+Handler 如何读取 path、query、Header 和中间件数据？哪些值可以传给 Service？异步任务如何避免持有被复用的 `RequestContext`？
 
 ## Handler 签名
 

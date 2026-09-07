@@ -2,18 +2,17 @@
 id: 7ba617f0-f4a3-48c0-a102-14840942be0e
 ---
 
-# Hertz 心智模型
+# Hertz 接口开发流程
 
-Hertz 解决什么问题，Engine、Handler 与 RequestContext 如何分工？一个 HTTP 请求从连接到响应会经过哪些环节？初学 Hertz 应该先掌握哪条主线？什么时候才需要代码生成、HTTP/2、WebSocket、SSE 或第三方扩展？
+如何用 Hertz 完成一个可运行的 HTTP 接口？Engine、路由、Handler、Service 和 Repository 如何分工？直接注册路由与使用 `hz` 代码生成分别适合什么项目？
 
-## 定位
+## 默认方案
 
-- Hertz: CloudWeGo 的 Go HTTP 框架; 负责网络收发、路由、请求上下文、中间件和响应渲染;
-- HTTP 框架: 接收 HTTP 请求、匹配地址和方法、调用业务代码并生成 HTTP 响应的基础设施;
-- Engine: 服务入口和路由树；路由树负责把“方法 + 路径”匹配到 Handler，Engine 还管理监听、协议、超时与生命周期;
-- Handler: 处理一次 HTTP 请求的函数；把协议输入转换为业务调用，再把结果写回响应;
-- RequestContext: 本次请求的可变 HTTP 状态；包含参数、请求、响应和中间件数据，请求结束后会被复用;
-- `context.Context`: 取消信号、截止时间和跨层请求范围值; 不等同于 `RequestContext`;
+- 接口风格: 默认使用 JSON REST API;
+- 小型服务: 直接注册路由并编写 Handler;
+- 契约驱动项目: 使用 Thrift IDL 和 `hz` 生成模型、路由和 Handler 骨架;
+- 代码边界: Handler 负责 HTTP 适配，Service 负责业务规则，Repository 负责持久化;
+- 生产要求: 显式配置请求边界、统一错误、健康检查、优雅退出、日志、指标和测试;
 
 ## 请求链路
 
@@ -27,12 +26,14 @@ Hertz 解决什么问题，Engine、Handler 与 RequestContext 如何分工？�
 - Service: 不依赖 HTTP 细节的业务规则层;
 - Repository: 隔离数据库或其他持久化实现的数据访问层;
 
-## 默认主线
+## 开发步骤
 
-- 入门: 直接注册路由，理解 `Engine → Handler → RequestContext`;
-- 工程化: 使用 `hz + Thrift IDL` 生成模型、路由和 Handler 骨架;
-- API 风格: JSON REST API; HTTP 状态码表示协议结果，业务错误码保持稳定;
-- 生产最低要求: 超时、安全边界、统一错误、健康检查、优雅退出、日志、指标和测试;
+- 第一步: 定义 HTTP 方法、路径、请求字段、成功状态和错误响应;
+- 第二步: 注册路由或通过 `hz` 生成路由与模型;
+- 第三步: Handler 完成绑定、身份读取、Service 调用和响应映射;
+- 第四步: Service 实现业务规则，Repository 隔离数据库;
+- 第五步: 用 curl 或 HTTP 测试跑通成功、参数错误和资源不存在路径;
+- 第六步: 补齐安全、生命周期、观测、测试和部署配置;
 
 ## 选型边界
 

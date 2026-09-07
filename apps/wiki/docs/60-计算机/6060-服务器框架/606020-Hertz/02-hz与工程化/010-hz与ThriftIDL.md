@@ -4,14 +4,14 @@ id: 843cda8b-9451-4d94-8170-ac2bf6c981fd
 
 # hz 与 Thrift IDL
 
-工具定位是什么？安装应该如何完成？项目如何初始化？契约优先流程如何运作？
+如何安装 `hz`、用 Thrift IDL 初始化 Hertz 项目并固定生成环境？后续接口变更应按什么顺序更新契约、生成代码和业务实现？
 
 ## 工具定位
 
 - `hz`: Hertz 的命令行代码生成工具; 从 IDL 生成模型、路由、Handler 骨架和项目布局;
 - IDL: HTTP API 的机器可读契约; 描述字段、方法、路径和参数来源;
-- Thrift: 本学习路径的默认 IDL; 在 Hertz 中驱动 HTTP 代码生成，不改变 HTTP 传输;
-- Protobuf: 已有 proto3 生态时可选; 学习重点仍是注解到 HTTP 的映射;
+- Thrift: 本手册的默认 IDL; 在 Hertz 中驱动 HTTP 代码生成，不改变 HTTP 传输;
+- Protobuf: 已有 proto3 生态时可选; 核心仍是注解到 HTTP 的映射;
 
 ## 安装
 

@@ -2,15 +2,14 @@
 id: 4fd8230e-1d75-4bd7-b445-bcc03fbdcba5
 ---
 
-# Option 配置体系
+# Option 配置
 
-Kitex 的配置分几种作用域？它们何时生效、优先级如何？常用 Client Option 和 Server Option 有哪些？为什么用 Suite 组合配置？有哪些配置陷阱？
+Server、Client 和单次调用分别应该配置什么？哪些配置应在构造期固定，哪些情况才使用 Call Option？怎样用 Suite 统一团队默认值？
 
-## 一句话理解
+## 使用要点
 
 - Option: 创建 Server、Client 或发起单次调用时传入的“配置项”;
 - 作用域决定配置的生命周期: 进程级、Client 级还是单次请求级;
-- 类比: `server.Option` 是餐厅装修方案，`client.Option` 是长期会员权益，`callopt.Option` 是本次点单的临时备注;
 
 ## 三种作用域
 

@@ -4,7 +4,7 @@ id: 4f37fafb-7698-4ad3-bba1-da1b7ec02d67
 
 # OpenTelemetry 与 Prometheus
 
-三类信号包含什么？OpenTelemetry是什么？Prometheus 指标是什么？Hertz 接入应该如何完成？告警起点是什么？
+Hertz 服务至少要采集哪些 Trace 和 Prometheus 指标？如何传播上下文并关联日志？哪些标签会造成高基数，告警应从哪些信号开始？
 
 ## 三类信号
 

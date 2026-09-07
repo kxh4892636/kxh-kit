@@ -4,12 +4,11 @@ id: 4c90658c-7064-4543-8392-1b5220b33963
 
 # StreamX 流式通信
 
-StreamX 是什么？和普通 unary 调用有什么不同？client/server/bidirectional streaming 怎么理解？生命周期有哪些规则？流式场景的治理和错误处理要注意什么？
+什么需求适合使用 StreamX？如何定义并实现 client、server 或双向 streaming？怎样处理 EOF、取消、半关闭、背压和超时？
 
-## 一句话理解
+## 使用要点
 
 - StreamX: Kitex 提供的统一流式编程 API; 在一个 RPC 调用内可以多次发送或接收消息;
-- 类比: unary 是“发一条短信等一条回复”，streaming 是“进入聊天室持续对话”;
 - 价值: 适合推送、上传、实时对话等无法用一次请求响应表达的场景;
 
 ## 三种流模型

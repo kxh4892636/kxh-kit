@@ -4,7 +4,7 @@ id: e6a3dd8e-140e-4ca6-aced-b368c34ad566
 
 # Hertz Client 基础
 
-Hertz Client 基础解决什么问题？基本请求是什么？响应处理应该如何完成？领域适配是什么？资源管理应该如何完成？
+如何用 Hertz Client 调用外部 HTTP 接口？请求和响应对象怎样获取、释放和复制？如何把 HTTP 状态与响应模型转换为领域结果？
 
 ## 定位
 

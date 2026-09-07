@@ -4,7 +4,7 @@ id: 9477e4ec-ca7a-4297-94bf-799b1c804950
 
 # Handler、Service、Repository 分层
 
-依赖方向是什么？Service是什么？Handler是什么？边界检查有哪些注意点？
+Handler、Service 和 Repository 分别应该写什么？依赖应如何注入？怎样保证业务层不依赖 Hertz 或 GORM？
 
 ## 依赖方向
 
