@@ -4,14 +4,7 @@ id: 4fd8230e-1d75-4bd7-b445-bcc03fbdcba5
 
 # Option 配置
 
-Server、Client 和单次调用分别应该配置什么？哪些配置应在构造期固定，哪些情况才使用 Call Option？怎样用 Suite 统一团队默认值？
-
-## 使用要点
-
-- Option: 创建 Server、Client 或发起单次调用时传入的“配置项”;
-- 作用域决定配置的生命周期: 进程级、Client 级还是单次请求级;
-
-## 三种作用域
+## Option 有哪些类型, 对应的作用域是什么
 
 | 类型             | 注入位置        | 作用域          | 典型用途                     |
 | ---------------- | --------------- | --------------- | ---------------------------- |
@@ -22,7 +15,7 @@ Server、Client 和单次调用分别应该配置什么？哪些配置应在构�
 - 优先级: 单次 Call Option 通常覆盖同类 Client Option;
 - 配置原则: 稳定默认值放构造期，请求特例才放 Call Option;
 
-## Suite 组合配置
+## Options 配置如何进行复用
 
 - Suite: 把一组组织级 Option 打包复用，避免每个 Client 重复排列;
 - 适用: 多服务共享超时、重试、中间件、观测等规范;
@@ -52,7 +45,7 @@ func newUserClient() (userservice.Client, error) {
 }
 ```
 
-## 常用 Client Option
+## 常用 Client Option 有哪些
 
 - `WithClientBasicInfo`: 调用方身份;
 - `WithResolver`: 服务发现;
@@ -64,7 +57,7 @@ func newUserClient() (userservice.Client, error) {
 - `WithMiddleware` / `WithInstanceMW`: 服务级或实例级中间件;
 - `WithTransportProtocol`: TTHeader、Framed 或 gRPC 等传输选择;
 
-## 常用 Server Option
+## 常用 Server Option 有哪些
 
 - `WithServiceAddr`: 监听地址;
 - `WithServerBasicInfo`: 服务身份;
@@ -74,7 +67,7 @@ func newUserClient() (userservice.Client, error) {
 - `WithReadWriteTimeout`: 传输读写等待，不是 Handler 执行超时;
 - `WithExitWaitTime`: 退出时等待在途请求;
 
-## 配置陷阱
+## 配置陷阱有哪些
 
 - timeout: 默认 RPC timeout 为 0，即无限等待; 生产必须显式设置;
 - protocol: Client 选择必须与 IDL、Server 能力相容;
@@ -82,9 +75,3 @@ func newUserClient() (userservice.Client, error) {
 - limiter: 同时配置内置与自定义同类 limiter 时，自定义实现生效;
 - mux: 旧 `WithMuxConnection` / `WithMuxTransport` 依赖的 netpollmux 已不再维护;
 - gRPC Option: 大量窗口、buffer、keepalive 参数只在有证据表明默认值不适用时调整;
-
-## 常见误区
-
-- 误区: 把单次特例配置变成全局默认; 会让调用路径不可预测;
-- 误区: 不用 Suite 导致每个 Client 配置漂移;
-- 误区: 生产不设置 RPC timeout; 默认无限等待会拖垮调用方;
