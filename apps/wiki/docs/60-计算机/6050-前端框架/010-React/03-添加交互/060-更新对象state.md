@@ -53,21 +53,8 @@ function handleChange(e) {
 }
 ```
 
-## Immer 的 produce 如何简化不可变更新?
-
-- 用 `immer` 的 `produce` 写可变风格但产生不可变更新;
-
-```js
-import { produce } from "immer";
-
-setPerson(
-  produce(person, (draft) => {
-    draft.name = "New";
-  }),
-);
-```
-
 ## 为什么 state 要保持不可变?
 
 - React 通过引用比较判断变化;
 - 便于撤销、调试和性能优化;
+- 嵌套较深时可用 Immer 的 `produce` 以可变风格写不可变更新;

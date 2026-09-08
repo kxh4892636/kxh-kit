@@ -18,7 +18,7 @@ createPortal(<Modal />, document.getElementById("root"));
 ## flushSync 如何强制同步刷新 state 更新? 有什么风险?
 
 - 强制同步刷新回调内的 state 更新: `flushSync(callback)`;
-- 不常见, 可能影响性能;
+- 不常见, 会打断批量合并, 可能影响性能;
 
 ```jsx
 flushSync(() => setState(next));

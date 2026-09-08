@@ -31,8 +31,7 @@ const matches = matchRoutes(routes, location);
 
 ## React Router 的路由守卫如何实现?
 
-- 用组件包裹 children;
-- 在 `useLayoutEffect` 中根据 `location.pathname` 执行校验;
+- 用组件包裹 children, 在渲染时根据用户状态决定渲染或跳转;
 
 ```jsx
 function RequireAuth({ children }) {

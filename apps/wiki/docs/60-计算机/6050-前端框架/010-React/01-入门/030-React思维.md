@@ -21,7 +21,6 @@ id: 1ab87f1d-2c09-4288-8796-47d3fb94f352
 ## Step 3: 如何找出最小完整 state?
 
 - 判断数据是否是 state: 是否随时间变化? 是否无法由已有 props/state 计算?
-- 避免冗余和重复;
 - props vs state: props 是父传子的参数, state 是组件内部可变记忆;
 
 ## Step 4: 如何确定 state 的位置?

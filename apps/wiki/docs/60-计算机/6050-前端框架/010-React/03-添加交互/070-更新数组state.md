@@ -44,16 +44,4 @@ setItems(items.map((item) => (item.id === id ? { ...item, done: true } : item)))
 
 - 数组本身不可变, 内部对象也不可变;
 - 更新某项时复制该对象;
-
-## Immer 如何简化数组嵌套更新?
-
-- 可用 `produce` 简化嵌套更新;
-
-```js
-setItems(
-  produce(items, (draft) => {
-    const item = draft.find((i) => i.id === id);
-    item.done = true;
-  }),
-);
-```
+- 嵌套较深时可用 Immer 的 `produce` 简化;

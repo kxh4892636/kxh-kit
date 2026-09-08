@@ -23,17 +23,6 @@ id: 234eeb81-0bc8-4b1e-b775-f2d65546019b
 const [status, setStatus] = useState("typing"); // typing | submitting | success
 ```
 
-## 如何减少不必要的 state?
-
-- 能由已有 state 计算的值不要额外存储;
-- 能由 props 推导的值不要 mirror;
-- 避免“不可能状态”的组合;
-
-## 如何用 reducer 消除不可能状态?
-
-- 当状态转换复杂时, 用 reducer 集中管理;
-- 每个 action 对应明确的状态迁移;
-
 ## 事件处理器如何连接 setState 切换状态?
 
 ```jsx

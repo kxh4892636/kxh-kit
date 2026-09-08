@@ -25,19 +25,13 @@ id: 4ff2b9f8-c120-4300-8811-e6ec2a45c06c
 } // 类型变化, state 重置
 ```
 
-## 如何用 key 强制重置 state?
+## 如何用 key 强制重置 state 或表单?
 
 - 用 `key` 告诉 React 这是不同组件实例;
+- 给组件不同 `key` 可在切换时重置其 state（如清空表单）;
 
 ```jsx
 <Counter key={isPlayerA ? "a" : "b"} />
-```
-
-## 如何用 key 在切换时重置表单?
-
-- 给表单不同 `key` 可在切换时清空;
-
-```jsx
 <Chat key={recipientId} />
 ```
 

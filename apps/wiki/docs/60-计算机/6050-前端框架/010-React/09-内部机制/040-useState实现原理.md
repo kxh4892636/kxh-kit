@@ -36,11 +36,10 @@ function basicStateReducer(state, action) {
 }
 ```
 
-## useState 的批量更新是如何工作的?
+## useState 的更新队列是如何工作的?
 
 - setter 把更新放入队列;
 - 下一次渲染按顺序处理队列;
-- 同一事件多次 set 合并为一次渲染;
 
 ## useState 与 useReducer 的关系是什么?
 

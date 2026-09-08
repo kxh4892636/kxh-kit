@@ -6,8 +6,8 @@ id: 662b4bd7-3a72-47c8-88a1-6b85b49a60b1
 
 ## 选择 state 结构的原则有哪些?
 
-- 避免冗余、重复、矛盾;
 - 保持单一数据源;
+- 避免冗余、重复、矛盾;
 - 尽量扁平化;
 
 ## 如何分组相关的 state?
@@ -18,7 +18,7 @@ id: 662b4bd7-3a72-47c8-88a1-6b85b49a60b1
 const [position, setPosition] = useState({ x: 0, y: 0 });
 ```
 
-## 如何避免 state 之间的矛盾组合?
+## 如何避免不可能的状态组合?
 
 - 多个 state 可能组合出不可能状态;
 - 用枚举或 reducer 限制合法组合;
@@ -28,23 +28,16 @@ const [position, setPosition] = useState({ x: 0, y: 0 });
 const [status, setStatus] = useState("idle");
 ```
 
-## 如何避免 state 冗余?
+## 如何避免冗余、重复与镜像 props?
 
 - 能从 props 或已有 state 计算的值不要存;
+- 同一数据在多处保存会导致同步 bug, 从单一来源派生;
+- state 不应复制 props;
+- 需要响应 prop 变化时, 在渲染期间调整或用 key 重置;
 
 ```jsx
 // 避免 fullName = firstName + lastName
 ```
-
-## 为什么要避免镜像 props, 如何响应 prop 变化?
-
-- state 不应复制 props;
-- 需要响应 prop 变化时, 在渲染期间调整或用 key 重置;
-
-## 如何避免重复存储同一数据?
-
-- 同一数据在多处保存会导致同步 bug;
-- 从单一来源派生;
 
 ## 如何避免 state 深层嵌套?
 

@@ -18,6 +18,7 @@ id: 1a20cba2-8fb2-4635-8930-64580ad3c4c6
 - 文本内容: `{user.name}`;
 - 属性值: `src={user.imageUrl}`;
 - 表达式: 函数调用、拼接、三元等;
+- 也可嵌入对象、数组、条件表达式;
 
 ## 双花括号的含义是什么?
 
@@ -26,16 +27,6 @@ id: 1a20cba2-8fb2-4635-8930-64580ad3c4c6
 
 ```jsx
 <div style={{ width: user.imageSize, height: user.imageSize }} />
-```
-
-## 如何在 JSX 中引用对象与条件表达式?
-
-- 可把数据提取为对象, 在 JSX 中引用;
-- 可嵌入数组、条件表达式;
-
-```jsx
-const person = { name: "Hedy", theme: { color: "blue" } };
-return <h1 style={person.theme}>{person.name}</h1>;
 ```
 
 ## JSX 表达式有哪些使用注意事项?

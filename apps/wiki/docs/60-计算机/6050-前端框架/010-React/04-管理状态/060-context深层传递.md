@@ -52,8 +52,3 @@ function Button() {
 - 先尝试 props 显式传递;
 - context 适合“全局”主题、当前用户、路由等;
 - 避免滥用导致组件复用性下降;
-
-## context 如何与 reducer 组合? 如何拆分减少重渲染?
-
-- 可与 reducer 组合管理复杂状态;
-- 可拆分为不同 context 减少重渲染;
