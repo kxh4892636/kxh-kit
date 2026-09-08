@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 ---
 
 # dsh-alive 显式更新与 tag 支持
@@ -93,8 +93,8 @@ Windows / PowerShell；仓库使用 pnpm 与 vite-plus，本机 Node.js v24.19.0
 
 ## Issue
 
-| #   | Issue                                                                | 状态        | 阻塞于 | 下一步         |
-| --- | -------------------------------------------------------------------- | ----------- | ------ | -------------- |
-| 01  | [版本准备按 tag 参数化](01-版本准备按tag参数化.md)                   | completed   | —      | /code-delivery |
-| 02  | [移除自动更新与显式 update 命令](02-移除自动更新与显式update命令.md) | completed   | 01     | /code-delivery |
-| 03  | [真实通道切换冒烟与文档同步](03-真实通道切换冒烟与文档同步.md)       | in_progress | 02     | /code-delivery |
+| #   | Issue                                                                | 状态      | 阻塞于 | 下一步         |
+| --- | -------------------------------------------------------------------- | --------- | ------ | -------------- |
+| 01  | [版本准备按 tag 参数化](01-版本准备按tag参数化.md)                   | completed | —      | /code-delivery |
+| 02  | [移除自动更新与显式 update 命令](02-移除自动更新与显式update命令.md) | completed | 01     | /code-delivery |
+| 03  | [真实通道切换冒烟与文档同步](03-真实通道切换冒烟与文档同步.md)       | completed | 02     | /code-delivery |
