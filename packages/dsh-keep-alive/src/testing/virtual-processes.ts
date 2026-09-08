@@ -18,11 +18,19 @@ export class VirtualProcesses {
   spawnError = false;
   exitDuringReadiness = false;
   currentVersion: Version = { version: "1.0.0", entry: "fixture" };
+  timers: Array<{ ms: number; task: () => void; cancelled: boolean }> = [];
   sleeps: Array<{
     ms: number;
     resolve: () => void;
   }> = [];
   io: InstanceIo = {
+    schedule: (ms: number, task: () => void): (() => void) => {
+      const timer = { ms, task, cancelled: false };
+      this.timers.push(timer);
+      return (): void => {
+        timer.cancelled = true;
+      };
+    },
     now: (): number => this.time,
     wait: async (ms: number): Promise<void> => {
       if (ms === 250) {

@@ -68,7 +68,13 @@ void test(
   { timeout: 120000 },
   async (): Promise<void> => {
     const f = await fixture();
-    const env = { ...process.env, LOCALAPPDATA: f.local, MARKER: "original" };
+    const env = {
+      ...process.env,
+      LOCALAPPDATA: f.local,
+      MARKER: "original",
+      npm_config_registry: "http://127.0.0.1:1",
+      npm_config_fetch_retries: "0",
+    };
     const entry = fileURLToPath(new URL("./main.js", import.meta.url));
     const cli = async (args: string[]): Promise<string> =>
       (await exec(process.execPath, [entry, ...args], { env, windowsHide: true, timeout: 90000 }))

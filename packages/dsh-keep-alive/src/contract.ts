@@ -18,6 +18,7 @@ export const statusSchema = z.object({
   pid: z.number().int().positive().nullable(),
   error: z.string().nullable(),
   log: z.string(),
+  nextUpdateAt: z.string().nullable().optional(),
 });
 export type Status = z.infer<typeof statusSchema>;
 export const replySchema = z.discriminatedUnion("ok", [

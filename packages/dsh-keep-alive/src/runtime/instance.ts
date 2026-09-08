@@ -19,6 +19,7 @@ export interface InstanceIo {
   reachable: (port: number) => Promise<boolean>;
   now: () => number;
   wait: (ms: number) => Promise<void>;
+  schedule: (ms: number, task: () => void) => () => void;
 }
 export const defaultIo: InstanceIo = {
   snapshot,
@@ -43,6 +44,13 @@ export const defaultIo: InstanceIo = {
   },
   now: Date.now,
   wait: delay,
+  schedule: (ms: number, task: () => void): (() => void) => {
+    const timer = setTimeout(task, ms);
+    timer.unref();
+    return (): void => {
+      clearTimeout(timer);
+    };
+  },
 };
 export interface Instance {
   start: (launch: Launch) => Promise<Status>;
@@ -50,6 +58,7 @@ export interface Instance {
   status: () => Status;
 }
 const BACKOFF = [1000, 2000, 4000, 8000, 16000, 30000];
+export const UPDATE_INTERVAL = 46_800_000;
 class ManagedInstance implements Instance {
   private view: Status;
   private child?: ChildProcess;
@@ -60,6 +69,11 @@ class ManagedInstance implements Instance {
   private launch!: Launch;
   private version!: Version;
   private queue: Promise<unknown> = Promise.resolve();
+  private commandEpoch = 0;
+  private failedVersion?: string;
+  private observedLatest?: string;
+  private preparation?: Promise<Version>;
+  private cancelUpdate?: () => void;
   constructor(
     private port: number,
     private paths: Paths,
@@ -178,11 +192,78 @@ class ManagedInstance implements Instance {
     }
     throw new Error("DSH readiness timed out after 60 seconds; log: " + this.paths.log);
   };
-  start = (input: Launch): Promise<Status> =>
-    this.serial(async (): Promise<Status> => {
+  private prepare = (): Promise<Version> => {
+    if (this.preparation) return this.preparation;
+    const task = this.io.latest(this.paths.versions, this.launch).finally((): void => {
+      if (this.preparation === task) this.preparation = undefined;
+    });
+    this.preparation = task;
+    return task;
+  };
+  private scheduleUpdate = (ms: number): void => {
+    this.cancelUpdate?.();
+    const epoch = this.commandEpoch;
+    this.view = { ...this.view, nextUpdateAt: new Date(this.io.now() + ms).toISOString() };
+    this.cancelUpdate = this.io.schedule(ms, (): void => {
+      void (async (): Promise<void> => {
+        if (!this.desired || epoch !== this.commandEpoch) return;
+        try {
+          const next = await this.prepare();
+          await this.serial(async (): Promise<void> => this.update(next, epoch));
+        } catch (error) {
+          if (epoch === this.commandEpoch) {
+            this.view = { ...this.view, error: "Update failed: " + errorText(error) };
+            this.log(this.view.error!);
+          }
+        } finally {
+          if (this.desired && epoch === this.commandEpoch) this.scheduleUpdate(UPDATE_INTERVAL);
+        }
+      })();
+    });
+  };
+  private update = async (next: Version, epoch: number): Promise<void> => {
+    if (!this.desired || epoch !== this.commandEpoch) return;
+    if (this.observedLatest !== next.version) this.failedVersion = undefined;
+    this.observedLatest = next.version;
+    if (next.version === this.version.version || next.version === this.failedVersion) return;
+    const previous = this.version;
+    this.version = next;
+    try {
+      await this.boot();
+    } catch (error) {
+      this.failedVersion = next.version;
+      this.version = previous;
+      try {
+        await this.boot();
+      } catch (rollback) {
+        this.desired = false;
+        this.fail("Update and rollback failed: " + errorText(error) + "; " + errorText(rollback));
+        try {
+          await this.halt();
+        } catch (cleanup) {
+          this.fail(this.view.error + "; cleanup: " + errorText(cleanup));
+        }
+        try {
+          await saveJson(this.paths.state, { version: previous.version });
+        } catch (storage) {
+          this.fail(this.view.error + "; state: " + errorText(storage));
+        }
+        this.view = { ...this.view, nextUpdateAt: null };
+        throw new Error(this.view.error!);
+      }
+      this.view = { ...this.view, error: "Rolled back " + next.version + ": " + errorText(error) };
+      this.log(this.view.error!);
+    }
+  };
+  start = (input: Launch): Promise<Status> => {
+    const epoch = ++this.commandEpoch;
+    this.cancelUpdate?.();
+    return this.serial(async (): Promise<Status> => {
       this.desired = false;
+      this.failedVersion = undefined;
       try {
         await this.halt();
+        await this.preparation?.catch((): void => {});
         this.launch = input;
         this.retry = 0;
         try {
@@ -193,6 +274,7 @@ class ManagedInstance implements Instance {
         }
         this.desired = true;
         await this.boot();
+        if (epoch === this.commandEpoch) this.scheduleUpdate(0);
         return this.status();
       } catch (error) {
         this.desired = false;
@@ -206,12 +288,16 @@ class ManagedInstance implements Instance {
         throw error;
       }
     });
+  };
   stop = (): Promise<Status> => {
+    this.commandEpoch++;
+    this.cancelUpdate?.();
     this.desired = false;
     this.generation++;
     return this.serial(async (): Promise<Status> => {
       await this.halt();
-      this.view = { ...this.view, state: "stopped", error: null };
+      await this.preparation?.catch((): void => {});
+      this.view = { ...this.view, state: "stopped", error: null, nextUpdateAt: null };
       return this.status();
     });
   };
