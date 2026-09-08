@@ -8,13 +8,13 @@ import {
   type Snapshot,
 } from "../platform/windows.js";
 import { delay, errorText, type Launch, type Status } from "../contract.js";
-import { installedVersion, installLatest, type Version } from "./versions.js";
+import { DEFAULT_TAG, installTag, installedVersion, type Version } from "./versions.js";
 import { readJson, saveJson, type Paths } from "../paths.js";
 import { z } from "zod";
 export interface InstanceIo {
   snapshot: (port: number) => Promise<Snapshot>;
   terminate: (identity: Identity, port: number) => Promise<void>;
-  latest: (directory: string, launch: Launch) => Promise<Version>;
+  prepare: (directory: string, launch: Launch, tag: string) => Promise<Version>;
   launch: (version: Version, port: number, launch: Launch) => ChildProcess;
   reachable: (port: number) => Promise<boolean>;
   now: () => number;
@@ -24,7 +24,7 @@ export interface InstanceIo {
 export const defaultIo: InstanceIo = {
   snapshot,
   terminate: terminateTree,
-  latest: installLatest,
+  prepare: installTag,
   launch: (version: Version, port: number, launch: Launch): ChildProcess =>
     spawn(
       process.execPath,
@@ -220,7 +220,7 @@ const prepareVersion = (
   versions: string,
 ): Promise<Version> => {
   if (state.preparation) return state.preparation;
-  const task = io.latest(versions, state.launch!).finally((): void => {
+  const task = io.prepare(versions, state.launch!, DEFAULT_TAG).finally((): void => {
     if (state.preparation === task) state.preparation = undefined;
   });
   state.preparation = task;
@@ -326,7 +326,7 @@ const startInstance = (
         const saved = z.object({ version: z.string() }).parse(await readJson(paths.state));
         state.version = await installedVersion(paths.versions, saved.version);
       } catch {
-        state.version = await io.latest(paths.versions, state.launch);
+        state.version = await io.prepare(paths.versions, state.launch, DEFAULT_TAG);
       }
       state.desired = true;
       await boot();

@@ -8,6 +8,8 @@ import { readJson } from "../paths.js";
 import type { Launch } from "../contract.js";
 const exec = promisify(execFile);
 const versionSchema = z.string().regex(/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?(?:\+[a-zA-Z0-9.-]+)?$/);
+// 未显式指定通道时跟随 npm 的 latest 标签。
+export const DEFAULT_TAG = "latest";
 export interface Version {
   version: string;
   entry: string;
@@ -42,9 +44,10 @@ export const installedVersion = async (directory: string, version: string): Prom
   versionSchema.parse(version);
   return inspectPackage(join(directory, version), version);
 };
-export const installLatest = async (
+export const installTag = async (
   directory: string,
   launch: Launch,
+  tag: string,
   npm: Npm = runNpm,
 ): Promise<Version> => {
   const deadline = Date.now() + 600000;
@@ -55,7 +58,7 @@ export const installLatest = async (
   };
   const version = versionSchema.parse(
     JSON.parse(
-      await npm(["view", "@deepseek-ai/dsh@latest", "version", "--json"], launch, remaining()),
+      await npm(["view", "@deepseek-ai/dsh@" + tag, "version", "--json"], launch, remaining()),
     ),
   );
   try {

@@ -11,6 +11,7 @@ export interface VirtualProcesses {
   currentIdentity?: Identity;
   launched: Launch[];
   versions: string[];
+  preparedTags: string[];
   occupied: boolean;
   reachable: boolean;
   installError: boolean;
@@ -34,6 +35,7 @@ const initialProcesses = (): Omit<VirtualProcesses, "io" | "crash" | "advance"> 
   currentIdentity: undefined,
   launched: [],
   versions: [],
+  preparedTags: [],
   occupied: false,
   reachable: true,
   installError: false,
@@ -83,7 +85,8 @@ export const createVirtualProcesses = (): VirtualProcesses => {
         os.sleeps.push({ ms, resolve }),
       );
     },
-    latest: async (): Promise<Version> => {
+    prepare: async (_directory: string, _launch: Launch, tag: string): Promise<Version> => {
+      os.preparedTags.push(tag);
       if (os.installError) throw new Error("install failed");
       return os.currentVersion;
     },

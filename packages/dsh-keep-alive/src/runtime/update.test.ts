@@ -39,6 +39,8 @@ test("先启动缓存版本，再立即检查并每13小时检查", async (): Pr
   expect(instance.status().version).toBe("1.0.0");
   expect(UPDATE_INTERVAL).toBe(46_800_000);
   expect(await fire(os)).toBe(0);
+  // 参数化后 instance 层仍固定跟随默认通道，行为不变。
+  expect(os.preparedTags).toEqual(["latest"]);
   expect(await fire(os)).toBe(46_800_000);
   expect(os.versions).toEqual(["1.0.0"]);
   await instance.stop();
@@ -51,7 +53,7 @@ test("准备更新期间旧实例服务，成功后显示新版", async (): Prom
   let finish!: (version: Version) => void;
   const io = {
     ...os.io,
-    latest: async (): Promise<Version> =>
+    prepare: async (): Promise<Version> =>
       new Promise((resolve: (version: Version) => void): void => {
         finish = resolve;
       }),
@@ -120,7 +122,7 @@ test("更新准备期间stop排队，准备完成后不切换或复活", async (
   let finish!: (version: Version) => void;
   const io = {
     ...os.io,
-    latest: async (): Promise<Version> =>
+    prepare: async (): Promise<Version> =>
       new Promise((resolve: (version: Version) => void): void => {
         finish = resolve;
       }),
@@ -155,7 +157,7 @@ test("下载期间旧版退出仍按退避恢复，不等待下载", async (): P
   let finish!: (version: Version) => void;
   const io = {
     ...os.io,
-    latest: async (): Promise<Version> =>
+    prepare: async (): Promise<Version> =>
       new Promise((resolve: (version: Version) => void): void => {
         finish = resolve;
       }),
