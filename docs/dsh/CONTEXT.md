@@ -59,3 +59,7 @@ _Avoid_: 模型 API、斜杠命令
 **受管实例**:
 由 dsh-keep-alive 启动并管理、在当前用户内按端口标识的 DSH 运行实例。
 _Avoid_: 系统服务、外部端口占用者
+
+**发布通道**:
+由 npm dist-tag 标识的 DSH 版本序列（如 `latest`、`alpha`、`next`）；`dsh-alive` 按端口记忆当前通道，`start` 与 `update` 的 `--tag` 用于选择。
+_Avoid_: 分支、版本线、channel

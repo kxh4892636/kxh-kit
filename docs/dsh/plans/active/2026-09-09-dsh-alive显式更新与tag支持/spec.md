@@ -35,6 +35,7 @@ status: in_progress
 ### 版本准备（`src/runtime/versions.ts`）
 
 - `installLatest` 改为 `installTag(directory, launch, tag, npm)`：`npm view @deepseek-ai/dsh@<tag> version --json` 解析精确版本；命中已安装目录直接复用；安装仍在临时目录完成后原子改名。
+- 源兜底：npm 命令报「源里没有该包或版本」（`ETARGET`/`E404`/`No matching version`）时，改用 `https://registry.npmjs.org` 重试一次；两次都失败则报错并保留两段原因。网络故障不触发回退，避免等待翻倍——本机配置源为 npmmirror，缺 `@deepseek-ai/dsh-fs-local@0.1.5-alpha.1`，正是该回退使 alpha 通道可安装。
 - `InstanceIo.latest` 改为 `prepare(directory, launch, tag)`，测试替身同步。
 - `prepareVersion(paths, launch, tag, prepare)`：CLI 与 supervisor 共用「解析通道版本 → 与该端口 `state.json` 记录比较 → 不同才写入 `{version, tag}` → 返回 `{version, tag, changed}`」这一不变量；`changed` 用于日志与结果说明。
 - `readRecordedState` 用 `versionSchema` 与 `tagSchema` 校验磁盘记录：`tag` 缺失或非法按 `latest` 处理并保留版本；内容损坏按「无记录」处理。
@@ -79,7 +80,9 @@ Windows / PowerShell；仓库使用 pnpm 与 vite-plus，本机 Node.js v24.19.0
 
 ## 待定
 
-无未决产品选项。以下属交付阶段验证，本文件不预先宣称通过：`npm view @deepseek-ai/dsh@alpha version --json` 的解析、`update` 后运行版本不变而 `state.json` 记录新版、`start` 切到 alpha 与回 `latest`、显式触发下的回退路径、覆盖率仍 ≥80%。
+无未决产品选项。交付阶段已逐项验证：`npm view @deepseek-ai/dsh@alpha version --json` 解析、`update` 后运行版本不变而 `state.json` 记录新版、`start` 切到 `0.1.5-alpha.1` 与回 `0.1.2-rc.1`、显式触发下的回退路径、覆盖率 ≥80%（证据见 Issue 03 交付记录）。
+
+已知上游事实：本机配置源 `https://registry.npmmirror.com` 缺 `@deepseek-ai/dsh-fs-local@0.1.5-alpha.1`（官方源存在），alpha 通道因此依赖源兜底才能安装；`@deepseek-ai/dsh@0.1.5-alpha.1` 本身可正常启动（未认证首页返回 401）。
 
 ## 上下文
 
@@ -93,5 +96,5 @@ Windows / PowerShell；仓库使用 pnpm 与 vite-plus，本机 Node.js v24.19.0
 | #   | Issue                                                                | 状态        | 阻塞于 | 下一步         |
 | --- | -------------------------------------------------------------------- | ----------- | ------ | -------------- |
 | 01  | [版本准备按 tag 参数化](01-版本准备按tag参数化.md)                   | completed   | —      | /code-delivery |
-| 02  | [移除自动更新与显式 update 命令](02-移除自动更新与显式update命令.md) | in_progress | 01     | /code-delivery |
-| 03  | [真实通道切换冒烟与文档同步](03-真实通道切换冒烟与文档同步.md)       | pending     | 02     | /code-delivery |
+| 02  | [移除自动更新与显式 update 命令](02-移除自动更新与显式update命令.md) | completed   | 01     | /code-delivery |
+| 03  | [真实通道切换冒烟与文档同步](03-真实通道切换冒烟与文档同步.md)       | in_progress | 02     | /code-delivery |

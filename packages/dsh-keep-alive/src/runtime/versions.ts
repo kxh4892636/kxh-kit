@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { readJson, saveJson } from "../paths.js";
-import { tagSchema, type Launch } from "../contract.js";
+import { tagSchema, errorText, type Launch } from "../contract.js";
 import type { Paths } from "../paths.js";
 const exec = promisify(execFile);
 const versionSchema = z.string().regex(/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?(?:\+[a-zA-Z0-9.-]+)?$/);
@@ -64,6 +64,29 @@ export const installedVersion = async (directory: string, version: string): Prom
   versionSchema.parse(version);
   return inspectPackage(join(directory, version), version);
 };
+export const OFFICIAL_REGISTRY = "https://registry.npmjs.org";
+// 只有「配置的源里没有这个包或版本」才值得换官方源重试；网络故障重试官方源只会把等待翻倍。
+const REGISTRY_MISS =
+  /notarget|ETARGET|E404|no match found|no matching version|could not be found/i;
+const npmWithRegistryFallback = async (
+  npm: Npm,
+  args: string[],
+  launch: Launch,
+  timeout: number,
+): Promise<string> => {
+  try {
+    return await npm(args, launch, timeout);
+  } catch (error) {
+    if (!REGISTRY_MISS.test(errorText(error))) throw error;
+    try {
+      return await npm([...args, "--registry=" + OFFICIAL_REGISTRY], launch, timeout);
+    } catch (fallback) {
+      throw new Error(
+        errorText(error) + "; official registry retry failed: " + errorText(fallback),
+      );
+    }
+  }
+};
 export const installTag = async (
   directory: string,
   launch: Launch,
@@ -78,7 +101,12 @@ export const installTag = async (
   };
   const version = versionSchema.parse(
     JSON.parse(
-      await npm(["view", "@deepseek-ai/dsh@" + tag, "version", "--json"], launch, remaining()),
+      await npmWithRegistryFallback(
+        npm,
+        ["view", "@deepseek-ai/dsh@" + tag, "version", "--json"],
+        launch,
+        remaining(),
+      ),
     ),
   );
   try {
@@ -89,7 +117,8 @@ export const installTag = async (
   const temporary = join(directory, ".install-" + randomUUID());
   await mkdir(temporary, { recursive: true });
   try {
-    await npm(
+    await npmWithRegistryFallback(
+      npm,
       [
         "install",
         "--prefix",
