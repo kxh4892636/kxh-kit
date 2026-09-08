@@ -2,13 +2,13 @@ import { rm, readFile } from "node:fs/promises";
 import { expect, test } from "vitest";
 import { createInstance } from "./instance.js";
 import { fixture, temporary } from "../testing/fixture.js";
-import { VirtualProcesses } from "../testing/virtual-processes.js";
+import { createVirtualProcesses } from "../testing/virtual-processes.js";
 import { pathsFor, preparePaths } from "../paths.js";
 import type { Launch } from "../contract.js";
 const launch: Launch = { cwd: process.cwd(), env: { MARKER: "first" } };
 test("重复与并发启动各完成一次替换，停止后不恢复", async (): Promise<void> => {
   const f = await fixture();
-  const os = new VirtualProcesses();
+  const os = createVirtualProcesses();
   const instance = createInstance(f.port, f.paths, os.io);
   const first = await instance.start(launch);
   const [second, third] = await Promise.all([
@@ -25,7 +25,7 @@ test("重复与并发启动各完成一次替换，停止后不恢复", async ()
 });
 test("退出按退避恢复，稳定60秒后重置；停止取消待恢复", async (): Promise<void> => {
   const f = await fixture();
-  const os = new VirtualProcesses();
+  const os = createVirtualProcesses();
   const instance = createInstance(f.port, f.paths, os.io);
   await instance.start(launch);
   for (const wait of [1000, 2000, 4000, 8000, 16000, 30000, 30000]) {
@@ -51,7 +51,7 @@ test("安装、端口、spawn、就绪和清理失败不报告成功", async ():
     const root = await temporary();
     const paths = pathsFor(4321, root);
     await preparePaths(paths);
-    const os = new VirtualProcesses();
+    const os = createVirtualProcesses();
     os.installError = scenario === "install";
     os.occupied = scenario === "occupied";
     os.spawnError = scenario === "spawn";
@@ -71,7 +71,7 @@ test("安装、端口、spawn、就绪和清理失败不报告成功", async ():
 });
 test("日志故障不让进程事件处理抛出", async (): Promise<void> => {
   const f = await fixture();
-  const os = new VirtualProcesses();
+  const os = createVirtualProcesses();
   const instance = createInstance(f.port, f.paths, os.io);
   await instance.start(launch);
   await rm(f.paths.log);
@@ -82,7 +82,7 @@ test("日志故障不让进程事件处理抛出", async (): Promise<void> => {
 });
 test("恢复时启动失败继续退避，手动停止终止恢复", async (): Promise<void> => {
   const f = await fixture();
-  const os = new VirtualProcesses();
+  const os = createVirtualProcesses();
   const instance = createInstance(f.port, f.paths, os.io);
   await instance.start(launch);
   os.crash();
@@ -95,7 +95,7 @@ test("恢复时启动失败继续退避，手动停止终止恢复", async (): P
 });
 test("建立身份期间退出且 PID 重用时不得停止外部进程", async (): Promise<void> => {
   const f = await fixture();
-  const os = new VirtualProcesses();
+  const os = createVirtualProcesses();
   let terminations = 0;
   const io = {
     ...os.io,

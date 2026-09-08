@@ -2,7 +2,7 @@ import { mkdir, rm } from "node:fs/promises";
 import { expect, test } from "vitest";
 import { createInstance, UPDATE_INTERVAL } from "./instance.js";
 import { fixture, fixtureVersion } from "../testing/fixture.js";
-import { VirtualProcesses } from "../testing/virtual-processes.js";
+import { createVirtualProcesses, type VirtualProcesses } from "../testing/virtual-processes.js";
 import type { Version } from "./versions.js";
 const launch = { cwd: process.cwd(), env: {} };
 const flush = async (): Promise<void> => {
@@ -33,7 +33,7 @@ const settled = async (predicate: () => boolean): Promise<void> => {
 };
 test("先启动缓存版本，再立即检查并每13小时检查", async (): Promise<void> => {
   const f = await fixture();
-  const os = new VirtualProcesses();
+  const os = createVirtualProcesses();
   const instance = createInstance(f.port, f.paths, os.io);
   await instance.start(launch);
   expect(instance.status().version).toBe("1.0.0");
@@ -46,7 +46,7 @@ test("先启动缓存版本，再立即检查并每13小时检查", async (): Pr
 });
 test("准备更新期间旧实例服务，成功后显示新版", async (): Promise<void> => {
   const f = await fixture();
-  const os = new VirtualProcesses();
+  const os = createVirtualProcesses();
   const next = await fixtureVersion(f.paths, "2.0.0-rc.1");
   let finish!: (version: Version) => void;
   const io = {
@@ -71,7 +71,7 @@ test("准备更新期间旧实例服务，成功后显示新版", async (): Prom
 });
 test("网络安装失败不打断当前进程，下周期继续检查", async (): Promise<void> => {
   const f = await fixture();
-  const os = new VirtualProcesses();
+  const os = createVirtualProcesses();
   const instance = createInstance(f.port, f.paths, os.io);
   const before = await instance.start(launch);
   os.installError = true;
@@ -85,7 +85,7 @@ test("网络安装失败不打断当前进程，下周期继续检查", async ()
 });
 test("新版失败回退且抑制同版重试，latest改变或手动start后可再试", async (): Promise<void> => {
   const f = await fixture();
-  const os = new VirtualProcesses();
+  const os = createVirtualProcesses();
   os.currentVersion = await fixtureVersion(f.paths, "2.0.0");
   const io = {
     ...os.io,
@@ -116,7 +116,7 @@ test("新版失败回退且抑制同版重试，latest改变或手动start后可
 });
 test("更新准备期间stop排队，准备完成后不切换或复活", async (): Promise<void> => {
   const f = await fixture();
-  const os = new VirtualProcesses();
+  const os = createVirtualProcesses();
   let finish!: (version: Version) => void;
   const io = {
     ...os.io,
@@ -135,7 +135,7 @@ test("更新准备期间stop排队，准备完成后不切换或复活", async (
 });
 test("回退本身失败时明确失败且保留上次可用版本", async (): Promise<void> => {
   const f = await fixture();
-  const os = new VirtualProcesses();
+  const os = createVirtualProcesses();
   const instance = createInstance(f.port, f.paths, os.io);
   await instance.start(launch);
   os.currentVersion = await fixtureVersion(f.paths, "2.0.0");
@@ -151,7 +151,7 @@ test("回退本身失败时明确失败且保留上次可用版本", async (): P
 });
 test("下载期间旧版退出仍按退避恢复，不等待下载", async (): Promise<void> => {
   const f = await fixture();
-  const os = new VirtualProcesses();
+  const os = createVirtualProcesses();
   let finish!: (version: Version) => void;
   const io = {
     ...os.io,
@@ -173,7 +173,7 @@ test("下载期间旧版退出仍按退避恢复，不等待下载", async (): P
 });
 test("latest离开失败版本再返回时解除抑制", async (): Promise<void> => {
   const f = await fixture();
-  const os = new VirtualProcesses();
+  const os = createVirtualProcesses();
   const bad = await fixtureVersion(f.paths, "2.0.0");
   os.currentVersion = bad;
   const io = {
@@ -200,7 +200,7 @@ test("latest离开失败版本再返回时解除抑制", async (): Promise<void>
 });
 test("回退与状态持久化同时失败仍清理进程并显示failed", async (): Promise<void> => {
   const f = await fixture();
-  const os = new VirtualProcesses();
+  const os = createVirtualProcesses();
   const instance = createInstance(f.port, f.paths, os.io);
   await instance.start(launch);
   os.currentVersion = await fixtureVersion(f.paths, "2.0.0");

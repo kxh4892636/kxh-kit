@@ -9,7 +9,7 @@ import { expect, test } from "vitest";
 import { start, query, listPorts, logs, runSupervisor } from "./commands.js";
 import { DEFAULT_PORT, main, resolvePort } from "./main.js";
 import { fixture, fixtureVersion, temporary } from "./testing/fixture.js";
-import { VirtualProcesses } from "./testing/virtual-processes.js";
+import { createVirtualProcesses } from "./testing/virtual-processes.js";
 import { pathsFor, preparePaths, saveJson } from "./paths.js";
 import { snapshot } from "./platform/windows.js";
 import type { Identity } from "./platform/windows.js";
@@ -125,7 +125,7 @@ test("缺省端口指向被占用的 3080 时报错且不终止占用者", async
 }, 60000);
 test("控制通道返回状态，stop 拒绝后续排队启动", async (): Promise<void> => {
   const f = await fixture();
-  const os = new VirtualProcesses();
+  const os = createVirtualProcesses();
   // 闸门把 stop 停在「已置位 closing、尚未完成」的状态：两个请求并发走控制通道时到达顺序不定，
   // 直接抢跑会让 start 偶尔先到而通过，这里以可观测的 closing 状态代替时序假设。
   let releaseStop: () => void = (): void => {};
@@ -166,7 +166,7 @@ test("控制通道返回状态，stop 拒绝后续排队启动", async (): Promi
 });
 test("停止清理失败后仍可查询并重试停止", async (): Promise<void> => {
   const f = await fixture();
-  const os = new VirtualProcesses();
+  const os = createVirtualProcesses();
   await runSupervisor(f.port, f.paths, os.io);
   try {
     await start(f.port, { cwd: process.cwd(), env: {} }, f.paths);

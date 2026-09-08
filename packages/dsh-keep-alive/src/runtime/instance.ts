@@ -59,248 +59,323 @@ export interface Instance {
 }
 const BACKOFF = [1000, 2000, 4000, 8000, 16000, 30000];
 export const UPDATE_INTERVAL = 46_800_000;
-class ManagedInstance implements Instance {
-  private view: Status;
-  private child?: ChildProcess;
-  private identity?: Identity;
-  private desired = false;
-  private generation = 0;
-  private retry = 0;
-  private launch!: Launch;
-  private version!: Version;
-  private queue: Promise<unknown> = Promise.resolve();
-  private commandEpoch = 0;
-  private failedVersion?: string;
-  private observedLatest?: string;
-  private preparation?: Promise<Version>;
-  private cancelUpdate?: () => void;
-  constructor(
-    private port: number,
-    private paths: Paths,
-    private io: InstanceIo,
-  ) {
-    this.view = { port, state: "stopped", version: null, pid: null, error: null, log: paths.log };
-  }
-  status = (): Status => ({ ...this.view });
-  private serial = <T>(operation: () => Promise<T>): Promise<T> => {
-    const result = this.queue.then(operation);
-    this.queue = result.catch((): void => {});
-    return result;
-  };
-  private logData = (data: string | Buffer): void => {
-    try {
-      appendLog(this.paths.log, data);
-    } catch (error) {
-      this.view = { ...this.view, error: "Log write failed: " + errorText(error) };
-    }
-  };
-  private log = (message: string): void =>
-    this.logData(new Date().toISOString() + " " + message + "\n");
-  private fail = (error: unknown): void => {
-    this.view = { ...this.view, state: "failed", error: errorText(error) };
-    this.log(this.view.error!);
-  };
-  private halt = async (): Promise<void> => {
-    this.generation++;
-    if (this.child && !this.identity) {
-      const current = await this.io.snapshot(this.port);
-      if (this.child.exitCode === null && this.child.signalCode === null)
-        this.identity = current.processes.find((p: Identity): boolean => p.pid === this.child?.pid);
-      if (!this.identity && this.child.exitCode === null && this.child.signalCode === null)
-        throw new Error("Cannot establish child identity; refusing restart");
-    }
-    if (this.identity) await this.io.terminate(this.identity, this.port);
-    this.identity = undefined;
-    this.child = undefined;
-    this.view = { ...this.view, pid: null };
-  };
-  private recover = async (ticket: number, since: number): Promise<void> => {
-    if (!this.desired || ticket !== this.generation) return;
-    if (this.io.now() - since >= 60000) this.retry = 0;
-    const backoff = BACKOFF[Math.min(this.retry++, BACKOFF.length - 1)];
-    this.view = { ...this.view, state: "backoff", error: "DSH exited; restarting" };
-    this.log(this.view.error!);
-    await this.io.wait(backoff);
-    if (!this.desired || ticket !== this.generation) return;
-    await this.serial(async (): Promise<void> => {
-      if (!this.desired || ticket !== this.generation) return;
-      try {
-        await this.boot();
-      } catch (error) {
-        this.fail(error);
-        void this.recover(this.generation, this.io.now());
-      }
-    });
-  };
-  private boot = async (): Promise<void> => {
-    await this.halt();
-    if ((await this.io.snapshot(this.port)).owners.length)
-      throw new Error("Port is occupied by another process");
-    this.view = { ...this.view, state: "starting", version: this.version.version, error: null };
-    const ticket = this.generation;
-    const since = this.io.now();
-    const child = this.io.launch(this.version, this.port, this.launch);
-    this.child = child;
-    let spawnError: Error | undefined;
-    child.once("error", (error: Error): void => {
-      spawnError = error;
-    });
-    let ready = false;
-    child.once("exit", (): void => {
-      if (ready) void this.recover(ticket, since);
-    });
-    child.stdout?.on("data", (data: Buffer): void => this.logData(data));
-    child.stderr?.on("data", (data: Buffer): void => this.logData(data));
-    while (this.io.now() - since < 60000) {
-      if (spawnError) throw spawnError;
-      if (child.exitCode !== null || child.signalCode !== null)
-        throw new Error("DSH exited before readiness");
-      const current = await this.io.snapshot(this.port);
-      if (child.exitCode !== null || child.signalCode !== null)
-        throw new Error("DSH exited during identity check");
-      this.identity ??= current.processes.find(
-        (p: { pid: number; parent: number; birth: string; command: string | null }): boolean =>
-          p.pid === child.pid,
-      );
-      if (this.identity) {
-        const owned = descendants(this.identity, current.processes);
-        if (
-          current.owners.length &&
-          current.owners.every((pid: number): boolean =>
-            owned.some(
-              (p: {
-                pid: number;
-                parent: number;
-                birth: string;
-                command: string | null;
-              }): boolean => p.pid === pid,
-            ),
-          ) &&
-          (await this.io.reachable(this.port))
-        ) {
-          this.view = { ...this.view, state: "running", pid: child.pid!, error: null };
-          await saveJson(this.paths.state, { version: this.version.version });
-          if (spawnError) throw spawnError;
-          if (child.exitCode !== null || child.signalCode !== null)
-            throw new Error("DSH exited during readiness");
-          ready = true;
-          this.log("Running DSH " + this.version.version);
-          return;
-        }
-      }
-      await this.io.wait(250);
-    }
-    throw new Error("DSH readiness timed out after 60 seconds; log: " + this.paths.log);
-  };
-  private prepare = (): Promise<Version> => {
-    if (this.preparation) return this.preparation;
-    const task = this.io.latest(this.paths.versions, this.launch).finally((): void => {
-      if (this.preparation === task) this.preparation = undefined;
-    });
-    this.preparation = task;
-    return task;
-  };
-  private scheduleUpdate = (ms: number): void => {
-    this.cancelUpdate?.();
-    const epoch = this.commandEpoch;
-    this.view = { ...this.view, nextUpdateAt: new Date(this.io.now() + ms).toISOString() };
-    this.cancelUpdate = this.io.schedule(ms, (): void => {
-      void (async (): Promise<void> => {
-        if (!this.desired || epoch !== this.commandEpoch) return;
-        try {
-          const next = await this.prepare();
-          await this.serial(async (): Promise<void> => this.update(next, epoch));
-        } catch (error) {
-          if (epoch === this.commandEpoch) {
-            this.view = { ...this.view, error: "Update failed: " + errorText(error) };
-            this.log(this.view.error!);
-          }
-        } finally {
-          if (this.desired && epoch === this.commandEpoch) this.scheduleUpdate(UPDATE_INTERVAL);
-        }
-      })();
-    });
-  };
-  private update = async (next: Version, epoch: number): Promise<void> => {
-    if (!this.desired || epoch !== this.commandEpoch) return;
-    if (this.observedLatest !== next.version) this.failedVersion = undefined;
-    this.observedLatest = next.version;
-    if (next.version === this.version.version || next.version === this.failedVersion) return;
-    const previous = this.version;
-    this.version = next;
-    try {
-      await this.boot();
-    } catch (error) {
-      this.failedVersion = next.version;
-      this.version = previous;
-      try {
-        await this.boot();
-      } catch (rollback) {
-        this.desired = false;
-        this.fail("Update and rollback failed: " + errorText(error) + "; " + errorText(rollback));
-        try {
-          await this.halt();
-        } catch (cleanup) {
-          this.fail(this.view.error + "; cleanup: " + errorText(cleanup));
-        }
-        try {
-          await saveJson(this.paths.state, { version: previous.version });
-        } catch (storage) {
-          this.fail(this.view.error + "; state: " + errorText(storage));
-        }
-        this.view = { ...this.view, nextUpdateAt: null };
-        throw new Error(this.view.error!);
-      }
-      this.view = { ...this.view, error: "Rolled back " + next.version + ": " + errorText(error) };
-      this.log(this.view.error!);
-    }
-  };
-  start = (input: Launch): Promise<Status> => {
-    const epoch = ++this.commandEpoch;
-    this.cancelUpdate?.();
-    return this.serial(async (): Promise<Status> => {
-      this.desired = false;
-      this.failedVersion = undefined;
-      try {
-        await this.halt();
-        await this.preparation?.catch((): void => {});
-        this.launch = input;
-        this.retry = 0;
-        try {
-          const saved = z.object({ version: z.string() }).parse(await readJson(this.paths.state));
-          this.version = await installedVersion(this.paths.versions, saved.version);
-        } catch {
-          this.version = await this.io.latest(this.paths.versions, this.launch);
-        }
-        this.desired = true;
-        await this.boot();
-        if (epoch === this.commandEpoch) this.scheduleUpdate(0);
-        return this.status();
-      } catch (error) {
-        this.desired = false;
-        try {
-          await this.halt();
-        } catch (cleanup) {
-          this.fail(cleanup);
-          throw cleanup;
-        }
-        this.fail(error);
-        throw error;
-      }
-    });
-  };
-  stop = (): Promise<Status> => {
-    this.commandEpoch++;
-    this.cancelUpdate?.();
-    this.desired = false;
-    this.generation++;
-    return this.serial(async (): Promise<Status> => {
-      await this.halt();
-      await this.preparation?.catch((): void => {});
-      this.view = { ...this.view, state: "stopped", error: null, nextUpdateAt: null };
-      return this.status();
-    });
-  };
+// 受管实例不使用 class：可变状态集中在一个显式对象里，每个职责各自成函数。
+interface InstanceState {
+  view: Status;
+  childProcess: ChildProcess | undefined;
+  identity: Identity | undefined;
+  desired: boolean;
+  generation: number;
+  retry: number;
+  launch: Launch | undefined;
+  version: Version | undefined;
+  queue: Promise<unknown>;
+  commandEpoch: number;
+  failedVersion: string | undefined;
+  observedLatest: string | undefined;
+  preparation: Promise<Version> | undefined;
+  cancelUpdate: (() => void) | undefined;
 }
-export const createInstance = (port: number, paths: Paths, io: InstanceIo = defaultIo): Instance =>
-  new ManagedInstance(port, paths, io);
+const initialState = (port: number, log: string): InstanceState => ({
+  view: { port, state: "stopped", version: null, pid: null, error: null, log },
+  childProcess: undefined,
+  identity: undefined,
+  desired: false,
+  generation: 0,
+  retry: 0,
+  launch: undefined,
+  version: undefined,
+  queue: Promise.resolve(),
+  commandEpoch: 0,
+  failedVersion: undefined,
+  observedLatest: undefined,
+  preparation: undefined,
+  cancelUpdate: undefined,
+});
+const instanceStatus = (state: InstanceState): Status => ({ ...state.view });
+const serialize = <T>(state: InstanceState, operation: () => Promise<T>): Promise<T> => {
+  const result = state.queue.then(operation);
+  state.queue = result.catch((): void => {});
+  return result;
+};
+const writeLog = (state: InstanceState, log: string, data: string | Buffer): void => {
+  try {
+    appendLog(log, data);
+  } catch (error) {
+    state.view = { ...state.view, error: "Log write failed: " + errorText(error) };
+  }
+};
+const logMessage = (state: InstanceState, log: string, message: string): void =>
+  writeLog(state, log, new Date().toISOString() + " " + message + "\n");
+const markFailed = (state: InstanceState, log: string, error: unknown): void => {
+  state.view = { ...state.view, state: "failed", error: errorText(error) };
+  logMessage(state, log, state.view.error!);
+};
+const haltInstance = async (port: number, io: InstanceIo, state: InstanceState): Promise<void> => {
+  state.generation++;
+  const child = state.childProcess;
+  if (child && !state.identity) {
+    const current = await io.snapshot(port);
+    if (child.exitCode === null && child.signalCode === null)
+      state.identity = current.processes.find((p: Identity): boolean => p.pid === child.pid);
+    if (!state.identity && child.exitCode === null && child.signalCode === null)
+      throw new Error("Cannot establish child identity; refusing restart");
+  }
+  if (state.identity) await io.terminate(state.identity, port);
+  state.identity = undefined;
+  state.childProcess = undefined;
+  state.view = { ...state.view, pid: null };
+};
+const bootInstance = async (
+  port: number,
+  paths: Paths,
+  io: InstanceIo,
+  state: InstanceState,
+  recover: (ticket: number, since: number) => Promise<void>,
+): Promise<void> => {
+  await haltInstance(port, io, state);
+  if ((await io.snapshot(port)).owners.length)
+    throw new Error("Port is occupied by another process");
+  const version = state.version!;
+  state.view = { ...state.view, state: "starting", version: version.version, error: null };
+  const ticket = state.generation;
+  const since = io.now();
+  const child = io.launch(version, port, state.launch!);
+  state.childProcess = child;
+  let spawnError: Error | undefined;
+  child.once("error", (error: Error): void => {
+    spawnError = error;
+  });
+  let ready = false;
+  child.once("exit", (): void => {
+    if (ready) void recover(ticket, since);
+  });
+  child.stdout?.on("data", (data: Buffer): void => writeLog(state, paths.log, data));
+  child.stderr?.on("data", (data: Buffer): void => writeLog(state, paths.log, data));
+  while (io.now() - since < 60000) {
+    if (spawnError) throw spawnError;
+    if (child.exitCode !== null || child.signalCode !== null)
+      throw new Error("DSH exited before readiness");
+    const current = await io.snapshot(port);
+    if (child.exitCode !== null || child.signalCode !== null)
+      throw new Error("DSH exited during identity check");
+    state.identity ??= current.processes.find(
+      (p: { pid: number; parent: number; birth: string; command: string | null }): boolean =>
+        p.pid === child.pid,
+    );
+    if (state.identity) {
+      const owned = descendants(state.identity, current.processes);
+      if (
+        current.owners.length &&
+        current.owners.every((pid: number): boolean =>
+          owned.some(
+            (p: { pid: number; parent: number; birth: string; command: string | null }): boolean =>
+              p.pid === pid,
+          ),
+        ) &&
+        (await io.reachable(port))
+      ) {
+        state.view = { ...state.view, state: "running", pid: child.pid!, error: null };
+        await saveJson(paths.state, { version: version.version });
+        if (spawnError) throw spawnError;
+        if (child.exitCode !== null || child.signalCode !== null)
+          throw new Error("DSH exited during readiness");
+        ready = true;
+        logMessage(state, paths.log, "Running DSH " + version.version);
+        return;
+      }
+    }
+    await io.wait(250);
+  }
+  throw new Error("DSH readiness timed out after 60 seconds; log: " + paths.log);
+};
+const recoverInstance = async (
+  paths: Paths,
+  io: InstanceIo,
+  state: InstanceState,
+  boot: () => Promise<void>,
+  ticket: number,
+  since: number,
+): Promise<void> => {
+  if (!state.desired || ticket !== state.generation) return;
+  if (io.now() - since >= 60000) state.retry = 0;
+  const backoff = BACKOFF[Math.min(state.retry++, BACKOFF.length - 1)];
+  state.view = { ...state.view, state: "backoff", error: "DSH exited; restarting" };
+  logMessage(state, paths.log, state.view.error!);
+  await io.wait(backoff);
+  if (!state.desired || ticket !== state.generation) return;
+  await serialize(state, async (): Promise<void> => {
+    if (!state.desired || ticket !== state.generation) return;
+    try {
+      await boot();
+    } catch (error) {
+      markFailed(state, paths.log, error);
+      void recoverInstance(paths, io, state, boot, state.generation, io.now());
+    }
+  });
+};
+const prepareVersion = (
+  io: InstanceIo,
+  state: InstanceState,
+  versions: string,
+): Promise<Version> => {
+  if (state.preparation) return state.preparation;
+  const task = io.latest(versions, state.launch!).finally((): void => {
+    if (state.preparation === task) state.preparation = undefined;
+  });
+  state.preparation = task;
+  return task;
+};
+const applyUpdate = async (
+  paths: Paths,
+  io: InstanceIo,
+  state: InstanceState,
+  next: Version,
+  epoch: number,
+  boot: () => Promise<void>,
+): Promise<void> => {
+  if (!state.desired || epoch !== state.commandEpoch) return;
+  if (state.observedLatest !== next.version) state.failedVersion = undefined;
+  state.observedLatest = next.version;
+  if (next.version === state.version!.version || next.version === state.failedVersion) return;
+  const previous = state.version!;
+  state.version = next;
+  try {
+    await boot();
+  } catch (error) {
+    state.failedVersion = next.version;
+    state.version = previous;
+    try {
+      await boot();
+    } catch (rollback) {
+      state.desired = false;
+      markFailed(
+        state,
+        paths.log,
+        "Update and rollback failed: " + errorText(error) + "; " + errorText(rollback),
+      );
+      try {
+        await haltInstance(state.view.port, io, state);
+      } catch (cleanup) {
+        markFailed(state, paths.log, state.view.error + "; cleanup: " + errorText(cleanup));
+      }
+      try {
+        await saveJson(paths.state, { version: previous.version });
+      } catch (storage) {
+        markFailed(state, paths.log, state.view.error + "; state: " + errorText(storage));
+      }
+      state.view = { ...state.view, nextUpdateAt: null };
+      throw new Error(state.view.error!);
+    }
+    state.view = {
+      ...state.view,
+      error: "Rolled back " + next.version + ": " + errorText(error),
+    };
+    logMessage(state, paths.log, state.view.error!);
+  }
+};
+const scheduleUpdate = (
+  ms: number,
+  paths: Paths,
+  io: InstanceIo,
+  state: InstanceState,
+  prepare: () => Promise<Version>,
+  update: (next: Version, epoch: number) => Promise<void>,
+): void => {
+  state.cancelUpdate?.();
+  const epoch = state.commandEpoch;
+  state.view = { ...state.view, nextUpdateAt: new Date(io.now() + ms).toISOString() };
+  state.cancelUpdate = io.schedule(ms, (): void => {
+    void (async (): Promise<void> => {
+      if (!state.desired || epoch !== state.commandEpoch) return;
+      try {
+        const next = await prepare();
+        await serialize(state, async (): Promise<void> => update(next, epoch));
+      } catch (error) {
+        if (epoch === state.commandEpoch) {
+          state.view = { ...state.view, error: "Update failed: " + errorText(error) };
+          logMessage(state, paths.log, state.view.error!);
+        }
+      } finally {
+        if (state.desired && epoch === state.commandEpoch)
+          scheduleUpdate(UPDATE_INTERVAL, paths, io, state, prepare, update);
+      }
+    })();
+  });
+};
+const startInstance = (
+  port: number,
+  paths: Paths,
+  io: InstanceIo,
+  state: InstanceState,
+  input: Launch,
+  boot: () => Promise<void>,
+  schedule: (ms: number) => void,
+): Promise<Status> => {
+  const epoch = ++state.commandEpoch;
+  state.cancelUpdate?.();
+  return serialize(state, async (): Promise<Status> => {
+    state.desired = false;
+    state.failedVersion = undefined;
+    try {
+      await haltInstance(port, io, state);
+      await state.preparation?.catch((): void => {});
+      state.launch = input;
+      state.retry = 0;
+      try {
+        const saved = z.object({ version: z.string() }).parse(await readJson(paths.state));
+        state.version = await installedVersion(paths.versions, saved.version);
+      } catch {
+        state.version = await io.latest(paths.versions, state.launch);
+      }
+      state.desired = true;
+      await boot();
+      if (epoch === state.commandEpoch) schedule(0);
+      return instanceStatus(state);
+    } catch (error) {
+      state.desired = false;
+      try {
+        await haltInstance(port, io, state);
+      } catch (cleanup) {
+        markFailed(state, paths.log, cleanup);
+        throw cleanup;
+      }
+      markFailed(state, paths.log, error);
+      throw error;
+    }
+  });
+};
+const stopInstance = (port: number, io: InstanceIo, state: InstanceState): Promise<Status> => {
+  state.commandEpoch++;
+  state.cancelUpdate?.();
+  state.desired = false;
+  state.generation++;
+  return serialize(state, async (): Promise<Status> => {
+    await haltInstance(port, io, state);
+    await state.preparation?.catch((): void => {});
+    state.view = { ...state.view, state: "stopped", error: null, nextUpdateAt: null };
+    return instanceStatus(state);
+  });
+};
+export const createInstance = (
+  port: number,
+  paths: Paths,
+  io: InstanceIo = defaultIo,
+): Instance => {
+  const state = initialState(port, paths.log);
+  // recover 与 boot 相互调用，boot 需前向声明。
+  let boot: () => Promise<void>;
+  const recover = (ticket: number, since: number): Promise<void> =>
+    recoverInstance(paths, io, state, boot, ticket, since);
+  boot = (): Promise<void> => bootInstance(port, paths, io, state, recover);
+  const prepare = (): Promise<Version> => prepareVersion(io, state, paths.versions);
+  const update = (next: Version, epoch: number): Promise<void> =>
+    applyUpdate(paths, io, state, next, epoch, boot);
+  const schedule = (ms: number): void => scheduleUpdate(ms, paths, io, state, prepare, update);
+  return {
+    start: (input: Launch): Promise<Status> =>
+      startInstance(port, paths, io, state, input, boot, schedule),
+    stop: (): Promise<Status> => stopInstance(port, io, state),
+    status: (): Status => instanceStatus(state),
+  };
+};
