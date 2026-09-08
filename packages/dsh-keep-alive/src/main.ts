@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { pathToFileURL } from "node:url";
+import { realpathSync } from "node:fs";
 import { errorText, launchSchema, portSchema } from "./contract.js";
 import { start, query, listPorts, logs, runSupervisor } from "./commands.js";
 import { pathsFor } from "./paths.js";
@@ -51,7 +52,8 @@ export const main = async (
       : await query(port, command === "stop");
   output(JSON.stringify(status) + "\n");
 };
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+// nvm 的启动路径经过目录链接，须与模块的真实路径比较。
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   main(process.argv.slice(2)).catch((error: unknown): void => {
     process.stderr.write("dsh-keep-alive: " + errorText(error) + "\n");
     process.exitCode = 1;
