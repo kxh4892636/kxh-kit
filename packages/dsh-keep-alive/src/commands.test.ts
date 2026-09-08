@@ -1,14 +1,17 @@
 import { execFile } from "node:child_process";
+import { once } from "node:events";
+import { createServer } from "node:net";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 import { start, query, listPorts, logs, runSupervisor } from "./commands.js";
-import { main } from "./main.js";
-import { fixture, temporary } from "./testing/fixture.js";
+import { DEFAULT_PORT, main, resolvePort } from "./main.js";
+import { fixture, fixtureVersion, temporary } from "./testing/fixture.js";
 import { VirtualProcesses } from "./testing/virtual-processes.js";
-import { pathsFor } from "./paths.js";
+import { pathsFor, preparePaths, saveJson } from "./paths.js";
+import { snapshot } from "./platform/windows.js";
 import type { Identity } from "./platform/windows.js";
 import type { Status } from "./contract.js";
 const exec = promisify(execFile);
@@ -17,8 +20,16 @@ test("CLI 帮助、参数错误及未启动查询", async (): Promise<void> => {
   await main([], (value: string): void => {
     text += value;
   });
-  expect(text).toMatch(/start --port/);
-  for (const args of [["invalid"], ["start"], ["start", "--port", "0"], ["start", "--port", "1.2"]])
+  expect(text).toMatch(/dsh-alive/);
+  expect(text).toMatch(/start \[--port N\]/);
+  for (const args of [
+    ["invalid"],
+    ["start", "--port"],
+    ["start", "--port", "0"],
+    ["start", "--port", "1.2"],
+    ["start", "--bad", "1"],
+    ["start", "--port", "1234", "extra"],
+  ])
     await expect(main(args)).rejects.toThrow();
   const root = await temporary();
   const paths = pathsFor(1234, root);
@@ -32,6 +43,86 @@ test("CLI 帮助、参数错误及未启动查询", async (): Promise<void> => {
   await writeFile(paths.log, "hello");
   expect(await logs(1234, paths)).toBe("hello");
 });
+test("省略 --port 时解析为 3080，显式端口仍被校验", async (): Promise<void> => {
+  expect(DEFAULT_PORT).toBe(3080);
+  expect(resolvePort([])).toBe(3080);
+  expect(resolvePort(["--port", "1234"])).toBe(1234);
+  expect(resolvePort(["--port", "65535"])).toBe(65535);
+  for (const args of [["--port"], ["--port", "1.2"], ["--bad", "1"], ["--port", "1234", "extra"]])
+    expect(() => resolvePort(args)).toThrow(/Expected --port N/);
+  for (const args of [
+    ["--port", "0"],
+    ["--port", "65536"],
+  ])
+    expect(() => resolvePort(args)).toThrow();
+  // 隔离 LOCALAPPDATA，验证 CLI 在省略端口时确实落到 3080 且不触碰真实实例。
+  const local = await temporary();
+  const previous = process.env.LOCALAPPDATA;
+  process.env.LOCALAPPDATA = local;
+  try {
+    let text = "";
+    await main(["logs"], (value: string): void => {
+      text += value;
+    });
+    expect(text).toBe("No log yet\n");
+    text = "";
+    await main(["stop"], (value: string): void => {
+      text += value;
+    });
+    expect(JSON.parse(text)).toMatchObject({ port: 3080, state: "stopped" });
+    text = "";
+    await main(["status"], (value: string): void => {
+      text += value;
+    });
+    expect(text).toBe("");
+  } finally {
+    if (previous === undefined) delete process.env.LOCALAPPDATA;
+    else process.env.LOCALAPPDATA = previous;
+  }
+});
+test("缺省端口指向被占用的 3080 时报错且不终止占用者", async (): Promise<void> => {
+  // 3080 空闲时由本测试自己监听，两个分支都产生证据；已有外部占用者时直接复用它。
+  const external = (await snapshot(3080)).owners.length > 0;
+  const listener = external ? undefined : createServer();
+  if (listener) {
+    listener.listen(3080, "127.0.0.1");
+    await once(listener, "listening");
+  }
+  const before = (await snapshot(3080)).owners
+    .slice()
+    .sort((a: number, b: number): number => a - b);
+  expect(before.length).toBeGreaterThan(0);
+  const local = await temporary();
+  const paths = pathsFor(3080, join(local, "dsh-keep-alive"));
+  await preparePaths(paths);
+  await saveJson(paths.state, { version: (await fixtureVersion(paths)).version });
+  // 用打包产物执行：真实 CLI 的 supervisor 自启动路径相对 dist/main.mjs 解析。
+  const entry = fileURLToPath(new URL("../dist/main.mjs", import.meta.url));
+  const env = {
+    ...process.env,
+    LOCALAPPDATA: local,
+    npm_config_registry: "http://127.0.0.1:1",
+    npm_config_fetch_retries: "0",
+  };
+  const run = async (args: string[]): Promise<{ stdout: string; stderr: string }> =>
+    exec(process.execPath, [entry, ...args], { env, windowsHide: true, timeout: 30000 });
+  try {
+    const failure = await run(["start"]).then(
+      (result): string => result.stdout,
+      (error: { stderr?: string }): string => error.stderr ?? "",
+    );
+    expect(failure).toMatch(/occupied/i);
+    expect(
+      (await snapshot(3080)).owners.slice().sort((a: number, b: number): number => a - b),
+    ).toEqual(before);
+  } finally {
+    await run(["stop"]).catch((): void => {});
+    if (listener)
+      await new Promise<void>((resolve: () => void): void => {
+        listener.close((): void => resolve());
+      });
+  }
+}, 60000);
 test("控制通道返回状态，stop 拒绝后续排队启动", async (): Promise<void> => {
   const f = await fixture();
   const os = new VirtualProcesses();
@@ -109,10 +200,17 @@ test("真实 Windows CLI 关闭父进程后存活、重复启动替换、停止"
     const second = JSON.parse(await cli(["start", "--port", String(f.port)])) as Status;
     expect(second.pid).not.toBe(first.pid);
     expect(await cli(["status"])).toMatch(/running/);
+    expect(JSON.parse(await cli(["status", "--port", String(f.port)]))).toMatchObject({
+      port: f.port,
+      state: "running",
+    });
     expect(await cli(["logs", "--port", String(f.port)])).toMatch(/fixture-start/);
     expect(JSON.parse(await cli(["stop", "--port", String(f.port)])).state).toBe("stopped");
     await expect(fetch("http://127.0.0.1:" + f.port)).rejects.toThrow();
     await expect(cli(["bad"])).rejects.toThrow();
+    // 省略 --port 的日志与停止落在 3080：隔离 LOCALAPPDATA 下没有该实例，故只读返回空日志与 stopped。
+    expect(await cli(["logs"])).toMatch(/No log yet/);
+    expect(JSON.parse(await cli(["stop"]))).toMatchObject({ port: 3080, state: "stopped" });
   } finally {
     await cli(["stop", "--port", String(f.port)]).catch((): void => {});
   }

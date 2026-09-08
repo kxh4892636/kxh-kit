@@ -1,16 +1,18 @@
-# dsh-keep-alive
+# dsh-alive
 
-Windows 上的 DSH 后台保活工具。使用系统 Node.js ≥24.19.0 和 npm，无需管理员权限。
+Windows 上的 DSH 后台保活工具（npm 包名 `dsh-keep-alive`，命令 `dsh-alive`）。使用系统 Node.js ≥24.19.0 和 npm，无需管理员权限。
+
+先在 `packages/dsh-keep-alive` 目录执行 `pnpm pack` 生成安装包，再从仓库根安装：
 
 ```powershell
-npm install -g ./dsh-keep-alive-0.0.1.tgz
-dsh-keep-alive start --port 3080
-dsh-keep-alive status
-dsh-keep-alive logs --port 3080
-dsh-keep-alive stop --port 3080
+npm install -g ./packages/dsh-keep-alive/dsh-keep-alive-0.0.1.tgz
+dsh-alive start
+dsh-alive status
+dsh-alive logs
+dsh-alive stop
 ```
 
-启动成功后命令退出；关闭终端仍继续运行。重复 `start --port 3080` 会重启该端口实例。不同端口独立，同一用户的同一端口只有一个受管实例。端口必须显式指定，范围 1–65535；外部程序占用端口时报告错误，不终止它。
+启动成功后命令退出；关闭终端仍继续运行。`start`、`stop`、`logs` 省略 `--port` 时作用于 3080，显式 `--port N` 覆盖该默认值，范围 1–65535。`status` 省略 `--port` 时列出全部受管端口，带 `--port N` 查询单个。重复 `dsh-alive start` 会重启该端口实例。不同端口独立，同一用户的同一端口只有一个受管实例；外部程序占用端口时报告错误，不终止它。
 
 DSH 使用 `web` profile，绑定 `127.0.0.1`，不自动打开浏览器。通过 `logs` 找到 DSH 输出的登录链接并打开；未认证首页返回 401 属于正常行为。登录链接含令牌，不应分享日志。
 
@@ -32,9 +34,11 @@ DSH 异常退出按 1、2、4、8、16、30 秒退避恢复；稳定运行 60 �
 
 ```powershell
 pnpm --filter dsh-keep-alive check
+pnpm --filter dsh-keep-alive test
 pnpm --filter dsh-keep-alive test:coverage
 pnpm --filter dsh-keep-alive build
-pnpm --filter dsh-keep-alive pack
 ```
 
-覆盖率包含全部生产 TypeScript（包括 CLI、后台入口与 Windows 适配）；统计编译产物后映射回源码。测试的系统交互采用临时目录和独立端口，不调用模型。
+打包：在 `packages/dsh-keep-alive` 目录执行 `pnpm pack`（会把 `catalog:` 依赖替换为精确版本，产物为 `dsh-keep-alive-0.0.1.tgz`）。
+
+覆盖率由 vitest 的 v8 provider 直接对 `src/**/*.ts` 采样，排除 `*.test.ts` 与 `src/testing/**`，包含 CLI、后台入口与 Windows 适配。测试的系统交互采用临时目录和独立端口，不调用模型。

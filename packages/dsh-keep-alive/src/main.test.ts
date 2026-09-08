@@ -17,6 +17,14 @@ test("通过 nvm 风格目录链接执行时仍进入 CLI", async (): Promise<vo
     windowsHide: true,
     timeout: 10_000,
   });
-  expect(result.stdout).toMatch(/start --port N/);
+  expect(result.stdout).toMatch(/start \[--port N\]/);
   expect(result.stderr).toBe("");
+  const failure = await exec(process.execPath, [join(linked, "main.mjs"), "bad"], {
+    windowsHide: true,
+    timeout: 10_000,
+  }).then(
+    (output): string => output.stderr,
+    (error: { stderr?: string }): string => error.stderr ?? "",
+  );
+  expect(failure).toMatch(/^dsh-alive: /);
 });

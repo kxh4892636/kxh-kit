@@ -4,7 +4,7 @@
   "description": "Keep DSH running after the terminal closes",
   "license": "MIT",
   "bin": {
-    "dsh-keep-alive": "dist/main.mjs"
+    "dsh-alive": "dist/main.mjs"
   },
   "files": [
     "dist",
