@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { readJson, saveJson } from "../paths.js";
-import { tagSchema, errorText, type Launch } from "../contract.js";
+import { tagSchema, type Launch } from "../contract.js";
 import type { Paths } from "../paths.js";
 const exec = promisify(execFile);
 const versionSchema = z.string().regex(/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?(?:\+[a-zA-Z0-9.-]+)?$/);
@@ -65,37 +65,17 @@ export const installedVersion = async (directory: string, version: string): Prom
   return inspectPackage(join(directory, version), version);
 };
 export const OFFICIAL_REGISTRY = "https://registry.npmjs.org";
-// 只认 npm 的错误码行：命令行里出现的 tag 文本、宽泛的 404 文案都不该影响分类。
-// 只有「配置的源里没有这个包或版本」才值得换官方源重试；网络故障重试官方源只会把等待翻倍。
-const REGISTRY_MISS = /npm error code (?:ETARGET|E404)\b/;
-const npmWithRegistryFallback = async (
-  npm: Npm,
-  args: string[],
-  launch: Launch,
-  remaining: () => number,
-): Promise<string> => {
-  try {
-    return await npm(args, launch, remaining());
-  } catch (error) {
-    // 超时被杀的重试只会再超时一次，且其 stderr 可能是残缺的。
-    if ((error as { killed?: boolean }).killed || !REGISTRY_MISS.test(errorText(error)))
-      throw error;
-    try {
-      // 两次尝试共享同一个 deadline，总耗时不会翻倍。
-      return await npm([...args, "--registry=" + OFFICIAL_REGISTRY], launch, remaining());
-    } catch (fallback) {
-      throw new Error(
-        errorText(error) + "; official registry retry failed: " + errorText(fallback),
-      );
-    }
-  }
-};
+// DSH 的版本解析与安装直接使用 npm 官方源，不读取本机 registry 配置：
+// 镜像源可能缺发布标签的依赖（实测 npmmirror 缺 alpha 子包），跟随本机配置会得到不可复现的结果。
+// 需要镜像时用 DSH_ALIVE_REGISTRY 覆盖。
+const registryFor = (launch: Launch): string => launch.env.DSH_ALIVE_REGISTRY ?? OFFICIAL_REGISTRY;
 export const installTag = async (
   directory: string,
   launch: Launch,
   tag: string,
   npm: Npm = runNpm,
 ): Promise<Version> => {
+  const registry = registryFor(launch);
   const deadline = Date.now() + 600000;
   const remaining = (): number => {
     const ms = deadline - Date.now();
@@ -104,11 +84,10 @@ export const installTag = async (
   };
   const version = versionSchema.parse(
     JSON.parse(
-      await npmWithRegistryFallback(
-        npm,
-        ["view", "@deepseek-ai/dsh@" + tag, "version", "--json"],
+      await npm(
+        ["view", "@deepseek-ai/dsh@" + tag, "version", "--json", "--registry=" + registry],
         launch,
-        remaining,
+        remaining(),
       ),
     ),
   );
@@ -120,8 +99,7 @@ export const installTag = async (
   const temporary = join(directory, ".install-" + randomUUID());
   await mkdir(temporary, { recursive: true });
   try {
-    await npmWithRegistryFallback(
-      npm,
+    await npm(
       [
         "install",
         "--prefix",
@@ -130,9 +108,10 @@ export const installTag = async (
         "--no-fund",
         "--no-package-lock",
         "@deepseek-ai/dsh@" + version,
+        "--registry=" + registry,
       ],
       launch,
-      remaining,
+      remaining(),
     );
     remaining();
     await inspectPackage(temporary, version);

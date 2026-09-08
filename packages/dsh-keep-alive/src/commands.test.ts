@@ -233,7 +233,8 @@ test("缺省端口指向被占用的 3080 时报错且不终止占用者", async
   const env = {
     ...process.env,
     LOCALAPPDATA: local,
-    npm_config_registry: "http://127.0.0.1:1",
+    // 版本解析固定用官方源，这里把它指向死地址以模拟不可达的源。
+    DSH_ALIVE_REGISTRY: "http://127.0.0.1:1",
     npm_config_fetch_retries: "0",
   };
   const run = async (args: string[]): Promise<{ stdout: string; stderr: string }> =>
@@ -389,7 +390,8 @@ test("真实 Windows CLI 关闭父进程后存活、重复启动替换、停止"
     ...process.env,
     LOCALAPPDATA: f.local,
     MARKER: "original",
-    npm_config_registry: "http://127.0.0.1:1",
+    // 版本解析固定用官方源；指向死地址即可让 start 走缓存版本回退路径。
+    DSH_ALIVE_REGISTRY: "http://127.0.0.1:1",
     npm_config_fetch_retries: "0",
   };
   const entry = fileURLToPath(new URL("../dist/main.mjs", import.meta.url));

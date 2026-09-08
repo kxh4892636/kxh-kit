@@ -35,7 +35,7 @@ status: in_progress
 ### 版本准备（`src/runtime/versions.ts`）
 
 - `installLatest` 改为 `installTag(directory, launch, tag, npm)`：`npm view @deepseek-ai/dsh@<tag> version --json` 解析精确版本；命中已安装目录直接复用；安装仍在临时目录完成后原子改名。
-- 源兜底：npm 错误码为 `ETARGET` 或 `E404`（源里没有该包或版本）时，改用 `https://registry.npmjs.org` 重试一次；判定只看 npm 错误码行，不受命令行文本影响，超时被杀的尝试也不回退。两次尝试共享同一个 10 分钟 deadline，总耗时不会翻倍；两次都失败则报错并保留两段原因。网络故障不触发回退——本机配置源为 npmmirror，缺 `@deepseek-ai/dsh-fs-local@0.1.5-alpha.1`，正是该回退使 alpha 通道可安装。
+- 源选择：版本解析与安装都显式传 `--registry=https://registry.npmjs.org`，不读取本机 registry 配置；`launch.env.DSH_ALIVE_REGISTRY` 可覆盖（测试用它指向死地址以模拟源不可达）。理由：本机配置源 npmmirror 缺 `@deepseek-ai/dsh-fs-local@0.1.5-alpha.1`，跟随本机配置会得到不可复现的结果。npm 失败直接传播，不重试、不换源。
 - `InstanceIo.latest` 改为 `prepare(directory, launch, tag)`，测试替身同步。
 - `prepareVersion(paths, launch, tag, prepare)`：CLI 与 supervisor 共用「解析通道版本 → 与该端口 `state.json` 记录比较 → 不同才写入 `{version, tag}` → 返回 `{version, tag, changed}`」这一不变量；`changed` 用于日志与结果说明。
 - `readRecordedState` 用 `versionSchema` 与 `tagSchema` 校验磁盘记录：`tag` 缺失或非法按 `latest` 处理并保留版本；内容损坏按「无记录」处理。
@@ -82,7 +82,7 @@ Windows / PowerShell；仓库使用 pnpm 与 vite-plus，本机 Node.js v24.19.0
 
 无未决产品选项。交付阶段已逐项验证：`npm view @deepseek-ai/dsh@alpha version --json` 解析、`update` 后运行版本不变而 `state.json` 记录新版、`start` 切到 `0.1.5-alpha.1` 与回 `0.1.2-rc.1`、显式触发下的回退路径、覆盖率 ≥80%（证据见 Issue 03 交付记录）。
 
-已知上游事实：本机配置源 `https://registry.npmmirror.com` 缺 `@deepseek-ai/dsh-fs-local@0.1.5-alpha.1`（官方源存在），alpha 通道因此依赖源兜底才能安装；`@deepseek-ai/dsh@0.1.5-alpha.1` 本身可正常启动（未认证首页返回 401）。
+已知上游事实：本机配置源 `https://registry.npmmirror.com` 缺 `@deepseek-ai/dsh-fs-local@0.1.5-alpha.1`（官方源存在），因此版本解析与安装固定使用 npm 官方源；`@deepseek-ai/dsh@0.1.5-alpha.1` 本身可正常启动（未认证首页返回 401）。
 
 ## 上下文
 
