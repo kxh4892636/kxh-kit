@@ -65,21 +65,24 @@ export const installedVersion = async (directory: string, version: string): Prom
   return inspectPackage(join(directory, version), version);
 };
 export const OFFICIAL_REGISTRY = "https://registry.npmjs.org";
+// 只认 npm 的错误码行：命令行里出现的 tag 文本、宽泛的 404 文案都不该影响分类。
 // 只有「配置的源里没有这个包或版本」才值得换官方源重试；网络故障重试官方源只会把等待翻倍。
-const REGISTRY_MISS =
-  /notarget|ETARGET|E404|no match found|no matching version|could not be found/i;
+const REGISTRY_MISS = /npm error code (?:ETARGET|E404)\b/;
 const npmWithRegistryFallback = async (
   npm: Npm,
   args: string[],
   launch: Launch,
-  timeout: number,
+  remaining: () => number,
 ): Promise<string> => {
   try {
-    return await npm(args, launch, timeout);
+    return await npm(args, launch, remaining());
   } catch (error) {
-    if (!REGISTRY_MISS.test(errorText(error))) throw error;
+    // 超时被杀的重试只会再超时一次，且其 stderr 可能是残缺的。
+    if ((error as { killed?: boolean }).killed || !REGISTRY_MISS.test(errorText(error)))
+      throw error;
     try {
-      return await npm([...args, "--registry=" + OFFICIAL_REGISTRY], launch, timeout);
+      // 两次尝试共享同一个 deadline，总耗时不会翻倍。
+      return await npm([...args, "--registry=" + OFFICIAL_REGISTRY], launch, remaining());
     } catch (fallback) {
       throw new Error(
         errorText(error) + "; official registry retry failed: " + errorText(fallback),
@@ -105,7 +108,7 @@ export const installTag = async (
         npm,
         ["view", "@deepseek-ai/dsh@" + tag, "version", "--json"],
         launch,
-        remaining(),
+        remaining,
       ),
     ),
   );
@@ -129,7 +132,7 @@ export const installTag = async (
         "@deepseek-ai/dsh@" + version,
       ],
       launch,
-      remaining(),
+      remaining,
     );
     remaining();
     await inspectPackage(temporary, version);
