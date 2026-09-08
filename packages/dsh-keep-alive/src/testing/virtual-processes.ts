@@ -19,7 +19,6 @@ export interface VirtualProcesses {
   spawnError: boolean;
   exitDuringReadiness: boolean;
   currentVersion: Version;
-  timers: Array<{ ms: number; task: () => void; cancelled: boolean }>;
   sleeps: Array<{
     ms: number;
     resolve: () => void;
@@ -43,7 +42,6 @@ const initialProcesses = (): Omit<VirtualProcesses, "io" | "crash" | "advance"> 
   spawnError: false,
   exitDuringReadiness: false,
   currentVersion: { version: "1.0.0", entry: "fixture" },
-  timers: [],
   sleeps: [],
 });
 // 测试替身不使用 class：可变字段与 io 由工厂函数与闭包提供。
@@ -68,13 +66,6 @@ export const createVirtualProcesses = (): VirtualProcesses => {
     );
   };
   const io: InstanceIo = {
-    schedule: (ms: number, task: () => void): (() => void) => {
-      const timer = { ms, task, cancelled: false };
-      os.timers.push(timer);
-      return (): void => {
-        timer.cancelled = true;
-      };
-    },
     now: (): number => os.time,
     wait: async (ms: number): Promise<void> => {
       if (ms === 250) {

@@ -1,8 +1,7 @@
-import { mkdir, writeFile, rm } from "node:fs/promises";
-import { join } from "node:path";
+import { rm } from "node:fs/promises";
 import { expect, test } from "vitest";
 import { installTag, installedVersion, runNpm, type Npm } from "./versions.js";
-import { fixture, temporary } from "../testing/fixture.js";
+import { fixture, temporary, writePackage } from "../testing/fixture.js";
 const launch = { cwd: process.cwd(), env: process.env as Record<string, string> };
 test("已安装版本复用，拒绝目录穿越和损坏元数据", async (): Promise<void> => {
   const f = await fixture();
@@ -27,14 +26,7 @@ test("精确版本在安装完成后才发布，安装错误可重试", async ()
     }
     expect(args.includes("@deepseek-ai/dsh@2.0.0-rc.1")).toBeTruthy();
     if (failed) throw new Error("network unavailable");
-    const prefix = args[args.indexOf("--prefix") + 1];
-    const directory = join(prefix, "node_modules", "@deepseek-ai", "dsh");
-    await mkdir(join(directory, "lib"), { recursive: true });
-    await writeFile(
-      join(directory, "package.json"),
-      JSON.stringify({ version: "2.0.0-rc.1", bin: { dsh: "lib/bin.js" } }),
-    );
-    await writeFile(join(directory, "lib", "bin.js"), "");
+    await writePackage(args[args.indexOf("--prefix") + 1], "2.0.0-rc.1");
     return "";
   };
   await expect(installTag(root, launch, "next", npm)).rejects.toThrow(/network/);

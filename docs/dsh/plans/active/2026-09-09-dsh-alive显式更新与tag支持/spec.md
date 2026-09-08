@@ -36,20 +36,26 @@ status: in_progress
 
 - `installLatest` 改为 `installTag(directory, launch, tag, npm)`：`npm view @deepseek-ai/dsh@<tag> version --json` 解析精确版本；命中已安装目录直接复用；安装仍在临时目录完成后原子改名。
 - `InstanceIo.latest` 改为 `prepare(directory, launch, tag)`，测试替身同步。
-- 共享准备函数（CLI 与 supervisor 复用）：解析 tag → 与该端口 `state.json` 记录比较 → 不同则安装并写入 `{version, tag}` → 返回 `{version, changed}`。
+- `prepareVersion(paths, launch, tag, prepare)`：CLI 与 supervisor 共用「解析通道版本 → 与该端口 `state.json` 记录比较 → 不同才写入 `{version, tag}` → 返回 `{version, tag, changed}`」这一不变量；`changed` 用于日志与结果说明。
+- `readRecordedState` 用 `versionSchema` 与 `tagSchema` 校验磁盘记录：`tag` 缺失或非法按 `latest` 处理并保留版本；内容损坏按「无记录」处理。
 
 ### 运行时（`src/runtime/instance.ts`）
 
 - 删除 `UPDATE_INTERVAL`、`scheduleUpdate`、`nextUpdateAt` 与同版抑制状态（`failedVersion`、`observedLatest`）。
 - `start(launch, tag)`：准备目标版本（失败时回退 `state.json` 缓存版本并记录错误）→ 停止现有实例 → 启动；重复 `start` 即重启（既有行为）。
-- `update(launch, tag)`：准备目标版本；有变化则安装并记录，**不启动、不重启**；无变化则不做任何事。运行中的实例保持原版本与原 PID；崩溃恢复仍启动正在运行的版本。
-- `status`：`tag` 反映该 supervisor 已知通道（未执行过 start/update 时为 `null`）；`prepared` 在有已记录但未运行的新版本时显示该版本，`start` 启动后清空。
+- `update(launch, tag)`：准备目标版本；有变化则安装并记录，**不启动、不重启**；无变化则不做任何事。运行中的实例保持原版本与原 PID；崩溃恢复仍启动正在运行的版本。两条路径都向该端口日志写入 `Prepared DSH <version> (tag <tag>)` 或 `No change for tag <tag> (DSH <version>)`，使「是否发生更新」可复核。
+- `status`：`tag`/`prepared` 在 supervisor 启动时从 `state.json` 恢复；`prepared` 表示「下次 `start` 将启动的版本」，当它与当前运行版本不同时显示（无运行版本时即记录版本），`start` 启动后清空。
+- 回退候选优先取正在运行的版本（已知可启动），其次取 `state.json` 记录版本；`state.json` 丢失时仍能回退。
+- `start` 先准备目标版本再停止现有实例：准备期间旧实例继续服务且仍受保活；准备失败且无回退版本时不动正在运行的实例，只记录错误。
+- 崩溃恢复只重启正在运行的版本；此前 `update` 记录的新版本会被恢复时的成功启动按运行版本重写 `state.json`（通道保留），下次 `start`/`update` 会重新解析。
 - 保留：新版启动失败 → 回退上一可运行版本并启动，`status.error` 记录 `Rolled back …`；回退也失败则 `failed` 并清理进程。
 
 ### 命令层（`src/commands.ts`）
 
 - 新增 `update(port, launch, tag, paths)`：该端口 supervisor 存在时发 `update` 请求（与其 start/stop 串行）；不存在时在 CLI 进程内直接准备版本（不拉起 supervisor、不启动实例），并合成 `stopped` 状态返回。
 - `update` 查询或安装失败时以错误退出，不改变已有版本；`start` 则回退缓存版本继续启动。
+- 旧版 supervisor 兼容：状态回复缺少 `tag` 字段即判定为旧版（`status` 的 `tag`/`prepared` 因此可选）。`start` 先让旧版退出、**等到控制通道不再应答**再拉起新版接管该端口（否则 start 可能被旧版接管或新版 listen 撞上未释放的管道），并拒绝缺少 `tag` 的应答；`update` 明确报错要求先执行 `start`——接管旧版必须停止实例，与「update 只更新、不启动」冲突。
+- 没有 supervisor 时的 `status` 从 `state.json` 报告通道与下次 `start` 将启动的版本；新建 supervisor 以同一来源初始化 `tag`/`prepared`，同一端口两种来源给出相同答案。
 
 ### 状态文件
 
@@ -86,6 +92,6 @@ Windows / PowerShell；仓库使用 pnpm 与 vite-plus，本机 Node.js v24.19.0
 
 | #   | Issue                                                                | 状态        | 阻塞于 | 下一步         |
 | --- | -------------------------------------------------------------------- | ----------- | ------ | -------------- |
-| 01  | [版本准备按 tag 参数化](01-版本准备按tag参数化.md)                   | in_progress | —      | /code-delivery |
-| 02  | [移除自动更新与显式 update 命令](02-移除自动更新与显式update命令.md) | pending     | 01     | /code-delivery |
+| 01  | [版本准备按 tag 参数化](01-版本准备按tag参数化.md)                   | completed   | —      | /code-delivery |
+| 02  | [移除自动更新与显式 update 命令](02-移除自动更新与显式update命令.md) | in_progress | 01     | /code-delivery |
 | 03  | [真实通道切换冒烟与文档同步](03-真实通道切换冒烟与文档同步.md)       | pending     | 02     | /code-delivery |

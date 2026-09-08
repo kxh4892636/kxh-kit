@@ -4,8 +4,9 @@ import { access, mkdir, rename, rm } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
-import { readJson } from "../paths.js";
-import type { Launch } from "../contract.js";
+import { readJson, saveJson } from "../paths.js";
+import { tagSchema, type Launch } from "../contract.js";
+import type { Paths } from "../paths.js";
 const exec = promisify(execFile);
 const versionSchema = z.string().regex(/^\d+\.\d+\.\d+(?:-[a-zA-Z0-9.-]+)?(?:\+[a-zA-Z0-9.-]+)?$/);
 // 未显式指定通道时跟随 npm 的 latest 标签。
@@ -14,6 +15,25 @@ export interface Version {
   version: string;
   entry: string;
 }
+// state.json 记录该端口最近启动的版本与当时跟随的通道。
+export interface RecordedState {
+  version: string;
+  tag: string;
+}
+const recordedSchema = z.object({ version: versionSchema, tag: z.string().optional() });
+export const readRecordedState = async (path: string): Promise<RecordedState | undefined> => {
+  try {
+    const recorded = recordedSchema.parse(await readJson(path));
+    // 旧状态文件没有 tag 字段；通道也可能被人工改成非法值。两种情况都按默认通道处理。
+    const tag = tagSchema.safeParse(recorded.tag ?? DEFAULT_TAG);
+    return { version: recorded.version, tag: tag.success ? tag.data : DEFAULT_TAG };
+  } catch {
+    // 读取失败或内容损坏时按「没有记录」处理：调用方回退到当前通道与全新安装。
+    return undefined;
+  }
+};
+export const saveRecordedState = async (path: string, recorded: RecordedState): Promise<void> =>
+  saveJson(path, recorded);
 export type Npm = (args: string[], launch: Launch, timeout?: number) => Promise<string>;
 export const runNpm: Npm = async (
   args: string[],
@@ -96,3 +116,26 @@ export const installTag = async (
     await rm(temporary, { recursive: true, force: true });
   }
 };
+export interface PreparedVersion {
+  version: Version;
+  tag: string;
+  changed: boolean;
+}
+// 解析通道版本并与该端口记录比较，有变化才写入 state.json；supervisor 与 CLI 共用这一不变量。
+export const prepareVersion = async (
+  paths: Paths,
+  launch: Launch,
+  tag: string,
+  prepare: (directory: string, launch: Launch, tag: string) => Promise<Version> = installTag,
+): Promise<PreparedVersion> => {
+  const recorded = await readRecordedState(paths.state);
+  const version = await prepare(paths.versions, launch, tag);
+  const changed = version.version !== recorded?.version || tag !== recorded?.tag;
+  if (changed) await saveRecordedState(paths.state, { version: version.version, tag });
+  return { version, tag, changed };
+};
+// supervisor 与 CLI 两条路径共用同一句日志，避免「是否发生更新」的说法漂移。
+export const preparedMessage = (prepared: PreparedVersion): string =>
+  prepared.changed
+    ? "Prepared DSH " + prepared.version.version + " (tag " + prepared.tag + ")"
+    : "No change for tag " + prepared.tag + " (DSH " + prepared.version.version + ")";

@@ -2,6 +2,7 @@ import { createConnection, createServer } from "node:net";
 import { randomUUID } from "node:crypto";
 import { expect, test } from "vitest";
 import { request, serve } from "./transport.js";
+import type { Reply, Request } from "../contract.js";
 const pipe = (): string => "\\\\.\\pipe\\dsh-test-" + randomUUID();
 const status = {
   port: 1234,
@@ -10,31 +11,15 @@ const status = {
   version: null,
   error: null,
   log: "file",
+  tag: null,
+  prepared: null,
 };
 test("控制通道传递成功与业务错误", async (): Promise<void> => {
   const address = pipe();
-  const server = await serve(
-    address,
-    async (
-      message:
-        | { command: "start"; launch: { cwd: string; env: Record<string, string> } }
-        | { command: "stop" }
-        | { command: "status" },
-    ): Promise<{
-      ok: true;
-      status: {
-        port: number;
-        state: "stopped";
-        pid: null;
-        version: null;
-        error: null;
-        log: string;
-      };
-    }> => {
-      if (message.command === "stop") throw new Error("stop failed");
-      return { ok: true, status };
-    },
-  );
+  const server = await serve(address, async (message: Request): Promise<Reply> => {
+    if (message.command === "stop") throw new Error("stop failed");
+    return { ok: true, status };
+  });
   try {
     expect(await request(address, { command: "status" })).toEqual({ ok: true, status });
     expect(await request(address, { command: "stop" })).toEqual({
@@ -42,20 +27,7 @@ test("控制通道传递成功与业务错误", async (): Promise<void> => {
       error: "stop failed",
     });
     await expect(
-      serve(
-        address,
-        async (): Promise<{
-          ok: true;
-          status: {
-            port: number;
-            state: "stopped";
-            pid: null;
-            version: null;
-            error: null;
-            log: string;
-          };
-        }> => ({ ok: true, status }),
-      ),
+      serve(address, async (): Promise<Reply> => ({ ok: true, status })),
     ).rejects.toThrow();
   } finally {
     server.close();
@@ -81,20 +53,7 @@ test("损坏回复、断连和超时不会被当作成功", async (): Promise<vo
 });
 test("非法请求被拒绝，超大请求断开", async (): Promise<void> => {
   const address = pipe();
-  const server = await serve(
-    address,
-    async (): Promise<{
-      ok: true;
-      status: {
-        port: number;
-        state: "stopped";
-        pid: null;
-        version: null;
-        error: null;
-        log: string;
-      };
-    }> => ({ ok: true, status }),
-  );
+  const server = await serve(address, async (): Promise<Reply> => ({ ok: true, status }));
   try {
     for (const input of ['{"command":"bad"}\n', "x".repeat(1024 * 1024 + 1)]) {
       const result = await new Promise<string>(

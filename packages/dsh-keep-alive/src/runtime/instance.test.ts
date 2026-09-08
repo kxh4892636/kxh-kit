@@ -6,14 +6,15 @@ import { createVirtualProcesses } from "../testing/virtual-processes.js";
 import { pathsFor, preparePaths } from "../paths.js";
 import type { Launch } from "../contract.js";
 const launch: Launch = { cwd: process.cwd(), env: { MARKER: "first" } };
+const TAG = "latest";
 test("重复与并发启动各完成一次替换，停止后不恢复", async (): Promise<void> => {
   const f = await fixture();
   const os = createVirtualProcesses();
   const instance = createInstance(f.port, f.paths, os.io);
-  const first = await instance.start(launch);
+  const first = await instance.start(launch, TAG);
   const [second, third] = await Promise.all([
-    instance.start(launch),
-    instance.start({ ...launch, env: { MARKER: "last" } }),
+    instance.start(launch, TAG),
+    instance.start({ ...launch, env: { MARKER: "last" } }, TAG),
   ]);
   expect([first.pid, second.pid, third.pid]).toEqual([100, 101, 102]);
   expect(os.launched[2].env.MARKER).toBe("last");
@@ -27,7 +28,7 @@ test("退出按退避恢复，稳定60秒后重置；停止取消待恢复", asy
   const f = await fixture();
   const os = createVirtualProcesses();
   const instance = createInstance(f.port, f.paths, os.io);
-  await instance.start(launch);
+  await instance.start(launch, TAG);
   for (const wait of [1000, 2000, 4000, 8000, 16000, 30000, 30000]) {
     os.crash();
     expect(instance.status().state).toBe("backoff");
@@ -59,10 +60,10 @@ test("安装、端口、spawn、就绪和清理失败不报告成功", async ():
     os.exitDuringReadiness = scenario === "readiness-exit";
     const instance = createInstance(4321, paths, os.io);
     if (scenario === "cleanup") {
-      await instance.start(launch);
+      await instance.start(launch, TAG);
       os.cleanupError = true;
     }
-    await expect(instance.start(launch)).rejects.toThrow();
+    await expect(instance.start(launch, TAG)).rejects.toThrow();
     expect(instance.status().state).toBe("failed");
     if (scenario === "timeout") expect(instance.status().error!).toMatch(/log:/);
     os.cleanupError = false;
@@ -73,7 +74,7 @@ test("日志故障不让进程事件处理抛出", async (): Promise<void> => {
   const f = await fixture();
   const os = createVirtualProcesses();
   const instance = createInstance(f.port, f.paths, os.io);
-  await instance.start(launch);
+  await instance.start(launch, TAG);
   await rm(f.paths.log);
   await rm(f.paths.directory, { recursive: true, force: true });
   expect((): boolean => os.current!.stdout!.emit("data", Buffer.from("data"))).not.toThrow();
@@ -84,7 +85,7 @@ test("恢复时启动失败继续退避，手动停止终止恢复", async (): P
   const f = await fixture();
   const os = createVirtualProcesses();
   const instance = createInstance(f.port, f.paths, os.io);
-  await instance.start(launch);
+  await instance.start(launch, TAG);
   os.crash();
   os.occupied = true;
   await os.advance();
@@ -116,7 +117,7 @@ test("建立身份期间退出且 PID 重用时不得停止外部进程", async 
     },
   };
   const instance = createInstance(f.port, f.paths, io);
-  await expect(instance.start(launch)).rejects.toThrow(/identity/);
+  await expect(instance.start(launch, TAG)).rejects.toThrow(/identity/);
   expect(terminations).toBe(0);
   await instance.stop();
 });
