@@ -1,10 +1,10 @@
 import { describe, expect, test, vi } from "vitest";
 import { AnkiOperationError } from "../errors";
 import type { Logger } from "../logger";
-import { scriptedPort } from "../testing/test-harness";
+import { scriptedPort, type Invocation } from "../testing/test-harness";
 import { computeDistribution, deckScopeQuery } from "./deck-metrics";
 import { deckStats } from "./deck-stats";
-import { createDeck, listDecks, moveCards, validateDeckName } from "./decks";
+import { createDeck, deleteDeck, listDecks, moveCards, validateDeckName } from "./decks";
 
 const log = (): Logger => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn() });
 
@@ -293,6 +293,149 @@ describe("deck operation boundaries", (): void => {
     ).rejects.toMatchObject({
       action: "deckStats",
       details: { field: "total" },
+    });
+  });
+});
+
+describe("deck deletion boundaries", (): void => {
+  const actions = (invocations: readonly Invocation[]): readonly string[] =>
+    invocations.map((entry: Invocation): string => entry.action);
+
+  test("deletes the target subtree and reports its scope", async (): Promise<void> => {
+    const invocations: Invocation[] = [];
+    let nameCalls = 0;
+    const result = await deleteDeck(
+      scriptedPort((action: string): unknown => {
+        if (action === "deckNames") {
+          nameCalls += 1;
+          return nameCalls === 1 ? ["D", "D::A", "D::A::B", "D2", "D2::A"] : ["D2", "D2::A"];
+        }
+        if (action === "findCards") return [1, 2, 3];
+        return null;
+      }, invocations),
+      "D",
+    );
+
+    expect(result).toMatchObject({
+      success: true,
+      deckName: "D",
+      deletedDecks: ["D", "D::A", "D::A::B"],
+      deletedChildDecks: ["D::A", "D::A::B"],
+      cardsDeleted: 3,
+    });
+    expect(actions(invocations)).toEqual(["deckNames", "findCards", "deleteDecks", "deckNames"]);
+    expect(invocations[1]?.params).toEqual({ query: '"deck:D"' });
+    expect(invocations[2]?.params).toEqual({ decks: ["D"], cardsToo: true });
+  });
+
+  test("reports a childless deck and tolerates a null findCards result", async (): Promise<void> => {
+    let nameCalls = 0;
+    const result = await deleteDeck(
+      scriptedPort((action: string): unknown => {
+        if (action === "deckNames") {
+          nameCalls += 1;
+          return nameCalls === 1 ? ["D"] : [];
+        }
+        if (action === "findCards") return null;
+        return null;
+      }, []),
+      "D",
+    );
+    expect(result).toMatchObject({
+      success: true,
+      deletedDecks: ["D"],
+      deletedChildDecks: [],
+      cardsDeleted: 0,
+      message: 'Successfully deleted deck "D" and 0 card(s)',
+    });
+  });
+
+  test("fails loudly when the verification deck list is missing", async (): Promise<void> => {
+    let nameCalls = 0;
+    await expect(
+      deleteDeck(
+        scriptedPort((action: string): unknown => {
+          if (action === "deckNames") {
+            nameCalls += 1;
+            return nameCalls === 1 ? ["D"] : null;
+          }
+          if (action === "findCards") return [];
+          return null;
+        }, []),
+        "D",
+      ),
+    ).rejects.toMatchObject({
+      action: "deleteDecks",
+      message: "Deck deletion could not be verified: Anki returned no deck list",
+      hint: "Run nnf anki decks list to confirm the deck is gone",
+    });
+  });
+
+  test("rejects a missing deck before deleting anything", async (): Promise<void> => {
+    const invocations: Invocation[] = [];
+    await expect(
+      deleteDeck(
+        scriptedPort(
+          (action: string): unknown => (action === "deckNames" ? ["Other"] : null),
+          invocations,
+        ),
+        "D",
+      ),
+    ).rejects.toMatchObject({
+      action: "deleteDecks",
+      message: 'Deck "D" not found',
+      hint: "Run nnf anki decks list to see the existing deck names",
+    });
+    expect(actions(invocations)).toEqual(["deckNames"]);
+  });
+
+  test("reports decks that survive the deletion", async (): Promise<void> => {
+    await expect(
+      deleteDeck(
+        scriptedPort((action: string): unknown => {
+          if (action === "deckNames") return ["D", "D::A"];
+          if (action === "findCards") return [];
+          return null;
+        }, []),
+        "D",
+      ),
+    ).rejects.toMatchObject({
+      action: "deleteDecks",
+      message: "Deck deletion did not remove: D, D::A",
+      details: { remainingDecks: ["D", "D::A"] },
+    });
+  });
+
+  test.each([
+    ["deckNames", "bad", "Invalid AnkiConnect result for deckNames"],
+    ["findCards", ["bad"], "Invalid AnkiConnect result for findCards"],
+    ["deleteDecks", 42, "Invalid AnkiConnect result for deleteDecks"],
+  ])("rejects malformed %s responses", async (source, malformed, message): Promise<void> => {
+    const failure = await deleteDeck(
+      scriptedPort((action: string): unknown => {
+        if (action === source) return malformed;
+        if (action === "deckNames") return ["D"];
+        if (action === "findCards") return [];
+        return null;
+      }, []),
+      "D",
+    ).catch((error: unknown): unknown => error);
+
+    expect(failure).toBeInstanceOf(AnkiOperationError);
+    expect((failure as AnkiOperationError).action).toBe("deleteDecks");
+    expect((failure as AnkiOperationError).message).toContain(message);
+  });
+
+  test("normalizes primitive failures with a connection hint", async (): Promise<void> => {
+    await expect(
+      deleteDeck(
+        scriptedPort(async (): Promise<never> => Promise.reject("offline"), []),
+        "D",
+      ),
+    ).rejects.toMatchObject({
+      action: "deleteDecks",
+      message: "offline",
+      hint: "Make sure Anki is running and the deck name is valid",
     });
   });
 });

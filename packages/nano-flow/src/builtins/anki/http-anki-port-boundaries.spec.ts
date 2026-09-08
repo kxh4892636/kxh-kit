@@ -41,6 +41,7 @@ describe("HTTP Anki port boundaries", (): void => {
     "deleteNotes",
     "createDeck",
     "changeDeck",
+    "deleteDecks",
     "addTags",
     "removeTags",
     "clearUnusedTags",

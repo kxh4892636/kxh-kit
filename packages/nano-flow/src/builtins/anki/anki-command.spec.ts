@@ -6,6 +6,7 @@ import { createAnkiCommand, type AnkiDependencies } from "./anki-command";
 import type { AnkiConfig } from "./config";
 import { AnkiOperationError } from "./errors";
 import type { AnkiPort } from "./port";
+import { scriptedPort as handlerPort } from "./testing/test-harness";
 
 interface Invocation {
   readonly action: string;
@@ -55,6 +56,7 @@ describe("nnf anki decks", (): void => {
     ["decks", "stats", "--help"],
     ["decks", "create", "--help"],
     ["decks", "move", "--help"],
+    ["decks", "delete", "--help"],
   ])("renders offline help for %s", async (...argv: string[]): Promise<void> => {
     let connections = 0;
     const result = await invoke(argv, {
@@ -324,5 +326,100 @@ describe("nnf anki decks", (): void => {
       connect: (): AnkiPort => scriptedPort({}, []),
     });
     expect(result.code).toBe(2);
+  });
+
+  test("previews deck deletion with zero Anki actions", async (): Promise<void> => {
+    const invocations: Invocation[] = [];
+    const result = await invoke(["decks", "delete", "--name", "Work", "--yes", "--dry-run"], {
+      connect: (): AnkiPort => scriptedPort({}, invocations),
+    });
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      dryRun: true,
+      preview: {
+        actions: [{ action: "deleteDecks", params: { decks: ["Work"], cardsToo: true } }],
+      },
+    });
+    expect(invocations).toEqual([]);
+  });
+
+  test("deletes a deck subtree through the expected Anki actions", async (): Promise<void> => {
+    const invocations: Invocation[] = [];
+    let nameCalls = 0;
+    const result = await invoke(["decks", "delete", "--name", "Work", "--yes"], {
+      connect: (): AnkiPort =>
+        handlerPort((action: string): unknown => {
+          if (action === "deckNames") {
+            nameCalls += 1;
+            return nameCalls === 1 ? ["Work", "Work::Child", "Other"] : ["Other"];
+          }
+          if (action === "findCards") return [1, 2];
+          return null;
+        }, invocations),
+    });
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout)).toMatchObject({
+      success: true,
+      deckName: "Work",
+      deletedDecks: ["Work", "Work::Child"],
+      deletedChildDecks: ["Work::Child"],
+      cardsDeleted: 2,
+    });
+    expect(invocations.map((entry: Invocation): string => entry.action)).toEqual([
+      "deckNames",
+      "findCards",
+      "deleteDecks",
+      "deckNames",
+    ]);
+  });
+
+  test("requires --yes, validates the deck name, and blocks read-only deletion", async (): Promise<void> => {
+    const unconfirmed = await invoke(["decks", "delete", "--name", "Work"], {
+      connect: (): AnkiPort => scriptedPort({}, []),
+    });
+    expect(unconfirmed.code).toBe(2);
+
+    const invocations: Invocation[] = [];
+    const emptyPart = await invoke(["decks", "delete", "--name", "Work::", "--yes"], {
+      connect: (): AnkiPort => scriptedPort({}, invocations),
+    });
+    expect(emptyPart.code).toBe(2);
+    expect(JSON.parse(emptyPart.stderr)).toMatchObject({
+      success: false,
+      error: "Deck name parts cannot be empty",
+    });
+
+    const emptyName = await invoke(["decks", "delete", "--name", "", "--yes"], {
+      connect: (): AnkiPort => scriptedPort({}, invocations),
+    });
+    expect(emptyName.code).toBe(2);
+    expect(JSON.parse(emptyName.stderr)).toMatchObject({
+      success: false,
+      error: "Deck name parts cannot be empty",
+    });
+    expect(invocations).toEqual([]);
+
+    let connections = 0;
+    const readOnly = await invoke(["--read-only", "decks", "delete", "--name", "Work", "--yes"], {
+      connect: (): AnkiPort => {
+        connections += 1;
+        return scriptedPort({}, []);
+      },
+    });
+    expect([readOnly.code, connections]).toEqual([1, 0]);
+    expect(JSON.parse(readOnly.stderr)).toMatchObject({ action: "deleteDecks", success: false });
+  });
+
+  test("surfaces a missing deck as a runtime error with the deck-list hint", async (): Promise<void> => {
+    const result = await invoke(["decks", "delete", "--name", "Work", "--yes"], {
+      connect: (): AnkiPort => scriptedPort({ deckNames: ["Other"] }, []),
+    });
+    expect(result.code).toBe(1);
+    expect(JSON.parse(result.stderr)).toMatchObject({
+      success: false,
+      action: "deleteDecks",
+      error: 'Deck "Work" not found',
+      hint: "Run nnf anki decks list to see the existing deck names",
+    });
   });
 });

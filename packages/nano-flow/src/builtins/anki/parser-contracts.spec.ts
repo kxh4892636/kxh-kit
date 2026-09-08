@@ -1,5 +1,5 @@
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { cardIds, numbers } from "./anki-command";
+import { cardIds, numbers } from "./decks";
 import {
   cleanHtml,
   deckScopeQuery,
@@ -207,6 +207,7 @@ const cases: readonly FailureCase[] = [
   { name: "decks stats", argv: ["decks", "stats", "--deck", "Work"] },
   { name: "decks create", argv: ["decks", "create", "--name", "Work"] },
   { name: "decks move", argv: ["decks", "move", "--card-id", "1", "--deck", "Work"] },
+  { name: "decks delete", argv: ["decks", "delete", "--name", "Work", "--yes"] },
   { name: "cards due", argv: ["cards", "due"] },
   { name: "cards list", argv: ["cards", "list"] },
   { name: "cards present", argv: ["cards", "present", "--card-id", "1"] },

@@ -2,6 +2,13 @@ import type { JsonValue } from "../../../cli/types";
 import { AnkiOperationError } from "../errors";
 import type { Logger } from "../logger";
 import type { AnkiPort } from "../port";
+import {
+  nullResponse,
+  numberArrayResponse,
+  parseResponse,
+  stringArrayResponse,
+} from "../responses";
+import { deckScopeQuery } from "./deck-metrics";
 
 const stringArray = (value: unknown, action: string): readonly string[] => {
   if (
@@ -25,8 +32,10 @@ const isJsonRecord = (value: JsonValue | undefined): value is Readonly<Record<st
 
 const withHint = (error: unknown, action: string, hint: string): never => {
   const details = error instanceof AnkiOperationError ? error.details : undefined;
+  // 已带 hint 的错误保留了更具体的修复指引, 不再被调用方的通用提示覆盖。
+  const existing = error instanceof AnkiOperationError ? error.hint : undefined;
   throw new AnkiOperationError(error instanceof Error ? error.message : String(error), action, {
-    hint,
+    hint: existing ?? hint,
     ...(details === undefined ? {} : { details }),
   });
 };
@@ -228,5 +237,80 @@ export const moveCards = async (
       "changeDeck",
       "Make sure Anki is running and the card IDs / deck name are valid",
     );
+  }
+};
+
+export const deleteDeck = async (port: AnkiPort, deckName: string): Promise<JsonValue> => {
+  try {
+    const names = parseResponse(
+      "deckNames",
+      stringArrayResponse,
+      await port.invoke<unknown>("deckNames"),
+    );
+    if (names === null || !names.includes(deckName)) {
+      throw new AnkiOperationError(`Deck "${deckName}" not found`, "deleteDecks", {
+        hint: "Run nnf anki decks list to see the existing deck names",
+        details: { deckName },
+      });
+    }
+    // AnkiConnect 的 deleteDecks 会连同子牌组一起删除, 因此先把整棵子树纳入影响面报告。
+    const deletedDecks = names.filter(
+      (name: string): boolean => name === deckName || name.startsWith(`${deckName}::`),
+    );
+    const deletedChildDecks = deletedDecks.filter((name: string): boolean => name !== deckName);
+    const cards = parseResponse(
+      "findCards",
+      numberArrayResponse,
+      await port.invoke<unknown>("findCards", { query: deckScopeQuery(deckName) }),
+    );
+    parseResponse(
+      "deleteDecks",
+      nullResponse,
+      await port.invoke<unknown>("deleteDecks", { decks: [deckName], cardsToo: true }),
+    );
+    // 上游对不存在的牌组同样返回 null, 只有复核才能区分「已删除」与「什么都没发生」。
+    const remaining = parseResponse(
+      "deckNames",
+      stringArrayResponse,
+      await port.invoke<unknown>("deckNames"),
+    );
+    if (remaining === null) {
+      throw new AnkiOperationError(
+        `Deck deletion could not be verified: Anki returned no deck list`,
+        "deleteDecks",
+        {
+          hint: "Run nnf anki decks list to confirm the deck is gone",
+          details: { deckName },
+        },
+      );
+    }
+    const survivors = deletedDecks.filter((name: string): boolean => remaining.includes(name));
+    if (survivors.length > 0) {
+      throw new AnkiOperationError(
+        `Deck deletion did not remove: ${survivors.join(", ")}`,
+        "deleteDecks",
+        {
+          hint: "Run nnf anki decks list to inspect the remaining decks",
+          details: { remainingDecks: survivors },
+        },
+      );
+    }
+    const cardsDeleted = cards?.length ?? 0;
+    const subdeckCount = deletedChildDecks.length;
+    return {
+      success: true,
+      deckName,
+      deletedDecks,
+      deletedChildDecks,
+      cardsDeleted,
+      message:
+        subdeckCount === 0
+          ? `Successfully deleted deck "${deckName}" and ${cardsDeleted} card(s)`
+          : `Successfully deleted deck "${deckName}", ${subdeckCount} subdeck(s) and ${cardsDeleted} card(s)`,
+      warning: "The deck, its subdecks and their cards have been permanently deleted",
+      hint: "Run nnf anki sync to propagate the deletion to other devices",
+    };
+  } catch (error) {
+    return withHint(error, "deleteDecks", "Make sure Anki is running and the deck name is valid");
   }
 };

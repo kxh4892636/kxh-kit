@@ -18,7 +18,7 @@ describe("builtin discovery", (): void => {
     const commands = builtinModules.map((factory) => factory());
     const contract = JSON.stringify(commands);
     expect(createHash("sha256").update(contract).digest("hex")).toBe(
-      "3b525d7aae83656c71b82c720ae9cf4255cd903430e7cab004a01fe9cf730a34",
+      "69350038d128ce11f773a3e6df19b7b4adada1902b61dfe25bdbbfe3ee34e0cc",
     );
   });
 });

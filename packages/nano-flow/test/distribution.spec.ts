@@ -105,7 +105,12 @@ const readBody = (request: IncomingMessage): Promise<string> =>
     request.on("error", reject);
   });
 
-const actionFromBody = (body: string): string => {
+const requestFromBody = (
+  body: string,
+): {
+  readonly action: string;
+  readonly params: Readonly<Record<string, unknown>>;
+} => {
   const value: unknown = JSON.parse(body);
   if (
     typeof value !== "object" ||
@@ -115,20 +120,36 @@ const actionFromBody = (body: string): string => {
   ) {
     throw new Error("Fake AnkiConnect received an invalid request");
   }
-  return value.action;
+  const params =
+    "params" in value && typeof value.params === "object" && value.params !== null
+      ? (value.params as Readonly<Record<string, unknown>>)
+      : {};
+  return { action: value.action, params };
 };
 
 const startFakeAnki = (): Promise<FakeAnkiServer> =>
   new Promise(
     (resolve: (server: FakeAnkiServer) => void, reject: (reason?: unknown) => void): void => {
       const actions: string[] = [];
+      const deletedDecks = new Set<string>();
       const server: Server = createServer(
         (request: IncomingMessage, response: ServerResponse): void => {
           void readBody(request)
             .then((body: string): void => {
-              const action = actionFromBody(body);
+              const { action, params } = requestFromBody(body);
               actions.push(action);
-              const result: unknown = action === "deckNames" ? ["Default"] : 42;
+              const deleted = action === "deleteDecks" ? params["decks"] : undefined;
+              if (Array.isArray(deleted)) {
+                for (const deck of deleted) if (typeof deck === "string") deletedDecks.add(deck);
+              }
+              const result: unknown =
+                action === "deckNames"
+                  ? ["Default"].filter((name: string): boolean => !deletedDecks.has(name))
+                  : action === "findCards"
+                    ? []
+                    : action === "deleteDecks"
+                      ? null
+                      : 42;
               response.setHeader("Content-Type", "application/json");
               response.end(JSON.stringify({ result, error: null }));
             })
@@ -192,7 +213,7 @@ const helpPaths = [
   ]),
   ["anki"],
   ...Object.entries({
-    decks: ["list", "stats", "create", "move"],
+    decks: ["list", "stats", "create", "move", "delete"],
     notes: ["add", "add-batch", "find", "info", "update", "delete"],
     models: [
       "list",
@@ -418,6 +439,33 @@ const verifyAnkiOperations = async (fixture: DistributionFixture): Promise<void>
       parentExisted: false,
     });
     expect(server.actions).toEqual(["deckNames", "deckNames", "createDeck"]);
+    const deletion = await invokeJson(fixture, [
+      "anki",
+      "--anki-connect",
+      server.url,
+      "decks",
+      "delete",
+      "--name",
+      "Default",
+      "--yes",
+      "--compact",
+    ]);
+    expect(deletion).toMatchObject({
+      success: true,
+      deckName: "Default",
+      deletedDecks: ["Default"],
+      deletedChildDecks: [],
+      cardsDeleted: 0,
+    });
+    expect(server.actions).toEqual([
+      "deckNames",
+      "deckNames",
+      "createDeck",
+      "deckNames",
+      "findCards",
+      "deleteDecks",
+      "deckNames",
+    ]);
   } finally {
     await server.close();
   }

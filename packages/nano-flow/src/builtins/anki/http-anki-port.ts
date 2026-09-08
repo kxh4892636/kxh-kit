@@ -22,6 +22,7 @@ const isWriteAction = (action: string): boolean =>
     "deleteNotes",
     "createDeck",
     "changeDeck",
+    "deleteDecks",
     "addTags",
     "removeTags",
     "clearUnusedTags",
