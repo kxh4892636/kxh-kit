@@ -9,7 +9,7 @@
 - [nano-mem](./docs/nano-mem/CONTEXT.md) - Nano Mem 业务域：通过 agent skill 与本地 CLI 管理记忆的形成、检索、使用、衰减、恢复和删除。
 - [diff-viewer](./docs/diff-viewer/CONTEXT.md) - Diff Viewer 业务域：Electron 桌面的多仓库 git diff 阅读工具。
 - [herdr](./docs/herdr/CONTEXT.md) - Herdr 扩展业务域：观察 coding agent 运行状态并执行可审计的自动化工作流。
-- [dsh](./docs/dsh/CONTEXT.md) - DSH 扩展业务域：工作区自研的 DeepSeek Harness 插件。
+- [dsh](./docs/dsh/CONTEXT.md) - DSH 扩展业务域：工作区自研的 DeepSeek Harness 插件与后台运行管理工具。
 
 ## Relationships
 

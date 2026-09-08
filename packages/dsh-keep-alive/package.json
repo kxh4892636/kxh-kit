@@ -1,0 +1,37 @@
+{
+  "name": "dsh-keep-alive",
+  "version": "0.0.1",
+  "description": "Keep DSH running after the terminal closes",
+  "license": "MIT",
+  "bin": {
+    "dsh-keep-alive": "dist/main.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "os": [
+    "win32"
+  ],
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "check": "tsc --noEmit && vp check",
+    "test": "tsc -p tsconfig.test.json && node --test --test-concurrency=1 \".test-dist/**/*.test.js\"",
+    "test:coverage": "tsc -p tsconfig.test.json && c8 --all --src .test-dist --include \".test-dist/**/*.js\" --exclude \"**/*.test.js\" --exclude \"**/testing/**\" --extension .js --exclude-after-remap=false --reporter=text --reporter=json-summary --reporter=html --check-coverage --lines 80 --functions 80 --branches 80 --statements 80 node --test --test-concurrency=1 \".test-dist/**/*.test.js\""
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@typescript/native": "catalog:",
+    "c8": "catalog:",
+    "typescript": "catalog:",
+    "vite-plus": "catalog:"
+  },
+  "engines": {
+    "node": ">=24.19.0"
+  }
+}
