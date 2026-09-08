@@ -4,9 +4,7 @@ id: c0868707-8a02-5c94-8be4-de302322de56
 
 # channel 通信
 
-channel 通信是什么？无缓冲 channel是什么？有缓冲 channel是什么？
-
-## channel 通信是什么
+## channel 通信是什么, 如何声明使用?
 
 ### channel 通信是什么的核心规则
 
@@ -26,7 +24,7 @@ func main() {
 }
 ```
 
-## 无缓冲 channel
+## 无缓冲 channel 的同步语义是什么?
 
 ### 无缓冲 channel的核心规则
 
@@ -51,7 +49,7 @@ func main() {
 }
 ```
 
-## 有缓冲 channel
+## 有缓冲 channel 的阻塞条件是什么?
 
 ### 有缓冲 channel的核心规则
 

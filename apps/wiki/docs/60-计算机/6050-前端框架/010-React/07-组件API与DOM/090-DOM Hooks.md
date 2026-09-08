@@ -4,9 +4,7 @@ id: ae3437ae-584c-44ee-8bcb-c4ecf25001e7
 
 # DOM Hooks
 
-useFormStatus 如何读取表单提交状态？
-
-## useFormStatus
+## useFormStatus 的作用与使用条件是什么?
 
 - 只能在 `<form>` 内的组件中使用;
 - 返回 `{ pending, data, method, action }`;
@@ -29,14 +27,14 @@ function Form() {
 }
 ```
 
-## 返回值
+## useFormStatus 的返回值有哪些?
 
 - `pending`: 是否正在提交;
 - `data`: 正在提交的 FormData;
 - `method`: GET/POST;
 - `action`: 当前 action 引用;
 
-## 注意
+## useFormStatus 有哪些注意事项?
 
 - 必须由 `<form>` 祖先提供状态;
 - 与 `useActionState` 不同: 它读取最近的 form 状态, 不管理 state;

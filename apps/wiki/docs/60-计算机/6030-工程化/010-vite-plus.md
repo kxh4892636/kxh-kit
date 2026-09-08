@@ -4,9 +4,7 @@ id: 8ab3ae09-612b-4fd0-985a-179c450331ed
 
 # Vite+
 
-Vite+ 解决了什么问题？全局命令 `vp` 与项目依赖 `vite-plus` 如何配合？面对常见开发任务时应该选择哪个命令？新项目和已有项目分别如何开始使用 Vite+？`vite.config.ts` 如何统一配置工具？为什么 `vp build` 与 `vp run build` 不是一回事？测试、提交检查与 CI 如何组成一条质量门禁？采用 Vite+ 前需要理解哪些边界？
-
-## Vite+ 为什么要统一 Web 工具链
+## Vite+ 为什么要统一 Web 工具链?
 
 - Web 工具链: 开发 Web 项目时使用的一组工具，例如运行 Node.js、安装依赖、启动开发服务器、检查代码、测试和构建;
 - 传统问题: 每项工作可能由不同工具负责，命令和配置散落在多个文件中，新成员必须先学会如何拼装整套流程;
@@ -26,7 +24,7 @@ Vite+ 解决了什么问题？全局命令 `vp` 与项目依赖 `vite-plus` 如�
 | 库打包         | tsdown           | 把库源码转换成可发布的文件       |
 | 任务编排       | Vite Task        | 按依赖关系执行并缓存多个任务     |
 
-## `vp` 与 `vite-plus` 如何配合
+## `vp` 与 `vite-plus` 如何配合?
 
 - `vp`: 安装在电脑上的全局命令行入口，负责创建或迁移项目、选择 Node.js 与包管理器，并把命令交给项目工具执行;
 - `vite-plus`: 安装在项目中的本地依赖，保存该项目实际使用的 Vite+ 版本，并提供配置类型与工具实现;
@@ -34,7 +32,7 @@ Vite+ 解决了什么问题？全局命令 `vp` 与项目依赖 `vite-plus` 如�
 - 包管理器: `vp install` 会根据项目声明或锁文件选择 pnpm、npm、Yarn 或 Bun，不需要开发者手动切换安装命令;
 - Node.js 作用域: `vp env default <版本>` 设置全局默认版本，`vp env pin <版本>` 固定项目版本，`vp env use <版本>` 只切换当前终端会话;
 
-## 面对开发任务时应该选择哪个命令
+## 面对开发任务时应该选择哪个命令?
 
 | 任务           | 命令                            | 实际作用                                  |
 | -------------- | ------------------------------- | ----------------------------------------- |
@@ -55,7 +53,7 @@ Vite+ 解决了什么问题？全局命令 `vp` 与项目依赖 `vite-plus` 如�
 | 升级 Vite+     | `vp upgrade`                    | 升级电脑上的全局 `vp`                     |
 | 删除 Vite+     | `vp implode`                    | 删除全局 `vp` 及其管理的数据              |
 
-## 新项目如何跑通最小开发流程
+## 新项目如何跑通最小开发流程?
 
 - 创建流程: `vp create` 负责生成项目，随后进入生成的目录执行其余命令;
 - 迁移流程: 已有 Vite 项目从项目根目录执行 `vp migrate`，不需要重新创建项目;
@@ -73,7 +71,7 @@ vp build
 vp preview
 ```
 
-## `vite.config.ts` 如何统一配置工具
+## `vite.config.ts` 如何统一配置工具?
 
 - 配置中心: `vite.config.ts` 同时保存 Vite 原生配置和 Vite+ 扩展配置，减少顶层配置文件数量;
 - Vite 原生配置: `server`、`build`、`preview` 继续控制开发、构建与预览;
@@ -106,7 +104,7 @@ export default defineConfig({
 });
 ```
 
-## 为什么内置命令与 `vp run` 不能混用
+## 为什么内置命令与 `vp run` 不能混用?
 
 - 内置命令: `vp build` 和 `vp test` 的含义由 Vite+ 固定，不能被 `package.json` 中的同名脚本覆盖;
 - 自定义任务: `vp run <任务>` 明确表示执行项目脚本或 `run.tasks` 中的任务;
@@ -118,7 +116,7 @@ export default defineConfig({
 | `vp test`      | Vite+ 内置的 Vitest 测试    |
 | `vp run test`  | 项目中的 `test` 脚本或任务  |
 
-## 测试、提交检查与 CI 如何组成质量门禁
+## 测试、提交检查与 CI 如何组成质量门禁?
 
 - 测试导入: 普通测试从 `vite-plus/test` 导入 `describe`、`it`、`expect` 等 API，由 Vite+ 转出项目配套的 Vitest;
 - 测试模式: `vp test` 默认运行一次；需要持续监听文件变化时使用 `vp test watch`;
@@ -134,7 +132,7 @@ export default defineConfig({
 - run: vp build
 ```
 
-## 采用 Vite+ 前需要理解哪些边界
+## 采用 Vite+ 前需要理解哪些边界?
 
 - 适用对象: Vite+ 适合希望统一现代 Web 工具链的项目，不等于每个项目都必须启用全部能力;
 - 配置边界: `vp check` 是否包含类型检查取决于 `typeAware` 与 `typeCheck` 配置，不能只凭命令名称推断;

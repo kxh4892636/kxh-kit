@@ -4,9 +4,7 @@ id: f7075127-36df-45e7-9635-2fd79c73fa6d
 
 # Once
 
-Once是什么？Once如何声明或使用？
-
-## Once是什么
+## Once 是什么?
 
 ### Once是什么的核心规则
 
@@ -17,7 +15,7 @@ Once是什么？Once如何声明或使用？
 - panic 边界: `fn` 即使发生 panic 也被视为已经执行，后续 `Do` 不会自动重试;
 - 不可复制: `sync.Once` 开始使用后不能再按值复制;
 
-## Once如何声明或使用
+## Once 如何声明或使用?
 
 ```go
 package main

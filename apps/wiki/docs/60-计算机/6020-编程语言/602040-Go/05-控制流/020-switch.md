@@ -4,9 +4,7 @@ id: f7614ee8-d45e-5745-bfc4-7991cade0cfe
 
 # switch
 
-表达式 switch是什么？无表达式 switch是什么？fallthrough是什么？
-
-## 表达式 switch
+## 表达式 switch 如何使用, 自动 break 与 default 有何规则?
 
 ### 表达式 switch的核心规则
 
@@ -29,7 +27,7 @@ func main() {
 }
 ```
 
-## 无表达式 switch
+## 无表达式 switch 如何使用, 等价于什么写法?
 
 ### 无表达式 switch的写法
 
@@ -47,7 +45,7 @@ func main() {
 }
 ```
 
-## fallthrough
+## fallthrough 有什么规则与使用建议?
 
 ### fallthrough的核心规则
 

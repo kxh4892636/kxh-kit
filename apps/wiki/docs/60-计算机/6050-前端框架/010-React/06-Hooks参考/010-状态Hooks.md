@@ -6,7 +6,7 @@ id: cf09daf7-6b02-47b6-888c-b3de2e119cd5
 
 useState 和 useReducer 的签名、返回值与使用要点。
 
-## useState
+## useState 的签名与使用要点有哪些?
 
 - 声明 state 变量: `const [state, setState] = useState(initialState)`;
 - `setState(next)` 或 `setState(prev => next)`;
@@ -18,13 +18,13 @@ const [count, setCount] = useState(0);
 setCount((c) => c + 1);
 ```
 
-## useState 注意
+## 使用 useState 有哪些注意事项?
 
 - 只在顶层调用;
 - 初始值可以传函数做惰性初始化: `useState(() => createInitial())`;
 - 对象/数组更新需创建新引用;
 
-## useReducer
+## useReducer 的签名与用法是什么?
 
 - 管理复杂状态: `const [state, dispatch] = useReducer(reducer, initialArg, init?)`;
 - `dispatch(action)` 把 action 交给 reducer;
@@ -42,13 +42,13 @@ const [state, dispatch] = useReducer(reducer, { count: 0 });
 dispatch({ type: "inc" });
 ```
 
-## useReducer 注意
+## 使用 useReducer 有哪些注意事项?
 
 - reducer 必须纯净;
 - 返回新 state, 不修改旧 state;
 - 可用第三个参数惰性创建初始 state;
 
-## 选择
+## useState 与 useReducer 如何选择?
 
 - 简单值用 useState;
 - 多个关联更新或复杂迁移用 useReducer;

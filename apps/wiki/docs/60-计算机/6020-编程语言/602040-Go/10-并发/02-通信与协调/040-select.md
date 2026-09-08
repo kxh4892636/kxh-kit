@@ -4,9 +4,7 @@ id: 324d95e5-0b30-5c1a-aa97-5fb03e7030b1
 
 # select
 
-分支选择是什么？default是什么？超时分支是什么？
-
-## 分支选择
+## select 的分支选择规则是什么?
 
 ### 分支选择的核心规则
 
@@ -32,7 +30,7 @@ func main() {
 }
 ```
 
-## default
+## default 分支的作用是什么?
 
 ### default的核心规则
 
@@ -53,7 +51,7 @@ func main() {
 }
 ```
 
-## 超时分支
+## 如何用 select 实现超时?
 
 ```go
 select {

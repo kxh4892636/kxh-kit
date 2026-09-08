@@ -4,9 +4,7 @@ id: a00bdeac-164d-5fc7-a706-1bb335cef8bf
 
 # slice
 
-slice是什么？创建方式包含什么，如何选择？nil 和 empty slice是什么？状态对比说明什么？
-
-## slice是什么
+## slice 是什么? 长度和容量分别指什么?
 
 ### slice是什么的核心规则
 
@@ -24,7 +22,7 @@ func main() {
 }
 ```
 
-## 创建方式
+## slice 有哪些创建方式?
 
 ```go
 func main() {
@@ -35,7 +33,7 @@ func main() {
 }
 ```
 
-## nil 和 empty slice
+## nil slice 和 empty slice 的定义区别是什么?
 
 ### nil 和 empty slice的核心规则
 
@@ -62,7 +60,7 @@ func main() {
 }
 ```
 
-## 状态对比
+## nil slice 和 empty slice 的状态差异有哪些?
 
 | 状态        | 是否为 nil | `len` | `cap`          | 可直接 `append` |
 | ----------- | ---------- | ----- | -------------- | --------------- |

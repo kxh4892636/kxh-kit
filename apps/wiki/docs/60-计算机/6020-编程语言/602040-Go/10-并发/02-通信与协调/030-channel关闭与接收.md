@@ -4,9 +4,7 @@ id: 78b92ccf-f8bc-4897-98aa-45c05ad85a74
 
 # channel 关闭与接收
 
-关闭 channel是什么？comma ok 接收是什么？
-
-## 关闭 channel
+## 关闭 channel 的规则与后果是什么?
 
 ### 关闭 channel的核心规则
 
@@ -30,7 +28,7 @@ func main() {
 }
 ```
 
-## comma ok 接收
+## comma ok 接收如何判断 channel 状态?
 
 ```go
 func main() {

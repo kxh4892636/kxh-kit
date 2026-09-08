@@ -4,9 +4,7 @@ id: 84ae2b8c-3a4a-4f66-9a9b-58fe9d3164de
 
 # channel 方向
 
-单向 channel是什么？发送方向是什么？接收方向是什么？方向对比说明什么？
-
-## 单向 channel
+## 单向 channel 是什么, 有何使用场景?
 
 ### 单向 channel的核心规则
 
@@ -15,7 +13,7 @@ id: 84ae2b8c-3a4a-4f66-9a9b-58fe9d3164de
 - `<-chan T`: 只允许从 channel 接收 `T`;
 - 使用场景: 限制函数能力, 提升接口清晰度;
 
-## 发送方向
+## 如何用 `chan<- T` 表达发送方向?
 
 ```go
 func send(ch chan<- int) {
@@ -23,7 +21,7 @@ func send(ch chan<- int) {
 }
 ```
 
-## 接收方向
+## 如何用 `<-chan T` 表达接收方向?
 
 ```go
 func recv(ch <-chan int) int {
@@ -31,7 +29,7 @@ func recv(ch <-chan int) int {
 }
 ```
 
-## 方向对比
+## 三种 channel 类型的收发权限有何区别?
 
 | 类型       | 允许发送 | 允许接收 |
 | ---------- | -------- | -------- |

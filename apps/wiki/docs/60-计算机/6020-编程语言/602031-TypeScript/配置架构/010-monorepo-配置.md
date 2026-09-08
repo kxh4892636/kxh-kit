@@ -4,9 +4,7 @@ id: 44bdff8b-4ce7-4a93-a071-b25646d5b2b7
 
 # Monorepo 配置
 
-Monorepo 配置解决的核心问题是什么？分层责任是什么？`references`, `composite` 与 `noEmit`是什么？叶项目是什么？
-
-## Monorepo 配置解决的核心问题
+## Monorepo 配置解决的核心问题与三层模型是什么?
 
 - Monorepo: 在同一个版本库中维护多个应用或代码包，并让它们共享依赖与开发流程;
 - `tsconfig.json`: TypeScript 编译器的项目配置文件，决定检查哪些源码以及采用哪些语言和模块规则;
@@ -20,7 +18,7 @@ Monorepo 配置解决的核心问题是什么？分层责任是什么？`referen
 - 叶项目: 定义真实的 runtime, module resolution, ambient types 与源码边界;
 - 分层原则: 公共层只上移与运行环境无关的规则, 避免 browser, Node 和 bundler 语义互相污染;
 
-## 分层责任
+## 根 solution, shared baseline 与叶项目各自负责什么?
 
 | 层级            | 负责                                          | 不负责                             |
 | --------------- | --------------------------------------------- | ---------------------------------- |
@@ -28,7 +26,7 @@ Monorepo 配置解决的核心问题是什么？分层责任是什么？`referen
 | shared baseline | 共享严格性, 一致性与诊断规则                  | `target`, `module`, `lib`, `types` |
 | 叶项目          | 声明 runtime, bundler, 源码和缓存边界         | 与项目无关的全仓约定               |
 
-## `references`, `composite` 与 `noEmit`
+## `references`, `composite` 与 `noEmit` 各有什么作用? tsc -b 与 tsc -p 有何区别?
 
 | 配置         | 作用                                                                   | 不会做什么                                            |
 | ------------ | ---------------------------------------------------------------------- | ----------------------------------------------------- |
@@ -41,7 +39,7 @@ Monorepo 配置解决的核心问题是什么？分层责任是什么？`referen
 - 跨项目依赖: 引用方按标准 project reference 模式消费被引用项目的 `.d.ts`; 若被引用项目设置 `noEmit`, 必须另有构建工具生成声明, 或将类型检查图与发布构建图分开;
 - 命令边界: `tsc -p` 只编译当前项目, `tsc -b` 才会沿 `references` 遍历并编排项目;
 
-## 叶项目
+## 叶项目如何选择 Module 体系? 显式配置边界有哪些?
 
 ### 选择 Module 体系
 

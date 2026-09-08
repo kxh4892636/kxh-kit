@@ -4,9 +4,7 @@ id: c7bd861f-b58c-4c8e-aaa8-438a389d8e4b
 
 # struct 嵌入与空结构体
 
-嵌入字段是什么？空结构体是什么？
-
-## 嵌入字段
+## struct 嵌入字段是什么? 字段提升与组合复用如何工作?
 
 - embedded field: 只写类型名的匿名字段;
 - 字段提升: 可通过外层 struct 直接访问嵌入字段成员;
@@ -26,7 +24,7 @@ u := User{Name: "Tom", Address: Address{City: "Beijing"}}
 println(u.City) // Beijing
 ```
 
-## 空结构体
+## 空结构体是什么? 有哪些使用场景?
 
 - `struct{}`: 不包含字段的结构体;
 - 使用场景: set, 只传递信号的 channel;

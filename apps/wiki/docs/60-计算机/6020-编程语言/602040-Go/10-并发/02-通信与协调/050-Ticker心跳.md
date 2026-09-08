@@ -4,9 +4,7 @@ id: 89ab936f-9aad-4fc5-a8fc-6821d91cfe4e
 
 # Ticker 心跳
 
-Ticker 心跳是什么？Ticker 心跳如何声明或使用？生命周期如何运作？
-
-## Ticker 心跳是什么
+## Ticker 心跳是什么, 有哪些相关 API?
 
 ### Ticker 心跳是什么的核心规则
 
@@ -14,7 +12,7 @@ Ticker 心跳是什么？Ticker 心跳如何声明或使用？生命周期如何
 - `ticker.C`: 接收每次 tick 对应的 `time.Time`;
 - `ticker.Stop`: 停止 ticker 并释放资源;
 
-## Ticker 心跳如何声明或使用
+## Ticker 心跳如何使用并停止?
 
 ```go
 package main
@@ -32,7 +30,7 @@ func main() {
 }
 ```
 
-## 生命周期
+## Ticker 心跳的生命周期与停止语义是什么?
 
 - 创建: `time.NewTicker(interval)` 返回持续发送 tick 的 ticker;
 - 使用: 从 `ticker.C` 接收定时事件;

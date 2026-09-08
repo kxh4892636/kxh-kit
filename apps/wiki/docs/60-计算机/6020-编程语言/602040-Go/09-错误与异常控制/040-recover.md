@@ -4,9 +4,7 @@ id: 30cab41a-0e9b-4e67-9063-9fcdd39f63aa
 
 # recover
 
-recover是什么？recover如何声明或使用？使用recover时的边界有哪些注意点？机制对比说明什么？
-
-## recover是什么
+## recover 是什么, 必须在何处调用?
 
 ### recover是什么的核心规则
 
@@ -16,7 +14,7 @@ recover是什么？recover如何声明或使用？使用recover时的边界有�
 - 恢复效果: 捕获后停止 panic 继续向上传播;
 - 执行恢复: 不会回到 `panic` 后继续执行, 当前函数从 defer 后返回;
 
-## recover如何声明或使用
+## 如何用 recover 捕获 panic?
 
 ```go
 package main
@@ -44,13 +42,13 @@ func main() {
 // after safeRun
 ```
 
-## 使用recover时的边界
+## recover 的适用位置与控制流边界有哪些?
 
 - 适用位置: goroutine 边界, 框架边界, 任务边界兜底;
 - 作用范围: 只处理当前 goroutine 中正在传播的 panic;
 - 控制流: 恢复后由发生 panic 的函数返回, 不从 panic 点继续;
 
-## 机制对比
+## error、panic 与 recover 有何区别?
 
 | 机制      | 用途                                   |
 | --------- | -------------------------------------- |

@@ -4,9 +4,7 @@ id: 1c22e4bb-5673-4246-93bf-396e3d8694a2
 
 # Zustand 最佳实践与 TypeScript
 
-如何用 TypeScript 写 Zustand？有哪些常见坑？
-
-## TypeScript
+## Zustand 如何用 TypeScript 定义 store 类型? interface 与泛型如何配合?
 
 - 用 interface 描述 store 类型;
 - 通过泛型传入 `create<T>`:
@@ -27,7 +25,7 @@ const useBearStore = create<BearStore>((set) => ({
 }));
 ```
 
-## 组件只有 action 不重渲染
+## 组件只选择 action 时为什么不重渲染? 如何分离操作与展示?
 
 - 组件只选择 action 函数时, state 变化不会导致该组件重渲染;
 - 适合把操作与展示分离;
@@ -37,7 +35,7 @@ const addModelStatus = useModelsStatus((state) => state.addModelStatus);
 // state 变化不会让此组件重渲染
 ```
 
-## 闭包问题
+## Zustand 的闭包问题如何解决? 为什么要在 action 中用 get() 取值?
 
 - React 闭包可能让外部读取到旧 state;
 - 在 store action 中使用 `get()` 获取最新值;
@@ -50,7 +48,7 @@ export const useStore = create<Store>((set, get) => ({
 }));
 ```
 
-## 选择器
+## Zustand 选择器为什么会导致无限重渲染? useShallow 如何使用?
 
 - 返回新对象的选择器会导致无限重渲染;
 - 需要派生对象时使用 `useShallow` 或返回原始值;
@@ -61,7 +59,7 @@ import { useShallow } from "zustand/react/shallow";
 const { a, b } = useStore(useShallow((s) => ({ a: s.a, b: s.b })));
 ```
 
-## 建议
+## Zustand 有哪些使用建议? store 结构、派生逻辑与服务端状态如何安排?
 
 - store 保持扁平;
 - 复杂派生逻辑放在 selector 或组件外;

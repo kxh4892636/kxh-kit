@@ -4,9 +4,7 @@ id: b17ea17a-3b39-55eb-bb48-aa7f18cd98b4
 
 # struct
 
-struct是什么？初始化和访问如何完成？构造函数是什么？值语义是什么？
-
-## struct是什么
+## struct 是什么? 字段命名和零值有何规则?
 
 - struct: 将多个字段组合成一个自定义类型;
 - 字段名: 同一个 struct 内必须唯一;
@@ -19,7 +17,7 @@ type User struct {
 }
 ```
 
-## 初始化和访问
+## struct 有哪些初始化和访问字段的方式?
 
 ```go
 func main() {
@@ -31,7 +29,7 @@ func main() {
 }
 ```
 
-## 构造函数
+## Go 如何写构造函数? NewType 约定是什么?
 
 - 构造函数: Go 没有内置 constructor 语法;
 - 约定命名: 使用 `NewType` 普通函数创建并初始化值;
@@ -43,7 +41,7 @@ func NewUser(name string, age int) *User {
 }
 ```
 
-## 值语义
+## struct 的值语义是什么? 引用字段与可比较性如何?
 
 - 赋值: 整体复制所有字段, 副本与原值独立;
 - 引用类型字段: 只复制引用, 副本与原值共享底层数据;

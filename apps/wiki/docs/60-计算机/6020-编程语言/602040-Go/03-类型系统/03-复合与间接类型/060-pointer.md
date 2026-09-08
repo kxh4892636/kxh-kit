@@ -4,9 +4,7 @@ id: 7623ad0d-3b0d-506a-849c-5e808ed7d3f9
 
 # pointer
 
-pointer是什么？指针参数是什么？new是什么？多级指针是什么？
-
-## pointer是什么
+## pointer 是什么? 零值与 nil 解引用如何表现?
 
 ### pointer是什么的核心规则
 
@@ -23,7 +21,7 @@ func main() {
 }
 ```
 
-## 指针参数
+## 指针参数如何修改调用方的变量?
 
 ```go
 func addOne(p *int) {
@@ -37,7 +35,7 @@ func main() {
 }
 ```
 
-## new
+## new 是什么? 它与 make 有何区别?
 
 ### new的核心规则
 
@@ -52,7 +50,7 @@ func main() {
 }
 ```
 
-## 多级指针
+## 多级指针是什么? 如何通过多级指针修改值?
 
 ```go
 func main() {

@@ -4,9 +4,7 @@ id: 08de6874-e389-4a59-b496-c2ed8fe1a83c
 
 # Immer 与 React / Zustand 集成
 
-Immer 如何配合 useState 和 Zustand 使用？
-
-## 配合 useState
+## Immer 如何配合 useState 使用?
 
 - 在 setter 中用 `produce` 包裹更新逻辑;
 
@@ -21,7 +19,7 @@ setTodos(
 );
 ```
 
-## 配合 useReducer
+## Immer 如何配合 useReducer 使用?
 
 - reducer 中使用 produce, 减少不可变样板;
 
@@ -38,7 +36,7 @@ function reducer(state, action) {
 }
 ```
 
-## 配合 Zustand
+## Immer 如何配合 Zustand 使用?
 
 - 在 Zustand action 中用 produce 修改复杂嵌套状态;
 
@@ -57,7 +55,7 @@ export const useStore = create((set) => ({
 }));
 ```
 
-## 注意
+## Immer 集成的注意事项有哪些?
 
 - 在 Zustand 中 `set(produce(...))` 需要返回新状态;
 - 避免把 draft 泄漏到 store 外部;

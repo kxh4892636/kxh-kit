@@ -4,9 +4,7 @@ id: c16cdca7-f9d2-4538-a9bc-85124357fe01
 
 # OAuth 2.0、OIDC 与 SSO
 
-授权与认证有什么区别? OAuth 2.0 的角色和令牌如何协作? OIDC 在 OAuth 之上增加了什么? SSO、IdP、SP、身份代理与 SAML 分别解决什么问题?
-
-## OAuth 2.0
+## OAuth 2.0 是什么, 有哪些角色与令牌概念?
 
 - OAuth 2.0: 授权协议，让客户端在不获得用户凭据的情况下，经用户同意访问受保护资源;
 - 资源所有者: 拥有资源并能授权的用户或系统;
@@ -16,7 +14,7 @@ id: c16cdca7-f9d2-4538-a9bc-85124357fe01
 - scope: 限定令牌允许访问的资源与操作;
 - 访问令牌: 代表授权，不等于用户身份，也不应被应用解释为登录证明;
 
-## 授权流程
+## OAuth 授权流程有哪些步骤, 安全边界是什么?
 
 1. 客户端把用户引导到授权服务器，请求指定 scope 与回调地址;
 2. 授权服务器认证用户并收集同意;
@@ -27,14 +25,14 @@ id: c16cdca7-f9d2-4538-a9bc-85124357fe01
 - 安全边界: 使用 Authorization Code + PKCE、精确回调 URI、短期访问令牌和最小 scope;
 - 规范边界: OAuth 定义授权框架，不提供统一 scope、用户身份或单一实现;
 
-## OIDC
+## OIDC 是什么, 与 OAuth 的关键区别是什么?
 
 - OIDC（OpenID Connect）: 构建在 OAuth 2.0 之上的身份层，为登录与用户资料提供标准协议;
 - ID Token: 由身份提供方签发的 JWT，向客户端声明用户是谁、令牌受众与认证时间;
 - UserInfo Endpoint: 客户端持有效令牌查询标准用户资料;
 - 关键区别: OAuth 回答“客户端能访问什么”，OIDC 回答“当前用户是谁”;
 
-## SSO
+## SSO 是什么, IdP、SP 与跨域流程如何工作?
 
 - SSO（Single Sign-On）: 用户在统一身份系统登录一次，即可访问多个受信应用;
 - IdP（Identity Provider）: 管理身份并认证用户，向应用提供身份断言;
@@ -42,7 +40,7 @@ id: c16cdca7-f9d2-4538-a9bc-85124357fe01
 - Identity Broker: 连接多个 IdP 与多个应用，屏蔽协议差异;
 - 跨域流程: 应用无会话时跳转 IdP; IdP 已有登录会话则签发一次性结果，应用验证后建立自己的本地会话;
 
-## SAML、OAuth 与 OIDC
+## SAML、OAuth 与 OIDC 如何选择, SSO 有哪些风险?
 
 - SAML: XML 身份断言与浏览器重定向成熟，常用于企业身份联邦;
 - OAuth: JSON/HTTP 生态中的委托授权;

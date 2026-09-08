@@ -4,9 +4,7 @@ id: 953aa001-53c8-40d4-8245-3cb18583b14d
 
 # ReactDOM 概览
 
-createPortal、flushSync 和资源预加载 API 怎么用？
-
-## createPortal
+## createPortal 如何把 children 渲染到指定 DOM 节点? 适合哪些场景?
 
 - 把 children 渲染到指定 DOM 节点: `createPortal(children, domNode, key?)`;
 - 适合 modal、tooltip;
@@ -17,7 +15,7 @@ import { createPortal } from "react-dom";
 createPortal(<Modal />, document.getElementById("root"));
 ```
 
-## flushSync
+## flushSync 如何强制同步刷新 state 更新? 有什么风险?
 
 - 强制同步刷新回调内的 state 更新: `flushSync(callback)`;
 - 不常见, 可能影响性能;
@@ -26,7 +24,7 @@ createPortal(<Modal />, document.getElementById("root"));
 flushSync(() => setState(next));
 ```
 
-## 资源预加载
+## ReactDOM 有哪些资源预加载 API?
 
 - 提前连接/获取资源, 提升加载性能;
 - 框架通常会代为处理;
@@ -45,7 +43,7 @@ import { preload } from "react-dom";
 preload("theme.css", { as: "style" });
 ```
 
-## 注意
+## 资源预加载的使用注意事项有哪些?
 
 - 预加载 API 可在渲染或事件中调用;
 - 重复调用同一资源会被 React 去重;

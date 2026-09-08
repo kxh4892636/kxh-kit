@@ -4,9 +4,7 @@ id: 834b9fce-206f-54f0-9839-3a2f34f73448
 
 # goroutine
 
-goroutine 是什么？如何启动 goroutine 并等待它完成？goroutine 的生命周期由谁控制？
-
-## goroutine是什么
+## goroutine 是什么, 由谁调度?
 
 ### goroutine是什么的核心规则
 
@@ -15,7 +13,7 @@ goroutine 是什么？如何启动 goroutine 并等待它完成？goroutine 的�
 - 启动方式: `go f()` 启动新的 goroutine 执行函数调用;
 - 进程退出: main goroutine 结束后程序退出;
 
-## goroutine如何声明或使用
+## goroutine 如何启动, 如何等待它完成?
 
 ```go
 package main
@@ -35,7 +33,7 @@ func main() {
 - 协调原则: `go` 只负责启动，不负责等待；调用方需要用 channel、`sync.WaitGroup` 等机制表达完成条件;
 - 错误示例: `time.Sleep` 只能延迟当前 goroutine，不能保证另一个 goroutine 已完成，不应作为同步手段;
 
-## 生命周期
+## goroutine 的生命周期与泄漏风险是什么?
 
 - 开始: `go` 语句创建并调度 goroutine;
 - 执行: Go runtime 决定其运行时机和所在线程;

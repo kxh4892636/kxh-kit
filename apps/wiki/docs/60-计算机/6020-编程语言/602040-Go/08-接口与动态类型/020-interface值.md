@@ -4,9 +4,7 @@ id: aebde013-28c5-467b-8a82-a1e04feebf5c
 
 # interface 值
 
-动态类型与动态值是什么？typed nil是什么？typed nil 边界有哪些注意点？空接口是什么？
-
-## 动态类型与动态值
+## 接口值的动态类型与动态值是什么? nil interface 如何判断?
 
 ### 动态类型与动态值的核心规则
 
@@ -16,7 +14,7 @@ id: aebde013-28c5-467b-8a82-a1e04feebf5c
 - 非 nil interface: 只要动态类型存在, 接口值就不等于 nil;
 - typed nil: 具体类型为指针, 值为 nil 的动态值;
 
-## typed nil
+## typed nil 的写法是什么? 接口值比较结果如何?
 
 ### typed nil的写法
 
@@ -46,12 +44,12 @@ func main() {
 }
 ```
 
-## typed nil 边界
+## typed nil 的常见陷阱与规避方式有哪些?
 
 - 常见陷阱: 保存 nil 指针的接口值不等于 nil;
 - 判断方式: 优先在返回 error/interface 前避免把 nil 指针装入接口;
 
-## 空接口
+## 空接口 `interface{}` 与 any 是什么? 有何代价?
 
 ### 空接口的核心规则
 

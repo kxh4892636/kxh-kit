@@ -4,9 +4,7 @@ id: 219db326-0f7d-49e5-b947-a44bd1186413
 
 # WaitGroup
 
-WaitGroup是什么？WaitGroup如何声明或使用？
-
-## WaitGroup是什么
+## WaitGroup 是什么?
 
 ### WaitGroup是什么的核心规则
 
@@ -16,7 +14,7 @@ WaitGroup是什么？WaitGroup如何声明或使用？
 - `Wait()`: 阻塞直到等待计数归零;
 - 使用场景: 主 goroutine 等待多个并发任务结束;
 
-## WaitGroup如何声明或使用
+## WaitGroup 如何声明或使用?
 
 ```go
 package main

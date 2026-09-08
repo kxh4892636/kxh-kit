@@ -4,9 +4,7 @@ id: 21fd7a38-20f9-57eb-be76-6994decc9c13
 
 # Module
 
-Module是什么？创建模块如何完成？replace是什么？核心文件是什么？
-
-## Module是什么
+## Module 是什么? module path 有何作用?
 
 ### Module是什么的定义
 
@@ -15,7 +13,7 @@ Module是什么？创建模块如何完成？replace是什么？核心文件是�
 - `go.mod`: 记录 module path, Go 版本和直接依赖;
 - `go.sum`: 校验下载的依赖内容未被篡改;
 
-## 创建模块
+## 如何创建模块? go mod init 做了什么?
 
 ### 命令
 
@@ -25,7 +23,7 @@ cd hello
 go mod init example.com/hello # 创建 go.mod 并写入 module path
 ```
 
-## replace
+## go.mod 中 replace 的作用是什么? 适用哪些场景?
 
 ### replace的写法
 
@@ -34,7 +32,7 @@ go mod init example.com/hello # 创建 go.mod 并写入 module path
 replace example.com/lib => ../lib
 ```
 
-## 核心文件
+## Module 的核心文件有哪些? 各自的作用是什么?
 
 | 文件     | 作用                                |
 | -------- | ----------------------------------- |

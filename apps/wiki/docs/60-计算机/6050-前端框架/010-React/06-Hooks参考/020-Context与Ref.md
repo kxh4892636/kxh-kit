@@ -6,7 +6,7 @@ id: d06f43e8-4e45-4ae1-b584-9e04bd87e75f
 
 useContext、useRef、useImperativeHandle 的签名与用法。
 
-## useContext
+## useContext 的签名与用法是什么?
 
 - 读取 context: `const value = useContext(SomeContext)`;
 - 组件读取最近的 Provider 值;
@@ -16,12 +16,12 @@ useContext、useRef、useImperativeHandle 的签名与用法。
 const theme = useContext(ThemeContext);
 ```
 
-## useContext 注意
+## 使用 useContext 有哪些注意事项?
 
 - 只读订阅, Provider 值变化会触发消费组件重渲染;
 - 不要在条件中调用;
 
-## useRef
+## useRef 的签名与用法是什么?
 
 - 声明可变引用: `const ref = useRef(initialValue)`;
 - 返回 `{ current: initialValue }`;
@@ -32,12 +32,12 @@ const intervalRef = useRef(null);
 intervalRef.current = setInterval(tick, 1000);
 ```
 
-## useRef 注意
+## 使用 useRef 有哪些注意事项?
 
 - 不要渲染期间写 `ref.current`;
 - 适合 DOM 节点、定时器 ID、非渲染数据;
 
-## useImperativeHandle
+## useImperativeHandle 的用法是什么?
 
 - 配合 `forwardRef` 自定义暴露给父组件的 ref 对象;
 
@@ -52,7 +52,7 @@ useImperativeHandle(
 );
 ```
 
-## useImperativeHandle 注意
+## 使用 useImperativeHandle 有哪些注意事项?
 
 - 第二个参数返回暴露的句柄;
 - 依赖数组控制句柄更新;
