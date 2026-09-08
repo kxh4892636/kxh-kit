@@ -49,7 +49,7 @@ const send = async (paths: Paths, message: Request): Promise<import("./contract.
 export const spawnSupervisor = (port: number): void => {
   const child = spawn(
     process.execPath,
-    [fileURLToPath(new URL("./main.js", import.meta.url)), "--supervisor", String(port)],
+    [fileURLToPath(new URL("./main.mjs", import.meta.url)), "--supervisor", String(port)],
     { detached: true, windowsHide: true, stdio: "ignore" },
   );
   child.on("error", (error: Error): void => {

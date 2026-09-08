@@ -1,7 +1,6 @@
-import { test } from "node:test";
-import assert from "node:assert/strict";
 import { createConnection, createServer } from "node:net";
 import { randomUUID } from "node:crypto";
+import { expect, test } from "vitest";
 import { request, serve } from "./transport.js";
 const pipe = (): string => "\\\\.\\pipe\\dsh-test-" + randomUUID();
 const status = {
@@ -12,7 +11,7 @@ const status = {
   error: null,
   log: "file",
 };
-void test("控制通道传递成功与业务错误", async (): Promise<void> => {
+test("控制通道传递成功与业务错误", async (): Promise<void> => {
   const address = pipe();
   const server = await serve(
     address,
@@ -37,12 +36,12 @@ void test("控制通道传递成功与业务错误", async (): Promise<void> => 
     },
   );
   try {
-    assert.deepEqual(await request(address, { command: "status" }), { ok: true, status });
-    assert.deepEqual(await request(address, { command: "stop" }), {
+    expect(await request(address, { command: "status" })).toEqual({ ok: true, status });
+    expect(await request(address, { command: "stop" })).toEqual({
       ok: false,
       error: "stop failed",
     });
-    await assert.rejects(
+    await expect(
       serve(
         address,
         async (): Promise<{
@@ -57,12 +56,12 @@ void test("控制通道传递成功与业务错误", async (): Promise<void> => 
           };
         }> => ({ ok: true, status }),
       ),
-    );
+    ).rejects.toThrow();
   } finally {
     server.close();
   }
 });
-void test("损坏回复、断连和超时不会被当作成功", async (): Promise<void> => {
+test("损坏回复、断连和超时不会被当作成功", async (): Promise<void> => {
   for (const mode of ["invalid", "close", "timeout"]) {
     const address = pipe();
     const server = createServer((socket: import("node:net").Socket): void => {
@@ -74,13 +73,13 @@ void test("损坏回复、断连和超时不会被当作成功", async (): Promi
       server.listen(address, resolve),
     );
     try {
-      await assert.rejects(request(address, { command: "status" }, 20));
+      await expect(request(address, { command: "status" }, 20)).rejects.toThrow();
     } finally {
       server.close();
     }
   }
 });
-void test("非法请求被拒绝，超大请求断开", async (): Promise<void> => {
+test("非法请求被拒绝，超大请求断开", async (): Promise<void> => {
   const address = pipe();
   const server = await serve(
     address,
@@ -112,7 +111,7 @@ void test("非法请求被拒绝，超大请求断开", async (): Promise<void> 
           });
         },
       );
-      assert.equal(result, "");
+      expect(result).toBe("");
     }
   } finally {
     server.close();

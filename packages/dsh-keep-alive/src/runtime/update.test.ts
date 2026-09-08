@@ -1,6 +1,5 @@
-import { test } from "node:test";
-import assert from "node:assert/strict";
 import { mkdir, rm } from "node:fs/promises";
+import { expect, test } from "vitest";
 import { createInstance, UPDATE_INTERVAL } from "./instance.js";
 import { fixture, fixtureVersion } from "../testing/fixture.js";
 import { VirtualProcesses } from "../testing/virtual-processes.js";
@@ -17,7 +16,8 @@ const fire = async (os: VirtualProcesses): Promise<number> => {
     os.timers.some((item: { cancelled: boolean }): boolean => !item.cancelled),
   );
   const timer = os.timers.find((item: { cancelled: boolean }): boolean => !item.cancelled);
-  assert.ok(timer);
+  // settled 已保证存在未取消的 timer；这里同时完成类型收窄与失败定位。
+  if (!timer) throw new Error("timer missing");
   timer.cancelled = true;
   os.time += timer.ms;
   timer.task();
@@ -29,22 +29,22 @@ const settled = async (predicate: () => boolean): Promise<void> => {
     await new Promise<void>((resolve: () => void): void => {
       setTimeout(resolve, 5);
     });
-  assert.ok(predicate());
+  expect(predicate()).toBeTruthy();
 };
-void test("先启动缓存版本，再立即检查并每13小时检查", async (): Promise<void> => {
+test("先启动缓存版本，再立即检查并每13小时检查", async (): Promise<void> => {
   const f = await fixture();
   const os = new VirtualProcesses();
   const instance = createInstance(f.port, f.paths, os.io);
   await instance.start(launch);
-  assert.equal(instance.status().version, "1.0.0");
-  assert.equal(UPDATE_INTERVAL, 46_800_000);
-  assert.equal(await fire(os), 0);
-  assert.equal(await fire(os), 46_800_000);
-  assert.deepEqual(os.versions, ["1.0.0"]);
+  expect(instance.status().version).toBe("1.0.0");
+  expect(UPDATE_INTERVAL).toBe(46_800_000);
+  expect(await fire(os)).toBe(0);
+  expect(await fire(os)).toBe(46_800_000);
+  expect(os.versions).toEqual(["1.0.0"]);
   await instance.stop();
-  assert.ok(os.timers.every((timer: { cancelled: boolean }): boolean => timer.cancelled));
+  expect(os.timers.every((timer: { cancelled: boolean }): boolean => timer.cancelled)).toBeTruthy();
 });
-void test("准备更新期间旧实例服务，成功后显示新版", async (): Promise<void> => {
+test("准备更新期间旧实例服务，成功后显示新版", async (): Promise<void> => {
   const f = await fixture();
   const os = new VirtualProcesses();
   const next = await fixtureVersion(f.paths, "2.0.0-rc.1");
@@ -59,31 +59,31 @@ void test("准备更新期间旧实例服务，成功后显示新版", async ():
   const instance = createInstance(f.port, f.paths, io);
   const before = await instance.start(launch);
   await fire(os);
-  assert.equal(instance.status().pid, before.pid);
-  assert.equal(instance.status().state, "running");
+  expect(instance.status().pid).toBe(before.pid);
+  expect(instance.status().state).toBe("running");
   finish(next);
   await settled(
     (): boolean =>
       instance.status().version === "2.0.0-rc.1" && instance.status().state === "running",
   );
-  assert.notEqual(instance.status().pid, before.pid);
+  expect(instance.status().pid).not.toBe(before.pid);
   await instance.stop();
 });
-void test("网络安装失败不打断当前进程，下周期继续检查", async (): Promise<void> => {
+test("网络安装失败不打断当前进程，下周期继续检查", async (): Promise<void> => {
   const f = await fixture();
   const os = new VirtualProcesses();
   const instance = createInstance(f.port, f.paths, os.io);
   const before = await instance.start(launch);
   os.installError = true;
   await fire(os);
-  assert.equal(instance.status().pid, before.pid);
-  assert.match(instance.status().error!, /Update failed/);
+  expect(instance.status().pid).toBe(before.pid);
+  expect(instance.status().error!).toMatch(/Update failed/);
   os.installError = false;
   await fire(os);
-  assert.equal(instance.status().state, "running");
+  expect(instance.status().state).toBe("running");
   await instance.stop();
 });
-void test("新版失败回退且抑制同版重试，latest改变或手动start后可再试", async (): Promise<void> => {
+test("新版失败回退且抑制同版重试，latest改变或手动start后可再试", async (): Promise<void> => {
   const f = await fixture();
   const os = new VirtualProcesses();
   os.currentVersion = await fixtureVersion(f.paths, "2.0.0");
@@ -102,10 +102,10 @@ void test("新版失败回退且抑制同版重试，latest改变或手动start�
   await instance.start(launch);
   await fire(os);
   await settled((): boolean => instance.status().error?.startsWith("Rolled back") === true);
-  assert.deepEqual(os.versions, ["1.0.0", "2.0.0", "1.0.0"]);
-  assert.equal(instance.status().version, "1.0.0");
+  expect(os.versions).toEqual(["1.0.0", "2.0.0", "1.0.0"]);
+  expect(instance.status().version).toBe("1.0.0");
   await fire(os);
-  assert.equal(os.versions.length, 3);
+  expect(os.versions.length).toBe(3);
   await instance.start(launch);
   await fire(os);
   await settled((): boolean => os.versions.length === 6 && instance.status().state === "running");
@@ -114,7 +114,7 @@ void test("新版失败回退且抑制同版重试，latest改变或手动start�
   await settled((): boolean => os.versions.length === 8 && instance.status().state === "running");
   await instance.stop();
 });
-void test("更新准备期间stop排队，准备完成后不切换或复活", async (): Promise<void> => {
+test("更新准备期间stop排队，准备完成后不切换或复活", async (): Promise<void> => {
   const f = await fixture();
   const os = new VirtualProcesses();
   let finish!: (version: Version) => void;
@@ -130,10 +130,10 @@ void test("更新准备期间stop排队，准备完成后不切换或复活", as
   await fire(os);
   const stopping = instance.stop();
   finish({ version: "2.0.0", entry: "unused" });
-  assert.equal((await stopping).state, "stopped");
-  assert.deepEqual(os.versions, ["1.0.0"]);
+  expect((await stopping).state).toBe("stopped");
+  expect(os.versions).toEqual(["1.0.0"]);
 });
-void test("回退本身失败时明确失败且保留上次可用版本", async (): Promise<void> => {
+test("回退本身失败时明确失败且保留上次可用版本", async (): Promise<void> => {
   const f = await fixture();
   const os = new VirtualProcesses();
   const instance = createInstance(f.port, f.paths, os.io);
@@ -142,14 +142,14 @@ void test("回退本身失败时明确失败且保留上次可用版本", async 
   os.reachable = false;
   await fire(os);
   await settled((): boolean => instance.status().state === "failed");
-  assert.match(instance.status().error!, /rollback failed/);
-  assert.equal(os.current, undefined);
+  expect(instance.status().error!).toMatch(/rollback failed/);
+  expect(os.current).toBeUndefined();
   os.reachable = true;
   await instance.start(launch);
-  assert.equal(instance.status().version, "1.0.0");
+  expect(instance.status().version).toBe("1.0.0");
   await instance.stop();
 });
-void test("下载期间旧版退出仍按退避恢复，不等待下载", async (): Promise<void> => {
+test("下载期间旧版退出仍按退避恢复，不等待下载", async (): Promise<void> => {
   const f = await fixture();
   const os = new VirtualProcesses();
   let finish!: (version: Version) => void;
@@ -166,12 +166,12 @@ void test("下载期间旧版退出仍按退避恢复，不等待下载", async 
   os.crash();
   await os.advance();
   await settled((): boolean => instance.status().state === "running");
-  assert.notEqual(instance.status().pid, first.pid);
+  expect(instance.status().pid).not.toBe(first.pid);
   const stop = instance.stop();
   finish(f.version);
   await stop;
 });
-void test("latest离开失败版本再返回时解除抑制", async (): Promise<void> => {
+test("latest离开失败版本再返回时解除抑制", async (): Promise<void> => {
   const f = await fixture();
   const os = new VirtualProcesses();
   const bad = await fixtureVersion(f.paths, "2.0.0");
@@ -198,7 +198,7 @@ void test("latest离开失败版本再返回时解除抑制", async (): Promise<
   await settled((): boolean => os.versions.length === 5 && instance.status().state === "running");
   await instance.stop();
 });
-void test("回退与状态持久化同时失败仍清理进程并显示failed", async (): Promise<void> => {
+test("回退与状态持久化同时失败仍清理进程并显示failed", async (): Promise<void> => {
   const f = await fixture();
   const os = new VirtualProcesses();
   const instance = createInstance(f.port, f.paths, os.io);
@@ -211,7 +211,7 @@ void test("回退与状态持久化同时失败仍清理进程并显示failed", 
     (): boolean =>
       instance.status().state === "failed" && instance.status().error?.includes("state:") === true,
   );
-  assert.equal(os.current, undefined);
-  assert.equal(instance.status().nextUpdateAt, null);
+  expect(os.current).toBeUndefined();
+  expect(instance.status().nextUpdateAt).toBe(null);
   await instance.stop();
 });

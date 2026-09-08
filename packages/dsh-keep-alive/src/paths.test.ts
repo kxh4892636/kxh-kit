@@ -1,31 +1,30 @@
-import { test } from "node:test";
-import assert from "node:assert/strict";
 import { join } from "node:path";
+import { expect, test } from "vitest";
 import { pathsFor, preparePaths, saveJson, readJson } from "./paths.js";
 import { temporary } from "./testing/fixture.js";
 import { errorText, portSchema, requestSchema } from "./contract.js";
-void test("状态原子覆盖并隔离端口", async (): Promise<void> => {
+test("状态原子覆盖并隔离端口", async (): Promise<void> => {
   const root = await temporary();
   const a = pathsFor(1234, root);
   const b = pathsFor(1235, root);
-  assert.notEqual(a.pipe, b.pipe);
-  assert.ok(a.pipe.startsWith("\\\\.\\pipe\\"));
+  expect(a.pipe).not.toBe(b.pipe);
+  expect(a.pipe.startsWith("\\\\.\\pipe\\")).toBeTruthy();
   await preparePaths(a);
   await saveJson(a.state, { version: "1" });
   await saveJson(a.state, { version: "2" });
-  assert.deepEqual(await readJson(a.state), { version: "2" });
-  assert.equal(a.versions, join(root, "1234", "versions"));
-  await assert.rejects(readJson(b.state));
+  expect(await readJson(a.state)).toEqual({ version: "2" });
+  expect(a.versions).toBe(join(root, "1234", "versions"));
+  await expect(readJson(b.state)).rejects.toThrow();
 });
-void test("外部输入拒绝非法端口与启动请求", (): void => {
-  for (const port of [0, 65536, 1.5, NaN]) assert.equal(portSchema.safeParse(port).success, false);
-  assert.equal(requestSchema.safeParse({ command: "start" }).success, false);
-  assert.equal(errorText(new Error("error")), "error");
-  assert.equal(errorText("error"), "error");
+test("外部输入拒绝非法端口与启动请求", (): void => {
+  for (const port of [0, 65536, 1.5, NaN]) expect(portSchema.safeParse(port).success).toBe(false);
+  expect(requestSchema.safeParse({ command: "start" }).success).toBe(false);
+  expect(errorText(new Error("error"))).toBe("error");
+  expect(errorText("error")).toBe("error");
   const previous = process.env.LOCALAPPDATA;
   delete process.env.LOCALAPPDATA;
   try {
-    assert.throws((): import("./paths.js").Paths => pathsFor(1), /LOCALAPPDATA/);
+    expect((): import("./paths.js").Paths => pathsFor(1)).toThrow(/LOCALAPPDATA/);
   } finally {
     if (previous) process.env.LOCALAPPDATA = previous;
   }

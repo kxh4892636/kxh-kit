@@ -4,7 +4,7 @@
   "description": "Keep DSH running after the terminal closes",
   "license": "MIT",
   "bin": {
-    "dsh-keep-alive": "dist/main.js"
+    "dsh-keep-alive": "dist/main.mjs"
   },
   "files": [
     "dist",
@@ -16,10 +16,10 @@
   ],
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "check": "tsc --noEmit && vp check",
-    "test": "tsc -p tsconfig.test.json && node --test --test-concurrency=1 \".test-dist/**/*.test.js\"",
-    "test:coverage": "tsc -p tsconfig.test.json && c8 --all --src .test-dist --include \".test-dist/**/*.js\" --exclude \"**/*.test.js\" --exclude \"**/testing/**\" --extension .js --exclude-after-remap=false --reporter=text --reporter=json-summary --reporter=html --check-coverage --lines 80 --functions 80 --branches 80 --statements 80 node --test --test-concurrency=1 \".test-dist/**/*.test.js\""
+    "build": "vp pack",
+    "check": "vp check",
+    "test": "vp pack && vp test",
+    "test:coverage": "vp pack && vp test --run --coverage"
   },
   "dependencies": {
     "zod": "catalog:"
@@ -27,9 +27,10 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "@typescript/native": "catalog:",
-    "c8": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",
-    "vite-plus": "catalog:"
+    "vite-plus": "catalog:",
+    "vitest": "catalog:"
   },
   "engines": {
     "node": ">=24.19.0"

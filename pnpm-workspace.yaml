@@ -44,7 +44,6 @@ catalog:
   # TypeScript 7 provides tsc; TypeScript 6 remains under the canonical package name
   # for tools that still import the legacy compiler API.
   "@typescript/native": npm:typescript@~7.0.2
-  c8: 12.0.0
   electron-builder: ^26.15.3
   react: ^19.2.5
   react-dom: ^19.2.5
