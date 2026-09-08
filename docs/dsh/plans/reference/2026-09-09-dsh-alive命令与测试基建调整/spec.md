@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 ---
 
 # dsh-alive 命令与测试基建调整
@@ -72,8 +72,8 @@ Windows / PowerShell；仓库使用 pnpm 与 vite-plus 0.2.6，根 `package.json
 
 ## Issue
 
-| #   | Issue                                                | 状态        | 阻塞于 | 下一步         |
-| --- | ---------------------------------------------------- | ----------- | ------ | -------------- |
-| 01  | [vp 与 vitest 基建迁移](01-vp与vitest基建迁移.md)    | completed   | —      | /code-delivery |
-| 02  | [CLI 改名与默认端口](02-cli改名与默认端口.md)        | completed   | 01     | /code-delivery |
-| 03  | [移除 class 与 lint 强制](03-移除class与lint强制.md) | in_progress | 01     | /code-delivery |
+| #   | Issue                                                | 状态      | 阻塞于 | 下一步         |
+| --- | ---------------------------------------------------- | --------- | ------ | -------------- |
+| 01  | [vp 与 vitest 基建迁移](01-vp与vitest基建迁移.md)    | completed | —      | /code-delivery |
+| 02  | [CLI 改名与默认端口](02-cli改名与默认端口.md)        | completed | 01     | /code-delivery |
+| 03  | [移除 class 与 lint 强制](03-移除class与lint强制.md) | completed | 01     | /code-delivery |
