@@ -40,7 +40,7 @@ status: in_progress
 - **服务面边界**：`HostServices` 的 `sessions` / `sessionProjections` / `sessionQuery` 三个字段保持可选（`sessionController` / `workspaceRegistry` 仍为必填）；`main.ts` 负责取服务并组装普通对象，`host.ts` 保持纯逻辑与假服务可测，不在 host 层接触 cordis。
 - **inject 规则**：`apply` 内访问 ctx 服务只有两条合法路径——写入 `inject` 数组，或经 `ctx.get` 读取；单测以严格假 ctx 强制。
 - **投影形状契约**：`SessionProjectionsLike.stateOf(session, "subagent")` 返回该 unit 的 host state `{ identity?: { mode } }`（与 `dsh-session-projection` 的 `stateOf` 返回类型一致）；冷路径从 `ProjectionSnapshot.values.subagent.mode` 读取（wire view 形状，无 `identity` 层，`null` 表示描述符无效）。
-- **生效路径**：`vp pack` 重建 dist → `dsh plugin --profile web add file:<包路径>` 重装快照（`file:` 是快照复制，不自动跟随源码）→ 重启 3080 实例 → 会话内冒烟。
+- **生效路径**：`vp pack` 重建 dist → 同步快照或 `dsh plugin --profile web add file:<包路径>` 重装 → 重启 3080 实例 → 会话内冒烟。注意 `file:` 依赖是**硬链接**而非复制：重建 dist 会换 inode，快照仍指向旧内容，必须显式同步 `dist/`（或重装）后再重启。
 - **文档口径**：README 写明兼容 DSH `0.1.2-rc.1`（`latest` 发布通道）；ADR-0003 中的版本字面量同步为发布通道表述，决策本身不变。
 
 ## 工作环境
@@ -84,5 +84,5 @@ status: in_progress
 | #   | Issue                                               | 状态        | 阻塞于 | 下一步         |
 | --- | --------------------------------------------------- | ----------- | ------ | -------------- |
 | 01  | [依赖声明对齐](01-依赖声明对齐.md)                  | completed   | —      | /code-delivery |
-| 02  | [inject 与 stateOf 修复](02-inject与stateOf修复.md) | in_progress | —      | /code-delivery |
-| 03  | [重装重启与真机冒烟](03-重装重启与真机冒烟.md)      | pending     | 01, 02 | /code-delivery |
+| 02  | [inject 与 stateOf 修复](02-inject与stateOf修复.md) | completed   | —      | /code-delivery |
+| 03  | [重装重启与真机冒烟](03-重装重启与真机冒烟.md)      | in_progress | 01, 02 | /code-delivery |
