@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 ---
 
 # dsh 插件适配新版本
@@ -81,8 +81,8 @@ status: in_progress
 
 ## Issue
 
-| #   | Issue                                               | 状态        | 阻塞于 | 下一步         |
-| --- | --------------------------------------------------- | ----------- | ------ | -------------- |
-| 01  | [依赖声明对齐](01-依赖声明对齐.md)                  | completed   | —      | /code-delivery |
-| 02  | [inject 与 stateOf 修复](02-inject与stateOf修复.md) | completed   | —      | /code-delivery |
-| 03  | [重装重启与真机冒烟](03-重装重启与真机冒烟.md)      | in_progress | 01, 02 | /code-delivery |
+| #   | Issue                                               | 状态      | 阻塞于 | 下一步         |
+| --- | --------------------------------------------------- | --------- | ------ | -------------- |
+| 01  | [依赖声明对齐](01-依赖声明对齐.md)                  | completed | —      | /code-delivery |
+| 02  | [inject 与 stateOf 修复](02-inject与stateOf修复.md) | completed | —      | /code-delivery |
+| 03  | [重装重启与真机冒烟](03-重装重启与真机冒烟.md)      | completed | 01, 02 | /code-delivery |
