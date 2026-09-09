@@ -21,6 +21,13 @@ rank 250 — a same-name conflict against the shipped one-layer form (rank 200)
 resolves in favor of the explicit top-level declaration. Relative resources of
 a nested skill resolve against its own directory.
 
+## Compatibility
+
+Built and verified against DSH `0.1.2-rc.1` (the `latest` release channel); the
+DSH peer ranges (`^0.1.2-rc.1`) align with that channel. The range also accepts
+later stable `0.1.x` releases, so a channel bump still needs a manual re-check and
+re-alignment.
+
 ## Install
 
 ```powershell

@@ -1,6 +1,6 @@
 # 内容搜索经上游 opt-in 工具与索引启用交付
 
-会话内容搜索改用上游 opt-in 包 `@deepseek-ai/dsh-tool-session-query`（`0.1.2-alpha.2`，与当前 DSH 安装同版本）交付，并由本插件 patch 将 `session-query-sqlite` 的 `openAt` 由 `never` 改为 `first-search` 并配持久化 path，启用部署级内容搜索索引。上游包已实现工作区授权、无游标结果与限流；自研扫描式搜索会重复实现且成本随会话量上升，故不做。
+会话内容搜索改用上游 opt-in 包 `@deepseek-ai/dsh-tool-session-query`（依赖范围对齐当前 DSH 安装所在的发布通道版本，当前 `0.1.2-rc.1`）交付，并由本插件 patch 将 `session-query-sqlite` 的 `openAt` 由 `never` 改为 `first-search` 并配持久化 path，启用部署级内容搜索索引。上游包已实现工作区授权、无游标结果与限流；自研扫描式搜索会重复实现且成本随会话量上升，故不做。
 
 ## Considered Options
 
@@ -11,5 +11,5 @@
 ## Consequences
 
 - 部署级行为变更：Web GUI 内容搜索框（宿主功能）随索引启用而可用。
-- 版本锁定：上游包版本与 DSH 安装版本一致（`0.1.2-alpha.2`），升版需显式决策。
+- 版本对齐：上游包依赖范围对齐 DSH 安装所在的发布通道版本（当前 `^0.1.2-rc.1`）；该范围仍会接受后续 `0.1.x` 稳定版，通道跳版后需人工复核并显式决策。
 - 上游包默认不挂载（opt-in）；本决策以插件 patch 挂载，属刻意偏离上游默认，故记录。

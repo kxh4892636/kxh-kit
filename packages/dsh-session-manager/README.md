@@ -20,6 +20,12 @@ DSH 插件: 以模型工具面提供会话与模型管理 CRUD(ADR-0002)。
 
 内容搜索由上游 `@deepseek-ai/dsh-tool-session-query` 提供(见 `cordis.patch.yml` 与 ADR-0003)。
 
+## 兼容版本
+
+对齐 DSH `0.1.2-rc.1`(`latest` 发布通道):DSH 相关 peer 与上游 opt-in 工具包依赖取 `^0.1.2-rc.1`
+(`@deepseek-ai/cordis`、`@deepseek-ai/schemastery` 保持各自范围)。该范围同样会接受后续 `0.1.x`
+稳定版,通道跳版后需人工复核并对齐。
+
 ## 安装
 
 ```powershell
