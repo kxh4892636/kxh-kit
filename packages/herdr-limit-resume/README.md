@@ -30,6 +30,10 @@ Linking or enabling a plugin does not invoke its startup hook. Restart Herdr to 
 compensation worker. The `Scan rate-limited agents now` action is available for an immediate manual
 scan and uses the current local build.
 
+On Unix, the runtime launcher resolves Node from the Herdr server `PATH`, the user's login shell, or
+common NVM, mise, Volta, fnm, and asdf install directories. This keeps hooks working when
+`herdr --remote` starts the remote server with a minimal non-interactive `PATH`.
+
 ## Operation and risk
 
 `done` and `idle` agents receive `go on` through `agent.prompt`. A `blocked` agent receives raw pane

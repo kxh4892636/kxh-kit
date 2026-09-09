@@ -67,7 +67,7 @@ test("the manifest starts the compensation worker", async (): Promise<void> => {
   const manifest = await readFile(new URL("../../herdr-plugin.toml", import.meta.url), "utf8");
 
   expect(manifest).toContain("[[startup]]");
-  expect(manifest).toContain('command = ["node", "dist/main.mjs", "worker"]');
+  expect(manifest).toContain('command = ["./runtime/launch-node.cmd", "worker"]');
 });
 
 test("worker scans immediately and then on an exact 30 second cadence", async (): Promise<void> => {

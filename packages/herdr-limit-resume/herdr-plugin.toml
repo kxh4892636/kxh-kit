@@ -15,11 +15,11 @@ command = ["corepack", "pnpm", "--filter", "@kxh4892636/herdr-limit-resume", "bu
 id = "scan-now"
 title = "Scan rate-limited agents now"
 contexts = ["workspace"]
-command = ["node", "dist/main.mjs", "scan-now"]
+command = ["./runtime/launch-node.cmd", "scan-now"]
 
 [[events]]
 on = "pane.agent_status_changed"
-command = ["node", "dist/main.mjs", "handle-event"]
+command = ["./runtime/launch-node.cmd", "handle-event"]
 
 [[startup]]
-command = ["node", "dist/main.mjs", "worker"]
+command = ["./runtime/launch-node.cmd", "worker"]

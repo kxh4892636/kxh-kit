@@ -5,6 +5,7 @@
   "license": "MIT",
   "files": [
     "dist",
+    "runtime/launch-node.cmd",
     "herdr-plugin.toml",
     "README.md"
   ],
@@ -13,7 +14,7 @@
     "build": "vp pack",
     "check": "vp check",
     "pretest": "vp pack",
-    "test": "vp test src",
+    "test": "vp test src runtime",
     "prepublishOnly": "vp run build"
   },
   "devDependencies": {
