@@ -125,7 +125,7 @@ export interface SessionControllerLike {
             readonly kind: "subagent";
             readonly parentSessionId: string;
             readonly childSessionId: string;
-            readonly mode: "one-shot" | "continuable";
+            readonly mode: SubagentMode;
           };
       readonly maxMessages?: number;
     },
@@ -139,7 +139,7 @@ export interface SessionControllerLike {
             readonly kind: "subagent";
             readonly parentSessionId: string;
             readonly childSessionId: string;
-            readonly mode: "one-shot" | "continuable";
+            readonly mode: SubagentMode;
           };
       readonly throughSeq: number;
       readonly beforeSeq?: number;
@@ -286,12 +286,16 @@ export interface WorkspaceRegistryLike {
   archiveSession(sessionId: string): Promise<void>;
 }
 
-/** 会话投影服务(仅用于解析子会话 identity.mode)。 */
+/**
+ * 会话投影服务(仅用于解析子会话 identity.mode)。
+ * 宿主契约: `stateOf(session, "subagent")` 返回该 unit 的 host state
+ * (`{ identity?: SubagentIdentityProjection }`), 不是 snapshot 的 `values`。
+ */
 export interface SessionProjectionsLike {
   stateOf(
-    key: "subagent",
     session: unknown,
-  ): { readonly values: Readonly<Record<string, unknown>> } | undefined;
+    key: "subagent",
+  ): { readonly identity?: { readonly mode?: unknown } } | undefined;
 }
 
 /** 会话存储(仅用于取 live Session 对象参与投影解析)。 */
@@ -299,7 +303,10 @@ export interface SessionStoreLike {
   get(sessionId: string): unknown;
 }
 
-/** 会话查询服务的 observeSession(仅用于冷子会话寻址校验)。 */
+/**
+ * 会话查询服务的 observeSession(仅用于冷子会话寻址校验)。
+ * 宿主契约: `projections` 是 `ProjectionSnapshot`, `values.subagent` 是该 unit 的 view。
+ */
 export interface SessionQueryLike {
   observeSession(
     sessionId: string,
@@ -327,15 +334,27 @@ type IsKnown = { readonly [key: string]: unknown };
 const asObject = (value: unknown): IsKnown | undefined =>
   typeof value === "object" && value !== null ? (value as IsKnown) : undefined;
 
-/** 从 projection 值里取子会话 destination mode; 不可用时返回 undefined。 */
-export const subagentModeOf = (
-  values: Readonly<Record<string, unknown>> | undefined,
-): "one-shot" | "continuable" | undefined => {
-  const subagent = asObject(values?.["subagent"]);
-  const identity = asObject(subagent?.["identity"]);
-  const mode = identity?.["mode"];
-  return mode === "continuable" || mode === "one-shot" ? mode : undefined;
-};
+/** 子会话 destination mode。 */
+export type SubagentMode = "one-shot" | "continuable";
+
+const asSubagentMode = (mode: unknown): SubagentMode | undefined =>
+  mode === "continuable" || mode === "one-shot" ? mode : undefined;
+
+/**
+ * 从投影 host state 取子会话 mode(`stateOf(session, "subagent")` 的返回形状:
+ * `{ identity?: { mode } }`); 形状不符时返回 undefined。
+ */
+export const subagentModeOfState = (state: unknown): SubagentMode | undefined =>
+  asSubagentMode(asObject(asObject(state)?.["identity"])?.["mode"]);
+
+/**
+ * 从投影 view 值集取子会话 mode(`ProjectionSnapshot.values` 的形状:
+ * `values.subagent` 直接是 `{ mode, label?, seq } | null`, 没有 identity 层);
+ * 形状不符时返回 undefined。
+ */
+export const subagentModeOfSnapshotValues = (
+  values: Readonly<Record<string, unknown>> | null | undefined,
+): SubagentMode | undefined => asSubagentMode(asObject(values?.["subagent"])?.["mode"]);
 
 /** 事件 data 里取文本块内容; 拼不出的返回空串(含打包行的 texts 数组)。 */
 export const eventTextOf = (data: unknown): string => {
@@ -721,20 +740,17 @@ export class SessionManagerHost {
   }
 
   /** 解析 subagent mode: 先投影, 再 cold observeSession, 失败给出明确错误。 */
-  private async subagentModeOfAddress(
-    address: SessionAddressInput,
-  ): Promise<"one-shot" | "continuable"> {
+  private async subagentModeOfAddress(address: SessionAddressInput): Promise<SubagentMode> {
     const live = this.services.sessionProjections;
     const session = this.services.sessions?.get(address.sessionId);
     if (live !== undefined && session !== undefined) {
-      const state = live.stateOf("subagent", session);
-      const mode = subagentModeOf(state?.values);
+      const mode = subagentModeOfState(live.stateOf(session, "subagent"));
       if (mode !== undefined) return mode;
     }
     const query = this.services.sessionQuery;
     if (query !== undefined) {
       const observed = await query.observeSession(address.sessionId, { projectionMode: "all" });
-      const mode = subagentModeOf(observed.projections?.values ?? undefined);
+      const mode = subagentModeOfSnapshotValues(observed.projections?.values);
       if (mode !== undefined) return mode;
     }
     throw new HostError(
@@ -764,7 +780,7 @@ export type HostAddressLike =
       readonly kind: "subagent";
       readonly parentSessionId: string;
       readonly childSessionId: string;
-      readonly mode: "one-shot" | "continuable";
+      readonly mode: SubagentMode;
     };
 
 const modelEntryOf = (entry: {

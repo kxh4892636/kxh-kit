@@ -8,7 +8,8 @@ import {
   SessionManagerHost,
   normalizeHostError,
   resolveSpawnLocation,
-  subagentModeOf,
+  subagentModeOfState,
+  subagentModeOfSnapshotValues,
 } from "./host.ts";
 import type { HostServices } from "./host.ts";
 import { headerOf, makeFakeServices, messageRecordOf, snapshotOf } from "./test-support.ts";
@@ -47,17 +48,36 @@ describe("normalizeHostError", () => {
   });
 });
 
-describe("subagentModeOf", () => {
-  it("从 projection 值解析 continuable/one-shot", () => {
-    expect(subagentModeOf({ subagent: { identity: { mode: "continuable" } } })).toBe("continuable");
-    expect(subagentModeOf({ subagent: { identity: { mode: "one-shot" } } })).toBe("one-shot");
+describe("subagentModeOfState / subagentModeOfSnapshotValues", () => {
+  it("stateOf 的 host state 取 identity.mode", () => {
+    expect(subagentModeOfState({ identity: { mode: "continuable" } })).toBe("continuable");
+    expect(subagentModeOfState({ identity: { mode: "one-shot" } })).toBe("one-shot");
   });
 
-  it("缺失或畸形返回 undefined", () => {
-    expect(subagentModeOf(undefined)).toBeUndefined();
-    expect(subagentModeOf({ subagent: { identity: {} } })).toBeUndefined();
-    expect(subagentModeOf({ subagent: null })).toBeUndefined();
-    expect(subagentModeOf({ subagent: { identity: { mode: "unknown" } } })).toBeUndefined();
+  it("stateOf 缺失或畸形返回 undefined", () => {
+    expect(subagentModeOfState(undefined)).toBeUndefined();
+    expect(subagentModeOfState({})).toBeUndefined();
+    expect(subagentModeOfState({ identity: {} })).toBeUndefined();
+    expect(subagentModeOfState({ identity: { mode: "unknown" } })).toBeUndefined();
+    // 旧假设: snapshot 形状(values.subagent)不是 stateOf 的返回形状。
+    expect(subagentModeOfState({ values: { subagent: { mode: "continuable" } } })).toBeUndefined();
+  });
+
+  it("ProjectionSnapshot.values 取 subagent.mode(view 无 identity 层)", () => {
+    expect(subagentModeOfSnapshotValues({ subagent: { mode: "one-shot" } })).toBe("one-shot");
+    expect(subagentModeOfSnapshotValues({ subagent: { mode: "continuable" } })).toBe("continuable");
+  });
+
+  it("values 缺失或畸形返回 undefined", () => {
+    expect(subagentModeOfSnapshotValues(undefined)).toBeUndefined();
+    expect(subagentModeOfSnapshotValues({})).toBeUndefined();
+    expect(subagentModeOfSnapshotValues({ subagent: null })).toBeUndefined();
+    expect(subagentModeOfSnapshotValues({ subagent: {} })).toBeUndefined();
+    expect(subagentModeOfSnapshotValues({ subagent: { mode: "unknown" } })).toBeUndefined();
+    // 旧假设: state 形状(identity 层)不是 view 的形状。
+    expect(
+      subagentModeOfSnapshotValues({ subagent: { identity: { mode: "one-shot" } } }),
+    ).toBeUndefined();
   });
 });
 
@@ -240,6 +260,42 @@ describe("read", () => {
         mode: "continuable",
       },
     });
+  });
+
+  it("子会话寻址: live 投影按 (session, key) 调用并优先于冷查询", async () => {
+    const fake = makeFakeServices({
+      frames,
+      items: [{ sessionId: "child-1", origin: "subagent", parentSessionId: "parent-1" }],
+    });
+    const seen: unknown[] = [];
+    const host = new SessionManagerHost({
+      ...fake.services,
+      sessionProjections: {
+        stateOf: (session, key) => {
+          seen.push([session, key]);
+          return key === "subagent" ? { identity: { mode: "continuable" } } : undefined;
+        },
+      },
+    });
+    await host.read({ sessionId: "child-1", parentSessionId: "parent-1" });
+    expect(seen).toEqual([[expect.objectContaining({ sessionId: "child-1" }), "subagent"]]);
+    expect(fake.calls.follow[0]).toMatchObject({ address: { mode: "continuable" } });
+    expect(fake.calls.observe).toHaveLength(0);
+  });
+
+  it("子会话寻址: live 未命中时经冷查询解析 mode", async () => {
+    const fake = makeFakeServices({
+      frames,
+      subagentMode: "one-shot",
+      items: [{ sessionId: "child-1", origin: "subagent", parentSessionId: "parent-1" }],
+    });
+    const host = new SessionManagerHost({
+      ...fake.services,
+      sessionProjections: { stateOf: () => undefined },
+    });
+    await host.read({ sessionId: "child-1", parentSessionId: "parent-1" });
+    expect(fake.calls.observe).toEqual(["child-1"]);
+    expect(fake.calls.follow[0]).toMatchObject({ address: { mode: "one-shot" } });
   });
 
   it("子会话寻址: 投影不可用时给出明确错误", async () => {

@@ -9,6 +9,7 @@ import type {
   HeaderLike,
   HistoryRecordVariantLike,
   HostServices,
+  SubagentMode,
 } from "./host.ts";
 
 /** 调用记录容器。 */
@@ -49,7 +50,7 @@ export interface FakeOptions {
   }[];
   readonly archived?: readonly string[];
   /** 投影解析返回的 subagent mode(仅用于子会话寻址测试)。 */
-  readonly subagentMode?: "continuable" | "one-shot";
+  readonly subagentMode?: SubagentMode;
 }
 
 /** 默认会话头。 */
@@ -87,6 +88,37 @@ export const snapshotOf = (
   records,
   hasMore,
 });
+
+/** 严格假 ctx 的构造参数。 */
+export interface StrictCtxOptions {
+  readonly services: HostServices;
+  /** 已在 inject 中声明的服务(直读可用)。 */
+  readonly injected: Readonly<Record<string, unknown>>;
+  /** 可选服务是否经 `get` 返回; false 模拟可选服务缺席。 */
+  readonly optionalAvailable?: boolean;
+}
+
+/**
+ * 复刻 cordis strict inject 的假 ctx: 直读未 inject 的服务抛错,
+ * `get(name)` 不带 inject 要求地返回假服务(缺席时返回 undefined)。
+ */
+export const makeStrictCtx = (options: StrictCtxOptions): Record<string, unknown> => {
+  const store: Record<string, unknown> = {
+    ...options.injected,
+    get: (name: string): unknown =>
+      options.optionalAvailable === false
+        ? undefined
+        : (options.services as unknown as Record<string, unknown>)[name],
+  };
+  return new Proxy(store, {
+    get: (target, prop, receiver) => {
+      if (typeof prop === "string" && !(prop in target)) {
+        throw new Error(`cannot get property "${prop}" without inject`);
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+  });
+};
 
 /** 构造一套假 HostServices(可覆盖各槽并记录调用)。 */
 export const makeFakeServices = (
@@ -197,17 +229,20 @@ export const makeFakeServices = (
       get: (sessionId) => items.find((item) => item.sessionId === sessionId) as unknown,
     },
     sessionProjections: {
-      stateOf: (_key, _session) =>
-        options?.subagentMode === undefined
-          ? undefined
-          : { values: { subagent: { identity: { mode: options.subagentMode } } } },
+      // 形状与宿主一致: stateOf 返回该 unit 的 host state(`{identity}`), key 守卫
+      // 镜像宿主分派, 使参数顺序写反时假服务同样落空。
+      stateOf: (_session, key) =>
+        key === "subagent" && options?.subagentMode !== undefined
+          ? { identity: { mode: options.subagentMode } }
+          : undefined,
     },
     sessionQuery: {
       observeSession: async (sessionId) => {
         calls.observe.push(sessionId);
+        // 形状与宿主一致: ProjectionSnapshot.values.subagent 是 view(无 identity 层)。
         return options?.subagentMode === undefined
           ? { projections: null }
-          : { projections: { values: { subagent: { identity: { mode: options.subagentMode } } } } };
+          : { projections: { values: { subagent: { mode: options.subagentMode } } } };
       },
     },
   };

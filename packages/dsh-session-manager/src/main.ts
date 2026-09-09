@@ -27,9 +27,34 @@ const GUIDANCE = [
   "清理用 session_archive(隐藏, 无硬删除); 目录可读性用 session_rename。",
 ].join("\n");
 
+/** 本插件用到的 ctx 服务槽: 必需服务 + `ctx.get` 读取面(cordis Context 未声明这些名字)。 */
+type HostServiceSlots = Pick<HostServices, "sessionController" | "workspaceRegistry"> & {
+  get(name: string): unknown;
+};
+
+/**
+ * 组装 Host 服务槽。必需服务已在 `inject` 中声明, 直接读取即可;
+ * 其余服务未经 inject, 只能经 `ctx.get` 读取——cordis 对直读未声明的
+ * ctx 服务会抛 `cannot get property "…" without inject`, 缺席时由
+ * host.ts 的可选字段分支降级。
+ */
+const hostServicesOf = (ctx: Context): HostServices => {
+  const slots = ctx as unknown as HostServiceSlots;
+  const sessions = slots.get("sessions") as HostServices["sessions"];
+  const sessionProjections = slots.get("sessionProjections") as HostServices["sessionProjections"];
+  const sessionQuery = slots.get("sessionQuery") as HostServices["sessionQuery"];
+  return {
+    sessionController: slots.sessionController,
+    workspaceRegistry: slots.workspaceRegistry,
+    ...(sessions === undefined ? {} : { sessions }),
+    ...(sessionProjections === undefined ? {} : { sessionProjections }),
+    ...(sessionQuery === undefined ? {} : { sessionQuery }),
+  };
+};
+
 export function apply(ctx: Context): void {
   const agents = (ctx as unknown as { readonly agents?: AgentStoreLike }).agents;
-  const host = new SessionManagerHost(ctx as unknown as HostServices, {
+  const host = new SessionManagerHost(hostServicesOf(ctx), {
     contextInstaller: makeContextInstaller(agents === undefined ? {} : { agents }),
   });
   ctx.systemPrompt.section({
