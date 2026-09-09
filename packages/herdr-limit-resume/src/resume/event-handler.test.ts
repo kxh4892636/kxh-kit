@@ -52,7 +52,7 @@ test("the manifest wires agent status events to the event handler", async (): Pr
   const manifest = await readFile(new URL("../../herdr-plugin.toml", import.meta.url), "utf8");
 
   expect(manifest).toContain('on = "pane.agent_status_changed"');
-  expect(manifest).toContain('command = ["node", "dist/main.mjs", "handle-event"]');
+  expect(manifest).toContain('command = ["./runtime/launch-node.cmd", "handle-event"]');
 });
 
 test.each([
