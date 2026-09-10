@@ -23,8 +23,8 @@ a nested skill resolve against its own directory.
 
 ## Compatibility
 
-Built and verified against DSH `0.1.2-rc.1` (the `latest` release channel); the
-DSH peer ranges (`^0.1.2-rc.1`) align with that channel. The range also accepts
+Built and verified against DSH `0.1.5-rc.1` (the `latest` release channel); the
+DSH peer ranges (`^0.1.5-rc.1`) align with that channel. The range also accepts
 later stable `0.1.x` releases, so a channel bump still needs a manual re-check and
 re-alignment.
 

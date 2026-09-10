@@ -1,5 +1,5 @@
 ---
-status: pending
+status: in_progress
 ---
 
 # dsh 插件适配 0.1.5-rc.1
