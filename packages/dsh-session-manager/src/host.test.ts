@@ -1,5 +1,6 @@
 /**
  * SessionManagerHost 行为测试: 列表/读取/派生/投递/模型/归档/等待/错误归一化。
+ * 读窗口的文本化用例见 host-read.test.ts。
  */
 import { describe, expect, it } from "vitest";
 import {
@@ -12,17 +13,7 @@ import {
   subagentModeOfSnapshotValues,
 } from "./host.ts";
 import type { HostServices } from "./host.ts";
-import { headerOf, makeFakeServices, messageRecordOf, snapshotOf } from "./test-support.ts";
-
-const makeHost = (
-  options?: Parameters<typeof makeFakeServices>[0],
-): {
-  readonly host: SessionManagerHost;
-  readonly calls: ReturnType<typeof makeFakeServices>["calls"];
-} => {
-  const fake = makeFakeServices(options);
-  return { host: new SessionManagerHost(fake.services), calls: fake.calls };
-};
+import { makeFakeServices, makeHost } from "./test-support.ts";
 
 describe("normalizeHostError", () => {
   it("保留 RemoteError 子集的 code", () => {
@@ -133,179 +124,6 @@ describe("list", () => {
     expect(items[0]).not.toHaveProperty("cwd");
     expect(items[0]).not.toHaveProperty("workspaceId");
     expect(items[0]).not.toHaveProperty("workspaceTitle");
-  });
-});
-
-describe("read", () => {
-  const frames = [
-    snapshotOf(
-      [
-        messageRecordOf("user/message", 1, "hello"),
-        messageRecordOf("assistant/message", 2, "hi there"),
-        { type: "event", event: { type: "turn/end", seq: 3, time: 5, data: {} } },
-      ],
-      300,
-      true,
-      headerOf("session-a", { cwd: "C:\\ws" }),
-    ),
-  ];
-
-  it("快照窗口: 消息对齐 + 摘要行 + 游标", async () => {
-    const { host } = makeHost({ frames });
-    const window = await host.read({ sessionId: "session-a" });
-    expect(window.throughSeq).toBe(300);
-    expect(window.hasMore).toBe(true);
-    expect(window.entries.map((entry) => [entry.kind, entry.text])).toEqual([
-      ["user", "hello"],
-      ["assistant", "hi there"],
-      ["event", "[event turn/end]"],
-    ]);
-    expect(window.header.cwd).toBe("C:\\ws");
-  });
-
-  it("事件文本: chunk 行展开为 assistant 文本('chunks' 与 'event' 双 wire 形状)+ 后备 text 字段", async () => {
-    const { host } = makeHost({
-      frames: [
-        snapshotOf([
-          {
-            type: "chunks",
-            event: {
-              type: "chunkrow/text-chunks",
-              seq: 6,
-              time: 6,
-              data: { seq: 45, turn: 1, step: 1, index: 0, dt: [], texts: ["SMOKE-", "OK"] },
-            },
-          },
-          {
-            type: "event",
-            event: {
-              type: "chunkrow/text-chunks",
-              seq: 7,
-              time: 7,
-              data: { seq: 46, turn: 1, step: 1, index: 0, dt: [], texts: ["SECOND-", "REPLY"] },
-            },
-          },
-          {
-            type: "event",
-            event: {
-              type: "chunkrow/reasoning-chunks",
-              seq: 8,
-              time: 8,
-              data: { texts: ["thinking"] },
-            },
-          },
-          {
-            type: "event",
-            event: { type: "user/message", seq: 9, time: 9, data: { text: "plain text" } },
-          },
-          {
-            type: "event",
-            event: {
-              type: "user/message",
-              seq: 10,
-              time: 10,
-              data: { content: [{ type: "text", text: "a" }, { type: "image" }] },
-            },
-          },
-        ]),
-      ],
-    });
-    const window = await host.read({ sessionId: "session-a" });
-    expect(window.entries.map((entry) => [entry.kind, entry.text])).toEqual([
-      ["assistant", "SMOKE-OK"],
-      ["assistant", "SECOND-REPLY"],
-      ["event", "[chunk 增量行 chunkrow/reasoning-chunks]"],
-      ["user", "plain text"],
-      ["user", "a"],
-    ]);
-  });
-
-  it("无 opening snapshot 时抛出读取失败", async () => {
-    const { host } = makeHost({ frames: [] });
-    await expect(host.read({ sessionId: "session-a" })).rejects.toMatchObject({
-      code: "SESSION_MANAGER_READ_FAILED",
-    });
-  });
-
-  it("beforeSeq 时以快照 throughSeq 向前翻页", async () => {
-    const { host, calls } = makeHost({
-      frames,
-      pageRecords: [messageRecordOf("user/message", 5, "older")],
-      pageHasMore: true,
-    });
-    const window = await host.read({ sessionId: "session-a" }, { beforeSeq: 300, maxMessages: 4 });
-    expect(calls.page).toHaveLength(1);
-    expect(calls.page[0]).toMatchObject({
-      address: { kind: "session", sessionId: "session-a" },
-      throughSeq: 300,
-      beforeSeq: 300,
-      maxMessages: 4,
-    });
-    expect(window.entries[0]?.text).toBe("older");
-    expect(window.hasMore).toBe(true);
-  });
-
-  it("子会话寻址: 投影给出 mode 时用 subagent 地址", async () => {
-    const { host, calls } = makeHost({
-      frames,
-      subagentMode: "continuable",
-      items: [{ sessionId: "child-1", origin: "subagent", parentSessionId: "parent-1" }],
-    });
-    await host.read({ sessionId: "child-1", parentSessionId: "parent-1" });
-    expect(calls.follow[0]).toMatchObject({
-      address: {
-        kind: "subagent",
-        parentSessionId: "parent-1",
-        childSessionId: "child-1",
-        mode: "continuable",
-      },
-    });
-  });
-
-  it("子会话寻址: live 投影按 (session, key) 调用并优先于冷查询", async () => {
-    const fake = makeFakeServices({
-      frames,
-      items: [{ sessionId: "child-1", origin: "subagent", parentSessionId: "parent-1" }],
-    });
-    const seen: unknown[] = [];
-    const host = new SessionManagerHost({
-      ...fake.services,
-      sessionProjections: {
-        stateOf: (session, key) => {
-          seen.push([session, key]);
-          return key === "subagent" ? { identity: { mode: "continuable" } } : undefined;
-        },
-      },
-    });
-    await host.read({ sessionId: "child-1", parentSessionId: "parent-1" });
-    expect(seen).toEqual([[expect.objectContaining({ sessionId: "child-1" }), "subagent"]]);
-    expect(fake.calls.follow[0]).toMatchObject({ address: { mode: "continuable" } });
-    expect(fake.calls.observe).toHaveLength(0);
-  });
-
-  it("子会话寻址: live 未命中时经冷查询解析 mode", async () => {
-    const fake = makeFakeServices({
-      frames,
-      subagentMode: "one-shot",
-      items: [{ sessionId: "child-1", origin: "subagent", parentSessionId: "parent-1" }],
-    });
-    const host = new SessionManagerHost({
-      ...fake.services,
-      sessionProjections: { stateOf: () => undefined },
-    });
-    await host.read({ sessionId: "child-1", parentSessionId: "parent-1" });
-    expect(fake.calls.observe).toEqual(["child-1"]);
-    expect(fake.calls.follow[0]).toMatchObject({ address: { mode: "one-shot" } });
-  });
-
-  it("子会话寻址: 投影不可用时给出明确错误", async () => {
-    const { host } = makeHost({
-      frames,
-      items: [{ sessionId: "child-1", origin: "subagent", parentSessionId: "parent-1" }],
-    });
-    await expect(
-      host.read({ sessionId: "child-1", parentSessionId: "parent-1" }),
-    ).rejects.toMatchObject({ code: "SESSION_MANAGER_SUBAGENT_UNAVAILABLE" });
   });
 });
 
