@@ -7,10 +7,11 @@
 import type {
   FollowFrameLike,
   HeaderLike,
-  HistoryRecordVariantLike,
+  RuntimeHistoryRecordLike,
   HostServices,
   SubagentMode,
 } from "./host.ts";
+import { SessionManagerHost } from "./host.ts";
 
 /** 调用记录容器。 */
 export interface FakeCalls {
@@ -39,7 +40,7 @@ export interface FakeOptions {
     readonly title?: string;
   }[];
   readonly frames?: FollowFrameLike[];
-  readonly pageRecords?: readonly HistoryRecordVariantLike[];
+  readonly pageRecords?: readonly RuntimeHistoryRecordLike[];
   readonly pageHasMore?: boolean;
   readonly catalogModels?: readonly string[];
   readonly workspaces?: readonly {
@@ -60,24 +61,30 @@ export const headerOf = (id: string, extra?: Partial<HeaderLike>): HeaderLike =>
   ...extra,
 });
 
-/** 默认消息事件记录。 */
+/**
+ * 默认消息事件记录(wire 形状与宿主一致):
+ * `user/message` 把块放在 `data.content`, `assistant/message` 放在 `data.message.content`。
+ */
 export const messageRecordOf = (
   kind: "user/message" | "assistant/message",
   seq: number,
   text: string,
-): HistoryRecordVariantLike => ({
+): RuntimeHistoryRecordLike => ({
   type: "event",
   event: {
     type: kind,
     seq,
     time: 1788197007136 + seq,
-    data: { content: [{ type: "text", text }] },
+    data:
+      kind === "user/message"
+        ? { content: [{ type: "text", text }] }
+        : { turn: 1, step: 1, message: { role: "assistant", content: [{ type: "text", text }] } },
   },
 });
 
 /** 默认快照帧。 */
 export const snapshotOf = (
-  records: HistoryRecordVariantLike[],
+  records: RuntimeHistoryRecordLike[],
   cursor = 10,
   hasMore = false,
   header?: HeaderLike,
@@ -247,4 +254,12 @@ export const makeFakeServices = (
     },
   };
   return { services, calls };
+};
+
+/** 以假服务构造 SessionManagerHost(读窗口用例与 host 用例共用)。 */
+export const makeHost = (
+  options?: FakeOptions,
+): { readonly host: SessionManagerHost; readonly calls: FakeCalls } => {
+  const fake = makeFakeServices(options);
+  return { host: new SessionManagerHost(fake.services), calls: fake.calls };
 };

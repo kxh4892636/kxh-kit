@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
+import { entriesOf } from "./history-text.ts";
 
 /**
  * SessionManagerHost: session/model CRUD 的 Host 能力面。
  *
- * 直调 ctx.sessionController 与 ctx.workspaceRegistry(结构上等价子集),
- * 把错误归一化为带 code 的 HostError, 把结果投影为本插件 DTO。
- * 工具只消费本面, 单测以假 HostServices 驱动, 不依赖 DSH 运行时。
+ * 直调 ctx.sessionController 与 ctx.workspaceRegistry(结构上等价子集), 把错误归一化为
+ * 带 code 的 HostError, 把结果投影为本插件 DTO; 工具只消费本面, 单测以假 HostServices 驱动。
  */
 
 /** 任一 RemoteError 形状子集: 只认 code/message/details 三个字段。 */
@@ -146,7 +146,7 @@ export interface SessionControllerLike {
       readonly maxMessages?: number;
     },
     signal?: AbortSignal,
-  ): Promise<{ readonly records: readonly HistoryRecordVariantLike[]; readonly hasMore: boolean }>;
+  ): Promise<{ readonly records: readonly RuntimeHistoryRecordLike[]; readonly hasMore: boolean }>;
   create(request: {
     readonly workspaceId?: string;
     readonly cwd?: string;
@@ -211,7 +211,7 @@ export interface ModelCatalogLike {
   }[];
 }
 
-/** 历史记录: 原始事件或打包 delta 行(wire 形状, 见 SessionHistoryRecord)。 */
+/** 会话历史记录(wire 形状 = `SessionHistoryRecord`); 当前宿主只传 `{ type: "event", event }`。 */
 export interface HistoryRecordLike {
   readonly type: "event";
   readonly event: {
@@ -222,29 +222,25 @@ export interface HistoryRecordLike {
   };
 }
 
-/** 打包 chunk 行事件(ChunkRowEvent)。 */
-export interface ChunkRowEventLike {
-  readonly type: `chunkrow/${"text-chunks" | "reasoning-chunks" | "tool-call-chunks"}`;
-  readonly seq: number;
-  readonly time: number;
-  readonly data: unknown;
+/**
+ * 运行时记录形状: 宿主契约只承诺 event 记录
+ * (`@deepseek-ai/dsh-session/chunk-rows` 与其 `chunks` 变体已移除), 但线上负载可能仍是旧形状,
+ * 故类型保留 `type: string` 以便文本化层防御性丢弃非 event 记录。
+ */
+export interface RuntimeHistoryRecordLike extends Omit<HistoryRecordLike, "type"> {
+  readonly type: string;
 }
-
-/** 分页记录: 原始事件或打包 chunk 行。 */
-export type HistoryRecordVariantLike =
-  | HistoryRecordLike
-  | { readonly type: "chunks"; readonly event: ChunkRowEventLike };
 
 /** follow opening snapshot 帧。 */
 export interface FollowFrameLike {
   readonly type: "snapshot";
   readonly header: HeaderLike;
   readonly cursor: number;
-  readonly records: readonly HistoryRecordVariantLike[];
+  readonly records: readonly RuntimeHistoryRecordLike[];
   readonly hasMore: boolean;
 }
 
-/** 会话头部(持久化 header)。 */
+/** 会话头部(持久化 header; 只声明读取窗口用到的字段)。 */
 export interface HeaderLike {
   readonly id: string;
   readonly createdAt: number;
@@ -252,18 +248,6 @@ export interface HeaderLike {
   readonly parentSession?: string;
   readonly origin?: "subagent";
   readonly agentPreset?: string;
-  readonly seedLength?: number;
-}
-
-/** 历史记录: 原始事件或打包 delta 行。 */
-export interface HistoryRecordLike {
-  readonly type: "event";
-  readonly event: {
-    readonly type: string;
-    readonly seq: number;
-    readonly time: number;
-    readonly data: unknown;
-  };
 }
 
 /** workspaceRegistry 的结构子集。 */
@@ -355,79 +339,6 @@ export const subagentModeOfState = (state: unknown): SubagentMode | undefined =>
 export const subagentModeOfSnapshotValues = (
   values: Readonly<Record<string, unknown>> | null | undefined,
 ): SubagentMode | undefined => asSubagentMode(asObject(values?.["subagent"])?.["mode"]);
-
-/** 事件 data 里取文本块内容; 拼不出的返回空串(含打包行的 texts 数组)。 */
-export const eventTextOf = (data: unknown): string => {
-  const block = asObject(data);
-  if (block === undefined) return "";
-  const out: string[] = [];
-  const content = block["content"];
-  if (Array.isArray(content)) {
-    for (const part of content) {
-      const item = asObject(part);
-      if (item?.["type"] !== "text" || typeof item["text"] !== "string") continue;
-      out.push(item["text"]);
-    }
-  }
-  if (out.length > 0) return out.join("\n");
-  const texts = block["texts"];
-  if (Array.isArray(texts) && texts.every((part): part is string => typeof part === "string")) {
-    return texts.join("");
-  }
-  return typeof block["text"] === "string" ? block["text"] : "";
-};
-
-const isUserMessage = (record: HistoryRecordLike): boolean =>
-  record.type === "event" && record.event.type === "user/message";
-const isAssistantMessage = (record: HistoryRecordLike): boolean =>
-  record.type === "event" && record.event.type === "assistant/message";
-const isChunkRowEvent = (
-  event: ChunkRowEventLike | { readonly type: string },
-): event is ChunkRowEventLike =>
-  event.type === "chunkrow/text-chunks" ||
-  event.type === "chunkrow/reasoning-chunks" ||
-  event.type === "chunkrow/tool-call-chunks";
-
-/**
- * 从记录取 chunk 行事件: 兼容 'chunks' 变体与 'event' 包裹变体两种 wire 形状
- * (SessionChunkRun 与事件形式均可由历史页返回)。
- */
-const chunkEventOf = (record: HistoryRecordVariantLike): ChunkRowEventLike | undefined => {
-  if (record.type === "chunks" && isChunkRowEvent(record.event)) return record.event;
-  if (record.type === "event" && isChunkRowEvent(record.event))
-    return record.event as ChunkRowEventLike;
-  return undefined;
-};
-
-/** 文本化一条历史记录: user/assistant 完整文本, chunk 行展开文本, 其余一行摘要。 */
-const entryOf = (record: HistoryRecordVariantLike): HistoryEntry => {
-  const chunkEvent = chunkEventOf(record);
-  if (chunkEvent !== undefined) {
-    const text = eventTextOf(chunkEvent.data);
-    if (chunkEvent.type === "chunkrow/text-chunks" && text !== "") {
-      return { seq: chunkEvent.seq, time: chunkEvent.time, kind: "assistant", text };
-    }
-    return {
-      seq: chunkEvent.seq,
-      time: chunkEvent.time,
-      kind: "event",
-      text: `[chunk 增量行 ${chunkEvent.type}]`,
-    };
-  }
-  // 到此处仅剩 event 变体(chunkEventOf 已排除了 chunks 包裹的 chunk 行)
-  const eventRecord = record as HistoryRecordLike;
-  const event = eventRecord.event;
-  if (isUserMessage(eventRecord) || isAssistantMessage(eventRecord)) {
-    const kind = isUserMessage(eventRecord) ? "user" : "assistant";
-    return {
-      seq: event.seq,
-      time: event.time,
-      kind,
-      text: eventTextOf(event.data),
-    };
-  }
-  return { seq: event.seq, time: event.time, kind: "event", text: `[event ${event.type}]` };
-};
 
 /** 归一化未知错误: RemoteError 子集按 code 呈现, 其余落到固定 code。 */
 export const normalizeHostError = (error: unknown): HostError => {
@@ -567,7 +478,7 @@ export class SessionManagerHost {
       sessionId: snapshot.header.id,
       header: this.headerOf(snapshot.header),
       throughSeq: snapshot.cursor,
-      entries: page.records.map(entryOf),
+      entries: entriesOf(page.records),
       hasMore: page.hasMore,
     };
   }
@@ -724,7 +635,7 @@ export class SessionManagerHost {
       sessionId: snapshot.header.id,
       header: this.headerOf(snapshot.header),
       throughSeq: snapshot.cursor,
-      entries: snapshot.records.map(entryOf),
+      entries: entriesOf(snapshot.records),
       hasMore: snapshot.hasMore,
     };
   }

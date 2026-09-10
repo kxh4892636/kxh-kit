@@ -22,9 +22,14 @@ DSH 插件: 以模型工具面提供会话与模型管理 CRUD(ADR-0002)。
 
 ## 兼容版本
 
-对齐 DSH `0.1.2-rc.1`(`latest` 发布通道):DSH 相关 peer 与上游 opt-in 工具包依赖取 `^0.1.2-rc.1`
-(`@deepseek-ai/cordis`、`@deepseek-ai/schemastery` 保持各自范围)。该范围同样会接受后续 `0.1.x`
-稳定版,通道跳版后需人工复核并对齐。
+对齐 DSH `0.1.5-rc.1`(`latest` 发布通道):DSH 相关 peer 取 `^0.1.5-rc.1`;上游 opt-in 工具包
+`@deepseek-ai/dsh-tool-session-query` **精确钉在 `0.1.5-rc.1`**——npm 上 `next` 通道已发布
+`0.1.5-rc.2`,而 `^0.1.5-rc.1` 这类范围会解析到 rc.2,其 peer 要求 `^0.1.5-rc.2`,与宿主 rc.1 混装。
+(`@deepseek-ai/cordis`、`@deepseek-ai/schemastery` 保持各自范围。)peer 范围同样会接受后续
+`0.1.x` 稳定版,通道跳版后需人工复核并对齐。
+
+安装形态:`dsh plugin --profile web add <tarball|本包路径>`;tarball 安装与工作区解耦,
+`file:` 目录安装是硬链接(重建 `dist` 会换 inode, 需重装或显式同步快照)。
 
 ## 安装
 
