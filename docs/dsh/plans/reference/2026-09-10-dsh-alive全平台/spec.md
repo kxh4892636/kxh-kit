@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 ---
 
 # dsh-alive 全平台
@@ -168,8 +168,8 @@ interface ProcessSource {
 
 ## Issue
 
-| #   | Issue                                                              | 状态        | 阻塞于 | 下一步         |
-| --- | ------------------------------------------------------------------ | ----------- | ------ | -------------- |
-| 01  | [平台无关进程核心与适配器收口](01-平台无关进程核心与适配器收口.md) | completed   | —      | /code-delivery |
-| 02  | [Linux 全功能支持](02-Linux全功能支持.md)                          | completed   | 01     | /code-delivery |
-| 03  | [macOS 支持与自验证交付](03-macOS支持与自验证交付.md)              | in_progress | 02     | /code-delivery |
+| #   | Issue                                                              | 状态      | 阻塞于 | 下一步         |
+| --- | ------------------------------------------------------------------ | --------- | ------ | -------------- |
+| 01  | [平台无关进程核心与适配器收口](01-平台无关进程核心与适配器收口.md) | completed | —      | /code-delivery |
+| 02  | [Linux 全功能支持](02-Linux全功能支持.md)                          | completed | 01     | /code-delivery |
+| 03  | [macOS 支持与自验证交付](03-macOS支持与自验证交付.md)              | completed | 02     | /code-delivery |

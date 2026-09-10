@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 blocked_by: ["02"]
 ---
 
@@ -64,7 +64,8 @@ macOS 上 `dsh-alive` 走同一 CLI 与控制协议，不再被平台检查拒�
 - Linux 回归（macOS 改动与 POSIX 拆分不得影响已交付的 Linux 路径）：缓存版本夹具上 `start`（HTTP 200）→ 重复 `start` 换 pid → `stop` 后不可达、`control.sock` 已删除；真实 DSH 冒烟 `@deepseek-ai/dsh@0.1.5-rc.1`（registry 走 `https://bnpm.byted.org`，隔离 `DSH_HOME`）在 `setsid` 子 shell 启动后 HTTP 401，`stop` 正常停止。前两项为本 issue 修复后当场执行，日志位于临时目录 `/tmp/alive-i3*`（已清理，结论与命令见上）。
 - 回归：兄弟包逐包复跑，失败集合与执行基线一致（`dsh-nested-skill` 4、`nano-flow` 13、`nano-mem` 7，全部为既有 `node:path` 平台假设）；仓库级 `vp run -r` 仍因 `apps/etf-service` 依赖缺失不可执行（环境事实：字面 `pnpm --filter … check` 会先触发 deps-status 安装并因内网镜像缺 `isbot@5.2.2` 失败，故本地直接用 `node_modules/.bin/vp`）。
 - `git diff --check` 与 `check-domain.mjs .` 通过。
-- 审查：Standards 与 Spec 双轴结论见下方「审查记录」。
+- 提交：`7e08399`（feat(dsh-keep-alive): support macOS）；提交后复跑 `vp test --run` 仍为 75 项通过 / 1 项跳过，`vp check` 通过。
+- 审查：Standards 与 Spec 双轴结论见下方「审查记录」，两轴发现均已修复并复验。
 
 未验证范围：
 
