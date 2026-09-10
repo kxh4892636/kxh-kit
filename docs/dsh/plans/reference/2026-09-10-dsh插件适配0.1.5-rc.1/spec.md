@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 ---
 
 # dsh 插件适配 0.1.5-rc.1
@@ -89,10 +89,14 @@ status: in_progress
 
 ## 待定
 
-- **`docs/dsh/CONTEXT.md` 的「发布通道」表述**：ADR-0003 与本 Plan 使用「对齐当前通道版本 `^0.1.5-rc.1`」的说法，而 CONTEXT 的 `发布通道` 词条只讲 dsh-alive 的 `--tag` 记忆，不含插件声明口径。恢复条件：口径需要进入领域语言时，由 `/questing` 维护 glossary。
-- **`host.ts` 文件超限（存量债务）**：829 行（上限 610 行）。本轮只做净减法；恢复条件：按职责拆分（子会话寻址、投影归一化、历史文本化可各自独立）时另起 issue。
-- **`docs/dsh/plans/active/2026-09-09-skill菜单模糊搜索` 领域校验失败（存量违例，非本 Plan 资产）**：该 Plan 目录在 `active/` 下且缺 `spec.md`/`story.md`（校验报 1 项），另在 `.flow/state.json` 中仍持有 `01` 的租约（`owner_session ca9f5ac4-…`，已于 2026-09-09 过期）。恢复条件：该工作恢复推进或归档时处理。
-- **`latest` 通道继续跳版**：本轮把声明对齐到 `0.1.5` 序列；`latest` 跳到 `0.1.6+` 时仍按 ADR-0003「人工复核并显式决策」处理，不做自动跟踪机制。
+- **`dsh-alive status` 误报 `stopped`（本轮新发现）**：重启后 `dsh-alive status` 返回 `{"state":"stopped","pid":null,"prepared":"0.1.5-rc.1"}`，而 3080 实际在监听且服务正常；`state.json` 与 `dsh.log` 同刻写入，宿主进程由已退出的 supervisor 派生。恢复条件：需要复现「supervisor 在重启过程中被中断」路径并修 `dsh-keep-alive` 状态机时另起 Plan。
+- **`dsh-opencode-session` 的声明与打包形态（本轮新发现，非本轮范围）**：profile 依赖指向工作区根部的 `kxh4892636-dsh-opencode-session-0.1.0.tgz`，该文件已不存在（未纳入 git），本轮为重装 profile 用现源码重新打包才解锁；其 `devDependencies` 仍钉 `@deepseek-ai/dsh-llm: 0.1.2-rc.1`、peer 为 `^0.1.2-rc.1`。恢复条件：跟随本轮口径处理该插件时另起 Plan。
+- **工作区包的 `catalog:` 协议与本地 tarball 安装（本轮新发现）**：`dsh-keep-alive` 的 `dependencies.zod: "catalog:"` 使 `npm install -g <tarball>` 报 `EUNSUPPORTEDPROTOCOL`，本轮在打包副本里把 `zod` 解析为 `4.5.4` 后绕过（工作区文件未改）。恢复条件：需要发布或本地 tgz 安装工作区包时，决定改用 pnpm（会解析 catalog）或把运行时依赖写成显式版本。
+- **`docs/dsh/CONTEXT.md` 的「发布通道」表述**：ADR-0003 与本 Plan 使用「对齐当前通道版本 `0.1.5-rc.1`」的说法，而 CONTEXT 的 `发布通道` 词条只讲 dsh-alive 的 `--tag` 记忆，不含插件声明口径。恢复条件：口径需要进入领域语言时，由 `/questing` 维护 glossary。
+- **`host.ts` 仍超单文件上限（存量债务，本轮大幅缓解）**：829 行 → 740 行（上限 610 行），历史文本化已抽到 `history-text.ts`（123 行）。恢复条件：按职责继续拆分（子会话寻址、投影归一化可各自独立）时另起 issue。
+- **`history-text.ts` 与 `host.ts` 各自的 `asObject`/`IsKnown` 副本**：两处 3 行同构代码，抽取收益约等于新增模块成本，本轮按 judgement 保留。恢复条件：出现第三个消费者时抽公共节点收窄模块。
+- **空工具结果的呈现对称性**：既无正文也无 `error` 的 `tool/result` 只显示 `[tool/result]`（全量日志 10219 条中 2 条），与 `tool/call` 的 `name()` 不对称。恢复条件：需要区分「空结果」与「摘要取不到」时另起 issue。
+- **`latest` 通道继续跳版**：本轮把声明对齐到 `0.1.5` 序列（上游工具包精确钉 `0.1.5-rc.1`）；`latest` 跳到 `0.1.6+` 时仍按 ADR-0003「人工复核并显式决策」处理，不做自动跟踪机制。
 - **`session_read` 的 reasoning 可见性**：本轮明确不呈现；若后续需要，以新 Plan 处理（需同时决定输出体积与 `HistoryEntry.kind` 扩展）。
 
 ## 上下文
@@ -114,4 +118,4 @@ status: in_progress
 | 01  | [历史文本化修复与 chunk 行去除](01-历史文本化修复.md)  | completed | —      | /code-delivery |
 | 02  | [依赖声明与文档对齐](02-依赖声明与文档对齐.md)         | completed | —      | /code-delivery |
 | 03  | [合入主分支并推送](03-合入主分支并推送.md)             | completed | 01, 02 | /code-delivery |
-| 04  | [本地打包安装与真机冒烟](04-本地打包安装与真机冒烟.md) | pending   | 03     | /code-delivery |
+| 04  | [本地打包安装与真机冒烟](04-本地打包安装与真机冒烟.md) | completed | 03     | /code-delivery |
