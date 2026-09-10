@@ -7,7 +7,8 @@ test("按平台选择适配器并复用同一实例", (): void => {
   expect(typeof windows.snapshot).toBe("function");
   expect(typeof windows.terminate).toBe("function");
   // 已接入的平台（当前是 win32）选择结果稳定；尚未接入的平台按未知平台报错。
-  if (process.platform === "win32") expect(platformFor(process.platform)).toBe(currentPlatform());
+  if (process.platform === "win32" || process.platform === "linux")
+    expect(platformFor(process.platform)).toBe(currentPlatform());
   else
     expect((): unknown => currentPlatform()).toThrow(
       UNSUPPORTED_PLATFORM_MESSAGE(process.platform),

@@ -112,6 +112,7 @@ const retireLegacy = async (paths: Paths): Promise<void> => {
   throw new Error("Legacy supervisor did not stop; retry start");
 };
 export const spawnSupervisor = (port: number): void => {
+  // detached 在 POSIX 上新建进程组、在 Windows 上脱离控制台，两处都让 supervisor 不随终端退出。
   const child = spawn(
     process.execPath,
     [fileURLToPath(new URL("./main.mjs", import.meta.url)), "--supervisor", String(port)],

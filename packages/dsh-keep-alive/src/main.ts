@@ -4,13 +4,14 @@ import { realpathSync } from "node:fs";
 import { errorText, launchSchema, portSchema, tagSchema, type Status } from "./contract.js";
 import { start, update, query, listPorts, logs, runSupervisor } from "./commands.js";
 import { pathsFor } from "./paths.js";
+import { platformFor } from "./platform/current.js";
 import { DEFAULT_TAG, readRecordedState } from "./runtime/versions.js";
 // 省略 --port 时作用于该端口，与 DSH Web 界面默认端口一致。
 export const DEFAULT_PORT = 3080;
 const COMMANDS = ["start", "update", "stop", "status", "logs"];
 // 只有这两个命令接受 --tag：通道属于版本，停止、查询与日志与版本无关。
 const TAG_COMMANDS = ["start", "update"];
-const HELP = `dsh-alive (Windows, Node.js >=24.19.0)
+const HELP = `dsh-alive (Windows/Linux, Node.js >=24.19.0)
   start [--port N] [--tag T]   Start in background; repeat to restart (default port ${DEFAULT_PORT}, tag ${DEFAULT_TAG})
   update [--port N] [--tag T]  Install the tag's current version without starting or restarting
   stop [--port N]              Stop the managed instance (default ${DEFAULT_PORT})
@@ -60,7 +61,6 @@ export const main = async (
     output(HELP);
     return;
   }
-  if (process.platform !== "win32") throw new Error("dsh-alive currently supports Windows only");
   if (args[0] === "--supervisor" && args.length === 2) {
     const port = portSchema.parse(Number(args[1]));
     await runSupervisor(port, pathsFor(port));
@@ -68,6 +68,9 @@ export const main = async (
   }
   const [command, ...rest] = args;
   if (!COMMANDS.includes(command)) throw new Error("Unknown command; use --help");
+  // 平台不支持时立刻报错：否则 CLI 会先拉起源 supervisor、等它跑完版本解析（可达 10 分钟）
+  // 才在适配器处失败，并以「Supervisor did not start」误导用户。
+  platformFor();
   if (command === "status" && !rest.length) {
     for (const port of await listPorts()) output(JSON.stringify(await query(port)) + "\n");
     return;

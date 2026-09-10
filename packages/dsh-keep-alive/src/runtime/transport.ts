@@ -1,8 +1,38 @@
 import { createConnection, createServer, type Server, type Socket } from "node:net";
 import { createHmac, randomBytes } from "node:crypto";
+import { rm } from "node:fs/promises";
 import { z } from "zod";
 import { errorText, replySchema, requestSchema, type Reply, type Request } from "../contract.js";
 const MAX_MESSAGE = 1024 * 1024;
+// Windows 用命名管道，POSIX 用文件系统里的 socket：后者需要清理残留文件。
+const isPipePath = (pipe: string): boolean => pipe.startsWith("\\");
+// 上一次 supervisor 被强杀会留下 socket 文件；只有确认无人应答才删除，否则 bind 会以 EADDRINUSE 失败。
+export const removeStaleSocket = async (pipe: string): Promise<void> => {
+  if (isPipePath(pipe)) return;
+  await new Promise<void>(
+    (
+      resolve: (value: void | PromiseLike<void>) => void,
+      reject: (reason?: unknown) => void,
+    ): void => {
+      const probe = createConnection(pipe);
+      // 没有超时的 probe 会让 serve 永久挂起；残留文件不会有人应答。
+      probe.setTimeout(2000, (): void => {
+        probe.destroy(new Error("Control channel probe timed out: " + pipe));
+      });
+      probe.once("connect", (): void => {
+        probe.destroy();
+        reject(new Error("Control channel is already in use: " + pipe));
+      });
+      probe.once("error", (error: NodeJS.ErrnoException): void => {
+        probe.destroy();
+        // 只有「文件不存在」与「无人监听」才是陈旧 socket；其他错误上抛，避免误删活着的通道。
+        if (error.code === "ENOENT" || error.code === "ECONNREFUSED") resolve();
+        else reject(error);
+      });
+    },
+  );
+  await rm(pipe, { force: true });
+};
 const lineReader = (socket: Socket, onLine: (line: string) => void): void => {
   let text = "";
   socket.setEncoding("utf8");
@@ -95,6 +125,9 @@ export const serve = async (
       socket.write(proof(token, nonce) + "\n");
     });
   });
+  await removeStaleSocket(pipe);
+  // socket 文件由 libuv 在 server 关闭时删除；这里不再自行 rm：
+  // 'close' 事件要等已有连接结束才触发，延迟删除会误删已经接管同一地址的新 supervisor。
   await new Promise<void>(
     (
       resolve: (value: void | PromiseLike<void>) => void,

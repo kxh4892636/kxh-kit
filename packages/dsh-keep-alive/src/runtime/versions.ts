@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { access, mkdir, rename, rm } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { readJson, saveJson } from "../paths.js";
@@ -35,13 +35,54 @@ export const readRecordedState = async (path: string): Promise<RecordedState | u
 export const saveRecordedState = async (path: string, recorded: RecordedState): Promise<void> =>
   saveJson(path, recorded);
 export type Npm = (args: string[], launch: Launch, timeout?: number) => Promise<string>;
+// npm 的安装布局随平台与包管理器不同；supervisor 继承的环境不一定含 PATH，
+// 因此优先用与当前 Node 同装的 npm-cli.js，再退回常见系统路径。
+export const npmCliCandidates = (
+  execPath: string = process.execPath,
+  platform: string = process.platform,
+): string[] => {
+  const directory = dirname(execPath);
+  // 与当前 Node 同装的 npm 优先；PATH 里的 npm 可能是 sh 包装脚本（Volta/asdf/corepack），
+  // 不能交给 node 执行，故不作为候选。
+  const candidates = [
+    join(directory, "node_modules", "npm", "bin", "npm-cli.js"),
+    join(directory, "..", "lib", "node_modules", "npm", "bin", "npm-cli.js"),
+  ];
+  if (platform === "win32") return candidates.map((path: string): string => resolve(path));
+  return [
+    ...candidates,
+    "/usr/share/nodejs/npm/bin/npm-cli.js",
+    "/usr/local/lib/node_modules/npm/bin/npm-cli.js",
+    "/opt/homebrew/lib/node_modules/npm/bin/npm-cli.js",
+  ].map((path: string): string => resolve(path));
+};
+export const resolveNpmCli = async (
+  execPath: string = process.execPath,
+  platform: string = process.platform,
+): Promise<string> => {
+  const candidates = npmCliCandidates(execPath, platform);
+  for (const candidate of candidates) {
+    try {
+      await access(candidate);
+      return candidate;
+    } catch {
+      // 继续尝试下一个候选路径。
+    }
+  }
+  throw new Error(
+    "Cannot find npm for " +
+      execPath +
+      "; install npm next to this Node.js (tried " +
+      candidates.join(", ") +
+      ")",
+  );
+};
 export const runNpm: Npm = async (
   args: string[],
   launch: Launch,
   timeout: number | undefined = 600000,
 ): Promise<string> => {
-  const cli = join(dirname(process.execPath), "node_modules", "npm", "bin", "npm-cli.js");
-  await access(cli);
+  const cli = await resolveNpmCli();
   const { stdout } = await exec(process.execPath, [cli, ...args], {
     cwd: launch.cwd,
     env: launch.env,

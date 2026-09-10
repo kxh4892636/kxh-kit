@@ -1,8 +1,16 @@
 import { rm } from "node:fs/promises";
 import { expect, test } from "vitest";
-import { installTag, installedVersion, runNpm, OFFICIAL_REGISTRY, type Npm } from "./versions.js";
+import {
+  installTag,
+  installedVersion,
+  npmCliCandidates,
+  resolveNpmCli,
+  runNpm,
+  OFFICIAL_REGISTRY,
+  type Npm,
+} from "./versions.js";
+import { join } from "node:path";
 import { fixture, temporary, writePackage } from "../testing/fixture.js";
-import { onWindows } from "../testing/platform.js";
 const launch = { cwd: process.cwd(), env: process.env as Record<string, string> };
 const view = (tag: string): string[] => [
   "view",
@@ -82,9 +90,29 @@ test("npm 失败直接传播且不重试", async (): Promise<void> => {
   await expect(installTag(await temporary(), launch, "alpha", npm)).rejects.toThrow(/ETARGET/);
   expect(calls.length).toBe(1);
 });
-// 系统 Node 的 npm 位置按平台不同：Windows 在 <nodeDir>/node_modules/npm，
-// POSIX 在 <nodeDir>/../lib/node_modules/npm。POSIX 支持由 Issue 02 交付并覆盖。
-onWindows("系统 Node 执行 npm 且传播失败", async (): Promise<void> => {
+test("npm 解析按平台给出候选路径，并能执行真实 npm", async (): Promise<void> => {
+  const candidates = npmCliCandidates("/usr/bin/node", "linux");
+  expect(candidates[0]).toBe(join("/usr/bin", "node_modules", "npm", "bin", "npm-cli.js"));
+  expect(candidates).toContain(
+    join("/usr/bin", "..", "lib", "node_modules", "npm", "bin", "npm-cli.js"),
+  );
+  expect(candidates).toContain("/usr/share/nodejs/npm/bin/npm-cli.js");
+  // Windows 布局只有与 Node 同装的两个候选，不追加 POSIX 系统路径。
+  const windows = npmCliCandidates("C:\\node\\node.exe", "win32");
+  expect(windows).toHaveLength(2);
+  expect(windows.every((path: string): boolean => !path.startsWith("/usr"))).toBe(true);
+  // 与当前 Node 同装的 npm 能被解析到；PATH 里的 npm 不作为候选（可能是 sh 包装脚本）。
+  expect(await resolveNpmCli(process.execPath, "linux")).toMatch(/npm-cli\.js$/);
+  expect(
+    npmCliCandidates("/usr/bin/node", "linux").every((path: string): boolean =>
+      path.endsWith("npm-cli.js"),
+    ),
+  ).toBe(true);
+  // 全部候选缺失时报错文本可读，并列出尝试过的路径。
+  await expect(resolveNpmCli("/opt/dsh-alive-missing/node", "linux")).rejects.toThrow(
+    /Cannot find npm/,
+  );
+  // 本机真实 npm 可执行，失败会传播。
   expect(await runNpm(["--version"], launch)).toMatch(/^\d+\.\d+/);
   await expect(runNpm(["not-a-real-command"], launch)).rejects.toThrow();
 });

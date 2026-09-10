@@ -11,9 +11,6 @@
     "README.md",
     "LICENSE"
   ],
-  "os": [
-    "win32"
-  ],
   "type": "module",
   "scripts": {
     "build": "vp pack",

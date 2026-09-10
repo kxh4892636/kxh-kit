@@ -184,14 +184,21 @@ const bootInstance = async (
     );
     if (state.identity) {
       const owned = descendants(state.identity, current.processes);
+      // owners 为空表示端口归属未知（例如缺少 lsof）：此时只用「受管进程存活 + HTTP 可达」判定，
+      // 不把未知当成失败，否则无 lsof 的 Linux 上永远无法就绪。
+      const ownershipKnown = current.owners.length > 0;
       if (
-        current.owners.length &&
-        current.owners.every((pid: number): boolean =>
-          owned.some(
-            (p: { pid: number; parent: number; birth: string; command: string | null }): boolean =>
-              p.pid === pid,
-          ),
-        ) &&
+        (!ownershipKnown ||
+          current.owners.every((pid: number): boolean =>
+            owned.some(
+              (p: {
+                pid: number;
+                parent: number;
+                birth: string;
+                command: string | null;
+              }): boolean => p.pid === pid,
+            ),
+          )) &&
         (await io.reachable(port))
       ) {
         state.view = { ...state.view, state: "running", pid: child.pid!, error: null };

@@ -1,10 +1,16 @@
 # dsh-alive
 
-Windows 上的 DSH 后台保活工具（npm 包名 `dsh-keep-alive`，命令 `dsh-alive`）。使用系统 Node.js ≥24.19.0 和 npm，无需管理员权限。
+DSH 后台保活工具（npm 包名 `dsh-keep-alive`，命令 `dsh-alive`）：按端口在后台运行 DSH，关闭终端后继续服务。使用系统 Node.js ≥24.19.0 和 npm，无需管理员权限。
+
+| 平台    | 状态                           | 进程表 / 控制通道                   |
+| ------- | ------------------------------ | ----------------------------------- |
+| Windows | 支持（既有行为，本机未回归）   | PowerShell CIM 快照 / 命名管道      |
+| Linux   | 支持（本机实测）               | `/proc` 直读 + `lsof` / Unix socket |
+| macOS   | 暂不支持（在此平台会报错退出） | —                                   |
 
 先在 `packages/dsh-keep-alive` 目录执行 `pnpm pack` 生成安装包，再从仓库根安装：
 
-```powershell
+```sh
 npm install -g ./packages/dsh-keep-alive/dsh-keep-alive-0.0.1.tgz
 dsh-alive start
 dsh-alive status
@@ -12,6 +18,8 @@ dsh-alive logs
 dsh-alive update
 dsh-alive stop
 ```
+
+Windows 用 PowerShell 执行同样的命令。Linux 上建议先确认 `lsof` 可用（`command -v lsof`）：它只用于把端口归属到受管进程，缺失时仍可启动，但失去「端口被外部进程占用」的提前报错。
 
 启动成功后命令退出；关闭终端仍继续运行。`start`、`update`、`stop`、`logs` 省略 `--port` 时作用于 3080，显式 `--port N` 覆盖该默认值，范围 1–65535。`status` 省略 `--port` 时列出全部受管端口，带 `--port N` 查询单个。重复 `dsh-alive start` 会重启该端口实例。不同端口独立，同一用户的同一端口只有一个受管实例；外部程序占用端口时报告错误，不终止它。
 
@@ -32,7 +40,14 @@ dsh-alive stop
 
 DSH 使用 `web` profile，绑定 `127.0.0.1`，不自动打开浏览器。通过 `logs` 找到 DSH 输出的登录链接并打开；未认证首页返回 401 属于正常行为。登录链接含令牌，不应分享日志。
 
-启动继承当前目录和环境（包括 `DSH_HOME`、npm registry 配置）；重复启动采用新的目录和环境。工具状态、版本及日志存放于 `%LOCALAPPDATA%/dsh-keep-alive/<port>`；DSH 会话、插件仍由 DSH 管理。多个端口沿用同一 DSH_HOME 时不提供会话隔离。
+启动继承当前目录和环境（包括 `DSH_HOME`、npm registry 配置）；重复启动采用新的目录和环境。工具状态、版本及日志按端口存放：
+
+| 平台    | 数据目录                                                 |
+| ------- | -------------------------------------------------------- |
+| Windows | `%LOCALAPPDATA%/dsh-keep-alive/<port>`                   |
+| Linux   | `${XDG_DATA_HOME:-~/.local/share}/dsh-keep-alive/<port>` |
+
+Linux 上控制通道是该目录内的 Unix socket（`control.sock`），目录权限为 `0700`，只有当前用户可访问；`stop` 或 supervisor 正常退出后会删除 socket 文件。可用环境变量 `DSH_ALIVE_DATA` 覆盖数据目录根（测试与隔离冒烟使用）。DSH 会话、插件仍由 DSH 管理；多个端口沿用同一 DSH_HOME 时不提供会话隔离。
 
 DSH 异常退出按 1、2、4、8、16、30 秒退避恢复；稳定运行 60 秒后重置。`stop` 取消保活并关闭该端口 supervisor。日志每文件最多 5 MiB，保留当前及两个旧文件；`logs` 打印当前文件。
 
@@ -42,9 +57,11 @@ DSH 异常退出按 1、2、4、8、16、30 秒退避恢复；稳定运行 60 �
 
 不包含系统服务、开机自启、用户注销或系统重启后恢复，也不承诺 supervisor 被强杀后的恢复。不内嵌或升级 Node.js。工具自身通过 npm 更新。
 
+POSIX 上的已知边界：受管进程树按 `ppid` 归属，而父进程一旦退出，子进程会被内核 reparent 到 pid 1。因此清理必须在根进程仍可读时开始：`stop`/重启的第一轮快照会先取下整棵可见子树再终止它，之后逐轮用已发现的进程继续追查新后代。若根进程在首次快照前就已被回收，剩余后代不再能被归属为受管进程——此时工具提前结束清理而不误杀外部进程，遗留的端口占用会由下一次 `start` 的就绪检查报出。
+
 开发验证：
 
-```powershell
+```sh
 pnpm --filter dsh-keep-alive check
 pnpm --filter dsh-keep-alive test
 pnpm --filter dsh-keep-alive test:coverage
@@ -53,4 +70,4 @@ pnpm --filter dsh-keep-alive build
 
 打包：在 `packages/dsh-keep-alive` 目录执行 `pnpm pack`（会把 `catalog:` 依赖替换为精确版本，产物为 `dsh-keep-alive-0.0.1.tgz`）。
 
-覆盖率由 vitest 的 v8 provider 直接对 `src/**/*.ts` 采样，排除 `*.test.ts` 与 `src/testing/**`，包含 CLI、后台入口与 Windows 适配。测试的系统交互采用临时目录和独立端口，不调用模型。
+覆盖率由 vitest 的 v8 provider 直接对 `src/**/*.ts` 采样，排除 `*.test.ts` 与 `src/testing/**`，包含 CLI、后台入口与平台适配器（Linux 适配器用真实 `/proc` 与真实子进程测试，Windows 专属用例在非 win32 条件跳过）。测试的系统交互采用临时目录和独立端口，不调用模型。
