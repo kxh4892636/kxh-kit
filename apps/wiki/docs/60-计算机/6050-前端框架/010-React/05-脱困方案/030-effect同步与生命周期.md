@@ -46,6 +46,7 @@ function Chat({ roomId }) {
 - 组件内声明的 props/state 都是响应式值;
 - Effect 读取的响应式值都应列入依赖;
 - 空数组 `[]` 表示 Effect 不依赖任何响应式值, 只在挂载时执行一次;
+- 不赋值依赖数组, 表示 react 组件每次渲染都同步;
 - 开发模式下 React 会额外 setup + cleanup 一次, 验证可重同步;
 
 ## 为什么要分离同步过程?
