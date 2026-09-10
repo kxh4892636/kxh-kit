@@ -6,7 +6,7 @@ DSH 后台保活工具（npm 包名 `dsh-keep-alive`，命令 `dsh-alive`）：�
 | ------- | ------------------------------ | ----------------------------------- |
 | Windows | 支持（既有行为，本机未回归）   | PowerShell CIM 快照 / 命名管道      |
 | Linux   | 支持（本机实测）               | `/proc` 直读 + `lsof` / Unix socket |
-| macOS   | 暂不支持（在此平台会报错退出） | —                                   |
+| macOS   | 支持（解析层就绪，未实机验证） | BSD `ps` + `lsof` / Unix socket     |
 
 先在 `packages/dsh-keep-alive` 目录执行 `pnpm pack` 生成安装包，再从仓库根安装：
 
@@ -19,7 +19,7 @@ dsh-alive update
 dsh-alive stop
 ```
 
-Windows 用 PowerShell 执行同样的命令。Linux 上建议先确认 `lsof` 可用（`command -v lsof`）：它只用于把端口归属到受管进程，缺失时仍可启动，但失去「端口被外部进程占用」的提前报错。
+Windows 用 PowerShell 执行同样的命令。Linux 与 macOS 上建议先确认 `lsof` 可用（`command -v lsof`）：它只用于把端口归属到受管进程，缺失时仍可启动，但失去「端口被外部进程占用」的提前报错。
 
 启动成功后命令退出；关闭终端仍继续运行。`start`、`update`、`stop`、`logs` 省略 `--port` 时作用于 3080，显式 `--port N` 覆盖该默认值，范围 1–65535。`status` 省略 `--port` 时列出全部受管端口，带 `--port N` 查询单个。重复 `dsh-alive start` 会重启该端口实例。不同端口独立，同一用户的同一端口只有一个受管实例；外部程序占用端口时报告错误，不终止它。
 
@@ -46,6 +46,7 @@ DSH 使用 `web` profile，绑定 `127.0.0.1`，不自动打开浏览器。通�
 | ------- | -------------------------------------------------------- |
 | Windows | `%LOCALAPPDATA%/dsh-keep-alive/<port>`                   |
 | Linux   | `${XDG_DATA_HOME:-~/.local/share}/dsh-keep-alive/<port>` |
+| macOS   | `~/Library/Application Support/dsh-keep-alive/<port>`    |
 
 Linux 上控制通道是该目录内的 Unix socket（`control.sock`），目录权限为 `0700`，只有当前用户可访问；`stop` 或 supervisor 正常退出后会删除 socket 文件。可用环境变量 `DSH_ALIVE_DATA` 覆盖数据目录根（测试与隔离冒烟使用）。DSH 会话、插件仍由 DSH 管理；多个端口沿用同一 DSH_HOME 时不提供会话隔离。
 
@@ -56,6 +57,21 @@ DSH 异常退出按 1、2、4、8、16、30 秒退避恢复；稳定运行 60 �
 停止或重启会协调尚未完成的安装，可能等待剩余安装时间（一次查询与安装合计最多 10 分钟），避免新旧 supervisor 同时修改版本目录。工具会保留安装过的版本及隔离的损坏目录，便于诊断；需清理时先 `stop`，再按端口删除该工具的数据目录，DSH_HOME 中的用户数据不会随之删除。
 
 不包含系统服务、开机自启、用户注销或系统重启后恢复，也不承诺 supervisor 被强杀后的恢复。不内嵌或升级 Node.js。工具自身通过 npm 更新。
+
+macOS 支持由 `src/platform/bsd.ts` 提供：进程表用一次 `ps -eo pid=,ppid=,lstart=,args=` 取全表，端口归属与终止沿用 POSIX 路径。**该适配器只有解析层与单元测试覆盖，尚未在 macOS 实机运行过**（当前开发环境只有 Linux）。请在 macOS 上按下面几步自行确认，任一步不符合预期都说明适配器需要修正：
+
+```sh
+node -v                                                  # 需 >= 24.19.0
+npm install -g ./packages/dsh-keep-alive/dsh-keep-alive-0.0.1.tgz   # 安装（先 pnpm pack）
+command -v lsof && command -v ps                         # 两者都应存在（macOS 自带）
+dsh-alive start --port 3080                              # 应打印 state=running，pid 非空
+# 关闭当前终端窗口（或结束该 shell），另开一个终端：
+curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3080/   # 期望 401（未认证首页）
+dsh-alive status --port 3080        # 期望 state=running
+dsh-alive stop --port 3080          # 期望 state=stopped，随后端口不再可达
+```
+
+判定标准：`start` 在 60 秒内返回 running；关闭启动终端后端口仍可达；`stop` 后不再可达。失败时查看 `~/Library/Application Support/dsh-keep-alive/3080/dsh.log`，其中会记录 `ps` 解析或身份复核抛出的原因。`ps` 不可用或输出无法解析（例如缺少 pid 1）时，`start`/`stop` 会以 `Cannot parse ps output` 或原始 `spawn ps` 错误明确失败——工具在任何情况下都不会因为读不到进程表而误判「树已退出」，也不会误杀进程。
 
 POSIX 上的已知边界：受管进程树按 `ppid` 归属，而父进程一旦退出，子进程会被内核 reparent 到 pid 1。因此清理必须在根进程仍可读时开始：`stop`/重启的第一轮快照会先取下整棵可见子树再终止它，之后逐轮用已发现的进程继续追查新后代。若根进程在首次快照前就已被回收，剩余后代不再能被归属为受管进程——此时工具提前结束清理而不误杀外部进程，遗留的端口占用会由下一次 `start` 的就绪检查报出。
 
@@ -70,4 +86,4 @@ pnpm --filter dsh-keep-alive build
 
 打包：在 `packages/dsh-keep-alive` 目录执行 `pnpm pack`（会把 `catalog:` 依赖替换为精确版本，产物为 `dsh-keep-alive-0.0.1.tgz`）。
 
-覆盖率由 vitest 的 v8 provider 直接对 `src/**/*.ts` 采样，排除 `*.test.ts` 与 `src/testing/**`，包含 CLI、后台入口与平台适配器（Linux 适配器用真实 `/proc` 与真实子进程测试，Windows 专属用例在非 win32 条件跳过）。测试的系统交互采用临时目录和独立端口，不调用模型。
+覆盖率由 vitest 的 v8 provider 直接对 `src/**/*.ts` 采样，排除 `*.test.ts` 与 `src/testing/**`，包含 CLI、后台入口与三个平台适配器（Linux 适配器用真实 `/proc` 与真实子进程测试；macOS 适配器的解析、身份复核与信号升级用录制表与注入运行器测试，并在 POSIX 上用真实 `ps` 验证同形态；Windows 专属用例在非 win32 条件跳过）。测试的系统交互采用临时目录和独立端口，不调用模型。

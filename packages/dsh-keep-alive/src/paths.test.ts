@@ -1,3 +1,4 @@
+import { homedir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
 import {
@@ -34,7 +35,9 @@ test("控制通道地址按平台生成：命名管道或 Unix socket", async ()
 test("数据目录按平台解析，DSH_ALIVE_DATA 覆盖默认", (): void => {
   const env = { LOCALAPPDATA: "/win", XDG_DATA_HOME: "/xdg" };
   expect(platformDataDirectory("win32", env)).toBe(join("/win", "dsh-keep-alive"));
-  expect(platformDataDirectory("darwin", env)).toMatch(/Library[/\\]Application Support/);
+  expect(platformDataDirectory("darwin", env)).toBe(
+    join(homedir(), "Library", "Application Support", "dsh-keep-alive"),
+  );
   expect(platformDataDirectory("linux", env)).toBe(join("/xdg", "dsh-keep-alive"));
   expect(platformDataDirectory("linux", {})).toMatch(/\.local[/\\]share/);
   expect((): unknown => platformDataDirectory("win32", {})).toThrow(/LOCALAPPDATA/);

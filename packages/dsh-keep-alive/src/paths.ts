@@ -22,7 +22,7 @@ export const platformDataDirectory = (
     if (!env.LOCALAPPDATA) throw new Error("LOCALAPPDATA is required");
     return join(env.LOCALAPPDATA, "dsh-keep-alive");
   }
-  // macOS 的数据目录按平台约定解析；其进程适配器由 Issue 03 交付，当前平台选择会明确报错。
+  // macOS 的数据目录按平台约定解析。
   if (platform === "darwin")
     return join(homedir(), "Library", "Application Support", "dsh-keep-alive");
   // Linux 与其他 POSIX：遵循 XDG 数据目录，缺省 ~/.local/share。

@@ -11,7 +11,7 @@ export const DEFAULT_PORT = 3080;
 const COMMANDS = ["start", "update", "stop", "status", "logs"];
 // 只有这两个命令接受 --tag：通道属于版本，停止、查询与日志与版本无关。
 const TAG_COMMANDS = ["start", "update"];
-const HELP = `dsh-alive (Windows/Linux, Node.js >=24.19.0)
+const HELP = `dsh-alive (Windows/Linux/macOS, Node.js >=24.19.0)
   start [--port N] [--tag T]   Start in background; repeat to restart (default port ${DEFAULT_PORT}, tag ${DEFAULT_TAG})
   update [--port N] [--tag T]  Install the tag's current version without starting or restarting
   stop [--port N]              Stop the managed instance (default ${DEFAULT_PORT})

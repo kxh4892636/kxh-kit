@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 blocked_by: ["01"]
 ---
 
@@ -76,7 +76,8 @@ blocked_by: ["01"]
   - 数据目录权限 `drwx------`（0700）；`stop` 后 `control.sock` 已删除，`state.json` 与 `dsh.log` 保留。
 - `git diff --check` 与 `check-domain.mjs .` 通过。
 - 回归：`vp run --filter nano-mem --no-cache test` 失败集合与执行基线一致（7 项 `node:path` 平台假设相关，与本改动无关）；仓库级 `vp run -r` 仍因 `apps/etf-service` 依赖缺失不可执行（环境事实，见执行基线）。
-- 审查：Standards 与 Spec 双轴结论见下方「审查记录」。
+- 提交：`e455b39`（feat(dsh-keep-alive): support Linux alongside Windows）；提交后复跑 `vp test --run` 仍为 68 项通过 / 1 项跳过，`vp check` 通过。
+- 审查：Standards 与 Spec 双轴结论见下方「审查记录」，两轴发现均已修复并复验。
 
 未验证范围：Windows 运行态行为（本机为 Linux；Windows 代码路径未改动，仅 win32 用例在本机条件跳过）；macOS 适配器不在本提交内，属 Issue 03。
 

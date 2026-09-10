@@ -14,7 +14,7 @@ import { DATA_ROOT_ENV, pathsFor, preparePaths, saveJson } from "./paths.js";
 import { readRecordedState, type Npm } from "./runtime/versions.js";
 import { serve } from "./runtime/transport.js";
 import { snapshot } from "./platform/windows.js";
-import { listeningPids } from "./platform/linux.js";
+import { listeningPids } from "./platform/posix.js";
 import type { Identity } from "./platform/processes.js";
 import type { Paths } from "./paths.js";
 import type { Reply, Request, Status } from "./contract.js";

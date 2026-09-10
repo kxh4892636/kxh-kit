@@ -5,7 +5,9 @@ import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, test } from "vitest";
-import { linuxPlatform, listeningPids, parseStat, snapshot, terminate } from "./linux.js";
+import { linuxPlatform, snapshot, terminate } from "./linux.js";
+import { listeningPids } from "./posix.js";
+import { confirmIdentities, parseStat } from "./proc.js";
 import type { Identity, ProcessSource } from "./processes.js";
 import { onLinux } from "../testing/platform.js";
 const startChild = async (): Promise<ChildProcess> => {
@@ -108,20 +110,34 @@ test("缺少 /proc 数据时快照报错而不是返回空树", async (): Promis
   };
   await expect(snapshot(1, reader)).rejects.toThrow(/boot time/);
   await expect(
-    terminate([{ pid: 1, parent: 0, birth: "x", command: null }], reader),
+    confirmIdentities([{ pid: 1, parent: 0, birth: "x", command: null }], reader),
   ).rejects.toThrow(/boot time/);
-  // cmdline 为空（僵尸或不可读）的进程被跳过；cmdline 可读但 stat 不可解析的进程同样被跳过。
+  // 状态为 Z 的僵尸被跳过；stat 不可解析的条目被跳过；cmdline 读不到的活进程保留为 null。
   const partial = {
     readText: async (path: string): Promise<string | undefined> => {
       if (path.endsWith("/proc/stat")) return "btime 1000";
       if (path.endsWith("/1/cmdline")) return "node\0zombie\0";
-      if (path.endsWith("/1/stat")) return "1 (node) S";
+      if (path.endsWith("/1/stat"))
+        return "1 (node) Z 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 500 0";
+      if (path.endsWith("/2/stat")) return "2 (node) S";
+      if (path.endsWith("/3/stat"))
+        return "3 (node) S 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 900 0";
       return undefined;
     },
-    list: async (): Promise<string[]> => ["1", "2", "self"],
+    list: async (): Promise<string[]> => ["1", "2", "3", "self"],
     listeningPids: async (): Promise<number[]> => [],
   };
-  expect(await snapshot(1, partial)).toEqual({ processes: [], owners: [] });
+  expect(await snapshot(1, partial)).toEqual({
+    processes: [
+      {
+        pid: 3,
+        parent: 1,
+        birth: new Date(1000 * 1000 + 9000).toISOString(),
+        command: null,
+      },
+    ],
+    owners: [],
+  });
   // 进程表整体不可读时必须报错：返回空表会让清理误判「树已退出」。
   const unreadable = {
     readText: partial.readText,
@@ -158,7 +174,7 @@ test("适配器把端口与身份转发给注入的 /proc 读取器", async (): 
   ]);
   expect(reads.some((path: string): boolean => path.endsWith("/42/cmdline"))).toBe(true);
 });
-test("目录不可读时列表返回空集而不是抛出", async (): Promise<void> => {
+test("目录不可读时快照报错而不是返回空表", async (): Promise<void> => {
   const root = await mkdtemp(join(tmpdir(), "dsh-proc-"));
   try {
     await mkdir(join(root, "nested"), { recursive: true });
