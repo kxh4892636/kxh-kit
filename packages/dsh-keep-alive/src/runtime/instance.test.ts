@@ -100,7 +100,7 @@ test("建立身份期间退出且 PID 重用时不得停止外部进程", async 
   let terminations = 0;
   const io = {
     ...os.io,
-    snapshot: async (): Promise<import("../platform/windows.js").Snapshot> => {
+    snapshot: async (): Promise<import("../platform/processes.js").ProcessSnapshot> => {
       if (os.current) {
         const reused = {
           ...os.currentIdentity!,

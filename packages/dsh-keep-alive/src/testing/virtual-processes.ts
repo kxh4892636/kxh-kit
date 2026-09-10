@@ -2,7 +2,7 @@ import { ChildProcess } from "node:child_process";
 import { PassThrough } from "node:stream";
 import type { Launch } from "../contract.js";
 import type { InstanceIo } from "../runtime/instance.js";
-import type { Identity, Snapshot } from "../platform/windows.js";
+import type { Identity, ProcessSnapshot } from "../platform/processes.js";
 import type { Version } from "../runtime/versions.js";
 export interface VirtualProcesses {
   time: number;
@@ -81,7 +81,7 @@ export const createVirtualProcesses = (): VirtualProcesses => {
       if (os.installError) throw new Error("install failed");
       return os.currentVersion;
     },
-    snapshot: async (): Promise<Snapshot> => ({
+    snapshot: async (): Promise<ProcessSnapshot> => ({
       processes: os.currentIdentity ? [os.currentIdentity] : [],
       owners: os.occupied ? [999] : os.currentIdentity ? [os.currentIdentity.pid] : [],
     }),

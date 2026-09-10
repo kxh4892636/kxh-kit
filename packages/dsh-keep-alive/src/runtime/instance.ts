@@ -1,12 +1,12 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { appendLog } from "./log.js";
 import {
-  snapshot,
   descendants,
   terminateTree,
   type Identity,
-  type Snapshot,
-} from "../platform/windows.js";
+  type ProcessSnapshot,
+} from "../platform/processes.js";
+import { currentPlatform } from "../platform/current.js";
 import { delay, errorText, type Launch, type Status } from "../contract.js";
 import {
   DEFAULT_TAG,
@@ -21,7 +21,7 @@ import {
 } from "./versions.js";
 import type { Paths } from "../paths.js";
 export interface InstanceIo {
-  snapshot: (port: number) => Promise<Snapshot>;
+  snapshot: (port: number) => Promise<ProcessSnapshot>;
   terminate: (identity: Identity, port: number) => Promise<void>;
   prepare: (directory: string, launch: Launch, tag: string) => Promise<Version>;
   launch: (version: Version, port: number, launch: Launch) => ChildProcess;
@@ -30,8 +30,9 @@ export interface InstanceIo {
   wait: (ms: number) => Promise<void>;
 }
 export const defaultIo: InstanceIo = {
-  snapshot,
-  terminate: terminateTree,
+  snapshot: (port: number): Promise<ProcessSnapshot> => currentPlatform().snapshot(port),
+  terminate: (identity: Identity, port: number): Promise<void> =>
+    terminateTree(identity, port, currentPlatform()),
   prepare: installTag,
   launch: (version: Version, port: number, launch: Launch): ChildProcess =>
     spawn(
