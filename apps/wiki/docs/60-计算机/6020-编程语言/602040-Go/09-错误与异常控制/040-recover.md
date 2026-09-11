@@ -4,17 +4,13 @@ id: 30cab41a-0e9b-4e67-9063-9fcdd39f63aa
 
 # recover
 
-## recover 是什么, 必须在何处调用?
-
-### recover是什么的核心规则
+## 如何在同一 goroutine 的延迟函数中恢复 panic？
 
 - recover: 捕获当前 goroutine 正在传播的 panic;
 - 调用位置: 必须在 defer 函数中直接调用;
 - 返回值: 存在 panic 时返回传给 `panic` 的值, 否则返回 nil;
 - 恢复效果: 捕获后停止 panic 继续向上传播;
 - 执行恢复: 不会回到 `panic` 后继续执行, 当前函数从 defer 后返回;
-
-## 如何用 recover 捕获 panic?
 
 ```go
 package main
@@ -42,16 +38,10 @@ func main() {
 // after safeRun
 ```
 
-## recover 的适用位置与控制流边界有哪些?
-
 - 适用位置: goroutine 边界, 框架边界, 任务边界兜底;
 - 作用范围: 只处理当前 goroutine 中正在传播的 panic;
-- 控制流: 恢复后由发生 panic 的函数返回, 不从 panic 点继续;
+- 控制流: 安装恢复 defer 的函数会执行剩余 defer，再返回自己的调用方；panic 位置到该边界之间的函数调用不会继续执行;
 
-## error、panic 与 recover 有何区别?
+## 恢复 panic 后为什么仍需检查业务状态？
 
-| 机制      | 用途                                   |
-| --------- | -------------------------------------- |
-| `error`   | 可预期失败, 由调用方处理               |
-| `panic`   | 不可恢复或不应继续的异常状态           |
-| `recover` | goroutine 边界, 框架边界, 任务边界兜底 |
+- 错误策略入口: 可预期失败与异常状态的选择见[panic](./030-panic.md)；本篇 recover 只负责在明确边界停止异常传播，不保证业务状态已经恢复;

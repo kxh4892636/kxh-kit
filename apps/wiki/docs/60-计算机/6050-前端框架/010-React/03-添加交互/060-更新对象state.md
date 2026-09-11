@@ -4,57 +4,45 @@ id: c2e7df7b-9564-4a9f-897c-7c1374b922f1
 
 # 更新对象 state
 
-## 什么是不可变更新, 直接修改对象会怎样?
+## 为什么修改对象字段不能代替更新状态？
 
-- state 中的对象应视为只读;
-- 直接修改不会触发正确的重新渲染;
+- 旧对象: 已存入 state 的对象属于先前快照，直接赋值会同时篡改所有共享该引用的地方，且不会主动请求渲染;
+- 新对象: 创建下一对象并交给 setter，既让 React 得到新引用，也保留旧快照以便调试和回退;
+- 局部创建: 刚创建、尚未共享的新对象可以先修改，再交给 setter;
 
 ```jsx
-// 错误
-person.name = "New";
-setPerson(person);
+setPosition({ x: event.clientX, y: event.clientY });
 ```
 
-## 如何用展开语法创建新对象?
+## 如何只修改对象的一部分字段？
 
-- 用展开语法复制后修改;
-
-```jsx
-setPerson({
-  ...person,
-  name: "New",
-});
-```
-
-## 嵌套对象如何逐层复制更新?
-
-- 每层需要创建新对象, 否则内部引用未变;
+- 浅拷贝: `{ ...person, name: nextName }` 复制一层属性并覆盖 name，展开本身不会递归复制嵌套对象;
+- 覆盖顺序: 后面的同名字段覆盖前面，通常先展开旧值再写变更;
 
 ```jsx
-setCustomer({
-  ...customer,
-  address: {
-    ...customer.address,
-    city: "北京",
-  },
-});
-```
-
-## 表单多个字段如何用一个 state 对象更新?
-
-- 可以用一个 state 对象保存表单, 按字段名更新;
-
-```jsx
-function handleChange(e) {
-  setForm({
-    ...form,
-    [e.target.name]: e.target.value,
-  });
+function handleChange(event) {
+  const { name, value } = event.target;
+  setPerson((previous) => ({ ...previous, [name]: value }));
 }
 ```
 
-## 为什么 state 要保持不可变?
+## 如何更新嵌套对象而不修改旧引用？
 
-- React 通过引用比较判断变化;
-- 便于撤销、调试和性能优化;
-- 嵌套较深时可用 Immer 的 `produce` 以可变风格写不可变更新;
+- 复制路径: 从修改点向上复制每一级对象，使从新根对象到修改点的路径都指向新引用;
+- 引用模型: 看起来“嵌套”的对象实际由引用连接，同一 artwork 可能被多个对象共享，不能直接改它;
+
+```jsx
+setPerson((previous) => ({
+  ...previous,
+  artwork: {
+    ...previous.artwork,
+    city: "上海",
+  },
+}));
+```
+
+## 深层更新过于繁琐时怎样调整？
+
+- 扁平结构: 优先评估按 ID 索引的状态结构，减少路径层数，具体见选择 state 结构;
+- Immer: 可以对 draft 使用修改式写法，由库生成不可变结果；draft 不是允许直接修改原 state，库用法见生态中的 Immer 笔记;
+- 取舍: 简单对象无需额外依赖，复杂结构才需要比较复制成本与工具引入成本;

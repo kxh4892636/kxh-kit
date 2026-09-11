@@ -2,54 +2,57 @@
 id: 866c0854-346d-4685-ac6d-4cd2fa9b8431
 ---
 
-# effect 同步外部系统与生命周期
+# Effect 同步与生命周期
 
-## Effect 的用途是什么? 常见场景有哪些?
+## Effect 如何表达与外部系统的同步？
 
-- 与 React 之外的系统同步: DOM、网络、非 React 组件、订阅;
-- 在渲染后运行, 不阻塞渲染;
-- 常见场景: 控制非 React 组件、订阅事件、触发动画、发送分析日志;
-
-## 如何编写 Effect?
-
-1. 声明 `useEffect(setup, deps)`;
-2. 依赖列出 Effect 读取的响应式值;
-3. 需要时返回 cleanup;
+- 同步职责: 当组件呈现某种状态时，连接、订阅、媒体或第三方控件需要对应更新，Effect 描述这种持续关系;
+- Setup 与 cleanup: setup 建立同步，返回的 cleanup 停止这一次同步；一个 Effect 对应一个独立同步过程;
 
 ```jsx
 import { useEffect } from "react";
 
-function Chat({ roomId }) {
+function Chat({ roomId, createConnection }) {
   useEffect(() => {
-    const conn = createConnection(roomId);
-    conn.connect();
-    return () => conn.disconnect();
-  }, [roomId]);
-  return <div>聊天室</div>;
+    const connection = createConnection(roomId);
+    connection.connect();
+    return () => connection.disconnect();
+  }, [roomId, createConnection]);
+  return <p>当前房间：{roomId}</p>;
 }
 ```
 
-## Effect 的同步周期是怎样的?
+## 依赖变化时同步怎样停止并重新开始？
 
-- Effect 只能做两件事: 开始同步, 停止同步;
-- 依赖变化时: cleanup 旧同步 → setup 新同步; 组件卸载时: cleanup;
-- cleanup 用于取消订阅、断开连接、清理定时器;
-- 与组件 mount/update/unmount 不同, Effect 随依赖变化可多次启停;
+- 顺序: 初次提交后 setup，依赖改变后先用旧闭包 cleanup，再用新闭包 setup，卸载时执行最后一次 cleanup;
+- 依赖比较: 固定长度的内联数组列出读取的响应式值，逐项用 Object.is 比较；组件内声明的变量与函数也可能是响应式值;
+- 空数组: 表示没有响应式依赖，不代表跨重挂载或开发检查“永远只运行一次”；省略数组则每次提交后重新同步;
+- 开发检查: StrictMode 的额外 setup/cleanup 用于检查恢复能力，不能用 ref 标记强行跳过来掩盖泄漏;
 
-## 应该从什么视角思考 Effect?
+## 如何处理可撤销与不可撤销的外部操作？
 
-- 每个 Effect 描述“如何与当前值同步”;
-- 不应把它想成“挂载后执行一次”, 而是“为每个依赖组合同步”;
+- 订阅与连接: cleanup 取消监听、关闭连接、停止定时器，使下一次 setup 不会重复注册;
+- 动画与控件: 清理时恢复必要状态，或调用控件提供的销毁方法；不要假设 Effect 一定只挂载一次;
+- 不可撤销操作: 购买或提交订单属于具体交互，应从事件发起，不放到“组件显示了”就执行的 Effect 中;
 
-## 响应式值有哪些? 依赖数组如何工作?
+## Effect 获取数据时如何避免旧请求覆盖新结果？
 
-- 组件内声明的 props/state 都是响应式值;
-- Effect 读取的响应式值都应列入依赖;
-- 空数组 `[]` 表示 Effect 不依赖任何响应式值, 只在挂载时执行一次;
-- 不赋值依赖数组, 表示 react 组件每次渲染都同步;
-- 开发模式下 React 会额外 setup + cleanup 一次, 验证可重同步;
+- 竞态防护: cleanup 标记旧同步失效，旧请求完成后不再写状态；这与真的取消网络请求是两件事;
+- 架构选择: 框架加载器或数据缓存层通常更适合处理去重、缓存、预加载和网络瀑布，手写 Effect 需自己承担这些责任;
 
-## 为什么要分离同步过程?
-
-- 每个 Effect 应代表一个独立同步过程;
-- 无关逻辑拆成多个 Effect, 避免互相牵连;
+```jsx
+useEffect(() => {
+  let ignore = false;
+  setData(null);
+  fetchData(id)
+    .then((result) => {
+      if (!ignore) setData(result);
+    })
+    .catch((error) => {
+      if (!ignore) setError(String(error));
+    });
+  return () => {
+    ignore = true;
+  };
+}, [id]); // fetchData 是模块级函数
+```

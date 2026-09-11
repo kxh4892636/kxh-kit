@@ -2,52 +2,57 @@
 id: c1d63508-ec4f-4f3b-b248-2555d14770f5
 ---
 
-# 你可能不需要 effect
+# 你可能不需要 Effect
 
-## 什么时候不需要 Effect? 核心判断标准是什么?
+## 由现有数据推导 UI 时为什么不需要 Effect？
 
-- 没有外部系统时, 通常不需要 Effect;
-- 能通过渲染、事件、派生值解决的, 不用 Effect;
-
-## 如何基于 props/state 更新 state?
-
-- 在渲染期间调整 state 而不是 Effect;
+- 渲染计算: fullName、过滤列表和选择结果直接由 props/state 计算，避免先渲染旧结果再用 Effect 设置新 state;
+- 昂贵计算: 确认成本后再考虑缓存，useMemo 的选择规则归属性能 Hooks；缓存不是修复数据建模错误的方法;
 
 ```jsx
-const [prevItems, setPrevItems] = useState(items);
-if (items !== prevItems) {
-  setPrevItems(items);
-  setSelectedId(null);
+const fullName = firstName + " " + lastName;
+const selected = items.find((item) => item.id === selectedId) ?? null;
+```
+
+## 切换业务对象时怎样清空整段状态？
+
+- 身份重置: 给子组件适当 key，让 React 按新业务实体重新创建状态，而不是在 Effect 中逐个清空字段;
+- 规则来源: key 与位置的完整行为见保留与重置 state，本节只用于判断是否需要同步外部系统;
+
+## 只有部分状态需要随输入变化调整时怎么办？
+
+- 优先推导: 先检查是否能只存 ID 等最小信息，避免重置；确实需要比较前一次输入时，才考虑渲染中有条件调整当前组件的 state;
+- 严格限制: 只更新当前正在渲染的组件，条件必须在更新后变为假；无条件 setter 会形成无限重渲染，不能推广为通用同步写法;
+
+```jsx
+const [previousItems, setPreviousItems] = useState(items);
+const [selection, setSelection] = useState(null);
+if (items !== previousItems) {
+  setPreviousItems(items);
+  setSelection(null);
 }
 ```
 
-## 如何缓存昂贵计算?
+## 用户操作引起的一连串变化应该放在哪里？
 
-- 用 `useMemo`, 不用 Effect + state;
+- 同一事件: 在事件中计算并提交相关更新，不用多个 Effect 以“某 state 变了”互相触发;
+- 共享逻辑: 多个处理器需要同一操作时提取普通函数，在相关事件中调用;
+- 通知父组件: 在造成变化的事件中同步调用回调，或把状态提升，避免通过 Effect 再向上传递重复状态;
 
-## 如何重置或调整 state?
+```jsx
+function Toggle({ onChange }) {
+  const [enabled, setEnabled] = useState(false);
+  function handleClick() {
+    const next = !enabled;
+    setEnabled(next);
+    onChange(next);
+  }
+  return <button onClick={handleClick}>{enabled ? "已开启" : "已关闭"}</button>;
+}
+```
 
-- 用 `key` 重置整个组件;
-- 用渲染期间调整代替 Effect 同步;
+## 初始化应用时怎样判断是否需要 Effect？
 
-## 如何在多个事件间共享逻辑?
-
-- 多个事件需要同一逻辑: 抽成普通函数, 在事件中调用;
-
-## 发送 POST 请求应该放在哪里?
-
-- 由用户操作触发的请求应放在事件处理器, 不是 Effect;
-
-## 如何通知父组件 state 变化?
-
-- 优先在事件中调用父组件回调;
-- 不要在 Effect 中“因 state 变化”通知父组件;
-
-## 如何订阅外部 store?
-
-- 用 `useSyncExternalStore`, 不是手动 Effect;
-
-## 获取数据应该用什么方式?
-
-- 可用框架数据获取或自定义 Hook;
-- Effect 中 fetch 需处理竞态、取消、缓存;
+- 应用初始化: 真正只属于一次应用启动的逻辑可放在入口或模块初始化处，但要考虑服务端执行环境，不能把组件挂载当作应用生命周期;
+- 显示同步: 与组件出现相关的外部连接仍使用 Effect，允许挂载与卸载重来;
+- 外部订阅: 外部 store 的一致快照订阅优先用 useSyncExternalStore，完整契约见外部 Store 笔记;

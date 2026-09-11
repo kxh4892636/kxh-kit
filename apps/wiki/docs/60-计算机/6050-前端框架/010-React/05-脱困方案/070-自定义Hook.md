@@ -4,58 +4,50 @@ id: bf3ac9c6-1054-4a74-b14f-7a6a322201cf
 
 # 自定义 Hook
 
-## 自定义 Hook 有什么作用?
+## 什么时候值得提取自定义 Hook？
 
-- 在组件间共享有状态逻辑;
-- 抽取网络请求、定时器、表单状态等;
+- 高层用途: 多个组件需要同一种有状态行为时，用 useOnlineStatus、useChatRoom 等名称表达目的，使调用者不必理解订阅细节;
+- 避免机械封装: useMount 等生命周期包装容易隐藏依赖，不如明确“订阅什么、随什么变化”;
+- 命名规则: Hook 名以 use 加大写字母开头；不调用 Hook 的普通函数通常不需要 use 前缀;
 
-## 如何从组件中提取自定义 Hook?
+## 如何正确封装在线状态的订阅？
 
-- 把组件中相关逻辑移动到以 `use` 开头的函数;
-- 函数内部可使用其他 Hooks;
+- 对称监听: 同时订阅 online 与 offline，并在清理时移除两者，不能只监听恢复在线的事件;
+- 初值校准: Effect 建立时读取 navigator.onLine，客户端提交后校准；支持一致快照与 SSR 的外部订阅方案见 useSyncExternalStore;
 
 ```jsx
-function useOnlineStatus() {
+import { useEffect, useState } from "react";
+
+export function useOnlineStatus() {
   const [isOnline, setIsOnline] = useState(true);
   useEffect(() => {
-    const handler = () => setIsOnline(navigator.onLine);
-    window.addEventListener("online", handler);
-    return () => window.removeEventListener("online", handler);
+    function update() {
+      setIsOnline(navigator.onLine);
+    }
+    update();
+    window.addEventListener("online", update);
+    window.addEventListener("offline", update);
+    return () => {
+      window.removeEventListener("online", update);
+      window.removeEventListener("offline", update);
+    };
   }, []);
   return isOnline;
 }
 ```
 
-## 自定义 Hook 的命名有什么要求?
+## 多个组件调用同一个 Hook 会共享状态吗？
 
-- 必须以 `use` 开头;
-- 这样 React 和 linter 能识别为 Hook;
+- 逻辑复用: 每次调用内部的 useState 都关联各自组件的状态，共享的是实现，不是同一个 state 容器;
+- 外部来源: 如果 Hook 订阅同一个外部 store，读到相同数据是该来源共享的结果，不是 Hook 自动把局部状态合并;
 
-## 自定义 Hook 共享的是逻辑还是 state?
+## 如何让 Hook 随输入正确重新同步？
 
-- 每次调用 Hook 都获得独立 state;
-- Hook 不共享 state 本身, 只共享逻辑;
+- 参数响应: 接收 roomId 等输入并将其纳入内部 Effect 依赖，调用者改变参数时行为随之改变;
+- 返回值: 返回调用者需要的数据或操作，避免暴露内部 ref 来绕过生命周期;
+- 回调处理: Effect 内非响应式事件可在 Hook 内使用 Effect Event，但不把 Effect Event 跨 Hook 传递;
 
-## 如何向自定义 Hook 传递响应式值?
+## 如何判断封装是否保留了原行为？
 
-- 可接收 props/state 作为参数;
-- 返回新值或函数;
-
-```jsx
-function useInterval(callback, delay) {
-  useEffect(() => {
-    const id = setInterval(callback, delay);
-    return () => clearInterval(id);
-  }, [callback, delay]);
-}
-```
-
-## 自定义 Hook 要遵守哪些规则?
-
-- 自定义 Hook 也遵守 Rules of Hooks;
-- 只能在组件或自定义 Hook 顶层调用;
-
-## 什么时候该抽自定义 Hook?
-
-- 多个组件重复同一复杂逻辑;
-- 聚焦具体高层用例, 不要过度抽象;
+- 核对场景: 输入变化、重复挂载、卸载和错误路径都应与提取前一致；抽象不能吞掉依赖或清理;
+- 规则持续: 自定义 Hook 可组合其他 Hook，但同样遵守顶层调用与纯度约束;

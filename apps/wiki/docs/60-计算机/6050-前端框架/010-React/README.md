@@ -1,29 +1,22 @@
 # React
 
-React 官方文档（react.dev）学习与参考笔记，基于 `src/content/learn` 与 `src/content/reference` 整理。
+## 如何按顺序学习？
 
-## 学习路径包含哪些内容?
+- 学习主线: 先完成入门、描述 UI、添加交互与管理状态，再学习脱困方案;
+- 按需查阅: Hooks、内置组件、DOM 渲染与服务端组件用于深入特定能力;
+- 工程补充: 规则与工具用于验证和优化，内部机制与生态用于扩展理解;
+
+## 各主题从哪里进入？
 
 - [入门](./01-入门/README.md)
-- [描述 UI](./02-描述UI/README.md)
+- [描述UI](./02-描述UI/README.md)
 - [添加交互](./03-添加交互/README.md)
 - [管理状态](./04-管理状态/README.md)
 - [脱困方案](./05-脱困方案/README.md)
-
-## 参考资料有哪些?
-
-- [Hooks 参考](./06-Hooks参考/README.md)
-- [组件 API 与 DOM](./07-组件API与DOM/README.md)
-- [规则与生态](./08-规则与生态/README.md)
-
-## 补充笔记有哪些?
-
-- [内部机制](./09-内部机制/README.md)
-- [生态](./10-生态/README.md)
-
-## 阅读说明有哪些?
-
-- 覆盖 react.dev 当前主分支内容;
-- 排除 experimental / legacy / React Compiler 配置细节 / ESLint 各 lint 细节 / DevTools 性能细节;
-- 内部机制与生态为补充笔记，非官方教程主线;
-- 每个笔记使用 learning 模板，含 UUID。
+- [Hooks参考](./06-Hooks参考/README.md)
+- [内置组件](./07-内置组件/README.md)
+- [DOM与渲染](./08-DOM与渲染/README.md)
+- [服务端组件](./09-服务端组件/README.md)
+- [规则与工具](./10-规则与工具/README.md)
+- [内部机制](./11-内部机制/README.md)
+- [生态](./12-生态/README.md)

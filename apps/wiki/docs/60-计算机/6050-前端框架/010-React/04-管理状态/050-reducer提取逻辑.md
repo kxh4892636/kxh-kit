@@ -2,50 +2,58 @@
 id: c32bfa84-b1a9-4644-b790-c5b1009048ea
 ---
 
-# reducer 提取逻辑
+# 用 reducer 提取状态逻辑
 
-## 为什么要用 reducer 提取状态更新逻辑?
+## 哪些更新适合集中到 reducer？
 
-- 组件有大量状态更新逻辑分散在事件处理器;
-- reducer 把“如何更新 state”集中到单一函数;
+- 适用信号: 多个事件都要维护同一组状态规则，setter 分散后难以追踪“发生什么导致怎样变化”;
+- 职责分离: 事件处理器描述发生的动作，reducer 根据旧 state 与 action 计算新 state;
+- 取舍: 简单独立值用 useState 更直接，复杂迁移用 reducer 可提高可读性、调试和独立验证能力;
 
-## 从 setState 迁移到 reducer 的步骤有哪些?
+## 如何从 setter 迁移到 action？
 
-1. 把 setState 改为 dispatch action;
-2. 编写 reducer 函数 `(state, action) => newState`;
-3. 组件中使用 `useReducer`;
+- 事件描述: 用 `type` 表达一次完整用户动作，用载荷携带计算所需数据，不把 action 限定为“设置某字段”;
+- 提取计算: 把原处理器中的状态转换移到 reducer，再用 dispatch 代替 setter;
 
 ```jsx
-function reducer(state, action) {
+import { useReducer } from "react";
+
+function tasksReducer(tasks, action) {
   switch (action.type) {
-    case "incremented":
-      return { count: state.count + 1 };
+    case "added":
+      return [...tasks, { id: action.id, text: action.text }];
+    case "deleted":
+      return tasks.filter((task) => task.id !== action.id);
     default:
-      return state;
+      throw new Error("未知动作：" + action.type);
   }
 }
 
-const [state, dispatch] = useReducer(reducer, { count: 0 });
-dispatch({ type: "incremented" });
+function TaskList() {
+  const [tasks, dispatch] = useReducer(tasksReducer, []);
+  return (
+    <button
+      onClick={() =>
+        dispatch({
+          type: "added",
+          id: crypto.randomUUID(),
+          text: "新任务",
+        })
+      }
+    >
+      已有 {tasks.length} 项，添加任务
+    </button>
+  );
+}
 ```
 
-## reducer 的纯净性要求有哪些?
+## reducer 为什么只能做纯状态转换？
 
-- 相同 `(state, action)` 返回相同结果;
-- 不要修改 state, 返回新对象;
+- 纯函数: 不发请求、不生成依赖外部时机的随机 ID、不修改旧 state，事件中准备必要数据后通过 action 传入;
+- 完整返回: 每条合法分支返回下一状态，意外漏 return 会把状态变成 undefined；未知动作应明确处理;
+- 调试方法: 记录 action 及前后状态即可复现迁移，也可直接调用 reducer 验证输入输出;
 
-## useReducer 与 useState 有什么区别?
+## 如何避免重复计算初始状态？
 
-- useState: 简单局部更新;
-- useReducer: 多个关联更新、复杂状态迁移、便于测试;
-
-## 编写 reducer 的规范有哪些?
-
-- action 描述“发生了什么”, 不写 setState;
-- 每个 case 返回新 state;
-- 可用 Immer 简化嵌套更新;
-
-## 如何调试和测试 reducer?
-
-- reducer 易测试: 直接调用并断言输出;
-- 可记录 action 序列;
+- 惰性初始化: `useReducer(reducer, initialArg, init)` 只在初始化时用 init 计算初始 state，具体执行与引用契约见状态 Hooks;
+- 扩展共享: reducer 只集中更新规则，不自动跨组件共享，组合 Context 的方式见下一篇;
