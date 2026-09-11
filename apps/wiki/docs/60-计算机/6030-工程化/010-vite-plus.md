@@ -7,11 +7,9 @@ id: 8ab3ae09-612b-4fd0-985a-179c450331ed
 ## Vite+ 为什么要统一 Web 工具链？
 
 - Web 工具链: 开发 Web 项目时使用的一组工具，例如运行 Node.js、安装依赖、启动开发服务器、检查代码、测试和构建;
-- 传统问题: 每项工作可能由不同工具负责，命令和配置散落在多个文件中，新成员必须先学会如何拼装整套流程;
-- Vite+: 把常用工具放到同一个入口后面，让开发者围绕任务选择命令，而不是先判断应该调用哪个底层工具;
+- 把常用工具放到同一个入口后面，让开发者围绕任务选择命令，而不是先判断应该调用哪个底层工具;
 - 统一入口: 日常操作使用 `vp <action>`，例如 `vp test`;
 - 统一配置: Vite 与 Vite+ 的主要配置集中在 `vite.config.ts`;
-- 工具职责: 下表用于定位底层工具，具体命令选择与项目任务边界见后文;
 
 | 职责           | Vite+ 使用的工具 | 通俗理解                         |
 | -------------- | ---------------- | -------------------------------- |
@@ -22,8 +20,6 @@ id: 8ab3ae09-612b-4fd0-985a-179c450331ed
 | 类型检查       | tsgo、tsgolint   | 检查 TypeScript 类型是否互相匹配 |
 | 库打包         | tsdown           | 把库源码转换成可发布的文件       |
 | 任务编排       | Vite Task        | 按依赖关系执行并缓存多个任务     |
-
-- 实践入口: 新建与迁移、测试、提交检查和 CI 的执行步骤见[Vite+ 工作流](./020-vite-plus-工作流.md);
 
 ## 全局 vp 与项目内 vite-plus 如何分工？
 
@@ -60,10 +56,6 @@ id: 8ab3ae09-612b-4fd0-985a-179c450331ed
 ## 如何在 vite.config.ts 中声明各工具配置？
 
 - 配置中心: `vite.config.ts` 同时保存 Vite 原生配置和 Vite+ 扩展配置，减少顶层配置文件数量;
-- Vite 原生配置: `server`、`build`、`preview` 继续控制开发、构建与预览;
-- Vite+ 扩展配置: `create`、`run`、`fmt`、`lint`、`check`、`test`、`pack`、`staged` 分别控制对应命令;
-- 检查开关: 下例同时启用类型感知与类型检查；这两个开关如何影响门禁见后文质量检查边界;
-- 延迟插件: 重型 Vite 插件可用 `lazyPlugins` 延迟加载，避免 `vp lint`、`vp fmt` 等只读取元数据的命令也启动插件;
 
 ```ts
 import { defineConfig } from "vite-plus";
@@ -100,12 +92,3 @@ export default defineConfig({
 | `vp run build` | 项目中的 `build` 脚本或任务 |
 | `vp test`      | Vite+ 内置的 Vitest 测试    |
 | `vp run test`  | 项目中的 `test` 脚本或任务  |
-
-## 采用 Vite+ 时如何确认检查与版本边界？
-
-- 适用对象: Vite+ 适合希望统一现代 Web 工具链的项目，不等于每个项目都必须启用全部能力;
-- 类型感知: `lint.options.typeAware` 让 lint 使用类型信息，`typeCheck` 额外报告 TypeScript 类型错误；按项目所用版本要求一起配置后，类型检查才进入 `vp check`;
-- 任务入口: 内置命令与项目脚本的分工见本篇 `vp run` 小节；Docusaurus 等自有构建流程应执行实际项目脚本;
-- 版本边界: 原笔记记录的 beta 状态属于历史信息；使用时以项目锁定版本和[官方文档](https://viteplus.dev/guide/)为准，升级后阅读变更并重新执行门禁;
-
-- 检查依据: [Vite+ Check](https://viteplus.dev/guide/check)，最终检查范围还受项目配置与命令行开关控制;

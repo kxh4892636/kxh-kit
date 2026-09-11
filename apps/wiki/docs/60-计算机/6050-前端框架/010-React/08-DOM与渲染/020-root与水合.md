@@ -22,7 +22,7 @@ root.render(<App />);
 ## root.render 与 unmount 有什么生命周期含义？
 
 - 再次 render: 更新同一个 root 中的树，能匹配的组件身份仍可保留 state，不等同于重新创建整个应用;
-- 非同步保证: render 后的下一行不保证 Effect 已执行，需要测试同步时使用 act，特殊 DOM 集成评估 flushSync;
+- 非同步保证: render 后的下一行代码，不保证渲染组件的 Effect 已执行，需要测试同步时使用 act，特殊 DOM 集成评估 flushSync;
 - 卸载: root.unmount 清理组件、Effect 和事件处理；同一个已卸载 root 不能再次 render，需要新建 root;
 
 ## 如何让已有服务端 HTML 变得可交互？
