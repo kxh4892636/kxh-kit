@@ -1,6 +1,6 @@
 {
   "name": "@kxh4892636/dsh-opencode-session",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "DSH plugin: attach the DSH session ID to model requests for every provider.",
   "license": "MIT",
   "files": [
@@ -25,13 +25,14 @@
   },
   "scripts": {
     "build": "vp pack",
+    "pack": "vp pack && pnpm pack --pack-destination ../..",
     "check": "vp check",
     "test": "vp test src",
     "test:coverage": "vp test --run --coverage",
     "prepublishOnly": "vp run build"
   },
   "devDependencies": {
-    "@deepseek-ai/dsh-llm": "0.1.2-rc.1",
+    "@deepseek-ai/dsh-llm": "^0.1.5-rc.1",
     "@types/node": "catalog:",
     "@typescript/native": "catalog:",
     "@vitest/coverage-v8": "catalog:",
@@ -41,7 +42,7 @@
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
-    "@deepseek-ai/dsh-llm": "^0.1.2-rc.1"
+    "@deepseek-ai/dsh-llm": "^0.1.5-rc.1"
   },
   "engines": {
     "node": ">=22.12.0"

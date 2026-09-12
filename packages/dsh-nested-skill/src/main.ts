@@ -1,6 +1,6 @@
 import z from "@deepseek-ai/schemastery";
 import type Schema from "@deepseek-ai/schemastery";
-import type { PluginContextLike } from "./contract.js";
+import type { Context } from "@deepseek-ai/cordis";
 import { DEFAULT_EXCLUDED_DIRS, NestedSkillProvider, type NestedSkillOptions } from "./provider.js";
 export { NESTED_SKILL_RANK, PROVIDER_NAME } from "./provider.js";
 
@@ -30,7 +30,7 @@ export const name = "nested-skill";
 export const inject = ["skills"];
 
 /** 在 `ctx.skills` 注册 nested-skill provider，并在宿主文件变更时使目录失效。 */
-export const apply = (ctx: PluginContextLike, config: Config = {}): void => {
+export const apply = (ctx: Context, config: Config = {}): void => {
   let provider: NestedSkillProvider | undefined;
   ctx.skills.registerProvider((control) => {
     provider = new NestedSkillProvider(ctx, control, config);

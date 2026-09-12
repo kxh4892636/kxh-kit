@@ -12,14 +12,13 @@ import type { SessionManagerHost } from "./host.ts";
 /** 无损 JSON 节点(工具规范值保持纯 JSON 形状)。 */
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
 
-/** 结果文本投影: 规范值 → 缩进 JSON 文本块(模型可读、无损)。 */
-function renderJson(
-  this: void,
-  _args: unknown,
-  value: unknown,
-): { readonly type: "text"; readonly text: string }[] {
-  return [{ type: "text", text: JSON.stringify(value, null, 2) }];
-}
+/** 结果文本投影: 规范值 → 缩进 JSON 文本块(模型可读、无损); 9 个工具共用同一输出契约。 */
+const JSON_OUTPUT = {
+  schema: { type: "json" },
+  render: (_args: unknown, value: unknown): { readonly type: "text"; readonly text: string }[] => [
+    { type: "text", text: JSON.stringify(value, null, 2) },
+  ],
+} as const;
 
 /** 执行包装: 归一化 Host 错误并转成面向模型的文本异常(保留 code)。 */
 const runHost = async (
@@ -91,7 +90,7 @@ export const buildSessionTools = (host: SessionManagerHost): ToolDefinition[] =>
       workspaceId: optionalString("只返回该 workspace 的会话(默认全部)。"),
       parentSessionId: optionalString("只返回该父会话的直接子会话(默认全部)。"),
     },
-    output: { schema: { type: "json" }, render: renderJson },
+    output: JSON_OUTPUT,
     execute: async (args, exec) =>
       runHost(async (signal) => {
         const all = await host.list(args.includeArchived ?? false, signal);
@@ -117,7 +116,7 @@ export const buildSessionTools = (host: SessionManagerHost): ToolDefinition[] =>
       ),
       maxMessages: optionalInteger("每页返回的最大消息数。"),
     },
-    output: { schema: { type: "json" }, render: renderJson },
+    output: JSON_OUTPUT,
     execute: async (args, exec) =>
       runHost(async (signal) => {
         const window = await host.read(
@@ -161,7 +160,7 @@ export const buildSessionTools = (host: SessionManagerHost): ToolDefinition[] =>
       model: optionalString("模型 id(来自 session_model_list)。"),
       reasoningEffort: optionalString("推理档位(由模型目录的 reasoning.efforts 给出, 可选)。"),
     },
-    output: { schema: { type: "json" }, render: renderJson },
+    output: JSON_OUTPUT,
     execute: async (args, exec) =>
       runHost(async () => {
         spawnSchemaValidator(args);
@@ -199,7 +198,7 @@ export const buildSessionTools = (host: SessionManagerHost): ToolDefinition[] =>
         description: "投递模式: queue(默认)/steer。",
       },
     },
-    output: { schema: { type: "json" }, render: renderJson },
+    output: JSON_OUTPUT,
     execute: async (args, exec) =>
       runHost(async (signal) => {
         const result = await host.prompt(
@@ -215,7 +214,7 @@ export const buildSessionTools = (host: SessionManagerHost): ToolDefinition[] =>
       "列出当前 Host 可路由的全部模型目录: provider 分组(模型名/id/描述/reasoning 档位)、" +
       " 部署默认、routableProviders 与隔离的 provider 失败。为会话选择模型时用作 session_model_select 的输入来源。",
     parameters: {},
-    output: { schema: { type: "json" }, render: renderJson },
+    output: JSON_OUTPUT,
     execute: async (_args, exec) =>
       runHost(async () => {
         const catalog = await host.modelList();
@@ -232,7 +231,7 @@ export const buildSessionTools = (host: SessionManagerHost): ToolDefinition[] =>
       model: requiredString("模型 id。"),
       reasoningEffort: optionalString("推理档位(可选)。"),
     },
-    output: { schema: { type: "json" }, render: renderJson },
+    output: JSON_OUTPUT,
     execute: async (args, exec) =>
       runHost(async () => {
         const result = await host.selectModel({
@@ -251,7 +250,7 @@ export const buildSessionTools = (host: SessionManagerHost): ToolDefinition[] =>
       sessionId: requiredString("目标会话 id。"),
       title: requiredString("新标题。"),
     },
-    output: { schema: { type: "json" }, render: renderJson },
+    output: JSON_OUTPUT,
     execute: async (args, exec) =>
       runHost(async () => {
         const result = await host.rename({ sessionId: args.sessionId, title: args.title });
@@ -265,7 +264,7 @@ export const buildSessionTools = (host: SessionManagerHost): ToolDefinition[] =>
     parameters: {
       sessionId: requiredString("目标会话 id。"),
     },
-    output: { schema: { type: "json" }, render: renderJson },
+    output: JSON_OUTPUT,
     execute: async (args, exec) =>
       runHost(async () => {
         const result = await host.archive(args.sessionId);
@@ -281,7 +280,7 @@ export const buildSessionTools = (host: SessionManagerHost): ToolDefinition[] =>
       timeoutMs: optionalInteger("总超时毫秒数(默认 300000)。"),
       pollIntervalMs: optionalInteger("轮询间隔毫秒数(默认 5000)。"),
     },
-    output: { schema: { type: "json" }, render: renderJson },
+    output: JSON_OUTPUT,
     execute: async (args, exec) =>
       runHost(async (signal) => {
         const entry = await host.wait(

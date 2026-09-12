@@ -28,6 +28,10 @@ DSH peer ranges (`^0.1.5-rc.1`) align with that channel. The range also accepts
 later stable `0.1.x` releases, so a channel bump still needs a manual re-check and
 re-alignment.
 
+Provider contract types come straight from the peers (`@deepseek-ai/dsh-skill`,
+`@deepseek-ai/dsh-fs`), and skill-name validation uses the host's own
+`isSkillName`, so the package no longer mirrors the harness contract by hand.
+
 ## Install
 
 ```powershell

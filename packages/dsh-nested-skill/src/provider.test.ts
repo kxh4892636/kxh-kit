@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { SkillCandidateLike, SkillProviderControlLike } from "./contract.js";
+import type { SkillCandidate, SkillProviderControl } from "@deepseek-ai/dsh-skill";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   findProjectRoot,
@@ -19,7 +19,7 @@ const fakeControl = (invalidate = vi.fn()) =>
   ({
     signal: new AbortController().signal,
     invalidate,
-  }) satisfies SkillProviderControlLike;
+  }) satisfies SkillProviderControl;
 
 const TOP_SKILL = `---
 name: nano-flow
@@ -145,12 +145,12 @@ describe("NestedSkillProvider discovery", () => {
     );
     const candidates = await provider.list({ cwd: "C:/project" });
     const toStory = candidates.find((candidate) => candidate.name === "to-story");
-    const definition = await provider.get(toStory as SkillCandidateLike, {});
+    const definition = await provider.get(toStory as SkillCandidate, {});
     expect(definition?.content).toBe("# 正文。");
     expect(definition?.source).toBe("project-agents");
     const missing = await provider.get(
       {
-        ...(toStory as SkillCandidateLike),
+        ...(toStory as SkillCandidate),
         locator: { path: "C:/gone/SKILL.md", directory: "C:/gone" },
       },
       {},

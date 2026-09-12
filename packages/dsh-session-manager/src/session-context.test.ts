@@ -1,7 +1,7 @@
 /**
  * 会话上下文注入测试: 注册参数、就绪等待、幂等与失败路径。
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   AGENT_READY_POLL_MS,
   AGENT_READY_TIMEOUT_MS,
@@ -90,6 +90,27 @@ describe("makeContextInstaller", () => {
     await installer("session-a", "a");
     await installer("session-b", "b");
     expect(sections).toHaveLength(2);
+  });
+
+  it("失败不记账: agent 未就绪时注入失败, 就绪后可重试成功", async () => {
+    vi.useFakeTimers();
+    try {
+      const { agent, sections } = makeAgent();
+      const available = { value: false };
+      const installer = makeContextInstaller({
+        agents: { get: () => (available.value ? agent : undefined) },
+      });
+      const first = installer("session-a", "上下文");
+      const rejected = expect(first).rejects.toThrow("agent 上下文不可用");
+      await vi.advanceTimersByTimeAsync(AGENT_READY_TIMEOUT_MS + AGENT_READY_POLL_MS);
+      await rejected;
+      expect(sections).toHaveLength(0);
+      available.value = true;
+      await installer("session-a", "上下文");
+      expect(sections).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { FileSystemLike } from "./contract.js";
+import type { FileSystem } from "@deepseek-ai/dsh-fs";
 import { afterEach, describe, expect, it } from "vitest";
 import { defaultHostFs, fsServiceHostFs, nodeHostFs } from "./boundary.js";
 
@@ -59,9 +59,7 @@ describe("nodeHostFs", () => {
 });
 
 describe("fsServiceHostFs", () => {
-  const fakeFs = (
-    files: Record<string, string | { type: "file" | "directory" }>,
-  ): FileSystemLike => {
+  const fakeFs = (files: Record<string, string | { type: "file" | "directory" }>): FileSystem => {
     const resolve = async (path: string) =>
       path in files ? { targetKey: path, displayPath: path } : undefined;
     return {
@@ -90,7 +88,7 @@ describe("fsServiceHostFs", () => {
         return { version: { v: 1 } as never, type: value.type, size: 1 };
       },
       readText: async (target: { targetKey: string }) => files[target.targetKey] as string,
-    } as unknown as FileSystemLike;
+    } as unknown as FileSystem;
   };
 
   it("lists, reads, and probes through the service contract", async () => {
@@ -125,7 +123,7 @@ describe("fsServiceHostFs", () => {
       listDir: async () => [],
       stat: async () => undefined,
       readText: async () => undefined,
-    } as unknown as FileSystemLike;
+    } as unknown as FileSystem;
     const host = fsServiceHostFs(resolveThrows);
     expect(await host.listDir("/x")).toEqual([]);
     expect(await host.readText("/x")).toBeUndefined();
@@ -138,7 +136,7 @@ describe("fsServiceHostFs", () => {
       },
       stat: async () => undefined,
       readText: async () => undefined,
-    } as unknown as FileSystemLike;
+    } as unknown as FileSystem;
     expect(await fsServiceHostFs(listThrows).listDir("/x")).toEqual([]);
   });
 
@@ -157,7 +155,7 @@ describe("fsServiceHostFs", () => {
       listDir: async () => {
         throw boom;
       },
-    } as unknown as FileSystemLike;
+    } as unknown as FileSystem;
     const host = fsServiceHostFs(failing);
     await expect(host.listDir("/x")).rejects.toThrow("EACCES");
     await expect(host.readText("/x")).rejects.toThrow("EACCES");

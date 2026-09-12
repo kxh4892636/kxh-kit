@@ -1,7 +1,7 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import type { Dirent } from "node:fs";
 import { join } from "node:path";
-import type { FileSystemLike } from "./contract.js";
+import type { FileSystem, FsTarget } from "@deepseek-ai/dsh-fs";
 
 export type FsKind = "file" | "directory";
 
@@ -21,12 +21,12 @@ export interface HostFs {
 }
 
 /** 有 ctx.fs 服务时使用服务适配器，否则回退 node fs。 */
-export const defaultHostFs = (ctx: { get<K extends "fs">(key: K): unknown }): HostFs => {
+export const defaultHostFs = (ctx: { get(key: "fs"): unknown }): HostFs => {
   const service = ctx.get("fs");
   return isFileSystem(service) ? fsServiceHostFs(service) : nodeHostFs;
 };
 
-const isFileSystem = (service: unknown): service is FileSystemLike => {
+const isFileSystem = (service: unknown): service is FileSystem => {
   return (
     service !== undefined &&
     typeof service === "object" &&
@@ -73,7 +73,7 @@ export const nodeHostFs: HostFs = {
 };
 
 /** ctx.fs 支持的适配器，使 skill 读取尊重宿主文件系统策略。 */
-export const fsServiceHostFs = (fs: FileSystemLike): HostFs => {
+export const fsServiceHostFs = (fs: FileSystem): HostFs => {
   return {
     async listDir(path) {
       const target = await resolveTarget(fs, path);
@@ -123,10 +123,7 @@ const hasErrorCode = (error: unknown, code: string): boolean => {
   return typeof error === "object" && error !== null && "code" in error && error.code === code;
 };
 
-const resolveTarget = async (
-  fs: FileSystemLike,
-  path: string,
-): Promise<Awaited<ReturnType<FileSystemLike["resolve"]>> | undefined> => {
+const resolveTarget = async (fs: FileSystem, path: string): Promise<FsTarget | undefined> => {
   try {
     return await fs.resolve(path);
   } catch (error) {

@@ -10,12 +10,12 @@ import type {
   RuntimeHistoryRecordLike,
   HostServices,
   SubagentMode,
-} from "./host.ts";
+} from "./host-contract.ts";
 import { SessionManagerHost } from "./host.ts";
 
 /** 调用记录容器。 */
 export interface FakeCalls {
-  list: { readonly cursor?: string; readonly includeArchived?: boolean }[];
+  list: { readonly cursor?: string }[];
   follow: unknown[];
   page: unknown[];
   create: unknown[];
@@ -108,9 +108,7 @@ export interface StrictCtxOptions {
 
 /**
  * 复刻 cordis strict inject 的假 ctx: 直读未 inject 的服务抛错,
- * `get(name)` 不带 inject 要求地返回组合里的服务(缺席时返回 undefined),
- * `inject(deps, callback)` 只在依赖齐备时执行回调——依赖缺席时回调不执行,
- * 对应真实 cordis 下嵌套 fiber 停在 pending 而不影响入口激活。
+ * `get(name)` 不带 inject 要求地返回组合里的服务(缺席时返回 undefined)。
  */
 export const makeStrictCtx = (options: StrictCtxOptions): Record<string, unknown> => {
   const missing = options.injected.filter((name) => !(name in options.provided));
@@ -122,10 +120,6 @@ export const makeStrictCtx = (options: StrictCtxOptions): Record<string, unknown
   for (const name of options.injected) store[name] = options.provided[name];
   store["get"] = (name: string): unknown =>
     options.optionalAvailable === false ? undefined : options.provided[name];
-  store["inject"] = (deps: readonly string[], callback: (ctx: unknown) => void): void => {
-    if (!deps.every((name) => name in options.provided)) return;
-    callback(makeStrictCtx({ ...options, injected: [...options.injected, ...deps] }));
-  };
   return new Proxy(store, {
     get: (target, prop, receiver) => {
       if (typeof prop === "string" && !(prop in target)) {

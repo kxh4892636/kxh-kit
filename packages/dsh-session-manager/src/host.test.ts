@@ -12,7 +12,7 @@ import {
   subagentModeOfState,
   subagentModeOfSnapshotValues,
 } from "./host.ts";
-import type { HostServices } from "./host.ts";
+import type { HostServices } from "./host-contract.ts";
 import { makeFakeServices, makeHost } from "./test-support.ts";
 
 describe("normalizeHostError", () => {

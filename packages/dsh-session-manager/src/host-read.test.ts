@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { SessionManagerHost } from "./host.ts";
-import type { RuntimeHistoryRecordLike } from "./host.ts";
+import type { RuntimeHistoryRecordLike } from "./host-contract.ts";
 import {
   headerOf,
   makeFakeServices,

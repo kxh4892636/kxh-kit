@@ -1,14 +1,12 @@
-import type { SkillInvocationPolicyLike } from "./contract.js";
+import { isSkillName, type SkillInvocationPolicy } from "@deepseek-ai/dsh-skill";
 import { parse as parseYaml } from "yaml";
-
-const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** frontmatter 校验通过后的 skill 正文，解析规则与内建 filesystem provider 一致。 */
 export interface ParsedSkill {
   name: string;
   description: string;
   whenToUse?: string;
-  invocation: SkillInvocationPolicyLike;
+  invocation: SkillInvocationPolicy;
   metadata?: Record<string, unknown>;
   content: string;
 }
@@ -25,8 +23,9 @@ export const parseSkillText = (raw: string): ParsedSkill | undefined => {
   const name = dataString(parsed.data, "name");
   const description = dataString(parsed.data, "description");
   if (name === undefined || description === undefined) return undefined;
-  if (!SKILL_NAME.test(name)) return undefined;
-  let invocation: SkillInvocationPolicyLike;
+  // 注册名语法取宿主的公开判定，避免与本包自带正则各自漂移。
+  if (!isSkillName(name)) return undefined;
+  let invocation: SkillInvocationPolicy;
   try {
     invocation = parseInvocationPolicy(parsed.data);
   } catch {
@@ -80,7 +79,7 @@ const findClosingFrontmatter = (
   return undefined;
 };
 
-const parseInvocationPolicy = (data: Record<string, unknown>): SkillInvocationPolicyLike => {
+const parseInvocationPolicy = (data: Record<string, unknown>): SkillInvocationPolicy => {
   rejectLegacyInvocationKey(data, "disableModelInvocation", "disable-model-invocation");
   rejectLegacyInvocationKey(data, "modelInvocable", "disable-model-invocation");
   rejectLegacyInvocationKey(data, "userInvocable", "user-invocable");

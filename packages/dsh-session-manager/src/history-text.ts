@@ -6,13 +6,8 @@
  * `extractSessionEventText` 一致; 但本层是给模型读的窗口, 故对正文做有界化
  * (压平空白、工具事件只给首行/参数摘要、按码点截断), 不追求与上游逐字同形。
  */
-import type { HistoryEntry, RuntimeHistoryRecordLike } from "./host.ts";
-
-/** 结构化条件: 值类型收窄到字符串的任意 json 节点。 */
-type IsKnown = { readonly [key: string]: unknown };
-
-const asObject = (value: unknown): IsKnown | undefined =>
-  typeof value === "object" && value !== null ? (value as IsKnown) : undefined;
+import type { HistoryEntry, RuntimeHistoryRecordLike } from "./host-contract.ts";
+import { asObject } from "./host.ts";
 
 /**
  * 汇总文本块: 逐块取 text, 递归进 tool-result 的内层 content

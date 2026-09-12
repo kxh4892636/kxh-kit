@@ -4,7 +4,7 @@
  * 经 agent 上下文注册 `agent.ctx.systemPrompt.section`, 不触发模型调用——
  * 首调用由第一条用户消息驱动。幂等: 同一 session 只注册一次。
  */
-import type { ContextInstaller } from "./host.ts";
+import type { ContextInstaller } from "./host-contract.ts";
 
 /** Agent 获取服务(ctx.agents 结构子集)。 */
 export interface AgentStoreLike {
@@ -83,8 +83,9 @@ export const makeContextInstaller = (services: {
 }): ContextInstaller => {
   const installed = new Set<string>();
   return async (sessionId: string, context: string): Promise<void> => {
+    // 成功后才记账: agent 未就绪等失败必须能重试, 否则该 session 的上下文永久丢失。
     if (installed.has(sessionId)) return;
-    installed.add(sessionId);
     await installSessionContext(services, sessionId, context);
+    installed.add(sessionId);
   };
 };

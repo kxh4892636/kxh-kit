@@ -1,14 +1,14 @@
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import chokidar, { type FSWatcher } from "chokidar";
+import type { Context } from "@deepseek-ai/cordis";
 import type {
-  PluginContextLike,
-  SkillCandidateLike,
-  SkillDefinitionLike,
-  SkillLookupOptionsLike,
-  SkillProviderControlLike,
-  SkillProviderLike,
-} from "./contract.js";
+  SkillCandidate,
+  SkillDefinition,
+  SkillLookupOptions,
+  SkillProvider,
+  SkillProviderControl,
+} from "@deepseek-ai/dsh-skill";
 import { defaultHostFs, type HostFs } from "./boundary.js";
 import { parseSkillText } from "./parse.js";
 
@@ -59,7 +59,6 @@ interface SkillRoot {
 interface DiscoveredFile {
   path: string;
   directory: string;
-  segments: string[];
 }
 
 const resolveOptions = (options: NestedSkillOptions): ResolvedOptions => {
@@ -80,7 +79,7 @@ const resolveOptions = (options: NestedSkillOptions): ResolvedOptions => {
  * filesystem provider 保留一层形态（`.agents/skills/<name>/SKILL.md`），
  * 本 provider 补充所有更深层的命中。
  */
-export class NestedSkillProvider implements SkillProviderLike {
+export class NestedSkillProvider implements SkillProvider {
   readonly name = PROVIDER_NAME;
   private readonly options: ResolvedOptions;
   private readonly adapter: HostFs;
@@ -88,8 +87,8 @@ export class NestedSkillProvider implements SkillProviderLike {
   private disposal: Promise<void> | undefined;
 
   constructor(
-    ctx: PluginContextLike,
-    control: SkillProviderControlLike,
+    ctx: Context,
+    control: SkillProviderControl,
     options: NestedSkillOptions = {},
     adapter?: HostFs,
   ) {
@@ -111,14 +110,14 @@ export class NestedSkillProvider implements SkillProviderLike {
    * @param options - 查找选项；`cwd` 选择项目的 `.agents` 根。
    * @returns 按路径排序的候选，使同 provider 同名师冲突确定性解决。
    */
-  async list(options: SkillLookupOptionsLike): Promise<SkillCandidateLike[]> {
+  async list(options: SkillLookupOptions): Promise<SkillCandidate[]> {
     const roots = await this.roots(options.cwd);
     try {
       await this.watchManager.observeRoots(roots);
     } catch {
       // 监听启动失败只退化为一次当前扫描，不阻断发现。
     }
-    const candidates: SkillCandidateLike[] = [];
+    const candidates: SkillCandidate[] = [];
     for (const root of roots) {
       for (const candidate of await this.discover(root)) candidates.push(candidate);
     }
@@ -132,9 +131,9 @@ export class NestedSkillProvider implements SkillProviderLike {
    * @returns 完整 skill；文件消失或变为无效时为 undefined。
    */
   async get(
-    candidate: SkillCandidateLike,
-    options: SkillLookupOptionsLike,
-  ): Promise<SkillDefinitionLike | undefined> {
+    candidate: SkillCandidate,
+    options: SkillLookupOptions,
+  ): Promise<SkillDefinition | undefined> {
     const locator = candidate.locator as { path: string; directory: string };
     const raw = await this.adapter.readText(locator.path);
     options.signal?.throwIfAborted();
@@ -183,8 +182,8 @@ export class NestedSkillProvider implements SkillProviderLike {
     return roots;
   }
 
-  private async discover(root: SkillRoot): Promise<SkillCandidateLike[]> {
-    const candidates: SkillCandidateLike[] = [];
+  private async discover(root: SkillRoot): Promise<SkillCandidate[]> {
+    const candidates: SkillCandidate[] = [];
     for (const file of await walkSkillFiles(root.path, this.adapter, this.options.excluded)) {
       const raw = await this.adapter.readText(file.path);
       if (raw === undefined) continue;
@@ -228,7 +227,7 @@ export const walkSkillFiles = async (
       }
       if (entry.name !== "SKILL.md") continue;
       if (isShippedOneLayerForm(segments)) continue;
-      results.push({ path: entry.path, directory: current.path, segments });
+      results.push({ path: entry.path, directory: current.path });
     }
   }
   return results;

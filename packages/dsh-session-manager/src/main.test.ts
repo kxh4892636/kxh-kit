@@ -1,9 +1,9 @@
 /**
- * 插件入口测试: apply 注册 9 个工具与指引章节, 并在严格 ctx 下只经 inject/ctx.get 取服务。
+ * 插件入口测试: apply 注册 9 个工具, 并在严格 ctx 下只经 inject/ctx.get 取服务。
  */
 import { describe, expect, it, vi } from "vitest";
-import { apply, capabilityInject, inject } from "./main.ts";
-import type { HostServices, SubagentMode } from "./host.ts";
+import { apply, inject } from "./main.ts";
+import type { HostServices, SubagentMode } from "./host-contract.ts";
 import {
   headerOf,
   makeFakeServices,
@@ -23,29 +23,23 @@ const childFixture = (subagentMode: SubagentMode): HostServices =>
   }).services;
 
 /**
- * 严格假 ctx: `injected` 由导出的 `inject` 派生, 因此「漏声明却仍被直读」的服务
- * 会像真实 cordis 一样抛错, 而不是静默通过。
+ * 严格假 ctx: `injected` 由导出的 `inject` 派生, 因此「漏声明却仍被直读」或
+ * 「声明了但组合未提供」的服务都会像真实 cordis 一样抛错, 而不是静默通过。
  */
 const makeCtx = (options?: {
   readonly optionalAvailable?: boolean;
   readonly services?: HostServices;
-  /** 组合是否提供 sessionController: false 模拟无 web-app 层的组合(如 dsh-tui)。 */
-  readonly capabilityAvailable?: boolean;
 }): {
   readonly ctx: Record<string, unknown>;
   readonly register: ReturnType<typeof vi.fn>;
-  readonly section: ReturnType<typeof vi.fn>;
 } => {
   const services = options?.services ?? childFixture("continuable");
   const register = vi.fn();
-  const section = vi.fn();
   const provided: Record<string, unknown> = {
     ...services,
     tools: { register },
-    systemPrompt: { section },
     agents: { get: () => undefined },
   };
-  if (options?.capabilityAvailable === false) delete provided["sessionController"];
   const ctx = makeStrictCtx({
     provided,
     injected: inject,
@@ -53,7 +47,7 @@ const makeCtx = (options?: {
       ? {}
       : { optionalAvailable: options.optionalAvailable }),
   });
-  return { ctx, register, section };
+  return { ctx, register };
 };
 
 /** 调用已注册的 `session_read` 读取子会话(子会话寻址需要投影与冷查询两条可选服务)。 */
@@ -80,39 +74,24 @@ const textOf = (result: unknown): string | undefined =>
   (result as { readonly messages: readonly { readonly text: string }[] }).messages[0]?.text;
 
 describe("main.apply", () => {
-  it("注册 9 个工具并写入指引章节", () => {
-    const { ctx, register, section } = makeCtx();
+  it("注册 9 个工具", () => {
+    const { ctx, register } = makeCtx();
     apply(ctx as never);
     expect(register).toHaveBeenCalledTimes(9);
     const names = register.mock.calls.map((call: unknown[]) => (call[0] as { name: string }).name);
     expect(names).toContain("session_list");
     expect(names).toContain("session_wait");
-    expect(section).toHaveBeenCalledTimes(1);
-    const sectionCall = section.mock.calls[0]?.[0] as
-      | { readonly name: string; readonly order: number }
-      | undefined;
-    expect(sectionCall?.name).toBe("tool:session-manager");
-    expect(sectionCall?.order).toBe(2750);
   });
 
-  it("入口 inject 只声明组合无关的服务(能力服务放进嵌套作用域)", () => {
-    // 能力服务写进入口 inject 会让缺该服务的组合(dsh-tui)条目永远 pending,
-    // app-boot 的 assertEntriesActivated 直接抛错(退出码 7), 整棵树起不来。
-    expect(inject).toContain("tools");
-    expect(inject).toContain("systemPrompt");
-    expect(inject).not.toContain("sessionController");
-    expect(inject).not.toContain("workspaceRegistry");
-    expect(inject).not.toContain("agents");
-    expect(capabilityInject).toContain("sessionController");
-    expect(capabilityInject).toContain("workspaceRegistry");
-    expect(capabilityInject).toContain("agents");
-  });
-
-  it("组合缺少 sessionController(dsh-tui): apply 不抛错, 也不登记工具与指引", () => {
-    const { ctx, register, section } = makeCtx({ capabilityAvailable: false });
-    expect(() => apply(ctx as never)).not.toThrow();
-    expect(register).not.toHaveBeenCalled();
-    expect(section).not.toHaveBeenCalled();
+  it("入口 inject 声明组合提供的全部服务(缺一即条目 pending)", () => {
+    // 声明了但组合未提供 → 条目停在 pending, app-boot 的 assertEntriesActivated 抛错
+    // (退出码 7); 少声明却直读 → 取服务时抛 `cannot get property "…" without inject`。
+    expect([...inject].sort()).toEqual([
+      "agents",
+      "sessionController",
+      "tools",
+      "workspaceRegistry",
+    ]);
   });
 
   it("strict inject: 子会话读取经 ctx.get 装配的可选服务完成", async () => {

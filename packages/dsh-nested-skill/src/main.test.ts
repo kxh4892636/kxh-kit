@@ -1,4 +1,4 @@
-import type { SkillProviderControlLike } from "./contract.js";
+import type { SkillProviderControl } from "@deepseek-ai/dsh-skill";
 import { describe, expect, it, vi } from "vitest";
 import { apply, Config, inject, name, NESTED_SKILL_RANK, PROVIDER_NAME } from "./main.js";
 import type { NestedSkillProvider } from "./provider.js";
@@ -14,7 +14,7 @@ describe("plugin entry", () => {
       logger: { warn: vi.fn() },
       get: () => undefined,
       skills: {
-        registerProvider: (create: (control: SkillProviderControlLike) => NestedSkillProvider) => {
+        registerProvider: (create: (control: SkillProviderControl) => NestedSkillProvider) => {
           registered = create({ signal: new AbortController().signal, invalidate: vi.fn() });
           return () => {};
         },

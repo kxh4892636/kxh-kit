@@ -4,15 +4,17 @@
 
 ## 安装
 
-构建并打包后，将本地产物安装到需要启用的 DSH profile：
+本插件只装进 `web` profile。`pack` 脚本先构建再打包，产物固定落在**仓库根目录**
+（profile 的 `file:` 依赖即指向该路径，包名去 scope）：
 
 ```sh
-pnpm --filter @kxh4892636/dsh-opencode-session build
 pnpm --filter @kxh4892636/dsh-opencode-session pack
-dsh plugin --profile <profile> add /absolute/path/to/kxh4892636-dsh-opencode-session-0.1.0.tgz
+dsh plugin --profile web add <仓库根>/kxh4892636-dsh-opencode-session-0.1.1.tgz
 ```
 
-包自带 `cordis.patch.yml`，无额外配置。适配 DSH `0.1.5-rc.1` 的 `llm/stream` 接口。
+包自带 `cordis.patch.yml`，无额外配置。适配 DSH `0.1.5-rc.1` 的 `llm/stream` 接口，
+peer `@deepseek-ai/dsh-llm` 同取 `^0.1.5-rc.1`（旧版声明 `^0.1.2-rc.1` 按 semver 预发布
+规则不接受宿主版本，会导致类型检查跑在宿主不运行的版本上）。
 
 ## 行为
 
@@ -37,4 +39,5 @@ dsh plugin --profile <profile> add /absolute/path/to/kxh4892636-dsh-opencode-ses
 pnpm --filter @kxh4892636/dsh-opencode-session check
 pnpm --filter @kxh4892636/dsh-opencode-session test:coverage
 pnpm --filter @kxh4892636/dsh-opencode-session build
+pnpm --filter @kxh4892636/dsh-opencode-session pack   # build + 打 tarball 到仓库根
 ```
