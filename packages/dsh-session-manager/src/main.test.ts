@@ -2,7 +2,7 @@
  * 插件入口测试: apply 注册 9 个工具与指引章节, 并在严格 ctx 下只经 inject/ctx.get 取服务。
  */
 import { describe, expect, it, vi } from "vitest";
-import { apply, inject } from "./main.ts";
+import { apply, capabilityInject, inject } from "./main.ts";
 import type { HostServices, SubagentMode } from "./host.ts";
 import {
   headerOf,
@@ -29,6 +29,8 @@ const childFixture = (subagentMode: SubagentMode): HostServices =>
 const makeCtx = (options?: {
   readonly optionalAvailable?: boolean;
   readonly services?: HostServices;
+  /** 组合是否提供 sessionController: false 模拟无 web-app 层的组合(如 dsh-tui)。 */
+  readonly capabilityAvailable?: boolean;
 }): {
   readonly ctx: Record<string, unknown>;
   readonly register: ReturnType<typeof vi.fn>;
@@ -37,18 +39,16 @@ const makeCtx = (options?: {
   const services = options?.services ?? childFixture("continuable");
   const register = vi.fn();
   const section = vi.fn();
-  const slots: Record<string, unknown> = {
+  const provided: Record<string, unknown> = {
+    ...services,
     tools: { register },
     systemPrompt: { section },
-    sessionController: services.sessionController,
-    workspaceRegistry: services.workspaceRegistry,
     agents: { get: () => undefined },
   };
-  const injected: Record<string, unknown> = {};
-  for (const name of inject) injected[name] = slots[name];
+  if (options?.capabilityAvailable === false) delete provided["sessionController"];
   const ctx = makeStrictCtx({
-    services,
-    injected,
+    provided,
+    injected: inject,
     ...(options?.optionalAvailable === undefined
       ? {}
       : { optionalAvailable: options.optionalAvailable }),
@@ -95,13 +95,24 @@ describe("main.apply", () => {
     expect(sectionCall?.order).toBe(2750);
   });
 
-  it("inject 必须覆盖 apply 直读的服务(cordis strict inject 防回归)", () => {
-    // 上次冒烟即因此失败: apply 访问 ctx.agents 但 inject 未声明。
-    expect(inject).toContain("agents");
-    expect(inject).toContain("sessionController");
-    expect(inject).toContain("workspaceRegistry");
+  it("入口 inject 只声明组合无关的服务(能力服务放进嵌套作用域)", () => {
+    // 能力服务写进入口 inject 会让缺该服务的组合(dsh-tui)条目永远 pending,
+    // app-boot 的 assertEntriesActivated 直接抛错(退出码 7), 整棵树起不来。
     expect(inject).toContain("tools");
     expect(inject).toContain("systemPrompt");
+    expect(inject).not.toContain("sessionController");
+    expect(inject).not.toContain("workspaceRegistry");
+    expect(inject).not.toContain("agents");
+    expect(capabilityInject).toContain("sessionController");
+    expect(capabilityInject).toContain("workspaceRegistry");
+    expect(capabilityInject).toContain("agents");
+  });
+
+  it("组合缺少 sessionController(dsh-tui): apply 不抛错, 也不登记工具与指引", () => {
+    const { ctx, register, section } = makeCtx({ capabilityAvailable: false });
+    expect(() => apply(ctx as never)).not.toThrow();
+    expect(register).not.toHaveBeenCalled();
+    expect(section).not.toHaveBeenCalled();
   });
 
   it("strict inject: 子会话读取经 ctx.get 装配的可选服务完成", async () => {

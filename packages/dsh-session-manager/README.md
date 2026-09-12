@@ -39,6 +39,20 @@ dsh plugin --profile web add file:<本包路径>
 
 重启 web 进程后生效(工具出现在会话工具目录)。
 
+## 组合前提
+
+工具的数据面是 `ctx.sessionController`,由 web-app 层的 `@deepseek-ai/dsh-api-session-controller`
+行拥有(`workspaceRegistry`/`agents` 是它的伴生面)。因此插件只在含 `@deepseek-ai/dsh-web-app`
+的组合(即 `web` profile)里产出工具;不含该层的组合(如 `dsh-tui` = `dsh-base` + `dsh-tui`,
+`dsh --profile dsh-tui --dump-config` 里没有 `session-controller` 行)装得上,但注册 0 个工具。
+
+入口 `inject` 只声明组合无关的服务(`tools`/`systemPrompt`),能力服务放在嵌套作用域
+(`capabilityInject`)里按需挂载。原因是 cordis 4 的 `inject` 没有可选语义:把
+`sessionController` 写进入口会让条目永远 pending,而 app-boot 的 `assertEntriesActivated`
+把 pending 当作致命错误(`1 entry did not activate`,退出码 7),整棵插件树都起不来。
+
+要在这类组合里拿到同类能力,需要另做一个以该组合自有服务为数据面的 Host 适配层(未交付)。
+
 ## 开发
 
 ```powershell

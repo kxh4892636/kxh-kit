@@ -98,24 +98,33 @@ export const snapshotOf = (
 
 /** 严格假 ctx 的构造参数。 */
 export interface StrictCtxOptions {
-  readonly services: HostServices;
-  /** 已在 inject 中声明的服务(直读可用)。 */
-  readonly injected: Readonly<Record<string, unknown>>;
+  /** 组合提供的服务面(名字 → 值): 缺席的名字模拟「该组合没有这个服务」。 */
+  readonly provided: Readonly<Record<string, unknown>>;
+  /** 本层 inject 声明的服务(直读可用; 其余直读抛错)。 */
+  readonly injected: readonly string[];
   /** 可选服务是否经 `get` 返回; false 模拟可选服务缺席。 */
   readonly optionalAvailable?: boolean;
 }
 
 /**
  * 复刻 cordis strict inject 的假 ctx: 直读未 inject 的服务抛错,
- * `get(name)` 不带 inject 要求地返回假服务(缺席时返回 undefined)。
+ * `get(name)` 不带 inject 要求地返回组合里的服务(缺席时返回 undefined),
+ * `inject(deps, callback)` 只在依赖齐备时执行回调——依赖缺席时回调不执行,
+ * 对应真实 cordis 下嵌套 fiber 停在 pending 而不影响入口激活。
  */
 export const makeStrictCtx = (options: StrictCtxOptions): Record<string, unknown> => {
-  const store: Record<string, unknown> = {
-    ...options.injected,
-    get: (name: string): unknown =>
-      options.optionalAvailable === false
-        ? undefined
-        : (options.services as unknown as Record<string, unknown>)[name],
+  const missing = options.injected.filter((name) => !(name in options.provided));
+  if (missing.length > 0) {
+    // 条目级 inject 缺一即 pending, app-boot 的 assertEntriesActivated 会抛错。
+    throw new Error(`entry pending (waiting for service: ${missing.join(", ")})`);
+  }
+  const store: Record<string, unknown> = {};
+  for (const name of options.injected) store[name] = options.provided[name];
+  store["get"] = (name: string): unknown =>
+    options.optionalAvailable === false ? undefined : options.provided[name];
+  store["inject"] = (deps: readonly string[], callback: (ctx: unknown) => void): void => {
+    if (!deps.every((name) => name in options.provided)) return;
+    callback(makeStrictCtx({ ...options, injected: [...options.injected, ...deps] }));
   };
   return new Proxy(store, {
     get: (target, prop, receiver) => {
