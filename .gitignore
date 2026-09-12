@@ -1,6 +1,7 @@
 # Data
 .cache
 .temp/
+.tmp/
 NANO.md
 
 # Logs
