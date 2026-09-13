@@ -1,30 +1,21 @@
-# 设计拷问
+# 设计
 
-按 Design [tree](DESIGN-TREE.md) 由 agent 自动回答，形成草案后交用户统一评价。涉及领域模型或 ADR 变更时先读 [DOMAIN.md](DOMAIN.md)，以现有 glossary 与 ADR 为约束；其他讨论的权威文档由调用者维护。
+根据 **design tree**, agent 自动回答每轮问题, 形成草案后用户统一评价;
 
 ## 1. 自动回答
 
-每轮列出全部问题的互斥选择、前置问题、下游边界、推荐及理由；agent 各选一项并说明理由，与推荐不同时解释分歧。
-
-首次写入前读 [审阅模板](#审阅模板)，在工作区根创建或续写 `.flow/quest/YYYY-MM-DD-中文工作名.md`。使用首次创建的本地日期，同一 quest 续写同一文件；遇到其他 quest 同名时细化工作名。本轮问答追加在「补充说明」前，替换占位符，保留推荐与选择的可比较性。
-
-每题有唯一选择及理由、全部问答已记录时本轮完成。重复至拷问收敛，此时仍为草案。
+基于 `## 审阅模板` 在工作区根创建或续写 `.flow/quest/YYYY-MM-DD-中文工作名.md`。
 
 ## 2. 统一评价
 
-提供审阅文件，请用户评价全部问题并在「补充说明」补充遗漏。等待用户说明评价完成，再读回所有轮次，按依赖顺序重放：
+用户在审阅文件中, 评价全部问题并在「补充说明」补充遗漏。
 
-- 空白「修改意见」确认 agent 选择，仅对仍可达且前置成立的节点有效。
-- 非空意见作为答案或约束；可唯一确定时替换选择，否则重开节点。
-- 补充说明按事实、约束或决策纳入 tree；HTML 注释不算内容，事实继续取证，判断进入新 frontier。
+- 空白「修改意见」表示同意 agent 选择;
+- 若「修改意见」和「补充说明」非空, 重新更新 design tree 和 frontier;
 
-全部反馈已纳入或因前置失效而排除、新事实已查明或标 blocker、新 frontier 已计算时，本轮评价完成。空反馈确认草案；有新 frontier 时返回第 1 节。
+## 3. 领域变更
 
-## 3. 收口
-
-拷问收敛、未知事实已查明，审阅文件包含全部问题、推荐与选择及理由、修改意见，末尾保留「补充说明」。复述结论并获用户明确确认共同理解后完成；确认前工作保持在设计范围。
-
-领域变更按 [DOMAIN.md](DOMAIN.md) 同步并通过校验；其他讨论仅直接维护审阅文件。
+「修改意见」和「补充说明」皆空白, 与用户达成一致后, 如果存在领域变更, 遵循 `## domain`;
 
 ## 审阅模板
 
@@ -38,10 +29,7 @@
 - 问题：{问题与互斥选择}
 - 前置问题：{Q 编号或无}
 - 下游边界：{该答案会改变什么}
-- ➡️ 推荐答案：{推荐}
-- 推荐理由：{关键理由}
-- 选择答案：{选择}
-- 选择理由：{关键理由}
+- 推荐答案及其理由：{选择}
 - 修改意见：
 
 <!-- 每题重复以上结构，编号在整个 quest 内递增；按轮追加，补充说明始终位于末尾。 -->
@@ -50,3 +38,64 @@
 
 <!-- 填写所有问题均未涉及的用户补充说明；没有则留空。 -->
 ```
+
+## domain
+
+1. **定域**：基于 `<nano-flow-skill-root-dir>/references/DOMAIN.md`, 读取修改业务域的 CONTEXT 与 ADR。
+2. **维护 CONTEXT 和 ADR**：根据审阅文件, `### context 格式` 和 `### ADR 格式`, 进行创建/更新/删除;
+3. **校验**: 工作区根执行 `node <nano-flow-skill-root-dir>/scripts/check-domain.mjs .` 进行领域文档校验;
+
+### context 格式
+
+- CONTEXT-MAP.md
+
+```md
+# Context Map
+
+## Contexts
+
+- [Ordering](./docs/ordering/CONTEXT.md) - 接收并跟踪 customer orders。
+- [Billing](./docs/billing/CONTEXT.md) - 生成 invoices 并处理 payments。
+
+## Relationships
+
+- **Ordering → Billing**: Ordering 发出 `OrderCompleted`；Billing 消费它并生成 invoice。
+```
+
+- Context.md
+
+```md
+# {Context 名称}
+
+{一到两句话说明该 context 的领域职责。}
+
+## Language
+
+**{Canonical term}**:
+{一到两句话定义它是什么}
+_Avoid_: {会造成歧义的同义词}
+```
+
+### ADR 格式
+
+一项决策同时满足以下条件才成为 ADR：
+
+1. **Hard to reverse**：未来改变它有显著成本。
+2. **Surprising without context**：只看实现无法理解为何这样选择。
+3. **Real trade-off**：存在真实备选，并因明确理由选择其一。
+
+最小 ADR 模板:
+
+```md
+# {决策的简短标题}
+
+{1-3 句话说明 context、决策与理由。}
+```
+
+下列内容必要时添加：
+
+- `Status` frontmatter：`proposed | accepted | deprecated | superseded by ADR-NNNN`。
+- `Considered Options`：被拒绝的备选值得未来读者记住。
+- `Consequences`：存在不明显且重要的下游影响。
+
+输出与现有 ADR 冲突时显式指出冲突及重新讨论的理由，不静默覆盖。

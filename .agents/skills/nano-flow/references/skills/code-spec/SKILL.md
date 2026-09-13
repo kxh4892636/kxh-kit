@@ -7,18 +7,15 @@ description: 编写、修改或审查代码时，应用仓库的目录、命名�
 
 ## 目录与命名
 
-- `/src` 为 `level-1`，不存在时以项目根为 `level-1`；最多 4 层，`level-4` 只放文件。
-- 每目录最多 13 个文件，超过时按领域归入文件夹。
+- `/src` 为 `level-1`，不存在时以项目根为 `level-1`；最多 4 层，`level-4` 只放文件。每层最多 13 个文件，超过时按领域归入文件夹。
 - 文件和目录使用 `kebab-case`，按实际领域职责命名，如 `tab-group-state.ts`、`terminal-cleanup.ts`。
-- 泛化名称（`helpers`、`utils`、`common`、`components`、`hooks` 等）仅在 `level-2` 允许（也包括 `libs`、`config`）。其他层只能想到泛名时，拆分过多职责或按操作对象命名。
+- 泛化名称（`helpers`、`utils`、`common`、`components`、`hooks` 等）仅在 `level-2` 允许。
 
 ## 文件与边界
 
 - 文件最多 610 行、前端组件 377 行、函数 89 行；超过时按职责和复用边界重构。
-- 默认命名导出/导入，确有需要时使用默认导出/导入。
-- 注释使用中文，只解释原因、约束、取舍和风险，不复述代码的执行过程；非测试的增量与存量改动按需补充。
-- 网络、SDK、文件系统等外部边界有错误处理；内部流转数据默认可信，无须 schema/validator。
-- 外部数据默认不可信：客户端 HTTP 响应递归使用 TypeScript 可选链防空指针；用户输入与服务端 RPC/HTTP 请求使用项目 schema/validator。
+- 网络、SDK、文件系统等外部边界有错误处理；
+- 内部流转数据默认可信，无须 schema/validator。外部数据默认不可信：客户端 HTTP 响应递归使用 TypeScript 可选链防空指针；用户输入与服务端 RPC/HTTP 请求使用 schema/validator。
 - 测试与实现同级放置；E2E 可单独放在 tests 目录。
 
 ## TS
