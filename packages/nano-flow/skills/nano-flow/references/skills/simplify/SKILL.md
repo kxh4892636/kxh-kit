@@ -6,17 +6,17 @@ disable-model-invocation: true
 
 # Simplify
 
-保持行为与约束，优先删减。真实 bug 单独报告；需要正确性审查时读取 `<code-delivery-skill-root-dir>/SKILL.md` 的「code review」。
+保持行为与约束，优先删减。真实 bug 单独报告；需要正确性审查时读取 `/code-delivery` 的「code review」。
 
 ## 1. 定域
 
-默认整个工作区的生产代码，增量与存量统一评判，排除依赖、构建产物和生成物；用户可限定范围、角度或只要报告。
+默认整个工作区的生产代码，排除依赖、构建产物和生成物
 
 按 `<nano-flow-skill-root-dir>/references/DOMAIN.md` 定位业务域，读取 map、CONTEXT、适用 AGENTS.md 与 `/code-spec`，以及相关 ADR、active/reference Plan。保留已确认设计、契约、术语与未交付需求；需要追溯理由时读取 archived Plan，仅作历史依据。
 
 ## 2. 调查
 
-按域或顶层目录分区，并行委派 subagents，各自取得完整约束与调查角度；单目录直接调查，无 subagent 能力时顺序执行并说明。
+并行委派 subagents，各自取得完整约束与调查角度;
 
 | 角度 | 寻找                                                                                                 |
 | ---- | ---------------------------------------------------------------------------------------------------- |
@@ -25,9 +25,9 @@ disable-model-invocation: true
 | 深度 | 特例分支、层叠补丁、掩盖根因的包装；深层重构只标记                                                   |
 | 性能 | 重复工作、N+1、不必要的串行、热路径开销、过宽读取、无界增长与资源泄漏；TOCTOU 改为直接操作并处理错误 |
 
-**证据**：每项记录 `file:line → 问题 → 消费方与成本 → 建议 | confidence: high/medium/low | risk: SAFE/CAREFUL/RISKY`；复用建议点明对象。删除前结合 blame、消费方与领域约束查明存在理由；理由不明标 low，猜测项丢弃。
+**证据**：每项记录 `file:line → 问题 → 消费方与成本 → 建议 | confidence: high/medium/low | risk: SAFE/CAREFUL/RISKY`；
 
-覆盖全部选定分区与角度后合并去重。冲突按正确性、用户 focus、可读性与复用、微优化排序；微优化仅在已确认热路径优先，等效方案选改动较小者。
+覆盖全部角度后合并去重。冲突按正确性、用户 focus、可读性与复用、微优化排序；微优化仅在已确认热路径优先，等效方案选改动较小者。
 
 ## 3. 应用与收口
 
@@ -37,6 +37,4 @@ disable-model-invocation: true
 | CAREFUL | 提取、内联、重命名、拍平等语义保持修改，逐项应用并测试                                                                                           |
 | RISKY   | 公共契约、行为、受保护设计、并发或访问模式变更、深层重构，仅报告风险、覆盖情况与 issue 或 `/questing` 跟进建议；ADR 冲突说明重议理由，由用户决定 |
 
-只报告模式交付建议即可。应用限于必要范围，保留规范要求的校验、错误处理、安全措施和用户要求；运行受影响测试与仓库 linter/typecheck，失败回退对应修复并报告。
-
-按分区、角度与 risk 报告发现、已应用项、跳过理由和净删除量；有意保留的性能上限注明原因与升级条件。SAFE/CAREFUL 均已应用或回退、RISKY 已呈现且适用验证通过时完成。
+按角度与 risk 报告发现、已应用项、跳过理由和净删除量；SAFE/CAREFUL 均已应用或回退、RISKY 已呈现且适用验证通过时完成。

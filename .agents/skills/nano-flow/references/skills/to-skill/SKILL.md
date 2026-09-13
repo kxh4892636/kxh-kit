@@ -14,7 +14,7 @@ description: 编写或优化供 agent 使用的 skill 时使用；围绕单一�
 
 ## Context pointers
 
-**Context pointer**: 针对其他参考文档的引用; 同一 skill 引用以 `SKILL.md` 为根目录的相对路径. 跨 skill 使用占位符形式的相对路径 `<others-skill-root-dir>/references/DOMAIN.md`;
+**Context pointer**: 针对其他参考文档的引用; 同一 skill 引用以 `SKILL.md` 为根目录的相对路径. 跨 skill 使用占位符形式的相对路径 `<others-skill-root-dir>/references/DOMAIN.md` 或 `/others-skill skill`;
 **Branch**: 工作流程的不同 case, 使用 **Leading word** 和 **pointer** 触发;
 
 ## 信息层级
