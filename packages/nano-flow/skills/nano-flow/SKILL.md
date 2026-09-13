@@ -38,4 +38,3 @@ questing
 
 - 调用 `/code-delivery skill`，准入判断前完整读取 [QUESTIONS.md](extensions/QUESTIONS.md) 与 [workflows/README.md](extensions/workflows/README.md), 执行 `dev gate`：
 - 交付中遇到阻塞时，优先查阅 workflows 索引与对应业务域 workflow；
-- 所有任务执行完成后, 从工作区根运行 `node <nano-flow-skill-root-dir>/scripts/check-domain.mjs .`;

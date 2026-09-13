@@ -1,6 +1,6 @@
 ---
 name: to-skill
-description: 编写或优化 skill、AGENTS.md、CLAUDE.md 及其引用文档时使用；检查 context pointers、信息层级、完成标准与 pruning。
+description: 编写或优化供 agent 使用的 skill 时使用；围绕单一循环组织工作流程，设计上下文引用与渐进披露层级，使用紧凑概念引导行为并删减无关或无效指令。
 ---
 
 编写供 agent 消费的 skill, 抽象通用的工作流程(过程类似, 但输出各异);
@@ -37,4 +37,4 @@ skill 可由顺序执行的 **steps**、按需查阅的 **reference** 或两者�
 ## Pruning
 
 - **Relevance**：逐行检查 skill 内容的相关性。持续清理无关说明、应下沉的分支和过时规则。
-- **No-ops**：逐行检查 skill 内容和 leading words 的有效性, 若相较 model 默认行为没有发生明显改变, 进行整段内容删除或更强论述改写。
+- **No-ops**：逐行说明指令具体改变哪种默认行为；无法说明有效差异时，删除或改写为可执行要求。

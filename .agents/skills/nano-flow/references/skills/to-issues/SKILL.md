@@ -1,6 +1,6 @@
 ---
 name: to-issues
-description: 跨会话推进或需要持久化检查点时，建立和维护可恢复的 spec、设计 frontier 与 tracer-bullet issue 图。
+description: 将工作方案落盘为 spec 与 issue，或维护其交付状态时使用；按可独立验收的用户结果拆分贯穿各层的 issue，记录直接依赖，同步生命周期并校验领域文档。
 argument-hint: "要持久化什么长任务?"
 ---
 
@@ -8,9 +8,9 @@ argument-hint: "要持久化什么长任务?"
 
 ## 建立或维护
 
-1. **定域与取证**：定位业务域, 读取 CONTEXT、相关 ADR/Workflow 和已有 story、spec、issue、commit/diff。
-2. **就地落盘**：创建/更新 spec 与 issue，按下方 tracer-bullet 规则拆分; 未明确事实纳入「待定」;
-3. **确认**：按用户反馈反复迭代, 直至无反馈。
+1. **定域与取证**：按 `<nano-flow-skill-root-dir>/references/DOMAIN.md` 定位业务域与 Plan 路径，读取 CONTEXT、相关 ADR/Workflow 和已有 story、spec、issue、commit/diff。
+2. **就地落盘**：创建/更新 spec 与 issue 时读取 [TEMPLATES.md](TEMPLATES.md)，按下方 tracer-bullet 规则拆分；未明确事实纳入「待定」。
+3. **收敛**：处理反馈，直到交付结果、直接依赖与验收条件明确，未决项均有恢复条件，默认用户完成确认。
 4. **校验**：从工作区根运行 `node <nano-flow-skill-root-dir>/scripts/check-domain.mjs .`.
 
 ## Tracer bullets
@@ -34,103 +34,4 @@ pending → in_progress → completed
 
 每次 Issue 状态变化，同步 `spec.md` 的 Issue 表与派生状态：全部 pending 为 pending，全部 completed 为 completed，其余为 in_progress。文档更新后从工作区根运行 `node <nano-flow-skill-root-dir>/scripts/check-domain.mjs .`;
 
-## 模板
-
-### spec.md 模板
-
-```markdown
----
-status: pending
----
-
-# {工作名}
-
-## 问题
-
-{用户要得到的结果, 已知约束}
-
-## 方案
-
-{保持在设计层级}
-
-## 已排除的备选
-
-- {方案}: {拒绝理由}
-
-## 实施决策
-
-{模块, 接口, schema, 契约等设计层级内容; 决策密度高的片段(state machine, schema, type shape)可内联并注明出处}
-
-## 工作环境
-
-{执行该工作所需的环境信息: 例如项目管理工具, 本地开发环境, CI/CD 流水线, 运行时环境, 三方服务等}
-
-## 范围
-
-{做什么}
-
-## 非范围
-
-{不做什么}
-
-## 待定
-
-{尚不能精确表述为 issue 的未决问题、已知选项或证据、恢复条件; 澄清后 graduate 为 issue}
-
-## 上下文
-
-{通过路径或 URL 引用已有产物: PRD, story, spec, ADR, workflow, commit, diff 等; 域内引用使用从当前文件计算的相对路径}
-
-## Issue
-
-| #   | Issue                  | 状态    | 阻塞于 | 下一步         |
-| --- | ---------------------- | ------- | ------ | -------------- |
-| 01  | [{标题}](01-{标题}.md) | pending | —      | /code-delivery |
-```
-
-### issue 模板
-
-```markdown
----
-status: pending
-blocked_by: ["\d\d"]
----
-
-# {标题}
-
-## 交付
-
-{用户可感知的结果}
-
-## 范围
-
-{做什么, 不做什么}
-
-## 直接依赖
-
-- {NN}: {原因}; 消费其 {产物或契约}
-
-## 验收
-
-- [ ] {可独立判定的最小结果}
-
-## 上下文
-
-- {通过路径或 URL 引用相关产物: PRD, story, spec, ADR, workflow, commit, diff 等; 域内引用使用从当前文件计算的相对路径}
-
-## 下一步
-
-{决策已澄清: /code-delivery; 仍需澄清: /questing}
-
-## 阻塞记录
-
-{仅 status 为 blocked 时保留: 障碍与解除条件}
-
-## 交付记录
-
-{完成登记前填入并保留: 交付物与验证证据链接}
-```
-
-## 模板扩展
-
-内容无法归入现有章节（**独特**），且缺少它会损失执行或验收信息（**必要**）时，根据内容新增拓展章节;
+plan 标记为 `completed` 后, 询问用户是否迁移到 reference;

@@ -10,7 +10,7 @@ argument-hint: "要持久化什么长任务?"
 
 1. **定域与取证**：按 `<nano-flow-skill-root-dir>/references/DOMAIN.md` 定位业务域与 Plan 路径，读取 CONTEXT、相关 ADR/Workflow 和已有 story、spec、issue、commit/diff。
 2. **就地落盘**：创建/更新 spec 与 issue 时读取 [TEMPLATES.md](TEMPLATES.md)，按下方 tracer-bullet 规则拆分；未明确事实纳入「待定」。
-3. **收敛**：处理反馈，直到交付结果、直接依赖与验收条件明确，未决项均有恢复条件，并按模式完成确认。
+3. **收敛**：处理反馈，直到交付结果、直接依赖与验收条件明确，未决项均有恢复条件，默认用户完成确认。
 4. **校验**：从工作区根运行 `node <nano-flow-skill-root-dir>/scripts/check-domain.mjs .`.
 
 ## Tracer bullets
@@ -33,3 +33,5 @@ pending → in_progress → completed
 - 完成交付: 更新「交付记录」，标记 `completed`。
 
 每次 Issue 状态变化，同步 `spec.md` 的 Issue 表与派生状态：全部 pending 为 pending，全部 completed 为 completed，其余为 in_progress。文档更新后从工作区根运行 `node <nano-flow-skill-root-dir>/scripts/check-domain.mjs .`;
+
+plan 标记为 `completed` 后, 询问用户是否迁移到 reference;
