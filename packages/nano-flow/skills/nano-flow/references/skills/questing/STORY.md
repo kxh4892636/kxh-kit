@@ -12,7 +12,7 @@ docs/{domain-name}/plans/active/YYYY-MM-DD-中文工作名/story.md
 
 ## 2. 逐轮澄清
 
-基于 **design tree** 明确角色、用户结果、收益、边界、验收与未知项；默认每轮用户手动回答, 使用以下格式:
+基于 **design tree** 明确角色、用户结果、收益、边界、验收与未知项:
 
 ```markdown
 ❓ **Q1 - {问题标题}**：{问题；需要时列出互斥选择}
