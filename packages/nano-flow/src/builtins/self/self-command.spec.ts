@@ -159,15 +159,21 @@ describe("self skill query interface", (): void => {
     });
   });
 
-  test("packages extension skills from their extension paths", (): void => {
+  test("packages the document workflow and domain validation tools", (): void => {
     const nanoFlow = generatedSkills.find((skill) => skill.name === "nano-flow");
     if (nanoFlow === undefined) throw new Error("Missing nano-flow generated skill");
     const paths = nanoFlow.files.map((file) => file.path);
 
-    expect(paths).toContain("extensions/skills/code-test/SKILL.md");
-    expect(paths).toContain("extensions/skills/code-spec/SKILL.md");
+    expect(paths).toContain("SKILL.md");
+    expect(paths).toContain("references/skills/code-delivery/SKILL.md");
+    expect(paths).toContain("references/skills/code-spec/SKILL.md");
+    expect(paths).toContain("scripts/check-domain.mjs");
+    expect(paths).toContain("scripts/plan-document.mjs");
     expect(paths).toContain("extensions/workflows/README.md");
     expect(paths).toContain("extensions/QUESTIONS.md");
+    expect(paths).not.toContain("FLOW.md");
+    expect(paths).not.toContain("extensions/hooks.json");
+    expect(paths.some((filePath) => /^scripts\/flow(?:[.-])/.test(filePath))).toBe(false);
     expect(paths.some((filePath) => filePath.startsWith("references/subskills/"))).toBe(false);
     expect(paths.some((filePath) => filePath.startsWith("extensions/skills/tdd/"))).toBe(false);
   });

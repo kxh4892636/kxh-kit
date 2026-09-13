@@ -1,33 +1,40 @@
 ---
 name: nano-flow
-description: 进入、恢复或推进从故事与设计、issue 拆分、准入到交付的 Flow，或判断下一步 skill 时使用。
+description: 进入、恢复或推进从故事与设计、可选 issue 拆分到代码交付的 Flow，或判断下一步 skill 时使用。
 ---
 
 # Nano Flow
 
-`/nano-flow` 拥有主流程推进与 Flow context 传递；各 skill 拥有自己的步骤、产物和完成标准。
-
 ## 选择模式
 
-已有 Flow 或 Plan 时，读取 [FLOW.md](./FLOW.md)，用 status 查看当前位置并 acquire 恢复。新 Flow 从 `/questing` 进入，按工作性质选择一种模式并说明理由, 等待用户确认：
+复用用户已有授权与模式偏好。尚未选择时，列举两个模式, 按工作性质推荐并说明理由:
 
-| 工作性质                       | 模式             |
-| ------------------------------ | ---------------- |
-| 改动大、需要用户介入与深入交互 | `manual`（默认） |
-| 改动小、可自动推进修复或实现   | `auto`           |
+| 工作性质                       | 模式     |
+| ------------------------------ | -------- |
+| 改动大、需要用户介入与深入交互 | `manual` |
+| 改动小、可自动推进修复或实现   | `auto`   |
 
-复用用户已有授权与模式偏好；只澄清会改变模式或执行范围的未决事项。模式与进入 Flow 的授权明确时完成。
+- `manual`：`/questing skill` 和 `/to-issues skill` 结束后需要用户一次确认, 确认后继续推进路径。
+- `auto`：`/questing skill` 和 `/to-issues` 完全由 agent 自动推进, 无须用户确认。
 
-## 进入 Flow
+## 选择路径
 
-完整读取 [FLOW.md](./FLOW.md)，以稳定的 Plan 标识执行 acquire，传入已确定的 mode；恢复时复用 session。
+新任务从 `/questing skill` 开始；已有设计或 Plan 时，核对已完成步骤的产物与证据，从首个未完成步骤继续。
 
-返回 owned、当前位置与目标一致且完整 context 已传给当前 skill 时完成；issues 状态先按已确认优先级领取 ready Issue。
+```text
+questing
+  ├─ 执行 to-issues → 按依赖逐个 code-delivery → 全部 Issue 完成
+  └─ 跳过 to-issues → code-delivery → 完成
+```
 
-## 沿运行态推进
+`/questing skill` 收敛后决定是否执行 `/to-issues skill`(manual 用户决定, 反之 agent 自动决定);
 
-只完整读取并执行 next.skill，原样携带同次返回的 next.message。完成条件成立后 report 真实证据，再使用新快照；交付须在提交成功后报告完成。长操作 acquire 续租，暂停或阻塞通过 report 留下可恢复状态。
+- 用户已指定执行或跳过时遵循其选择;
+- 需要跨会话恢复、持久化检查点或有依赖的分批交付时;
+- 范围明确、可在当前会话完成且不需要 Issue 图时;
 
-当前 skill 需要领域文档时，读取 [DOMAIN.md](references/DOMAIN.md)，以其定位、布局和生命周期为权威约束。
+## 推进交付
 
-目标 completed，或已登记暂停、带解除条件的 blocked 结果并释放租约时，本次路由完成。
+- 调用 `/code-delivery skill`，准入判断前完整读取 [QUESTIONS.md](extensions/QUESTIONS.md) 与 [workflows/README.md](extensions/workflows/README.md), 执行 `dev gate`：
+- 交付中遇到阻塞时，优先查阅 workflows 索引与对应业务域 workflow；
+- 所有任务执行完成后, 从工作区根运行 `node <nano-flow-skill-root-dir>/scripts/check-domain.mjs .`;

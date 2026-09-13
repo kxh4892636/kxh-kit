@@ -20,6 +20,20 @@ argument-hint: "要持久化什么长任务?"
 - 降低后续实现难度的 prefactoring 排最前。
 - 唯一例外是大范围机械重构：expand → 按影响面分批 migrate（每批一个 issue）→ contract 删除旧形态。
 
+## 生命周期
+
+```text
+pending → in_progress → completed
+              ↕
+           blocked
+```
+
+- 开始工作: `status` 更新为 `in_progress`。
+- 堵塞卡点: 标记 `blocked`, 并写入障碍与解除条件
+- 完成交付: 更新「交付记录」，标记 `completed`。
+
+每次 Issue 状态变化，同步 `spec.md` 的 Issue 表与派生状态：全部 pending 为 pending，全部 completed 为 completed，其余为 in_progress。文档更新后从工作区根运行 `node <nano-flow-skill-root-dir>/scripts/check-domain.mjs .`;
+
 ## 模板
 
 ### spec.md 模板

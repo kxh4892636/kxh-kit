@@ -1,6 +1,6 @@
 ---
 name: code-delivery
-description: 按已确认的 spec 或 issue 交付代码；当 `/dev-gate` 已给出 `ready` 时使用。
+description: 按已确认的设计、spec 或 issue 建立交付基线，并完成代码实现、验证与提交。
 ---
 
 # delivery
