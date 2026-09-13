@@ -1,6 +1,6 @@
 ---
 name: to-issues
-description: 跨会话推进或需要持久化检查点时，建立和维护可恢复的 spec、设计 frontier 与 tracer-bullet issue 图。
+description: 将工作方案落盘为 spec 与 issue，或维护其交付状态时使用；按可独立验收的用户结果拆分贯穿各层的 issue，记录直接依赖，同步生命周期并校验领域文档。
 argument-hint: "要持久化什么长任务?"
 ---
 

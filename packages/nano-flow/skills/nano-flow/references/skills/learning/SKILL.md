@@ -1,6 +1,6 @@
 ---
 name: learning
-description: 整理高密度、可检索的 Markdown 笔记，或将笔记、词表、问答、完形填空材料转为 Anki 卡片。
+description: 将学习材料整理为 Markdown 笔记或制作 Anki 卡片时使用；建立知识覆盖账本，按概念组织问答式笔记，或经去重与预览确认后创建牌组和卡片。
 disable-model-invocation: true
 ---
 

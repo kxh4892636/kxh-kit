@@ -1,6 +1,6 @@
 ---
 name: nano-flow
-description: 进入、恢复或推进从故事与设计、可选 issue 拆分到代码交付的 Flow，或判断下一步 skill 时使用。
+description: 启动或恢复开发任务时使用；选择 manual 或 auto 模式，串联需求与设计澄清、可选 issue 拆分、代码交付与领域文档校验。
 ---
 
 # Nano Flow

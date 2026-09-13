@@ -1,6 +1,6 @@
 ---
 name: to-skill
-description: 编写或优化 skill、AGENTS.md、CLAUDE.md 及其引用文档时使用；检查 context pointers、信息层级、完成标准与 pruning。
+description: 编写或优化供 agent 使用的 skill 时使用；围绕单一循环组织工作流程，设计上下文引用与渐进披露层级，使用紧凑概念引导行为并删减无关或无效指令。
 ---
 
 编写供 agent 消费的 skill, 抽象通用的工作流程(过程类似, 但输出各异);

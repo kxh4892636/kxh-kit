@@ -1,6 +1,6 @@
 ---
 name: to-prototype
-description: 构建一次性原型，回答逻辑或状态模型是否顺手、UI 应呈现何种外观的设计问题。
+description: 需要通过可运行原型判断逻辑或状态模型的手感、比较 UI 外观时使用；构建一次性单文件 HTML 或可切换的 UI 变体，经手工走查记录观察与结论。
 argument-hint: "要回答的问题是什么? (逻辑手感还是 UI 外观)"
 disable-model-invocation: true
 ---

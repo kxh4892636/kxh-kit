@@ -1,6 +1,6 @@
 ---
 name: simplify
-description: 对整个工作区或指定范围的增量与存量代码做简化审查和清理，覆盖复用、删减、深度与性能。
+description: 审查或清理工作区及指定范围的代码复杂度时使用；依据领域约束与消费方证据检查复用、删减、深度和性能，按风险应用并验证简化，或仅报告建议。
 disable-model-invocation: true
 ---
 

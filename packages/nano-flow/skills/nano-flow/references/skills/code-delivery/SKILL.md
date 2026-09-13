@@ -1,6 +1,6 @@
 ---
 name: code-delivery
-description: 按已确认的设计、spec 或 issue 建立交付基线，并完成代码实现、验证与提交。
+description: 将 spec、issue 或已确认设计交付为代码时使用；明确环境、执行契约与质量门禁，完成实现、测试、验收和 commit 提交。
 ---
 
 # delivery
