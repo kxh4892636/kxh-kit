@@ -43,6 +43,6 @@
 ## 上下文
 
 - [现有实现 README](../../../packages/dsh-keep-alive/README.md)
-- [原 Plan（显式排除 macOS/Linux）](../reference/2026-09-08-终端后台保活工具/spec.md)
+- [原 Plan（显式排除 macOS/Linux）](../archived/2026-09-08-终端后台保活工具/spec.md)
 - [领域语言](../../CONTEXT.md)
 - 设计问答：工作区 `.flow/quest/2026-09-10-dsh-alive全平台.md`

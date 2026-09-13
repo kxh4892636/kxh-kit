@@ -89,7 +89,7 @@ Windows / PowerShell；仓库使用 pnpm 与 vite-plus，本机 Node.js v24.19.0
 - [领域语言](../../../CONTEXT.md)
 - 设计确认记录：工作区 `.flow/quest/2026-09-09-dsh-alive显式更新与tag支持.md`
 - [上一轮交付](../../reference/2026-09-09-dsh-alive命令与测试基建调整/spec.md)
-- [自动更新的原始交付](../../reference/2026-09-08-终端后台保活工具/02-自动更新与失败回退.md)
+- [自动更新的原始交付](../../archived/2026-09-08-终端后台保活工具/02-自动更新与失败回退.md)
 
 ## Issue
 

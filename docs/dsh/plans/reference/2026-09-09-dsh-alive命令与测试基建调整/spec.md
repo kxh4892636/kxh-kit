@@ -67,7 +67,7 @@ Windows / PowerShell；仓库使用 pnpm 与 vite-plus 0.2.6，根 `package.json
 
 - [领域语言](../../../CONTEXT.md)
 - 设计确认记录：工作区 `.flow/quest/2026-09-09-dsh-alive命令与测试基建调整.md`
-- [上一轮交付](../../reference/2026-09-08-终端后台保活工具/spec.md)
+- [上一轮交付](../../archived/2026-09-08-终端后台保活工具/spec.md)
 - 仓库既有 vp 约定：[dsh-nested-skill 配置](../../../../../packages/dsh-nested-skill/vite.config.ts)、[dsh-session-manager 配置](../../../../../packages/dsh-session-manager/vite.config.ts)
 
 ## Issue

@@ -162,7 +162,7 @@ interface ProcessSource {
 - 用户故事：[story.md](story.md)。
 - 设计问答（Q1 用户直接确认三平台）：工作区 `.flow/quest/2026-09-10-dsh-alive全平台.md`。
 - 现行实现：[packages/dsh-keep-alive](../../../../packages/dsh-keep-alive/README.md)。
-- 原 Plan（显式排除 macOS/Linux，本次撤销该排除）：[2026-09-08-终端后台保活工具](../reference/2026-09-08-终端后台保活工具/spec.md)。
+- 原 Plan（显式排除 macOS/Linux，本次撤销该排除）：[2026-09-08-终端后台保活工具](../archived/2026-09-08-终端后台保活工具/spec.md)。
 - 领域语言：[DSH](../../../CONTEXT.md)。
 - 仓库先例：nano-mem 的 POSIX/Windows npm 调用与数据目录；diff-viewer 的全平台打包（无 mac 环境时按配置就绪交付）；herdr 的「Windows named pipe / Unix socket 同一入口」。
 
