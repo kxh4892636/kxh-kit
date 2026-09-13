@@ -429,7 +429,7 @@ test.each([
     "Plan 至少需要 story.md 或 spec.md",
   ],
   [
-    "非 active Plan 没有 spec",
+    "reference Plan 没有 spec",
     (rootDir) => {
       fs.rmSync(path.join(activePlanPath(rootDir), "spec.md"));
       const referenceRoot = path.join(rootDir, "docs/ordering/plans/reference");
@@ -439,7 +439,7 @@ test.each([
         path.join(referenceRoot, path.basename(activePlanPath(rootDir))),
       );
     },
-    "非 active Plan 必须包含 spec.md",
+    "reference Plan 必须包含 spec.md",
   ],
   [
     "非法 Plan 文件名",
@@ -604,14 +604,23 @@ test("Issue 表接受最小尾分隔符和两位依赖", () => {
   }
 });
 
-test("active Plan 可以只包含 story.md", () => {
+test.each(["active", "archived", "reference"])("%s Plan 的纯故事生命周期约束", (lifecycle) => {
   const rootDir = createValidWorkspace();
   try {
     const planRoot = activePlanPath(rootDir);
     fs.rmSync(path.join(planRoot, "spec.md"));
     fs.rmSync(path.join(planRoot, "01-取消订单.md"));
     fs.writeFileSync(path.join(planRoot, "story.md"), "# 用户故事\n\n客户可以取消订单。\n", "utf8");
-    assert.deepEqual(checkDomain(rootDir), []);
+    if (lifecycle !== "active") {
+      const lifecycleRoot = path.join(rootDir, "docs/ordering/plans", lifecycle);
+      fs.mkdirSync(lifecycleRoot, { recursive: true });
+      fs.renameSync(planRoot, path.join(lifecycleRoot, path.basename(planRoot)));
+    }
+    const expectedErrors =
+      lifecycle === "reference"
+        ? ["docs/ordering/plans/reference/2026-08-22-支持订单取消: reference Plan 必须包含 spec.md"]
+        : [];
+    assert.deepEqual(checkDomain(rootDir), expectedErrors);
   } finally {
     fs.rmSync(rootDir, { recursive: true, force: true });
   }

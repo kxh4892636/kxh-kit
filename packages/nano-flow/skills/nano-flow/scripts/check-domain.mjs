@@ -216,8 +216,8 @@ const checkPlanLayout = (planPath, lifecycle, errors, rootDir) => {
   if (!hasStory && !hasSpec) {
     addError(errors, rootDir, planPath, "Plan 至少需要 story.md 或 spec.md");
   }
-  if (!hasSpec && lifecycle !== "active") {
-    addError(errors, rootDir, planPath, "非 active Plan 必须包含 spec.md");
+  if (!hasSpec && lifecycle === "reference") {
+    addError(errors, rootDir, planPath, "reference Plan 必须包含 spec.md");
   }
 
   for (const entry of markdownFiles) {
