@@ -29,7 +29,7 @@ export interface InstanceIo {
   now: () => number;
   wait: (ms: number) => Promise<void>;
 }
-export const defaultIo: InstanceIo = {
+const defaultIo: InstanceIo = {
   snapshot: (port: number): Promise<ProcessSnapshot> => currentPlatform().snapshot(port),
   terminate: (identity: Identity, port: number): Promise<void> =>
     terminateTree(identity, port, currentPlatform()),

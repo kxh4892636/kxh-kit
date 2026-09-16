@@ -1,7 +1,7 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { access, mkdir, rename, rm } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { join, posix, win32 } from "node:path";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { readJson, saveJson } from "../paths.js";
@@ -41,20 +41,25 @@ export const npmCliCandidates = (
   execPath: string = process.execPath,
   platform: string = process.platform,
 ): string[] => {
-  const directory = dirname(execPath);
+  // platform 参数用于模拟其它平台, 因此候选路径必须按目标平台的语义拼接,
+  // 不能用宿主 path 语义(否则 Windows 宿主上模拟 linux 会得到 C:\usr\...)。
+  const platformPath = platform === "win32" ? win32 : posix;
+  const directory = platformPath.dirname(execPath);
   // 与当前 Node 同装的 npm 优先；PATH 里的 npm 可能是 sh 包装脚本（Volta/asdf/corepack），
   // 不能交给 node 执行，故不作为候选。
   const candidates = [
-    join(directory, "node_modules", "npm", "bin", "npm-cli.js"),
-    join(directory, "..", "lib", "node_modules", "npm", "bin", "npm-cli.js"),
+    platformPath.join(directory, "node_modules", "npm", "bin", "npm-cli.js"),
+    platformPath.join(directory, "..", "lib", "node_modules", "npm", "bin", "npm-cli.js"),
   ];
-  if (platform === "win32") return candidates.map((path: string): string => resolve(path));
+  if (platform === "win32") {
+    return candidates.map((path: string): string => platformPath.resolve(path));
+  }
   return [
     ...candidates,
     "/usr/share/nodejs/npm/bin/npm-cli.js",
     "/usr/local/lib/node_modules/npm/bin/npm-cli.js",
     "/opt/homebrew/lib/node_modules/npm/bin/npm-cli.js",
-  ].map((path: string): string => resolve(path));
+  ].map((path: string): string => platformPath.resolve(path));
 };
 export const resolveNpmCli = async (
   execPath: string = process.execPath,

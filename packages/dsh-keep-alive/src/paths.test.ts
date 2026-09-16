@@ -1,5 +1,5 @@
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { expect, test } from "vitest";
 import {
   DATA_ROOT_ENV,
@@ -42,9 +42,11 @@ test("数据目录按平台解析，DSH_ALIVE_DATA 覆盖默认", (): void => {
   expect(platformDataDirectory("linux", {})).toMatch(/\.local[/\\]share/);
   expect((): unknown => platformDataDirectory("win32", {})).toThrow(/LOCALAPPDATA/);
   const previous = process.env[DATA_ROOT_ENV];
-  process.env[DATA_ROOT_ENV] = join("/tmp", "dsh-alive-override");
+  // 覆盖值按 resolve 语义解析(相对路径基于 cwd), 断言同一语义而非 join 字面量。
+  const override = resolve(join("/tmp", "dsh-alive-override"));
+  process.env[DATA_ROOT_ENV] = override;
   try {
-    expect(pathsFor(1).root).toBe(join("/tmp", "dsh-alive-override"));
+    expect(pathsFor(1).root).toBe(override);
   } finally {
     if (previous === undefined) delete process.env[DATA_ROOT_ENV];
     else process.env[DATA_ROOT_ENV] = previous;

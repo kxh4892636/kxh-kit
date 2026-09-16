@@ -6,7 +6,7 @@ import { pathsFor, preparePaths, saveJson, type Paths } from "../paths.js";
 import type { Version } from "../runtime/versions.js";
 export const temporary = async (): Promise<string> =>
   mkdtemp(join(tmpdir(), "dsh-keep-alive-test-"));
-export const freePort = async (): Promise<number> => {
+const freePort = async (): Promise<number> => {
   const server = createServer();
   await new Promise<void>((resolve: (value: void | PromiseLike<void>) => void): unknown =>
     server.listen(0, "127.0.0.1", resolve),

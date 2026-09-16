@@ -41,14 +41,14 @@ export const parseStat = (text: string): StatFields | undefined => {
   return { state, parent, startTime };
 };
 // 出生时间：boot 秒 + starttime 刻度，转成与 Windows CreationDate 同形的 ISO 字符串。
-export const birthOf = (startTime: number, bootTime: number): string =>
+const birthOf = (startTime: number, bootTime: number): string =>
   new Date((bootTime + startTime / CLOCK_TICKS) * 1000).toISOString();
-export const bootTimeOf = (stat: string | undefined): number | undefined => {
+const bootTimeOf = (stat: string | undefined): number | undefined => {
   const boot = stat?.match(/^btime (\d+)$/m);
   return boot ? Number(boot[1]) : undefined;
 };
 // 系统启动时间：快照与终止共用同一读取与错误文案。
-export const bootTimeOrThrow = async (
+const bootTimeOrThrow = async (
   reader: Pick<ProcReader, "readText">,
   procRoot: string,
 ): Promise<number> => {

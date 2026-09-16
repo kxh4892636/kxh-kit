@@ -19,7 +19,7 @@ export const requestSchema = z.discriminatedUnion("command", [
   z.object({ command: z.literal("status") }),
 ]);
 export type Request = z.infer<typeof requestSchema>;
-export const statusSchema = z.object({
+const statusSchema = z.object({
   port: portSchema,
   state: z.enum(["stopped", "starting", "running", "backoff", "failed"]),
   version: z.string().nullable(),

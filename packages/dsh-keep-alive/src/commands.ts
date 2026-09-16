@@ -111,7 +111,7 @@ const retireLegacy = async (paths: Paths): Promise<void> => {
   }
   throw new Error("Legacy supervisor did not stop; retry start");
 };
-export const spawnSupervisor = (port: number): void => {
+const spawnSupervisor = (port: number): void => {
   // detached 在 POSIX 上新建进程组、在 Windows 上脱离控制台，两处都让 supervisor 不随终端退出。
   const child = spawn(
     process.execPath,
@@ -122,6 +122,14 @@ export const spawnSupervisor = (port: number): void => {
     process.stderr.write(error.message + "\n");
   });
   child.unref();
+};
+/** 发送请求并校验应答: 旧版应答缺少 tag 时按错误处理, 不静默按旧语义继续。 */
+const sendExpectingTag = async (paths: Paths, message: Request): Promise<Status> => {
+  const reply = await send(paths, message);
+  if (!reply.ok) throw new Error(reply.error);
+  // 缺少 tag 说明应答来自旧版：宁可报错，也不要静默按旧语义启动。
+  if (reply.status.tag === undefined) throw new Error("Supervisor did not upgrade; retry start");
+  return reply.status;
 };
 export const start = async (
   port: number,
@@ -135,12 +143,7 @@ export const start = async (
   if (kind === "legacy") await retireLegacy(paths);
   if (kind === "current") {
     try {
-      const reply = await send(paths, message);
-      if (!reply.ok) throw new Error(reply.error);
-      // 缺少 tag 说明应答来自旧版：宁可报错，也不要静默按旧语义启动。
-      if (reply.status.tag === undefined)
-        throw new Error("Supervisor did not upgrade; retry start");
-      return reply.status;
+      return await sendExpectingTag(paths, message);
     } catch (error) {
       // supervisor 在探活之后退出：落回拉起路径，而不是把 IPC 错误抛给用户。
       if (!unreachable(error)) throw error;
@@ -151,11 +154,7 @@ export const start = async (
   for (let i = 0; i < 100; i++) {
     await delay(100);
     try {
-      const reply = await send(paths, message);
-      if (!reply.ok) throw new Error(reply.error);
-      if (reply.status.tag === undefined)
-        throw new Error("Supervisor did not upgrade; retry start");
-      return reply.status;
+      return await sendExpectingTag(paths, message);
     } catch (error) {
       if (!unreachable(error)) throw error;
     }

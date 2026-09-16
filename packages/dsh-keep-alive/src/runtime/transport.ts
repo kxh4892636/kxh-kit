@@ -7,7 +7,7 @@ const MAX_MESSAGE = 1024 * 1024;
 // Windows 用命名管道，POSIX 用文件系统里的 socket：后者需要清理残留文件。
 const isPipePath = (pipe: string): boolean => pipe.startsWith("\\");
 // 上一次 supervisor 被强杀会留下 socket 文件；只有确认无人应答才删除，否则 bind 会以 EADDRINUSE 失败。
-export const removeStaleSocket = async (pipe: string): Promise<void> => {
+const removeStaleSocket = async (pipe: string): Promise<void> => {
   if (isPipePath(pipe)) return;
   await new Promise<void>(
     (

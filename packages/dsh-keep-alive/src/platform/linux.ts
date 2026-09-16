@@ -6,7 +6,7 @@ import {
 } from "./processes.js";
 import { listeningPids, terminateWithSignals } from "./posix.js";
 import { confirmIdentities, list, readProcesses, readText, type ProcReader } from "./proc.js";
-export const defaultReader: ProcReader = { readText, list, listeningPids };
+const defaultReader: ProcReader = { readText, list, listeningPids };
 export const snapshot = async (
   port: number,
   reader: ProcReader = defaultReader,

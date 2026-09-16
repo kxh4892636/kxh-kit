@@ -9,7 +9,7 @@ import {
   OFFICIAL_REGISTRY,
   type Npm,
 } from "./versions.js";
-import { join } from "node:path";
+import { posix } from "node:path";
 import { fixture, temporary, writePackage } from "../testing/fixture.js";
 const launch = { cwd: process.cwd(), env: process.env as Record<string, string> };
 const view = (tag: string): string[] => [
@@ -91,10 +91,11 @@ test("npm 失败直接传播且不重试", async (): Promise<void> => {
   expect(calls.length).toBe(1);
 });
 test("npm 解析按平台给出候选路径，并能执行真实 npm", async (): Promise<void> => {
+  // 候选路径按目标平台语义生成, 与宿主平台无关: 断言使用 posix 拼接。
   const candidates = npmCliCandidates("/usr/bin/node", "linux");
-  expect(candidates[0]).toBe(join("/usr/bin", "node_modules", "npm", "bin", "npm-cli.js"));
+  expect(candidates[0]).toBe(posix.join("/usr/bin", "node_modules", "npm", "bin", "npm-cli.js"));
   expect(candidates).toContain(
-    join("/usr/bin", "..", "lib", "node_modules", "npm", "bin", "npm-cli.js"),
+    posix.join("/usr/bin", "..", "lib", "node_modules", "npm", "bin", "npm-cli.js"),
   );
   expect(candidates).toContain("/usr/share/nodejs/npm/bin/npm-cli.js");
   // Windows 布局只有与 Node 同装的两个候选，不追加 POSIX 系统路径。
@@ -102,7 +103,7 @@ test("npm 解析按平台给出候选路径，并能执行真实 npm", async ():
   expect(windows).toHaveLength(2);
   expect(windows.every((path: string): boolean => !path.startsWith("/usr"))).toBe(true);
   // 与当前 Node 同装的 npm 能被解析到；PATH 里的 npm 不作为候选（可能是 sh 包装脚本）。
-  expect(await resolveNpmCli(process.execPath, "linux")).toMatch(/npm-cli\.js$/);
+  expect(await resolveNpmCli(process.execPath, process.platform)).toMatch(/npm-cli\.js$/);
   expect(
     npmCliCandidates("/usr/bin/node", "linux").every((path: string): boolean =>
       path.endsWith("npm-cli.js"),
