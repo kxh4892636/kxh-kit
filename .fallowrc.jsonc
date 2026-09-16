@@ -1,0 +1,46 @@
+{
+  // 清理口径: 只登记静态分析无法看见、但确有运行时/人工入口的事实, 不放宽真实缺陷的检测。
+  "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
+  "entry": [
+    // nano-mem 评测工具链: 由 benchmarks/README.md 记录的手工流程驱动, 无 import 边。
+    "packages/nano-mem/benchmarks/*.mjs",
+  ],
+  "ignoreDependencies": [
+    // 由 cordis.patch.yml 以插件名装载, 不是本包 import 的模块。
+    "@deepseek-ai/dsh-tool-session-query",
+  ],
+  "ignoreUnresolvedImports": [
+    // 指向构建产物 dist/main.mjs, 源码树内不存在同名文件。
+    "./main.mjs",
+  ],
+  "duplicates": {
+    "ignore": [
+      // 构建配置属工具链约定, 同构是刻意保持的。
+      "packages/dsh-*/vite.config.ts",
+    ],
+  },
+  "ignoreExports": [
+    // 平台适配器共用同一接口名, 同名导出是刻意的命名空间约定, 不是重复。
+    {
+      "file": "packages/dsh-keep-alive/src/platform/bsd.ts",
+      "exports": ["snapshot", "terminate"],
+    },
+    {
+      "file": "packages/dsh-keep-alive/src/platform/linux.ts",
+      "exports": ["snapshot", "terminate"],
+    },
+    {
+      "file": "packages/dsh-keep-alive/src/platform/windows.ts",
+      "exports": ["snapshot", "terminate"],
+    },
+    // anki 的 models/notes 两个 barrel 各自导出同名 strings, 属于并列领域而非重复。
+    {
+      "file": "packages/nano-flow/src/builtins/anki/models/index.ts",
+      "exports": ["strings"],
+    },
+    {
+      "file": "packages/nano-flow/src/builtins/anki/notes/index.ts",
+      "exports": ["strings"],
+    },
+  ],
+}
