@@ -58,7 +58,7 @@ const getDirNameSlug = (params: {
   return addLeadingSlash(addTrailingSlash(dirName));
 };
 
-export const getDocSlug = (params: {
+const getDocSlug = (params: {
   baseID: string;
   frontMatterSlug?: string;
   source: string;
@@ -93,7 +93,7 @@ export const getDocSlug = (params: {
   return slug;
 };
 
-export const createDocPermalink = (params: {
+const createDocPermalink = (params: {
   doc: LinkDocSource;
   baseUrl: string;
   routeBasePath: string;
@@ -120,7 +120,7 @@ export const createDocPermalink = (params: {
   return normalizeUrl([baseUrl, routeBasePath, docSlug]);
 };
 
-export const createShortRoutePath = (params: {
+const createShortRoutePath = (params: {
   baseUrl: string;
   shortRouteBasePath: string;
   id: string;

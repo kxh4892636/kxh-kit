@@ -1,4 +1,4 @@
-export interface NumberPrefixParserResult {
+interface NumberPrefixParserResult {
   filename: string;
   numberPrefix?: number;
 }
@@ -6,9 +6,7 @@ export interface NumberPrefixParserResult {
 const ignoredPrefixPattern = /^\d+[-_.]\d+/;
 const numberPrefixPattern = /^(?<numberPrefix>\d+)\s*[-_.]+\s*(?<suffix>[^-_.\s].*)$/;
 
-export const defaultNumberPrefixParser = (params: {
-  filename: string;
-}): NumberPrefixParserResult => {
+const defaultNumberPrefixParser = (params: { filename: string }): NumberPrefixParserResult => {
   const { filename } = params;
   if (ignoredPrefixPattern.test(filename)) {
     return { filename };
@@ -25,7 +23,7 @@ export const defaultNumberPrefixParser = (params: {
   };
 };
 
-export const stripNumberPrefix = (params: { filename: string }): string => {
+const stripNumberPrefix = (params: { filename: string }): string => {
   return defaultNumberPrefixParser(params).filename;
 };
 

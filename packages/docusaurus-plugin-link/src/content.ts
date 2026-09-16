@@ -4,7 +4,7 @@ import path from "node:path";
 import type { LinkDocFrontMatter, LinkDocSource, LinkRoute, LinkRouteOptions } from "./path.ts";
 import { createLinkRoute } from "./path.ts";
 
-export interface DuplicateId {
+interface DuplicateId {
   id: string;
   sourceFilePaths: string[];
 }
@@ -73,7 +73,7 @@ const collectMarkdownFiles = async (params: { dirPath: string }): Promise<string
   return nestedFiles.flat().sort();
 };
 
-export const readMarkdownDoc = async (params: {
+const readMarkdownDoc = async (params: {
   contentPath: string;
   filePath: string;
   siteDir: string;
@@ -99,7 +99,7 @@ export const readMarkdownDoc = async (params: {
   };
 };
 
-export const findDuplicateIds = (params: { routes: LinkRoute[] }): DuplicateId[] => {
+const findDuplicateIds = (params: { routes: LinkRoute[] }): DuplicateId[] => {
   const routesById = new Map<string, LinkRoute[]>();
   params.routes.forEach((route) => {
     routesById.set(route.id, [...(routesById.get(route.id) ?? []), route]);
@@ -114,7 +114,7 @@ export const findDuplicateIds = (params: { routes: LinkRoute[] }): DuplicateId[]
     .sort((a, b) => a.id.localeCompare(b.id));
 };
 
-export const formatDuplicateIdError = (params: { duplicates: DuplicateId[] }): string => {
+const formatDuplicateIdError = (params: { duplicates: DuplicateId[] }): string => {
   const duplicateDetails = params.duplicates
     .map((duplicate) => {
       const files = duplicate.sourceFilePaths.map((filePath) => `  - ${filePath}`).join("\n");
