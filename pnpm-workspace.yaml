@@ -51,7 +51,6 @@ catalog:
   vite: npm:@voidzero-dev/vite-plus-core@0.2.6
   vite-plus: 0.2.6
   vitest: ^4.1.10
-  yaml: ^2.9.0
 
 catalogMode: prefer
 minimumReleaseAgeExclude:

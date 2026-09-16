@@ -19,7 +19,7 @@
     "test:coverage": "vp pack && vp test --run --coverage"
   },
   "dependencies": {
-    "zod": "catalog:"
+    "zod": "4.5.4"
   },
   "devDependencies": {
     "@types/node": "catalog:",
