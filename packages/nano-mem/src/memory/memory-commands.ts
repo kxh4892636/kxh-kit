@@ -178,6 +178,34 @@ const addScopeOptions = (command: Command, defaultScope: ReadScope): Command =>
     .option("--scope <scope>", "Memory scope", defaultScope)
     .option("--project <project>", "Override the current project identifier");
 
+// get/delete/forget/restore/use 的 action 骨架完全一致：解析通用选项、借出仓库、回写结果。
+// 只有仓库调用与回写结构因命令而异，故收敛为 action 工厂，新增同类命令时不再复制这段样板。
+const memoryByIdAction = <Options extends ScopeOptions>(
+  context: CommandContext,
+  command: Command,
+  operation: (
+    id: string,
+    repository: MemoryRepository,
+    memoryContext: MemoryContext,
+    options: Options,
+  ) => MemoryRecord,
+  // 默认回写单条记忆 DTO；delete 这类包一层信封的命令通过该参数给出自己的结构。
+  toResponse: (memory: MemoryRecord) => unknown = (memory: MemoryRecord): unknown =>
+    currentDto(context, memory),
+): ((id: string) => Promise<void>) => {
+  return async (id: string): Promise<void> => {
+    const options = command.opts<Options>();
+    const memory = await withRepository(
+      context,
+      options.project,
+      (repository: MemoryRepository, memoryContext: MemoryContext): MemoryRecord =>
+        operation(id, repository, memoryContext, options),
+    );
+    // 回写发生在仓库关闭之后，与各命令原先的时序一致。
+    context.respond(toResponse(memory));
+  };
+};
+
 const registerAdd = (program: Command, context: CommandContext): void => {
   const command = addScopeOptions(
     program.command("add [content]").description("Add a memory"),
@@ -209,16 +237,18 @@ const registerAdd = (program: Command, context: CommandContext): void => {
 
 const registerGet = (program: Command, context: CommandContext): void => {
   const command = addScopeOptions(program.command("get <id>").description("Get a memory"), "all");
-  command.action(async (id: string): Promise<void> => {
-    const options = command.opts<ScopeOptions>();
-    const memory = await withRepository(
+  command.action(
+    memoryByIdAction(
       context,
-      options.project,
-      (repository: MemoryRepository, memoryContext: MemoryContext): MemoryRecord =>
-        repository.get(id, selector(options, memoryContext, readScope)),
-    );
-    context.respond(currentDto(context, memory));
-  });
+      command,
+      (
+        id: string,
+        repository: MemoryRepository,
+        memoryContext: MemoryContext,
+        options: ScopeOptions,
+      ): MemoryRecord => repository.get(id, selector(options, memoryContext, readScope)),
+    ),
+  );
 };
 
 const registerList = (program: Command, context: CommandContext): void => {
@@ -306,16 +336,20 @@ const registerDelete = (program: Command, context: CommandContext): void => {
     program.command("delete <id>").description("Permanently delete a memory"),
     MemoryScope.project,
   ).option("--force", "Confirm permanent deletion");
-  command.action(async (id: string): Promise<void> => {
-    const options = command.opts<DeleteOptions>();
-    const memory = await withRepository(
+  command.action(
+    memoryByIdAction(
       context,
-      options.project,
-      (repository: MemoryRepository, memoryContext: MemoryContext): MemoryRecord =>
+      command,
+      (
+        id: string,
+        repository: MemoryRepository,
+        memoryContext: MemoryContext,
+        options: DeleteOptions,
+      ): MemoryRecord =>
         repository.delete(id, writeSelector(options, memoryContext), options.force === true),
-    );
-    context.respond({ deleted: currentDto(context, memory) });
-  });
+      (memory: MemoryRecord): unknown => ({ deleted: currentDto(context, memory) }),
+    ),
+  );
 };
 
 type LifecycleCommand = "forget" | "restore" | "use";
@@ -335,16 +369,18 @@ const registerLifecycle = (
     program.command(`${name} <id>`).description(lifecycleDescription[name]),
     MemoryScope.project,
   );
-  command.action(async (id: string): Promise<void> => {
-    const options = command.opts<ScopeOptions>();
-    const memory = await withRepository(
+  command.action(
+    memoryByIdAction(
       context,
-      options.project,
-      (repository: MemoryRepository, memoryContext: MemoryContext): MemoryRecord =>
-        repository[name](id, writeSelector(options, memoryContext)),
-    );
-    context.respond(currentDto(context, memory));
-  });
+      command,
+      (
+        id: string,
+        repository: MemoryRepository,
+        memoryContext: MemoryContext,
+        options: ScopeOptions,
+      ): MemoryRecord => repository[name](id, writeSelector(options, memoryContext)),
+    ),
+  );
 };
 
 export const registerMemoryCommands: CommandRegistrar = (

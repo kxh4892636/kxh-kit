@@ -401,44 +401,55 @@ const forgetMemory = (
     return toRecord(requireById(runtime.database, id, selector));
   });
 
+// restore 与 use 都是「读回目标行 → 校验生命周期 → 覆盖 retention 状态」，且必须同处一个写事务。
+// 事务骨架共享，两个命令只提供各自的转移规则，避免两份样板在守卫或时序上分叉。
+const rewriteRetentionState = (
+  runtime: RepositoryRuntime,
+  id: string,
+  selector: MemorySelector,
+  transition: (record: MemoryRecord, nowMs: number) => RetentionState,
+): MemoryRecord =>
+  runImmediateTransaction(runtime.database, (): MemoryRecord => {
+    const record = toRecord(requireById(runtime.database, id, selector));
+    const nowMs = runtime.now().getTime();
+    writeRetentionState(runtime.database, id, transition(record, nowMs), nowMs);
+    return toRecord(requireById(runtime.database, id, selector));
+  });
+
+const restoreTransition = (record: MemoryRecord, nowMs: number): RetentionState => {
+  if (retentionStatus(record, nowMs).status === "active") {
+    throw new CliError(
+      "MEMORY_NOT_FORGOTTEN",
+      "Only a forgotten memory can be restored.",
+      CliErrorKind.runtime,
+    );
+  }
+  return initialRetentionState(nowMs);
+};
+
+const useTransition = (record: MemoryRecord, nowMs: number): RetentionState => {
+  if (retentionStatus(record, nowMs).status === "forgotten") {
+    throw new CliError(
+      "MEMORY_FORGOTTEN",
+      "A forgotten memory cannot be used.",
+      CliErrorKind.runtime,
+      "Restore the memory before recording use.",
+    );
+  }
+  return applyGoodUse(record, nowMs);
+};
+
 const restoreMemory = (
   runtime: RepositoryRuntime,
   id: string,
   selector: MemorySelector,
-): MemoryRecord =>
-  runImmediateTransaction(runtime.database, (): MemoryRecord => {
-    const existing = requireById(runtime.database, id, selector);
-    const nowMs = runtime.now().getTime();
-    if (retentionStatus(toRecord(existing), nowMs).status === "active") {
-      throw new CliError(
-        "MEMORY_NOT_FORGOTTEN",
-        "Only a forgotten memory can be restored.",
-        CliErrorKind.runtime,
-      );
-    }
-    writeRetentionState(runtime.database, id, initialRetentionState(nowMs), nowMs);
-    return toRecord(requireById(runtime.database, id, selector));
-  });
+): MemoryRecord => rewriteRetentionState(runtime, id, selector, restoreTransition);
 
 const useMemory = (
   runtime: RepositoryRuntime,
   id: string,
   selector: MemorySelector,
-): MemoryRecord =>
-  runImmediateTransaction(runtime.database, (): MemoryRecord => {
-    const existing = requireById(runtime.database, id, selector);
-    const nowMs = runtime.now().getTime();
-    if (retentionStatus(toRecord(existing), nowMs).status === "forgotten") {
-      throw new CliError(
-        "MEMORY_FORGOTTEN",
-        "A forgotten memory cannot be used.",
-        CliErrorKind.runtime,
-        "Restore the memory before recording use.",
-      );
-    }
-    writeRetentionState(runtime.database, id, applyGoodUse(toRecord(existing), nowMs), nowMs);
-    return toRecord(requireById(runtime.database, id, selector));
-  });
+): MemoryRecord => rewriteRetentionState(runtime, id, selector, useTransition);
 
 const normalizedLexicalScore = (rank: number, mostRelevant: number): number =>
   mostRelevant === 0 ? 1 : -rank / mostRelevant;

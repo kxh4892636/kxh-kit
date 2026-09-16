@@ -302,21 +302,25 @@ const retrievePackage = async (
   }
 };
 
+// captureInstalled 与 verifyInstalled 都要从 npm 全局根定位已安装的 nano-mem 包根并做边界校验。
+// 三次调用必须成对出现，收敛到一处以免两边的路径校验口径分叉。
+const installedPackageRoot = async (
+  dependencies: NpmPackageExecutorDependencies,
+): Promise<string> => {
+  const result = await dependencies.processExecutor.execute(
+    npmRequest(dependencies, ["root", "--global"]),
+  );
+  const npmRoot = realpathSync(result.stdout.trim());
+  return assertContainedPath(npmRoot, join(npmRoot, "@kxh4892636", "nano-mem"), "directory");
+};
+
 const captureInstalled = async (
   dependencies: NpmPackageExecutorDependencies,
   version: string,
 ): Promise<ResolvedNanoMemPackage> => {
   const temporaryRoot = mkdtempSync(join(tmpdir(), "nano-mem-rollback-"));
   try {
-    const npmRootResult = await dependencies.processExecutor.execute(
-      npmRequest(dependencies, ["root", "--global"]),
-    );
-    const npmRoot = realpathSync(npmRootResult.stdout.trim());
-    const packageRoot = assertContainedPath(
-      npmRoot,
-      join(npmRoot, "@kxh4892636", "nano-mem"),
-      "directory",
-    );
+    const packageRoot = await installedPackageRoot(dependencies);
     assertPackageIdentity(packageRoot, version);
     const packed = await dependencies.processExecutor.execute(
       npmRequest(dependencies, [
@@ -380,15 +384,7 @@ export const createNpmPackageExecutor = (
     if (installed !== version) {
       throw new Error(`Expected global ${packageName}@${version}, observed ${String(installed)}.`);
     }
-    const npmRootResult = await dependencies.processExecutor.execute(
-      npmRequest(dependencies, ["root", "--global"]),
-    );
-    const npmRoot = realpathSync(npmRootResult.stdout.trim());
-    const packageRoot = assertContainedPath(
-      npmRoot,
-      join(npmRoot, "@kxh4892636", "nano-mem"),
-      "directory",
-    );
+    const packageRoot = await installedPackageRoot(dependencies);
     const entryPath = assertPackageIdentity(packageRoot, version);
     await runCliSmoke(dependencies, entryPath, version);
   },
