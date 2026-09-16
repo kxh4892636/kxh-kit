@@ -61,6 +61,26 @@ const collectionReviews = async (
   return entries;
 };
 
+// type(而非 interface)别名才带隐式索引签名, 可直接嵌入 JsonValue 结果。
+type ReviewDay = {
+  readonly date: string;
+  readonly count: number;
+};
+
+/**
+ * 取单个极值日: 空区间返回 null; 非空时以首个元素为初始值归约,
+ * 保证与数组顺序稳定(相等计数保留先出现的日期)。
+ */
+const extremeDay = (
+  days: readonly ReviewDay[],
+  isBetter: (candidate: ReviewDay, best: ReviewDay) => boolean,
+): ReviewDay | null =>
+  days.length === 0
+    ? null
+    : days.reduce(
+        (best: ReviewDay, day: ReviewDay): ReviewDay => (isBetter(day, best) ? day : best),
+      );
+
 const aggregate = (
   reviews: readonly ReviewEntry[],
   start: string,
@@ -74,29 +94,17 @@ const aggregate = (
     byDate.set(date, (byDate.get(date) ?? 0) + 1);
   }
   const days = [...byDate.entries()]
-    .map(([date, count]: [string, number]): { date: string; count: number } => ({ date, count }))
-    .sort((left: { date: string }, right: { date: string }): number =>
-      left.date.localeCompare(right.date),
-    );
-  const total = days.reduce((sum: number, day: { count: number }): number => sum + day.count, 0);
-  const maxDay =
-    days.length === 0
-      ? null
-      : days.reduce(
-          (
-            best: { date: string; count: number },
-            day: { date: string; count: number },
-          ): { date: string; count: number } => (day.count > best.count ? day : best),
-        );
-  const minDay =
-    days.length === 0
-      ? null
-      : days.reduce(
-          (
-            best: { date: string; count: number },
-            day: { date: string; count: number },
-          ): { date: string; count: number } => (day.count < best.count ? day : best),
-        );
+    .map(([date, count]: [string, number]): ReviewDay => ({ date, count }))
+    .sort((left: ReviewDay, right: ReviewDay): number => left.date.localeCompare(right.date));
+  const total = days.reduce((sum: number, day: ReviewDay): number => sum + day.count, 0);
+  const maxDay = extremeDay(
+    days,
+    (day: ReviewDay, best: ReviewDay): boolean => day.count > best.count,
+  );
+  const minDay = extremeDay(
+    days,
+    (day: ReviewDay, best: ReviewDay): boolean => day.count < best.count,
+  );
   return {
     period: { start, end },
     deck,

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { JsonError } from "../errors";
+import { JsonError, translateJsonError } from "../errors";
 import type { AnkiPort } from "../port";
 import { noteInfoArrayResponse, parseResponse } from "../responses";
 
@@ -97,23 +97,12 @@ export const runNotesInfo = async (
           : "No valid notes found. They may have been deleted.",
     };
   } catch (error) {
-    if (error instanceof JsonError) {
-      throw error;
-    }
-
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes("not found")) {
-      throw new JsonError(message, {
-        action: "notesInfo",
-        details: { requestedNotes: params.notes },
-        hint: "One or more note IDs are invalid. Use notes find to get valid note IDs.",
-      });
-    }
-
-    throw new JsonError(message, {
+    throw translateJsonError(error, {
       action: "notesInfo",
       details: { requestedNotes: params.notes },
       hint: "Make sure Anki is running and the note IDs are valid",
+      notFoundHint: "One or more note IDs are invalid. Use notes find to get valid note IDs.",
+      markers: ["not found"],
     });
   }
 };

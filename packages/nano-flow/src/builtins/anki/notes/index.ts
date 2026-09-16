@@ -3,6 +3,7 @@ import { CliUsageError } from "../../../cli/errors";
 import { z } from "zod";
 import type {
   CommandGroup,
+  CommandNode,
   InvocationContext,
   JsonOutput,
   JsonValue,
@@ -190,130 +191,143 @@ const addParams = (options: OptionValues): Record<string, unknown> => {
   };
 };
 
-export const createNotesGroup = (dependencies: AnkiDependencies): CommandGroup =>
-  group("notes", "Manage notes", [
-    command("add", "Add a note", addOptions, {
-      kind: "mutation",
-      prepare: async (
-        options: OptionValues,
-        context: InvocationContext,
-      ): Promise<PreparedMutation> => {
-        const params = addParams(options);
-        assertValid(addNoteParamsSchema.safeParse(params));
-        return mutation(
-          "addNote",
-          options,
-          context,
-          dependencies,
-          { note: params as unknown as JsonValue },
-          async (port: AnkiPort): Promise<JsonOutput> =>
-            toJson(runAddNote(port, params as Parameters<typeof runAddNote>[1])),
-        );
-      },
-    }),
-    command("add-batch", "Add up to 100 notes", batchOptions, {
-      kind: "mutation",
-      prepare: async (
-        options: OptionValues,
-        context: InvocationContext,
-      ): Promise<PreparedMutation> => {
-        const input = options["input"] as string;
-        const logger = loggerFor(options, context);
-        const notes = parseBatch(
-          (await readTextInput(input, context, dependencies, logger)).trim(),
-        );
-        const tags = strings(options["tag"]);
-        const params = {
-          deckName: options["deck"] as string,
-          modelName: options["model"] as string,
-          notes,
-          ...(tags.length === 0 ? {} : { tags: [...tags] }),
-          ...(options["allow-duplicate"] === true ? { allowDuplicate: true } : {}),
-          ...(options["duplicate-scope"] === undefined
-            ? {}
-            : { duplicateScope: duplicateScope(options["duplicate-scope"]) }),
-        };
-        assertValid(addNotesParamsSchema.safeParse(params));
-        return mutation(
-          "addNotes",
-          options,
-          context,
-          dependencies,
-          { source: input, total: notes.length },
-          async (port: AnkiPort, commitLogger: Logger): Promise<JsonOutput> =>
-            toJson(runAddNotes(port, params, commitLogger)),
-        );
-      },
-    }),
-    command(
-      "find",
-      "Find notes by Anki query",
-      [option.string("query", "Anki query", { required: true })],
-      {
-        kind: "query",
-        run: async (options: OptionValues, context: InvocationContext): Promise<JsonOutput> =>
-          toJson(
-            runFindNotes(connection(dependencies, options, context).port, {
-              query: options["query"] as string,
-            }),
-          ),
-      },
-    ),
-    command("info", "Show note information", infoOptions, {
+// 新增笔记的命令: 共享标签、重复检查等写参数。
+const addCommands = (dependencies: AnkiDependencies): readonly CommandNode[] => [
+  command("add", "Add a note", addOptions, {
+    kind: "mutation",
+    prepare: async (
+      options: OptionValues,
+      context: InvocationContext,
+    ): Promise<PreparedMutation> => {
+      const params = addParams(options);
+      assertValid(addNoteParamsSchema.safeParse(params));
+      return mutation(
+        "addNote",
+        options,
+        context,
+        dependencies,
+        { note: params as unknown as JsonValue },
+        async (port: AnkiPort): Promise<JsonOutput> =>
+          toJson(runAddNote(port, params as Parameters<typeof runAddNote>[1])),
+      );
+    },
+  }),
+  command("add-batch", "Add up to 100 notes", batchOptions, {
+    kind: "mutation",
+    prepare: async (
+      options: OptionValues,
+      context: InvocationContext,
+    ): Promise<PreparedMutation> => {
+      const input = options["input"] as string;
+      const logger = loggerFor(options, context);
+      const notes = parseBatch((await readTextInput(input, context, dependencies, logger)).trim());
+      const tags = strings(options["tag"]);
+      const params = {
+        deckName: options["deck"] as string,
+        modelName: options["model"] as string,
+        notes,
+        ...(tags.length === 0 ? {} : { tags: [...tags] }),
+        ...(options["allow-duplicate"] === true ? { allowDuplicate: true } : {}),
+        ...(options["duplicate-scope"] === undefined
+          ? {}
+          : { duplicateScope: duplicateScope(options["duplicate-scope"]) }),
+      };
+      assertValid(addNotesParamsSchema.safeParse(params));
+      return mutation(
+        "addNotes",
+        options,
+        context,
+        dependencies,
+        { source: input, total: notes.length },
+        async (port: AnkiPort, commitLogger: Logger): Promise<JsonOutput> =>
+          toJson(runAddNotes(port, params, commitLogger)),
+      );
+    },
+  }),
+];
+
+// 只读查询命令: 不需要 mutation 包装, 直接借用连接得到的端口。
+const queryCommands = (dependencies: AnkiDependencies): readonly CommandNode[] => [
+  command(
+    "find",
+    "Find notes by Anki query",
+    [option.string("query", "Anki query", { required: true })],
+    {
       kind: "query",
       run: async (options: OptionValues, context: InvocationContext): Promise<JsonOutput> =>
         toJson(
-          runNotesInfo(connection(dependencies, options, context).port, {
-            notes: ids(options["note-id"], "--note-id"),
+          runFindNotes(connection(dependencies, options, context).port, {
+            query: options["query"] as string,
           }),
         ),
-    }),
-    command("update", "Update note fields", updateOptions, {
-      kind: "mutation",
-      prepare: async (
-        options: OptionValues,
-        context: InvocationContext,
-      ): Promise<PreparedMutation> => {
-        const noteIds = ids(options["id"], "--id");
-        const logger = loggerFor(options, context);
-        const audio = await prepareMedia(options["audio"], "--audio", context, logger);
-        const picture = await prepareMedia(options["picture"], "--picture", context, logger);
-        const note = {
-          id: noteIds[0] as number,
-          fields: fields(options["field"]),
-          ...(audio === undefined ? {} : { audio }),
-          ...(picture === undefined ? {} : { picture }),
-        };
-        const params = { note };
-        assertValid(updateNoteFieldsParamsSchema.safeParse(params));
-        return mutation(
-          "updateNoteFields",
-          options,
-          context,
-          dependencies,
-          { note: note as unknown as JsonValue },
-          async (port: AnkiPort, commitLogger: Logger): Promise<JsonOutput> =>
-            toJson(runUpdateNoteFields(port, params, context.env, commitLogger)),
-        );
-      },
-    }),
-    command("delete", "Permanently delete notes", deleteOptions, {
-      kind: "mutation",
-      prepare: async (
-        options: OptionValues,
-        context: InvocationContext,
-      ): Promise<PreparedMutation> => {
-        const notes = ids(options["note-id"], "--note-id");
-        const params = { notes, confirmDeletion: true };
-        assertValid(deleteNotesParamsSchema.safeParse(params));
-        return mutation(
-          "deleteNotes",
-          options,
-          context,
-          dependencies,
-          { notes },
-          async (port: AnkiPort): Promise<JsonOutput> => toJson(runDeleteNotes(port, params)),
-        );
-      },
-    }),
+    },
+  ),
+  command("info", "Show note information", infoOptions, {
+    kind: "query",
+    run: async (options: OptionValues, context: InvocationContext): Promise<JsonOutput> =>
+      toJson(
+        runNotesInfo(connection(dependencies, options, context).port, {
+          notes: ids(options["note-id"], "--note-id"),
+        }),
+      ),
+  }),
+];
+
+// 变更已存在笔记的命令: 更新字段与永久删除。
+const editCommands = (dependencies: AnkiDependencies): readonly CommandNode[] => [
+  command("update", "Update note fields", updateOptions, {
+    kind: "mutation",
+    prepare: async (
+      options: OptionValues,
+      context: InvocationContext,
+    ): Promise<PreparedMutation> => {
+      const noteIds = ids(options["id"], "--id");
+      const logger = loggerFor(options, context);
+      const audio = await prepareMedia(options["audio"], "--audio", context, logger);
+      const picture = await prepareMedia(options["picture"], "--picture", context, logger);
+      const note = {
+        id: noteIds[0] as number,
+        fields: fields(options["field"]),
+        ...(audio === undefined ? {} : { audio }),
+        ...(picture === undefined ? {} : { picture }),
+      };
+      const params = { note };
+      assertValid(updateNoteFieldsParamsSchema.safeParse(params));
+      return mutation(
+        "updateNoteFields",
+        options,
+        context,
+        dependencies,
+        { note: note as unknown as JsonValue },
+        async (port: AnkiPort, commitLogger: Logger): Promise<JsonOutput> =>
+          toJson(runUpdateNoteFields(port, params, context.env, commitLogger)),
+      );
+    },
+  }),
+  command("delete", "Permanently delete notes", deleteOptions, {
+    kind: "mutation",
+    prepare: async (
+      options: OptionValues,
+      context: InvocationContext,
+    ): Promise<PreparedMutation> => {
+      const notes = ids(options["note-id"], "--note-id");
+      const params = { notes, confirmDeletion: true };
+      assertValid(deleteNotesParamsSchema.safeParse(params));
+      return mutation(
+        "deleteNotes",
+        options,
+        context,
+        dependencies,
+        { notes },
+        async (port: AnkiPort): Promise<JsonOutput> => toJson(runDeleteNotes(port, params)),
+      );
+    },
+  }),
+];
+
+export const createNotesGroup = (dependencies: AnkiDependencies): CommandGroup =>
+  group("notes", "Manage notes", [
+    ...addCommands(dependencies),
+    ...queryCommands(dependencies),
+    ...editCommands(dependencies),
   ]);

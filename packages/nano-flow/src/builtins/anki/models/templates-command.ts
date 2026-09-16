@@ -3,7 +3,7 @@ import { JsonError } from "../errors";
 import type { AnkiPort } from "../port";
 import { modelTemplatesResponse, parseResponse } from "../responses";
 
-export const modelTemplatesParamsSchema = z.object({
+const modelTemplatesParamsSchema = z.object({
   modelName: z.string().min(1),
 });
 

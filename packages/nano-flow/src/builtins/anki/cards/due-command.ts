@@ -2,8 +2,8 @@ import { z } from "zod";
 import { JsonError } from "../errors";
 import type { Logger } from "../logger";
 import type { AnkiPort } from "../port";
-import { ankiCardArrayResponse, numberArrayResponse, parseResponse } from "../responses";
-import { deckScopeQuery, extractRenderedCardContent, type SimplifiedCard } from "./card-domain";
+import { numberArrayResponse, parseResponse } from "../responses";
+import { deckScopeQuery, loadSimplifiedCards, type SimplifiedCard } from "./card-domain";
 
 export const getDueCardsParamsSchema = z.object({
   deckName: z.string().min(1).optional(),
@@ -20,20 +20,6 @@ export interface GetDueCardsResult {
   readonly returned?: number;
   readonly message: string;
 }
-
-const simplifyCard = (card: z.infer<typeof ankiCardArrayResponse>[number]): SimplifiedCard => {
-  const { front, back } = extractRenderedCardContent(card);
-  return {
-    cardId: card.cardId,
-    front,
-    back,
-    deckName: card.deckName,
-    modelName: card.modelName,
-    due: card.due ?? 0,
-    interval: card.interval ?? 0,
-    factor: card.factor ?? 2500,
-  };
-};
 
 export const runGetDueCards = async (
   port: AnkiPort,
@@ -74,12 +60,7 @@ export const runGetDueCards = async (
         );
       }
     }
-    const selected = cardIds.slice(0, Math.min(params.limit ?? 10, 50));
-    const cards = parseResponse(
-      "cardsInfo",
-      ankiCardArrayResponse,
-      await port.invoke<unknown>("cardsInfo", { cards: selected }),
-    ).map(simplifyCard);
+    const cards = await loadSimplifiedCards(port, cardIds, params.limit);
     const dueCount = cardIds.length - newCount;
     return {
       success: true,

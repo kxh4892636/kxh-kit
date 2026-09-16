@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { JsonError } from "../errors";
+import { JsonError, modelFailureHints, translateJsonError } from "../errors";
 import type { AnkiPort } from "../port";
 import { nullResponse, parseResponse } from "../responses";
 
@@ -50,23 +50,10 @@ export const runRemoveModelField = async (
       message: `Successfully removed field "${fieldName}" from model "${modelName}". All data in this field has been deleted.`,
     };
   } catch (error) {
-    if (error instanceof JsonError) {
-      throw error;
-    }
-
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes("not found") || message.includes("does not exist")) {
-      throw new JsonError(message, {
-        action: "removeModelField",
-        details: { modelName: params.modelName, fieldName: params.fieldName },
-        hint: "Model or field not found. Use models list and models fields to verify names.",
-      });
-    }
-
-    throw new JsonError(message, {
+    throw translateJsonError(error, {
       action: "removeModelField",
       details: { modelName: params.modelName, fieldName: params.fieldName },
-      hint: "Make sure Anki is running and the model and field names are correct.",
+      ...modelFailureHints.modelField,
     });
   }
 };

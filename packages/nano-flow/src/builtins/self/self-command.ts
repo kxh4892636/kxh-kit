@@ -3,6 +3,7 @@ import { command, group, option } from "../../cli/definition";
 import { CliUsageError } from "../../cli/errors";
 import type {
   BuiltinCommand,
+  CommandNode,
   InvocationContext,
   JsonOutput,
   PreparedMutation,
@@ -82,110 +83,120 @@ const prepareChange = async (
   );
 };
 
+// 只读的自管理命令: 列出与检查受管 skill。
+const skillReadCommands = (catalog: readonly ManagedSkill[]): readonly CommandNode[] => [
+  command("list", "List packaged skills", listOptions, {
+    kind: "query",
+    run: async (options: ListOptions, context: InvocationContext): Promise<JsonOutput> => {
+      const root = targetRoot(options.target, context);
+      const skills = await Promise.all(
+        catalog.map((skill: ManagedSkill): Promise<SkillState> => inspectSkill(skill, root)),
+      );
+      return { skills };
+    },
+  }),
+  command("check", "Check a managed skill", checkOptions, {
+    kind: "query",
+    run: async (options: CheckOptions, context: InvocationContext): Promise<JsonOutput> => {
+      const skill = catalog.find(
+        (candidate: ManagedSkill): boolean => candidate.name === options.name,
+      );
+      if (skill === undefined) throw new CliUsageError(`Unknown managed skill: ${options.name}`);
+      return inspectSkill(skill, targetRoot(options.target, context));
+    },
+  }),
+];
+
+// 变更受管 skill 的三个命令: 安装/更新/卸载共用批次选择与 prepareSkillChange。
+const skillChangeCommands = (
+  catalog: readonly ManagedSkill[],
+  dependencies: SkillStoreDependencies,
+): readonly CommandNode[] => [
+  command("install", "Install managed skills", batchOptions, {
+    kind: "mutation",
+    prepare: async (options: BatchOptions, context: InvocationContext): Promise<PreparedMutation> =>
+      prepareChange(
+        {
+          kind: "install",
+          names: selectBatch(options, catalog),
+          target: options.target,
+          force: options.force,
+          context,
+        },
+        catalog,
+        dependencies,
+      ),
+  }),
+  command("update", "Update a managed skill", updateOptions, {
+    kind: "mutation",
+    prepare: async (
+      options: UpdateOptions,
+      context: InvocationContext,
+    ): Promise<PreparedMutation> =>
+      prepareChange(
+        {
+          kind: "update",
+          names: [options.name],
+          target: options.target,
+          force: options.force,
+          context,
+        },
+        catalog,
+        dependencies,
+      ),
+  }),
+  command("uninstall", "Uninstall managed skills", batchOptions, {
+    kind: "mutation",
+    prepare: async (options: BatchOptions, context: InvocationContext): Promise<PreparedMutation> =>
+      prepareChange(
+        {
+          kind: "uninstall",
+          names: selectBatch(options, catalog),
+          target: options.target,
+          force: options.force,
+          context,
+        },
+        catalog,
+        dependencies,
+      ),
+  }),
+];
+
+// 自更新需要本包版本与包管理器, 二者缺一时只能给出配置错误。
+const selfUpdateCommand = (
+  catalog: readonly ManagedSkill[],
+  dependencies: SelfCommandDependencies,
+): CommandNode =>
+  command("update", "Update Nano Flow from npm", selfUpdateOptions, {
+    kind: "mutation",
+    prepare: async (
+      options: SelfUpdateOptions,
+      context: InvocationContext,
+    ): Promise<PreparedMutation> => {
+      if (dependencies.packageManager === undefined || dependencies.currentVersion === undefined) {
+        throw new Error("Nano Flow package manager is not configured");
+      }
+      return prepareSelfUpdate(
+        dependencies.currentVersion,
+        catalog,
+        dependencies.packageManager,
+        {
+          selector: options.version ?? "latest",
+          targetRoot: targetRoot(options.target, context),
+        },
+        dependencies,
+      );
+    },
+  });
+
 export const createSelfCommand = (
   catalog: readonly ManagedSkill[],
   dependencies: SelfCommandDependencies = {},
 ): BuiltinCommand =>
   group("self", "Manage Nano Flow itself", [
     group("skill", "Manage Nano Flow skills", [
-      command("list", "List packaged skills", listOptions, {
-        kind: "query",
-        run: async (options: ListOptions, context: InvocationContext): Promise<JsonOutput> => {
-          const root = targetRoot(options.target, context);
-          const skills = await Promise.all(
-            catalog.map((skill: ManagedSkill): Promise<SkillState> => inspectSkill(skill, root)),
-          );
-          return { skills };
-        },
-      }),
-      command("check", "Check a managed skill", checkOptions, {
-        kind: "query",
-        run: async (options: CheckOptions, context: InvocationContext): Promise<JsonOutput> => {
-          const skill = catalog.find(
-            (candidate: ManagedSkill): boolean => candidate.name === options.name,
-          );
-          if (skill === undefined)
-            throw new CliUsageError(`Unknown managed skill: ${options.name}`);
-          return inspectSkill(skill, targetRoot(options.target, context));
-        },
-      }),
-      command("install", "Install managed skills", batchOptions, {
-        kind: "mutation",
-        prepare: async (
-          options: BatchOptions,
-          context: InvocationContext,
-        ): Promise<PreparedMutation> =>
-          prepareChange(
-            {
-              kind: "install",
-              names: selectBatch(options, catalog),
-              target: options.target,
-              force: options.force,
-              context,
-            },
-            catalog,
-            dependencies,
-          ),
-      }),
-      command("update", "Update a managed skill", updateOptions, {
-        kind: "mutation",
-        prepare: async (
-          options: UpdateOptions,
-          context: InvocationContext,
-        ): Promise<PreparedMutation> =>
-          prepareChange(
-            {
-              kind: "update",
-              names: [options.name],
-              target: options.target,
-              force: options.force,
-              context,
-            },
-            catalog,
-            dependencies,
-          ),
-      }),
-      command("uninstall", "Uninstall managed skills", batchOptions, {
-        kind: "mutation",
-        prepare: async (
-          options: BatchOptions,
-          context: InvocationContext,
-        ): Promise<PreparedMutation> =>
-          prepareChange(
-            {
-              kind: "uninstall",
-              names: selectBatch(options, catalog),
-              target: options.target,
-              force: options.force,
-              context,
-            },
-            catalog,
-            dependencies,
-          ),
-      }),
+      ...skillReadCommands(catalog),
+      ...skillChangeCommands(catalog, dependencies),
     ]),
-    command("update", "Update Nano Flow from npm", selfUpdateOptions, {
-      kind: "mutation",
-      prepare: async (
-        options: SelfUpdateOptions,
-        context: InvocationContext,
-      ): Promise<PreparedMutation> => {
-        if (
-          dependencies.packageManager === undefined ||
-          dependencies.currentVersion === undefined
-        ) {
-          throw new Error("Nano Flow package manager is not configured");
-        }
-        return prepareSelfUpdate(
-          dependencies.currentVersion,
-          catalog,
-          dependencies.packageManager,
-          {
-            selector: options.version ?? "latest",
-            targetRoot: targetRoot(options.target, context),
-          },
-          dependencies,
-        );
-      },
-    }),
+    selfUpdateCommand(catalog, dependencies),
   ]);

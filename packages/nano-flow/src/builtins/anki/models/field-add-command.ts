@@ -1,8 +1,9 @@
 import { z } from "zod";
 import type { JsonValue } from "../../../cli/types";
-import { JsonError } from "../errors";
+import { JsonError, modelFailureHints, translateJsonError } from "../errors";
 import type { AnkiPort } from "../port";
-import { nullResponse, parseResponse, stringArrayResponse } from "../responses";
+import { nullResponse, parseResponse } from "../responses";
+import { requireModelFields } from "./fields-command";
 
 export const addModelFieldParamsSchema = z.object({
   modelName: z.string().min(1),
@@ -32,19 +33,10 @@ export const runAddModelField = async (
   try {
     const { modelName, fieldName, index } = params;
 
-    const fields = parseResponse(
-      "modelFieldNames",
-      stringArrayResponse,
-      await client.invoke<unknown>("modelFieldNames", { modelName }),
-    );
-
-    if (!fields || fields.length === 0) {
-      throw new JsonError(`Model "${modelName}" has no fields or does not exist`, {
-        action: "addModelField",
-        details: { modelName, fieldName },
-        hint: "Model not found. Use models list to see available models.",
-      });
-    }
+    const fields = await requireModelFields(client, modelName, "addModelField", {
+      modelName,
+      fieldName,
+    });
 
     if (fields.includes(fieldName)) {
       throw new JsonError(
@@ -104,23 +96,10 @@ export const runAddModelField = async (
           : `Successfully added field "${fieldName}" to model "${modelName}"`,
     };
   } catch (error) {
-    if (error instanceof JsonError) {
-      throw error;
-    }
-
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes("not found") || message.includes("does not exist")) {
-      throw new JsonError(message, {
-        action: "addModelField",
-        details: { modelName: params.modelName, fieldName: params.fieldName },
-        hint: "Model not found. Use models list to see available models.",
-      });
-    }
-
-    throw new JsonError(message, {
+    throw translateJsonError(error, {
       action: "addModelField",
       details: { modelName: params.modelName, fieldName: params.fieldName },
-      hint: "Make sure Anki is running and the model name is correct.",
+      ...modelFailureHints.model,
     });
   }
 };

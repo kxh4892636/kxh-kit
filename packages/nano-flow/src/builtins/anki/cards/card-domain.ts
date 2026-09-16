@@ -1,17 +1,20 @@
+import type { AnkiPort } from "../port";
+import { ankiCardArrayResponse, parseResponse } from "../responses";
+
 export interface AnkiCard {
   readonly answer: string;
   readonly cardId: number;
   readonly deckName: string;
-  readonly factor?: number;
-  readonly interval?: number;
-  readonly lapses?: number;
+  readonly factor?: number | undefined;
+  readonly interval?: number | undefined;
+  readonly lapses?: number | undefined;
   readonly modelName: string;
   readonly note: number;
   readonly question: string;
-  readonly reps?: number;
-  readonly tags?: readonly string[];
+  readonly reps?: number | undefined;
+  readonly tags?: readonly string[] | undefined;
   readonly type: number;
-  readonly due?: number;
+  readonly due?: number | undefined;
 }
 
 export interface SimplifiedCard {
@@ -72,6 +75,36 @@ export const extractRenderedCardContent = (
     match?.index === undefined ? card.answer : card.answer.slice(match.index + match[0].length);
   return { front: cleanHtml(card.question), back: cleanHtml(backHtml) };
 };
+
+/** 卡片查询结果统一裁剪: 只保留列表/详情展示需要的字段, 缺失值用 Anki 默认值补齐。 */
+const simplifyCard = (card: AnkiCard): SimplifiedCard => {
+  const { front, back } = extractRenderedCardContent(card);
+  return {
+    cardId: card.cardId,
+    front,
+    back,
+    deckName: card.deckName,
+    modelName: card.modelName,
+    due: card.due ?? 0,
+    interval: card.interval ?? 0,
+    factor: card.factor ?? 2500,
+  };
+};
+
+/**
+ * 按上限截取卡片 ID 后读取详情: 上游 cardsInfo 一次最多接受 50 张。
+ * 列表与到期查询的截取口径相同, 集中在这里以免两处漂移。
+ */
+export const loadSimplifiedCards = async (
+  port: AnkiPort,
+  cardIds: readonly number[],
+  limit: number | undefined,
+): Promise<readonly SimplifiedCard[]> =>
+  parseResponse(
+    "cardsInfo",
+    ankiCardArrayResponse,
+    await port.invoke<unknown>("cardsInfo", { cards: cardIds.slice(0, Math.min(limit ?? 10, 50)) }),
+  ).map(simplifyCard);
 
 const cardTypes: Readonly<Record<number, string>> = {
   0: "new",

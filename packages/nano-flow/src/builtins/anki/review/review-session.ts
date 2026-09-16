@@ -14,7 +14,7 @@ export interface ReviewSessionOptions {
   readonly syncFirst: boolean;
 }
 
-export interface ReviewSummary {
+interface ReviewSummary {
   readonly success: boolean;
   readonly reviewed: number;
   readonly skipped: number;

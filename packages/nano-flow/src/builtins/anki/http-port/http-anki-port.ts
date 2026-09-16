@@ -1,10 +1,10 @@
 import { Mutex } from "async-mutex";
 import ky, { HTTPError, TimeoutError, type KyInstance } from "ky";
-import type { JsonValue } from "../../cli/types";
-import type { AnkiConfig } from "./config";
-import { AnkiOperationError, ReadOnlyModeError } from "./errors";
-import type { Logger } from "./logger";
-import type { AnkiPort } from "./port";
+import type { JsonValue } from "../../../cli/types";
+import type { AnkiConfig } from "../config";
+import { AnkiOperationError, ReadOnlyModeError } from "../errors";
+import type { Logger } from "../logger";
+import type { AnkiPort } from "../port";
 
 const requestMutex = new Mutex();
 let maxQueueDepth = 50;

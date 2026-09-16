@@ -5,27 +5,12 @@ import type { AnkiPort } from "../port";
 import {
   nullResponse,
   numberArrayResponse,
+  objectRecord,
   parseResponse,
+  stringArray,
   stringArrayResponse,
 } from "../responses";
 import { deckScopeQuery } from "./deck-metrics";
-
-const stringArray = (value: unknown, action: string): readonly string[] => {
-  if (
-    !Array.isArray(value) ||
-    !value.every((entry: unknown): entry is string => typeof entry === "string")
-  ) {
-    throw new AnkiOperationError(`Invalid ${action} response: expected string array`, action);
-  }
-  return value;
-};
-
-const record = (value: unknown, action: string): Record<string, unknown> => {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    throw new AnkiOperationError(`Invalid ${action} response: expected object`, action);
-  }
-  return value as Record<string, unknown>;
-};
 
 const isJsonRecord = (value: JsonValue | undefined): value is Readonly<Record<string, JsonValue>> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
@@ -51,15 +36,15 @@ export const listDecks = async (port: AnkiPort, includeStats: boolean): Promise<
         decks: names.map((name: string): Record<string, JsonValue> => ({ name })),
         total: names.length,
       };
-    const ids = record(await port.invoke<unknown>("deckNamesAndIds", {}), "deckNamesAndIds");
-    const stats = record(
+    const ids = objectRecord(await port.invoke<unknown>("deckNamesAndIds", {}), "deckNamesAndIds");
+    const stats = objectRecord(
       await port.invoke<unknown>("getDeckStats", { decks: names }),
       "getDeckStats",
     );
     const decks = names.map((name: string): Record<string, JsonValue> => {
       const id = ids[name];
       const rawValues = typeof id === "number" ? stats[String(id)] : undefined;
-      const values = rawValues === undefined ? undefined : record(rawValues, "getDeckStats");
+      const values = rawValues === undefined ? undefined : objectRecord(rawValues, "getDeckStats");
       return values === undefined
         ? { name }
         : {

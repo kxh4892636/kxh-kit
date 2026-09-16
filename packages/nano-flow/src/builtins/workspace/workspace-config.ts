@@ -1,14 +1,18 @@
-import { access, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { readFile, rename, rm, writeFile } from "node:fs/promises";
 import { channel } from "node:diagnostics_channel";
 import path from "node:path";
 import { isMap, isSeq, parse as parseYaml, parseDocument, type Document, type YAMLSeq } from "yaml";
 import { z } from "zod";
-import { errorMessage, hasErrorCode } from "./workspace-error";
+import { errorMessage, WorkspaceConfigError } from "./workspace-error";
+import { pathExists } from "./workspace-path";
 import type { JsonValue } from "../../cli/types";
 
 const workspaceDiagnostics = channel("nnf.workspace");
 
 export const WORKSPACE_CONFIG_FILE = "workspace.yaml";
+
+// 错误类已下沉到 workspace-error(workspace-path 也要抛它), 这里保持原有导出路径不变。
+export { WorkspaceConfigError };
 
 export interface WorkspaceRepository {
   readonly name: string;
@@ -20,21 +24,6 @@ export interface WorkspaceRepository {
 export interface WorkspaceConfig {
   readonly root: string;
   readonly repositories: readonly WorkspaceRepository[];
-}
-
-export class WorkspaceConfigError extends Error {
-  readonly hint: string | undefined;
-  readonly details: Readonly<Record<string, JsonValue>> | undefined;
-
-  constructor(
-    message: string,
-    options: { readonly details?: Readonly<Record<string, JsonValue>>; readonly hint?: string },
-  ) {
-    super(message);
-    this.name = "WorkspaceConfigError";
-    this.hint = options.hint;
-    this.details = options.details;
-  }
 }
 
 const repositoryUrl =
@@ -102,24 +91,13 @@ const workspaceFileSchema = z
     },
   );
 
-const exists = async (target: string): Promise<boolean> => {
-  try {
-    await access(target);
-    return true;
-  } catch (error) {
-    if (hasErrorCode(error, "ENOENT", "ENOTDIR")) return false;
-    workspaceDiagnostics.publish({ level: "error", message: errorMessage(error) });
-    throw error;
-  }
-};
-
 const isMaterializedRepository = async (repositoryPath: string): Promise<boolean> =>
-  exists(path.join(repositoryPath, ".git"));
+  pathExists(path.join(repositoryPath, ".git"));
 
-export const findWorkspaceRoot = async (cwd: string): Promise<string> => {
+const findWorkspaceRoot = async (cwd: string): Promise<string> => {
   let current = path.resolve(cwd);
   for (;;) {
-    if (await exists(path.join(current, WORKSPACE_CONFIG_FILE))) return current;
+    if (await pathExists(path.join(current, WORKSPACE_CONFIG_FILE))) return current;
     const parent = path.dirname(current);
     if (parent === current) {
       throw new WorkspaceConfigError(`No ${WORKSPACE_CONFIG_FILE} found from ${cwd} upwards`, {
@@ -128,6 +106,30 @@ export const findWorkspaceRoot = async (cwd: string): Promise<string> => {
     }
     current = parent;
   }
+};
+
+/** 按名字取配置项; 缺失是所有命令共用的失败, 集中在这里保证文案一致。 */
+export const requireRepository = <Repository extends { readonly name: string }>(
+  repositories: readonly Repository[],
+  name: string,
+): Repository => {
+  const repository = repositories.find((entry: Repository): boolean => entry.name === name);
+  if (repository === undefined) {
+    throw new WorkspaceConfigError(`Repository not found in ${WORKSPACE_CONFIG_FILE}: ${name}`, {
+      details: { name },
+    });
+  }
+  return repository;
+};
+
+/** --name 未给出时选中全部仓库, 否则按给出顺序去重选择。 */
+export const selectRepositories = (
+  repositories: readonly WorkspaceRepository[],
+  names: readonly string[],
+): readonly WorkspaceRepository[] => {
+  const selected = [...new Set(names)];
+  if (selected.length === 0) return repositories;
+  return selected.map((name: string): WorkspaceRepository => requireRepository(repositories, name));
 };
 
 export const resolveRepositoryPath = (root: string, repository: RepositoryDraft): string =>

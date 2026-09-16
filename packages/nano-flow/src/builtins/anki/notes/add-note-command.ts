@@ -3,6 +3,7 @@ import type { JsonValue } from "../../../cli/types";
 import { JsonError } from "../errors";
 import type { AnkiPort } from "../port";
 import { optionalNumberResponse, parseResponse, stringArrayResponse } from "../responses";
+import { buildNoteOptions } from "./note-duplicate-options";
 
 // 上游 addNote 参数 schema 的 CLI 移植。
 export const addNoteParamsSchema = z.lazy(() =>
@@ -84,6 +85,68 @@ const classifyAddNoteError = (
   });
 };
 
+// 字段目录决定排序字段, 拿不到目录就无法判断笔记是否可建。
+const requireModelFields = async (
+  client: AnkiPort,
+  modelName: string,
+): Promise<readonly string[]> => {
+  const fieldNames = parseResponse(
+    "modelFieldNames",
+    stringArrayResponse,
+    await client.invoke<unknown>("modelFieldNames", { modelName }),
+  );
+
+  if (!fieldNames || fieldNames.length === 0) {
+    throw new JsonError(`Model "${modelName}" not found or has no fields`, {
+      action: "addNote",
+      details: { modelName },
+      hint: "Use models list to see available models",
+    });
+  }
+
+  return fieldNames;
+};
+
+// Anki 要求第一个字段作为排序字段, 空值会让 addNote 静默失败, 因此在本地先拒绝。
+const requireSortFieldValue = (
+  fields: Record<string, string>,
+  sortField: string,
+  modelName: string,
+): void => {
+  const sortFieldValue = fields[sortField];
+  if (!sortFieldValue || sortFieldValue.trim() === "") {
+    throw new JsonError(
+      `The first field "${sortField}" cannot be empty. Anki requires the sort field to have content.`,
+      {
+        action: "addNote",
+        details: { modelName, sortField, providedFields: Object.keys(fields) },
+        hint: `The first field "${sortField}" is the sort field and must contain non-empty content.`,
+      },
+    );
+  }
+};
+
+// 可选参数只在有值时写入 payload, 避免把空 tags/options 交给上游。
+const buildNoteRequest = (params: AddNoteParams): Record<string, JsonValue> => {
+  const { deckName, modelName, fields, tags, allowDuplicate, duplicateScope } = params;
+  const noteParams: Record<string, JsonValue> = { deckName, modelName, fields };
+
+  if (tags !== undefined && tags.length > 0) {
+    noteParams["tags"] = tags;
+  }
+
+  const options = buildNoteOptions({
+    allowDuplicate,
+    duplicateScope,
+    duplicateScopeOptions: params.duplicateScopeOptions,
+  });
+  if (options !== undefined) {
+    noteParams["options"] = options;
+  }
+
+  return noteParams;
+};
+
 /**
  * 添加单条笔记(上游 addNote)。批量请用 add-batch。
  * 排序字段(第一字段)必须非空; 错误按 duplicate/model/deck/field 分类提示。
@@ -93,76 +156,13 @@ export const runAddNote = async (
   params: AddNoteParams,
 ): Promise<AddNoteResult> => {
   try {
-    const {
-      deckName,
-      modelName,
-      fields,
-      tags,
-      allowDuplicate,
-      duplicateScope,
-      duplicateScopeOptions,
-    } = params;
+    const { deckName, modelName, fields, tags, allowDuplicate, duplicateScope } = params;
 
-    const fieldNames = parseResponse(
-      "modelFieldNames",
-      stringArrayResponse,
-      await client.invoke<unknown>("modelFieldNames", { modelName }),
-    );
-
-    if (!fieldNames || fieldNames.length === 0) {
-      throw new JsonError(`Model "${modelName}" not found or has no fields`, {
-        action: "addNote",
-        details: { modelName },
-        hint: "Use models list to see available models",
-      });
-    }
-
+    const fieldNames = await requireModelFields(client, modelName);
     const sortField = fieldNames[0]!;
-    const sortFieldValue = fields[sortField];
+    requireSortFieldValue(fields, sortField, modelName);
 
-    if (!sortFieldValue || sortFieldValue.trim() === "") {
-      throw new JsonError(
-        `The first field "${sortField}" cannot be empty. Anki requires the sort field to have content.`,
-        {
-          action: "addNote",
-          details: { modelName, sortField, providedFields: Object.keys(fields) },
-          hint: `The first field "${sortField}" is the sort field and must contain non-empty content.`,
-        },
-      );
-    }
-
-    const noteParams: Record<string, JsonValue> = { deckName, modelName, fields };
-    if (tags !== undefined && tags.length > 0) {
-      noteParams["tags"] = tags;
-    }
-
-    const options: Record<string, JsonValue> = {};
-    let hasOptions = false;
-    if (allowDuplicate !== undefined) {
-      options["allowDuplicate"] = allowDuplicate;
-      hasOptions = true;
-    }
-    if (duplicateScope !== undefined) {
-      options["duplicateScope"] = duplicateScope;
-      hasOptions = true;
-    }
-    if (duplicateScopeOptions !== undefined) {
-      options["duplicateScopeOptions"] = {
-        ...(duplicateScopeOptions.deckName === undefined
-          ? {}
-          : { deckName: duplicateScopeOptions.deckName }),
-        ...(duplicateScopeOptions.checkChildren === undefined
-          ? {}
-          : { checkChildren: duplicateScopeOptions.checkChildren }),
-        ...(duplicateScopeOptions.checkAllModels === undefined
-          ? {}
-          : { checkAllModels: duplicateScopeOptions.checkAllModels }),
-      };
-      hasOptions = true;
-    }
-    if (hasOptions) {
-      noteParams["options"] = options;
-    }
+    const noteParams = buildNoteRequest(params);
 
     const noteId = parseResponse(
       "addNote",

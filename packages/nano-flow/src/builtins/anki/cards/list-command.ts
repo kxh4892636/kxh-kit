@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { JsonError } from "../errors";
 import type { AnkiPort } from "../port";
-import { ankiCardArrayResponse, numberArrayResponse, parseResponse } from "../responses";
-import { deckScopeQuery, extractRenderedCardContent, type SimplifiedCard } from "./card-domain";
+import { numberArrayResponse, parseResponse } from "../responses";
+import { deckScopeQuery, loadSimplifiedCards, type SimplifiedCard } from "./card-domain";
 
 export const cardStates = ["due", "new", "learning", "suspended", "buried"] as const;
 export type CardState = (typeof cardStates)[number];
@@ -45,24 +45,7 @@ export const runGetCards = async (
     if (cardIds === null || cardIds.length === 0) {
       return { success: true, message: `No ${state} cards found`, cards: [], total: 0 };
     }
-    const selected = cardIds.slice(0, Math.min(params.limit ?? 10, 50));
-    const cards = parseResponse(
-      "cardsInfo",
-      ankiCardArrayResponse,
-      await port.invoke<unknown>("cardsInfo", { cards: selected }),
-    ).map((card: z.infer<typeof ankiCardArrayResponse>[number]): SimplifiedCard => {
-      const { front, back } = extractRenderedCardContent(card);
-      return {
-        cardId: card.cardId,
-        front,
-        back,
-        deckName: card.deckName,
-        modelName: card.modelName,
-        due: card.due ?? 0,
-        interval: card.interval ?? 0,
-        factor: card.factor ?? 2500,
-      };
-    });
+    const cards = await loadSimplifiedCards(port, cardIds, params.limit);
     return {
       success: true,
       cards,

@@ -1,43 +1,22 @@
-import { execFile } from "node:child_process";
-import { channel } from "node:diagnostics_channel";
 import path from "node:path";
-import { promisify } from "node:util";
 import { CliUsageError } from "../../cli/errors";
 import type { InvocationContext, JsonOutput, JsonValue, PreparedMutation } from "../../cli/types";
 import {
   isWorkspaceRelativePath,
   loadWorkspaceFile,
+  requireRepository,
   resolveRepositoryPath,
-  WORKSPACE_CONFIG_FILE,
-  WorkspaceConfigError,
+  selectRepositories,
   type WorkspaceRepository,
 } from "./workspace-config";
 import { assertPhysicalPathWithinRoot, normalizeFsPath, pathExists } from "./workspace-path";
-import { errorDetail, errorMessage, hasErrorCode } from "./workspace-error";
+import { WorkspaceConfigError } from "./workspace-error";
+import { createGitRunner, gitSucceeds, parseWorktreeList } from "./workspace-git";
 
-const execFileAsync = promisify(execFile);
-const workspaceDiagnostics = channel("nnf.workspace");
-const runGit = async (arguments_: readonly string[]): Promise<string> => {
-  try {
-    const { stdout } = await execFileAsync("git", ["--no-optional-locks", ...arguments_]);
-    return stdout;
-  } catch (error) {
-    const detail = errorDetail(error);
-    workspaceDiagnostics.publish({ level: "error", message: detail });
-    throw new Error(`Git worktree operation failed: ${detail}`);
-  }
-};
-
-const gitSucceeds = async (arguments_: readonly string[]): Promise<boolean> => {
-  try {
-    await execFileAsync("git", ["--no-optional-locks", ...arguments_]);
-    return true;
-  } catch (error) {
-    if (hasErrorCode(error, 1)) return false;
-    workspaceDiagnostics.publish({ level: "error", message: errorMessage(error) });
-    throw error;
-  }
-};
+const runGit = createGitRunner(
+  (_arguments: readonly string[], detail: string): string =>
+    `Git worktree operation failed: ${detail}`,
+);
 
 interface GitWorktree {
   readonly branch?: string | undefined;
@@ -47,55 +26,20 @@ interface GitWorktree {
   readonly prunable: boolean;
 }
 
+/** worktree 操作按注册表寻址, 缺少 HEAD 说明输出不可信, 因此与仓库状态查询的容忍度不同。 */
 const parseWorktrees = (porcelain: string): readonly GitWorktree[] =>
-  porcelain
-    .trim()
-    .split(/\r?\n\r?\n/gu)
-    .filter((record: string): boolean => record !== "")
-    .map((record: string): GitWorktree => {
-      const values = new Map<string, string>();
-      const flags = new Set<string>();
-      for (const line of record.split(/\r?\n/gu)) {
-        const separator = line.indexOf(" ");
-        if (separator === -1) flags.add(line);
-        else values.set(line.slice(0, separator), line.slice(separator + 1));
-      }
-      const worktreePath = values.get("worktree");
-      const head = values.get("HEAD");
-      if (worktreePath === undefined || head === undefined) {
-        throw new WorkspaceConfigError("Invalid git worktree list --porcelain output", {});
-      }
-      const reference = values.get("branch");
-      const branch = reference?.startsWith("refs/heads/")
-        ? reference.slice("refs/heads/".length)
-        : undefined;
-      return {
-        path: path.resolve(worktreePath),
-        head,
-        ...(branch === undefined ? {} : { branch }),
-        locked: flags.has("locked") || values.has("locked"),
-        prunable: flags.has("prunable") || values.has("prunable"),
-      };
-    });
-
-const selectRepositories = (
-  repositories: readonly WorkspaceRepository[],
-  names: readonly string[],
-): readonly WorkspaceRepository[] => {
-  const selected = [...new Set(names)];
-  if (selected.length === 0) return repositories;
-  return selected.map((name: string): WorkspaceRepository => {
-    const repository = repositories.find(
-      (entry: WorkspaceRepository): boolean => entry.name === name,
-    );
-    if (repository === undefined) {
-      throw new WorkspaceConfigError(`Repository not found in ${WORKSPACE_CONFIG_FILE}: ${name}`, {
-        details: { name },
-      });
+  parseWorktreeList(porcelain).map((record): GitWorktree => {
+    if (record.head === undefined) {
+      throw new WorkspaceConfigError("Invalid git worktree list --porcelain output", {});
     }
-    return repository;
+    return {
+      path: record.path,
+      head: record.head,
+      ...(record.branch === undefined ? {} : { branch: record.branch }),
+      locked: record.locked,
+      prunable: record.prunable,
+    };
   });
-};
 
 const requireRelativeTarget = (requestedPath: string): void => {
   if (!isWorkspaceRelativePath(requestedPath)) {
@@ -160,14 +104,7 @@ const resolveRepository = async (
   name: string,
 ): Promise<ResolvedRepository> => {
   const config = await loadWorkspaceFile(context.cwd);
-  const repository = config.repositories.find(
-    (entry: WorkspaceRepository): boolean => entry.name === name,
-  );
-  if (repository === undefined) {
-    throw new WorkspaceConfigError(`Repository not found in ${WORKSPACE_CONFIG_FILE}: ${name}`, {
-      details: { name },
-    });
-  }
+  const repository = requireRepository(config.repositories, name);
   const repositoryPath = resolveRepositoryPath(config.root, repository);
   await assertPhysicalPathWithinRoot(config.root, repositoryPath);
   if (!(await pathExists(path.join(repositoryPath, ".git")))) {

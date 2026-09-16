@@ -3,7 +3,7 @@ import { JsonError } from "../errors";
 import type { AnkiPort } from "../port";
 import { parseResponse, stringArrayResponse } from "../responses";
 
-export const modelFieldNamesParamsSchema = z.object({
+const modelFieldNamesParamsSchema = z.object({
   modelName: z.string().min(1),
 });
 
@@ -19,6 +19,36 @@ export interface ModelFieldNamesResult {
   hint?: string;
 }
 
+/** 读取笔记类型的字段列表(上游 modelFieldNames)。 */
+const fetchModelFields = async (client: AnkiPort, modelName: string): Promise<string[] | null> =>
+  parseResponse(
+    "modelFieldNames",
+    stringArrayResponse,
+    await client.invoke<unknown>("modelFieldNames", { modelName }),
+  );
+
+/**
+ * 字段写操作的前置读取: AnkiConnect 对不存在的模型同样返回空数组,
+ * 无法区分「模型没有字段」与「模型不存在」, 故统一按后者报错。
+ * action/details 随命令而异, 由调用方给出。
+ */
+export const requireModelFields = async (
+  client: AnkiPort,
+  modelName: string,
+  action: string,
+  details: Readonly<Record<string, unknown>>,
+): Promise<string[]> => {
+  const fields = await fetchModelFields(client, modelName);
+  if (!fields || fields.length === 0) {
+    throw new JsonError(`Model "${modelName}" has no fields or does not exist`, {
+      action,
+      details,
+      hint: "Model not found. Use models list to see available models.",
+    });
+  }
+  return fields;
+};
+
 // 笔记类型的字段名列表(上游 modelFieldNames), 常见类型附示例字段。
 export const runModelFieldNames = async (
   client: AnkiPort,
@@ -27,11 +57,7 @@ export const runModelFieldNames = async (
   try {
     const { modelName } = params;
 
-    const fieldNames = parseResponse(
-      "modelFieldNames",
-      stringArrayResponse,
-      await client.invoke<unknown>("modelFieldNames", { modelName }),
-    );
+    const fieldNames = await fetchModelFields(client, modelName);
 
     if (!fieldNames) {
       throw new JsonError(`Model "${modelName}" not found`, {

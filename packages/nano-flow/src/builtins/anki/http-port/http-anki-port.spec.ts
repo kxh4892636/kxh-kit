@@ -1,15 +1,15 @@
 import { channel } from "node:diagnostics_channel";
 import { afterEach, describe, expect, test } from "vitest";
-import type { AnkiConfig } from "./config";
-import { ReadOnlyModeError } from "./errors";
+import type { AnkiConfig } from "../config";
+import { ReadOnlyModeError } from "../errors";
 import {
   startFakeAnkiConnect,
   type FakeAnkiConnect,
   type FakeRequest,
   type FakeResponse,
-} from "./testing/fake-anki-connect";
+} from "../testing/fake-anki-connect";
 import { HttpAnkiPort, resetAnkiQueueForTests } from "./http-anki-port";
-import { createLogger } from "./logger";
+import { createLogger } from "../logger";
 const servers: FakeAnkiConnect[] = [];
 const logger = createLogger("error");
 const config = (url: string, readOnly = false): AnkiConfig => ({

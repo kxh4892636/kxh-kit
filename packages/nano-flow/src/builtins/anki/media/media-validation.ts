@@ -4,7 +4,7 @@ import * as ipaddr from "ipaddr.js";
 import mime from "mime";
 import type { Logger } from "../logger";
 
-export class MediaFileTypeError extends Error {
+class MediaFileTypeError extends Error {
   constructor() {
     super(
       "File type not allowed. Only media files (images, audio, video) are accepted. " +
@@ -14,7 +14,7 @@ export class MediaFileTypeError extends Error {
   }
 }
 
-export class MediaImportDirError extends Error {
+class MediaImportDirError extends Error {
   constructor(directory: string) {
     super(
       `File path is outside the allowed import directory (${directory}). ` +
@@ -24,7 +24,7 @@ export class MediaImportDirError extends Error {
   }
 }
 
-export class MediaUrlBlockedError extends Error {
+class MediaUrlBlockedError extends Error {
   constructor() {
     super(
       "URL blocked: requests to private/internal networks are not allowed. " +
@@ -34,7 +34,7 @@ export class MediaUrlBlockedError extends Error {
   }
 }
 
-export class MediaUrlSchemeError extends Error {
+class MediaUrlSchemeError extends Error {
   constructor(scheme: string) {
     super(`URL scheme "${scheme}" is not allowed. Only http: and https: URLs are accepted.`);
     this.name = "MediaUrlSchemeError";

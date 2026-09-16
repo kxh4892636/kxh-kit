@@ -1,78 +1,44 @@
-import { execFile } from "node:child_process";
 import { channel } from "node:diagnostics_channel";
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
-import { promisify } from "node:util";
 import type { InvocationContext, JsonOutput, JsonValue, PreparedMutation } from "../../cli/types";
 import {
   loadWorkspaceFile,
   resolveRepositoryPath,
+  selectRepositories,
   WORKSPACE_CONFIG_FILE,
   WorkspaceConfigError,
   type WorkspaceRepository,
 } from "./workspace-config";
-import { assertPhysicalPathWithinRoot, pathExists as exists } from "./workspace-path";
-import { errorDetail, errorMessage, hasErrorCode } from "./workspace-error";
+import { assertPhysicalPathWithinRoot, pathExists } from "./workspace-path";
+import { errorDetail, errorMessage } from "./workspace-error";
+import {
+  createGitRunner,
+  gitSucceeds,
+  parseWorktreeList,
+  type GitWorktreeRecord,
+} from "./workspace-git";
 
-const execFileAsync = promisify(execFile);
 const workspaceDiagnostics = channel("nnf.workspace");
 
 const redactSensitiveText = (value: string): string =>
   value.replace(/https?:\/\/\S+/gu, "[redacted-url]");
 
-const runGit = async (arguments_: readonly string[]): Promise<string> => {
-  try {
-    const { stdout } = await execFileAsync("git", ["--no-optional-locks", ...arguments_]);
-    return stdout;
-  } catch (error) {
-    const detail = redactSensitiveText(errorDetail(error));
-    workspaceDiagnostics.publish({ level: "error", message: detail });
+const runGit = createGitRunner(
+  (arguments_: readonly string[], detail: string): string => {
     const operation = arguments_.find((argument: string): boolean => !argument.startsWith("-"));
-    throw new Error(`git ${operation ?? "operation"} failed: ${detail}`);
-  }
-};
+    return `git ${operation ?? "operation"} failed: ${detail}`;
+  },
+  (error: unknown): string => redactSensitiveText(errorDetail(error)),
+);
 
-const isAncestor = async (
+/** pull 的 fast-forward 判定: merge-base 退出码 1 表示「不是祖先」而非失败。 */
+const isAncestor = (
   repositoryPath: string,
   ancestor: string,
   descendant: string,
-): Promise<boolean> => {
-  try {
-    await execFileAsync("git", [
-      "--no-optional-locks",
-      "-C",
-      repositoryPath,
-      "merge-base",
-      "--is-ancestor",
-      ancestor,
-      descendant,
-    ]);
-    return true;
-  } catch (error) {
-    if (hasErrorCode(error, 1)) return false;
-    workspaceDiagnostics.publish({ level: "error", message: errorMessage(error) });
-    throw error;
-  }
-};
-
-const selectRepositories = (
-  repositories: readonly WorkspaceRepository[],
-  names: readonly string[],
-): readonly WorkspaceRepository[] => {
-  const selected = [...new Set(names)];
-  if (selected.length === 0) return repositories;
-  return selected.map((name: string): WorkspaceRepository => {
-    const repository = repositories.find(
-      (entry: WorkspaceRepository): boolean => entry.name === name,
-    );
-    if (repository === undefined) {
-      throw new WorkspaceConfigError(`Repository not found in ${WORKSPACE_CONFIG_FILE}: ${name}`, {
-        details: { name },
-      });
-    }
-    return repository;
-  });
-};
+): Promise<boolean> =>
+  gitSucceeds(["-C", repositoryPath, "merge-base", "--is-ancestor", ancestor, descendant]);
 
 interface RepositoryTarget {
   readonly repository: WorkspaceRepository;
@@ -154,7 +120,7 @@ const batchJson = (result: BatchResult): JsonValue => ({
 
 const cloneTarget = async (target: RepositoryTarget, execute: boolean): Promise<BatchResult> => {
   const { repository, repositoryPath } = target;
-  if (await exists(repositoryPath)) {
+  if (await pathExists(repositoryPath)) {
     return {
       name: repository.name,
       path: repositoryPath,
@@ -200,39 +166,44 @@ const throwOnBatchFailure = (action: string, results: readonly BatchResult[]): v
   });
 };
 
-export const prepareRepositoryClone = async (
+/**
+ * clone/pull 的公共骨架: 预演用 execute=false 只报告计划, commit 用 execute=true 真正执行,
+ * 两者按配置顺序逐仓库串行(上游是 git 子进程, 并发没有收益且会让失败顺序不可预期)。
+ */
+const prepareBatchMutation = async (
+  action: string,
   names: readonly string[],
   context: InvocationContext,
+  process: (target: RepositoryTarget, execute: boolean) => Promise<BatchResult>,
 ): Promise<PreparedMutation> => {
   const selections = await resolveBatchSelections(context.cwd, names);
-  const planned: BatchResult[] = [];
-  for (const selection of selections) {
-    planned.push(
-      selection.target === undefined
-        ? missingSelection(selection)
-        : await cloneTarget(selection.target, false),
-    );
-  }
+  const collect = async (execute: boolean): Promise<readonly BatchResult[]> => {
+    const results: BatchResult[] = [];
+    for (const selection of selections) {
+      results.push(
+        selection.target === undefined
+          ? missingSelection(selection)
+          : await process(selection.target, execute),
+      );
+    }
+    return results;
+  };
+  const planned = await collect(false);
   return {
-    preview: { action: "clone-repositories", repositories: planned.map(batchJson) },
+    preview: { action, repositories: planned.map(batchJson) },
     commit: async (): Promise<JsonOutput> => {
-      const results: BatchResult[] = [];
-      for (const selection of selections) {
-        results.push(
-          selection.target === undefined
-            ? missingSelection(selection)
-            : await cloneTarget(selection.target, true),
-        );
-      }
-      throwOnBatchFailure("clone-repositories", results);
-      return {
-        success: true,
-        action: "clone-repositories",
-        repositories: results.map(batchJson),
-      };
+      const results = await collect(true);
+      throwOnBatchFailure(action, results);
+      return { success: true, action, repositories: results.map(batchJson) };
     },
   };
 };
+
+export const prepareRepositoryClone = (
+  names: readonly string[],
+  context: InvocationContext,
+): Promise<PreparedMutation> =>
+  prepareBatchMutation("clone-repositories", names, context, cloneTarget);
 
 interface GitWorktree {
   readonly branch?: string | undefined;
@@ -240,27 +211,16 @@ interface GitWorktree {
 }
 
 const parseWorktrees = (porcelain: string): readonly GitWorktree[] =>
-  porcelain
-    .trim()
-    .split(/\r?\n\r?\n/gu)
-    .filter((record: string): boolean => record !== "")
-    .map((record: string): GitWorktree => {
-      const lines = record.split(/\r?\n/gu);
-      const worktreeLine = lines.find((line: string): boolean => line.startsWith("worktree "));
-      if (worktreeLine === undefined) {
-        throw new WorkspaceConfigError("Invalid git worktree list --porcelain output", {});
-      }
-      const branchLine = lines.find((line: string): boolean => line.startsWith("branch "));
-      const branch = branchLine?.slice("branch refs/heads/".length);
-      return {
-        path: path.resolve(worktreeLine.slice("worktree ".length)),
-        ...(branch === undefined ? {} : { branch }),
-      };
-    });
+  parseWorktreeList(porcelain).map(
+    (record: GitWorktreeRecord): GitWorktree => ({
+      path: record.path,
+      ...(record.branch === undefined ? {} : { branch: record.branch }),
+    }),
+  );
 
 const repositoryStatus = async (target: RepositoryTarget): Promise<JsonValue> => {
   const { repository, repositoryPath } = target;
-  if (!(await exists(repositoryPath))) {
+  if (!(await pathExists(repositoryPath))) {
     return {
       name: repository.name,
       path: repositoryPath,
@@ -349,7 +309,7 @@ export const statusRepositories = async (
 
 const pullTarget = async (target: RepositoryTarget, execute: boolean): Promise<BatchResult> => {
   const { repository, repositoryPath } = target;
-  if (!(await exists(repositoryPath))) {
+  if (!(await pathExists(repositoryPath))) {
     return {
       name: repository.name,
       path: repositoryPath,
@@ -413,39 +373,11 @@ const pullTarget = async (target: RepositoryTarget, execute: boolean): Promise<B
   }
 };
 
-export const prepareRepositoryPull = async (
+export const prepareRepositoryPull = (
   names: readonly string[],
   context: InvocationContext,
-): Promise<PreparedMutation> => {
-  const selections = await resolveBatchSelections(context.cwd, names);
-  const planned: BatchResult[] = [];
-  for (const selection of selections) {
-    planned.push(
-      selection.target === undefined
-        ? missingSelection(selection)
-        : await pullTarget(selection.target, false),
-    );
-  }
-  return {
-    preview: { action: "pull-repositories", repositories: planned.map(batchJson) },
-    commit: async (): Promise<JsonOutput> => {
-      const results: BatchResult[] = [];
-      for (const selection of selections) {
-        results.push(
-          selection.target === undefined
-            ? missingSelection(selection)
-            : await pullTarget(selection.target, true),
-        );
-      }
-      throwOnBatchFailure("pull-repositories", results);
-      return {
-        success: true,
-        action: "pull-repositories",
-        repositories: results.map(batchJson),
-      };
-    },
-  };
-};
+): Promise<PreparedMutation> =>
+  prepareBatchMutation("pull-repositories", names, context, pullTarget);
 
 export interface RepositoryRemoveSelection {
   readonly force: boolean;
@@ -472,7 +404,7 @@ export const prepareRepositoryRemove = async (
     throw new WorkspaceConfigError(`Repository not found: ${selection.name}`, {});
   }
   const { repository, repositoryPath, root } = target;
-  if (!(await exists(repositoryPath))) {
+  if (!(await pathExists(repositoryPath))) {
     throw new WorkspaceConfigError(`Repository is not materialized: ${repository.name}`, {
       details: { name: repository.name, path: repositoryPath },
     });

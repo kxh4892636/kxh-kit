@@ -1,7 +1,7 @@
 import type { BuiltinCommand } from "../../cli/types";
 import { createAnkiCommand } from "./anki-command";
 import type { AnkiConfig } from "./config";
-import { HttpAnkiPort } from "./http-anki-port";
+import { HttpAnkiPort } from "./http-port/http-anki-port";
 import type { Logger } from "./logger";
 import type { AnkiPort } from "./port";
 

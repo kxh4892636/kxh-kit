@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { JsonError } from "../errors";
+import { JsonError, modelFailureHints, translateJsonError } from "../errors";
 import type { AnkiPort } from "../port";
-import { nullResponse, parseResponse, stringArrayResponse } from "../responses";
+import { nullResponse, parseResponse } from "../responses";
+import { requireModelFields } from "./fields-command";
 
 export const repositionModelFieldParamsSchema = z.object({
   modelName: z.string().min(1),
@@ -30,19 +31,11 @@ export const runRepositionModelField = async (
   try {
     const { modelName, fieldName, index } = params;
 
-    const fields = parseResponse(
-      "modelFieldNames",
-      stringArrayResponse,
-      await client.invoke<unknown>("modelFieldNames", { modelName }),
-    );
-
-    if (!fields || fields.length === 0) {
-      throw new JsonError(`Model "${modelName}" has no fields or does not exist`, {
-        action: "repositionModelField",
-        details: { modelName, fieldName, index },
-        hint: "Model not found. Use models list to see available models.",
-      });
-    }
+    const fields = await requireModelFields(client, modelName, "repositionModelField", {
+      modelName,
+      fieldName,
+      index,
+    });
 
     if (!fields.includes(fieldName)) {
       throw new JsonError(`Field "${fieldName}" does not exist in model "${modelName}"`, {
@@ -77,23 +70,10 @@ export const runRepositionModelField = async (
       message: `Successfully moved field "${fieldName}" to position ${index} in model "${modelName}"`,
     };
   } catch (error) {
-    if (error instanceof JsonError) {
-      throw error;
-    }
-
-    const message = error instanceof Error ? error.message : String(error);
-    if (message.includes("not found") || message.includes("does not exist")) {
-      throw new JsonError(message, {
-        action: "repositionModelField",
-        details: { modelName: params.modelName, fieldName: params.fieldName, index: params.index },
-        hint: "Model or field not found. Use models list and models fields to verify names.",
-      });
-    }
-
-    throw new JsonError(message, {
+    throw translateJsonError(error, {
       action: "repositionModelField",
       details: { modelName: params.modelName, fieldName: params.fieldName, index: params.index },
-      hint: "Make sure Anki is running and the model and field names are correct.",
+      ...modelFailureHints.modelField,
     });
   }
 };

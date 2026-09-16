@@ -21,9 +21,12 @@ import {
 } from "./field-reposition-command";
 import { runModelFieldNames } from "./fields-command";
 import { runModelNames } from "./list-command";
-import { runModelStyling } from "./styling-command";
+import {
+  runModelStyling,
+  runUpdateModelStyling,
+  updateModelStylingParamsSchema,
+} from "./styling-commands";
 import { runModelTemplates } from "./templates-command";
-import { runUpdateModelStyling, updateModelStylingParamsSchema } from "./update-styling-command";
 import {
   runUpdateModelTemplates,
   updateModelTemplatesParamsSchema,

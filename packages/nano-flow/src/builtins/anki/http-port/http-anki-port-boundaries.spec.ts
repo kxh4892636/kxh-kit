@@ -1,10 +1,10 @@
 import type { KyInstance } from "ky";
 import { afterEach, describe, expect, test, vi } from "vitest";
-import type { AnkiConfig } from "./config";
-import { AnkiOperationError } from "./errors";
-import { startFakeAnkiConnect, type FakeAnkiConnect } from "./testing/fake-anki-connect";
+import type { AnkiConfig } from "../config";
+import { AnkiOperationError } from "../errors";
+import { startFakeAnkiConnect, type FakeAnkiConnect } from "../testing/fake-anki-connect";
 import { HttpAnkiPort, resetAnkiQueueForTests } from "./http-anki-port";
-import type { Logger } from "./logger";
+import type { Logger } from "../logger";
 
 const servers: FakeAnkiConnect[] = [];
 const logger = (): Logger => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn() });

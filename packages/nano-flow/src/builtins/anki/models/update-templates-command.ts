@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { JsonError } from "../errors";
+import { JsonError, modelFailureHints, translateJsonError } from "../errors";
 import type { AnkiPort } from "../port";
 import { modelTemplatesResponse, nullResponse, parseResponse } from "../responses";
 
@@ -91,27 +91,10 @@ export const runUpdateModelTemplates = async (
       hint: "Template changes apply to all cards using this model. Use gui browse to preview changes.",
     };
   } catch (error) {
-    if (error instanceof JsonError) {
-      throw error;
-    }
-
-    const message = error instanceof Error ? error.message : String(error);
-    if (
-      message.includes("not found") ||
-      message.includes("does not exist") ||
-      message.includes("model not found")
-    ) {
-      throw new JsonError(message, {
-        action: "updateModelTemplates",
-        details: { modelName: params.modelName },
-        hint: "Model not found. Use models list to see available models.",
-      });
-    }
-
-    throw new JsonError(message, {
+    throw translateJsonError(error, {
       action: "updateModelTemplates",
       details: { modelName: params.modelName },
-      hint: "Make sure Anki is running and the model name is correct.",
+      ...modelFailureHints.model,
     });
   }
 };

@@ -1,8 +1,7 @@
 import { access, realpath } from "node:fs/promises";
 import { channel } from "node:diagnostics_channel";
 import path from "node:path";
-import { WorkspaceConfigError } from "./workspace-config";
-import { errorMessage, hasErrorCode } from "./workspace-error";
+import { errorMessage, hasErrorCode, WorkspaceConfigError } from "./workspace-error";
 
 const workspaceDiagnostics = channel("nnf.workspace");
 export const pathExists = async (target: string): Promise<boolean> => {

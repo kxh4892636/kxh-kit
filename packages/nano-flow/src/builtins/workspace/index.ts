@@ -17,6 +17,7 @@ import {
   prepareAddRepository,
   prepareRemoveRepository,
   prepareUpdateRepository,
+  selectRepositories,
   WORKSPACE_CONFIG_FILE,
   WorkspaceConfigError,
   type WorkspaceRepository,
@@ -137,23 +138,7 @@ const listConfiguredRepositories = async (
   context: InvocationContext,
 ): Promise<JsonOutput> => {
   const config = await loadWorkspaceFile(context.cwd);
-  const selected =
-    names.length === 0
-      ? config.repositories
-      : [...new Set(names)].map((name: string): WorkspaceRepository => {
-          const repository = config.repositories.find(
-            (entry: WorkspaceRepository): boolean => entry.name === name,
-          );
-          if (repository === undefined) {
-            throw new WorkspaceConfigError(
-              `Repository not found in ${WORKSPACE_CONFIG_FILE}: ${name}`,
-              {
-                details: { name },
-              },
-            );
-          }
-          return repository;
-        });
+  const selected = selectRepositories(config.repositories, names);
   return {
     success: true,
     root: config.root,
