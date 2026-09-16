@@ -3,14 +3,14 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { apply, inject } from "./main.ts";
-import type { HostServices, SubagentMode } from "./host-contract.ts";
+import type { HostServices, SubagentMode } from "./host/host-contract.ts";
 import {
   headerOf,
   makeFakeServices,
   makeStrictCtx,
   messageRecordOf,
   snapshotOf,
-} from "./test-support.ts";
+} from "./testing/test-support.ts";
 
 /** 子会话样本: 一条 assistant 消息 + 可解析的 subagent 模式。 */
 const childFixture = (subagentMode: SubagentMode): HostServices =>

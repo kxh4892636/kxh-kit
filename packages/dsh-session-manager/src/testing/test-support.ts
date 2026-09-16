@@ -10,8 +10,8 @@ import type {
   RuntimeHistoryRecordLike,
   HostServices,
   SubagentMode,
-} from "./host-contract.ts";
-import { SessionManagerHost } from "./host.ts";
+} from "../host/host-contract.ts";
+import { SessionManagerHost } from "../host/host.ts";
 
 /** 调用记录容器。 */
 export interface FakeCalls {

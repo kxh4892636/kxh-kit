@@ -13,7 +13,7 @@ import {
   subagentModeOfSnapshotValues,
 } from "./host.ts";
 import type { HostServices } from "./host-contract.ts";
-import { makeFakeServices, makeHost } from "./test-support.ts";
+import { makeFakeServices, makeHost } from "../testing/test-support.ts";
 
 describe("normalizeHostError", () => {
   it("保留 RemoteError 子集的 code", () => {

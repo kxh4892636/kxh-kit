@@ -14,7 +14,7 @@ import {
   makeHost,
   messageRecordOf,
   snapshotOf,
-} from "./test-support.ts";
+} from "../testing/test-support.ts";
 
 describe("read", () => {
   const frames = [

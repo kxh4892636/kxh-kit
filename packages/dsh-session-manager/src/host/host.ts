@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
-import { entriesOf } from "./history-text.ts";
+import { entriesOf } from "../history-text.ts";
+import { asObject } from "./json-object.ts";
 import type {
   ContextInstaller,
   FollowFrameLike,
@@ -7,7 +8,6 @@ import type {
   HistoryWindow,
   HostAddressLike,
   HostServices,
-  JsonObjectLike,
   ModelCatalog,
   ModelEntry,
   ModelSelection,
@@ -38,10 +38,6 @@ export class HostError extends Error {
 
 /** 非预期失败统一 code(实现决策: 可读文本 + 日志链)。 */
 export const HOST_UNEXPECTED_CODE = "SESSION_MANAGER_TOOL_FAILED";
-
-/** 把不可信的任意 json 值收窄为对象节点; 非对象返回 undefined。 */
-export const asObject = (value: unknown): JsonObjectLike | undefined =>
-  typeof value === "object" && value !== null ? (value as JsonObjectLike) : undefined;
 
 const asSubagentMode = (mode: unknown): SubagentMode | undefined =>
   mode === "continuable" || mode === "one-shot" ? mode : undefined;

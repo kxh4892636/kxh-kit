@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { entriesOf, eventTextOf } from "./history-text.ts";
-import type { RuntimeHistoryRecordLike } from "./host-contract.ts";
+import type { RuntimeHistoryRecordLike } from "./host/host-contract.ts";
 
 const recordOf = (type: string, seq: number, data: unknown): RuntimeHistoryRecordLike => ({
   type: "event",

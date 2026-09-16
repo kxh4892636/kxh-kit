@@ -6,8 +6,8 @@
  */
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import type { ToolDefinition, ToolRunContext } from "@deepseek-ai/dsh-tools";
-import { normalizeHostError } from "./host.ts";
-import type { SessionManagerHost } from "./host.ts";
+import { normalizeHostError } from "./host/host.ts";
+import type { SessionManagerHost } from "./host/host.ts";
 
 /** 无损 JSON 节点(工具规范值保持纯 JSON 形状)。 */
 type JsonValue = null | boolean | number | string | JsonValue[] | { [key: string]: JsonValue };
@@ -77,8 +77,8 @@ const spawnSchemaValidator = (args: {
   }
 };
 
-/** Session/Model 管理工具集合。 */
-export const buildSessionTools = (host: SessionManagerHost): ToolDefinition[] => [
+/** 会话读取工具: 列出会话与分页读取历史。 */
+const sessionQueryTools = (host: SessionManagerHost): ToolDefinition[] => [
   defineTool({
     name: "session_list",
     description:
@@ -141,6 +141,10 @@ export const buildSessionTools = (host: SessionManagerHost): ToolDefinition[] =>
         } as unknown as JsonValue;
       }, exec),
   }),
+];
+
+/** 会话动作工具: 创建会话与投递消息。 */
+const sessionActionTools = (host: SessionManagerHost): ToolDefinition[] => [
   defineTool({
     name: "session_spawn",
     description:
@@ -208,6 +212,10 @@ export const buildSessionTools = (host: SessionManagerHost): ToolDefinition[] =>
         return result as unknown as JsonValue;
       }, exec),
   }),
+];
+
+/** 会话管理工具: 模型目录与选择、重命名、归档与等待。 */
+const sessionAdminTools = (host: SessionManagerHost): ToolDefinition[] => [
   defineTool({
     name: "session_model_list",
     description:
@@ -294,6 +302,13 @@ export const buildSessionTools = (host: SessionManagerHost): ToolDefinition[] =>
         return entry as unknown as JsonValue;
       }, exec),
   }),
+];
+
+/** Session/Model 管理工具集合: 三个分组按注册顺序拼接。 */
+export const buildSessionTools = (host: SessionManagerHost): ToolDefinition[] => [
+  ...sessionQueryTools(host),
+  ...sessionActionTools(host),
+  ...sessionAdminTools(host),
 ];
 
 /** 历史条目 → 模型可读消息(seq/时间 ISO 化)。 */

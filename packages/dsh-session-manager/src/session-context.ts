@@ -4,7 +4,7 @@
  * 经 agent 上下文注册 `agent.ctx.systemPrompt.section`, 不触发模型调用——
  * 首调用由第一条用户消息驱动。幂等: 同一 session 只注册一次。
  */
-import type { ContextInstaller } from "./host-contract.ts";
+import type { ContextInstaller } from "./host/host-contract.ts";
 
 /** Agent 获取服务(ctx.agents 结构子集)。 */
 export interface AgentStoreLike {

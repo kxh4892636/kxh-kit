@@ -31,7 +31,6 @@
     "@deepseek-ai/dsh-tool-session-query": "0.1.5-rc.1"
   },
   "devDependencies": {
-    "@deepseek-ai/schemastery": "^3.18.2",
     "@types/node": "catalog:",
     "@typescript/native": "catalog:",
     "@vitest/coverage-v8": "catalog:",

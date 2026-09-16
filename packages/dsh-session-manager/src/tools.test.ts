@@ -3,8 +3,8 @@
  */
 import { describe, expect, it } from "vitest";
 import type { ToolRunContext } from "@deepseek-ai/dsh-tools";
-import { SessionManagerHost } from "./host.ts";
-import { headerOf, makeFakeServices, messageRecordOf, snapshotOf } from "./test-support.ts";
+import { SessionManagerHost } from "./host/host.ts";
+import { headerOf, makeFakeServices, messageRecordOf, snapshotOf } from "./testing/test-support.ts";
 import { buildSessionTools, callerSessionCwdOf } from "./tools.ts";
 
 const toolOf = (tools: ReturnType<typeof buildSessionTools>, name: string) => {

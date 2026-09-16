@@ -7,8 +7,8 @@
  * 不额外写系统提示词章节: 9 个工具的名称与描述已随工具目录下发, 复述只会重复占用 prompt。
  */
 import type { Context } from "@deepseek-ai/cordis";
-import { SessionManagerHost } from "./host.ts";
-import type { HostServices } from "./host-contract.ts";
+import { SessionManagerHost } from "./host/host.ts";
+import type { HostServices } from "./host/host-contract.ts";
 import { makeContextInstaller } from "./session-context.ts";
 import type { AgentStoreLike } from "./session-context.ts";
 import { buildSessionTools } from "./tools.ts";
