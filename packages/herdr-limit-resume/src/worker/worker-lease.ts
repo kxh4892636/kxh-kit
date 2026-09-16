@@ -29,6 +29,7 @@ export class WorkerLease {
     return await this.#lease.renew();
   }
 
+  // fallow-ignore-next-line unused-class-member -- worker.ts 与 worker.test.ts 经租约变量调用本方法, 静态分析未归因到该调用点。
   public async release(): Promise<void> {
     await this.#lease.release();
   }
