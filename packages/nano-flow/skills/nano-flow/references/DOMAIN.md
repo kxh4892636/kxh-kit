@@ -13,11 +13,12 @@
         ├── adr/
         │   └── 0001-中文决策名.md
         └── plans/
-            ├── active/
+            ├── planning/
             │   └── YYYY-MM-DD-中文工作名/
             │       ├── story.md
             │       ├── spec.md
             │       └── 01-中文标题.md
+            ├── implementing/
             ├── reference/
             └── archived/
 ```
@@ -36,10 +37,12 @@
 ## Plan 生命周期
 
 ```text
-新建 ──> active ──完成且仍有参考价值──> reference ──失去参考价值──> archived
-                  └─废弃、过时或不再有用──────────────────────> archived
+新建 ──> planning ──开始实现──> implementing ──完成且仍有参考价值──> reference
+             │                     │                                  │
+             └─废弃或不再推进───────┴─废弃或不再有用──> archived <──失去参考价值─┘
 ```
 
-- `active/`：当前正在推进；新 Plan 一律创建于此。
+- `planning/`：讨论需求、澄清设计、制定方案或等待实现，尚未开始实现；新 Plan 一律创建于此，已有 Issue 均为 `pending`。
+- `implementing/`：已开始实现，正在推进开发、测试与验收；开始实现前将整个 Plan 从 `planning/` 迁入此处。
 - `reference/`：全部 issue 已完成，且内容仍有参考价值。
 - `archived/`：已废弃、已过时或不再有用；内容冻结，不再更新，也不再作为权威来源。

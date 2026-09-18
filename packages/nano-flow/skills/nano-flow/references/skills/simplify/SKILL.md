@@ -12,7 +12,7 @@ disable-model-invocation: true
 
 默认整个工作区的生产代码，排除依赖、构建产物和生成物
 
-按 `<nano-flow-skill-root-dir>/references/DOMAIN.md` 定位业务域，读取 map、CONTEXT、适用 AGENTS.md 与 `/code-spec`，以及相关 ADR、active/reference Plan。保留已确认设计、契约、术语与未交付需求；需要追溯理由时读取 archived Plan，仅作历史依据。
+按 `<nano-flow-skill-root-dir>/references/DOMAIN.md` 定位业务域，读取 map、CONTEXT、适用 AGENTS.md 与 `/code-spec`，以及相关 ADR、implementing/reference Plan。保留已确认设计、契约、术语与未交付需求；需要追溯理由时读取 archived Plan，仅作历史依据。
 
 ## 2. 调查
 

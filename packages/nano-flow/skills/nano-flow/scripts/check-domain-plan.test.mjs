@@ -5,7 +5,7 @@ import { test } from "vitest";
 
 import { checkDomain } from "./check-domain.mjs";
 import {
-  activePlanPath,
+  implementingPlanPath,
   assertWorkspaceError,
   createValidWorkspace,
   replaceFile,
@@ -16,7 +16,7 @@ test("拒绝与 Issue 状态不一致的 spec 聚合状态", () => {
   try {
     const specPath = path.join(
       rootDir,
-      "docs/ordering/plans/active/2026-08-22-支持订单取消/spec.md",
+      "docs/ordering/plans/implementing/2026-08-22-支持订单取消/spec.md",
     );
     fs.writeFileSync(
       specPath,
@@ -36,13 +36,16 @@ test("拒绝与 Issue 状态不一致的 spec 聚合状态", () => {
 test("拒绝无效的依赖顺序和 reference 生命周期", () => {
   const rootDir = createValidWorkspace();
   try {
-    const activePath = path.join(rootDir, "docs/ordering/plans/active/2026-08-22-支持订单取消");
-    const referencePath = activePath.replace(
-      `${path.sep}active${path.sep}`,
+    const implementingPath = path.join(
+      rootDir,
+      "docs/ordering/plans/implementing/2026-08-22-支持订单取消",
+    );
+    const referencePath = implementingPath.replace(
+      `${path.sep}implementing${path.sep}`,
       `${path.sep}reference${path.sep}`,
     );
     fs.mkdirSync(path.dirname(referencePath), { recursive: true });
-    fs.renameSync(activePath, referencePath);
+    fs.renameSync(implementingPath, referencePath);
     const issuePath = path.join(referencePath, "01-取消订单.md");
     fs.writeFileSync(
       issuePath,
@@ -61,8 +64,8 @@ test("接受带前导零的有效 Plan 日期", () => {
   const rootDir = createValidWorkspace();
   try {
     fs.renameSync(
-      activePlanPath(rootDir),
-      path.join(path.dirname(activePlanPath(rootDir)), "2026-08-02-支持订单取消"),
+      implementingPlanPath(rootDir),
+      path.join(path.dirname(implementingPlanPath(rootDir)), "2026-08-02-支持订单取消"),
     );
     assert.deepEqual(checkDomain(rootDir), []);
   } finally {
@@ -74,8 +77,8 @@ test("接受四位低年份的有效 Plan 日期", () => {
   const rootDir = createValidWorkspace();
   try {
     fs.renameSync(
-      activePlanPath(rootDir),
-      path.join(path.dirname(activePlanPath(rootDir)), "0100-08-02-支持订单取消"),
+      implementingPlanPath(rootDir),
+      path.join(path.dirname(implementingPlanPath(rootDir)), "0100-08-02-支持订单取消"),
     );
     assert.deepEqual(checkDomain(rootDir), []);
   } finally {
@@ -85,20 +88,29 @@ test("接受四位低年份的有效 Plan 日期", () => {
 
 test.each([
   [
+    "旧 active 生命周期",
+    (rootDir) =>
+      fs.renameSync(
+        path.join(rootDir, "docs/ordering/plans/implementing"),
+        path.join(rootDir, "docs/ordering/plans/active"),
+      ),
+    "Plan 生命周期目录只能是 planning、implementing、reference 或 archived",
+  ],
+  [
     "未知生命周期",
     (rootDir) =>
       fs.renameSync(
-        path.join(rootDir, "docs/ordering/plans/active"),
+        path.join(rootDir, "docs/ordering/plans/implementing"),
         path.join(rootDir, "docs/ordering/plans/draft"),
       ),
-    "Plan 生命周期目录只能是 active、reference 或 archived",
+    "Plan 生命周期目录只能是 planning、implementing、reference 或 archived",
   ],
   [
     "非法 Plan 日期",
     (rootDir) =>
       fs.renameSync(
-        activePlanPath(rootDir),
-        path.join(path.dirname(activePlanPath(rootDir)), "2026-02-30-无效日期"),
+        implementingPlanPath(rootDir),
+        path.join(path.dirname(implementingPlanPath(rootDir)), "2026-02-30-无效日期"),
       ),
     "Plan 目录名必须是 YYYY-MM-DD-中文工作名",
   ],
@@ -106,45 +118,46 @@ test.each([
     "非法 Plan 名称",
     (rootDir) =>
       fs.renameSync(
-        activePlanPath(rootDir),
-        path.join(path.dirname(activePlanPath(rootDir)), "invalid"),
+        implementingPlanPath(rootDir),
+        path.join(path.dirname(implementingPlanPath(rootDir)), "invalid"),
       ),
     "Plan 目录名必须是 YYYY-MM-DD-中文工作名",
   ],
   [
     "Plan 嵌套目录",
-    (rootDir) => fs.mkdirSync(path.join(activePlanPath(rootDir), "nested")),
+    (rootDir) => fs.mkdirSync(path.join(implementingPlanPath(rootDir), "nested")),
     "Plan 目录内不允许嵌套目录",
   ],
   [
     "Plan 没有 story 或 spec",
-    (rootDir) => fs.rmSync(path.join(activePlanPath(rootDir), "spec.md")),
+    (rootDir) => fs.rmSync(path.join(implementingPlanPath(rootDir), "spec.md")),
     "Plan 至少需要 story.md 或 spec.md",
   ],
   [
     "reference Plan 没有 spec",
     (rootDir) => {
-      fs.rmSync(path.join(activePlanPath(rootDir), "spec.md"));
+      fs.rmSync(path.join(implementingPlanPath(rootDir), "spec.md"));
       const referenceRoot = path.join(rootDir, "docs/ordering/plans/reference");
       fs.mkdirSync(referenceRoot);
       fs.renameSync(
-        activePlanPath(rootDir),
-        path.join(referenceRoot, path.basename(activePlanPath(rootDir))),
+        implementingPlanPath(rootDir),
+        path.join(referenceRoot, path.basename(implementingPlanPath(rootDir))),
       );
     },
     "reference Plan 必须包含 spec.md",
   ],
   [
     "非法 Plan 文件名",
-    (rootDir) => fs.writeFileSync(path.join(activePlanPath(rootDir), "notes.md"), "中文备注。\n"),
+    (rootDir) =>
+      fs.writeFileSync(path.join(implementingPlanPath(rootDir), "notes.md"), "中文备注。\n"),
     "Plan 文件名必须是 story.md、spec.md 或 NN-中文标题.md",
   ],
   [
     "Issue 文件名没有中文",
     (rootDir) =>
       fs.renameSync(
-        path.join(activePlanPath(rootDir), "01-取消订单.md"),
-        path.join(activePlanPath(rootDir), "01-cancel.md"),
+        path.join(implementingPlanPath(rootDir), "01-取消订单.md"),
+        path.join(implementingPlanPath(rootDir), "01-cancel.md"),
       ),
     "Issue 文件名必须包含中文标题",
   ],
@@ -155,7 +168,7 @@ test.each([
 test("要求 spec 至少声明一个连续编号的 Issue", () => {
   const rootDir = createValidWorkspace();
   try {
-    const planRoot = activePlanPath(rootDir);
+    const planRoot = implementingPlanPath(rootDir);
     fs.rmSync(path.join(planRoot, "01-取消订单.md"));
     assert.ok(checkDomain(rootDir).some((error) => error.includes("至少需要一个 Issue")));
 
@@ -169,7 +182,7 @@ test("要求 spec 至少声明一个连续编号的 Issue", () => {
 test("拒绝缺少 frontmatter、章节和有效状态的 spec 与 Issue", () => {
   const rootDir = createValidWorkspace();
   try {
-    const planRoot = activePlanPath(rootDir);
+    const planRoot = implementingPlanPath(rootDir);
     fs.writeFileSync(path.join(planRoot, "spec.md"), "# English spec\n", "utf8");
     fs.writeFileSync(path.join(planRoot, "01-取消订单.md"), "# English issue\n", "utf8");
     const errors = checkDomain(rootDir);
@@ -190,7 +203,7 @@ test("拒绝缺少 frontmatter、章节和有效状态的 spec 与 Issue", () =>
 test("校验 blocked 与 completed Issue 的状态证据", () => {
   const rootDir = createValidWorkspace();
   try {
-    const planRoot = activePlanPath(rootDir);
+    const planRoot = implementingPlanPath(rootDir);
     const issuePath = path.join(planRoot, "01-取消订单.md");
     replaceFile(issuePath, "status: pending", "status: blocked");
     replaceFile(path.join(planRoot, "spec.md"), "| pending |", "| blocked |");
@@ -207,32 +220,80 @@ test("校验 blocked 与 completed Issue 的状态证据", () => {
   }
 });
 
-test.each(["active", "archived", "reference"])("%s Plan 的纯故事生命周期约束", (lifecycle) => {
-  const rootDir = createValidWorkspace();
-  try {
-    const planRoot = activePlanPath(rootDir);
-    fs.rmSync(path.join(planRoot, "spec.md"));
-    fs.rmSync(path.join(planRoot, "01-取消订单.md"));
-    fs.writeFileSync(path.join(planRoot, "story.md"), "# 用户故事\n\n客户可以取消订单。\n", "utf8");
-    if (lifecycle !== "active") {
-      const lifecycleRoot = path.join(rootDir, "docs/ordering/plans", lifecycle);
-      fs.mkdirSync(lifecycleRoot, { recursive: true });
-      fs.renameSync(planRoot, path.join(lifecycleRoot, path.basename(planRoot)));
+test.each(["planning", "implementing", "archived", "reference"])(
+  "%s Plan 的纯故事生命周期约束",
+  (lifecycle) => {
+    const rootDir = createValidWorkspace();
+    try {
+      const planRoot = implementingPlanPath(rootDir);
+      fs.rmSync(path.join(planRoot, "spec.md"));
+      fs.rmSync(path.join(planRoot, "01-取消订单.md"));
+      fs.writeFileSync(
+        path.join(planRoot, "story.md"),
+        "# 用户故事\n\n客户可以取消订单。\n",
+        "utf8",
+      );
+      if (lifecycle !== "implementing") {
+        const lifecycleRoot = path.join(rootDir, "docs/ordering/plans", lifecycle);
+        fs.mkdirSync(lifecycleRoot, { recursive: true });
+        fs.renameSync(planRoot, path.join(lifecycleRoot, path.basename(planRoot)));
+      }
+      const expectedErrors =
+        lifecycle === "reference"
+          ? [
+              "docs/ordering/plans/reference/2026-08-22-支持订单取消: reference Plan 必须包含 spec.md",
+            ]
+          : [];
+      assert.deepEqual(checkDomain(rootDir), expectedErrors);
+    } finally {
+      fs.rmSync(rootDir, { recursive: true, force: true });
     }
-    const expectedErrors =
-      lifecycle === "reference"
-        ? ["docs/ordering/plans/reference/2026-08-22-支持订单取消: reference Plan 必须包含 spec.md"]
-        : [];
-    assert.deepEqual(checkDomain(rootDir), expectedErrors);
-  } finally {
-    fs.rmSync(rootDir, { recursive: true, force: true });
-  }
-});
+  },
+);
+
+test.each(["pending", "in_progress", "blocked", "completed"])(
+  "planning Plan 对 %s Issue 的生命周期约束",
+  (status) => {
+    const rootDir = createValidWorkspace();
+    try {
+      const planRoot = implementingPlanPath(rootDir);
+      const issuePath = path.join(planRoot, "01-取消订单.md");
+      replaceFile(issuePath, "status: pending", `status: ${status}`);
+      fs.appendFileSync(
+        issuePath,
+        "\n## 交付记录\n\n交付物与验证证据：订单取消测试通过。\n障碍：等待环境。解除条件：环境恢复。\n",
+      );
+      const specPath = path.join(planRoot, "spec.md");
+      replaceFile(
+        specPath,
+        "status: pending",
+        `status: ${status === "blocked" ? "in_progress" : status}`,
+      );
+      replaceFile(specPath, "| pending |", `| ${status} |`);
+      const planningRoot = path.join(rootDir, "docs/ordering/plans/planning");
+      fs.mkdirSync(planningRoot);
+      fs.renameSync(planRoot, path.join(planningRoot, path.basename(planRoot)));
+      const errors = checkDomain(rootDir);
+      if (status === "pending") {
+        assert.deepEqual(errors, []);
+      } else {
+        assert.equal(errors.length, 1);
+        assert.ok(
+          errors[0].endsWith(
+            "planning Plan 的 Issue 必须全部 pending；开始实现后迁入 implementing",
+          ),
+        );
+      }
+    } finally {
+      fs.rmSync(rootDir, { recursive: true, force: true });
+    }
+  },
+);
 
 test("结构文件名校验锚定完整名称", () => {
   const rootDir = createValidWorkspace();
   try {
-    const planRoot = activePlanPath(rootDir);
+    const planRoot = implementingPlanPath(rootDir);
     fs.renameSync(planRoot, path.join(path.dirname(planRoot), `x${path.basename(planRoot)}`));
     fs.renameSync(
       path.join(rootDir, "docs/ordering/adr/0001-采用事件溯源.md"),
@@ -260,7 +321,7 @@ test("结构文件名校验锚定完整名称", () => {
 test("拒绝断号、无根、缺失引用、逆序依赖和依赖环", () => {
   const rootDir = createValidWorkspace();
   try {
-    const planRoot = activePlanPath(rootDir);
+    const planRoot = implementingPlanPath(rootDir);
     const firstIssue = path.join(planRoot, "01-取消订单.md");
     const secondIssue = path.join(planRoot, "02-通知客户.md");
     replaceFile(firstIssue, "blocked_by: []", 'blocked_by: ["02", "99"]');
@@ -292,7 +353,7 @@ test("拒绝断号、无根、缺失引用、逆序依赖和依赖环", () => {
 test("要求进行中 Issue 的直接依赖已经完成", () => {
   const rootDir = createValidWorkspace();
   try {
-    const planRoot = activePlanPath(rootDir);
+    const planRoot = implementingPlanPath(rootDir);
     const firstIssue = fs.readFileSync(path.join(planRoot, "01-取消订单.md"), "utf8");
     fs.writeFileSync(
       path.join(planRoot, "02-通知客户.md"),
@@ -322,7 +383,7 @@ test("覆盖无尾随换行和 frontmatter 非字段行", () => {
   try {
     const contextPath = path.join(rootDir, "docs/ordering/CONTEXT.md");
     fs.writeFileSync(contextPath, fs.readFileSync(contextPath, "utf8").trimEnd(), "utf8");
-    const issuePath = path.join(activePlanPath(rootDir), "01-取消订单.md");
+    const issuePath = path.join(implementingPlanPath(rootDir), "01-取消订单.md");
     replaceFile(issuePath, "status: pending", "# comment\nstatus: pending");
     assert.deepEqual(checkDomain(rootDir), []);
   } finally {
@@ -333,10 +394,10 @@ test("覆盖无尾随换行和 frontmatter 非字段行", () => {
 test("分别校验 blocked 解除条件和 completed 证据", () => {
   const blocked = createValidWorkspace();
   try {
-    const issuePath = path.join(activePlanPath(blocked), "01-取消订单.md");
+    const issuePath = path.join(implementingPlanPath(blocked), "01-取消订单.md");
     replaceFile(issuePath, "status: pending", "status: blocked");
     fs.appendFileSync(issuePath, "\n## 阻塞记录\n\n障碍：外部依赖。\n");
-    const specPath = path.join(activePlanPath(blocked), "spec.md");
+    const specPath = path.join(implementingPlanPath(blocked), "spec.md");
     replaceFile(specPath, "status: pending", "status: in_progress");
     replaceFile(specPath, "| pending |", "| blocked |");
     assert.ok(checkDomain(blocked).some((error) => error.includes("解除条件")));
@@ -346,10 +407,10 @@ test("分别校验 blocked 解除条件和 completed 证据", () => {
 
   const completed = createValidWorkspace();
   try {
-    const issuePath = path.join(activePlanPath(completed), "01-取消订单.md");
+    const issuePath = path.join(implementingPlanPath(completed), "01-取消订单.md");
     replaceFile(issuePath, "status: pending", "status: completed");
     fs.appendFileSync(issuePath, "\n## 交付记录\n\n交付物：代码。\n");
-    const specPath = path.join(activePlanPath(completed), "spec.md");
+    const specPath = path.join(implementingPlanPath(completed), "spec.md");
     replaceFile(specPath, "status: pending", "status: completed");
     replaceFile(specPath, "| pending |", "| completed |");
     assert.ok(checkDomain(completed).some((error) => error.includes("验证证据")));
@@ -365,7 +426,7 @@ test("接受具备完整证据的 blocked 与 completed Issue", () => {
   ]) {
     const rootDir = createValidWorkspace();
     try {
-      const planRoot = activePlanPath(rootDir);
+      const planRoot = implementingPlanPath(rootDir);
       const issuePath = path.join(planRoot, "01-取消订单.md");
       replaceFile(issuePath, "status: pending", `status: ${status}`);
       fs.appendFileSync(issuePath, `\n${evidence}`);
@@ -382,13 +443,13 @@ test("接受具备完整证据的 blocked 与 completed Issue", () => {
 test("接受全部完成的 reference Plan", () => {
   const rootDir = createValidWorkspace();
   try {
-    const activePath = activePlanPath(rootDir);
-    const referencePath = activePath.replace(
-      `${path.sep}active${path.sep}`,
+    const implementingPath = implementingPlanPath(rootDir);
+    const referencePath = implementingPath.replace(
+      `${path.sep}implementing${path.sep}`,
       `${path.sep}reference${path.sep}`,
     );
     fs.mkdirSync(path.dirname(referencePath), { recursive: true });
-    fs.renameSync(activePath, referencePath);
+    fs.renameSync(implementingPath, referencePath);
     const issuePath = path.join(referencePath, "01-取消订单.md");
     replaceFile(issuePath, "status: pending", "status: completed");
     fs.appendFileSync(issuePath, "\n## 交付记录\n\n交付物：代码。\n证据：测试通过。\n");
@@ -404,7 +465,7 @@ test("接受全部完成的 reference Plan", () => {
 test.each(["x## 交付记录", "## 交付记录 x"])("拒绝非精确 completed 证据标题 %s", (heading) => {
   const rootDir = createValidWorkspace();
   try {
-    const planRoot = activePlanPath(rootDir);
+    const planRoot = implementingPlanPath(rootDir);
     const issuePath = path.join(planRoot, "01-取消订单.md");
     replaceFile(issuePath, "status: pending", "status: completed");
     fs.appendFileSync(issuePath, `\n${heading}\n\n交付物：代码。\n证据：测试通过。\n`);

@@ -86,10 +86,10 @@ DeepSeek 的端点、模型、凭据与两个工具的限额统一来自独立�
 
 ## 上下文
 
-- [quest 设计记录](../../../../.flow/quest/2026-09-18-pi插件.md)
-- [ADR-0002](../../adr/0002-搜索密钥落用户配置与直连抓取.md)
-- [CONTEXT](../../CONTEXT.md)
-- [ADR-0001](../../adr/0001-嵌套skill以扩展接缝交付.md)
+- [quest 设计记录](../../../../../.flow/quest/2026-09-18-pi插件.md)
+- [ADR-0002](../../../adr/0002-搜索密钥落用户配置与直连抓取.md)
+- [CONTEXT](../../../CONTEXT.md)
+- [ADR-0001](../../../adr/0001-嵌套skill以扩展接缝交付.md)
 - DeepSeek provider 参考：`C:\Users\kxh\kxh-awesome\projects\deepseek-harness\packages\web\web-search-deepseek\src\provider.ts`
 - fetch 参考：`C:\Users\kxh\kxh-awesome\projects\deepseek-harness\packages\web\web-fetch-http\src\provider.ts`、`packages\web\tool-web\src\fetch.ts`
 - pi 扩展文档：`.../pi-coding-agent/docs/extensions.md`、`docs/packages.md`

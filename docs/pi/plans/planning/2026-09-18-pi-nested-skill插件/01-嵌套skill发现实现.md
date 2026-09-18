@@ -19,7 +19,7 @@ blocked_by: []
 
 ## 直接依赖
 
-无（根 Issue）；以 [ADR-0001](../../adr/0001-嵌套skill以扩展接缝交付.md) 与 [spec](../../spec.md)「实施决策 · 发现」为约束。
+无（根 Issue）；以 [ADR-0001](../../../adr/0001-嵌套skill以扩展接缝交付.md) 与 [spec](spec.md)「实施决策 · 发现」为约束。
 
 ## 验收
 
@@ -30,10 +30,10 @@ blocked_by: []
 
 ## 上下文
 
-- [spec](../../spec.md)
-- [ADR-0001](../../adr/0001-嵌套skill以扩展接缝交付.md)
-- [CONTEXT](../../CONTEXT.md)
-- [quest 设计记录](../../../../.flow/quest/2026-09-18-pi插件.md)
+- [spec](spec.md)
+- [ADR-0001](../../../adr/0001-嵌套skill以扩展接缝交付.md)
+- [CONTEXT](../../../CONTEXT.md)
+- [quest 设计记录](../../../../../.flow/quest/2026-09-18-pi插件.md)
 - pi 发现规则：`.../pi-coding-agent/dist/core/package-manager.js` 的 `collectSkillEntries`、`dist/core/skills.js` 的 `loadSkillsFromDirInternal`
 - DSH 同类实现：`packages/dsh-nested-skill/src/{provider,boundary}.ts`（本地）
 

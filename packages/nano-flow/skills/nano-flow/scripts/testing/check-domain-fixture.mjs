@@ -41,7 +41,7 @@ const writeAdr = (rootDir) => {
 const writeActivePlanSpec = (rootDir) => {
   writeFile(
     rootDir,
-    "docs/ordering/plans/active/2026-08-22-支持订单取消/spec.md",
+    "docs/ordering/plans/implementing/2026-08-22-支持订单取消/spec.md",
     `---
 status: pending
 ---
@@ -96,7 +96,7 @@ status: pending
 const writeActivePlanIssue = (rootDir) => {
   writeFile(
     rootDir,
-    "docs/ordering/plans/active/2026-08-22-支持订单取消/01-取消订单.md",
+    "docs/ordering/plans/implementing/2026-08-22-支持订单取消/01-取消订单.md",
     `---
 status: pending
 blocked_by: []
@@ -141,8 +141,8 @@ export const createValidWorkspace = () => {
   return rootDir;
 };
 
-export const activePlanPath = (rootDir) =>
-  path.join(rootDir, "docs/ordering/plans/active/2026-08-22-支持订单取消");
+export const implementingPlanPath = (rootDir) =>
+  path.join(rootDir, "docs/ordering/plans/implementing/2026-08-22-支持订单取消");
 
 export const replaceFile = (targetPath, searchValue, replacement) => {
   fs.writeFileSync(

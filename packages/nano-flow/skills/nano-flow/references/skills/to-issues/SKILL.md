@@ -20,7 +20,7 @@ argument-hint: "要持久化什么长任务?"
 - 降低后续实现难度的 prefactoring 排最前。
 - 唯一例外是大范围机械重构：expand → 按影响面分批 migrate（每批一个 issue）→ contract 删除旧形态。
 
-## 生命周期
+## Issue 状态
 
 ```text
 pending → in_progress → completed

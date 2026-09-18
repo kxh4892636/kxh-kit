@@ -11,7 +11,7 @@ import {
   parseIssueDependencies,
 } from "./plan-document.mjs";
 
-const LIFECYCLES = new Set(["active", "reference", "archived"]);
+const LIFECYCLES = new Set(["planning", "implementing", "reference", "archived"]);
 const SPEC_STATUSES = new Set(["pending", "in_progress", "completed"]);
 const HAN_PATTERN = /\p{Script=Han}/u;
 
@@ -329,6 +329,14 @@ const checkSpec = (planPath, lifecycle, markdownFiles, errors, rootDir) => {
   checkDependencyGraph(issues, planPath, errors, rootDir);
   checkIssueTable(specContent, specPath, issues, errors, rootDir);
   const expectedSpecStatus = deriveSpecStatus(issues);
+  if (lifecycle === "planning" && issues.some((issue) => issue.status !== "pending")) {
+    addError(
+      errors,
+      rootDir,
+      planPath,
+      "planning Plan 的 Issue 必须全部 pending；开始实现后迁入 implementing",
+    );
+  }
   if (specStatus !== expectedSpecStatus) {
     addError(errors, rootDir, specPath, `聚合状态应为 ${expectedSpecStatus}，实际为 ${specStatus}`);
   }
@@ -356,7 +364,7 @@ const checkPlans = (domainPath, errors, rootDir) => {
         errors,
         rootDir,
         path.join(plansPath, lifecycleEntry.name),
-        "Plan 生命周期目录只能是 active、reference 或 archived",
+        "Plan 生命周期目录只能是 planning、implementing、reference 或 archived",
       );
       continue;
     }

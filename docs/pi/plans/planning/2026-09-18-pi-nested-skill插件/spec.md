@@ -87,10 +87,10 @@ pi 现有两处能力缺口：
 
 ## 上下文
 
-- [quest 设计记录](../../../../.flow/quest/2026-09-18-pi插件.md)
-- [ADR-0001](../../adr/0001-嵌套skill以扩展接缝交付.md)
-- [CONTEXT](../../CONTEXT.md)
-- [ADR-0002](../../adr/0002-搜索密钥落用户配置与直连抓取.md)
+- [quest 设计记录](../../../../../.flow/quest/2026-09-18-pi插件.md)
+- [ADR-0001](../../../adr/0001-嵌套skill以扩展接缝交付.md)
+- [CONTEXT](../../../CONTEXT.md)
+- [ADR-0002](../../../adr/0002-搜索密钥落用户配置与直连抓取.md)
 - pi skill 发现：`.../pi-coding-agent/docs/skills.md`；扩展面：`.../pi-coding-agent/docs/extensions.md`（`resources_discover`、`input`、`addAutocompleteProvider`）
 - DSH 同类实现参考：`packages/dsh-nested-skill/src/provider.ts`（本地）
 

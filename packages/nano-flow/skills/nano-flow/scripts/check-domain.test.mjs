@@ -156,7 +156,7 @@ test("忽略占用结构名称的普通文件与伪装成 Markdown 的目录", (
     fs.writeFileSync(path.join(rootDir, "docs/not-a-domain"), "ignored", "utf8");
     fs.writeFileSync(path.join(rootDir, "docs/ordering/plans/not-a-lifecycle"), "ignored", "utf8");
     fs.writeFileSync(
-      path.join(rootDir, "docs/ordering/plans/active/not-a-plan"),
+      path.join(rootDir, "docs/ordering/plans/implementing/not-a-plan"),
       "ignored",
       "utf8",
     );

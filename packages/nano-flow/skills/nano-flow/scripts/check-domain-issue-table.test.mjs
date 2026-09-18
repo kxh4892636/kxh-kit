@@ -5,7 +5,7 @@ import { test } from "vitest";
 
 import { checkDomain } from "./check-domain.mjs";
 import {
-  activePlanPath,
+  implementingPlanPath,
   assertWorkspaceError,
   createValidWorkspace,
   replaceFile,
@@ -15,7 +15,7 @@ test.each(["not-json", "{}", '["1"]'])("拒绝无效 blocked_by %s", (blockedBy)
   assertWorkspaceError(
     (rootDir) =>
       replaceFile(
-        path.join(activePlanPath(rootDir), "01-取消订单.md"),
+        path.join(implementingPlanPath(rootDir), "01-取消订单.md"),
         "blocked_by: []",
         `blocked_by: ${blockedBy}`,
       ),
@@ -47,7 +47,7 @@ test.each([
   ],
 ])("拒绝 Issue 表%s", (_name, mutate, expected) => {
   assertWorkspaceError((rootDir) => {
-    const specPath = path.join(activePlanPath(rootDir), "spec.md");
+    const specPath = path.join(implementingPlanPath(rootDir), "spec.md");
     fs.writeFileSync(specPath, mutate(fs.readFileSync(specPath, "utf8")), "utf8");
   }, expected);
 });
@@ -61,7 +61,7 @@ test.each([
   ["链接后缀", (row) => row.replace("01-取消订单.md)", "01-取消订单.md)x")],
 ])("Issue 表解析拒绝%s", (_name, mutate) => {
   assertWorkspaceError((rootDir) => {
-    const specPath = path.join(activePlanPath(rootDir), "spec.md");
+    const specPath = path.join(implementingPlanPath(rootDir), "spec.md");
     const content = fs.readFileSync(specPath, "utf8");
     const row = content.match(/^\| 01 .*$/m)[0];
     fs.writeFileSync(specPath, content.replace(row, mutate(row)), "utf8");
@@ -71,7 +71,7 @@ test.each([
 test("Issue 表接受最小尾分隔符和两位依赖", () => {
   const rootDir = createValidWorkspace();
   try {
-    const planRoot = activePlanPath(rootDir);
+    const planRoot = implementingPlanPath(rootDir);
     const firstIssue = fs.readFileSync(path.join(planRoot, "01-取消订单.md"), "utf8");
     fs.writeFileSync(
       path.join(planRoot, "02-通知客户.md"),

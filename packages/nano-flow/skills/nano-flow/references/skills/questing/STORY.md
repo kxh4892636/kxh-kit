@@ -7,7 +7,7 @@
 基于 `<nano-flow-skill-root-dir>/references/DOMAIN.md`, 读取相关 CONTEXT、ADR 与已有 Plan；创建或续写用户故事：
 
 ```text
-docs/{domain-name}/plans/active/YYYY-MM-DD-中文工作名/story.md
+docs/{domain-name}/plans/planning/YYYY-MM-DD-中文工作名/story.md
 ```
 
 ## 2. 逐轮澄清

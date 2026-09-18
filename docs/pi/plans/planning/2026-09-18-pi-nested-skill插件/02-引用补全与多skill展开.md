@@ -30,8 +30,8 @@ blocked_by: ["01"]
 
 ## 上下文
 
-- [spec](../../spec.md)「实施决策 · `$` 补全 / `$` 展开」
-- [ADR-0001](../../adr/0001-嵌套skill以扩展接缝交付.md)
+- [spec](spec.md)「实施决策 · `$` 补全 / `$` 展开」
+- [ADR-0001](../../../adr/0001-嵌套skill以扩展接缝交付.md)
 - 补全参考：`.../pi-tui/dist/autocomplete.js`、`dist/fuzzy.js`
 - 宿主展开形态：`.../pi-coding-agent/dist/core/agent-session.js` 的 `_expandSkillCommand`
 - 用户消息示例：`.agents/skills/nano-flow/SKILL.md` 的嵌套 skill（本地）
