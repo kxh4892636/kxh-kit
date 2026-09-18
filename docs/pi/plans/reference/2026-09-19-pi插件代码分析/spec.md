@@ -31,7 +31,7 @@ status: completed
 - **fallow 作用域**：默认在包目录内运行以获得单包指标；需要 `introduced` 归因时在仓库根运行 `fallow audit --base b0cc1409` 并按路径过滤。
 - **误报判定口径**：工具报告与源码事实冲突时，以「是否存在消费者」为准，并记录误报理由（本次为 `@typescript/native`，由 `vp check` 的 `typeCheck` 经 `tsc` 二进制消费）。
 - **结论分级**：分为「已验证事实」「误报保留」「待决取舍」；待决项（SSRF、去 `export` 与否）只记录证据与影响，不替用户决定。
-- **文档落点**：新建 `docs/pi/plans/planning/2026-09-19-pi插件代码分析/`，随附 story、spec 与本 note；迁入 `reference` 需用户确认。
+- **文档落点**：`docs/pi/plans/reference/2026-09-19-pi插件代码分析/`（2026-09-19 由 `planning/` 经 `implementing/` 迁入），随附 story、spec 与两份 note。
 
 ## 工作环境
 
@@ -85,6 +85,7 @@ status: completed
   - [note 01](01-静态分析与代码审查.md)：静态分析与代码审查（门禁与 fallow 实测、两包源码通读、宿主 API 交叉核对）。
   - [note 02](02-清理交付.md)：清理交付完成——9 处导出收窄、`mapAnthropicResponse` 拆分、3 条用例 + 1 条断言、审查闭环，代码提交 `a2851a29`；最终门禁：两包 `vp check` pass、43/30 tests passed、`fallow dead-code` 各剩 1 条误报。
 - 审查结论：spec 审查「有条件通过」、规范审查「OK with notes」，均无阻断项；放行条件与两条既有 P2 已处理或登记到「待定」。
+- 生命周期：2026-09-19 经用户确认，Plan 由 `planning/` 经 `implementing/` 迁入 `reference/`；迁入时已同步修正内部指向与下一步（本 Plan 内链接均为同目录或同级相对引用，不受目录层级变更影响）。
 - 未验证项：SSRF 真实可达性、真机 e2e（均非本次范围）。
 - 上游实现文档未改动，`docs/pi` 其余历史缺项（如 `QUESTIONS.md` 缺失、既有 Plan 缺 story.md）按规则原样保留。
 
@@ -92,7 +93,7 @@ status: completed
 
 - 阅读顺序：[story](story.md) → 本 spec → [note 01](01-静态分析与代码审查.md) → [note 02](02-清理交付.md)。
 - 先核对的现场事实：`git log --oneline -3` 应含 `refactor(pi): 收窄无消费者导出并拆分搜索响应映射`；`git status` 应干净（本 Plan 已随 `docs(pi)` 提交）。
-- 下一项行动：用户确认后把本 Plan 从 `implementing/` 迁入 `reference/`（`git mv` 后按需修正相对链接；本 Plan 内链接均为同目录相对引用，不受生命周期目录变更影响）。
+- 下一项行动：无待办——本 Plan 已于 2026-09-19 经用户确认迁入 `reference/`，全部 note `completed`。若要动「待定」中的任一项（尤其 SSRF、`truncated`、外部 JSON 防御），另开一个 Plan 与交付 note，不在本 Plan 内直接改行为。
 - 停止条件：要动「待定」中任一项（尤其 SSRF、`truncated`、外部 JSON 防御）时，先澄清产品取舍，另开交付 note，不在本 Plan 内直接改行为。
 
 ## Notes
@@ -100,4 +101,4 @@ status: completed
 | #   | Notes                                          | 状态      | 阻塞于 | 下一步                         |
 | --- | ---------------------------------------------- | --------- | ------ | ------------------------------ |
 | 01  | [静态分析与代码审查](01-静态分析与代码审查.md) | completed | —      | 已消费其清理清单               |
-| 02  | [清理交付](02-清理交付.md)                     | completed | —      | 待用户确认后整体迁入 reference |
+| 02  | [清理交付](02-清理交付.md)                     | completed | —      | 已迁入 reference（2026-09-19） |
