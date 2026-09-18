@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 blocked_by: ["01"]
 ---
 
@@ -42,4 +42,7 @@ blocked_by: ["01"]
 
 ## 交付记录
 
-待完成登记。
+- **交付物**：`src/{suggest,reference}.ts` 及测试；`src/index.ts` 的 `session_start`（autocomplete）与 `input`（多 skill 展开）接线。
+- **验证证据**：
+  - 同上 26 项测试通过；覆盖 `$` 行首/空白后触发、词中不触发、空查询全量、按 name 去重、fuzzy 排序、`applyCompletion` 生成 `$name ` 并移动光标、多 token 展开、未知 `$word` 原样、`$` 后跟 `:`/`/`/`.` 不展开。
+  - `check` 通过。

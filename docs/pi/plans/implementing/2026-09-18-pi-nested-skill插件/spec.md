@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 ---
 
 # pi-nested-skill
@@ -55,7 +55,7 @@ pi 现有两处能力缺口：
 
 ### `$` 展开（`input`）
 
-- 匹配：`/\$(?<name>[a-z0-9]+(?:-[a-z0-9]+)*)(?![\w:-])/g`，且要求 `$` 位于文本开头或空白之后。
+- 匹配：`/\$(?<name>[a-z0-9]+(?:-[a-z0-9]+)*)(?![\w:./-])/g`，且要求 `$` 位于文本开头或空白之后。
 - 命中即在 skill 表中查 name；命中则替换为与宿主一致的块：
   `<skill name="${name}" location="${filePath}">\nReferences are relative to ${baseDir}.\n\n${body}\n</skill>`，其中 `body` 由 `stripFrontmatter(readFileSync(filePath))` 得到。
 - 未命中（如 `$HOME`）原样保留；多个命中各自展开；返回 `{action: "transform", text}`。
@@ -96,8 +96,8 @@ pi 现有两处能力缺口：
 
 ## Issue
 
-| #   | Issue                                                  | 状态    | 阻塞于 | 下一步         |
-| --- | ------------------------------------------------------ | ------- | ------ | -------------- |
-| 01  | [嵌套 skill 发现实现](01-嵌套skill发现实现.md)         | pending | —      | /code-delivery |
-| 02  | [引用补全与多 skill 展开](02-引用补全与多skill展开.md) | pending | 01     | /code-delivery |
-| 03  | [安装与真机验证](03-安装与真机验证.md)                 | pending | 01, 02 | /code-delivery |
+| #   | Issue                                                  | 状态      | 阻塞于 | 下一步         |
+| --- | ------------------------------------------------------ | --------- | ------ | -------------- |
+| 01  | [嵌套 skill 发现实现](01-嵌套skill发现实现.md)         | completed | —      | /code-delivery |
+| 02  | [引用补全与多 skill 展开](02-引用补全与多skill展开.md) | completed | 01     | /code-delivery |
+| 03  | [安装与真机验证](03-安装与真机验证.md)                 | completed | 01, 02 | /code-delivery |

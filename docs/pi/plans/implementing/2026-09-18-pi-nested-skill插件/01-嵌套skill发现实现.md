@@ -1,5 +1,5 @@
 ---
-status: pending
+status: completed
 blocked_by: []
 ---
 
@@ -43,4 +43,10 @@ blocked_by: []
 
 ## 交付记录
 
-待完成登记。
+- **交付物**：`packages/pi-nested-skill`（`package.json`、`tsconfig.json`、`vite.config.ts`、`README.md`、`src/{discover,index}.ts` 及测试）。
+- **验证证据**：
+  - `pnpm --filter @kxh4892636/pi-nested-skill test`：4 个测试文件 26 项全部通过。
+  - `test:coverage`：statements 95.73 / branches 90.1 / functions 92.1 / lines 96.29，均 ≥ 80。
+  - `check`：格式、lint、类型全部通过。
+  - 隐藏判定单测：深层 `SKILL.md` 命中、普通多层可见、排除清单与隐藏目录剪除、已知 skill 目录之下恒为隐藏、真实路径去重与排序。
+- **说明**：实现直接在本机 main 工作树进行（无 worktree）；提交仅限定本交付路径。

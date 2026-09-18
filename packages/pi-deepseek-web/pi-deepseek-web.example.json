@@ -1,0 +1,7 @@
+{
+  "apiKey": "sk-your-deepseek-api-key",
+  "baseURL": "https://api.deepseek.com/anthropic/v1",
+  "model": "deepseek-v4-flash",
+  "fetchMaxBodyChars": 100000,
+  "fetchTimeoutMs": 30000
+}
