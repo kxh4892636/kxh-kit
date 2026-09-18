@@ -330,6 +330,9 @@ const verifyDistributionSurface = async (fixture: DistributionFixture): Promise<
     "skills/nano-flow/references/skills/domain/SKILL.md",
     "skills/nano-flow/references/skills/domain/KNOWLEDGE.md",
     "skills/nano-flow/references/skills/domain/PLAN.md",
+    "skills/nano-flow/references/skills/domain/STORY.md",
+    "skills/nano-flow/references/skills/domain/SPEC.md",
+    "skills/nano-flow/references/skills/domain/NOTES.md",
     "skills/nano-flow/scripts/check-domain.mjs",
     "skills/nano-flow-cli/SKILL.md",
   ];
