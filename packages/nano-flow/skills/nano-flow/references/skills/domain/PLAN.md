@@ -1,8 +1,17 @@
 # Plan
 
+## 生命周期
+
+- `planning`：新 Plan 的起点，讨论需求、调查和制定方案；这些 notes 可在此推进和完成。
+- `implementing`：开始实际实现前迁入整个 Plan；继续开发、测试与验收。
+- `reference`：全部 notes 已完成且仍有参考价值，经用户确认后迁入；仅讨论或计划的任务可从 planning 直接迁入。
+- `archived`：废弃、过时或不再有用时迁入，内容冻结并退出当前权威来源；恢复工作时先迁回 planning 或 implementing，再依据现场修订。
+
+生命周期表达工作阶段，notes 状态表达子任务进度；迁移 Plan 时同步相对链接。
+
 ## story.md
 
-story 是用户故事的 card，逐轮拷问形成 conversation，可判定验收形成 confirmation。epic 内故事使用四级标题，独立故事使用三级标题，不创建空壳 epic。
+使用稳定的 `US-NNN` 标识。story 是用户故事的 card，逐轮拷问形成 conversation，可判定验收形成 confirmation。epic 内故事使用四级标题，独立故事使用三级标题，不创建空壳 epic。
 
 ```markdown
 # {工作名}
@@ -50,7 +59,7 @@ story 是用户故事的 card，逐轮拷问形成 conversation，可判定验�
 
 - spec 状态从**全部 notes** 派生：全部 pending 为 pending，全部 completed 为 completed，其余为 in_progress。
 - spec 的 `## Notes` 索引保持 1–21 项，选择对当前工作最有用的 notes; 索引不是全量清单；移出索引不等于删除文档或完成工作。
-- 工作需要重新推进时据事实更新状态与恢复记录；不可仅修改索引隐藏未完成项。删除或合并有依赖的 note 时，先将消费关系改指实际承接契约的 note。
+- 索引优先当前工作、阻塞、下一步与关键决策；索引中的链接、状态、直接依赖和下一步与 note 同步。未索引的剩余工作在「当前进度」保留定位入口。
 
 ```markdown
 ---
@@ -126,9 +135,10 @@ pending → in_progress → completed
            blocked
 ```
 
-- 开始工作: `status` 更新为 `in_progress`。
-- 堵塞卡点: 标记 `blocked`, 并写入障碍与解除条件
-- 完成交付: 更新「交付记录」，标记 `completed`。
+- **标识与依赖**：文件 ID 为唯一、稳定的两位数字，新增使用未用 ID；删除或合并后允许断号，不重排幸存 ID。`blocked_by` 是两位字符串的 JSON 数组，如 `["01"]`，无依赖为 `[]`；依赖必须存在、ID 在当前 note 之前且无环。
+- **推进**：直接依赖 completed 后开始工作，标记 in_progress；受阻标记 blocked 并记录障碍与解除条件，解除后回到 in_progress。
+- **完成**：满足本 note 的验收条件，填入交付物与验证证据后标记 completed；讨论或计划以可检查的结论、方案作为交付物。
+- **修订**：重新推进时据事实更新状态和检查点；删除或合并有依赖的 note 前，将消费关系改指实际承接产物或契约的 note。
 
 ```markdown
 ---
@@ -181,4 +191,4 @@ blocked_by: []
 
 ## 模板扩展
 
-内容无法归入现有章节（**独特**），且缺少它会损失执行或验收信息（**必要**）时，根据内容新增拓展章节;
+保留固定章节，未知或不适用内容写明原因。内容无法归入现有章节（**独特**），且缺少它会损失执行或验收信息（**必要**）时，新增扩展章节。

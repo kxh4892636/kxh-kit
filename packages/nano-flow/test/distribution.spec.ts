@@ -328,8 +328,8 @@ const verifyDistributionSurface = async (fixture: DistributionFixture): Promise<
     "THIRD_PARTY_NOTICES.md",
     "skills/nano-flow/SKILL.md",
     "skills/nano-flow/references/skills/domain/SKILL.md",
-    "skills/nano-flow/references/skills/domain/DOCUMENTS.md",
-    "skills/nano-flow/references/skills/domain/TEMPLATES.md",
+    "skills/nano-flow/references/skills/domain/KNOWLEDGE.md",
+    "skills/nano-flow/references/skills/domain/PLAN.md",
     "skills/nano-flow/scripts/check-domain.mjs",
     "skills/nano-flow-cli/SKILL.md",
   ];
@@ -342,6 +342,8 @@ const verifyDistributionSurface = async (fixture: DistributionFixture): Promise<
   const skillTree = await collectTree(path.join(fixture.installedPackage, "skills"));
   for (const removed of [
     "/references/DOMAIN.md:",
+    "/domain/DOCUMENTS.md:",
+    "/domain/TEMPLATES.md:",
     "/questing/STORY.md:",
     "/questing/DESIGN.md:",
     "/to-issues/TEMPLATES.md:",
