@@ -1,4 +1,4 @@
-export const ISSUE_STATUSES = Object.freeze(["pending", "in_progress", "blocked", "completed"]);
+export const NOTE_STATUSES = Object.freeze(["pending", "in_progress", "blocked", "completed"]);
 
 export const parseFrontmatter = (content) => {
   const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
@@ -12,7 +12,7 @@ export const parseFrontmatter = (content) => {
   return { fields, match };
 };
 
-export const parseIssueDependencies = (rawValue) => {
+export const parseNoteDependencies = (rawValue) => {
   if (rawValue === undefined) return { kind: "missing" };
 
   let value;
@@ -24,14 +24,17 @@ export const parseIssueDependencies = (rawValue) => {
       kind: "invalid_json",
     };
   }
-  if (!Array.isArray(value) || value.some((dependency) => !/^\d{2}$/.test(dependency))) {
+  if (
+    !Array.isArray(value) ||
+    value.some((dependency) => typeof dependency !== "string" || !/^\d{2}$/.test(dependency))
+  ) {
     return { kind: "invalid_value" };
   }
   return { dependencies: value, kind: "valid" };
 };
 
-export const deriveSpecStatus = (issues) => {
-  if (issues.every((issue) => issue.status === "pending")) return "pending";
-  if (issues.every((issue) => issue.status === "completed")) return "completed";
+export const deriveSpecStatus = (notes) => {
+  if (notes.every((note) => note.status === "pending")) return "pending";
+  if (notes.every((note) => note.status === "completed")) return "completed";
   return "in_progress";
 };
