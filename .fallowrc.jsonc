@@ -1,10 +1,7 @@
 {
   // 清理口径: 只登记静态分析无法看见、但确有运行时/人工入口的事实, 不放宽真实缺陷的检测。
   "$schema": "https://raw.githubusercontent.com/fallow-rs/fallow/main/schema.json",
-  "entry": [
-    // nano-mem 评测工具链: 由 benchmarks/README.md 记录的手工流程驱动, 无 import 边。
-    "packages/nano-mem/benchmarks/*.mjs",
-  ],
+  "entry": [],
   "ignoreDependencies": [
     // 由 cordis.patch.yml 以插件名装载, 不是本包 import 的模块。
     "@deepseek-ai/dsh-tool-session-query",
