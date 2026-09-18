@@ -327,6 +327,10 @@ const verifyDistributionSurface = async (fixture: DistributionFixture): Promise<
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
     "skills/nano-flow/SKILL.md",
+    "skills/nano-flow/references/skills/domain/SKILL.md",
+    "skills/nano-flow/references/skills/domain/DOCUMENTS.md",
+    "skills/nano-flow/references/skills/domain/TEMPLATES.md",
+    "skills/nano-flow/scripts/check-domain.mjs",
     "skills/nano-flow-cli/SKILL.md",
   ];
   await Promise.all(
@@ -336,6 +340,16 @@ const verifyDistributionSurface = async (fixture: DistributionFixture): Promise<
     ),
   );
   const skillTree = await collectTree(path.join(fixture.installedPackage, "skills"));
+  for (const removed of [
+    "/references/DOMAIN.md:",
+    "/questing/STORY.md:",
+    "/questing/DESIGN.md:",
+    "/to-issues/TEMPLATES.md:",
+  ]) {
+    expect(
+      skillTree.some((file: string): boolean => file.replaceAll("\\", "/").includes(removed)),
+    ).toBe(false);
+  }
   expect(skillTree.every((file: string): boolean => !file.includes(".test.mjs:"))).toBe(true);
   expect(
     skillTree.every(

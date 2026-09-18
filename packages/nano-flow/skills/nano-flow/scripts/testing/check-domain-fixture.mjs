@@ -84,16 +84,28 @@ status: pending
 
 订单术语表。
 
-## Issue
+## 执行约束
 
-| # | Issue | 状态 | 阻塞于 | 下一步 |
+遵循已确认范围。
+
+## 当前进度
+
+尚未开始。
+
+## 恢复入口
+
+读取首个 note 并核对代码。
+
+## Notes
+
+| # | Notes | 状态 | 阻塞于 | 下一步 |
 | --- | --- | --- | --- | --- |
 | 01 | [取消订单](01-取消订单.md) | pending | — | /code-delivery |
 `,
   );
 };
 
-const writeActivePlanIssue = (rootDir) => {
+const writeActivePlanNote = (rootDir) => {
   writeFile(
     rootDir,
     "docs/ordering/plans/implementing/2026-08-22-支持订单取消/01-取消订单.md",
@@ -124,6 +136,14 @@ blocked_by: []
 
 - 订单术语表。
 
+## 决策与证据
+
+用户要求取消订单。
+
+## 执行检查点
+
+尚未执行。
+
 ## 下一步
 
 /code-delivery
@@ -135,9 +155,15 @@ export const createValidWorkspace = () => {
   const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "domain-check-"));
   writeContextMap(rootDir);
   writeContext(rootDir);
+  writeFile(rootDir, "docs/ordering/QUESTIONS.md", "# 订单常见问题\n\n暂无已验证的重复问题。\n");
+  writeFile(
+    rootDir,
+    "docs/ordering/plans/implementing/2026-08-22-支持订单取消/story.md",
+    "# 支持订单取消\n\n## 原始想法\n\n取消订单。\n\n## 角色\n\n客户。\n\n## 故事\n\n### US-001 取消订单\n\n作为客户，我想取消订单，以便修正错误。\n\n- [ ] 取消未发货订单。\n\n## 约束与澄清\n\n限未发货。\n\n## 迷雾\n\n无。\n\n## 上下文\n\n[方案](spec.md)。\n",
+  );
   writeAdr(rootDir);
   writeActivePlanSpec(rootDir);
-  writeActivePlanIssue(rootDir);
+  writeActivePlanNote(rootDir);
   return rootDir;
 };
 

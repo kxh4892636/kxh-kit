@@ -3,9 +3,9 @@ import { describe, test } from "vitest";
 
 import {
   deriveSpecStatus,
-  ISSUE_STATUSES,
+  NOTE_STATUSES,
   parseFrontmatter,
-  parseIssueDependencies,
+  parseNoteDependencies,
 } from "./plan-document.mjs";
 
 describe("Plan document", () => {
@@ -28,24 +28,24 @@ describe("Plan document", () => {
   });
 
   test("classifies dependency syntax independently from caller error presentation", () => {
-    assert.deepEqual(parseIssueDependencies('["01", "99"]'), {
+    assert.deepEqual(parseNoteDependencies('["01", "99"]'), {
       dependencies: ["01", "99"],
       kind: "valid",
     });
-    assert.deepEqual(parseIssueDependencies(undefined), { kind: "missing" });
-    assert.equal(parseIssueDependencies("not-json").kind, "invalid_json");
-    for (const rawValue of ['"01"', '["1"]', '["001"]', "[1]"]) {
-      assert.deepEqual(parseIssueDependencies(rawValue), { kind: "invalid_value" });
+    assert.deepEqual(parseNoteDependencies(undefined), { kind: "missing" });
+    assert.equal(parseNoteDependencies("not-json").kind, "invalid_json");
+    for (const rawValue of ['"01"', '["1"]', '["001"]', "[1]", "[12]"]) {
+      assert.deepEqual(parseNoteDependencies(rawValue), { kind: "invalid_value" });
     }
   });
 
-  test("derives the spec status from issue statuses", () => {
+  test("derives the spec status from note statuses", () => {
     assert.equal(deriveSpecStatus([{ status: "pending" }, { status: "pending" }]), "pending");
     assert.equal(deriveSpecStatus([{ status: "completed" }, { status: "completed" }]), "completed");
     assert.equal(deriveSpecStatus([{ status: "blocked" }, { status: "pending" }]), "in_progress");
   });
 
-  test("publishes the complete issue status vocabulary", () => {
-    assert.deepEqual(ISSUE_STATUSES, ["pending", "in_progress", "blocked", "completed"]);
+  test("publishes the complete note status vocabulary", () => {
+    assert.deepEqual(NOTE_STATUSES, ["pending", "in_progress", "blocked", "completed"]);
   });
 });

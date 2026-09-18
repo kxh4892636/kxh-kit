@@ -229,3 +229,25 @@ test.each([new Error("boom"), "boom"])("CLI wrapper normalizes unexpected %s", (
     vi.restoreAllMocks();
   }
 });
+
+test.each(["CONTEXT.md", "QUESTIONS.md"])("%s 使用相同的必备、中文和行数约束", (name) => {
+  for (const [content, expected] of [
+    [null, `业务域缺少 ${name}`],
+    ["English only\n", "正文必须包含中文"],
+    ["", "正文必须包含中文"],
+    ["中文\r\n".repeat(611), `${name} 共 611 行，超过 610`],
+  ]) {
+    assertWorkspaceError((rootDir) => {
+      const target = path.join(rootDir, "docs/ordering", name);
+      if (content === null) fs.rmSync(target);
+      else fs.writeFileSync(target, content);
+    }, expected);
+  }
+  const rootDir = createValidWorkspace();
+  try {
+    fs.writeFileSync(path.join(rootDir, "docs/ordering", name), "中文\n".repeat(610).trimEnd());
+    assert.deepEqual(checkDomain(rootDir), []);
+  } finally {
+    fs.rmSync(rootDir, { recursive: true, force: true });
+  }
+});
