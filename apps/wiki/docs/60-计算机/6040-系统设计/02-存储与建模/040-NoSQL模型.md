@@ -45,7 +45,3 @@ id: 522cfcb6-4afd-48e3-96c0-960b75444256
 - 适用条件: 同一业务确实需要多种模型，并且产品在这些模型下的保证满足需求;
 - 权衡: 接口更统一不等于所有模型共享同样的事务、性能或成熟度，需逐个验证;
 - 原文示例: ArangoDB、Cosmos DB、Couchbase;
-
-## 本篇依据哪些材料？
-
-- 来源: Karan Pratap Singh 的 System Design，[原文 L1055–L1204](https://github.com/karanpratapsingh/system-design/blob/b150e62ef30c1343cffbe83f4df60d14ab1d234f/README.md#L1055-L1204)；本篇按概念重组，修正和补充已在相关段落注明;

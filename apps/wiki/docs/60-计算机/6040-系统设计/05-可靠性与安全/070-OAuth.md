@@ -29,7 +29,3 @@ id: b2a5de0f-42bd-4777-be1f-5ddc29b40c69
 - Refresh Token: 在获准条件下用来换取新访问令牌，属于需要保护的长期凭据，不直接用于普通资源调用;
 - 安全条件: 使用 TLS、严格回调地址校验和适当的请求绑定，遵循 [RFC 9700](https://www.rfc-editor.org/rfc/rfc9700.html)的安全要求;
 - 原文修正: 不以直接返回访问令牌的旧式浏览器流程作为推荐范例，也不说 OAuth 缺乏标准实现规则;
-
-## 本篇依据哪些材料？
-
-- 来源: Karan Pratap Singh 的 System Design，[原文 L3345–L3381](https://github.com/karanpratapsingh/system-design/blob/b150e62ef30c1343cffbe83f4df60d14ab1d234f/README.md#L3345-L3381)；本篇按概念重组，修正和补充已在相关段落注明;

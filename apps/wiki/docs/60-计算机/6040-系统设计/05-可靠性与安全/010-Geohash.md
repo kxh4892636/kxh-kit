@@ -30,7 +30,3 @@ id: 4f21d177-d861-4902-bf61-7539cacabbe3
 - 误差处理: 网格包围区域不是精确圆形，需要移除矩形角落等假阳性结果;
 - 参考: [Firestore 地理查询文档](https://docs.cloud.google.com/firestore/native/docs/solutions/geoqueries)展示了多范围查询与距离过滤;
 - 原文示例: MySQL、Redis、DynamoDB、Firestore 可结合各自能力支持空间查询，不代表接口完全相同;
-
-## 本篇依据哪些材料？
-
-- 来源: Karan Pratap Singh 的 System Design，[原文 L2998–L3049](https://github.com/karanpratapsingh/system-design/blob/b150e62ef30c1343cffbe83f4df60d14ab1d234f/README.md#L2998-L3049)；本篇按概念重组，修正和补充已在相关段落注明;

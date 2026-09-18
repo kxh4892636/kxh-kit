@@ -19,7 +19,3 @@ id: 2d21dcd4-9ded-4a1f-a1be-d056e343ecad
 - 冲突策略: 多个位置并发写入时要有确定的合并或拒绝规则，否则仅传播数据不会自动使业务正确;
 - 收敛验证: 停止写入并恢复通信后，检查各副本是否到达同一目标状态，也要观察完成收敛所需时间;
 - 选择边界: 对不能容忍超卖或重复占用的关键规则，可在局部事务中保持强约束，而让展示或分析结果异步更新;
-
-## 本篇依据哪些材料？
-
-- 来源: Karan Pratap Singh 的 System Design，[原文 L1516–L1543](https://github.com/karanpratapsingh/system-design/blob/b150e62ef30c1343cffbe83f4df60d14ab1d234f/README.md#L1516-L1543)；本篇按概念重组，修正和补充已在相关段落注明;

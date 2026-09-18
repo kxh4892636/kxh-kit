@@ -35,7 +35,3 @@ id: 586dffbb-0c80-4217-9194-71f340a31838
 - 性能判断: UDP 头部和连接开销较小，但“永远比 TCP 快”不成立，实际效果取决于丢包、恢复策略与负载;
 - 设计顺序: 先决定能否丢失、是否需要顺序及延迟目标，再选择协议及上层补偿机制;
 - 拆分边界: DNS 也可以使用 TCP，视频也可以通过可靠 HTTP 传输，业务名称不能唯一决定底层协议;
-
-## 本篇依据哪些材料？
-
-- 来源: Karan Pratap Singh 的 System Design，[原文 L208–L240](https://github.com/karanpratapsingh/system-design/blob/b150e62ef30c1343cffbe83f4df60d14ab1d234f/README.md#L208-L240)；本篇按概念重组，修正和补充已在相关段落注明;

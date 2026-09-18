@@ -41,7 +41,3 @@ id: a937542f-d94a-488e-8c74-881ae8cd7781
 - 选择原则: 性能、耦合、可发现性和复杂度都取决于实际接口设计，没有天然适合所有系统的冠军;
 
 - 深入阅读: [GraphQL](../04-接口协议/010-GraphQL.md) 与 [gRPC](../04-接口协议/020-gRPC.md) 分别解释字段查询和远程方法调用;
-
-## 本篇依据哪些材料？
-
-- 来源: Karan Pratap Singh 的 System Design，[原文 L2625–L2718](https://github.com/karanpratapsingh/system-design/blob/b150e62ef30c1343cffbe83f4df60d14ab1d234f/README.md#L2625-L2718)、[原文 L2873–L2895](https://github.com/karanpratapsingh/system-design/blob/b150e62ef30c1343cffbe83f4df60d14ab1d234f/README.md#L2873-L2895)；本篇按概念重组，修正和补充已在相关段落注明;

@@ -38,7 +38,3 @@ type Query {
 - Resolver: 对 user 等字段执行数据读取，结果必须符合模式，但查询语言不会自动替代底层数据库优化;
 - 复杂度控制: 客户端可以自由组合字段，服务端仍应限制深度、数量和昂贵查询，避免一次请求占用无限资源;
 - 演进: 增加字段通常较容易保持旧查询兼容，删除或改变字段类型需要明确弃用和迁移过程;
-
-## 本篇依据哪些材料？
-
-- 来源: Karan Pratap Singh 的 System Design，[原文 L2719–L2811](https://github.com/karanpratapsingh/system-design/blob/b150e62ef30c1343cffbe83f4df60d14ab1d234f/README.md#L2719-L2811)；本篇按概念重组，修正和补充已在相关段落注明;

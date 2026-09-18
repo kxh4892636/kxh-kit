@@ -31,7 +31,3 @@ message HelloReply { string text = 1; }
 - 字段演进: 字段编号是协议的一部分，不能随意把已使用编号改给新含义;
 - 流式通信: 可以传输连续请求或响应，双向流适合持续交互，但仍要控制处理速度和积压;
 - 可发现性: 接口定义和生成工具帮助调用方理解服务，不能把缺少普通浏览器页面当作没有契约;
-
-## 本篇依据哪些材料？
-
-- 来源: Karan Pratap Singh 的 System Design，[原文 L2812–L2872](https://github.com/karanpratapsingh/system-design/blob/b150e62ef30c1343cffbe83f4df60d14ab1d234f/README.md#L2812-L2872)；本篇按概念重组，修正和补充已在相关段落注明;

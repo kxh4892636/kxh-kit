@@ -42,7 +42,3 @@ id: 5e46a600-088d-4652-808f-45d1e1f89952
 - 适用条件: 读写负载差异明显、复杂领域规则持续演进、多个展示模型或系统集成确实需要独立优化;
 - 安全收益: 写入职责集中后更容易控制哪些业务实体有权修改状态;
 - 代价: 模型数量、同步逻辑和运维工作增加，简单 CRUD 场景通常难以获得相应收益;
-
-## 本篇依据哪些材料？
-
-- 来源: Karan Pratap Singh 的 System Design，[原文 L2506–L2549](https://github.com/karanpratapsingh/system-design/blob/b150e62ef30c1343cffbe83f4df60d14ab1d234f/README.md#L2506-L2549)；本篇按概念重组，修正和补充已在相关段落注明;

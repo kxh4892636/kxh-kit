@@ -25,7 +25,3 @@ id: 7c15823c-6a78-40d0-b1d4-e2b31ce40108
 - 受众区别: Access Token 通常面向资源服务器，ID Token 面向当前客户端，不能把一方的令牌冒充另一方的凭据;
 - 登录上下文: 客户端必须把认证响应绑定到自己发起的请求，验证签发者、受众及有效期，防止接收不属于本次登录的结果;
 - 前置流程: 授权码、scope 与资源访问流程见 [OAuth 2.0](070-OAuth.md)，这里只负责身份声明的解释;
-
-## 本篇依据哪些材料？
-
-- 来源: Karan Pratap Singh 的 System Design，[原文 L3382–L3398](https://github.com/karanpratapsingh/system-design/blob/b150e62ef30c1343cffbe83f4df60d14ab1d234f/README.md#L3382-L3398)；本篇按概念重组，修正和补充已在相关段落注明;
