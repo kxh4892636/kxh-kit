@@ -23,10 +23,10 @@ blocked_by: ["01"]
 
 ## 验收
 
-- [ ] `pnpm --filter @kxh4892636/pi-nested-skill test` 全部通过，增量覆盖率 >= 80%
-- [ ] `pnpm --filter @kxh4892636/pi-nested-skill check` 通过
-- [ ] 单测覆盖：`$` 在行首与空白后触发、`$` 在词中不触发、空查询返回全部、按 name 去重、fuzzy 排序稳定、`applyCompletion` 生成 `$name ` 且保留光标、多 token 展开、未知 `$word` 原样、`$` 后跟 `:`/`/` 不展开、正文含 `References are relative to <baseDir>.`
-- [ ] 用 fake `pi` API 断言：未命中 `$` 语法时委托 `current.getSuggestions`；`input` 返回 `transform`
+- [x] `pnpm --filter @kxh4892636/pi-nested-skill test` 全部通过，增量覆盖率 >= 80%
+- [x] `pnpm --filter @kxh4892636/pi-nested-skill check` 通过
+- [x] 单测覆盖：`$` 在行首与空白后触发、`$` 在词中不触发、空查询返回全部、按 name 去重、fuzzy 排序稳定、`applyCompletion` 生成 `$name ` 且保留光标、多 token 展开、未知 `$word` 原样、`$` 后跟 `:`/`/` 不展开、正文含 `References are relative to <baseDir>.`
+- [x] 用 fake `pi` API 断言：未命中 `$` 语法时委托 `current.getSuggestions`；`input` 返回 `transform`
 
 ## 上下文
 
@@ -44,5 +44,6 @@ blocked_by: ["01"]
 
 - **交付物**：`src/{suggest,reference}.ts` 及测试；`src/index.ts` 的 `session_start`（autocomplete）与 `input`（多 skill 展开）接线。
 - **验证证据**：
-  - 同上 26 项测试通过；覆盖 `$` 行首/空白后触发、词中不触发、空查询全量、按 name 去重、fuzzy 排序、`applyCompletion` 生成 `$name ` 并移动光标、多 token 展开、未知 `$word` 原样、`$` 后跟 `:`/`/`/`.` 不展开。
+  - 同上 28 项测试通过；覆盖 `$` 行首/空白后触发、词中不触发、空查询全量、按 name 去重、fuzzy 排序、`applyCompletion` 生成 `$name ` 并移动光标、非 `$` 前缀委托内置 provider、多 token 展开、未知 `$word` 原样、`$` 后跟 `:`/`/`/`.` 不展开。
   - `check` 通过。
+- **代码审查修复**：原 `applyCompletion` 对所有前缀都插入 `$name`，会破坏宿主的 `/` 命令与 `@` 文件补全；已改为非 `$` 前缀委托 `current.applyCompletion`，并补上对应单测。

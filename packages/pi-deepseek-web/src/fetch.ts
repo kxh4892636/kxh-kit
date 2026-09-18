@@ -114,10 +114,11 @@ export async function fetchPage(request: FetchPageRequest): Promise<FetchedPage>
       signal,
     });
   } catch (error) {
+    if (request.signal?.aborted === true) {
+      throw new Error(`web_fetch was aborted for ${target.toString()}`);
+    }
     if (signal.aborted) {
-      throw new Error(
-        `web_fetch timed out or was aborted after ${limits.timeoutMs}ms for ${target.toString()}`,
-      );
+      throw new Error(`web_fetch timed out after ${limits.timeoutMs}ms for ${target.toString()}`);
     }
     throw new Error(`web_fetch failed for ${target.toString()}: ${messageOf(error)}`);
   }

@@ -11,12 +11,18 @@ import { fetchPage } from "./fetch.ts";
 import { formatFetchOutput, formatSearchOutput } from "./format.ts";
 import { deepSeekSearch } from "./search.ts";
 
-const configFor = (ctx: ExtensionContext) => {
-  return loadConfig({ cwd: ctx.cwd });
+/** Injectable overrides (tests inject an isolated agent dir and environment). */
+export interface DeepSeekWebOptions {
+  readonly agentDir?: string;
+  readonly env?: NodeJS.ProcessEnv;
+}
+
+const configFor = (ctx: ExtensionContext, options: DeepSeekWebOptions) => {
+  return loadConfig({ cwd: ctx.cwd, projectTrusted: ctx.isProjectTrusted(), ...options });
 };
 
 /** Register the DeepSeek-backed web tools. */
-export default function piDeepSeekWeb(pi: ExtensionAPI): void {
+export default function piDeepSeekWeb(pi: ExtensionAPI, options: DeepSeekWebOptions = {}): void {
   pi.registerTool({
     name: "web_search",
     label: "Web Search",
@@ -31,7 +37,7 @@ export default function piDeepSeekWeb(pi: ExtensionAPI): void {
       query: Type.String({ description: "The search query." }),
     }),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      const loaded = configFor(ctx);
+      const loaded = configFor(ctx, options);
       const apiKey = requireApiKey(loaded);
       const result = await deepSeekSearch({
         query: params.query,
@@ -60,7 +66,7 @@ export default function piDeepSeekWeb(pi: ExtensionAPI): void {
       url: Type.String({ description: "Absolute http(s) URL to fetch." }),
     }),
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
-      const loaded = configFor(ctx);
+      const loaded = configFor(ctx, options);
       const page = await fetchPage({
         url: params.url,
         config: {
@@ -72,7 +78,12 @@ export default function piDeepSeekWeb(pi: ExtensionAPI): void {
       });
       return {
         content: [{ type: "text" as const, text: formatFetchOutput(page) }],
-        details: page,
+        details: {
+          url: page.url,
+          statusCode: page.statusCode,
+          contentType: page.contentType,
+          truncated: page.truncated,
+        },
       };
     },
   });

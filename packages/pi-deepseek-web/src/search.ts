@@ -131,7 +131,8 @@ export function mapAnthropicResponse(response: AnthropicResponse): WebSearchResu
   const seen = new Set<string>();
   const sources: WebSource[] = [];
   for (const block of resultBlocks) {
-    for (const item of block.content ?? []) {
+    const items = Array.isArray(block.content) ? block.content : [];
+    for (const item of items) {
       if (item.url.length === 0 || seen.has(item.url)) continue;
       seen.add(item.url);
       const snippet = snippets.get(item.url);

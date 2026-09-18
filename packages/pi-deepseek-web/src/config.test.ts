@@ -103,6 +103,15 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ cwd, agentDir, env: {} })).toThrow(/maxUses/u);
   });
 
+  it("ignores the project config when the project is untrusted", () => {
+    const cwd = tempDir();
+    const agentDir = tempDir();
+    mkdirSync(join(cwd, ".pi"), { recursive: true });
+    writeFileSync(join(cwd, ".pi", CONFIG_FILE_NAME), JSON.stringify({ model: "project-model" }));
+    const { config } = loadConfig({ cwd, agentDir, env: {}, projectTrusted: false });
+    expect(config.model).toBe(DEFAULT_MODEL);
+  });
+
   it("reads an explicit config path from the environment", () => {
     const cwd = tempDir();
     const override = join(tempDir(), "explicit.json");

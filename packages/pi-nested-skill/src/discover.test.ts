@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, relative as relativePath } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -105,5 +105,25 @@ describe("findHiddenSkillDirs", () => {
         projectTrusted: true,
       }),
     ).toEqual([]);
+  });
+
+  it("does not follow symlinked directories", () => {
+    const project = tempDir();
+    mkdirSync(join(project, ".git"), { recursive: true });
+    writeSkill(join(project, ".agents/skills/alpha"), "alpha");
+    const beta = join(project, ".agents/skills/alpha/references/skills/beta");
+    writeSkill(beta, "beta");
+    try {
+      symlinkSync(beta, join(project, ".agents/skills/alpha/link"), "junction");
+    } catch {
+      return; // Platform without directory-link support.
+    }
+    const result = findHiddenSkillDirs({
+      cwd: project,
+      agentDir: tempDir(),
+      homeDir: tempDir(),
+      projectTrusted: true,
+    });
+    expect(relativeTo(result, project).some((path) => path.endsWith("/link"))).toBe(false);
   });
 });

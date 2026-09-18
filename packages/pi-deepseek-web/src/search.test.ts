@@ -60,6 +60,15 @@ describe("mapAnthropicResponse", () => {
       /web_search_tool_result/u,
     );
   });
+
+  it("ignores a malformed result block body instead of throwing", () => {
+    const malformed = {
+      content: [
+        { type: "web_search_tool_result", content: { type: "web_search_tool_result_error" } },
+      ],
+    } as unknown as AnthropicResponse;
+    expect(mapAnthropicResponse(malformed).sources).toEqual([]);
+  });
 });
 
 describe("deepSeekSearch", () => {

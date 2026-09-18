@@ -103,6 +103,54 @@ describe("fetchPage", () => {
     expect(page.truncated).toBe(true);
   });
 
+  it("converts lists and code blocks", async () => {
+    const html = "<ul><li>one</li><li>two</li></ul><pre><code>const a = 1;</code></pre>";
+    const page = await fetchPage({
+      url: "https://example.com",
+      config: limits,
+      fetchImpl: (async () =>
+        new Response(html, {
+          status: 200,
+          headers: { "content-type": "text/html" },
+        })) as unknown as typeof fetch,
+    });
+    expect(page.content).toMatch(/- +one/u);
+    expect(page.content).toContain("```");
+  });
+
+  it("passes application/json through unchanged", async () => {
+    const page = await fetchPage({
+      url: "https://example.com",
+      config: limits,
+      fetchImpl: (async () =>
+        new Response('{"a":1}', {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })) as unknown as typeof fetch,
+    });
+    expect(page.content).toBe('{"a":1}');
+  });
+
+  it("truncates a streamed body past the byte cap", async () => {
+    const stream = new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode("0123456789"));
+        controller.close();
+      },
+    });
+    const page = await fetchPage({
+      url: "https://example.com",
+      config: { ...limits, maxResponseBytes: 4 },
+      fetchImpl: (async () =>
+        new Response(stream, {
+          status: 200,
+          headers: { "content-type": "text/plain" },
+        })) as unknown as typeof fetch,
+    });
+    expect(page.content).toBe("0123");
+    expect(page.truncated).toBe(true);
+  });
+
   it("reports a timeout or abort", async () => {
     const fetchImpl = (async (_url: string, init?: RequestInit) => {
       await new Promise((_resolve, reject) => {
@@ -112,6 +160,18 @@ describe("fetchPage", () => {
     }) as unknown as typeof fetch;
     await expect(
       fetchPage({ url: "https://example.com", config: { ...limits, timeoutMs: 5 }, fetchImpl }),
-    ).rejects.toThrow(/timed out or was aborted/u);
+    ).rejects.toThrow(/timed out/u);
+  });
+
+  it("reports a network failure with the URL", async () => {
+    await expect(
+      fetchPage({
+        url: "https://example.com",
+        config: limits,
+        fetchImpl: (async () => {
+          throw new Error("ENOTFOUND");
+        }) as unknown as typeof fetch,
+      }),
+    ).rejects.toThrow(/ENOTFOUND/u);
   });
 });

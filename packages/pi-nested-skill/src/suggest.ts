@@ -98,6 +98,9 @@ export function createDollarAutocompleteProvider(
       return items.length > 0 ? { prefix: match.prefix, items } : null;
     },
     applyCompletion(lines, cursorLine, cursorCol, item, prefix) {
+      if (!prefix.startsWith("$")) {
+        return current.applyCompletion(lines, cursorLine, cursorCol, item, prefix);
+      }
       const line = lines[cursorLine] ?? "";
       const before = line.slice(0, cursorCol - prefix.length);
       const after = line.slice(cursorCol);

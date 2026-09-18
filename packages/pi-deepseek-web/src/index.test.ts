@@ -1,10 +1,9 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { CONFIG_FILE_NAME, CONFIG_PATH_ENV } from "./config.ts";
-import piDeepSeekWeb from "./index.ts";
+import piDeepSeekWeb, { type DeepSeekWebOptions } from "./index.ts";
 
 interface RegisteredTool {
   name: string;
@@ -18,7 +17,7 @@ interface RegisteredTool {
     params: Record<string, unknown>,
     signal: AbortSignal | undefined,
     onUpdate: undefined,
-    ctx: { cwd: string },
+    ctx: { cwd: string; isProjectTrusted: () => boolean },
   ) => Promise<{ content: Array<{ type: string; text: string }>; details: unknown }>;
 }
 
@@ -30,6 +29,7 @@ const tempDir = (): string => {
   return dir;
 };
 
+/** Register the extension against a fake pi, with isolated config inputs. */
 const register = (): RegisteredTool[] => {
   const tools: RegisteredTool[] = [];
   const fake = {
@@ -37,7 +37,8 @@ const register = (): RegisteredTool[] => {
       tools.push(definition as RegisteredTool);
     },
   } as unknown as ExtensionAPI;
-  piDeepSeekWeb(fake);
+  const options: DeepSeekWebOptions = { agentDir: tempDir(), env: {} };
+  piDeepSeekWeb(fake, options);
   return tools;
 };
 
@@ -47,15 +48,16 @@ const toolNamed = (tools: RegisteredTool[], name: string): RegisteredTool => {
   return tool;
 };
 
-const useConfig = (dir: string, config: Record<string, unknown>): void => {
-  const path = join(dir, CONFIG_FILE_NAME);
-  writeFileSync(path, JSON.stringify(config));
-  process.env[CONFIG_PATH_ENV] = path;
+/** Write a project-local config so the real agent-dir config never leaks in. */
+const useProjectConfig = (dir: string, config: Record<string, unknown>): void => {
+  mkdirSync(join(dir, ".pi"), { recursive: true });
+  writeFileSync(join(dir, ".pi", "pi-deepseek-web.json"), JSON.stringify(config));
 };
+
+const contextFor = (cwd: string) => ({ cwd, isProjectTrusted: () => true });
 
 afterEach(() => {
   for (const dir of created.splice(0)) rmSync(dir, { recursive: true, force: true });
-  delete process.env[CONFIG_PATH_ENV];
   vi.unstubAllGlobals();
 });
 
@@ -69,7 +71,7 @@ describe("piDeepSeekWeb", () => {
 
   it("executes web_search and formats the sources", async () => {
     const dir = tempDir();
-    useConfig(dir, { apiKey: "k" });
+    useProjectConfig(dir, { apiKey: "k" });
     vi.stubGlobal(
       "fetch",
       vi.fn(
@@ -92,7 +94,7 @@ describe("piDeepSeekWeb", () => {
       { query: "pi" },
       undefined,
       undefined,
-      { cwd: dir },
+      contextFor(dir),
     );
     expect(result.content[0]?.text).toContain("Sources:");
     expect(result.content[0]?.text).toContain("https://a.example");
@@ -100,7 +102,7 @@ describe("piDeepSeekWeb", () => {
 
   it("executes web_fetch and converts HTML", async () => {
     const dir = tempDir();
-    useConfig(dir, {});
+    useProjectConfig(dir, {});
     vi.stubGlobal(
       "fetch",
       vi.fn(
@@ -113,17 +115,38 @@ describe("piDeepSeekWeb", () => {
       { url: "https://example.com" },
       undefined,
       undefined,
-      { cwd: dir },
+      contextFor(dir),
     );
     expect(result.content[0]?.text).toContain("# Hi");
+    expect(result.details).toEqual({
+      url: "https://example.com/",
+      statusCode: 200,
+      contentType: "text/html",
+      truncated: false,
+    });
   });
 
   it("fails web_search without an API key", async () => {
     const dir = tempDir();
-    useConfig(dir, {});
+    useProjectConfig(dir, {});
+    await expect(
+      toolNamed(register(), "web_search").execute(
+        "id",
+        { query: "pi" },
+        undefined,
+        undefined,
+        contextFor(dir),
+      ),
+    ).rejects.toThrow(/no API key/u);
+  });
+
+  it("ignores an untrusted project config", async () => {
+    const dir = tempDir();
+    useProjectConfig(dir, { apiKey: "attacker" });
     await expect(
       toolNamed(register(), "web_search").execute("id", { query: "pi" }, undefined, undefined, {
         cwd: dir,
+        isProjectTrusted: () => false,
       }),
     ).rejects.toThrow(/no API key/u);
   });

@@ -84,6 +84,8 @@ export interface LoadConfigOptions {
   readonly cwd: string;
   readonly agentDir?: string;
   readonly env?: NodeJS.ProcessEnv;
+  /** When `false`, the project `.pi` config is ignored (untrusted project). */
+  readonly projectTrusted?: boolean;
 }
 
 /**
@@ -94,10 +96,10 @@ export interface LoadConfigOptions {
 export function configPaths(options: LoadConfigOptions): string[] {
   const env = options.env ?? process.env;
   const agentDir = options.agentDir ?? getAgentDir();
-  const paths = [
-    join(resolve(agentDir), CONFIG_FILE_NAME),
-    join(resolve(options.cwd), CONFIG_DIR_NAME, CONFIG_FILE_NAME),
-  ];
+  const paths = [join(resolve(agentDir), CONFIG_FILE_NAME)];
+  if (options.projectTrusted !== false) {
+    paths.push(join(resolve(options.cwd), CONFIG_DIR_NAME, CONFIG_FILE_NAME));
+  }
   const override = env[CONFIG_PATH_ENV];
   if (typeof override === "string" && override.trim().length > 0) {
     paths.push(isAbsolute(override) ? override : resolve(options.cwd, override));

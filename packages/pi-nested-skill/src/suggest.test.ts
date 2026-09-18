@@ -67,8 +67,8 @@ describe("createDollarAutocompleteProvider", () => {
     async getSuggestions() {
       return { prefix: "FILE", items: [{ value: "file", label: "file" }] };
     },
-    applyCompletion(lines, cursorLine, cursorCol) {
-      return { lines, cursorLine, cursorCol };
+    applyCompletion() {
+      return { lines: ["delegated"], cursorLine: 0, cursorCol: 0 };
     },
   };
   const provider = createDollarAutocompleteProvider(
@@ -108,6 +108,17 @@ describe("createDollarAutocompleteProvider", () => {
     );
     expect(result.lines[0]).toBe("say $alpha ");
     expect(result.cursorCol).toBe(11);
+  });
+
+  it("delegates non-$ completions to the built-in provider", () => {
+    const result = provider.applyCompletion(
+      ["src"],
+      0,
+      3,
+      { value: "src/index.ts", label: "src/index.ts" },
+      "src",
+    );
+    expect(result.lines[0]).toBe("delegated");
   });
 
   it("delegates file-completion triggering", () => {

@@ -23,10 +23,10 @@ blocked_by: []
 
 ## 验收
 
-- [ ] `pnpm --filter @kxh4892636/pi-nested-skill test` 全部通过，增量覆盖率 >= 80%
-- [ ] `pnpm --filter @kxh4892636/pi-nested-skill check` 通过
-- [ ] 单测覆盖：顶层含 `SKILL.md` 时其深层子目录被判隐藏、普通多层 `SKILL.md` 被判可见、`node_modules`/隐藏目录/排除清单被剪除、符号链接目录不跟随、已知 skill 目录之下恒为隐藏、结果按真实路径去重与排序、项目根在未受信时不参与
-- [ ] 用 fake `pi` API 驱动扩展工厂，断言 `resources_discover` 返回 `skillPaths` 且元素为含 `SKILL.md` 的目录
+- [x] `pnpm --filter @kxh4892636/pi-nested-skill test` 全部通过，增量覆盖率 >= 80%
+- [x] `pnpm --filter @kxh4892636/pi-nested-skill check` 通过
+- [x] 单测覆盖：顶层含 `SKILL.md` 时其深层子目录被判隐藏、普通多层 `SKILL.md` 被判可见、`node_modules`/隐藏目录/排除清单被剪除、符号链接目录不跟随、已知 skill 目录之下恒为隐藏、结果按真实路径去重与排序、项目根在未受信时不参与
+- [x] 用 fake `pi` API 驱动扩展工厂，断言 `resources_discover` 返回 `skillPaths` 且元素为含 `SKILL.md` 的目录
 
 ## 上下文
 
@@ -45,8 +45,8 @@ blocked_by: []
 
 - **交付物**：`packages/pi-nested-skill`（`package.json`、`tsconfig.json`、`vite.config.ts`、`README.md`、`src/{discover,index}.ts` 及测试）。
 - **验证证据**：
-  - `pnpm --filter @kxh4892636/pi-nested-skill test`：4 个测试文件 26 项全部通过。
-  - `test:coverage`：statements 95.73 / branches 90.1 / functions 92.1 / lines 96.29，均 ≥ 80。
+  - `pnpm --filter @kxh4892636/pi-nested-skill test`：4 个测试文件 28 项全部通过。
+  - `test:coverage`：statements 95.78 / branches 90.32 / functions 92.1 / lines 96.35，均 ≥ 80。
   - `check`：格式、lint、类型全部通过。
-  - 隐藏判定单测：深层 `SKILL.md` 命中、普通多层可见、排除清单与隐藏目录剪除、已知 skill 目录之下恒为隐藏、真实路径去重与排序。
+  - 隐藏判定单测：深层 `SKILL.md` 命中、普通多层可见、排除清单与隐藏目录剪除、符号链目录不跟随、已知 skill 目录之下恒为隐藏、真实路径去重与排序。
 - **说明**：实现直接在本机 main 工作树进行（无 worktree）；提交仅限定本交付路径。

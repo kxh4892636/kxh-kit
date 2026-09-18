@@ -35,7 +35,7 @@ DeepSeek 的端点、模型、凭据与两个工具的限额统一来自独立�
 
 ### 配置
 
-- 路径优先级：`PI_DEEPSEEK_WEB_CONFIG`（绝对路径）> `<cwd>/.pi/pi-deepseek-web.json` > `<getAgentDir()>/pi-deepseek-web.json`。用 pi 导出的 `getAgentDir()`、`CONFIG_DIR_NAME` 求默认路径。
+- 路径优先级：`PI_DEEPSEEK_WEB_CONFIG`（绝对路径）> `<cwd>/.pi/pi-deepseek-web.json` > `<getAgentDir()>/pi-deepseek-web.json`。用 pi 导出的 `getAgentDir()`、`CONFIG_DIR_NAME` 求默认路径。项目路径仅当 `ctx.isProjectTrusted()` 为真时读取，避免不受信仓库用项目配置把用户密钥导向任意端点。
 - 字段与默认值：`apiKey?`、`apiKeyEnv = "DEEPSEEK_API_KEY"`、`baseURL = "https://api.deepseek.com/anthropic/v1"`、`model = "deepseek-v4-flash"`、`apiVersion = "2023-06-01"`、`maxTokens = 4096`、`maxUses = 5`、`fetchMaxResponseBytes = 5000000`、`fetchMaxBodyChars = 100000`、`fetchTimeoutMs = 30000`。
 - 凭据回退：`apiKey` 非空则用；否则读 `apiKeyEnv` 指向的环境变量。缺失时抛错，错误信息包含配置文件路径与 `apiKeyEnv` 名。
 - 非法 JSON、未知字段：非法 JSON 抛错；未知字段忽略。文件不存在时全部走默认值。
