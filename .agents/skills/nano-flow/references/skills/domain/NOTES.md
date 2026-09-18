@@ -53,7 +53,7 @@ blocked_by: []
 
 ## 下一步
 
-{具体动作、入口命令和工作目录、前置条件、预期结果、停止条件；决策需澄清时 /questing，代码交付时 /code-delivery}
+{具体动作、入口命令和工作目录、前置条件、预期结果、停止条件；决策需澄清时 /questing skill，代码交付时 /code-delivery skill}
 
 ## 阻塞记录
 

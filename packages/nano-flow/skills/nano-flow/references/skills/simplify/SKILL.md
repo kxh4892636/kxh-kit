@@ -6,13 +6,13 @@ disable-model-invocation: true
 
 # Simplify
 
-保持行为与约束，优先删减。真实 bug 单独报告；需要正确性审查时读取 `/code-delivery` 的「code review」。
+保持行为与约束，优先删减。真实 bug 单独报告；需要正确性审查时读取 `/code-delivery skill` 的 `## code review`。
 
 ## 1. 定域
 
 默认整个工作区的生产代码，排除依赖、构建产物和生成物
 
-按 `<nano-flow-skill-root-dir>/references/skills/domain/SKILL.md` 定位业务域，读取 map、CONTEXT、适用 AGENTS.md 与 `/code-spec`，以及相关 ADR、implementing/reference Plan。保留已确认设计、契约、术语与未交付需求；需要追溯理由时读取 archived Plan，仅作历史依据。
+按 `/domain skill` 定位业务域，读取 map、CONTEXT、适用 AGENTS.md 与 `/code-spec skill`，以及相关 ADR、implementing/reference Plan。保留已确认设计、契约、术语与未交付需求；需要追溯理由时读取 archived Plan，仅作历史依据。
 
 ## 2. 调查
 
@@ -31,10 +31,10 @@ disable-model-invocation: true
 
 ## 3. 应用与收口
 
-| Risk    | 处理                                                                                                                                            |
-| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| SAFE    | 已证明行为不变的删减，直接应用                                                                                                                  |
-| CAREFUL | 提取、内联、重命名、拍平等语义保持修改，逐项应用并测试                                                                                          |
-| RISKY   | 公共契约、行为、受保护设计、并发或访问模式变更、深层重构，仅报告风险、覆盖情况与 note 或 `/questing` 跟进建议；ADR 冲突说明重议理由，由用户决定 |
+| Risk    | 处理                                                                                                                                                  |
+| ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SAFE    | 已证明行为不变的删减，直接应用                                                                                                                        |
+| CAREFUL | 提取、内联、重命名、拍平等语义保持修改，逐项应用并测试                                                                                                |
+| RISKY   | 公共契约、行为、受保护设计、并发或访问模式变更、深层重构，仅报告风险、覆盖情况与 note 或 `/questing skill` 跟进建议；ADR 冲突说明重议理由，由用户决定 |
 
 按角度与 risk 报告发现、已应用项、跳过理由和净删除量；SAFE/CAREFUL 均已应用或回退、RISKY 已呈现且适用验证通过时完成。
