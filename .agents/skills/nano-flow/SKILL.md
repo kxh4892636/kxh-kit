@@ -7,34 +7,21 @@ description: 启动或恢复开发任务时使用；选择 manual 或 auto 模�
 
 ## 选择模式
 
-复用用户已有授权与模式偏好。尚未选择时，按工作性质采用下列模式并说明理由；
+复用用户已有授权与模式偏好；尚未选择时，按工作性质采用下列模式并说明理由，各 skill 的确认点见其 `## 模式`：
 
 | 工作性质                       | 模式     |
 | ------------------------------ | -------- |
 | 改动大、需要用户介入与深入交互 | `manual` |
 | 改动小、可自动推进修复或实现   | `auto`   |
 
-- `manual`：使用 manual 模式; questing 和 to-issues 各在阶段结束时用户手动确认是否推进下一路径;
-- `auto`：使用 auto 模式; 无须阶段确认；questing 和 to-issues由 agent 自动推进完成;
-- 两者均遵循 `/code-delivery skill` 的 dev gate，复用用户已经确认的交付基线与授权；尚未确认时等待用户确认。
-
 ## 选择路径
 
-先使用 `/domain skill` 建立或恢复 Plan；story、spec、notes 的维护始终必选。新任务进入 `/questing skill`；已有设计或 Plan 时，核对已完成步骤的产物与证据，从首个未完成步骤继续。
+使用 `/domain skill` 建立或恢复 Plan 并实时更新维护。新任务进入 `/questing skill`, 收敛后决定是否执行 `/to-issues skill`(manual 用户决定, 反之 agent 自动决定); 已有设计或 Plan 时，核对已完成步骤，从首个未完成步骤继续。
 
-```text
-domain 建立/恢复 Plan → questing
-  ├─ 执行 to-issues → 实现切片写入 notes
-  └─ 跳过 to-issues → 使用已有 notes
-按 notes 的目标与依赖推进：讨论/调查/计划，或 code-delivery 实现
-全过程通过 domain 实时维护 story、spec、notes → 全部 notes 完成
-```
-
-`/questing skill` 收敛后决定是否执行 `/to-issues skill`(manual 用户决定, 反之 agent 自动决定);
+to-issues 跳过原则:
 
 - 用户已指定执行或跳过时遵循其选择;
-- 需要将实现拆成可独立验收、存在直接依赖的用户结果时，执行 to-issues；
-- 已有合适工作粒度时跳过切片；跨会话恢复与持久化检查点由 domain 始终维护。
+- 需要将实现拆成可独立验收、存在直接依赖的用户结果时，执行 to-issues, 反之跳过
 
 ## 推进交付
 
