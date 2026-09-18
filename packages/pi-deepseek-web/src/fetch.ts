@@ -83,9 +83,7 @@ export function classifyContentType(contentType: string | null): ContentKind | u
 }
 
 /** Convert HTML to GitHub-flavored markdown. */
-export function htmlToMarkdown(html: string): string {
-  return turndown.turndown(html);
-}
+const htmlToMarkdown = (html: string): string => turndown.turndown(html);
 
 /**
  * Fetch, decode, and (for HTML) convert one URL.

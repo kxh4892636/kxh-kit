@@ -28,19 +28,19 @@ export const DEFAULT_BASE_URL = "https://api.deepseek.com/anthropic/v1";
 export const DEFAULT_MODEL = "deepseek-v4-flash";
 
 /** `anthropic-version` header value. */
-export const DEFAULT_API_VERSION = "2023-06-01";
+const DEFAULT_API_VERSION = "2023-06-01";
 
 /** Upper bound on generated tokens for one search request. */
-export const DEFAULT_MAX_TOKENS = 4096;
+const DEFAULT_MAX_TOKENS = 4096;
 
 /** Maximum native `web_search` server-tool uses per request. */
-export const DEFAULT_MAX_USES = 5;
+const DEFAULT_MAX_USES = 5;
 
 /** Maximum response body size in bytes for one fetch. */
-export const DEFAULT_FETCH_MAX_RESPONSE_BYTES = 5_000_000;
+const DEFAULT_FETCH_MAX_RESPONSE_BYTES = 5_000_000;
 
 /** Maximum decoded body length in characters for one fetch. */
-export const DEFAULT_FETCH_MAX_BODY_CHARS = 100_000;
+const DEFAULT_FETCH_MAX_BODY_CHARS = 100_000;
 
 /** Default fetch timeout in milliseconds. */
 export const DEFAULT_FETCH_TIMEOUT_MS = 30_000;

@@ -74,7 +74,7 @@ export interface AnthropicResponse {
 }
 
 /** Best-effort error envelope (fields vary by gateway). */
-export interface AnthropicError {
+interface AnthropicError {
   error?: { message?: string } | string;
   message?: string;
 }
@@ -127,7 +127,19 @@ export function mapAnthropicResponse(response: AnthropicResponse): WebSearchResu
     );
   }
 
-  const snippets = citationSnippets(blocks);
+  const answer = joinAnswer(blocks);
+  return {
+    ...(answer.length > 0 ? { answer } : {}),
+    sources: collectSources(resultBlocks, citationSnippets(blocks)),
+    truncated: false,
+  };
+}
+
+/** Project every result item into a deduped, snippet-joined source. */
+const collectSources = (
+  resultBlocks: readonly WebSearchToolResultBlock[],
+  snippets: ReadonlyMap<string, string>,
+): WebSource[] => {
   const seen = new Set<string>();
   const sources: WebSource[] = [];
   for (const block of resultBlocks) {
@@ -135,30 +147,30 @@ export function mapAnthropicResponse(response: AnthropicResponse): WebSearchResu
     for (const item of items) {
       if (item.url.length === 0 || seen.has(item.url)) continue;
       seen.add(item.url);
-      const snippet = snippets.get(item.url);
-      sources.push({
-        url: item.url,
-        ...(item.title != null && item.title.length > 0 ? { title: item.title } : {}),
-        ...(snippet !== undefined && snippet.length > 0 ? { snippet } : {}),
-        ...(item.page_age != null && item.page_age.length > 0
-          ? { publishedAt: item.page_age }
-          : {}),
-      });
+      sources.push(toSource(item, snippets.get(item.url)));
     }
   }
+  return sources;
+};
 
-  const answer = blocks
+/** Normalize one result item, omitting empty optional fields. */
+const toSource = (item: WebSearchResultItem, snippet: string | undefined): WebSource => {
+  return {
+    url: item.url,
+    ...(item.title != null && item.title.length > 0 ? { title: item.title } : {}),
+    ...(snippet !== undefined && snippet.length > 0 ? { snippet } : {}),
+    ...(item.page_age != null && item.page_age.length > 0 ? { publishedAt: item.page_age } : {}),
+  };
+};
+
+/** Join every non-empty `text` block body into one answer string. */
+const joinAnswer = (blocks: readonly ContentBlock[]): string => {
+  return blocks
     .filter((block): block is TextBlock => block.type === "text")
     .map((block) => (typeof block.text === "string" ? block.text.trim() : ""))
     .filter((text) => text.length > 0)
     .join("\n\n");
-
-  return {
-    ...(answer.length > 0 ? { answer } : {}),
-    sources,
-    truncated: false,
-  };
-}
+};
 
 /**
  * Run one DeepSeek web search.

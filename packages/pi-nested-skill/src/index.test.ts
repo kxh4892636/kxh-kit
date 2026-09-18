@@ -70,6 +70,21 @@ describe("piNestedSkill", () => {
     ).toBe(true);
   });
 
+  it("finds hidden skills below a known skill directory outside the scanned roots", async () => {
+    const skillsDir = tempDir();
+    const alphaFile = writeSkill(join(skillsDir, "alpha"), "alpha");
+    writeSkill(join(skillsDir, "alpha", "references", "skills", "beta"), "beta");
+    const handlers = setup([skillCommand("alpha", alphaFile)], emptyOptions());
+    const result = (await handlers.get("resources_discover")?.(
+      {},
+      { cwd: tempDir(), isProjectTrusted: () => false },
+    )) as { skillPaths: string[] };
+    expect(result.skillPaths).toHaveLength(1);
+    expect(result.skillPaths[0]?.replaceAll("\\", "/").endsWith("references/skills/beta")).toBe(
+      true,
+    );
+  });
+
   it("registers the $ autocomplete provider when the UI is present", () => {
     const handlers = setup([], emptyOptions());
     let factory: ((current: AutocompleteProvider) => AutocompleteProvider) | undefined;
@@ -85,6 +100,7 @@ describe("piNestedSkill", () => {
       },
     );
     expect(factory).toBeTypeOf("function");
+    expect(factory?.({} as unknown as AutocompleteProvider).triggerCharacters).toEqual(["$"]);
   });
 
   it("skips autocomplete registration without a UI", () => {
@@ -123,6 +139,14 @@ describe("piNestedSkill", () => {
       action: "continue",
     });
     expect(handlers.get("input")?.({ text: "run $alpha", source: "extension" })).toEqual({
+      action: "continue",
+    });
+  });
+
+  it("continues when a matched skill's file cannot be read", () => {
+    const missing = join(tempDir(), "ghost", "SKILL.md");
+    const handlers = setup([skillCommand("ghost", missing)], emptyOptions());
+    expect(handlers.get("input")?.({ text: "try $ghost", source: "interactive" })).toEqual({
       action: "continue",
     });
   });

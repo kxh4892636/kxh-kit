@@ -55,6 +55,19 @@ describe("mapAnthropicResponse", () => {
     ]);
   });
 
+  it("joins every non-empty text block and skips empty ones", () => {
+    const result = mapAnthropicResponse({
+      content: [
+        { type: "text", text: "  first  " },
+        { type: "text" },
+        { type: "text", text: "   " },
+        { type: "web_search_tool_result", content: [{ url: "https://a.example" }] },
+        { type: "text", text: "second" },
+      ],
+    });
+    expect(result.answer).toBe("first\n\nsecond");
+  });
+
   it("throws when no native search result block is present", () => {
     expect(() => mapAnthropicResponse({ content: [{ type: "text", text: "no results" }] })).toThrow(
       /web_search_tool_result/u,
