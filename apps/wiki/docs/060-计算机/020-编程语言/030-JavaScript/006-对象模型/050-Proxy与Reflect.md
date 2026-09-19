@@ -35,6 +35,13 @@ Function.prototype.apply.call(myFunc, thisVal, argumentList);
 Reflect.apply(myFunc, thisVal, argumentList); // 更直观的一等函数写法
 ```
 
+## 可撤销代理如何使用？
+
+```js
+const { proxy, revoke } = Proxy.revocable(target, handler);
+revoke(); // 之后访问 proxy 抛 TypeError
+```
+
 ## 有哪些 trap, 各自对应什么操作？
 
 | trap                                       | 对应的原生操作                    | 返回值             |
@@ -54,13 +61,6 @@ Reflect.apply(myFunc, thisVal, argumentList); // 更直观的一等函数写法
 | `construct(target, args, newTarget)`       | `new`                             | 对象               |
 
 - Trap invariants: 每个 trap 都必须满足一组不变量 (如 `isExtensible` 必须返回与目标一致的结果), 违反会抛 `TypeError`;
-
-## 可撤销代理如何使用？
-
-```js
-const { proxy, revoke } = Proxy.revocable(target, handler);
-revoke(); // 之后访问 proxy 抛 TypeError
-```
 
 ## 代理适合实现哪些模式？
 

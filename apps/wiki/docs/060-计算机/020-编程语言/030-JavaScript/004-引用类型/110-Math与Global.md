@@ -44,6 +44,58 @@ const global = (function () {
 })();
 ```
 
+## `globalThis` 与各环境的全局对象叫什么？
+
+| 场景     | 名称                        |
+| -------- | --------------------------- |
+| 语言标准 | `globalThis`                |
+| 浏览器   | `window`                    |
+| Node.js  | `global`                    |
+| 其他宿主 | 名称不定, 未必存在 `window` |
+
+- 等价写法: `alert("Hi")` 与 `window.alert("Hi")` 意义相同, 全局对象的属性可直接访问;
+- 跨环境: 不确定宿主环境时用 `globalThis`, 它是标准给出的统一名字, 主流浏览器已支持;
+
+```js
+globalThis.alert("Hi"); // 换环境也不用改写
+```
+
+## `var` 声明为什么成了全局对象属性？
+
+- 会挂载: 非模块脚本中, 主代码流里的 `var` 变量与 `function` 声明会成为全局对象属性;
+- 不会挂载: `let`/`const` 声明的顶层变量不会;
+- 原因: 为兼容老脚本而保留的历史行为, 模块代码中不会发生;
+
+```js
+var gVar = 5;
+window.gVar; // 5
+let gLet = 5;
+window.gLet; // undefined
+```
+
+## 为什么推荐显式写 `window.x`？
+
+- 明确: `window.x` 直说"这是全局值", 不依赖 `var` 的挂载行为, 模块环境下行为一致;
+- 抗遮蔽: 局部变量与全局同名时, 显式访问仍能拿到全局值;
+
+```js
+window.currentUser = { name: "John" };
+window.currentUser.name; // 本地也有 currentUser 时照样取到全局值
+```
+
+- 建议: 全局变量越少越好; 函数以参数接收输入、以返回值给出结果, 更清晰也更易测试;
+
+## 全局对象如何用于特性检测与 polyfill？
+
+- 检测: 读全局对象上的属性, 判断当前环境是否支持某个特性;
+- 补齐: 不支持时把自实现赋给该属性;
+
+```js
+if (!window.Promise) {
+  window.Promise = MyPromiseImplementation; // polyfill
+}
+```
+
 ## 全局函数有哪些类别？
 
 - 数值: `isFinite(value)`、`isNaN(value)`、`parseFloat(string)`、`parseInt(string, radix?)`;

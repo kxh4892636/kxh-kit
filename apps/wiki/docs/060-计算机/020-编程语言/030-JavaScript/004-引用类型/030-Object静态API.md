@@ -47,6 +47,3 @@ id: 0d83b53e-dcc2-4447-82ce-4e28d4eeec97
 | `Object.entries(obj)`      | 返回可枚举键值对数组                                 |
 | `Object.hasOwn(obj, prop)` | 是否为自有属性, 替代 `hasOwnProperty`                |
 | `Object.is(a, b)`          | 判断两个值是否相同, 与 `===` 在 `NaN` 与 `-0` 上不同 |
-
-- 描述符与不可变对象的完整语义见 [属性描述符与响应式](./020-属性描述符与响应式.md);
-- 枚举顺序规则见 [Object 基础](./010-Object基础.md);

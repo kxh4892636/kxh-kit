@@ -63,7 +63,7 @@ const bookCopy = JSON.parse(jsonText, (key, value) =>
 bookCopy.releaseDate.getFullYear(); // 2017; 已还原为 Date
 ```
 
-- 常用场景: `parse` 与 `stringify` 连用可做简单深拷贝, 限制见 [深浅拷贝](../004-引用类型/120-深浅拷贝.md);
+- 常用场景: `parse` 与 `stringify` 连用可做简单深拷贝, 限制见 [深浅拷贝](./120-深浅拷贝.md);
 
 ## XML 的文档结构是什么样的？
 
@@ -88,3 +88,13 @@ bookCopy.releaseDate.getFullYear(); // 2017; 已还原为 Date
 | --------------------------------------------- | ----------------------------------------------------------------------------------------- |
 | `new DOMParser().parseFromString(str, mime)`  | 把字符串解析为文档, MIME 可为 `application/xml`、`text/xml`、`image/svg+xml`、`text/html` |
 | `new XMLSerializer().serializeToString(node)` | 把 DOM 节点序列化为 XML 字符串                                                            |
+
+```js
+const doc = new DOMParser().parseFromString("<a>1</a>", "application/xml");
+doc.documentElement.textContent; // "1"
+
+new XMLSerializer().serializeToString(doc); // "<a>1</a>"
+```
+
+- 错误处理: `application/xml` 语法不合法时不会抛异常, 会得到一个含 `parsererror` 元素的文档, 可用 `doc.querySelector("parsererror")` 判断;
+- 用途: 两个 API 配合即可读写节点, 不必手写字符串拼接; 换成 `text/html` 就是宽容的 HTML 解析;

@@ -48,5 +48,3 @@ tagRef.current.onmouseleave = () => {
   intervalRef.current = requestAnimationFrame(scroll);
 };
 ```
-
-- 对照: 定时器的精度与替换写法见 [定时器](../010-浏览器对象模型/040-定时器.md);

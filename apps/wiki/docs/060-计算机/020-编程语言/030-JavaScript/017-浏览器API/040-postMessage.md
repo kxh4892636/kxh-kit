@@ -37,5 +37,5 @@ window.addEventListener("message", (event) => {
 
 ## 与其它通信方式如何区分？
 
-- `MessageChannel`: 建立点对点端口, 用于线程或窗口之间, 见 [线程间通信](../016-工作者线程/020-线程间通信.md);
+- `MessageChannel`: 建立点对点端口, 用于线程或窗口之间;
 - `BroadcastChannel`: 同源上下文广播, 无需持有对端引用;

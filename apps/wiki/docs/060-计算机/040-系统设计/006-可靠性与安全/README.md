@@ -8,7 +8,6 @@
 - [服务水平目标](./050-服务目标.md)
 - [灾难恢复](./055-灾难恢复.md)
 - [虚拟机与容器](./060-虚拟机与容器.md)
-- [OAuth 2.0 授权](./070-OAuth.md)
-- [OpenID Connect 身份认证](./075-OIDC.md)
+- [OAuth 2.0 与 OpenID Connect](./070-OAuth.md)
 - [单点登录](./080-单点登录.md)
 - [TLS 与双向 TLS](./090-TLS.md)

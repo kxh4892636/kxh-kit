@@ -43,18 +43,7 @@ const person = {
 
 ## 解构如何取值？
 
-```js
-const person = { name: "Matt", age: 27 };
-const { name, job } = person; // job 为 undefined
-
-function printPerson(foo, { name: personName, age: personAge }, bar) {
-  console.log(personName, personAge);
-}
-printPerson("1st", person, "2nd");
-```
-
-- 重命名: `{ name: personName }` 把属性 `name` 绑定到变量 `personName`;
-- 缺省: 解构不存在的属性得到 `undefined`;
+- 语法: 左侧写与对象同形的模式, `const { name, job } = person`, 缺失属性得到 `undefined`;
 
 ## 属性枚举顺序如何确定？
 

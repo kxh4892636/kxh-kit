@@ -51,6 +51,3 @@ with (location) {
 const qs = location.search.substring(1);
 const hostName = location.hostname;
 ```
-
-- 作用域机制细节见 [执行上下文与词法环境](../007-执行上下文与内存/020-执行上下文与词法环境.md);
-- 会修改 this 与作用域的替代方案见 [this 绑定](../005-函数/030-this绑定.md);

@@ -64,5 +64,3 @@ const s = new Set(["val1", "val2", "val3"]);
 | `isSubsetOf(other)`          | 是否为子集 |
 | `isSupersetOf(other)`        | 是否为超集 |
 | `isDisjointFrom(other)`      | 是否不相交 |
-
-- 弱引用版本见 [WeakMap 与 WeakSet](./080-WeakMap与WeakSet.md);

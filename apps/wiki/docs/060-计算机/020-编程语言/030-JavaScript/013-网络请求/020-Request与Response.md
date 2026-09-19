@@ -49,3 +49,27 @@ const data = await res.json(); // 之后 res.bodyUsed 为 true
 ```
 
 - 一次性流: 所有读取方法只能调用一次;
+
+## fetch 的选项与 Request 属性如何对应？
+
+- 关系: `fetch(input, init)` 中描述出站请求的字段, 与 `Request` 的属性同名同义;
+- 上表未列出的选项与默认值:
+
+| 选项             | 默认值                              | 含义摘要                     |
+| ---------------- | ----------------------------------- | ---------------------------- |
+| `referrer`       | `"about:client"`                    | 指定或清空 `Referer`         |
+| `referrerPolicy` | `"strict-origin-when-cross-origin"` | `Referer` 发送规则           |
+| `redirect`       | `"follow"`                          | 重定向处理方式               |
+| `integrity`      | `""`                                | 响应校验和                   |
+| `keepalive`      | `false`                             | 请求可活过页面卸载           |
+| `signal`         | `undefined`                         | `AbortController` 的中断信号 |
+
+- 取值语义与权衡: 见 [Fetch 进度、取消与请求选项](./090-Fetch进度与取消.md);
+- 请求完成后拿到的是 `Response`, 状态判断与 body 读取见 [Fetch](./010-Fetch.md);
+
+## Response 的状态信息由什么构成？
+
+- 构造: `new Response(body, init)`, `init` 可指定 `status`、`statusText`、`headers`; 省略 `status` 时为 200;
+- `status`: HTTP 状态码, 如 200 / 404 / 418;
+- `ok`: 派生值, `status` 落在 200-299 时为 `true`, 不是可写字段;
+- `headers`: Map 式响应头集合, 用 `get()` 取值, 可 `for...of` 遍历;

@@ -26,11 +26,63 @@ module.exports = {
 };
 ```
 
+## 如何决定哪些函数进入编译？
+
+- Infer: 默认按 React 命名与使用模式识别组件和 Hook，适合常规项目;
+- Annotation: 只编译函数体开头带 'use memo' 的函数，适合逐步启用;
+- Syntax: 面向 Flow 的 component/hook 语法，不适用于普通 TypeScript 代码;
+- All: 编译所有顶层函数，可能对普通工具函数产生不必要成本，不作为常规默认选择;
+
+## 函数指令如何控制单个函数？
+
+- 'use memo': 在函数体开头请求编译，该函数仍必须满足可分析与正确性要求，不是强行忽略错误;
+- 'use no memo': 跳过该函数编译，用于定位问题或明确边界，不作为整个文件随意退出的替代品;
+- 指令位置: 指令是函数开头的字符串语句，与 RSC 文件级指令解决不同问题;
+
+```jsx
+function Result({ items }) {
+  "use memo";
+  return <p>{items.length}</p>;
+}
+```
+
+```jsx
+function ProblematicWidget({ model }) {
+  "use no memo";
+  return <ExternalWidget model={model} />;
+}
+```
+
+- 排除记录: 为暂时跳过的函数记录具体问题与恢复条件，避免诊断完成后仍长期丢失优化范围;
+
 ## 如何逐步采用而不是一次改动整个应用？
 
 - 目录增量: 在构建配置中先限制编译范围，验证一部分组件后逐步扩大;
-- 函数增量: compilationMode='annotation' 配合函数体中的 'use memo' 明确加入，'use no memo' 临时排除问题函数;
-- 运行时开关: gating 保留编译与原版本，通过稳定开关灰度选择，具体选项见编译器配置;
+- 函数增量: 用 compilationMode='annotation' 配合函数体中的 'use memo' 明确加入，'use no memo' 临时排除问题函数;
+- 运行时开关: gating 保留编译与原版本，通过稳定开关灰度选择;
+
+## target 如何匹配 React 运行时？
+
+- 配置类型: target 使用主版本字符串，如 '19'，不是数字或含补丁号的完整版本;
+- 运行时需求: React 19 具备相应运行时能力，面向 React 17/18 时需额外 react-compiler-runtime 并保证发布依赖可用;
+- 库兼容: 编译库时按最低承诺版本选择并测试，不能以开发环境版本代替用户环境;
+
+## 如何通过运行时开关灰度使用编译结果？
+
+- Gating: 指定 source 模块与 importSpecifierName，编译产物导入返回布尔值的开关函数以选择版本;
+- 开销: 同时保留原始与编译实现会增加 bundle，开关函数应稳定、无副作用，并在各目标环境都可导入;
+
+```js
+const compilerOptions = {
+  gating: { source: "./flags", importSpecifierName: "isCompilerEnabled" },
+};
+```
+
+## 如何处理编译诊断而不意外中断发布？
+
+- Panic threshold: 控制哪些诊断使构建失败，生产配置使用默认 none 跳过不能编译的函数；all_errors 与 critical_errors 主要用于开发调试，不应为提升编译比例使发布被可跳过的诊断阻断;
+- Logger: 用 logEvent(filename, event) 收集编译成功、跳过或错误事件，记录结果不等于让原本不安全的函数强制编译;
+- 采用策略: 先保证运行正确，再逐步收紧诊断，不为提高编译比例忽略真正的规则违规;
 
 ## 如何确认编译真正生效并定位回归？
 

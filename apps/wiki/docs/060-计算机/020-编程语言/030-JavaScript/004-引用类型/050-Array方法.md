@@ -68,5 +68,3 @@ id: 645dc7d6-403d-4e8d-8fab-977086da4ad2
 | `Array.of(...elements)`                       | 按参数创建数组             |
 | `Array.isArray(value)`                        | 判断是否为数组             |
 | `Array[Symbol.species]`                       | 指定派生对象使用的构造函数 |
-
-- 手写实现与常见坑见 [数组实践与手写](./060-数组实践与手写.md);

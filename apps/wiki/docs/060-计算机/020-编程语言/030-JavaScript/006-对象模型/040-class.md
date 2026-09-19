@@ -94,6 +94,8 @@ class Vehicle {
 ## 如何模拟多类继承？
 
 - mixin: 用接收父类并返回子类的函数叠加能力;
+- 限制: 一个对象只有一个 `[[Prototype]]`, 一个类只能 `extends` 一个父类;
+- 基础做法: 把方法对象合并进 `prototype`, 即下面的 `FooMixin`, 或 `Object.assign(User.prototype, mixin)`;
 
 ```js
 const FooMixin = (Superclass) =>
@@ -104,6 +106,8 @@ const FooMixin = (Superclass) =>
   };
 class Bus extends FooMixin(Vehicle) {}
 ```
+
+- 完整机制: mixin 内 `super` 的 `[[HomeObject]]` 查找规则与 `eventMixin` 事件混入示例见 [mixin 多重继承](./072-mixin多重继承.md);
 
 ## class 的本质是什么？
 

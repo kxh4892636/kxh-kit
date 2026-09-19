@@ -42,6 +42,14 @@ class MyPromise {
       reject(error);
     }
   }
+}
+```
+
+## then 如何实现链式调用与错误捕获？
+
+```js
+class MyPromise {
+  // 状态字段与 resolve/reject 就是上文 constructor 的部分
 
   then(onResolved, onRejected) {
     onResolved = typeof onResolved === "function" ? onResolved : (value) => value;
@@ -78,6 +86,9 @@ class MyPromise {
   }
 }
 ```
+
+- 要点: `then` 返回新的 `MyPromise` 以支持链式调用; 回调结果若是 Promise 则继续交接, 否则直接解决;
+- `catch`: 只是 `then(undefined, onRejected)` 的简写;
 
 ## 如何手写 Promise.all 与 Promise.race？
 
