@@ -17,8 +17,8 @@
     "test:coverage": "vp test --run --coverage"
   },
   "devDependencies": {
-    "@earendil-works/pi-coding-agent": "^0.85.1",
-    "@earendil-works/pi-tui": "^0.85.1",
+    "@earendil-works/pi-coding-agent": "catalog:",
+    "@earendil-works/pi-tui": "catalog:",
     "@types/node": "catalog:",
     "@typescript/native": "catalog:",
     "typescript": "catalog:",

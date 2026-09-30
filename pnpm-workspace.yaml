@@ -51,6 +51,8 @@ catalog:
   vite: npm:@voidzero-dev/vite-plus-core@0.2.6
   vite-plus: 0.2.6
   vitest: ^4.1.10
+  "@earendil-works/pi-coding-agent": ^0.99.1
+  "@earendil-works/pi-tui": ^0.99.1
 
 catalogMode: prefer
 minimumReleaseAgeExclude:
@@ -76,6 +78,14 @@ minimumReleaseAgeExclude:
   - "@deepseek-ai/dsh-user-approval@0.1.5-rc.1"
   - "@deepseek-ai/dsh-util-crypto@0.1.5-rc.1"
   - "@deepseek-ai/dsh-util-values@0.1.5-rc.1"
+  - "@earendil-works/chord@0.99.1"
+  - "@earendil-works/pi-agent-core@0.99.1"
+  - "@earendil-works/pi-ai@0.99.1"
+  - "@earendil-works/pi-codemode@0.99.1"
+  - "@earendil-works/pi-coding-agent@0.99.1"
+  - "@earendil-works/pi-mcp@0.99.1"
+  - "@earendil-works/pi-telemetry@0.99.1"
+  - "@earendil-works/pi-tui@0.99.1"
 overrides:
   vite: "catalog:"
   vitest: "catalog:"
