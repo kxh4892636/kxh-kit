@@ -85,7 +85,7 @@ status: completed
 - 2026-09-30：note 02 完成：全局 CLI 升级、`vp migrate`（0 BLOCK / 68 REVIEW / 195 files rewritten）、依赖安装、迁移后手工修正；`vp check` 全绿。
 - 2026-09-30：note 03 完成：三关门禁 + 覆盖率全绿；迁移插入的 v4 兼容设置全部移除（含 1 处 locator 局部修复）；68 条 REVIEW 逐条结论；`.node-version = 24.21.0`。
 - 2026-09-30：按 code review 两位审查者意见收口：URL 取值改用窄化辅助函数、`ISafeAny` 收口、`.vitest/` 忽略合并到根、删除空 `test: {}`、修正文档事实错误与证据引用。
-- 未完成：commit（待最终复验）。
+- 已提交：`453908b8`；Plan 待用户确认后迁入 `reference`。
 
 ## 恢复入口
 
