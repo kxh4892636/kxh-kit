@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom";
 import { configure } from "@testing-library/dom";
-import { vi } from "vitest";
+import { vi } from "vite-plus/test";
 
 // 并行负载下渲染与 effect 会数倍变慢, waitFor 默认 1000ms 超时不够用
 configure({ asyncUtilTimeout: 10_000 });

@@ -1,4 +1,4 @@
-import { defineConfig, type Plugin } from "vitest/config";
+import { defineConfig, type Plugin } from "vite-plus";
 
 const stripScriptShebang = (): Plugin => ({
   name: "nf-strip-script-shebang",

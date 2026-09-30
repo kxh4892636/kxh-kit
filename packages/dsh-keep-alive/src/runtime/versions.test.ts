@@ -1,5 +1,5 @@
 import { rm } from "node:fs/promises";
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import {
   installTag,
   installedVersion,

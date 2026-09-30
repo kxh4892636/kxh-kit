@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import type { CommandExecutor, ExecOptions, ExecResult } from "../remote/executor.js";
 import type { ScanProgress } from "../../types/repository.js";

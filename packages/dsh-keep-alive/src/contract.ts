@@ -40,7 +40,6 @@ export type Reply = z.infer<typeof replySchema>;
 export const errorText = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 export const delay = async (ms: number): Promise<void> =>
-  new Promise(
-    (resolve: (value: void | PromiseLike<void>) => void): ReturnType<typeof setTimeout> =>
-      setTimeout(resolve, ms),
+  new Promise((resolve: (value: void | PromiseLike<void>) => void): ReturnType<typeof setTimeout> =>
+    setTimeout(resolve, ms),
   );

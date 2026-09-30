@@ -1,7 +1,7 @@
 /**
  * 会话上下文注入测试: 注册参数、就绪等待、幂等与失败路径。
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import {
   AGENT_READY_POLL_MS,
   AGENT_READY_TIMEOUT_MS,

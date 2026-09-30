@@ -1,5 +1,5 @@
 import { rm, readFile } from "node:fs/promises";
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import { createInstance } from "./instance.js";
 import { fixture, temporary } from "../testing/fixture.js";
 import { createVirtualProcesses } from "../testing/virtual-processes.js";

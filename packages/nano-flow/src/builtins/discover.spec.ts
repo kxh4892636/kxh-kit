@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { builtinModules } from "./discover";
 
 describe("builtin discovery", (): void => {

@@ -1,4 +1,4 @@
-import { expect, it, vi } from "vitest";
+import { expect, it, vi } from "vite-plus/test";
 import { parseKline } from "./kline-response.ts";
 import { createRemoteFetcher } from "./hongsehuojian.ts";
 const payload = { columns: "tradeDate,open,high,low,close", items: "2013-12-31,100,101,99,100.5" };

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { normalizeWorkspaceContract, verifyWorkspaceContract } from "./workspace-contracts";
 
 describe("workspace contract normalization", (): void => {

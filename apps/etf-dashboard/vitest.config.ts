@@ -1,6 +1,6 @@
 import { fileURLToPath } from "node:url";
-import { playwright } from "@vitest/browser-playwright";
-import { defineConfig } from "vitest/config";
+import { playwright } from "vite-plus/test/browser-playwright";
+import { defineConfig } from "vite-plus";
 const alias = { "@": fileURLToPath(new URL("./src", import.meta.url)) };
 export default defineConfig({
   test: {
@@ -13,7 +13,11 @@ export default defineConfig({
     projects: [
       {
         resolve: { alias },
-        test: { name: "unit", environment: "node", include: ["src/**/*.test.ts"] },
+        test: {
+          name: "unit",
+          environment: "node",
+          include: ["src/**/*.test.ts"],
+        },
       },
       {
         resolve: { alias },

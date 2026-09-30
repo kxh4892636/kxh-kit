@@ -2,7 +2,7 @@
  * SessionManagerHost 行为测试: 列表/读取/派生/投递/模型/归档/等待/错误归一化。
  * 读窗口的文本化用例见 host-read.test.ts。
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   HOST_UNEXPECTED_CODE,
   HostError,

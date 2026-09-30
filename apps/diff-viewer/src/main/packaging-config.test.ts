@@ -5,7 +5,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { load } from "js-yaml";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 
 // vitest 以包根为 cwd (vp run 按包执行), 配置文件在包根
 interface ElectronBuilderConfig {

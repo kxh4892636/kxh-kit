@@ -142,14 +142,12 @@ const listConfiguredRepositories = async (
   return {
     success: true,
     root: config.root,
-    repositories: selected.map(
-      (repository: WorkspaceRepository): JsonValue => ({
-        name: repository.name,
-        url: repository.url,
-        path: repository.path,
-        branch: repository.branch,
-      }),
-    ),
+    repositories: selected.map((repository: WorkspaceRepository): JsonValue => ({
+      name: repository.name,
+      url: repository.url,
+      path: repository.path,
+      branch: repository.branch,
+    })),
   };
 };
 

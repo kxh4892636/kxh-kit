@@ -1,5 +1,5 @@
 import { mkdir, readFile, rm } from "node:fs/promises";
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import { createInstance } from "./instance.js";
 import { readRecordedState, type Version } from "./versions.js";
 import { fixture, fixtureVersion } from "../testing/fixture.js";

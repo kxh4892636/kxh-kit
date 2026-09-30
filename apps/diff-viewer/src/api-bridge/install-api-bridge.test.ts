@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 
 import type { ApiBridgeRequest, ApiBridgeResponse } from "./api-bridge-types";
 import { installApiBridge } from "./install-api-bridge";
@@ -6,13 +6,11 @@ import { installApiBridge } from "./install-api-bridge";
 const createFakeBridge = () => {
   const watchListeners = new Set<(payload: string) => void>();
   const bridge = {
-    invokeApi: vi.fn(
-      async (_request: ApiBridgeRequest): Promise<ApiBridgeResponse> => ({
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      }),
-    ),
+    invokeApi: vi.fn(async (_request: ApiBridgeRequest): Promise<ApiBridgeResponse> => ({
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    })),
     openWatch: vi.fn(async () => true),
     onWatchEvent: vi.fn((callback: (payload: string) => void) => {
       watchListeners.add(callback);

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { invokeAnki } from "../testing/test-harness";
 
 const card = (id: number, answer: string = "Q<hr id=answer>A"): Record<string, unknown> => ({

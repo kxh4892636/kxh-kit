@@ -6,7 +6,7 @@ import { mkdtemp, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join, resolve } from "path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import type { DiffSelection } from "../types/diff.js";
 

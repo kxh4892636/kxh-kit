@@ -16,13 +16,11 @@ interface KlineChartProps {
 
 const getTooltipMaValues = (params: { series: MaSeries[]; index: number }): TooltipMaValue[] =>
   params.series
-    .map(
-      (series: MaSeries): TooltipMaValue => ({
-        label: `MA${series.period}`,
-        value: series.values[params.index] ?? Number.NaN,
-        color: series.color,
-      }),
-    )
+    .map((series: MaSeries): TooltipMaValue => ({
+      label: `MA${series.period}`,
+      value: series.values[params.index] ?? Number.NaN,
+      color: series.color,
+    }))
     .filter((item: TooltipMaValue): boolean => Number.isFinite(item.value));
 
 interface MaVisibility {

@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vite-plus/test";
 import packageMetadata from "../../../package.json" with { type: "json" };
 import { runCli, type CliRequest } from "../../cli/run";
 import type { BuiltinCommand } from "../../cli/types";
@@ -148,14 +148,12 @@ describe("self skill query interface", (): void => {
     const target = await createTarget();
     const result = await invoke(target, ["list", "--dry-run"]);
     expect(result).toEqual({
-      skills: ["nano-flow", "nano-flow-cli"].map(
-        (name: string): Record<string, string> => ({
-          name,
-          status: "not_installed",
-          target: path.join(target, name),
-          version: packageMetadata.version,
-        }),
-      ),
+      skills: ["nano-flow", "nano-flow-cli"].map((name: string): Record<string, string> => ({
+        name,
+        status: "not_installed",
+        target: path.join(target, name),
+        version: packageMetadata.version,
+      })),
     });
   });
 

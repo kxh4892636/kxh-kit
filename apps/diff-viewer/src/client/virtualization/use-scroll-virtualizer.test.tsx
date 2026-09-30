@@ -1,6 +1,6 @@
 import { act, render } from "@testing-library/react";
 import { useRef, type ReactNode } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { useScrollVirtualizer } from "./use-scroll-virtualizer";
 import { useRowWindow } from "./use-row-window";
@@ -10,12 +10,10 @@ interface VirtualizerMocks {
   scrollToIndex: ReturnType<typeof vi.fn>;
 }
 
-const virtualizerMocks = vi.hoisted(
-  (): VirtualizerMocks => ({
-    measureElement: vi.fn(),
-    scrollToIndex: vi.fn(),
-  }),
-);
+const virtualizerMocks = vi.hoisted((): VirtualizerMocks => ({
+  measureElement: vi.fn(),
+  scrollToIndex: vi.fn(),
+}));
 
 vi.mock(
   "@tanstack/react-virtual",

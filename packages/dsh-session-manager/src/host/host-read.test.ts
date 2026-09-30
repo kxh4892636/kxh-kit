@@ -5,7 +5,7 @@
  * `assistant/message` 与 `tool/result` 在 `data.message.content`
  * (`tool/result` 的正文嵌在 `tool-result` 块的内层 `content`)。
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { SessionManagerHost } from "./host.ts";
 import type { RuntimeHistoryRecordLike } from "./host-contract.ts";
 import {

@@ -1,4 +1,4 @@
-import { afterEach, expect, it, vi } from "vitest";
+import { afterEach, expect, it, vi } from "vite-plus/test";
 import { sql } from "drizzle-orm";
 import { openDatabase } from "../storage/database.ts";
 import { createMarketStore } from "../storage/market-store.ts";

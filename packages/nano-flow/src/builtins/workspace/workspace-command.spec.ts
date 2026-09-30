@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vite-plus/test";
 import { runCli, type CliRequest } from "../../cli/run";
 import type { BuiltinCommand } from "../../cli/types";
 import workspaceCommand from "./index";

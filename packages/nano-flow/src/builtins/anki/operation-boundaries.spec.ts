@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, test, vi } from "vite-plus/test";
 import { runGetDueCards } from "./cards/due-command";
 import { runRateCard } from "./cards/rate-command";
 import { JsonError } from "./errors";

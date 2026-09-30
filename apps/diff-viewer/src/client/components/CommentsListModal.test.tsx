@@ -2,7 +2,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import { HotkeysProvider } from "react-hotkeys-hook";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 
 import type { CommentThread } from "../../types/diff";
 

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { JsonError } from "../errors";
 import { invokeAnki, scriptedPort, type Invocation } from "../testing/test-harness";
 import { changeTags, clearUnusedTags, listTags, replaceTag } from "./tag-operations";

@@ -51,19 +51,15 @@ test("文件树可跳转到尚未挂载的靠后文件", async (): Promise<void>
   try {
     await fs.mkdir(join(fixture.repoPath, "bulk"));
     await Promise.all(
-      Array.from(
-        { length: fileCount },
-        (_value: unknown, index: number): Promise<void> =>
-          fs.writeFile(join(fixture.repoPath, `bulk/file-${index}.txt`), `before ${index}\n`),
+      Array.from({ length: fileCount }, (_value: unknown, index: number): Promise<void> =>
+        fs.writeFile(join(fixture.repoPath, `bulk/file-${index}.txt`), `before ${index}\n`),
       ),
     );
     runFixtureGit(fixture.repoPath, ["add", "bulk"]);
     runFixtureGit(fixture.repoPath, ["commit", "-m", "add bulk files"]);
     await Promise.all(
-      Array.from(
-        { length: fileCount },
-        (_value: unknown, index: number): Promise<void> =>
-          fs.writeFile(join(fixture.repoPath, `bulk/file-${index}.txt`), `after ${index}\n`),
+      Array.from({ length: fileCount }, (_value: unknown, index: number): Promise<void> =>
+        fs.writeFile(join(fixture.repoPath, `bulk/file-${index}.txt`), `after ${index}\n`),
       ),
     );
 

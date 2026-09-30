@@ -6,7 +6,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
-import { afterAll, beforeAll, describe, expect, test } from "vitest";
+import { afterAll, beforeAll, describe, expect, test } from "vite-plus/test";
 
 const execFileAsync = promisify(execFile);
 const packageRoot = path.resolve(import.meta.dirname, "..");
@@ -337,9 +337,8 @@ const verifyDistributionSurface = async (fixture: DistributionFixture): Promise<
     "skills/nano-flow-cli/SKILL.md",
   ];
   await Promise.all(
-    assets.map(
-      (file: string): Promise<void> =>
-        access(path.join(fixture.installedPackage, ...file.split("/"))),
+    assets.map((file: string): Promise<void> =>
+      access(path.join(fixture.installedPackage, ...file.split("/"))),
     ),
   );
   const skillTree = await collectTree(path.join(fixture.installedPackage, "skills"));

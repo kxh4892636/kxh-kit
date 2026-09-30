@@ -72,16 +72,14 @@ const resolveBatchSelections = async (
   const config = await loadWorkspaceFile(cwd);
   const selected = [...new Set(names)];
   if (selected.length === 0) {
-    return config.repositories.map(
-      (repository: WorkspaceRepository): BatchSelection => ({
-        name: repository.name,
-        target: {
-          repository,
-          repositoryPath: resolveRepositoryPath(config.root, repository),
-          root: config.root,
-        },
-      }),
-    );
+    return config.repositories.map((repository: WorkspaceRepository): BatchSelection => ({
+      name: repository.name,
+      target: {
+        repository,
+        repositoryPath: resolveRepositoryPath(config.root, repository),
+        root: config.root,
+      },
+    }));
   }
   return selected.map((name: string): BatchSelection => {
     const repository = config.repositories.find(
@@ -211,12 +209,10 @@ interface GitWorktree {
 }
 
 const parseWorktrees = (porcelain: string): readonly GitWorktree[] =>
-  parseWorktreeList(porcelain).map(
-    (record: GitWorktreeRecord): GitWorktree => ({
-      path: record.path,
-      ...(record.branch === undefined ? {} : { branch: record.branch }),
-    }),
-  );
+  parseWorktreeList(porcelain).map((record: GitWorktreeRecord): GitWorktree => ({
+    path: record.path,
+    ...(record.branch === undefined ? {} : { branch: record.branch }),
+  }));
 
 const repositoryStatus = async (target: RepositoryTarget): Promise<JsonValue> => {
   const { repository, repositoryPath } = target;
@@ -269,12 +265,10 @@ const repositoryStatus = async (target: RepositoryTarget): Promise<JsonValue> =>
       ahead: counts[0] ?? 0,
       behind: counts[1] ?? 0,
       status: "materialized",
-      worktrees: worktrees.map(
-        (worktree: GitWorktree): JsonValue => ({
-          path: worktree.path,
-          ...(worktree.branch === undefined ? {} : { branch: worktree.branch }),
-        }),
-      ),
+      worktrees: worktrees.map((worktree: GitWorktree): JsonValue => ({
+        path: worktree.path,
+        ...(worktree.branch === undefined ? {} : { branch: worktree.branch }),
+      })),
     };
   } catch (error) {
     return {

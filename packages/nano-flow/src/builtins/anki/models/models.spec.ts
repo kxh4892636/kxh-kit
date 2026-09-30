@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { invokeAnki } from "../testing/test-harness";
 
 const createTemplate = '[{"Name":"Card 1","Front":"{{Front}}","Back":"{{Back}}"}]';

@@ -20,12 +20,10 @@ export const createMarketStore = (db: ReturnType<typeof openDatabase>): MarketSt
         .from(securities)
         .orderBy(securities.symbol)
         .all()
-        .map(
-          (security): Security => ({
-            ...security,
-            latestCachedTradeDate: latestDate(security.symbol, "qfq"),
-          }),
-        ),
+        .map((security): Security => ({
+          ...security,
+          latestCachedTradeDate: latestDate(security.symbol, "qfq"),
+        })),
     findSecurity: (symbol: string): Security | undefined =>
       db.select().from(securities).where(eq(securities.symbol, symbol)).get(),
     listBars: (symbol: string, adjType: string, start: string, end: string): DailyBar[] =>

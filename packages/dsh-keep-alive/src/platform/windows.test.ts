@@ -1,4 +1,4 @@
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import { powershell, snapshot, terminate, windowsPlatform, type PowerShell } from "./windows.js";
 import { onWindows } from "../testing/platform.js";
 import type { Identity, ProcessSnapshot } from "./processes.js";

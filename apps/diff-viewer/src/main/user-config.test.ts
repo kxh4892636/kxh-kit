@@ -2,7 +2,7 @@ import { promises as fs } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vite-plus/test";
 
 import {
   getUserConfigPath,

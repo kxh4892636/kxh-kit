@@ -1,5 +1,5 @@
 import type { SkillProviderControl } from "@deepseek-ai/dsh-skill";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { apply, Config, inject, name, NESTED_SKILL_RANK, PROVIDER_NAME } from "./main.js";
 import type { NestedSkillProvider } from "./provider.js";
 

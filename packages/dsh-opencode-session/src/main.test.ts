@@ -3,7 +3,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { once } from "node:events";
 import { Context } from "@deepseek-ai/cordis";
 import type { GenerateOptions, StreamChunk } from "@deepseek-ai/dsh-llm";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 import * as plugin from "./main.ts";
 
 const chunk: StreamChunk = { type: "text-delta", index: 0, text: "ok" };
@@ -186,15 +186,13 @@ describe("模型请求会话头", (): void => {
       };
       await mount();
       await drain(
-        stream(
-          "parent",
-          (): AsyncIterable<StreamChunk> =>
-            (async function* (): AsyncGenerator<StreamChunk> {
-              await drain(stream(missing, (): AsyncIterable<StreamChunk> => requestStream()));
-              await drain(stream("child", (): AsyncIterable<StreamChunk> => requestStream()));
-              await fetch("https://model.invalid/parent");
-              yield chunk;
-            })(),
+        stream("parent", (): AsyncIterable<StreamChunk> =>
+          (async function* (): AsyncGenerator<StreamChunk> {
+            await drain(stream(missing, (): AsyncIterable<StreamChunk> => requestStream()));
+            await drain(stream("child", (): AsyncIterable<StreamChunk> => requestStream()));
+            await fetch("https://model.invalid/parent");
+            yield chunk;
+          })(),
         ),
       );
       await fetch("https://tool.invalid/outside");
@@ -250,11 +248,10 @@ describe("模型请求会话头", (): void => {
     const sent = vi.fn<typeof fetch>().mockRejectedValue(error);
     globalThis.fetch = sent;
     await mount();
-    expect(
-      (): AsyncIterable<StreamChunk> =>
-        stream("sync", (): never => {
-          throw error;
-        }),
+    expect((): AsyncIterable<StreamChunk> =>
+      stream("sync", (): never => {
+        throw error;
+      }),
     ).toThrow(error);
     await expect(
       drain(stream("failed", (): AsyncIterable<StreamChunk> => requestStream())),
@@ -323,14 +320,12 @@ describe("模型请求会话头", (): void => {
       const address = server.address();
       if (address === null || typeof address === "string") throw new Error("no server port");
       await drain(
-        stream(
-          "wire-session",
-          (): AsyncIterable<StreamChunk> =>
-            requestStream(new URL(`http://127.0.0.1:${address.port}/chat`), {
-              method: "POST",
-              body: '{"model":"test"}',
-              headers: { authorization: "Bearer local" },
-            }),
+        stream("wire-session", (): AsyncIterable<StreamChunk> =>
+          requestStream(new URL(`http://127.0.0.1:${address.port}/chat`), {
+            method: "POST",
+            body: '{"model":"test"}',
+            headers: { authorization: "Bearer local" },
+          }),
         ),
       );
       expect(received).toEqual([

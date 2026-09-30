@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile, access } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vite-plus/test";
 import { type ManagedSkill } from "./skill-catalog";
 import { hashSkillFiles } from "./skill-files";
 import { prepareSelfUpdate, type PackageManagerPort } from "./self-updater";

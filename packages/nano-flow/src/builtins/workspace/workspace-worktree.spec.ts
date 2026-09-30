@@ -1,6 +1,6 @@
 import { mkdir, symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vite-plus/test";
 import type { InvocationContext } from "../../cli/types";
 import { WORKSPACE_CONFIG_FILE } from "./workspace-config";
 import { prepareWorkspaceAdd } from "./workspace-worktree";

@@ -2,7 +2,7 @@ import { renderHook, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type React from "react";
 import { HotkeysProvider } from "react-hotkeys-hook";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 
 import type { DiffFile } from "../../types/diff";
 

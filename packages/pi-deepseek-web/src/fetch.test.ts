@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { classifyContentType, fetchPage, validateUrl } from "./fetch.ts";
 
 const limits = { maxResponseBytes: 1_000, maxBodyChars: 1_000, timeoutMs: 1_000 };

@@ -1,5 +1,5 @@
 import { channel } from "node:diagnostics_channel";
-import { describe, expect, test, vi } from "vitest";
+import { describe, expect, test, vi } from "vite-plus/test";
 import { command, group } from "./cli/definition";
 import type { BuiltinCommand, InvocationContext, JsonOutput } from "./cli/types";
 import { isClosedInput, nodeRuntime, runMain, type MainRuntime } from "./main-runtime";

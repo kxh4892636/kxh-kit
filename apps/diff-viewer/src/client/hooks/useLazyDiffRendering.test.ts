@@ -1,5 +1,5 @@
 import { renderHook, waitFor } from "@testing-library/react";
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vite-plus/test";
 
 import { type DiffFile, type DiffResponse } from "../../types/diff";
 
@@ -47,14 +47,13 @@ const renderDiffData = (
   diffData: DiffResponse,
   setDiffData: React.Dispatch<React.SetStateAction<DiffResponse | null>> = (): void => {},
 ): ReturnType<typeof renderLazyDiffRendering> =>
-  renderHook(
-    (): ReturnType<typeof useLazyDiffRendering> =>
-      useLazyDiffRendering({
-        diffData,
-        diffScrollContainerRef: { current: null },
-        fileListAnchorRef: { current: null },
-        setDiffData,
-      }),
+  renderHook((): ReturnType<typeof useLazyDiffRendering> =>
+    useLazyDiffRendering({
+      diffData,
+      diffScrollContainerRef: { current: null },
+      fileListAnchorRef: { current: null },
+      setDiffData,
+    }),
   );
 
 function stubRect(element: HTMLElement, top: number) {

@@ -1,5 +1,5 @@
 import { channel } from "node:diagnostics_channel";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test } from "vite-plus/test";
 import type { AnkiConfig } from "../config";
 import { ReadOnlyModeError } from "../errors";
 import {

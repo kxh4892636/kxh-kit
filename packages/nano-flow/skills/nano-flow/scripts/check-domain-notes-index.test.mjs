@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import assert from "node:assert/strict";
-import { test } from "vitest";
+import { test } from "vite-plus/test";
 
 import { checkDomain } from "./check-domain.mjs";
 import {

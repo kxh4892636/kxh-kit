@@ -1,6 +1,6 @@
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import {
   DATA_ROOT_ENV,
   MAX_SOCKET_PATH,

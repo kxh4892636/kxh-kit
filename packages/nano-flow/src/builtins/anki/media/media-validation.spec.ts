@@ -1,6 +1,6 @@
 import * as dns from "node:dns";
 import { resolve } from "node:path";
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 import type { Logger } from "../logger";
 import {
   MediaUrlInvalidError,

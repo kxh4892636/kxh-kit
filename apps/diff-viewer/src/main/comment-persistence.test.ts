@@ -2,7 +2,7 @@ import { mkdtemp, readdir, readFile, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import type { DiffCommentThread } from "../types/diff.js";
 

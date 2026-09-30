@@ -72,16 +72,14 @@ export const useMaSeries = (params: {
     (): MaSeries[] =>
       maSourceSeries
         .filter((series: MaSeries): boolean => !hiddenPeriods.has(series.period))
-        .map(
-          (series: MaSeries): MaSeries => ({
-            ...series,
-            // MA 数组跟随可见窗口切片，保证 tooltip、hover index 和蜡烛索引始终一一对应。
-            values: series.values.slice(
-              maStartIndex + zoomWindow.start,
-              maStartIndex + zoomWindow.end,
-            ),
-          }),
-        ),
+        .map((series: MaSeries): MaSeries => ({
+          ...series,
+          // MA 数组跟随可见窗口切片，保证 tooltip、hover index 和蜡烛索引始终一一对应。
+          values: series.values.slice(
+            maStartIndex + zoomWindow.start,
+            maStartIndex + zoomWindow.end,
+          ),
+        })),
     [hiddenPeriods, maSourceSeries, maStartIndex, zoomWindow.end, zoomWindow.start],
   );
 

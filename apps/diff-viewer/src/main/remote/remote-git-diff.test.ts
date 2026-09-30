@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import type { CommandExecutor, ExecResult } from "./executor.js";
 import { createDiffSelection } from "../../utils/diffSelection.js";

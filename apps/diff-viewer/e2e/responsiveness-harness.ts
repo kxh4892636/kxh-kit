@@ -121,25 +121,21 @@ export const createResponsivenessFixture = async (
     await fs.mkdir(directory);
 
     await Promise.all(
-      Array.from(
-        { length: fileCount },
-        (_value: unknown, index: number): Promise<void> =>
-          fs.writeFile(
-            join(directory, `file-${index}.txt`),
-            createFixtureContent(shape, linesPerFile, "before"),
-          ),
+      Array.from({ length: fileCount }, (_value: unknown, index: number): Promise<void> =>
+        fs.writeFile(
+          join(directory, `file-${index}.txt`),
+          createFixtureContent(shape, linesPerFile, "before"),
+        ),
       ),
     );
     runFixtureGit(fixture.repoPath, ["add", "performance"]);
     runFixtureGit(fixture.repoPath, ["commit", "-m", `add ${shape} performance fixture`]);
     await Promise.all(
-      Array.from(
-        { length: fileCount },
-        (_value: unknown, index: number): Promise<void> =>
-          fs.writeFile(
-            join(directory, `file-${index}.txt`),
-            createFixtureContent(shape, linesPerFile, "after"),
-          ),
+      Array.from({ length: fileCount }, (_value: unknown, index: number): Promise<void> =>
+        fs.writeFile(
+          join(directory, `file-${index}.txt`),
+          createFixtureContent(shape, linesPerFile, "after"),
+        ),
       ),
     );
 

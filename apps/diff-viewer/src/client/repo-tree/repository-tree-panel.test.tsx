@@ -1,7 +1,7 @@
 // 仓库树面板展示组件测试 (issue 04 重构为纯展示): 父子层级渲染、勾选/聚焦属性、
 // 进度与错误文本、交互回调、无 bridge 降级。状态机行为见 use-repository-scan.test.tsx。
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { DiffViewerBridge } from "../../api-bridge/api-bridge-types";
 import type { RepositoryNode } from "../../types/repository";

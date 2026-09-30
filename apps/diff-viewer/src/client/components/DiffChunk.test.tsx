@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import type { DiffChunk as DiffChunkData } from "../../types/diff";
 import { DEFAULT_DIFF_VIEW_MODE } from "../../utils/diffMode";

@@ -1,6 +1,6 @@
 // fake executor 的单元测试: 语义等价 double 的映射/git/扫描/cat 行为,
 // 以及"经真实 remote-repo-scanner 解析回路"的闭环 (假输出必须骗得过真解析器)。
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import {
   createNestedRepoFixture,

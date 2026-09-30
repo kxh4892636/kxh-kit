@@ -1,4 +1,4 @@
-import { vi } from "vitest";
+import { vi } from "vite-plus/test";
 import type { Logger } from "../logger";
 import { scriptedPort } from "../testing/test-harness";
 

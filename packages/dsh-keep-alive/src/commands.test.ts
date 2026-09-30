@@ -5,7 +5,7 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import { start, update, query, listPorts, logs, runSupervisor } from "./commands.js";
 import { DEFAULT_PORT, main, parseOptions, resolveTag } from "./main.js";
 import { fixture, fixtureVersion, temporary, writePackage } from "./testing/fixture.js";

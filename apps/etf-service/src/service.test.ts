@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
 
 import type { AddressInfo } from "node:net";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { ZodError } from "zod";
 import { sql } from "drizzle-orm";
 import { createApp, MarketError } from "./app.ts";

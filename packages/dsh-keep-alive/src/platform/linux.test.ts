@@ -4,7 +4,7 @@ import { once } from "node:events";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import { linuxPlatform, snapshot, terminate } from "./linux.js";
 import { listeningPids } from "./posix.js";
 import { confirmIdentities, parseStat } from "./proc.js";

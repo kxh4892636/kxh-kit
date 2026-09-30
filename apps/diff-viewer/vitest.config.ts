@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { defineConfig } from "vitest/config";
+import { defineConfig } from "vite-plus";
 
 const resolveFromRoot = (relativePath: string) => path.resolve(process.cwd(), relativePath);
 const virtualViteEnvModuleId = "\0virtual:@vite/env";

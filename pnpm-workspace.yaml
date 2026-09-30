@@ -21,7 +21,7 @@ catalog:
   "@tailwindcss/vite": ^4.2.4
   "@tanstack/react-query": ^5.100.8
   "@tanstack/react-router": ^1.169.1
-  "@vitest/browser-playwright": ^4.1.10
+  "@vitest/browser-playwright": 5.0.1
   antd: ^6.4.3
   clsx: ^2.1.1
   dayjs: ^1.11.13
@@ -40,7 +40,7 @@ catalog:
   "@types/node": ^24.12.4
   "@types/react": ^19.2.14
   "@types/react-dom": ^19.2.3
-  "@vitest/coverage-v8": ^4.1.10
+  "@vitest/coverage-v8": 5.0.1
   # TypeScript 7 provides tsc; TypeScript 6 remains under the canonical package name
   # for tools that still import the legacy compiler API.
   "@typescript/native": npm:typescript@~7.0.2
@@ -48,9 +48,9 @@ catalog:
   react: ^19.2.5
   react-dom: ^19.2.5
   typescript: npm:@typescript/typescript6@~6.0.2
-  vite: npm:@voidzero-dev/vite-plus-core@0.2.6
-  vite-plus: 0.2.6
-  vitest: ^4.1.10
+  vite: npm:@voidzero-dev/vite-plus-core@1.0.0
+  vite-plus: 1.0.0
+  vitest: 5.0.1
   "@earendil-works/pi-coding-agent": ^0.99.1
   "@earendil-works/pi-tui": ^0.99.1
 
@@ -87,11 +87,11 @@ minimumReleaseAgeExclude:
   - "@earendil-works/pi-telemetry@0.99.1"
   - "@earendil-works/pi-tui@0.99.1"
 overrides:
-  vite: "catalog:"
-  vitest: "catalog:"
   # app-builder-lib 26.15.3 引用了 @electron/get 3.1.0 才新增的 ElectronDownloadCacheMode,
   # 而 lockfile 曾把其锁在 3.0.0 导致打包崩溃; 作用域覆盖只影响 app-builder-lib
   "app-builder-lib>@electron/get": ^3.1.0
+  vite@*: "catalog:"
+  vitest@*: "catalog:"
 peerDependencyRules:
   allowAny:
     - vite

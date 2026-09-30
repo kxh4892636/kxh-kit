@@ -1,6 +1,6 @@
 import { readFile, readdir, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import { appendLog, LOG_LIMIT } from "./log.js";
 import { temporary } from "../testing/fixture.js";
 test("日志按字节轮转并最多保留三个文件", async (): Promise<void> => {

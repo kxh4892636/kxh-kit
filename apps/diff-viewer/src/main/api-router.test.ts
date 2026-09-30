@@ -3,7 +3,7 @@ import { mkdtemp, readdir, rm } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vite-plus/test";
 
 import type { ApiBridgeResponse } from "../api-bridge/api-bridge-types.js";
 import type { DiffResponse, DiffSelection } from "../types/diff.js";

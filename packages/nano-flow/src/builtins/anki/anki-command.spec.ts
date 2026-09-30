@@ -1,5 +1,5 @@
 import { channel } from "node:diagnostics_channel";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { runCli, type CliRequest } from "../../cli/run";
 import type { BuiltinCommand, JsonValue } from "../../cli/types";
 import { createAnkiCommand, type AnkiDependencies } from "./anki-command";

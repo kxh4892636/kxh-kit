@@ -1,5 +1,5 @@
 import { renderHook, act } from "@testing-library/react";
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vite-plus/test";
 
 import { useDiffComments } from "./useDiffComments";
 import { useViewedFiles } from "./useViewedFiles";

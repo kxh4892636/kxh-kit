@@ -1,7 +1,7 @@
 import { mkdtemp, readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, expect, test } from "vitest";
+import { afterEach, expect, test } from "vite-plus/test";
 import { DiagnosticLog, type DiagnosticTrigger } from "./diagnostic-log.js";
 
 const stateDirs: string[] = [];

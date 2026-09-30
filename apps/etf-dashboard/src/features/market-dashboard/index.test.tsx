@@ -1,5 +1,5 @@
-import { describe, expect, test } from "vitest";
-import { page } from "vitest/browser";
+import { describe, expect, test } from "vite-plus/test";
+import { page } from "vite-plus/test/browser";
 import {
   createTestClient,
   makeDailyBars,
@@ -31,14 +31,12 @@ describe("MarketDashboard", () => {
     },
   );
   test("日线空成员和缺日期成员被忽略，有效行情仍可绘制", async () => {
-    const client = createEtfClient(
-      "http://fixture",
-      async (input): Promise<Response> =>
-        Response.json(
-          (input instanceof Request ? input.url : input.toString()).includes("securities")
-            ? { securities: [makeSecurity()] }
-            : { bars: [null, {}, ...makeDailyBars(40)], security: null, meta: null },
-        ),
+    const client = createEtfClient("http://fixture", async (input): Promise<Response> =>
+      Response.json(
+        (input instanceof Request ? input.url : input.toString()).includes("securities")
+          ? { securities: [makeSecurity()] }
+          : { bars: [null, {}, ...makeDailyBars(40)], security: null, meta: null },
+      ),
     );
     await renderWithProviders(<MarketDashboard />, client);
     await expect.element(page.getByRole("button", { name: "MA5", exact: true })).toBeVisible();

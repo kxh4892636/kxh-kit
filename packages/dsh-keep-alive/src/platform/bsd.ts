@@ -101,8 +101,7 @@ export const confirmIdentities = async (
 export const bsdPlatform = (run: RunPs = runPs): ProcessSource => ({
   snapshot: (port: number): Promise<ProcessSnapshot> => snapshot(port, run),
   terminate: (identities: Identity[]): Promise<void> =>
-    terminateWithSignals(
-      identities,
-      (candidates: Identity[]): Promise<Identity[]> => confirmIdentities(candidates, run),
+    terminateWithSignals(identities, (candidates: Identity[]): Promise<Identity[]> =>
+      confirmIdentities(candidates, run),
     ),
 });

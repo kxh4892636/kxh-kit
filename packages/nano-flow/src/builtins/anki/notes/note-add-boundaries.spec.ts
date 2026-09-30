@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { ReadOnlyModeError } from "../errors";
 import { scriptedPort, type Invocation } from "../testing/test-harness";
 import { runAddNote } from "./add-note-command";

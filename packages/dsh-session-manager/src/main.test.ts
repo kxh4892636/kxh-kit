@@ -1,7 +1,7 @@
 /**
  * 插件入口测试: apply 注册 9 个工具, 并在严格 ctx 下只经 inject/ctx.get 取服务。
  */
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import { apply, inject } from "./main.ts";
 import type { HostServices, SubagentMode } from "./host/host-contract.ts";
 import {

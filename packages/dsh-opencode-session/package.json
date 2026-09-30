@@ -38,7 +38,7 @@
     "@vitest/coverage-v8": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:",
-    "vitest": "^4.1.10"
+    "vitest": "catalog:"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",

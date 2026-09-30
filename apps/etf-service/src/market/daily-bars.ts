@@ -153,17 +153,17 @@ const refresh = async (
   const missing = dateRange(before ? addDays(before, 1) : start, end).filter(
     (date: string): boolean => isWeekday(date) && !open.has(date),
   );
-  const days: TradingDay[] = [...open].map(
-    (date: string): TradingDay => ({ exchange: security.exchange, tradeDate: date, isOpen: 1 }),
-  );
+  const days: TradingDay[] = [...open].map((date: string): TradingDay => ({
+    exchange: security.exchange,
+    tradeDate: date,
+    isOpen: 1,
+  }));
   days.push(
-    ...missing.map(
-      (date: string): TradingDay => ({
-        exchange: security.exchange,
-        tradeDate: date,
-        isOpen: 0,
-      }),
-    ),
+    ...missing.map((date: string): TradingDay => ({
+      exchange: security.exchange,
+      tradeDate: date,
+      isOpen: 0,
+    })),
   );
   // 行情与交易日历作为一次刷新原子提交，失败不能留下部分缓存。
   store.saveRefresh(bars, days);

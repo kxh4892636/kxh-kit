@@ -1,7 +1,7 @@
 import { useState, type FC, type ReactElement } from "react";
-import { describe, expect, test, vi } from "vitest";
-import { page } from "vitest/browser";
-import { userEvent } from "vitest/browser";
+import { describe, expect, test, vi } from "vite-plus/test";
+import { page } from "vite-plus/test/browser";
+import { userEvent } from "vite-plus/test/browser";
 import { render } from "vitest-browser-react";
 import { DashboardToolbar } from "./dashboard-toolbar";
 import type { ChartPeriod, ChartRange } from "./chart/chart-data";
@@ -127,7 +127,7 @@ describe("DashboardToolbar", () => {
     const spies = createSpies();
     await render(<ToolbarHarness spies={spies} />);
 
-    await page.getByRole("button", { name: "刷新" }).click();
+    await page.getByRole("button", { name: /刷新$/ }).click();
     await expect.poll((): number => spies.onRefresh.mock.calls.length).toBe(1);
   });
 

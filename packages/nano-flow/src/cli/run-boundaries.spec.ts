@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import fixtureCommand from "../builtins/fixture";
 import { command, group, option } from "./definition";
 import { runCli, type CliRequest } from "./run";

@@ -1,5 +1,5 @@
-import { describe, expect, test, vi } from "vitest";
-import { page } from "vitest/browser";
+import { describe, expect, test, vi } from "vite-plus/test";
+import { page } from "vite-plus/test/browser";
 import { render } from "vitest-browser-react";
 import type { GetDailyBarsResponse } from "../../libs/api/client";
 import { KlineTooltip } from "./chart/kline-tooltip";

@@ -1,5 +1,5 @@
 import { renderHook, act } from "@testing-library/react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vite-plus/test";
 
 import type { DiffContextStorage } from "../../types/diff";
 import { useDiffComments } from "./useDiffComments";

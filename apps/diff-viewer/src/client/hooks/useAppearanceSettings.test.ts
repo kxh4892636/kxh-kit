@@ -1,5 +1,5 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { DEFAULT_EDITOR_OPTION } from "../../utils/editorOptions";
 import { resetClientSettingsForTests } from "../services/userSettings";
@@ -214,7 +214,7 @@ describe("useAppearanceSettings", () => {
       const putBodies: any[] = [];
       (global.fetch as any).mockImplementation((url: string, init?: RequestInit) => {
         if (url.includes("/api/user-settings") && init?.method === "PUT") {
-          putBodies.push(JSON.parse(String(init.body)));
+          putBodies.push(JSON.parse(String(init.body as string)));
           return Promise.resolve({ ok: true, json: async () => ({}) });
         }
         if (url.includes("/api/user-settings")) {

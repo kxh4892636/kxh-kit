@@ -60,16 +60,14 @@ export const runNotesInfo = async (
         (note: (typeof notesData)[number]): note is NonNullable<(typeof notesData)[number]> =>
           note !== null,
       )
-      .map(
-        (note: NonNullable<(typeof notesData)[number]>): NoteInfo => ({
-          noteId: note.noteId,
-          modelName: note.modelName,
-          tags: note.tags,
-          fields: note.fields,
-          cards: note.cards,
-          mod: note.mod,
-        }),
-      );
+      .map((note: NonNullable<(typeof notesData)[number]>): NoteInfo => ({
+        noteId: note.noteId,
+        modelName: note.modelName,
+        tags: note.tags,
+        fields: note.fields,
+        cards: note.cards,
+        mod: note.mod,
+      }));
 
     const validNotes = transformedNotes.filter((note: NoteInfo): boolean => note.noteId > 0);
     const deletedCount = notes.length - validNotes.length;

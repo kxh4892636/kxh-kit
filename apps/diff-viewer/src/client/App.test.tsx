@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import { HotkeysProvider } from "react-hotkeys-hook";
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vite-plus/test";
 import "@testing-library/jest-dom";
 
 import { mockFetch } from "../../vitest.setup";
@@ -12,6 +12,11 @@ import App from "./App";
 import { useDiffComments } from "./hooks/useDiffComments";
 import { useViewedFiles } from "./hooks/useViewedFiles";
 import { useViewport } from "./hooks/useViewport";
+
+const toUrlString = (input: RequestInfo | URL): string =>
+  typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+const readRequestBody = (body: BodyInit | null | undefined): string =>
+  typeof body === "string" ? body : "";
 
 // Mock the useViewport hook
 vi.mock("./hooks/useViewport", () => ({
@@ -85,9 +90,10 @@ vi.mock("./hooks/useFileWatch", () => ({
 }));
 
 // Mock navigator.sendBeacon
+const mockSendBeacon = vi.fn();
 Object.defineProperty(navigator, "sendBeacon", {
   writable: true,
-  value: vi.fn(),
+  value: mockSendBeacon,
 });
 
 // Mock navigator.clipboard (issue 05: 一键复制断言写剪贴板的 Markdown 内容)
@@ -410,7 +416,7 @@ describe("App Component - Clear Comments Functionality", () => {
       ];
 
       vi.mocked(global.fetch).mockImplementation((input) => {
-        const url = String(input);
+        const url = toUrlString(input);
 
         if (url.startsWith("/api/comments-json")) {
           return Promise.resolve({
@@ -474,7 +480,7 @@ describe("App Component - Clear Comments Functionality", () => {
       };
 
       vi.mocked(global.fetch).mockImplementation((input) => {
-        const url = String(input);
+        const url = toUrlString(input);
 
         if (url.startsWith("/api/comments-json")) {
           return Promise.resolve({
@@ -592,14 +598,14 @@ describe("App Component - Comment sync", () => {
 
     await waitFor(() => {
       const commentCalls = mockGlobalFetch.mock.calls.filter(([url]) =>
-        String(url).startsWith("/api/comments?"),
+        toUrlString(url).startsWith("/api/comments?"),
       );
       expect(commentCalls).toHaveLength(1);
 
       const [url, request] = commentCalls[0] as [string, RequestInit];
       expect(url).toBe("/api/comments?base=HEAD%5E&target=HEAD");
       expect(request.method).toBe("POST");
-      expect(JSON.parse(String(request.body))).toEqual({
+      expect(JSON.parse(readRequestBody(request.body))).toEqual({
         threads: [
           expect.objectContaining({
             id: "test-1",
@@ -626,14 +632,14 @@ describe("App Component - Comment sync", () => {
 
     await waitFor(() => {
       const commentCalls = mockGlobalFetch.mock.calls.filter(([url]) =>
-        String(url).startsWith("/api/comments?"),
+        toUrlString(url).startsWith("/api/comments?"),
       );
       expect(commentCalls).toHaveLength(2);
 
       const [url, request] = commentCalls[1] as [string, RequestInit];
       expect(url).toBe("/api/comments?base=HEAD%5E&target=HEAD");
       expect(request.method).toBe("POST");
-      expect(JSON.parse(String(request.body))).toEqual({ threads: [] });
+      expect(JSON.parse(readRequestBody(request.body))).toEqual({ threads: [] });
     });
   });
 
@@ -653,7 +659,7 @@ describe("App Component - Comment sync", () => {
     expect(beforeUnloadHandler).toBeDefined();
     beforeUnloadHandler?.();
 
-    expect(navigator.sendBeacon).toHaveBeenCalledWith(
+    expect(mockSendBeacon).toHaveBeenCalledWith(
       "/api/comments?base=HEAD%5E&target=HEAD",
       JSON.stringify({ threads: [] }),
     );
@@ -797,7 +803,7 @@ describe("App Component - Merge-base selection", () => {
     };
 
     vi.mocked(global.fetch).mockImplementation((input) => {
-      const url = String(input);
+      const url = toUrlString(input);
 
       if (url.includes("/api/revisions")) {
         return Promise.resolve({
@@ -910,7 +916,7 @@ describe("App Component - Merge-base selection", () => {
     let resolveRevisions: (() => void) | null = null;
 
     vi.mocked(global.fetch).mockImplementation((input) => {
-      const url = String(input);
+      const url = toUrlString(input);
 
       if (url.includes("/api/revisions")) {
         return new Promise<Response>((resolve) => {
@@ -1019,10 +1025,11 @@ describe("App Component - Revision-aware refetching", () => {
     await waitFor(() => {
       const diffCalls = vi
         .mocked(global.fetch)
-        .mock.calls.filter(([url]) => typeof url === "string" && url.startsWith("/api/diff"));
+        .mock.calls.map(([url]) => url)
+        .filter((url): url is string => typeof url === "string" && url.startsWith("/api/diff"));
       expect(diffCalls).toHaveLength(2);
-      expect(String(diffCalls[1]?.[0])).toContain("base=HEAD%5E%5E");
-      expect(String(diffCalls[1]?.[0])).toContain("target=HEAD%5E");
+      expect(diffCalls[1]).toContain("base=HEAD%5E%5E");
+      expect(diffCalls[1]).toContain("target=HEAD%5E");
     });
 
     fireEvent.click(screen.getByRole("checkbox", { name: "Ignore Whitespace" }));
@@ -1030,10 +1037,11 @@ describe("App Component - Revision-aware refetching", () => {
     await waitFor(() => {
       const diffCalls = vi
         .mocked(global.fetch)
-        .mock.calls.filter(([url]) => typeof url === "string" && url.startsWith("/api/diff"));
+        .mock.calls.map(([url]) => url)
+        .filter((url): url is string => typeof url === "string" && url.startsWith("/api/diff"));
       expect(diffCalls).toHaveLength(3);
-      expect(String(diffCalls[2]?.[0])).toContain("base=HEAD%5E%5E");
-      expect(String(diffCalls[2]?.[0])).toContain("target=HEAD%5E");
+      expect(diffCalls[2]).toContain("base=HEAD%5E%5E");
+      expect(diffCalls[2]).toContain("target=HEAD%5E");
     });
   });
 });

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { createEventStream } from "./event-stream";
 
 describe("event stream boundaries", (): void => {

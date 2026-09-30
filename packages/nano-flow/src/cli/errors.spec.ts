@@ -1,5 +1,5 @@
 import { CommanderError } from "commander";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { CliUsageError, DefinitionError, isUsageError, toErrorJson } from "./errors";
 
 describe("CLI error contracts", (): void => {

@@ -1,6 +1,6 @@
 import { EventEmitter } from "events";
 
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { createSshExecutor } from "./ssh-executor.js";
 import type { SpawnImpl } from "./local-executor.js";

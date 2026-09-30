@@ -2,7 +2,7 @@
 // 表单校验 (空输入不提交)、连接失败错误展示、连接中禁用提交。
 // bridge 与 scan 状态机全部 stub, 不经真实 IPC/网络。
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { DiffViewerBridge } from "../../api-bridge/api-bridge-types";
 import type { SshConnectionEntry } from "../../types/ssh";

@@ -109,15 +109,13 @@ const getPeriodKey = (record: ChartBar, period: ChartPeriod): string => {
 export const normalizeBars = (bars: DailyBar[]): ChartBar[] =>
   bars
     .filter((bar: DailyBar): boolean => Boolean(bar?.tradeDate))
-    .map(
-      (bar: DailyBar): ChartBar => ({
-        ...bar,
-        ...parseDateParts(bar.tradeDate),
-        startDate: bar.tradeDate,
-        endDate: bar.tradeDate,
-        label: bar.tradeDate,
-      }),
-    );
+    .map((bar: DailyBar): ChartBar => ({
+      ...bar,
+      ...parseDateParts(bar.tradeDate),
+      startDate: bar.tradeDate,
+      endDate: bar.tradeDate,
+      label: bar.tradeDate,
+    }));
 
 export const aggregateBars = (params: { bars: DailyBar[]; period: ChartPeriod }): ChartBar[] => {
   const normalized = normalizeBars(params.bars);

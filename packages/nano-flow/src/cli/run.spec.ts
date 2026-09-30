@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import fixtureCommand from "../builtins/fixture/index";
 import { command, group, option } from "./definition";
 import { runCli, type CliRequest } from "./run";

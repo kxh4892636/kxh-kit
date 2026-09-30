@@ -3,7 +3,7 @@ import { symlink } from "node:fs/promises";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import { temporary } from "./testing/fixture.js";
 
 const exec = promisify(execFile);

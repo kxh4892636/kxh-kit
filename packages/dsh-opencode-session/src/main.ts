@@ -13,9 +13,8 @@ const bindStream = (
   sessionId: string | undefined,
   next: () => AsyncIterable<StreamChunk>,
 ): AsyncIterableIterator<StreamChunk> => {
-  const iterator = storage.run(
-    sessionId,
-    (): AsyncIterator<StreamChunk> => next()[Symbol.asyncIterator](),
+  const iterator = storage.run(sessionId, (): AsyncIterator<StreamChunk> =>
+    next()[Symbol.asyncIterator](),
   );
   const stream: AsyncIterableIterator<StreamChunk> = {
     [Symbol.asyncIterator]: (): AsyncIterableIterator<StreamChunk> => stream,

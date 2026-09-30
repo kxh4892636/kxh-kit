@@ -68,15 +68,13 @@ const listRepositoryWorktrees = async (
   await assertPhysicalPathWithinRoot(root, repositoryPath);
   const worktrees = parseWorktrees(
     await runGit(["-C", repositoryPath, "worktree", "list", "--porcelain"]),
-  ).map(
-    (worktree: GitWorktree): JsonValue => ({
-      path: worktree.path,
-      head: worktree.head,
-      ...(worktree.branch === undefined ? {} : { branch: worktree.branch }),
-      primary: normalizeFsPath(worktree.path) === normalizeFsPath(repositoryPath),
-      locked: worktree.locked,
-    }),
-  );
+  ).map((worktree: GitWorktree): JsonValue => ({
+    path: worktree.path,
+    head: worktree.head,
+    ...(worktree.branch === undefined ? {} : { branch: worktree.branch }),
+    primary: normalizeFsPath(worktree.path) === normalizeFsPath(repositoryPath),
+    locked: worktree.locked,
+  }));
   return { name: repository.name, repositoryPath, status: "materialized", worktrees };
 };
 
@@ -357,13 +355,11 @@ interface RepositoryPrunePlan {
 const prunePlanJson = (plan: RepositoryPrunePlan): JsonValue => ({
   name: plan.name,
   status: plan.materialized ? "pruned" : "not-materialized",
-  pruned: plan.pruned.map(
-    (worktree: GitWorktree): JsonValue => ({
-      path: worktree.path,
-      head: worktree.head,
-      ...(worktree.branch === undefined ? {} : { branch: worktree.branch }),
-    }),
-  ),
+  pruned: plan.pruned.map((worktree: GitWorktree): JsonValue => ({
+    path: worktree.path,
+    head: worktree.head,
+    ...(worktree.branch === undefined ? {} : { branch: worktree.branch }),
+  })),
 });
 
 export const prepareWorkspacePrune = async (

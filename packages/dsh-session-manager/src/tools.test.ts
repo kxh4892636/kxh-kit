@@ -1,7 +1,7 @@
 /**
  * 工具定义测试: 工具集完整性、委托行为、参数交叉校验与错误包装。
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import type { ToolRunContext } from "@deepseek-ai/dsh-tools";
 import { SessionManagerHost } from "./host/host.ts";
 import { headerOf, makeFakeServices, messageRecordOf, snapshotOf } from "./testing/test-support.ts";

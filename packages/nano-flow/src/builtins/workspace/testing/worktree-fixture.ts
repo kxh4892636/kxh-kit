@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
-import { expect } from "vitest";
+import { expect } from "vite-plus/test";
 import { runCli, type CliRequest } from "../../../cli/run";
 import type { BuiltinCommand } from "../../../cli/types";
 import workspaceCommand from "../index";

@@ -55,14 +55,12 @@ export const KlineTooltip: FC<KlineTooltipProps> = (props: KlineTooltipProps): R
       </div>
       {(maValues.length > 0 || virtualMaValue) && (
         <div className="mt-2 border-t border-slate-200 pt-2 text-xs">
-          {maValues.map(
-            (item: TooltipMaValue): ReactElement => (
-              <div key={item.label} className="flex justify-between gap-4">
-                <span>{item.label}</span>
-                <b style={{ color: item.color }}>{formatNumber(item.value, 2)}</b>
-              </div>
-            ),
-          )}
+          {maValues.map((item: TooltipMaValue): ReactElement => (
+            <div key={item.label} className="flex justify-between gap-4">
+              <span>{item.label}</span>
+              <b style={{ color: item.color }}>{formatNumber(item.value, 2)}</b>
+            </div>
+          ))}
           {virtualMaValue && (
             <div className="flex justify-between gap-4">
               <span>{virtualMaValue.label}</span>

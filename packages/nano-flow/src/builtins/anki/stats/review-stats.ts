@@ -77,8 +77,8 @@ const extremeDay = (
 ): ReviewDay | null =>
   days.length === 0
     ? null
-    : days.reduce(
-        (best: ReviewDay, day: ReviewDay): ReviewDay => (isBetter(day, best) ? day : best),
+    : days.reduce((best: ReviewDay, day: ReviewDay): ReviewDay =>
+        isBetter(day, best) ? day : best,
       );
 
 const aggregate = (

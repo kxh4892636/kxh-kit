@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { invokeAnki } from "../testing/test-harness";
 
 describe("deck response boundaries", (): void => {

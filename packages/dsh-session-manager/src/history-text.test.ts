@@ -1,7 +1,7 @@
 /**
  * history-text 单元测试: 事件正文取法与摘要边界(host.read 的行为测试覆盖集成路径)。
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { entriesOf, eventTextOf } from "./history-text.ts";
 import type { RuntimeHistoryRecordLike } from "./host/host-contract.ts";
 

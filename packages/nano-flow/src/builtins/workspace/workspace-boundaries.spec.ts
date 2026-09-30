@@ -2,7 +2,7 @@ import { mkdtemp, mkdir, rm, symlink, writeFile } from "node:fs/promises";
 import { channel } from "node:diagnostics_channel";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 import type { InvocationContext } from "../../cli/types";
 import {
   isWorkspaceRelativePath,

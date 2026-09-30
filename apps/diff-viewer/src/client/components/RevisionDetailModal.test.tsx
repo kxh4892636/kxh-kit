@@ -1,6 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { HotkeysProvider } from "react-hotkeys-hook";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 
 import { RevisionDetailModal } from "./RevisionDetailModal";
 

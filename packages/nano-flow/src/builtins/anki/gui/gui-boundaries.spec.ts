@@ -1,4 +1,4 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test } from "vite-plus/test";
 import { JsonError } from "../errors";
 import { invokeAnki, scriptedPort } from "../testing/test-harness";
 import { guiBrowse, guiSelectCard, guiSelectedNotes } from "./browse-commands";

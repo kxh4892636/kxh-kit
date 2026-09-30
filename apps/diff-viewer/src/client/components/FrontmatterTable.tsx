@@ -60,7 +60,7 @@ function renderValue(value: unknown, depth: number): ReactNode {
       <pre className="whitespace-pre-wrap text-xs font-mono">{JSON.stringify(value, null, 2)}</pre>
     );
   }
-  return <span>{String(value)}</span>;
+  return <span>{String(value as bigint | symbol)}</span>;
 }
 
 function KeyValueRow({ keyName, value }: { keyName: string; value: unknown }) {

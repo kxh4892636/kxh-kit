@@ -1,6 +1,6 @@
 import { createConnection, createServer } from "node:net";
 import { writeFile } from "node:fs/promises";
-import { expect, test } from "vitest";
+import { expect, test } from "vite-plus/test";
 import { request, serve } from "./transport.js";
 import { pathsFor, preparePaths } from "../paths.js";
 import { temporary } from "../testing/fixture.js";

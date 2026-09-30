@@ -8,11 +8,10 @@ const rootRoute = createRootRoute({
 const indexRoute = createRoute({
   getParentRoute: (): typeof rootRoute => rootRoute,
   path: "/",
-}).lazy(
-  (): Promise<(typeof import("@/pages/home"))["Route"]> =>
-    import("@/pages/home").then(
-      (module: typeof import("@/pages/home")): typeof module.Route => module.Route,
-    ),
+}).lazy((): Promise<(typeof import("@/pages/home"))["Route"]> =>
+  import("@/pages/home").then(
+    (module: typeof import("@/pages/home")): typeof module.Route => module.Route,
+  ),
 );
 
 export const routeTree = rootRoute.addChildren([indexRoute]);

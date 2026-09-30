@@ -1,5 +1,5 @@
 import type { KyInstance } from "ky";
-import { afterEach, describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vite-plus/test";
 import type { AnkiConfig } from "../config";
 import { AnkiOperationError } from "../errors";
 import { startFakeAnkiConnect, type FakeAnkiConnect } from "../testing/fake-anki-connect";

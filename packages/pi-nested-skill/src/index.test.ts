@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI, SlashCommandInfo } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteProvider } from "@earendil-works/pi-tui";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vite-plus/test";
 import piNestedSkill, { type NestedSkillOptions } from "./index.ts";
 
 type Handler = (...args: unknown[]) => unknown;

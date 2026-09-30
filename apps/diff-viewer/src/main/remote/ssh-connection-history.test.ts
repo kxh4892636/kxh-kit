@@ -2,7 +2,7 @@ import { mkdtemp, readdir, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { join } from "path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import { createSshConnectionHistory } from "./ssh-connection-history.js";
 

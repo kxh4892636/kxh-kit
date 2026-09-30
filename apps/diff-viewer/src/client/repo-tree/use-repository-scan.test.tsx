@@ -4,7 +4,7 @@
 // issue 06: openRemote 连接远程 (成功换树/失败保留/使在途扫描失效)。
 // bridge (window.diffViewerBridge) 全部 stub, 不经真实 IPC。
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
 
 import type { DiffViewerBridge } from "../../api-bridge/api-bridge-types";
 import type { RepositoryScanResult, ScanProgress } from "../../types/repository";

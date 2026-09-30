@@ -22,9 +22,8 @@ export const snapshot = async (
 const terminateWith =
   (reader: ProcReader) =>
   (identities: Identity[]): Promise<void> =>
-    terminateWithSignals(
-      identities,
-      (candidates: Identity[]): Promise<Identity[]> => confirmIdentities(candidates, reader),
+    terminateWithSignals(identities, (candidates: Identity[]): Promise<Identity[]> =>
+      confirmIdentities(candidates, reader),
     );
 export const terminate = terminateWith(defaultReader);
 export const linuxPlatform = (reader: ProcReader = defaultReader): ProcessSource => ({

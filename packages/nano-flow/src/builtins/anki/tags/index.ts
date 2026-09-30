@@ -62,26 +62,25 @@ export const createTagsGroup = (dependencies: AnkiDependencies): CommandGroup =>
           ),
         ),
     }),
-    ...(["addTags", "removeTags"] as const).map(
-      (action: "addTags" | "removeTags"): CommandNode =>
-        command(action === "addTags" ? "add" : "remove", `${action} on notes`, changeOptions, {
-          kind: "mutation",
-          prepare: async (
-            options: OptionValues,
-            context: InvocationContext,
-          ): Promise<PreparedMutation> => {
-            const params = { notes: noteIds(options["note-id"]), tags: tags(options["tag"]) };
-            return mutation(
-              action,
-              options,
-              context,
-              dependencies,
-              { notes: params.notes, tags: params.tags.join(" ") },
-              async (port: AnkiPort, _logger: Logger): Promise<JsonOutput> =>
-                toJson(changeTags(port, action, params)),
-            );
-          },
-        }),
+    ...(["addTags", "removeTags"] as const).map((action: "addTags" | "removeTags"): CommandNode =>
+      command(action === "addTags" ? "add" : "remove", `${action} on notes`, changeOptions, {
+        kind: "mutation",
+        prepare: async (
+          options: OptionValues,
+          context: InvocationContext,
+        ): Promise<PreparedMutation> => {
+          const params = { notes: noteIds(options["note-id"]), tags: tags(options["tag"]) };
+          return mutation(
+            action,
+            options,
+            context,
+            dependencies,
+            { notes: params.notes, tags: params.tags.join(" ") },
+            async (port: AnkiPort, _logger: Logger): Promise<JsonOutput> =>
+              toJson(changeTags(port, action, params)),
+          );
+        },
+      }),
     ),
     command("replace", "Replace one tag", replaceOptions, {
       kind: "mutation",

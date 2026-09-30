@@ -6,7 +6,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "fs/promises";
 import { tmpdir } from "os";
 import { basename, join, resolve } from "path";
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vite-plus/test";
 
 import type { ScanProgress } from "../../types/repository.js";
 
