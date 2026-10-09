@@ -38,3 +38,20 @@ skill 可由顺序执行的 **steps**、按需查阅的 **reference** 或两者�
 
 - **Relevance**：逐行检查 skill 内容的相关性。持续清理无关说明、应下沉的分支和过时规则。
 - **No-ops**：逐行说明指令具体改变哪种默认行为；无法说明有效差异时，删除或改写为可执行要求。
+
+## 人工调用
+
+仅由用户显式调用的 skill，同时配置以下文件；
+
+1. 在 `SKILL.md` 的 YAML frontmatter 中添加字段，保留原有 name 与 description：
+
+   ```yaml
+   disable-model-invocation: true
+   ```
+
+2. 在该 skill 目录下创建 `agents/openai.yaml`；已有文件时合并配置，保留其他字段：
+
+   ```yaml
+   policy:
+     allow_implicit_invocation: false
+   ```
