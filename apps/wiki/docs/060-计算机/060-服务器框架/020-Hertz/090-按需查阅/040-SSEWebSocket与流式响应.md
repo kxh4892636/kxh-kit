@@ -29,13 +29,6 @@ id: dba70173-038e-4416-9ad7-54d39ebbc677
 - backpressure: 为每个连接限制队列，慢客户端不得拖垮广播;
 - authentication: 握手时认证，长连接期间处理权限失效与 Token 过期;
 
-## 如何回收长连接相关资源？
-
-- context: 客户端断开和服务关闭时取消生产者;
-- goroutine: 每个连接的 goroutine、channel 和 timer 都有退出路径;
-- shutdown: 停止接受新连接，通知客户端重连，再等待有限时间;
-- capacity: 监控活跃连接、发送队列、丢弃事件和写延迟;
-
 ## 如何为业务选择持续通信方案？
 
 - 只需服务端推送且浏览器原生消费: 优先 SSE;
