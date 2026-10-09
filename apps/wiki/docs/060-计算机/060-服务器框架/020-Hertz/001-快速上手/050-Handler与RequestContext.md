@@ -42,12 +42,6 @@ value, exists := c.Get("user_id")
 - Service: 不依赖 `*app.RequestContext`; 只接收标准 context 和领域参数;
 - Handler: 不负责事务、缓存策略和复杂业务分支;
 
-## 如何把取消和超时传给下游？
-
-- 下游请求: 使用传入的 `ctx` 并派生业务 deadline；不要假设客户端断开就自动取消所有 Handler 或下游调用;
-- 独立异步任务: 明确决定是否脱离请求取消，并交给任务系统处理;
-- 超时错误: 区分客户端取消、服务端 deadline 和下游超时;
-
 ## 需要核对具体用法时查哪里？
 
 - 官方入口: [请求上下文](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/tutorials/basic-feature/context/_index.md)、[请求](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/tutorials/basic-feature/context/request.md);

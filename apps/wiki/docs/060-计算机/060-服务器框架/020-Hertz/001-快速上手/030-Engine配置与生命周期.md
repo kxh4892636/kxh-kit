@@ -38,13 +38,6 @@ h := server.New(
 - 退出顺序: 先停止新请求，再等待 Handler，最后关闭数据库和 exporter;
 - 配置来源: 开发环境可用 YAML; 密钥和环境差异由环境变量覆盖;
 
-## 如何检查 Engine 配置遗漏？
-
-- 默认值失控: 未明确监听地址、超时和最大请求体;
-- timeout 混淆: 将连接空闲超时当作业务调用超时;
-- Handler 中初始化 Client: 每次请求重复创建连接池;
-- 启动后改路由: 引入并发风险和不可预测的服务行为;
-
 ## 需要核对具体用法时查哪里？
 
 - 官方入口: [Engine](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/tutorials/basic-feature/engine.md)、[配置说明](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/reference/config.md);

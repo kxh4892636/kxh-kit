@@ -4,14 +4,6 @@ id: 7ba617f0-f4a3-48c0-a102-14840942be0e
 
 # Hertz 接口开发流程
 
-## 如何选择 Hertz 的开发方式？
-
-- 接口风格: 默认使用 JSON REST API;
-- 小型服务: 直接注册路由并编写 Handler;
-- 契约驱动项目: 使用 Thrift IDL 和 `hz` 生成模型、路由和 Handler 骨架;
-- 代码边界: Handler 负责 HTTP 适配，Service 负责业务规则，Repository 负责持久化;
-- 生产要求: 显式配置请求边界、统一错误、健康检查、优雅退出、日志、指标和测试;
-
 ## HTTP 请求如何到达业务层？
 
 ```text
@@ -38,7 +30,6 @@ id: 7ba617f0-f4a3-48c0-a102-14840942be0e
 - Thrift IDL: 在 Hertz 中描述 HTTP API 并驱动代码生成; 不表示请求必须使用 Thrift 传输;
 - Kitex: 解决服务间 RPC; Hertz 解决 HTTP 服务与网关，两者可在同一服务中协作;
 - HTTP/2、WebSocket、SSE: 按长连接、双向通信或服务端推送需求选择; 普通 CRUD 无需默认启用;
-- 第三方扩展: 优先围绕接口和能力选择; 不把某个日志、注册中心或鉴权库写进业务层;
 
 ## 需要核对具体用法时查哪里？
 
