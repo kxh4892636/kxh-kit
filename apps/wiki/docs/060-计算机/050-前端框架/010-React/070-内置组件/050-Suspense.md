@@ -58,12 +58,6 @@ const page = (
 
 - 传播结果: Content 挂起时尝试 SmartLoading；SmartLoading 也挂起时，改由外层显示 PageSkeleton;
 
-## 重试与重新隐藏会怎样影响状态？
-
-- 首次未挂载: 初次挂起的树尚未成功挂载，其状态不会被保留为已完成实例，React 在资源就绪后重新尝试;
-- 已显示后挂起: 普通更新可能再次显示 fallback，已隐藏内容的布局 Effect 会清理并在重新显示时建立;
-- 保留旧内容: Transition 或 useDeferredValue 可以让已有内容在等待时继续显示，具体选择见对应 Hooks;
-
 ## Suspense 如何参与服务端渲染与错误恢复？
 
 - 流式输出: 服务端先发送可用外壳与 fallback，之后逐步补充边界内容;

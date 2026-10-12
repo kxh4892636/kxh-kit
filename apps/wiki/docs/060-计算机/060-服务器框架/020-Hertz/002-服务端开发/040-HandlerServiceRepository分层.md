@@ -49,13 +49,6 @@ func (h *ArticleHandler) Get(ctx context.Context, c *app.RequestContext) {
 }
 ```
 
-## 如何检查分层是否有效？
-
-- Service: 单测不启动 HTTP Server;
-- Repository: 接口围绕业务用例设计，不复制 ORM 的通用 CRUD;
-- Handler: 不决定 SQL、事务隔离级别或缓存一致性;
-- 实践: 领域错误通过 `errors.Is` 分类，底层错误使用 `%w` 保留 error chain;
-
 ## 需要核对具体用法时查哪里？
 
 - 官方入口: [hz 生成代码的结构](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/tutorials/toolkit/layout.md);

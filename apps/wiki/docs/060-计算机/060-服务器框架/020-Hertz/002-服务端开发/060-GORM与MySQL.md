@@ -45,13 +45,6 @@ func (r *GormArticleRepository) FindByID(ctx context.Context, id int64) (*Articl
 - `SetConnMaxLifetime`: 小于数据库或代理强制回收周期;
 - startup ping: 在 readiness 前验证连接，但不要因短暂故障无限阻塞启动;
 
-## 如何划定事务范围？
-
-- Service: 用例决定事务范围，Repository 提供受控事务执行能力;
-- 实践: 所有事务调用使用同一个带 context 的 DB handle;
-- 实践: 不在事务内执行不受控的远程 HTTP 调用;
-- 实践: 唯一键冲突映射为 409 领域冲突，不把 MySQL 错误文本返回客户端;
-
 ## 如何替换测试中的存储依赖？
 
 - Service 测试: 使用内存或 fake Repository;
