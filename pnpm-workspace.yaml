@@ -51,8 +51,8 @@ catalog:
   vite: npm:@voidzero-dev/vite-plus-core@1.0.0
   vite-plus: 1.0.0
   vitest: 5.0.1
-  "@earendil-works/pi-coding-agent": ^0.99.1
-  "@earendil-works/pi-tui": ^0.99.1
+  "@earendil-works/pi-coding-agent": ^1.2.0
+  "@earendil-works/pi-tui": ^1.2.0
 
 catalogMode: prefer
 minimumReleaseAgeExclude:
@@ -78,14 +78,14 @@ minimumReleaseAgeExclude:
   - "@deepseek-ai/dsh-user-approval@0.1.5-rc.1"
   - "@deepseek-ai/dsh-util-crypto@0.1.5-rc.1"
   - "@deepseek-ai/dsh-util-values@0.1.5-rc.1"
-  - "@earendil-works/chord@0.99.1"
-  - "@earendil-works/pi-agent-core@0.99.1"
-  - "@earendil-works/pi-ai@0.99.1"
-  - "@earendil-works/pi-codemode@0.99.1"
-  - "@earendil-works/pi-coding-agent@0.99.1"
-  - "@earendil-works/pi-mcp@0.99.1"
-  - "@earendil-works/pi-telemetry@0.99.1"
-  - "@earendil-works/pi-tui@0.99.1"
+  - "@earendil-works/chord@1.2.0"
+  - "@earendil-works/pi-agent-core@1.2.0"
+  - "@earendil-works/pi-ai@1.2.0"
+  - "@earendil-works/pi-codemode@1.2.0"
+  - "@earendil-works/pi-coding-agent@1.2.0"
+  - "@earendil-works/pi-mcp@1.2.0"
+  - "@earendil-works/pi-telemetry@1.2.0"
+  - "@earendil-works/pi-tui@1.2.0"
 overrides:
   # app-builder-lib 26.15.3 引用了 @electron/get 3.1.0 才新增的 ElectronDownloadCacheMode,
   # 而 lockfile 曾把其锁在 3.0.0 导致打包崩溃; 作用域覆盖只影响 app-builder-lib
