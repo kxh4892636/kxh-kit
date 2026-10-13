@@ -9,8 +9,8 @@ description: 创建、恢复或推进工作时使用；根据用户输入和工�
 
 ## 维护循环
 
-1. **定位**：从 CONTEXT-MAP 找到所属域，读取相关 CONTEXT、QUESTIONS 与 ADR；恢复任务时依次读取 story、spec、索引中的 notes 及其依赖，对照工作区事实核对当前进度。冲突查明来源，未知项保留待定。
-2. **更新**：任务目标、方案和工作进展按 [PLAN.md](PLAN.md) 就地维护；新增业务域或沉淀稳定术语、重复问题、重要决策时，按 [KNOWLEDGE.md](KNOWLEDGE.md) 维护领域知识。依据新事实创建、修改、删除或合并，结论只在所属文档定义一次，其他位置引用。
+1. **定位**：从 CONTEXT-MAP 找到所属域，读取相关 CONTEXT、QUESTIONS, ADR, 及命中的 workflow；恢复任务时依次读取 story、spec、索引中的 notes 及其依赖，对照工作区事实核对当前进度。冲突查明来源，未知项保留待定。
+2. **更新**：任务目标、方案和工作进展按 [PLAN.md](PLAN.md) 就地维护；新增业务域或沉淀稳定术语、重复问题、重要决策、可复用 workflow 时，按 [KNOWLEDGE.md](KNOWLEDGE.md) 维护领域知识。依据新事实创建、修改、删除或合并，结论只在所属文档定义一次，其他位置引用。
 3. **同步**：修正受影响的引用、依赖、状态与恢复入口；删除或合并前将仍有效的需求、证据和未完成工作迁入保留文档。暂停、交接或上下文切换前，确保仅凭 Plan 能判断目标、理由、进度、证据、缺口和下一步。
 4. **校验**：从工作区根运行 `node <nano-flow-skill-root-dir>/scripts/check-domain.mjs .`，修复本次更新引入的不一致；历史缺项和未验证内容如实保留，不补造事实。
 
@@ -23,6 +23,10 @@ docs/{domain-name}/
 ├── QUESTIONS.md
 ├── adr/
 │   └── 0001-中文决策名.md
+├── workflows/
+│   ├── INDEX.md
+│   └── 0001-中文工作流名/
+│       └── 0001-中文工作流名.md
 └── plans/{lifecycle}/
     └── YYYY-MM-DD-中文工作名/
         ├── story.md

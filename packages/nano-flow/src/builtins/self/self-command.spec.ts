@@ -167,13 +167,10 @@ describe("self skill query interface", (): void => {
     expect(paths).toContain("references/skills/code-spec/SKILL.md");
     expect(paths).toContain("scripts/check-domain.mjs");
     expect(paths).toContain("scripts/plan-document.mjs");
-    expect(paths).toContain("extensions/workflows/README.md");
-    expect(paths).toContain("extensions/QUESTIONS.md");
     expect(paths).not.toContain("FLOW.md");
-    expect(paths).not.toContain("extensions/hooks.json");
     expect(paths.some((filePath) => /^scripts\/flow(?:[.-])/.test(filePath))).toBe(false);
     expect(paths.some((filePath) => filePath.startsWith("references/subskills/"))).toBe(false);
-    expect(paths.some((filePath) => filePath.startsWith("extensions/skills/tdd/"))).toBe(false);
+    expect(paths.some((filePath) => filePath.startsWith("extensions/"))).toBe(false);
   });
 
   test("installs, checks, and uninstalls nano-flow-cli", async (): Promise<void> => {
