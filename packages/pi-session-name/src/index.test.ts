@@ -99,7 +99,7 @@ describe("piSessionName", () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]?.model).toBe(fakeModel);
     expect(calls[0]?.prompt).toContain("帮我修复登录超时的问题");
-    expect(calls[0]?.prompt).toContain("不超过 8 个字");
+    expect(calls[0]?.prompt).toContain("不超过 13 个字");
     expect(calls[0]?.options["maxTokens"]).toBe(256);
     expect(calls[0]?.options["timeoutMs"]).toBe(5_000);
     expect(calls[0]?.options["sessionId"]).toBe("test-session");
@@ -180,12 +180,12 @@ describe("piSessionName", () => {
     const harness = setup();
     const { ctx } = makeCtx({
       model: fakeModel,
-      complete: modelReply("修复登录超时并重试三次"),
+      complete: modelReply("修复登录超时并重试三次并补齐测试"),
     });
     harness.fire({ text: "修复登录", source: "interactive" }, ctx);
     await settle();
-    expect(harness.setCalls).toEqual(["修复登录超时并重"]);
-    expect(Array.from(harness.setCalls[0] ?? "")).toHaveLength(8);
+    expect(harness.setCalls).toEqual(["修复登录超时并重试三次并补"]);
+    expect(Array.from(harness.setCalls[0] ?? "")).toHaveLength(13);
   });
 
   it("skips when the session already has a name", async () => {

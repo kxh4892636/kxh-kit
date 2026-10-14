@@ -5,7 +5,7 @@
  */
 
 /** Maximum number of Unicode code points kept in a session name. */
-export const MAX_NAME_LENGTH = 8;
+export const MAX_NAME_LENGTH = 13;
 
 /** Characters that only decorate a title, stripped from both ends. */
 const WRAPPING_MARKS = /^["'`“”‘’「」『』*_~]+|["'`“”‘’「」『』*_~]+$/gu;

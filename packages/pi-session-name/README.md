@@ -10,7 +10,7 @@ picker with a short, recognizable title instead of the raw first prompt.
   `pi.setSessionName()` (the API behind `/name`).
 - If there is no model, no configured auth, the request fails, or the reply has no usable text, it
   falls back to a deterministic truncation of the first input.
-- Names are cleaned and truncated to **8 Unicode code points**: surrounding whitespace, markdown
+- Names are cleaned and truncated to **13 Unicode code points**: surrounding whitespace, markdown
   markers, quotes, labels (`标题:` / `title:`) and trailing punctuation are removed.
 - Naming is fire-and-forget: the `input` handler returns immediately, so the first turn is never
   blocked.
@@ -29,7 +29,7 @@ beyond the pi packages the host already provides.
 
 ## Configuration
 
-None. It uses the session's current model and a fixed 8-character limit. Extend the `SessionNameOptions`
+None. It uses the session's current model and a fixed 13-character limit. Extend the `SessionNameOptions`
 of the exported factory (or wrap it) if you need a different length, timeout, or token budget.
 
 ## How it works

@@ -25,8 +25,8 @@ describe("truncate", () => {
   });
 
   it("defaults to MAX_NAME_LENGTH", () => {
-    expect(truncate("一二三四五六七八九十")).toBe("一二三四五六七八");
-    expect(MAX_NAME_LENGTH).toBe(8);
+    expect(truncate("一二三四五六七八九十甲乙丙丁")).toBe("一二三四五六七八九十甲乙丙");
+    expect(MAX_NAME_LENGTH).toBe(13);
   });
 });
 
@@ -85,7 +85,7 @@ describe("cleanModelOutput", () => {
 
 describe("fallbackName", () => {
   it("derives a short title from the first input", () => {
-    expect(fallbackName("帮我看看这个报错到底是怎么回事")).toBe("帮我看看这个报错");
+    expect(fallbackName("帮我看看这个报错到底是怎么回事")).toBe("帮我看看这个报错到底是怎么");
   });
 
   it("honours a custom length", () => {
