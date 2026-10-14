@@ -25,5 +25,4 @@ CONTEXT、QUESTIONS 与 ADR 的格式和准入统一遵循 `/domain skill`。
 
 - 先读取该域 `workflows/INDEX.md` 与已有 workflow，按 `/to-skill skill` 抽象可重复的业务活动；覆盖同一活动时就地完善或合并，不新建近似条目。
 - 新增或变更后，同步 `INDEX.md` 的路径-触发条件索引；触发条件说明何时必须加载该 workflow，而不是步骤摘要。
-- 该域尚无 `workflows/` 时，按 `/domain skill` 的布局创建 `INDEX.md` 与首个 workflow 目录：
-- workflow 目录与其中的 Markdown 文件同名、编号四位连续;
+- 该域尚无 `workflows/` 时，按 `/domain skill` 的布局创建 `INDEX.md` 与首个 workflow 目录。
