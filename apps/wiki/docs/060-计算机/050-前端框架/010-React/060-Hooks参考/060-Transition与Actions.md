@@ -60,4 +60,4 @@ const view = (
 
 - 加载反馈: 用 isPending 标识正在切换，Transition 可避免已显示的 Suspense 区域被不必要的 fallback 替换，新边界仍可显示加载态;
 - 业务组件: 暴露 action prop 时可在自己的 Transition 中 await 调用者操作，让待处理反馈覆盖完整过程;
-- 并发限制: 多个进行中的 Transition 当前可能被合并，不能把 isPending 当作精确的单请求计数;何与 Transition 保持
+- 并发限制: 多个进行中的 Transition 当前可能被合并，不能把 isPending 当作精确的单请求计数;
