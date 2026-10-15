@@ -4,6 +4,7 @@ import {
   cleanModelOutput,
   cleanTitle,
   fallbackName,
+  namingInput,
   MAX_NAME_LENGTH,
   truncate,
 } from "./name.ts";
@@ -90,6 +91,53 @@ describe("fallbackName", () => {
 
   it("honours a custom length", () => {
     expect(fallbackName("帮我看看这个报错", 4)).toBe("帮我看看");
+  });
+});
+
+describe("namingInput", () => {
+  const block = (name: string, body: string): string =>
+    `<skill name="${name}" location="/skills/${name}/SKILL.md">\n${body}\n</skill>`;
+
+  it("keeps a plain input", () => {
+    expect(namingInput("帮我修复登录超时")).toBe("帮我修复登录超时");
+  });
+
+  it("keeps the request that follows a skill block", () => {
+    const raw = `${block("ecom-x-flow", "# 流程正文")} pi-session-name 进行升级`;
+    expect(namingInput(raw)).toBe("pi-session-name 进行升级");
+  });
+
+  it("keeps the text around a skill block", () => {
+    expect(namingInput(`用 ${block("alpha", "正文")} 修一下`)).toBe("用 修一下");
+  });
+
+  it("keeps a request after several skill blocks", () => {
+    const raw = `${block("alpha", "a")} ${block("beta", "b")} 排查打包失败`;
+    expect(namingInput(raw)).toBe("排查打包失败");
+  });
+
+  it("ignores a closing tag inside a skill body", () => {
+    const raw = `${block("alpha", "示例：</skill> 后面继续")} 写文档`;
+    expect(namingInput(raw)).toBe("写文档");
+  });
+
+  it("falls back to the first skill name when nothing remains", () => {
+    expect(namingInput(block("ecom-x-flow", "正文"))).toBe("ecom-x-flow");
+    expect(namingInput(`${block("alpha", "a")} ${block("beta", "b")}`)).toBe("alpha");
+  });
+
+  it("parses a forced skill command", () => {
+    expect(namingInput("/skill:pdf-tools extract report.pdf")).toBe("extract report.pdf");
+    expect(namingInput("/skill:ecom-x-flow")).toBe("ecom-x-flow");
+  });
+
+  it("prefers the forced command over skills it embeds", () => {
+    const raw = `/skill:main ${block("helper", "正文")}`;
+    expect(namingInput(raw)).toBe("main");
+  });
+
+  it("leaves dollar-prefixed text alone", () => {
+    expect(namingInput("帮我看 $HOME 和 $ref 的差异")).toBe("帮我看 $HOME 和 $ref 的差异");
   });
 });
 

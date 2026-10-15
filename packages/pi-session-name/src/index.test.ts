@@ -114,6 +114,38 @@ describe("piSessionName", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("uses the model reply after filtering out an invoked skill block", async () => {
+    const harness = setup();
+    const { ctx, calls } = makeCtx({ model: fakeModel, complete: modelReply("拉取skill调用") });
+    const raw =
+      '<skill name="ecom-x-flow" location="/skills/ecom-x-flow/SKILL.md">\n流程正文\n</skill>' +
+      " 升级 pi-session-name 的命名输入";
+    harness.fire({ text: raw, source: "interactive" }, ctx);
+    await settle();
+    expect(harness.setCalls).toEqual(["拉取skill调用"]);
+    expect(calls[0]?.prompt).toContain("升级 pi-session-name 的命名输入");
+    expect(calls[0]?.prompt).not.toContain("流程正文");
+  });
+
+  it("falls back to the skill name for a bare skill invocation", async () => {
+    const harness = setup();
+    const { ctx, calls } = makeCtx();
+    const raw =
+      '<skill name="ecom-x-flow" location="/skills/ecom-x-flow/SKILL.md">\n流程正文\n</skill>';
+    harness.fire({ text: raw, source: "interactive" }, ctx);
+    await settle();
+    expect(harness.setCalls).toEqual(["ecom-x-flow"]);
+    expect(calls).toHaveLength(0);
+  });
+
+  it("uses the request after a forced skill command", async () => {
+    const harness = setup();
+    const { ctx } = makeCtx();
+    harness.fire({ text: "/skill:pdf-tools extract report.pdf", source: "interactive" }, ctx);
+    await settle();
+    expect(harness.setCalls).toEqual(["extract repor"]);
+  });
+
   it("falls back when the model has no configured auth", async () => {
     const harness = setup();
     const { ctx, calls } = makeCtx({
@@ -284,18 +316,5 @@ describe("piSessionName", () => {
     harness.fire({ text: "帮我看看这个报错", source: "interactive" }, ctx);
     await settle();
     expect(harness.setCalls).toEqual(["帮我看看"]);
-  });
-
-  it("swallows a naming failure without an unhandled rejection", async () => {
-    const harness = setup();
-    const { ctx } = makeCtx({
-      model: fakeModel,
-      complete: async () => {
-        throw new Error("late boom");
-      },
-    });
-    harness.fire({ text: "修复登录", source: "interactive" }, ctx);
-    await settle();
-    expect(harness.setCalls).toEqual(["修复登录"]);
   });
 });

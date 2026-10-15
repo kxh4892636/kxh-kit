@@ -16,6 +16,12 @@ const LEADING_MARKERS = /^(?:#{1,6}\s*|[-*+]\s+|>\s*|\d+[.)]\s*)+/u;
 /** A `标题:` / `title:` style label the model may prepend. */
 const TITLE_LABEL = /^(?:标题|名称|title|name)\s*[:：]\s*/iu;
 
+/** Expanded skill wrapper: `<skill name="…" location="…">\n…\n</skill>`. */
+const SKILL_BLOCK = /<skill name="([^"]*)"[^>]*>\n[\s\S]*?\n<\/skill>/gu;
+
+/** Forced skill command, e.g. `/skill:pdf-tools extract report.pdf`. */
+const SKILL_COMMAND = /^\/skill:([a-z0-9-]+)(?:\s+([\s\S]*))?\s*$/u;
+
 /** Trailing punctuation and separators. */
 const TRAILING_PUNCTUATION = /[。．.!！?？,，;；:：、~～\s]+$/u;
 
@@ -59,6 +65,28 @@ export const cleanModelOutput = (raw: string, maxLength: number = MAX_NAME_LENGT
 /** Deterministic fallback used when no model reply is available. */
 export const fallbackName = (input: string, maxLength: number = MAX_NAME_LENGTH): string =>
   cleanTitle(input, maxLength);
+
+/**
+ * Return the text a session name should be derived from: every invoked skill
+ * is removed, so a `<skill>` block or `/skill:name` command cannot leak into
+ * the title. A bare invocation with no remaining request falls back to the
+ * first skill name.
+ */
+export const namingInput = (raw: string): string => {
+  const skills: string[] = [];
+  let rest = raw.replace(SKILL_BLOCK, (_block: string, name: string) => {
+    if (name.length > 0) skills.push(name);
+    return " ";
+  });
+  const command = rest.match(SKILL_COMMAND);
+  if (command !== null) {
+    // The forced command is the primary invocation; argument skills come second.
+    if (command[1] !== undefined) skills.unshift(command[1]);
+    rest = command[2] ?? "";
+  }
+  const text = rest.replace(/\s+/gu, " ").trim();
+  return text.length > 0 ? text : (skills[0] ?? "");
+};
 
 /** Prompt asking the model for one short, unadorned session title. */
 export const buildNamePrompt = (input: string, maxLength: number = MAX_NAME_LENGTH): string => {

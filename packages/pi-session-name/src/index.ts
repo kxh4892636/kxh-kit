@@ -6,7 +6,13 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { buildNamePrompt, cleanModelOutput, fallbackName, MAX_NAME_LENGTH } from "./name.ts";
+import {
+  buildNamePrompt,
+  cleanModelOutput,
+  fallbackName,
+  namingInput,
+  MAX_NAME_LENGTH,
+} from "./name.ts";
 
 /** Default ceiling for the naming request. */
 const DEFAULT_TIMEOUT_MS = 5_000;
@@ -129,15 +135,14 @@ export default function piSessionName(pi: ExtensionAPI, options: SessionNameOpti
     if (event.source === "extension" || namingStarted) return { action: "continue" };
     if (hasSessionName(pi)) return { action: "continue" };
     if (hasUserMessage(ctx)) return { action: "continue" };
-    const fallback = fallbackName(event.text, limits.maxLength);
+    const input = namingInput(event.text);
+    const fallback = fallbackName(input, limits.maxLength);
     if (fallback.length === 0) return { action: "continue" };
     namingStarted = true;
     const startedAt = generation;
     const isCurrentSession = (): boolean => startedAt === generation;
     // Never let a background naming failure surface as an unhandled rejection.
-    void nameSession(pi, ctx, event.text, fallback, limits, isCurrentSession).catch(
-      () => undefined,
-    );
+    void nameSession(pi, ctx, input, fallback, limits, isCurrentSession).catch(() => undefined);
     return { action: "continue" };
   });
 }
