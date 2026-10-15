@@ -2,7 +2,6 @@
 
 ## 本章包含哪些主题？
 
-- [用 state 响应输入](./010-用state响应输入.md)
 - [组件间共享 state](./020-组件间共享state.md)
 - [保留与重置 state](./030-保留与重置state.md)
 - [用 reducer 提取状态逻辑](./040-reducer提取逻辑.md)
