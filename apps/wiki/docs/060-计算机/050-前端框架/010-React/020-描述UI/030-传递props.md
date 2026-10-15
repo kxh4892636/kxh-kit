@@ -4,20 +4,6 @@ id: 7583cc61-4d31-4a63-adaa-9df53d422e72
 
 # 传递 props
 
-## props 如何形成组件的输入接口？
-
-- Props: 父组件在 JSX 上提供的输入，子组件通过参数读取；可以传字符串、数字、对象、函数和 JSX 等 JavaScript 值;
-- 解构: 在参数中按名称提取所需字段，让组件依赖一目了然;
-- 渲染快照: 每次渲染收到一份当时的 props，父组件可在后续渲染传入新值，子组件不能直接改写已有 props;
-
-```jsx
-function Avatar({ person, size = 100 }) {
-  return <img src={person.imageUrl} width={size} height={size} alt={person.name} />;
-}
-
-const profile = <Avatar person={{ name: "Ada", imageUrl: "/ada.png" }} />;
-```
-
 ## 默认值在什么情况下生效？
 
 - 触发条件: 解构默认值只在未传该 prop 或传入 undefined 时生效，null、0 和空字符串不会触发默认值;

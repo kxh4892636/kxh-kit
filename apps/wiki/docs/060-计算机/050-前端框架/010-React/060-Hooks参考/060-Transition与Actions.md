@@ -60,9 +60,4 @@ const view = (
 
 - 加载反馈: 用 isPending 标识正在切换，Transition 可避免已显示的 Suspense 区域被不必要的 fallback 替换，新边界仍可显示加载态;
 - 业务组件: 暴露 action prop 时可在自己的 Transition 中 await 调用者操作，让待处理反馈覆盖完整过程;
-- 并发限制: 多个进行中的 Transition 当前可能被合并，不能把 isPending 当作精确的单请求计数;
-
-## 组件外如何启动非阻塞更新？
-
-- 独立 API: 从 react 导入 startTransition 可在普通模块使用，但不提供 isPending，适合数据层等没有 Hook 调用环境的地方;
-- 引用稳定: useTransition 返回的启动函数身份稳定；Action 中错误的边界处理见错误边界笔记;
+- 并发限制: 多个进行中的 Transition 当前可能被合并，不能把 isPending 当作精确的单请求计数;何与 Transition 保持

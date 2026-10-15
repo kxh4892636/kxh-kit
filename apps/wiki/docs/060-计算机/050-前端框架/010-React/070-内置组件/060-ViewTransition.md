@@ -58,19 +58,3 @@ const content = (
   </ViewTransition>
 );
 ```
-
-## 什么时候需要使用动画事件回调？
-
-- 编程控制: onEnter、onExit、onUpdate、onShare 可以通过提供的动画接口控制快照动画，普通效果优先使用 CSS;
-- 布局冲突: 同步强制刷新、重复名称或其他代码并行启动浏览器过渡可能使动画被跳过，先排查更新路径再增加动画逻辑;
-- 可访问性: 使用 prefers-reduced-motion 降低或禁用动画，React 不会自动替用户关闭所有视图过渡;
-
-```css
-@media (prefers-reduced-motion: reduce) {
-  ::view-transition-group(*),
-  ::view-transition-old(*),
-  ::view-transition-new(*) {
-    animation: none !important;
-  }
-}
-```
