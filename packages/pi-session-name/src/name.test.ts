@@ -26,8 +26,10 @@ describe("truncate", () => {
   });
 
   it("defaults to MAX_NAME_LENGTH", () => {
-    expect(truncate("一二三四五六七八九十甲乙丙丁")).toBe("一二三四五六七八九十甲乙丙");
-    expect(MAX_NAME_LENGTH).toBe(13);
+    expect(truncate("一二三四五六七八九十".repeat(3))).toBe(
+      "一二三四五六七八九十".repeat(2) + "一",
+    );
+    expect(MAX_NAME_LENGTH).toBe(21);
   });
 });
 
@@ -86,7 +88,8 @@ describe("cleanModelOutput", () => {
 
 describe("fallbackName", () => {
   it("derives a short title from the first input", () => {
-    expect(fallbackName("帮我看看这个报错到底是怎么回事")).toBe("帮我看看这个报错到底是怎么");
+    expect(fallbackName("帮我看看这个报错到底是怎么回事")).toBe("帮我看看这个报错到底是怎么回事");
+    expect(fallbackName("一".repeat(30))).toBe("一".repeat(21));
   });
 
   it("honours a custom length", () => {
@@ -109,6 +112,24 @@ describe("namingInput", () => {
 
   it("keeps the text around a skill block", () => {
     expect(namingInput(`用 ${block("alpha", "正文")} 修一下`)).toBe("用 修一下");
+  });
+
+  it("strips a block embedded after other text", () => {
+    const raw = `pi-session-name 插件有异常case, 以下输入 ${block("alpha", "正文")} 阅读相关文档`;
+    expect(namingInput(raw)).toBe("pi-session-name 插件有异常case, 以下输入 阅读相关文档");
+  });
+
+  it("strips a block whose closing tag is indented", () => {
+    const raw =
+      '<skill name="ecom-x-flow" location="/skills/ecom-x-flow/SKILL.md">\n' +
+      " References are relative to /skills/ecom-x-flow.\n\n流程正文\n   </skill> 阅读相关文档";
+    expect(namingInput(raw)).toBe("阅读相关文档");
+  });
+
+  it("strips a block that uses CRLF line endings", () => {
+    const raw =
+      '<skill name="alpha" location="/skills/alpha/SKILL.md">\r\n正文\r\n</skill>\r\n修一下';
+    expect(namingInput(raw)).toBe("修一下");
   });
 
   it("keeps a request after several skill blocks", () => {
