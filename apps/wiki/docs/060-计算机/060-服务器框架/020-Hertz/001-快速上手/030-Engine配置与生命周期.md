@@ -37,7 +37,3 @@ h := server.New(
 - 依赖就绪: 数据库、缓存和观测 exporter 成功后才打开 readiness;
 - 退出顺序: 先停止新请求，再等待 Handler，最后关闭数据库和 exporter;
 - 配置来源: 开发环境可用 YAML; 密钥和环境差异由环境变量覆盖;
-
-## 需要核对具体用法时查哪里？
-
-- 官方入口: [Engine](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/tutorials/basic-feature/engine.md)、[配置说明](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/reference/config.md);

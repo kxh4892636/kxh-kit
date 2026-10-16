@@ -75,7 +75,3 @@ func newUserClient() (userservice.Client, error) {
 - 限流: 内置与自定义同类 limiter 的覆盖规则见 [流量保护](../002-服务端开发/030-熔断降级与流量保护.md);
 - 连接: 旧 mux 的废弃状态与连接池边界见 [消息与连接](../090-协议速查/010-消息类型与连接.md);
 - gRPC 参数: 窗口、buffer 和 keepalive 只在测量证明默认值不适合时调整;
-
-## 需要核对具体用法时查哪里？
-
-- 官方入口: [Client Option](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/kitex/Tutorials/options/client_options.md)、[Server Option](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/kitex/Tutorials/options/server_options.md)、[Suite 扩展](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/kitex/Tutorials/framework-exten/suite.md);

@@ -42,7 +42,3 @@ id: e5f03202-fdc3-4560-be6f-4f7f49f0d25b
 - 持续收发: 按 [StreamX](../090-协议速查/030-StreamX流式通信.md) 选择流的方向;
 - 动态接口: 网关或测试平台运行时才知道方法时，参见 [泛化调用](../091-特殊需求/010-高级能力.md);
 - HTTP 边界: 对外 HTTP API 通常由 Hertz 承载，再调用内部 Kitex 服务;
-
-## 需要核对具体用法时查哪里？
-
-- 官方入口: [基础示例](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/kitex/Getting%20started/quick_start.md)、[前置知识](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/kitex/Getting%20started/pre-knowledge.md);

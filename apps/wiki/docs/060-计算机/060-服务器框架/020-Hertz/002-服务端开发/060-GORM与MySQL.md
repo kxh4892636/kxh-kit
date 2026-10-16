@@ -50,8 +50,3 @@ func (r *GormArticleRepository) FindByID(ctx context.Context, id int64) (*Articl
 - Service 测试: 使用内存或 fake Repository;
 - Repository 测试: 针对真实 MySQL 兼容环境验证 SQL、索引和事务;
 - Handler 测试: 不依赖真实数据库，注入可控 Service;
-
-## 需要核对具体用法时查哪里？
-
-- 官方入口: [GORM 错误处理](https://gorm.io/docs/error_handling.html)、[GORM 更新](https://gorm.io/docs/update.html);
-- 应用约定: 分层、业务码、数据模型、配置优先级和交付清单是笔记的开发示例，按项目调整；框架 API 以对应官方版本为准;

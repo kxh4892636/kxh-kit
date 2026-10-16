@@ -22,7 +22,3 @@ id: 3ef245a8-b920-433d-97a9-262ba84494d7
 - H2C: 不使用 TLS 的 HTTP/2，只在受控网络且双方明确支持时使用;
 - 协商: 确认采用 prior knowledge 还是 upgrade，并让代理与健康检查使用同样方式;
 - 边界: H2C 不提供加密和身份认证；双向消息、服务端推送的选择见 [持续通信](./040-SSEWebSocket与流式响应.md);
-
-## 需要核对具体用法时查哪里？
-
-- 官方入口: [HTTP2](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/tutorials/third-party/protocol/http2.md);

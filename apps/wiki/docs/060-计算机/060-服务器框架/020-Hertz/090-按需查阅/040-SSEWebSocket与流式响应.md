@@ -35,7 +35,3 @@ id: dba70173-038e-4416-9ad7-54d39ebbc677
 - 需要低延迟双向 message: 使用 WebSocket;
 - 大文件或生成式响应: 使用流式 body;
 - 频率低且允许延迟: 轮询可能更简单、更易运维;
-
-## 需要核对具体用法时查哪里？
-
-- 官方入口: [SSE](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/tutorials/basic-feature/sse.md)、[Websocket](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/tutorials/third-party/protocol/websocket.md);

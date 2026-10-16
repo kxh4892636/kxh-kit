@@ -48,8 +48,3 @@ func (h *ArticleHandler) Get(ctx context.Context, c *app.RequestContext) {
 	h.writeResult(c, article, err)
 }
 ```
-
-## 需要核对具体用法时查哪里？
-
-- 官方入口: [hz 生成代码的结构](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/tutorials/toolkit/layout.md);
-- 应用约定: 分层、业务码、数据模型、配置优先级和交付清单是笔记的开发示例，按项目调整；框架 API 以对应官方版本为准;

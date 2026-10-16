@@ -30,7 +30,3 @@ id: 7ba617f0-f4a3-48c0-a102-14840942be0e
 - Thrift IDL: 在 Hertz 中描述 HTTP API 并驱动代码生成; 不表示请求必须使用 Thrift 传输;
 - Kitex: 解决服务间 RPC; Hertz 解决 HTTP 服务与网关，两者可在同一服务中协作;
 - HTTP/2、WebSocket、SSE: 按长连接、双向通信或服务端推送需求选择; 普通 CRUD 无需默认启用;
-
-## 需要核对具体用法时查哪里？
-
-- 官方入口: [快速开始](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/getting-started/_index.md)、[Engine](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/tutorials/basic-feature/engine.md);

@@ -26,7 +26,3 @@ if err := c.Do(ctx, req, resp); err != nil {
 	return fmt.Errorf("request article: %w", err)
 }
 ```
-
-## 需要核对具体用法时查哪里？
-
-- 官方入口: [客户端](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/tutorials/basic-feature/client.md);

@@ -46,7 +46,3 @@ curl.exe http://127.0.0.1:8888/ping
 - 错误方法: `POST /ping` 不应进入 GET Handler;
 - 错误路径: `/missing` 返回未匹配路由响应;
 - 进程退出: 开发阶段可使用 Ctrl+C; 生产阶段还需设置明确的关闭预算;
-
-## 需要核对具体用法时查哪里？
-
-- 官方入口: [快速开始](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/getting-started/_index.md);

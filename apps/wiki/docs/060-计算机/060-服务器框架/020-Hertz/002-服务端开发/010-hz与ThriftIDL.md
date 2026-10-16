@@ -45,7 +45,3 @@ go mod tidy
 - IDL: 是接口契约，不是数据库模型;
 - Handler: 骨架可重新生成，业务规则不应只存在于生成文件;
 - 实践: 公共 API 变更需要评估旧客户端，不以“能够重新生成”代替兼容设计;
-
-## 需要核对具体用法时查哪里？
-
-- 官方入口: [hz 安装](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/tutorials/toolkit/install.md)、[hz 使用 (thrift)](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/tutorials/toolkit/usage-thrift.md);

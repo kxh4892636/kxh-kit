@@ -40,7 +40,3 @@ service ArticleService {
 - `api.header`: 将 Header 绑定到字段;
 - `api.body`: 将 JSON body 字段绑定到字段;
 - `api.form` / `api.raw_body`: 分别映射表单与原始请求体；文件上传用 RequestContext 的文件 API，不虚构 `api.file` 注解;
-
-## 需要核对具体用法时查哪里？
-
-- 官方入口: [IDL 注解说明](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/tutorials/toolkit/annotation.md)、[hz 使用 (thrift)](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/tutorials/toolkit/usage-thrift.md);

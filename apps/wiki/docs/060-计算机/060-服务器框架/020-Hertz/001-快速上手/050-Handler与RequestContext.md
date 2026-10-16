@@ -41,7 +41,3 @@ value, exists := c.Get("user_id")
 - 实践: 异步任务需要复制所需值和字节; 不直接捕获 `c`;
 - Service: 不依赖 `*app.RequestContext`; 只接收标准 context 和领域参数;
 - Handler: 不负责事务、缓存策略和复杂业务分支;
-
-## 需要核对具体用法时查哪里？
-
-- 官方入口: [请求上下文](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/tutorials/basic-feature/context/_index.md)、[请求](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/tutorials/basic-feature/context/request.md);

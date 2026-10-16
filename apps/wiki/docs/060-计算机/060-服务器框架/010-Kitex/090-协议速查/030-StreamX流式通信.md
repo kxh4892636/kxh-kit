@@ -28,7 +28,3 @@ id: 4c90658c-7064-4543-8392-1b5220b33963
 - 接收侧: 循环读到 io.EOF，任何失败都通知另一个工作协程退出;
 - 资源: 用有限队列和明确取消路径，退出时回收 goroutine、timer 与连接;
 - 观测: 遇到流中断再查 StreamEventHandler 与生命周期文档，不先调底层参数;
-
-## 需要核对具体用法时查哪里？
-
-- 官方入口: [StreamX 基础流编程](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/kitex/Tutorials/basic-feature/streamx/StreamX_Basic_Programming.md)、[StreamX 流超时控制](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/kitex/Tutorials/basic-feature/streamx/StreamX_Timeout_Control.md);

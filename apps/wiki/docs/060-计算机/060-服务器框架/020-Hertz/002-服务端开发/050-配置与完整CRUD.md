@@ -37,8 +37,3 @@ article-api/
 - 第三步: 创建 Service 与 Handler;
 - 第四步: 注册 recovery、request_id、日志、认证和路由;
 - 第五步: 启动健康检查与 HTTP Server;
-
-## 需要核对具体用法时查哪里？
-
-- 官方入口: [hz 生成代码的结构](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/tutorials/toolkit/layout.md)、[配置说明](https://github.com/cloudwego/cloudwego.github.io/blob/38744fc12990bb900765d0235c171a80c9fa2af9/content/zh/docs/hertz/reference/config.md);
-- 应用约定: 分层、业务码、数据模型、配置优先级和交付清单是笔记的开发示例，按项目调整；框架 API 以对应官方版本为准;
