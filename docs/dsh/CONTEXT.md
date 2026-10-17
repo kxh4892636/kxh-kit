@@ -1,6 +1,6 @@
 # DSH
 
-工作区自研 DeepSeek Harness 扩展与运行管理的业务域：以独立插件包扩展技能发现与运行时能力，以外部终端工具管理 DSH 后台实例，与上游仓库解耦。
+工作区自研 DeepSeek Harness 扩展的业务域：以独立插件包扩展技能发现与运行时能力，与上游仓库解耦。
 
 ## Language
 
@@ -31,35 +31,3 @@ _Avoid_: 上游补丁、改动 DSH 仓库
 **发现根**:
 参与嵌套 skill 扫描的 `.agents` 根：项目 `<gitRoot>/.agents` 与用户 `$DSH_AGENTS_HOME`（缺省 `~/.agents`）。
 _Avoid_: skills 根、扫描目录
-
-### 会话与模型管理
-
-**预置指令**:
-会话创建时注入（或部署默认携带）的系统消息/上下文；注入作为系统消息生效，不触发模型调用，首次模型调用等待第一条用户消息。
-_Avoid_: agentPreset、agent preset、预设指令、seed、预置消息、用户消息 seed
-
-**会话上下文注入**:
-`session_spawn` 的 `context` 参数——以其系统消息形式加入新会话的上下文，与用户消息（触发调用）严格区分。
-_Avoid_: 种子消息、初始化用户消息
-
-**会话归档**:
-将会话从 workspace 分组表面隐藏的可见性操作；会话日志与数据完整保留，API 无取消归档。
-_Avoid_: 删除会话、移除会话、清理会话
-
-**内容搜索索引**:
-`session-query-sqlite` 维护的会话全文索引，`openAt` 配置决定启用时机（`startup`/`first-search`/`never`）；启用后 Web 内容搜索框与上游搜索工具均可使用。
-_Avoid_: FTS 索引、sqlite 索引、搜索数据库
-
-**模型工具**:
-注册到 `ctx.tools`、模型可直接调用的主机能力工具；本插件会话与模型管理能力以此面交付。
-_Avoid_: 模型 API、斜杠命令
-
-### 后台运行管理
-
-**受管实例**:
-由 dsh-keep-alive 启动并管理、在当前用户内按端口标识的 DSH 运行实例。
-_Avoid_: 系统服务、外部端口占用者
-
-**发布通道**:
-由 npm dist-tag 标识的 DSH 版本序列（如 `latest`、`alpha`、`next`）；`dsh-alive` 按端口记忆当前通道，`start` 与 `update` 的 `--tag` 用于选择。
-_Avoid_: 分支、版本线、channel
