@@ -175,11 +175,11 @@ apps/etf/
 - [用户故事](story.md)
 - [结构与运行决策](01-结构与运行决策.md)
 - [合并目录并回归验证](02-合并目录并回归验证.md)
-- [领域语言](../../CONTEXT.md)
-- [接口决策](../../adr/0001-前后端共同迁移为类型化接口.md)
-- [缓存决策](../../adr/0002-以新缓存切换到Drizzle持久化.md)
-- [回归决策](../../adr/0003-保留代码化行情回归.md)
-- [上一次合并 Plan](../reference/2026-09-06-合并行情应用并迁移node后端/spec.md)
+- [领域语言](../../../CONTEXT.md)
+- [接口决策](../../../adr/0001-前后端共同迁移为类型化接口.md)
+- [缓存决策](../../../adr/0002-以新缓存切换到Drizzle持久化.md)
+- [回归决策](../../../adr/0003-保留代码化行情回归.md)
+- [上一次合并 Plan](../../reference/2026-09-06-合并行情应用并迁移node后端/spec.md)
 - 现状：`apps/etf-dashboard/package.json`、`apps/etf-service/package.json`、`apps/etf-service/src/{app,server,main,config}.ts`、`apps/etf-service/src/{market,storage,integrations}`、`apps/etf-dashboard/src/{app,pages,features,libs,common,test-support}`、`apps/etf-dashboard/e2e/support/{backend,fixture-server}`。
 
 ## 当前进度
