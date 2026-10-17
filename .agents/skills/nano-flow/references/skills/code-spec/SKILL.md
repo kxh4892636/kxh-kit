@@ -9,7 +9,7 @@ description: 编写、修改或审查代码时使用；核对目录层级、命�
 
 - 每个目录直接包含的文件最多 13 个，超过时按领域归入文件夹。
 - 文件和目录使用 `kebab-case`，按实际领域职责命名，如 `tab-group-state.ts`、`terminal-cleanup.ts`。
-- 泛化名称（`helpers`、`utils`、`common`、`components`、`hooks` 等）仅在 `level-2` 允许。
+- 泛化名称（`helpers`、`utils`、`common`、`components`、`hooks` 等）仅在顶级目录中允许使用。
 
 ## 文件与边界
 
