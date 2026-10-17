@@ -147,12 +147,12 @@ status: completed
 
 ## 当前进度
 
-截至 2026-10-17，交付完成；Plan 位于 `implementing`，归档 `reference` 待用户确认。
+截至 2026-10-17，交付完成；Plan 已归档到 `reference`（2026-10-17 用户确认）。
 
 - 已完成：官方 Search/Fetch 实测与 dev gate；代码与测试迁移；README/example/ADR-0003/CONTEXT/QUESTIONS 同步；本机配置迁移；`test` 59/59、覆盖率 statements 99 / branches 93.18 / functions 100 / lines 98.88、`check` 通过；真机 Search（含 `need_content`）与 Fetch；Spec/Standards 两路 code review 及修复；lock 仅清理 turndown 依赖。
 - 未开始：无。
 - 未验证：无（真机会话路径与证据见 [01 note](01-搜索接口迁移与真机验证.md)「交付记录」）。
-- 待确认：push；Plan 归档 `reference`。
+- 待确认：push 由用户确认后执行。
 
 ## 恢复入口
 
@@ -164,6 +164,6 @@ status: completed
 
 ## Notes
 
-| #   | Notes                                                  | 状态      | 阻塞于 | 下一步        |
-| --- | ------------------------------------------------------ | --------- | ------ | ------------- |
-| 01  | [搜索接口迁移与真机验证](01-搜索接口迁移与真机验证.md) | completed | —      | 用户确认 push |
+| #   | Notes                                                  | 状态      | 阻塞于 | 下一步       |
+| --- | ------------------------------------------------------ | --------- | ------ | ------------ |
+| 01  | [搜索接口迁移与真机验证](01-搜索接口迁移与真机验证.md) | completed | —      | 已归档并推送 |
