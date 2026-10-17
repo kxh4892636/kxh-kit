@@ -1,139 +1,189 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import {
-  type AnthropicResponse,
-  citationSnippets,
-  deepSeekSearch,
-  mapAnthropicResponse,
-} from "./search.ts";
+import { deepSeekSearch, mapSearchResponse, type SearchApiResponse } from "./search.ts";
 
-const response: AnthropicResponse = {
-  content: [
+const response: SearchApiResponse = {
+  results: [
     {
-      type: "text",
-      text: "Here is a summary.",
-      citations: [
-        { url: "https://a.example", cited_text: "alpha snippet" },
-        { url: "https://b.example", cited_text: "beta snippet" },
-      ],
+      rerank_score: 2.4,
+      title: "A",
+      url: "https://a.example",
+      snippet: "short A",
+      summary: "long A",
+      content: "body A",
+      site_name: "Site A",
+      site_icon: "https://a.example/icon.ico",
+      date: "2026-01-01",
+      authority: 3,
     },
-    {
-      type: "web_search_tool_result",
-      content: [
-        { url: "https://a.example", title: "A", page_age: "2026-01-01" },
-        { url: "https://b.example", title: "B" },
-        { url: "https://a.example", title: "A duplicate" },
-      ],
-    },
+    { title: "B", url: "https://b.example", snippet: "short B", site_name: null, date: null },
+    { title: "A duplicate", url: "https://a.example", summary: "duplicate" },
+    { title: "Empty URL", url: "   " },
   ],
 };
 
-describe("citationSnippets", () => {
-  it("keys cited text by URL and keeps the first occurrence", () => {
-    const snippets = citationSnippets([
-      { type: "text", citations: [{ url: "https://x", cited_text: "first" }] },
-      { type: "text", citations: [{ url: "https://x", cited_text: "second" }] },
-      { type: "text", citations: [{ url: null, cited_text: "ignored" }] },
-    ]);
-    expect(snippets.get("https://x")).toBe("first");
-    expect(snippets.size).toBe(1);
-  });
-});
+const config = {
+  baseURL: "https://api.example",
+  searchCount: 10,
+  timeoutMs: 1_000,
+};
 
-describe("mapAnthropicResponse", () => {
-  it("dedupes by URL, joins snippets, and keeps the answer", () => {
-    const result = mapAnthropicResponse(response);
-    expect(result.truncated).toBe(false);
-    expect(result.answer).toBe("Here is a summary.");
-    expect(result.sources).toEqual([
+const jsonResponse = (body: unknown, status = 200): Response =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
+
+describe("mapSearchResponse", () => {
+  it("dedupes by URL and preserves every documented field", () => {
+    expect(mapSearchResponse(response)).toEqual([
       {
-        url: "https://a.example",
+        rerank_score: 2.4,
         title: "A",
-        snippet: "alpha snippet",
-        publishedAt: "2026-01-01",
+        url: "https://a.example",
+        snippet: "short A",
+        summary: "long A",
+        content: "body A",
+        site_name: "Site A",
+        site_icon: "https://a.example/icon.ico",
+        date: "2026-01-01",
+        authority: 3,
       },
-      { url: "https://b.example", title: "B", snippet: "beta snippet" },
+      { title: "B", url: "https://b.example", snippet: "short B", site_name: null, date: null },
     ]);
   });
 
-  it("joins every non-empty text block and skips empty ones", () => {
-    const result = mapAnthropicResponse({
-      content: [
-        { type: "text", text: "  first  " },
-        { type: "text" },
-        { type: "text", text: "   " },
-        { type: "web_search_tool_result", content: [{ url: "https://a.example" }] },
-        { type: "text", text: "second" },
-      ],
-    });
-    expect(result.answer).toBe("first\n\nsecond");
+  it("accepts an empty result list", () => {
+    expect(mapSearchResponse({ results: [] })).toEqual([]);
   });
 
-  it("throws when no native search result block is present", () => {
-    expect(() => mapAnthropicResponse({ content: [{ type: "text", text: "no results" }] })).toThrow(
-      /web_search_tool_result/u,
+  it("throws when the results list is missing", () => {
+    expect(() => mapSearchResponse({})).toThrow(/unreadable results list/u);
+    expect(() => mapSearchResponse({ results: null } as unknown as SearchApiResponse)).toThrow(
+      /unreadable results list/u,
     );
+    expect(() => mapSearchResponse(null)).toThrow(/unreadable results list/u);
   });
 
-  it("ignores a malformed result block body instead of throwing", () => {
+  it("preserves the unknown authority sentinel and rejects out-of-range authority", () => {
+    expect(
+      mapSearchResponse({
+        results: [
+          { url: "https://d.example", authority: -1, rerank_score: 0 },
+          { url: "https://e.example", authority: 5, rerank_score: 3.1 },
+        ],
+      }),
+    ).toEqual([
+      { url: "https://d.example", authority: -1, rerank_score: 0 },
+      { url: "https://e.example", rerank_score: 3.1 },
+    ]);
+  });
+
+  it("skips malformed items and trims strings", () => {
     const malformed = {
-      content: [
-        { type: "web_search_tool_result", content: { type: "web_search_tool_result_error" } },
+      results: [
+        null,
+        {
+          url: "  https://c.example  ",
+          title: "  C  ",
+          summary: "   ",
+          date: null,
+          site_name: null,
+          authority: Number.NaN,
+          rerank_score: Number.POSITIVE_INFINITY,
+        },
       ],
-    } as unknown as AnthropicResponse;
-    expect(mapAnthropicResponse(malformed).sources).toEqual([]);
+    } as unknown as SearchApiResponse;
+    expect(mapSearchResponse(malformed)).toEqual([
+      { url: "https://c.example", title: "C", site_name: null, date: null },
+    ]);
   });
 });
 
 describe("deepSeekSearch", () => {
-  const config = {
-    baseURL: "https://api.example/anthropic/v1/",
-    model: "deepseek-v4-flash",
-    apiVersion: "2023-06-01",
-    maxTokens: 1024,
-    maxUses: 3,
-  };
+  it("sends the complete official request body and maps the response", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => jsonResponse(response));
+    const result = await deepSeekSearch({
+      query: " pi ",
+      count: 3,
+      ori_question: " what is pi ",
+      localization: " 1.2.3.4 ",
+      need_content: true,
+      apiKey: "k",
+      config,
+      fetchImpl,
+    });
 
-  it("posts the native web_search tool and maps the response", async () => {
-    const fetchImpl = vi.fn<typeof fetch>(
-      async () =>
-        new Response(JSON.stringify(response), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        }),
-    );
+    expect(result.count).toBe(3);
+    expect(result.results).toHaveLength(2);
+    const call = fetchImpl.mock.calls[0];
+    expect(call?.[0]).toBe("https://api.example/v1/tools/search");
+    const body = JSON.parse(typeof call?.[1]?.body === "string" ? call[1].body : "{}");
+    expect(body).toEqual({
+      query: "pi",
+      count: 3,
+      ori_question: "what is pi",
+      localization: "1.2.3.4",
+      need_content: true,
+    });
+  });
+
+  it("omits optional fields and uses the configured count by default", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => jsonResponse({ results: [] }));
     const result = await deepSeekSearch({ query: "pi", apiKey: "k", config, fetchImpl });
 
-    expect(result.sources).toHaveLength(2);
-    const call = fetchImpl.mock.calls[0];
-    expect(call?.[0]).toBe("https://api.example/anthropic/v1/messages");
-    const headers = call?.[1]?.headers as Record<string, string>;
-    expect(headers["x-api-key"]).toBe("k");
-    expect(headers["anthropic-version"]).toBe("2023-06-01");
-    const rawBody = call?.[1]?.body;
-    const body = JSON.parse(typeof rawBody === "string" ? rawBody : "{}");
-    expect(body.tools).toEqual([{ type: "web_search_20250305", name: "web_search", max_uses: 3 }]);
-    expect(body.messages[0].content[0].text).toContain("pi");
+    expect(result).toEqual({ count: 10, results: [] });
+    const body = JSON.parse(
+      typeof fetchImpl.mock.calls[0]?.[1]?.body === "string"
+        ? fetchImpl.mock.calls[0][1].body
+        : "{}",
+    );
+    expect(body).toEqual({ query: "pi", count: 10 });
   });
 
-  it("surfaces the API error detail on a non-2xx response", async () => {
-    const fetchImpl = vi.fn<typeof fetch>(
-      async () =>
-        new Response(JSON.stringify({ error: { message: "bad key" } }), {
-          status: 401,
-          headers: { "content-type": "application/json" },
-        }),
+  it("rejects invalid query, ori_question, count, and need_content before dispatching", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => jsonResponse({ results: [] }));
+    const base = { apiKey: "k", config, fetchImpl };
+
+    await expect(deepSeekSearch({ ...base, query: "   " })).rejects.toThrow(/query/u);
+    await expect(deepSeekSearch({ ...base, query: "a".repeat(129) })).rejects.toThrow(/query/u);
+    await expect(deepSeekSearch({ ...base, query: "pi", ori_question: " " })).rejects.toThrow(
+      /ori_question/u,
+    );
+    await expect(
+      deepSeekSearch({ ...base, query: "pi", ori_question: "a".repeat(129) }),
+    ).rejects.toThrow(/ori_question/u);
+    for (const count of [0, 51, 1.5]) {
+      await expect(deepSeekSearch({ ...base, query: "pi", count })).rejects.toThrow(
+        /between 1 and 50/u,
+      );
+    }
+    await expect(
+      deepSeekSearch({
+        ...base,
+        query: "pi",
+        need_content: "yes" as unknown as boolean,
+      }),
+    ).rejects.toThrow(/need_content must be a boolean/u);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it("surfaces the API error detail", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ error: { message: "bad key" } }, 401),
     );
     await expect(deepSeekSearch({ query: "pi", apiKey: "k", config, fetchImpl })).rejects.toThrow(
-      /HTTP 401\): bad key/u,
+      /HTTP 401.*bad key/u,
     );
   });
 
-  it("reports a network failure with the endpoint", async () => {
-    const fetchImpl = vi.fn<typeof fetch>(async () => {
-      throw new Error("ECONNREFUSED");
+  it("does not duplicate /v1 for a versioned base URL", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => jsonResponse({ results: [] }));
+    await deepSeekSearch({
+      query: "pi",
+      apiKey: "k",
+      config: { ...config, baseURL: "https://api.example/v1" },
+      fetchImpl,
     });
-    await expect(deepSeekSearch({ query: "pi", apiKey: "k", config, fetchImpl })).rejects.toThrow(
-      /ECONNREFUSED/u,
-    );
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe("https://api.example/v1/tools/search");
   });
 });

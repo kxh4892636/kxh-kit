@@ -1,257 +1,178 @@
 /**
- * DeepSeek-backed web search over the Anthropic-compatible Messages API with
- * the native `web_search_20250305` server tool. Each search costs a model turn
- * but returns structured result blocks. This mirrors
- * `@deepseek-ai/dsh-web-search-deepseek`'s wire format without depending on the
- * harness seam.
+ * DeepSeek official Search API client. A search is a single JSON request that
+ * returns ranked, structured results; no model turn or server tool is involved.
+ * The request and response shapes mirror the official guide so the model can
+ * use search operators and read every documented result field.
  */
 
-/** One normalized source returned to the model. */
-export interface WebSource {
-  url: string;
+import type { DeepSeekWebConfig } from "./config.ts";
+import { postJson, toolEndpoint } from "./http.ts";
+
+/** One result from `POST /v1/tools/search`, using the official field names. */
+export interface SearchApiResult {
+  rerank_score?: number;
   title?: string;
+  url?: string;
   snippet?: string;
-  publishedAt?: string;
+  summary?: string;
+  content?: string;
+  site_name?: string | null;
+  site_icon?: string | null;
+  date?: string | null;
+  authority?: number;
+}
+
+/** The official Search API response envelope. */
+export interface SearchApiResponse {
+  results?: SearchApiResult[];
 }
 
 /** Normalized search outcome. */
 export interface WebSearchResult {
-  answer?: string;
-  sources: WebSource[];
-  truncated: boolean;
+  /** Number of results requested from the API. */
+  count: number;
+  /** Complete result objects, deduplicated by URL. */
+  results: SearchApiResult[];
 }
 
-/** Provider fields needed to build one request. */
-export interface SearchProviderConfig {
-  baseURL: string;
-  model: string;
-  apiVersion: string;
-  maxTokens: number;
-  maxUses: number;
-}
-
-/** One search request. `fetchImpl` is injectable for tests. */
+/** One search request; field names match the official request body. */
 export interface SearchRequest {
   query: string;
+  /** Overrides `config.searchCount`; must be an integer in 1..50. */
+  count?: number;
+  /** Original user question, 1–128 characters, used to understand intent. */
+  ori_question?: string;
+  /** IP address used to prefer localized results. */
+  localization?: string;
+  /** Ask the API to populate each result's `content` field. */
+  need_content?: boolean;
   apiKey: string;
-  config: SearchProviderConfig;
+  config: Pick<DeepSeekWebConfig, "baseURL" | "searchCount" | "timeoutMs">;
   signal?: AbortSignal;
   fetchImpl?: typeof fetch;
 }
 
-/** A citation location inside a `text` block (the snippet source). */
-export interface CitationLocation {
-  url?: string | null;
-  cited_text?: string | null;
-}
+/** Maximum Unicode code points accepted for `query` and `ori_question`. */
+const MAX_QUERY_LENGTH = 128;
 
-/** A `text` content block: the model's prose plus per-URL citations. */
-export interface TextBlock {
-  type: "text";
-  text?: string | null;
-  citations?: CitationLocation[];
-}
-
-/** A `web_search_result` item inside a `web_search_tool_result` block. */
-export interface WebSearchResultItem {
-  url: string;
-  title?: string | null;
-  page_age?: string | null;
-}
-
-/** A `web_search_tool_result` content block: the citeable result shape. */
-export interface WebSearchToolResultBlock {
-  type: "web_search_tool_result";
-  content?: WebSearchResultItem[];
-}
-
-/** Any content block; only `text` and `web_search_tool_result` are consumed. */
-export type ContentBlock = TextBlock | WebSearchToolResultBlock | { type: string };
-
-/** DeepSeek's Anthropic Messages response envelope. */
-export interface AnthropicResponse {
-  content?: ContentBlock[];
-}
-
-/** Best-effort error envelope (fields vary by gateway). */
-interface AnthropicError {
-  error?: { message?: string } | string;
-  message?: string;
-}
+/** Official authority range; `-1` means unknown. */
+const AUTHORITY_MIN = -1;
+const AUTHORITY_MAX = 4;
 
 /**
- * Build a `url → cited_text` map from every `text` block's citations. The
- * snippet lives in a citation, keyed by URL (first occurrence wins).
+ * Map the official response to deduplicated results.
  *
- * @param blocks - response content blocks; non-`text` blocks are skipped.
- * @returns the `url → cited_text` map (empty when no citations are present).
+ * @param response - parsed Search API body; `unknown` because HTTP data is
+ *   untrusted and a successful status does not guarantee the documented shape.
+ * @returns results in API order, first URL wins, preserving every documented
+ *   field; empty strings and invalid optional fields are omitted.
+ * @throws when the body or its `results` field is not the documented shape.
  */
-export function citationSnippets(blocks: readonly ContentBlock[]): Map<string, string> {
-  const map = new Map<string, string>();
-  for (const block of blocks) {
-    if (block.type !== "text") continue;
-    for (const cite of (block as TextBlock).citations ?? []) {
-      const url = cite.url;
-      const text = cite.cited_text;
-      if (
-        typeof url === "string" &&
-        url.length > 0 &&
-        typeof text === "string" &&
-        text.length > 0 &&
-        !map.has(url)
-      ) {
-        map.set(url, text);
-      }
-    }
+export const mapSearchResponse = (response: unknown): SearchApiResult[] => {
+  if (response === null || typeof response !== "object") {
+    throw new Error("DeepSeek Search API returned an unreadable results list");
   }
-  return map;
-}
-
-/**
- * Map a DeepSeek Anthropic Messages response to a normalized search result.
- * Walks `web_search_tool_result` blocks for `web_search_result` items, joins
- * each to its citation excerpt as `snippet`, and dedupes by URL.
- *
- * @param response - the parsed Messages response body.
- * @returns the normalized result with deduped, snippet-joined sources.
- * @throws when native search produced no result block.
- */
-export function mapAnthropicResponse(response: AnthropicResponse): WebSearchResult {
-  const blocks = response.content ?? [];
-  const resultBlocks = blocks.filter(
-    (block): block is WebSearchToolResultBlock => block.type === "web_search_tool_result",
-  );
-  if (resultBlocks.length === 0) {
-    throw new Error(
-      "DeepSeek returned no web_search_tool_result blocks; the request may not have triggered native web search",
-    );
+  const rawResults = (response as SearchApiResponse).results;
+  if (!Array.isArray(rawResults)) {
+    throw new Error("DeepSeek Search API returned an unreadable results list");
   }
 
-  const answer = joinAnswer(blocks);
-  return {
-    ...(answer.length > 0 ? { answer } : {}),
-    sources: collectSources(resultBlocks, citationSnippets(blocks)),
-    truncated: false,
-  };
-}
-
-/** Project every result item into a deduped, snippet-joined source. */
-const collectSources = (
-  resultBlocks: readonly WebSearchToolResultBlock[],
-  snippets: ReadonlyMap<string, string>,
-): WebSource[] => {
   const seen = new Set<string>();
-  const sources: WebSource[] = [];
-  for (const block of resultBlocks) {
-    const items = Array.isArray(block.content) ? block.content : [];
-    for (const item of items) {
-      if (item.url.length === 0 || seen.has(item.url)) continue;
-      seen.add(item.url);
-      sources.push(toSource(item, snippets.get(item.url)));
+  const results: SearchApiResult[] = [];
+  for (const item of rawResults) {
+    if (item === null || typeof item !== "object") continue;
+    const url = trimmed(item.url);
+    if (url === undefined || seen.has(url)) continue;
+    seen.add(url);
+
+    const result: SearchApiResult = { url };
+    const title = trimmed(item.title);
+    const snippet = trimmed(item.snippet);
+    const summary = trimmed(item.summary);
+    const content = trimmed(item.content);
+    const siteName = nullableString(item.site_name);
+    const siteIcon = nullableString(item.site_icon);
+    const date = nullableString(item.date);
+    if (title !== undefined) result.title = title;
+    if (snippet !== undefined) result.snippet = snippet;
+    if (summary !== undefined) result.summary = summary;
+    if (content !== undefined) result.content = content;
+    if (siteName !== undefined) result.site_name = siteName;
+    if (siteIcon !== undefined) result.site_icon = siteIcon;
+    if (date !== undefined) result.date = date;
+    if (
+      typeof item.authority === "number" &&
+      Number.isInteger(item.authority) &&
+      item.authority >= AUTHORITY_MIN &&
+      item.authority <= AUTHORITY_MAX
+    ) {
+      result.authority = item.authority;
     }
+    if (typeof item.rerank_score === "number" && Number.isFinite(item.rerank_score)) {
+      result.rerank_score = item.rerank_score;
+    }
+    results.push(result);
   }
-  return sources;
-};
-
-/** Normalize one result item, omitting empty optional fields. */
-const toSource = (item: WebSearchResultItem, snippet: string | undefined): WebSource => {
-  return {
-    url: item.url,
-    ...(item.title != null && item.title.length > 0 ? { title: item.title } : {}),
-    ...(snippet !== undefined && snippet.length > 0 ? { snippet } : {}),
-    ...(item.page_age != null && item.page_age.length > 0 ? { publishedAt: item.page_age } : {}),
-  };
-};
-
-/** Join every non-empty `text` block body into one answer string. */
-const joinAnswer = (blocks: readonly ContentBlock[]): string => {
-  return blocks
-    .filter((block): block is TextBlock => block.type === "text")
-    .map((block) => (typeof block.text === "string" ? block.text.trim() : ""))
-    .filter((text) => text.length > 0)
-    .join("\n\n");
+  return results;
 };
 
 /**
- * Run one DeepSeek web search.
+ * Run one official DeepSeek web search.
  *
- * @param request - query, key, provider config and optional cancellation.
- * @returns the normalized search result.
- * @throws on network failure, non-2xx responses, unreadable bodies, or a
- *   response without a native search result block.
+ * @param request - query, optional official request fields, key and config.
+ * @returns the requested count and complete normalized results.
+ * @throws on invalid input, network failure, timeout, abort, non-2xx response,
+ *   unreadable body, or a response without a `results` array.
  */
-export async function deepSeekSearch(request: SearchRequest): Promise<WebSearchResult> {
-  const doFetch = request.fetchImpl ?? fetch;
-  const endpoint = `${request.config.baseURL.replace(/\/+$/u, "")}/messages`;
-  const body = {
-    model: request.config.model,
-    max_tokens: request.config.maxTokens,
-    messages: [
-      {
-        role: "user",
-        content: [{ type: "text", text: `Perform a web search for the query: ${request.query}` }],
-      },
-    ],
-    tools: [{ type: "web_search_20250305", name: "web_search", max_uses: request.config.maxUses }],
-  };
-
-  let response: Response;
-  try {
-    response = await doFetch(endpoint, {
-      method: "POST",
-      redirect: "error",
-      headers: {
-        // DeepSeek expects `x-api-key`; an Anthropic-compatible proxy may expect
-        // `Authorization: Bearer` — send both so either resolves.
-        "x-api-key": request.apiKey,
-        authorization: `Bearer ${request.apiKey}`,
-        "anthropic-version": request.config.apiVersion,
-        "content-type": "application/json",
-        accept: "application/json",
-        "user-agent": "pi-deepseek-web/0.1.0",
-      },
-      body: JSON.stringify(body),
-      ...(request.signal !== undefined ? { signal: request.signal } : {}),
-    });
-  } catch (error) {
-    if (request.signal?.aborted === true) throw new Error("DeepSeek web search was aborted");
-    throw new Error(
-      `DeepSeek web search request to ${endpoint} failed: ${messageOf(error)}. ` +
-        "Check network or proxy access to that endpoint.",
-    );
+export const deepSeekSearch = async (request: SearchRequest): Promise<WebSearchResult> => {
+  const query = validateText(request.query, "query");
+  const count = request.count ?? request.config.searchCount;
+  if (!Number.isInteger(count) || count < 1 || count > 50) {
+    throw new Error("web_search count must be an integer between 1 and 50");
+  }
+  const oriQuestion =
+    request.ori_question === undefined
+      ? undefined
+      : validateText(request.ori_question, "ori_question");
+  const localization = request.localization === undefined ? undefined : request.localization.trim();
+  if (request.need_content !== undefined && typeof request.need_content !== "boolean") {
+    throw new Error("web_search need_content must be a boolean");
   }
 
-  if (!response.ok) {
-    const detail = await errorDetail(response);
-    throw new Error(
-      `DeepSeek web search API error (HTTP ${response.status})${detail.length > 0 ? `: ${detail}` : ""}. ` +
-        `Endpoint: ${endpoint}`,
-    );
-  }
+  const body: Record<string, unknown> = { query, count };
+  if (oriQuestion !== undefined) body["ori_question"] = oriQuestion;
+  if (localization !== undefined && localization.length > 0) body["localization"] = localization;
+  if (request.need_content !== undefined) body["need_content"] = request.need_content;
 
-  let payload: AnthropicResponse;
-  try {
-    payload = (await response.json()) as AnthropicResponse;
-  } catch (error) {
-    if (request.signal?.aborted === true) throw new Error("DeepSeek web search was aborted");
-    throw new Error(`DeepSeek web search returned an unreadable body: ${messageOf(error)}`);
-  }
-  return mapAnthropicResponse(payload);
-}
+  const payload = await postJson<unknown>({
+    endpoint: toolEndpoint(request.config.baseURL, "search"),
+    apiKey: request.apiKey,
+    body,
+    label: "DeepSeek web search",
+    timeoutMs: request.config.timeoutMs,
+    ...(request.signal !== undefined ? { signal: request.signal } : {}),
+    ...(request.fetchImpl !== undefined ? { fetchImpl: request.fetchImpl } : {}),
+  });
 
-const errorDetail = async (response: Response): Promise<string> => {
-  try {
-    const parsed = (await response.json()) as AnthropicError;
-    if (typeof parsed.error === "string") return parsed.error;
-    const nested = parsed.error?.message;
-    if (typeof nested === "string" && nested.length > 0) return nested;
-    if (typeof parsed.message === "string" && parsed.message.length > 0) return parsed.message;
-  } catch {
-    // A malformed/non-JSON error body can only cost a richer message.
-  }
-  return "";
+  return { count, results: mapSearchResponse(payload) };
 };
 
-const messageOf = (error: unknown): string => {
-  return error instanceof Error ? error.message : String(error);
+/** Validate a 1–128 Unicode-character, non-blank text field. */
+const validateText = (value: string, name: string): string => {
+  const text = value.trim();
+  if (text.length === 0 || Array.from(text).length > MAX_QUERY_LENGTH) {
+    throw new Error(`web_search ${name} must be 1-${MAX_QUERY_LENGTH} characters and not blank`);
+  }
+  return text;
+};
+
+const trimmed = (value: unknown): string | undefined => {
+  if (typeof value !== "string") return undefined;
+  const text = value.trim();
+  return text.length > 0 ? text : undefined;
+};
+
+const nullableString = (value: unknown): string | null | undefined => {
+  if (value === null) return null;
+  return trimmed(value);
 };

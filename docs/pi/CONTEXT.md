@@ -1,6 +1,6 @@
 # Pi
 
-pi 扩展业务域：以独立 pi package 扩展宿主能力——发现被「命中即停」规则漏掉的嵌套 skill、以 `$` 引用在任意位置插入并展开 skill，以及经 DeepSeek 的 web 搜索与直连 web 抓取。与 pi 本体解耦，经 `pi install` 安装。
+pi 扩展业务域：以独立 pi package 扩展宿主能力——发现被「命中即停」规则漏掉的嵌套 skill、以 `$` 引用在任意位置插入并展开 skill，以及经 DeepSeek 官方 Search/Fetch API 的 web 搜索与抓取。与 pi 本体解耦，经 `pi install` 安装。
 
 ## Language
 
@@ -34,16 +34,16 @@ _避免使用_：嵌套优先
 
 ### Web 能力
 
-**搜索问答**：
-DeepSeek 在 `web_search` 结果块之外返回的 `text` block 正文；作为可选 answer 与来源列表一并交给模型。
-_避免使用_：总结、摘要
+**搜索结果**：
+DeepSeek 官方 Search API 返回的结构化条目（`rerank_score`、`title`、`url`、`snippet`、`summary`、`content`、`site_name`、`site_icon`、`date`、`authority`）；插件按 URL 去重后保留全部字段，文本投影选用摘要/片段、评分、权威性、站点、日期与可选正文。
+_避免使用_：搜索问答、answer、总结
 
 **web 工具**：
-本域 `pi-deepseek-web` 注册的两个模型工具：`web_search`（经 DeepSeek `web_search_20250305` 服务端工具）与 `web_fetch`（直连 HTTP、HTML 经 turndown 转 GFM markdown）。
-_避免使用_：MCP 工具、web seam
+本域 `pi-deepseek-web` 注册的两个模型工具：`web_search`（DeepSeek 官方 Search API，`POST /v1/tools/search`）与 `web_fetch`（DeepSeek 官方 Fetch API，`POST /v1/tools/fetch`，返回标题与 Markdown 正文）。
+_避免使用_：Anthropic web_search server tool、直连抓取、MCP 工具、web seam
 
 **插件配置**：
-`~/.pi/agent/pi-deepseek-web.json`（项目 `.pi/` 可覆盖，`PI_DEEPSEEK_WEB_CONFIG` 指定绝对路径最高优先）承载 DeepSeek 凭据、端点与限额的独立配置文件。
+`~/.pi/agent/pi-deepseek-web.json`（项目 `.pi/` 可覆盖，`PI_DEEPSEEK_WEB_CONFIG` 指定绝对路径最高优先）承载 DeepSeek 凭据、官方 API 根地址与搜索/抓取限额的独立配置文件。
 _避免使用_：settings、环境变量、dotenv
 
 **凭据回退**：

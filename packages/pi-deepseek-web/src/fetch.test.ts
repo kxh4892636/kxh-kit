@@ -1,7 +1,17 @@
-import { describe, expect, it } from "vite-plus/test";
-import { classifyContentType, fetchPage, validateUrl } from "./fetch.ts";
+import { describe, expect, it, vi } from "vite-plus/test";
+import { fetchPage, validateUrl } from "./fetch.ts";
 
-const limits = { maxResponseBytes: 1_000, maxBodyChars: 1_000, timeoutMs: 1_000 };
+const config = {
+  baseURL: "https://api.example",
+  fetchMaxContentChars: 1_000,
+  timeoutMs: 1_000,
+};
+
+const jsonResponse = (body: unknown, status = 200): Response =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: { "content-type": "application/json" },
+  });
 
 describe("validateUrl", () => {
   it("accepts absolute http(s) URLs", () => {
@@ -9,169 +19,84 @@ describe("validateUrl", () => {
     expect(validateUrl("http://example.com").protocol).toBe("http:");
   });
 
-  it("rejects relative and non-http URLs", () => {
+  it("rejects empty, relative, non-http, credentialed, and over-long URLs", () => {
+    expect(() => validateUrl("")).toThrow(/between 1 and 8192/u);
     expect(() => validateUrl("example.com")).toThrow(/absolute/u);
     expect(() => validateUrl("ftp://example.com")).toThrow(/only supports http/u);
-  });
-});
-
-describe("classifyContentType", () => {
-  it("maps supported types", () => {
-    expect(classifyContentType("text/html; charset=utf-8")).toBe("html");
-    expect(classifyContentType("application/xhtml+xml")).toBe("html");
-    expect(classifyContentType("text/plain")).toBe("text");
-    expect(classifyContentType("application/json")).toBe("text");
-    expect(classifyContentType("application/ld+json")).toBe("text");
-    expect(classifyContentType(null)).toBe("text");
-    expect(classifyContentType("image/png")).toBeUndefined();
+    expect(() => validateUrl("https://user:pass@example.com")).toThrow(/username or password/u);
+    expect(() => validateUrl(`https://example.com/${"a".repeat(8193)}`)).toThrow(
+      /between 1 and 8192/u,
+    );
   });
 });
 
 describe("fetchPage", () => {
-  const htmlResponse = () =>
-    new Response(
-      '<html><body><h1>Title</h1><p>Hello <a href="https://x.example">link</a></p><script>bad()</script></body></html>',
-      { status: 200, headers: { "content-type": "text/html; charset=utf-8" } },
+  it("posts the URL and maps the title and Markdown content", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ title: "  Example  ", content: "# Hello" }),
     );
-
-  it("converts HTML to markdown and drops scripts", async () => {
     const page = await fetchPage({
       url: "https://example.com",
-      config: limits,
-      fetchImpl: (async () => htmlResponse()) as unknown as typeof fetch,
+      apiKey: "k",
+      config,
+      fetchImpl,
     });
-    expect(page.kind).toBe("html");
-    expect(page.statusCode).toBe(200);
-    expect(page.truncated).toBe(false);
-    expect(page.content).toContain("# Title");
-    expect(page.content).toContain("[link](https://x.example)");
-    expect(page.content).not.toContain("bad()");
-  });
 
-  it("passes plain text through", async () => {
-    const page = await fetchPage({
-      url: "https://example.com",
-      config: limits,
-      fetchImpl: (async () =>
-        new Response("plain body", {
-          status: 200,
-          headers: { "content-type": "text/plain" },
-        })) as unknown as typeof fetch,
+    expect(page).toEqual({
+      url: "https://example.com/",
+      title: "Example",
+      content: "# Hello",
+      truncated: false,
     });
-    expect(page.content).toBe("plain body");
+    const call = fetchImpl.mock.calls[0];
+    expect(call?.[0]).toBe("https://api.example/v1/tools/fetch");
+    const body = JSON.parse(typeof call?.[1]?.body === "string" ? call[1].body : "{}");
+    expect(body).toEqual({ url: "https://example.com/" });
   });
 
-  it("rejects unsupported content types", async () => {
-    await expect(
-      fetchPage({
-        url: "https://example.com/a.png",
-        config: limits,
-        fetchImpl: (async () =>
-          new Response("x", {
-            status: 200,
-            headers: { "content-type": "image/png" },
-          })) as unknown as typeof fetch,
-      }),
-    ).rejects.toThrow(/does not support content type/u);
-  });
-
-  it("rejects a declared body over the byte cap", async () => {
-    await expect(
-      fetchPage({
-        url: "https://example.com",
-        config: { ...limits, maxResponseBytes: 4 },
-        fetchImpl: (async () =>
-          new Response("0123456789", {
-            status: 200,
-            headers: { "content-type": "text/plain", "content-length": "10" },
-          })) as unknown as typeof fetch,
-      }),
-    ).rejects.toThrow(/exceeds the maximum/u);
-  });
-
-  it("truncates decoded bodies over the character cap", async () => {
+  it("truncates content at the configured character cap", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ title: "T", content: "0123456789" }),
+    );
     const page = await fetchPage({
       url: "https://example.com",
-      config: { ...limits, maxBodyChars: 5 },
-      fetchImpl: (async () =>
-        new Response("0123456789", {
-          status: 200,
-          headers: { "content-type": "text/plain" },
-        })) as unknown as typeof fetch,
+      apiKey: "k",
+      config: { ...config, fetchMaxContentChars: 5 },
+      fetchImpl,
     });
     expect(page.content).toBe("01234");
     expect(page.truncated).toBe(true);
   });
 
-  it("converts lists and code blocks", async () => {
-    const html = "<ul><li>one</li><li>two</li></ul><pre><code>const a = 1;</code></pre>";
+  it("omits a blank title and allows an empty body", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => jsonResponse({ title: "   ", content: "" }));
     const page = await fetchPage({
       url: "https://example.com",
-      config: limits,
-      fetchImpl: (async () =>
-        new Response(html, {
-          status: 200,
-          headers: { "content-type": "text/html" },
-        })) as unknown as typeof fetch,
+      apiKey: "k",
+      config,
+      fetchImpl,
     });
-    expect(page.content).toMatch(/- +one/u);
-    expect(page.content).toContain("```");
+    expect(page).toEqual({ url: "https://example.com/", content: "", truncated: false });
   });
 
-  it("passes application/json through unchanged", async () => {
-    const page = await fetchPage({
-      url: "https://example.com",
-      config: limits,
-      fetchImpl: (async () =>
-        new Response('{"a":1}', {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        })) as unknown as typeof fetch,
-    });
-    expect(page.content).toBe('{"a":1}');
-  });
-
-  it("truncates a streamed body past the byte cap", async () => {
-    const stream = new ReadableStream({
-      start(controller) {
-        controller.enqueue(new TextEncoder().encode("0123456789"));
-        controller.close();
-      },
-    });
-    const page = await fetchPage({
-      url: "https://example.com",
-      config: { ...limits, maxResponseBytes: 4 },
-      fetchImpl: (async () =>
-        new Response(stream, {
-          status: 200,
-          headers: { "content-type": "text/plain" },
-        })) as unknown as typeof fetch,
-    });
-    expect(page.content).toBe("0123");
-    expect(page.truncated).toBe(true);
-  });
-
-  it("reports a timeout or abort", async () => {
-    const fetchImpl = (async (_url: string, init?: RequestInit) => {
-      await new Promise((_resolve, reject) => {
-        init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
-      });
-      throw new Error("unreachable");
-    }) as unknown as typeof fetch;
+  it("rejects a response without string content", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => jsonResponse({ title: "T" }));
     await expect(
-      fetchPage({ url: "https://example.com", config: { ...limits, timeoutMs: 5 }, fetchImpl }),
-    ).rejects.toThrow(/timed out/u);
+      fetchPage({ url: "https://example.com", apiKey: "k", config, fetchImpl }),
+    ).rejects.toThrow(/no readable content/u);
+
+    const nullResponse = vi.fn<typeof fetch>(async () => jsonResponse(null));
+    await expect(
+      fetchPage({ url: "https://example.com", apiKey: "k", config, fetchImpl: nullResponse }),
+    ).rejects.toThrow(/no readable content/u);
   });
 
-  it("reports a network failure with the URL", async () => {
+  it("surfaces the API error detail", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ error: { message: "failed to fetch URL" } }, 404),
+    );
     await expect(
-      fetchPage({
-        url: "https://example.com",
-        config: limits,
-        fetchImpl: (async () => {
-          throw new Error("ENOTFOUND");
-        }) as unknown as typeof fetch,
-      }),
-    ).rejects.toThrow(/ENOTFOUND/u);
+      fetchPage({ url: "https://example.com", apiKey: "k", config, fetchImpl }),
+    ).rejects.toThrow(/HTTP 404.*failed to fetch URL/u);
   });
 });

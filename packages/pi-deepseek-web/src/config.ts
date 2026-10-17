@@ -1,5 +1,5 @@
 /**
- * Plugin configuration: locate the DeepSeek API key, endpoint, model and tool
+ * Plugin configuration: locate the DeepSeek API key, official API base and tool
  * limits from user/project JSON files, then resolve them into one fully
  * defaulted value the tools can use.
  *
@@ -21,56 +21,30 @@ export const CONFIG_PATH_ENV = "PI_DEEPSEEK_WEB_CONFIG";
 /** Default environment variable the API key is read from when `apiKey` is absent. */
 export const DEFAULT_API_KEY_ENV = "DEEPSEEK_API_KEY";
 
-/** DeepSeek's Anthropic-compatible Messages base; `/messages` is appended. */
-export const DEFAULT_BASE_URL = "https://api.deepseek.com/anthropic/v1";
+/** DeepSeek's official API root; `/v1/tools/...` is appended by the clients. */
+export const DEFAULT_BASE_URL = "https://api.deepseek.com";
 
-/** Anthropic-format model name enabled for the native web-search tool. */
-export const DEFAULT_MODEL = "deepseek-v4-flash";
+/** Default number of search results when the tool omits `count`. */
+export const DEFAULT_SEARCH_COUNT = 10;
 
-/** `anthropic-version` header value. */
-const DEFAULT_API_VERSION = "2023-06-01";
+/** Default cap on characters returned by one fetch. */
+export const DEFAULT_FETCH_MAX_CONTENT_CHARS = 100_000;
 
-/** Upper bound on generated tokens for one search request. */
-const DEFAULT_MAX_TOKENS = 4096;
+/** Default timeout in milliseconds for one Search or Fetch request. */
+export const DEFAULT_TIMEOUT_MS = 30_000;
 
-/** Maximum native `web_search` server-tool uses per request. */
-const DEFAULT_MAX_USES = 5;
-
-/** Maximum response body size in bytes for one fetch. */
-const DEFAULT_FETCH_MAX_RESPONSE_BYTES = 5_000_000;
-
-/** Maximum decoded body length in characters for one fetch. */
-const DEFAULT_FETCH_MAX_BODY_CHARS = 100_000;
-
-/** Default fetch timeout in milliseconds. */
-export const DEFAULT_FETCH_TIMEOUT_MS = 30_000;
-
-/** JSON shape accepted from a config file. Every field is optional. */
-export interface DeepSeekWebConfigFile {
-  apiKey?: string;
-  apiKeyEnv?: string;
-  baseURL?: string;
-  model?: string;
-  apiVersion?: string;
-  maxTokens?: number;
-  maxUses?: number;
-  fetchMaxResponseBytes?: number;
-  fetchMaxBodyChars?: number;
-  fetchTimeoutMs?: number;
-}
+/** Minimum and maximum accepted `count` values from the official Search API. */
+const SEARCH_COUNT_MIN = 1;
+const SEARCH_COUNT_MAX = 50;
 
 /** Fully defaulted configuration for one tool call. */
 export interface DeepSeekWebConfig {
   readonly apiKey: string | undefined;
   readonly apiKeyEnv: string;
   readonly baseURL: string;
-  readonly model: string;
-  readonly apiVersion: string;
-  readonly maxTokens: number;
-  readonly maxUses: number;
-  readonly fetchMaxResponseBytes: number;
-  readonly fetchMaxBodyChars: number;
-  readonly fetchTimeoutMs: number;
+  readonly searchCount: number;
+  readonly fetchMaxContentChars: number;
+  readonly timeoutMs: number;
 }
 
 /** Resolved config plus the candidate paths it was merged from. */
@@ -93,7 +67,7 @@ export interface LoadConfigOptions {
  * files are skipped by {@link loadConfig}, so the returned list is also the
  * diagnostic list shown when a key is missing.
  */
-export function configPaths(options: LoadConfigOptions): string[] {
+export const configPaths = (options: LoadConfigOptions): string[] => {
   const env = options.env ?? process.env;
   const agentDir = options.agentDir ?? getAgentDir();
   const paths = [join(resolve(agentDir), CONFIG_FILE_NAME)];
@@ -105,16 +79,17 @@ export function configPaths(options: LoadConfigOptions): string[] {
     paths.push(isAbsolute(override) ? override : resolve(options.cwd, override));
   }
   return [...new Set(paths)];
-}
+};
 
 /**
  * Read one config file.
  *
  * @param path - absolute candidate path.
- * @returns the parsed object, or `undefined` when the file does not exist.
+ * @returns the parsed object shape, or `undefined` when the file does not
+ *   exist; fields are validated by {@link loadConfig}.
  * @throws when the file exists but is not a JSON object.
  */
-export function readConfigFile(path: string): DeepSeekWebConfigFile | undefined {
+export const readConfigFile = (path: string): Record<string, unknown> | undefined => {
   if (!existsSync(path)) return undefined;
   const text = readFileSync(path, "utf-8");
   let parsed: unknown;
@@ -126,11 +101,11 @@ export function readConfigFile(path: string): DeepSeekWebConfigFile | undefined 
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     throw new Error(`Config file ${path} must contain a JSON object`);
   }
-  return parsed as DeepSeekWebConfigFile;
-}
+  return parsed as Record<string, unknown>;
+};
 
 /** Load and merge every existing config file, then apply defaults. */
-export function loadConfig(options: LoadConfigOptions): LoadedConfig {
+export const loadConfig = (options: LoadConfigOptions): LoadedConfig => {
   const env = options.env ?? process.env;
   const paths = configPaths(options);
   const merged: Record<string, unknown> = {};
@@ -146,32 +121,25 @@ export function loadConfig(options: LoadConfigOptions): LoadedConfig {
   const config: DeepSeekWebConfig = {
     apiKey: literalKey ?? envKey,
     apiKeyEnv,
-    baseURL: nonEmptyString(merged["baseURL"]) ?? DEFAULT_BASE_URL,
-    model: nonEmptyString(merged["model"]) ?? DEFAULT_MODEL,
-    apiVersion: nonEmptyString(merged["apiVersion"]) ?? DEFAULT_API_VERSION,
-    maxTokens: positiveInteger(merged["maxTokens"], DEFAULT_MAX_TOKENS, "maxTokens", paths),
-    maxUses: positiveInteger(merged["maxUses"], DEFAULT_MAX_USES, "maxUses", paths),
-    fetchMaxResponseBytes: positiveInteger(
-      merged["fetchMaxResponseBytes"],
-      DEFAULT_FETCH_MAX_RESPONSE_BYTES,
-      "fetchMaxResponseBytes",
+    baseURL: resolveBaseURL(merged["baseURL"], paths),
+    searchCount: boundedInteger(
+      merged["searchCount"],
+      DEFAULT_SEARCH_COUNT,
+      "searchCount",
+      SEARCH_COUNT_MIN,
+      SEARCH_COUNT_MAX,
       paths,
     ),
-    fetchMaxBodyChars: positiveInteger(
-      merged["fetchMaxBodyChars"],
-      DEFAULT_FETCH_MAX_BODY_CHARS,
-      "fetchMaxBodyChars",
+    fetchMaxContentChars: positiveInteger(
+      merged["fetchMaxContentChars"],
+      DEFAULT_FETCH_MAX_CONTENT_CHARS,
+      "fetchMaxContentChars",
       paths,
     ),
-    fetchTimeoutMs: positiveInteger(
-      merged["fetchTimeoutMs"],
-      DEFAULT_FETCH_TIMEOUT_MS,
-      "fetchTimeoutMs",
-      paths,
-    ),
+    timeoutMs: positiveInteger(merged["timeoutMs"], DEFAULT_TIMEOUT_MS, "timeoutMs", paths),
   };
   return { config, configPaths: paths };
-}
+};
 
 /**
  * Resolve the API key or explain how to provide one.
@@ -180,14 +148,50 @@ export function loadConfig(options: LoadConfigOptions): LoadedConfig {
  * @returns the non-empty API key.
  * @throws when neither `apiKey` nor its environment fallback is set.
  */
-export function requireApiKey(loaded: LoadedConfig): string {
+export const requireApiKey = (loaded: LoadedConfig): string => {
   const key = loaded.config.apiKey;
   if (key !== undefined && key.length > 0) return key;
   throw new Error(
-    `DeepSeek web search has no API key. Set "apiKey" in one of ${loaded.configPaths.join(", ")} ` +
+    `DeepSeek web tools have no API key. Set "apiKey" in one of ${loaded.configPaths.join(", ")} ` +
       `or export ${loaded.config.apiKeyEnv}.`,
   );
-}
+};
+
+/**
+ * Validate and normalize the API base URL.
+ *
+ * @param value - configured value, if any.
+ * @param paths - config paths used in error messages.
+ * @returns an origin plus path without a trailing slash.
+ * @throws when the value is not an absolute http(s) URL without query/hash, or
+ *   when it points at the retired Anthropic-compatible endpoint.
+ */
+const resolveBaseURL = (value: unknown, paths: readonly string[]): string => {
+  const raw = nonEmptyString(value) ?? DEFAULT_BASE_URL;
+  const source = `(from ${paths.join(", ")})`;
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(
+      `Config baseURL must be an absolute http(s) URL, got ${JSON.stringify(raw)} ${source}`,
+    );
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error(`Config baseURL must use http or https, got ${url.protocol} ${source}`);
+  }
+  if (url.search.length > 0 || url.hash.length > 0) {
+    throw new Error(`Config baseURL must not include a query string or fragment ${source}`);
+  }
+  const path = url.pathname.replace(/\/+$/u, "");
+  if (/(^|\/)anthropic(?:\/|$)/iu.test(path)) {
+    throw new Error(
+      `Config baseURL ${raw} is the retired Anthropic endpoint; ` +
+        `set it to ${DEFAULT_BASE_URL} for the official DeepSeek APIs ${source}.`,
+    );
+  }
+  return `${url.origin}${path}`;
+};
 
 const nonEmptyString = (value: unknown): string | undefined => {
   return typeof value === "string" && value.trim().length > 0 ? value : undefined;
@@ -202,6 +206,23 @@ const positiveInteger = (
   if (value === undefined) return fallback;
   if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
     throw new Error(`Config ${name} must be a positive integer (from ${paths.join(", ")})`);
+  }
+  return value;
+};
+
+const boundedInteger = (
+  value: unknown,
+  fallback: number,
+  name: string,
+  min: number,
+  max: number,
+  paths: readonly string[],
+): number => {
+  if (value === undefined) return fallback;
+  if (typeof value !== "number" || !Number.isInteger(value) || value < min || value > max) {
+    throw new Error(
+      `Config ${name} must be an integer between ${min} and ${max} (from ${paths.join(", ")})`,
+    );
   }
   return value;
 };
