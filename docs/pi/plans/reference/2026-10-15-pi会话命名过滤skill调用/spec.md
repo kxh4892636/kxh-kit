@@ -98,9 +98,9 @@ status: completed
 
 ## 当前进度
 
-截至 2026-10-15，交付完成；Plan 位于 implementing，归档 `reference` 待用户确认。基线 `main @ a8351e4`。
+截至 2026-10-17，交付完成；Plan 已归档到 `reference`（用户确认）。基线 `main @ a8351e4`。
 
-- 已完成：问题取证、方案与接口、实现、单测、README、门禁（test 46/46、覆盖率 statements 98.98 / branches 95.31 / functions 95 / lines 100、check 通过）、code review 与修复、真机验证（块+请求 → `修复登录超时问题`；纯块 ×3 → `演示流程` / `demo-flow` / `demo-flow`）、commit。
+- 已完成：问题取证、方案与接口、实现、单测、README、门禁（test 46/46、覆盖率 statements 98.98 / branches 95.31 / functions 95 / lines 100、check 通过）、code review 与修复、真机验证（块+请求 → `修复登录超时问题`；纯块 ×3 → `演示流程` / `demo-flow` / `demo-flow`）、commit；2026-10-17 重新安装（`pi install`）并真机复验命名（`登录超时问题修复`）。
 - 未验证：无（`pi -p` 的 fire-and-forget 竞态已作为遗留限制记录）。
 
 ## 恢复入口
@@ -114,4 +114,4 @@ status: completed
 
 | #   | Notes                                | 状态      | 阻塞于 | 下一步 |
 | --- | ------------------------------------ | --------- | ------ | ------ |
-| 01  | [skill调用过滤](01-skill调用过滤.md) | completed | —      | 已交付 |
+| 01  | [skill调用过滤](01-skill调用过滤.md) | completed | —      | 已归档 |

@@ -110,7 +110,7 @@ blocked_by: []
 
 ## 执行检查点
 
-更新时间 2026-10-15，交付完成，Plan 留在 implementing（归档 reference 待用户确认）。
+更新时间 2026-10-17，交付完成，Plan 已归档到 reference（用户确认）。
 
 - 实现：`src/name.ts`（`SKILL_BLOCK`/`SKILL_COMMAND` + `namingInput`）、`src/index.ts`（`input` handler 接入）、测试与 README。
 - 门禁：`test` 46/46 通过；`test:coverage` statements 98.98% / branches 95.31% / functions 95% / lines 100%（阈值 80）；`check` 通过。
@@ -120,11 +120,11 @@ blocked_by: []
 
 ## 下一步
 
-无待办。如需将 Plan 归档到 `reference`，由用户确认后迁入。
+无待办；Plan 已归档到 `reference`。
 
 ## 交付记录
 
-完成登记 2026-10-15。
+完成登记 2026-10-15；归档 2026-10-17（用户确认）。
 
 - **交付物**：`packages/pi-session-name/src/name.ts`（`SKILL_BLOCK`、`SKILL_COMMAND`、`namingInput`）、`src/index.ts`（命名输入接入）、`src/name.test.ts`、`src/index.test.ts`、`README.md`。
 - **验证命令与结果**：
@@ -132,5 +132,6 @@ blocked_by: []
   - `pnpm --filter @kxh4892636/pi-session-name run test:coverage`：statements 98.98 / branches 95.31 / functions 95 / lines 100，均 ≥ 80。
   - `pnpm --filter @kxh4892636/pi-session-name run check`：格式化、lint、类型全部通过。
   - 真机（修复后）：`pi -p '<skill …>…</skill> 修复登录超时' --session-dir <tmp> --no-approve --no-tools` → `session_info.name = "修复登录超时问题"`；`pi -p '<skill name="demo-flow" …>…</skill>'` 重复 3 次 → `演示流程` / `demo-flow` / `demo-flow`。
+  - 安装复验（2026-10-17）：`pi install ./packages/pi-session-name` 成功，`pi list` 列出该包；`pi -p "帮我修复登录超时的问题" --session-dir <tmp> --no-tools` → `session_info.name = "登录超时问题修复"`；`pnpm --filter @kxh4892636/pi-session-name test` 46/46 通过。
 - **证据链接**：本 note「决策与证据 · 失效现场 / 结构与顺序取证」「代码审查与修复」「执行检查点」。
 - **遗留限制**：`pi -p` 极短首轮存在命名请求与进程退出的竞态（fire-and-forget），可能观察不到 `session_info`；命名标签仍可能被引号引用的完整块误触发过滤；宿主 `<skill>` 语法变化时需同步本包正则。
