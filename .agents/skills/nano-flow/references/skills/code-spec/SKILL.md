@@ -7,7 +7,7 @@ description: 编写、修改或审查代码时使用；核对目录层级、命�
 
 ## 目录与命名
 
-- 项目内的 `src/` 为 `level-1`，不存在时以项目根为 `level-1`；最多 4 层，`level-4` 只放文件；每个目录直接包含的文件最多 13 个，超过时按领域归入文件夹。
+- 每个目录直接包含的文件最多 13 个，超过时按领域归入文件夹。
 - 文件和目录使用 `kebab-case`，按实际领域职责命名，如 `tab-group-state.ts`、`terminal-cleanup.ts`。
 - 泛化名称（`helpers`、`utils`、`common`、`components`、`hooks` 等）仅在 `level-2` 允许。
 
