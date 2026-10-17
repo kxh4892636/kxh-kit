@@ -1,0 +1,56 @@
+{
+  "name": "@kxh4892636/etf",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n server,web -c blue,green \"pnpm run dev:server\" \"pnpm run dev:web\"",
+    "dev:server": "node --watch --experimental-strip-types server/main.ts",
+    "dev:web": "vp dev",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.server.json && vp build",
+    "start": "node dist/server/main.js",
+    "preview": "vp preview",
+    "test": "vp test run",
+    "test:coverage": "vp test run --coverage",
+    "test:e2e": "playwright test",
+    "db:generate": "drizzle-kit generate",
+    "typecheck:e2e": "tsc -p e2e/tsconfig.json",
+    "sync:market": "node --experimental-strip-types server/sync-market.ts"
+  },
+  "dependencies": {
+    "@ant-design/cssinjs": "catalog:",
+    "@ant-design/icons": "catalog:",
+    "@hono/node-server": "catalog:",
+    "@tailwindcss/vite": "catalog:",
+    "@tanstack/react-query": "catalog:",
+    "@tanstack/react-router": "catalog:",
+    "antd": "catalog:",
+    "better-sqlite3": "catalog:",
+    "drizzle-orm": "catalog:",
+    "hono": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "tailwindcss": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@playwright/test": "catalog:",
+    "@types/better-sqlite3": "catalog:",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@typescript/native": "catalog:",
+    "@vitest/browser-playwright": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "concurrently": "catalog:",
+    "drizzle-kit": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vite-plus": "catalog:",
+    "vitest": "catalog:",
+    "vitest-browser-react": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

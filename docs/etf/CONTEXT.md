@@ -5,7 +5,7 @@
 ## Language
 
 **ETF 产品**：
-由 etf-dashboard 和 etf-service 组成的行情产品，可以管理 ETF、指数等多种证券。
+由单一 `apps/etf` 应用（client/server/shared）组成的行情产品，可以管理 ETF、指数等多种证券。
 _Avoid_：用 ETF 指代每一个证券
 
 **证券（Security）**：
@@ -19,6 +19,10 @@ _Avoid_：Security Type
 **虚拟均线（Virtual MA）**：
 由混合运算表达式引用各周期 MA，在每个 K 线时间点逐点求值得到的派生序列，以虚线展示。
 _Avoid_：把表达式引用的普通 MA 称为虚拟均线
+
+**全量同步（Full Sync）**：
+从上游拉取证券从最早交易日到上海昨日的完整日线，并写入本地缓存的可复跑 workflow。
+_Avoid_：把日常增量刷新称为全量同步
 
 **前复权（qfq）**：
 当前支持的日线价格复权口径，使历史价格按当前价格尺度连续展示。

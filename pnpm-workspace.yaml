@@ -24,6 +24,7 @@ catalog:
   "@vitest/browser-playwright": 5.0.1
   antd: ^6.4.3
   clsx: ^2.1.1
+  concurrently: ^9.2.1
   dayjs: ^1.11.13
   es-toolkit: ^1.46.1
   tailwind-merge: ^3.6.0
@@ -37,6 +38,7 @@ catalog:
   better-sqlite3: 13.0.3
   zod: 4.5.4
   "@tanstack/react-virtual": ^3.14.10
+  "@types/better-sqlite3": ^7.6.13
   "@types/node": ^24.12.4
   "@types/react": ^19.2.14
   "@types/react-dom": ^19.2.3
