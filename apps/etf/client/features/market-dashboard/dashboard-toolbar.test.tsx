@@ -16,6 +16,7 @@ interface ToolbarSpies {
   onMaTextChange: ReturnType<typeof vi.fn<(maText: string) => void>>;
   onVirtualMaTextChange: ReturnType<typeof vi.fn<(virtualMaText: string) => void>>;
   onRefresh: ReturnType<typeof vi.fn<() => void>>;
+  onReset: ReturnType<typeof vi.fn<() => void>>;
 }
 
 const createSpies = (): ToolbarSpies => ({
@@ -25,6 +26,7 @@ const createSpies = (): ToolbarSpies => ({
   onMaTextChange: vi.fn<(maText: string) => void>(),
   onVirtualMaTextChange: vi.fn<(virtualMaText: string) => void>(),
   onRefresh: vi.fn<() => void>(),
+  onReset: vi.fn<() => void>(),
 });
 
 interface ToolbarHarnessProps {
@@ -66,6 +68,7 @@ const ToolbarHarness: FC<ToolbarHarnessProps> = (props: ToolbarHarnessProps): Re
           setVirtualMaText(value);
         },
         onRefresh: spies.onRefresh,
+        onReset: spies.onReset,
       }}
     />
   );
@@ -123,6 +126,14 @@ describe("DashboardToolbar", () => {
     await expect
       .poll((): boolean => document.querySelector('[class*="ant-input-status-error"]') !== null)
       .toBe(true);
+  });
+
+  test("点击重置按钮触发 onReset", { timeout: 15_000 }, async () => {
+    const spies = createSpies();
+    await render(<ToolbarHarness spies={spies} />);
+
+    await page.getByRole("button", { name: /重置$/ }).click();
+    await expect.poll((): number => spies.onReset.mock.calls.length).toBe(1);
   });
 
   test("点击刷新按钮触发 onRefresh", { timeout: 15_000 }, async () => {

@@ -3,6 +3,7 @@ import { Alert, Card, Spin, Typography } from "antd";
 import type { Security } from "@/libs/api/client";
 import { useDailyBars, useSecurities } from "@/libs/api/use-market";
 import { DashboardToolbar } from "./dashboard-toolbar";
+import { useDashboardView } from "./use-dashboard-view";
 import { KlineChart } from "./chart/kline-chart";
 import { MarketSummary } from "./market-summary";
 import {
@@ -18,10 +19,7 @@ import {
  */
 export const MarketDashboard: FC = (): ReactElement => {
   const [selectedSymbol, setSelectedSymbol] = useState<string | null>(null);
-  const [period, setPeriod] = useState<ChartPeriod>("day");
-  const [range, setRange] = useState<ChartRange>("all");
-  const [maText, setMaText] = useState("5 8 13 21 34 55");
-  const [virtualMaText, setVirtualMaText] = useState("");
+  const { view, updateView, resetView } = useDashboardView(selectedSymbol);
   const securitiesQuery = useSecurities();
   const dailyBarsQuery = useDailyBars(selectedSymbol);
 
@@ -34,16 +32,16 @@ export const MarketDashboard: FC = (): ReactElement => {
 
   const fullChartBars = useMemo((): ChartBar[] => {
     const bars = dailyBarsQuery.data?.bars ?? [];
-    return aggregateBars({ bars, period });
-  }, [dailyBarsQuery.data?.bars, period]);
+    return aggregateBars({ bars, period: view.period });
+  }, [dailyBarsQuery.data?.bars, view.period]);
 
   const chartBars = useMemo(
     (): ChartBar[] =>
       getRangeBars({
         bars: fullChartBars,
-        range,
+        range: view.range,
       }),
-    [fullChartBars, range],
+    [fullChartBars, view.range],
   );
 
   const selectedSecurity = securitiesQuery.data.find(
@@ -66,14 +64,21 @@ export const MarketDashboard: FC = (): ReactElement => {
       <Card>
         <DashboardToolbar
           securities={securitiesQuery.data}
-          selection={{ selectedSymbol, period, range, maText, virtualMaText }}
+          selection={{
+            selectedSymbol,
+            period: view.period,
+            range: view.range,
+            maText: view.maText,
+            virtualMaText: view.virtualMaText,
+          }}
           isLoading={securitiesQuery.isLoading || dailyBarsQuery.isFetching}
           actions={{
             onSymbolChange: setSelectedSymbol,
-            onPeriodChange: setPeriod,
-            onRangeChange: setRange,
-            onMaTextChange: setMaText,
-            onVirtualMaTextChange: setVirtualMaText,
+            onPeriodChange: (period: ChartPeriod): void => updateView({ period }),
+            onRangeChange: (range: ChartRange): void => updateView({ range }),
+            onMaTextChange: (maText: string): void => updateView({ maText }),
+            onVirtualMaTextChange: (virtualMaText: string): void => updateView({ virtualMaText }),
+            onReset: resetView,
             onRefresh: dailyBarsQuery.refetch,
           }}
         />
@@ -94,8 +99,8 @@ export const MarketDashboard: FC = (): ReactElement => {
           <KlineChart
             bars={chartBars}
             maBars={fullChartBars}
-            maText={maText}
-            virtualMaText={virtualMaText}
+            maText={view.maText}
+            virtualMaText={view.virtualMaText}
           />
         </Spin>
       </Card>

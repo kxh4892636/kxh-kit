@@ -1,5 +1,5 @@
 import { Button, Input, Segmented, Select, Space } from "antd";
-import { ReloadOutlined } from "@ant-design/icons";
+import { ReloadOutlined, UndoOutlined } from "@ant-design/icons";
 import type { ChangeEvent, FC, ReactElement } from "react";
 import type { Security } from "@/libs/api/client";
 import {
@@ -23,6 +23,7 @@ interface ToolbarActions {
   onRangeChange: (range: ChartRange) => void;
   onMaTextChange: (text: string) => void;
   onVirtualMaTextChange: (text: string) => void;
+  onReset: () => void;
   onRefresh: () => void;
 }
 interface DashboardToolbarProps {
@@ -45,6 +46,7 @@ export const DashboardToolbar: FC<DashboardToolbarProps> = (
     onRangeChange,
     onMaTextChange,
     onVirtualMaTextChange,
+    onReset,
     onRefresh,
   } = actions;
   const handleMaTextChange = (event: ChangeEvent<HTMLInputElement>): void => {
@@ -102,6 +104,9 @@ export const DashboardToolbar: FC<DashboardToolbarProps> = (
           status={isVirtualMaInvalid ? "error" : ""}
         />
       </label>
+      <Button icon={<UndoOutlined />} onClick={onReset}>
+        重置
+      </Button>
       <Button icon={<ReloadOutlined />} loading={isLoading} onClick={onRefresh}>
         刷新
       </Button>

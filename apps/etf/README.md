@@ -26,7 +26,7 @@ apps/etf/
 │       └── repository/     # 数据库接口 + SQLite 实现
 ├── shared/                 # 双端共享：ApiResponse/ApiCode 与行情契约类型
 ├── migrations/             # Drizzle SQL 迁移（SQLite）
-└── e2e/                    # 五组浏览器旅程与受管后端
+└── e2e/                    # 六组浏览器旅程与受管后端
 ```
 
 - `server/market/service` 与 `server/market/repository` 不导入 Hono；只有 handler 与 `server/app.ts` 等入口/装配依赖框架。
@@ -48,6 +48,10 @@ interface ApiResponse<T> {
 - 成功：`code = 0`，`data` 为业务载荷。
 - 失败：`data = null`，`code` 为业务码（1001 参数无效、1002 资源不存在、1003 取消、1004 内部、1005 上游不可用、1006 上游超时、1007 路由不存在），HTTP 状态由 Hono 单独返回。
 - `GET /` 健康检查；`GET /api/securities` 证券目录；`GET /api/daily-bars?symbol=...` 前复权日线，另支持 `adjType=qfq`、`startDate`、`endDate`。
+
+## 看板状态
+
+周期、范围、均线文本与虚拟均线文本按证券独立保存在浏览器 `localStorage`（key `etf:dashboard:views:v1`）。切换 ETF 恢复各自状态；工具栏「重置」把当前 ETF 四项恢复默认，不影响其他 ETF。localStorage 缺失、损坏或不可写时回退默认，不阻断看板。
 
 ## 配置与数据
 
@@ -71,4 +75,4 @@ pnpm --filter @kxh4892636/etf run db:generate
 
 `sync:market` 遍历证券目录，按上游 `count=-10000` 拉取全量、裁剪到上海昨日，事务写入日线与交易日历并输出覆盖摘要；首次预填或缓存范围偏短时执行。当前两个证券的全量约为 3108 / 5048 根，详见 [行情全量同步工作流](../../docs/etf/workflows/0001-行情全量同步/0001-行情全量同步.md)。
 
-修改存储 schema 后执行 `db:generate`，将 SQL、journal 与 snapshot 一并保留。E2E 使用独立端口 15173/18181、临时 SQLite 与受控上游，结束回收自有进程；可通过 `ETF_E2E_FRONTEND_PORT`、`ETF_E2E_BACKEND_PORT` 改端口。日线仅支持前复权，历史范围受上游返回窗口限制。
+修改存储 schema 后执行 `db:generate`，将 SQL、journal 与 snapshot 一并保留。E2E 共六组（含按 ETF 持久化状态），使用独立端口 15173/18181、临时 SQLite 与受控上游，结束回收自有进程；可通过 `ETF_E2E_FRONTEND_PORT`、`ETF_E2E_BACKEND_PORT` 改端口。日线仅支持前复权，历史范围受上游返回窗口限制。
