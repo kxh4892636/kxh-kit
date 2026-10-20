@@ -13,33 +13,57 @@ id: b7467c02-9741-4e5f-8f05-4286a29c4a7f
 npm install immer
 ```
 
-## 如何修改 draft 得到新状态？
+## 如何把 produce 接入 useState 更新函数？
 
-- 调用形式: `produce(baseState, recipe)` 把 draft 交给 recipe，结束后返回完成的新状态;
-- 副作用限制: recipe 用于描述状态变化，不放网络请求或其他依赖执行次数的副作用;
+- 柯里化形式: 只传 recipe 时得到可接收旧状态的函数，适合交给 React setter 处理待更新状态;
+- 存在性检查: 查找条目后先确认存在，不让缺失 ID 导致状态更新抛错;
 
-```js
+```jsx
 import { produce } from "immer";
 
-const previous = [{ id: 1, done: false }];
-const next = produce(previous, (draft) => {
-  draft[0].done = true;
-});
+setTodos(
+  produce((draft) => {
+    const todo = draft.find((item) => item.id === changedId);
+    if (todo) todo.done = !todo.done;
+  }),
+);
 ```
 
-## 整体替换与修改 draft 应怎样选择？
+## reducer 如何用 Immer 保留 action 语义？
 
-- 修改模式: 修改 draft 后通常不返回值，允许返回 draft 本身但没有必要;
-- 替换模式: 不修改 draft，直接返回新的完整值；不能同时修改 draft 又返回另一份替换数据;
-- 赋值陷阱: `draft = newValue` 只改变局部变量，不会更新原 draft，应直接 return newValue;
-- Undefined: 返回 undefined 被理解为没有显式替换，需要以 undefined 作为结果时使用 nothing 标记;
+- 责任不变: action 仍表达发生的事件，produce 只简化不可变更新的实现，不承担请求或调度;
+- 返回结果: reducer 返回 produce 生成的完整状态，而非只返回修改字段;
+
+```jsx
+function reducer(state, action) {
+  if (action.type === "added") {
+    return produce(state, (draft) => {
+      draft.push(action.todo);
+    });
+  }
+  if (action.type === "deleted") {
+    return state.filter((todo) => todo.id !== action.id);
+  }
+  throw new Error("未知动作");
+}
+```
+
+## Zustand action 怎样使用 produce？
+
+- 更新入口: 把柯里化 producer 交给 set，由它根据当前 store 生成下一状态，避免先捕获一份旧对象再修改;
+- 集成选择: 可以显式 produce，也可以使用 Zustand 的 Immer 中间件，项目内保持一种清楚的约定;
 
 ```js
-const replaced = produce(previous, () => []);
+import { create } from "zustand";
+import { produce } from "immer";
+
+export const useTasks = create((set) => ({
+  tasks: [],
+  add: (task) =>
+    set(
+      produce((draft) => {
+        draft.tasks.push(task);
+      }),
+    ),
+}));
 ```
-
-## 如何避免 draft 泄漏与意外返回？
-
-- 生命周期: 不把 draft 保存到 recipe 外继续使用，异步工作先取得结果，再同步生成下一状态;
-- 箭头函数: 使用花括号函数体，避免 `draft => draft.push(item)` 把 push 返回的长度误当作整体替换值;
-- 引用理解: 展示或保存 produce 的结果，而不是把代理当作长期可变对象;
