@@ -96,13 +96,13 @@ status: completed
 
 ## 当前进度
 
-2026-10-26 14:42，全部 notes 完成，基线 `main@44bc49c` + 本轮未提交改动。已完成：逐包取证、插件声明与代码对齐（peer 钉 `0.2.1-rc.2`、按来源 rank、`resolveAgentsHome`、不完整发现、fixture 平台中立化）、`vp check`/`vp test`（39/39）/覆盖率/`vp pack` 全绿、tarball 安装进 `web` profile、`--dump-config` 与运行中宿主双重验证。阻塞：无。未验证：独立 headless 进程（缺 API key）、GUI 页面视觉确认、真实宿主内的 watcher 失效。剩余动作：提交（未推送）。
+2026-10-26 14:42，全部 notes 完成，基线 `main@44bc49c` + 本轮未提交改动。已完成：逐包取证、插件声明与代码对齐（peer 钉 `0.2.1-rc.2`、按来源 rank、`resolveAgentsHome`、不完整发现、fixture 平台中立化）、`vp check`/`vp test`（39/39）/覆盖率/`vp pack` 全绿、tarball 安装进 `web` profile、`--dump-config` 与运行中宿主双重验证。阻塞：无。未验证：独立 headless 进程（缺 API key）、GUI 页面视觉确认、真实宿主内的 watcher 失效。已提交并推送（`26e147a`、`d503f25` 及归档提交），Plan 经用户确认由 `implementing` 迁入 `reference`。
 
 ## 恢复入口
 
 1. 读 [story.md](story.md) 与「实施决策」，再读 [01](01-版本取证与兼容性比对.md) 的取证表与拷问记录；需要复现安装时读 [03](03-打包安装与真机验证.md)。
-2. 核对现场：`dsh --version` 应为 `0.2.1-rc.2`；`grep -n '"@deepseek-ai/dsh-skill"' packages/dsh-nested-skill/package.json` 应为 `"0.2.1-rc.2"`；`dsh --profile web --dump-config | grep nested-skill` 应有命中；`git log --oneline -1` 应为本轮提交。
-3. 下一动作：若已提交则本 Plan 可迁入 `reference`（需用户确认）；否则先提交，再请用户确认迁移。宿主已被安装改变，回滚用 `dsh plugin --profile web remove @kxh4892636/dsh-nested-skill`。
+2. 核对现场：`dsh --version` 应为 `0.2.1-rc.2`；`grep -n '"@deepseek-ai/dsh-skill"' packages/dsh-nested-skill/package.json` 应为 `"0.2.1-rc.2"`；`dsh --profile web --dump-config | grep nested-skill` 应有命中；`git log --oneline -1` 应在本 Plan 的提交之后。
+3. 下一动作：本 Plan 已归档为参考（生命周期 `reference`），无待办；新一轮版本适配另建 Plan，从 [01](01-版本取证与兼容性比对.md) 的比对方法与安装链路事实起步。宿主已被安装改变，回滚用 `dsh plugin --profile web remove @kxh4892636/dsh-nested-skill`。
 4. 停止条件：出现「装好但 skill 目录没有嵌套 skill」时，先 `--dump-config` 与 `~/.dsh/profiles/web/package.json` 对照，再回到 01 的安装链路事实排查。
 
 ## Notes
