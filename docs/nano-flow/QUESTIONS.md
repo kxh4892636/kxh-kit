@@ -8,13 +8,13 @@
 - 验证：`nnf self skill check --name nano-flow` 返回 `current`，且 `diff -r` 两份目录无差异。
 - 来源：[self.md](../../packages/nano-flow/skills/nano-flow-cli/references/self.md)、[ADR 0003](adr/0003-cli与受管skill同版发布.md)。
 
-## `check-domain.mjs` 报大量历史缺项怎么办？
+## 为什么归档 Plan 的模板缺项不再报错？
 
-- 适用条件与现象：在工作区根执行 `node <nano-flow-skill-root>/scripts/check-domain.mjs .` 报出上百项，多为历史 Plan 缺少「执行检查点」「决策与证据」或 story.md。
-- 原因：模板与校验规则随 skill 演进，历史 Plan 按旧模板写成；脚本目前只做全仓校验，没有按 Plan 收窄的参数。
-- 解决方法：只修复本次改动 Plan 路径下的新增项，历史缺项如实保留、不补造事实；需要时用改动前后的错误计数与路径对比确认没有新增。
-- 验证：校验输出中本次触碰的路径没有错误。
-- 来源：[domain/SKILL.md](../../packages/nano-flow/skills/nano-flow/references/skills/domain/SKILL.md)。
+- 适用条件与现象：Plan 迁入 `reference` 或 `archived` 后，`node <nano-flow-skill-root>/scripts/check-domain.mjs .` 不再报告其缺少「执行检查点」「决策与证据」或 story.md。
+- 原因：`reference` 与 `archived` 是冻结内容，模板随 skill 演进；只校验仍在推进的 `planning` 与 `implementing`，避免历史缺项淹没本次新增问题。
+- 解决方法：Plan 在迁入冻结生命周期前完成模板校验；归档后不补写历史文档，恢复工作时先迁回 `planning` 或 `implementing`。
+- 验证：校验输出只包含 `planning` 与 `implementing` 下的 Plan。
+- 来源：[domain/PLAN.md](../../packages/nano-flow/skills/nano-flow/references/skills/domain/PLAN.md)。
 
 ## `nnf anki notes update` 返回成功但字段没变？
 
