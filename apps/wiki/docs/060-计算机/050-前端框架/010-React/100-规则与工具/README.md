@@ -7,4 +7,3 @@
 - [版本与能力边界](./030-版本与能力边界.md)
 - [React Compiler](./040-ReactCompiler.md)
 - [React DevTools 与性能时间线](./050-DevTools与性能时间线.md)
-- [渲染测试与错误诊断](./060-渲染测试与错误诊断.md)

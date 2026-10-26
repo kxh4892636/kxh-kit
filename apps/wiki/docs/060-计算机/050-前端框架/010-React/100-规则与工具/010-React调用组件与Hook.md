@@ -19,18 +19,6 @@ function Page() {
 
 - 调用者传入不同 Hook 可能改变内部 Hook 顺序和行为，使组件行为不可预测;
 
-## 如何复用 Hook 行为而不动态包装 Hook？
-
-- 组合方式: 在一个命名清晰的自定义 Hook 内直接调用其他 Hook，形成静态调用关系;
-- 避免工厂: 不在渲染时通过高阶函数生成新 Hook，也不临时修改现有 Hook 的实现;
-
-```jsx
-function useUserName(userId) {
-  const user = useUser(userId);
-  return user?.name ?? "访客";
-}
-```
-
 ## 普通函数、组件和 Hook 应如何分工？
 
 - 普通函数: 承担纯计算或明确的非 Hook 操作，可以按普通 JavaScript 规则调用, 可以脱离 React 使用;
