@@ -75,8 +75,8 @@ status: completed
 - [ADR-0002 会话管理能力以模型工具面交付](../../../adr/0002-会话管理能力以模型工具面交付.md)
 - [ADR-0003 内容搜索经上游 opt-in 工具与索引启用交付](../../../adr/0003-内容搜索经上游opt-in工具与索引启用交付.md)
 - [ADR-0004 会话初始化上下文以系统消息注入](../../../adr/0004-会话初始化上下文以系统消息注入.md)
-- [前序 Plan：session 与 model 管理插件（安装与冒烟经验）](../../reference/2026-09-01-session与model管理插件/03-安装到web-profile并端到端冒烟.md)
-- [前序 Plan：会话上下文注入与默认 workspace（inject 教训）](../../reference/2026-09-01-会话上下文注入与默认workspace/04-安装并端到端冒烟.md)
+- [前序 Plan：session 与 model 管理插件（安装与冒烟经验）](../2026-09-01-session与model管理插件/03-安装到web-profile并端到端冒烟.md)
+- [前序 Plan：会话上下文注入与默认 workspace（inject 教训）](../2026-09-01-会话上下文注入与默认workspace/04-安装并端到端冒烟.md)
 - [领域语言](../../../CONTEXT.md)
 
 ## Issue

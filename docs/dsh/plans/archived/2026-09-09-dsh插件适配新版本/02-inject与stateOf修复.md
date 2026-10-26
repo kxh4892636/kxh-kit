@@ -39,7 +39,7 @@ blocked_by: []
 - 现场证据：`session_read`（带 `parentSessionId`）实测报 `gateway/internal: cannot get property "sessionProjections" without inject`
 - 宿主契约：`dsh-session-projection/lib/types/index.d.ts` 的 `stateOf(session, key)` 返回 `SessionProjectionStateMap[key]`（subagent = `{ identity?: { mode } }`）与 `ProjectionSnapshot.values`（subagent = `{ mode, label?, seq } | null`）；`dsh-session-query` 的 `observeSession(sessionId, { projectionMode })` 返回 `projections: ProjectionSnapshot`；本机 0.1.2-rc.1 的 `subagentIdentityProjectionDefinition`（`stateSchema` / `wire.view`）实测两种形状
 - cordis 契约：`ctx.get(name, strict?)` 为「Read a service from the store without the inject requirement」，服务缺席返回 `undefined`
-- 同类教训：[前序 Plan 04](../../reference/2026-09-01-会话上下文注入与默认workspace/04-安装并端到端冒烟.md)
+- 同类教训：[前序 Plan 04](../2026-09-01-会话上下文注入与默认workspace/04-安装并端到端冒烟.md)
 
 ## 下一步
 

@@ -106,8 +106,8 @@ status: completed
 - [ADR-0003 内容搜索经上游 opt-in 工具与索引启用交付](../../../adr/0003-内容搜索经上游opt-in工具与索引启用交付.md)（版本对齐口径与 Consequences）
 - [ADR-0002 会话管理能力以模型工具面交付](../../../adr/0002-会话管理能力以模型工具面交付.md)
 - [ADR-0004 会话初始化上下文以系统消息注入](../../../adr/0004-会话初始化上下文以系统消息注入.md)
-- [前序 Plan：dsh 插件适配新版本（0.1.2-rc.1 基线，含「待定：chunk 行移除」）](../../reference/2026-09-09-dsh插件适配新版本/spec.md)
-- [前序 Plan 03：重装重启与真机冒烟（`file:` 硬链接经验）](../../reference/2026-09-09-dsh插件适配新版本/03-重装重启与真机冒烟.md)
+- [前序 Plan：dsh 插件适配新版本（0.1.2-rc.1 基线，含「待定：chunk 行移除」）](../2026-09-09-dsh插件适配新版本/spec.md)
+- [前序 Plan 03：重装重启与真机冒烟（`file:` 硬链接经验）](../2026-09-09-dsh插件适配新版本/03-重装重启与真机冒烟.md)
 - [上游语义文本抽取契约](../../../../../.temp/dsh-new/dsh-session-query/lib/types/extraction.d.ts)（`extractSessionEventText`）
 - [领域语言](../../../CONTEXT.md)
 

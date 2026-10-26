@@ -57,7 +57,7 @@ status: completed
 - [ADR-0004](../../adr/0004-会话初始化上下文以系统消息注入.md)
 - [CONTEXT 术语：预置指令/会话上下文注入](../../CONTEXT.md)
 - 既有实现：`packages/dsh-session-manager`（`src/tools.ts` session_spawn、`src/host.ts` spawn、`src/session-context.ts` 待建）
-- 参考 plan：`docs/dsh/plans/reference/2026-09-01-session与model管理插件`
+- 参考 plan：`docs/dsh/plans/archived/2026-09-01-session与model管理插件`
 
 ## Issue
 

@@ -91,7 +91,7 @@ status: completed
 - [领域语言](../../../CONTEXT.md)
 - [ADR-0001 嵌套 skill 任意深度发现](../../../adr/0001-嵌套skill任意深度发现.md)
 - [ADR-0003 内容搜索经上游 opt-in 工具与索引启用交付](../../../adr/0003-内容搜索经上游opt-in工具与索引启用交付.md)（声明口径：等于已在本机验证的通道版本）
-- [前序 Plan：dsh 插件适配 0.1.5-rc.1](../../reference/2026-09-10-dsh插件适配0.1.5-rc.1/spec.md)（tarball 交付与真机冒烟经验）
+- [前序 Plan：dsh 插件适配 0.1.5-rc.1](../../archived/2026-09-10-dsh插件适配0.1.5-rc.1/spec.md)（tarball 交付与真机冒烟经验）
 - 上游契约：运行中安装树 `@deepseek-ai/dsh-app-boot/lib/index.js` 的 `unmetRequirements`/`evaluatePluginCompatibility`、`@deepseek-ai/dsh-skill/lib/types/index.d.ts`、`@deepseek-ai/dsh-skill-filesystem/lib/index.js`
 
 ## 当前进度
