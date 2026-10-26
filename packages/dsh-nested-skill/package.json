@@ -1,6 +1,6 @@
 {
   "name": "@kxh4892636/dsh-nested-skill",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "DSH plugin: discover SKILL.md skills at any depth under .agents trees.",
   "license": "MIT",
   "files": [
@@ -32,7 +32,7 @@
     "yaml": "^2.9.0"
   },
   "devDependencies": {
-    "@deepseek-ai/schemastery": "^3.18.2",
+    "@deepseek-ai/schemastery": "^3.18.5",
     "@types/node": "catalog:",
     "@typescript/native": "catalog:",
     "@vitest/coverage-v8": "catalog:",
@@ -41,10 +41,11 @@
     "vitest": "catalog:"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.2",
-    "@deepseek-ai/dsh-fs": "^0.1.5-rc.1",
-    "@deepseek-ai/dsh-skill": "^0.1.5-rc.1",
-    "@deepseek-ai/schemastery": "^3.18.2"
+    "@deepseek-ai/cordis": "^4.0.5",
+    "@deepseek-ai/dsh-fs": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-home-paths": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-skill": "0.2.1-rc.2",
+    "@deepseek-ai/schemastery": "^3.18.5"
   },
   "engines": {
     "node": ">=22.12.0"
