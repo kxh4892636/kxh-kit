@@ -9,8 +9,6 @@
 
 生命周期表达工作阶段，notes 状态表达子任务进度；迁移 Plan 时同步相对链接。
 
-`check-domain.mjs` 只校验 `planning` 与 `implementing` 的 Plan；`reference` 与 `archived` 为冻结内容，不按当前模板校验。
-
 ## 按需查阅
 
 新建 Plan 时读取三类文档的规则与模板；更新时读取受影响的文档类型。
