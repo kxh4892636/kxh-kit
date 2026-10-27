@@ -29,11 +29,12 @@ caching it.
 
 ## Compatibility
 
-Built and verified against DSH `0.2.1-rc.2` (the `latest` release channel). The
-DSH peers (`@deepseek-ai/dsh-fs`, `@deepseek-ai/dsh-skill`,
-`@deepseek-ai/dsh-home-paths`) are pinned to that exact version rather than a
-range: `^0.2.1-rc.2` would also accept `0.2.1-rc.3`, whose own peers demand
-`rc.3`, reintroducing the mixed install ADR-0003 rules out.
+Built and verified against DSH `0.2.1-rc.3`, the version bundled with the
+DeepSeek Harness desktop app (`DeepSeek Harness.exe`). The DSH peers
+(`@deepseek-ai/dsh-fs`, `@deepseek-ai/dsh-skill`, `@deepseek-ai/dsh-home-paths`)
+are pinned to that exact version rather than a range: `^0.2.1-rc.3` would also
+accept `0.2.1-rc.4`, whose own peers demand `rc.4`, reintroducing the mixed
+install ADR-0003 rules out.
 
 `dsh` 0.2.x evaluates a plugin's manifest before it activates one: with no
 `engines.dsh` field, every `@deepseek-ai/dsh*` peer range must include the
@@ -47,26 +48,34 @@ follows the harness contract instead of mirroring it.
 
 ## Install
 
+The desktop app ships its own CLI at
+`<install dir>\resources\runtime\cli\bin\dsh.cmd`; the `dsh` on `PATH` belongs to
+a different install and does not know the `desktop` profile.
+
 ```powershell
-dsh plugin --profile web add <absolute path to the packed .tgz>
+& "$env:LOCALAPPDATA\Programs\DeepSeek Harness\resources\runtime\cli\bin\dsh.cmd" `
+  plugin --profile desktop add <absolute path to the packed .tgz>
 ```
 
 The profile's `dsh.profile.bundles` gains the package and its
 `cordis.patch.yml` mount; the bundle list is composed at boot, so a running host
-picks the plugin up on its next start. A local `.tgz` keeps the install decoupled
-from this checkout (a `file:` dependency is a link projection, so every rebuild
-would need a re-sync).
+picks the plugin up on its next start (a live host has also been observed to
+recompose without a restart). A local `.tgz` keeps the install decoupled from
+this checkout (a `file:` dependency is a link projection, so every rebuild would
+need a re-sync).
 
 ## Verify
 
-Start a new session in the GUI: the nested skills (for example `questing`,
-`code-delivery`) appear in the skill catalog, while existing top-level
-skills stay visible.
+Start a new session in the desktop GUI: the nested skills (for example
+`questing`, `code-delivery`) appear in the skill catalog, while existing
+top-level skills stay visible. The catalog is the evidence here: `--dump-config`
+is refused for the `desktop` profile because the desktop app owns it.
 
 ## Uninstall
 
 ```powershell
-dsh plugin --profile web remove @kxh4892636/dsh-nested-skill
+& "$env:LOCALAPPDATA\Programs\DeepSeek Harness\resources\runtime\cli\bin\dsh.cmd" `
+  plugin --profile desktop remove @kxh4892636/dsh-nested-skill
 ```
 
 ## Configuration
