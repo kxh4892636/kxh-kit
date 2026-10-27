@@ -1,6 +1,14 @@
 import type { SkillProviderControl } from "@deepseek-ai/dsh-skill";
 import { describe, expect, it, vi } from "vite-plus/test";
-import { apply, Config, inject, name, NESTED_SKILL_RANK, PROVIDER_NAME } from "./main.js";
+import {
+  apply,
+  Config,
+  inject,
+  name,
+  NESTED_SKILL_RANKS,
+  nestedRank,
+  PROVIDER_NAME,
+} from "./main.js";
 import type { NestedSkillProvider } from "./provider.js";
 
 describe("plugin entry", () => {
@@ -46,7 +54,8 @@ describe("plugin entry", () => {
   it("declares identity, injections, and constants", () => {
     expect(name).toBe("nested-skill");
     expect(inject).toEqual(["skills"]);
-    expect(NESTED_SKILL_RANK).toBe(250);
+    expect(nestedRank("project-agents")).toBe(201);
+    expect(NESTED_SKILL_RANKS).toEqual({ "project-agents": 201, custom: 301, "user-agents": 501 });
     expect(PROVIDER_NAME).toBe("nested-agents");
     expect(Config).toBeDefined();
   });

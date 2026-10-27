@@ -2,7 +2,8 @@ import z from "@deepseek-ai/schemastery";
 import type Schema from "@deepseek-ai/schemastery";
 import type { Context } from "@deepseek-ai/cordis";
 import { DEFAULT_EXCLUDED_DIRS, NestedSkillProvider, type NestedSkillOptions } from "./provider.js";
-export { NESTED_SKILL_RANK, PROVIDER_NAME } from "./provider.js";
+export { NESTED_SKILL_RANKS, nestedRank, PROVIDER_NAME } from "./provider.js";
+export type { NestedSkillSource } from "./provider.js";
 
 /** 插件配置；全部可选，默认值对运行环境保持中性。 */
 export type Config = NestedSkillOptions;

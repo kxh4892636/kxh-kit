@@ -3,7 +3,7 @@ name: code-delivery
 description: 将 spec、note 或已确认设计交付为代码时使用；明确环境、执行契约与质量门禁，完成实现、测试、验收和 commit 提交。
 ---
 
-# delivery
+# code delivery
 
 ## 交付流程
 

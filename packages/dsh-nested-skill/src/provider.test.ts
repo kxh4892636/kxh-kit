@@ -1,14 +1,20 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import type { SkillCandidate, SkillProviderControl } from "@deepseek-ai/dsh-skill";
+import { join, resolve } from "node:path";
+import type { FSWatcher } from "chokidar";
+import type {
+  SkillCandidate,
+  SkillProviderControl,
+  SkillProviderObservation,
+} from "@deepseek-ai/dsh-skill";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import {
   findProjectRoot,
   isShippedOneLayerForm,
   isSkippedDirectory,
-  NESTED_SKILL_RANK,
+  NESTED_SKILL_RANKS,
   NestedSkillProvider,
+  nestedRank,
   PROVIDER_NAME,
   walkSkillFiles,
 } from "./provider.js";
@@ -20,6 +26,16 @@ const fakeControl = (invalidate = vi.fn()) =>
     signal: new AbortController().signal,
     invalidate,
   }) satisfies SkillProviderControl;
+
+/** 平台中立的虚拟根：POSIX 下为 `/project`，Windows 下为 `<盘符>:\project`。 */
+const ROOT = resolve("/project");
+const USER_HOME = resolve("/home");
+const EXT_ROOT = resolve("/ext");
+
+/** `memoryFs` 与 provider 都以 `/` 形态呈现路径，用例用同一形态构造与断言。 */
+const at = (root: string, ...segments: string[]): string => {
+  return join(root, ...segments).replaceAll("\\", "/");
+};
 
 const TOP_SKILL = `---
 name: nano-flow
@@ -37,35 +53,35 @@ whenToUse: 角色未明确时
 # 正文。`;
 
 const FILES = {
-  "C:/project/.git": "",
-  "C:/project/.agents/skills/nano-flow/SKILL.md": TOP_SKILL,
-  "C:/project/.agents/skills/nano-flow/references/skills/to-story/SKILL.md": NESTED_SKILL,
-  "C:/project/.agents/skills/a/b/c/SKILL.md": `---
+  [at(ROOT, ".git")]: "",
+  [at(ROOT, ".agents/skills/nano-flow/SKILL.md")]: TOP_SKILL,
+  [at(ROOT, ".agents/skills/nano-flow/references/skills/to-story/SKILL.md")]: NESTED_SKILL,
+  [at(ROOT, ".agents/skills/a/b/c/SKILL.md")]: `---
 name: deep-c
 description: 更深一层
 ---
 
 deep`,
-  "C:/project/.agents/foo/SKILL.md": `---
+  [at(ROOT, ".agents/foo/SKILL.md")]: `---
 name: foo-sk
 description: .agents 直属目录
 ---
 
 foo`,
-  "C:/project/.agents/skills/nano-flow/references/skills/invalid/SKILL.md": "# 无 frontmatter",
-  "C:/project/.agents/skills/nano-flow/references/skills/bad-name/SKILL.md": `---
+  [at(ROOT, ".agents/skills/nano-flow/references/skills/invalid/SKILL.md")]: "# 无 frontmatter",
+  [at(ROOT, ".agents/skills/nano-flow/references/skills/bad-name/SKILL.md")]: `---
 name: To Story
 description: 非法名
 ---
 
 bad`,
-  "C:/project/.agents/skills/nano-flow/node_modules/pkg/SKILL.md": `---
+  [at(ROOT, ".agents/skills/nano-flow/node_modules/pkg/SKILL.md")]: `---
 name: ignored-pkg
 description: 排除目录
 ---
 
 pkg`,
-  "C:/project/.agents/skills/nano-flow/.hidden/h/SKILL.md": `---
+  [at(ROOT, ".agents/skills/nano-flow/.hidden/h/SKILL.md")]: `---
 name: hidden-h
 description: 隐藏目录
 ---
@@ -73,9 +89,56 @@ description: 隐藏目录
 hidden`,
 };
 
-const listNames = async (provider: NestedSkillProvider, cwd = "C:/project"): Promise<string[]> => {
-  const candidates = await provider.list({ cwd });
+/** 取候选清单；provider 可能以「不完整发现」形态返回。 */
+const candidatesOf = async (
+  provider: NestedSkillProvider,
+  cwd: string = ROOT,
+): Promise<readonly SkillCandidate[]> => {
+  const result = await provider.list({ cwd });
+  return Array.isArray(result) ? result : result.candidates;
+};
+
+const listNames = async (provider: NestedSkillProvider, cwd: string = ROOT): Promise<string[]> => {
+  const candidates = await candidatesOf(provider, cwd);
   return candidates.map((candidate) => candidate.name).sort();
+};
+
+interface StubWatcher {
+  on(event: string, handler: (...args: unknown[]) => void): StubWatcher;
+  once(event: string, handler: (...args: unknown[]) => void): StubWatcher;
+  off(event: string, handler: (...args: unknown[]) => void): StubWatcher;
+  close(): Promise<void>;
+  emit(event: string, ...args: unknown[]): void;
+}
+
+/** 只实现 provider 用到的 watcher 表面，用来让启动失败可注入。 */
+const stubWatcher = (): StubWatcher => {
+  const handlers = new Map<string, ((...args: unknown[]) => void)[]>();
+  const remember = (event: string, handler: (...args: unknown[]) => void): void => {
+    handlers.set(event, [...(handlers.get(event) ?? []), handler]);
+  };
+  const stub: StubWatcher = {
+    on(event, handler) {
+      remember(event, handler);
+      return stub;
+    },
+    once(event, handler) {
+      remember(event, handler);
+      return stub;
+    },
+    off(event, handler) {
+      handlers.set(
+        event,
+        (handlers.get(event) ?? []).filter((candidate) => candidate !== handler),
+      );
+      return stub;
+    },
+    close: async () => {},
+    emit(event, ...args) {
+      for (const handler of handlers.get(event) ?? []) handler(...args);
+    },
+  };
+  return stub;
 };
 
 describe("NestedSkillProvider discovery", () => {
@@ -86,8 +149,7 @@ describe("NestedSkillProvider discovery", () => {
       { watch: false, includeUserRoots: false },
       memoryFs(FILES),
     );
-    const candidates = await provider.list({ cwd: "C:/project" });
-    const names = candidates.map((candidate) => candidate.name).sort();
+    const names = await listNames(provider);
     expect(names).toContain("to-story");
     expect(names).toContain("deep-c");
     expect(names).toContain("foo-sk");
@@ -105,23 +167,30 @@ describe("NestedSkillProvider discovery", () => {
       { watch: false, includeUserRoots: false },
       memoryFs(FILES),
     );
-    const candidates = await provider.list({ cwd: "C:/project" });
+    const candidates = await candidatesOf(provider);
     const toStory = candidates.find((candidate) => candidate.name === "to-story");
     expect(toStory).toMatchObject({
       description: "讲述用户故事",
       whenToUse: "角色未明确时",
       provider: PROVIDER_NAME,
       source: "project-agents",
-      rank: NESTED_SKILL_RANK,
+      rank: NESTED_SKILL_RANKS["project-agents"],
       invocation: { modelInvocable: true, userInvocable: true },
       resourceBase: {
         kind: "directory",
-        path: "C:/project/.agents/skills/nano-flow/references/skills/to-story",
+        path: at(ROOT, ".agents/skills/nano-flow/references/skills/to-story"),
       },
     });
     expect(toStory?.path).toBe(
-      "C:/project/.agents/skills/nano-flow/references/skills/to-story/SKILL.md",
+      at(ROOT, ".agents/skills/nano-flow/references/skills/to-story/SKILL.md"),
     );
+  });
+
+  it("ranks each nested source one above its shipped one-layer form", () => {
+    expect(nestedRank("project-agents")).toBe(201);
+    expect(nestedRank("custom")).toBe(301);
+    expect(nestedRank("user-agents")).toBe(501);
+    expect(NESTED_SKILL_RANKS["project-agents"]).toBeLessThan(nestedRank("custom"));
   });
 
   it("sorts candidates deterministically by path", async () => {
@@ -131,7 +200,7 @@ describe("NestedSkillProvider discovery", () => {
       { watch: false, includeUserRoots: false },
       memoryFs(FILES),
     );
-    const candidates = await provider.list({ cwd: "C:/project" });
+    const candidates = await candidatesOf(provider);
     const paths = candidates.map((candidate) => candidate.path ?? "");
     expect(paths).toEqual([...paths].sort());
   });
@@ -143,7 +212,7 @@ describe("NestedSkillProvider discovery", () => {
       { watch: false, includeUserRoots: false },
       memoryFs(FILES),
     );
-    const candidates = await provider.list({ cwd: "C:/project" });
+    const candidates = await candidatesOf(provider);
     const toStory = candidates.find((candidate) => candidate.name === "to-story");
     const definition = await provider.get(toStory as SkillCandidate, {});
     expect(definition?.content).toBe("# 正文。");
@@ -151,7 +220,7 @@ describe("NestedSkillProvider discovery", () => {
     const missing = await provider.get(
       {
         ...(toStory as SkillCandidate),
-        locator: { path: "C:/gone/SKILL.md", directory: "C:/gone" },
+        locator: { path: at(ROOT, "gone/SKILL.md"), directory: at(ROOT, "gone") },
       },
       {},
     );
@@ -159,9 +228,10 @@ describe("NestedSkillProvider discovery", () => {
   });
 
   it("honors user roots and includeUserRoots", async () => {
+    const agentsHome = at(USER_HOME, ".agents");
     const userFiles = {
       ...FILES,
-      "C:/home/.agents/team/references/skills/zz/SKILL.md": `---
+      [at(USER_HOME, ".agents/team/references/skills/zz/SKILL.md")]: `---
 name: user-zz
 description: 用户嵌套
 ---
@@ -171,10 +241,14 @@ zz`,
     const withUser = new NestedSkillProvider(
       fakeCtx,
       fakeControl(),
-      { watch: false, agentsHome: "C:/home/.agents" },
+      { watch: false, agentsHome },
       memoryFs(userFiles),
     );
-    expect(await listNames(withUser)).toContain("user-zz");
+    const userCandidates = await candidatesOf(withUser);
+    expect(userCandidates.map((candidate) => candidate.name)).toContain("user-zz");
+    expect(userCandidates.find((candidate) => candidate.name === "user-zz")?.rank).toBe(
+      NESTED_SKILL_RANKS["user-agents"],
+    );
     const withoutUser = new NestedSkillProvider(
       fakeCtx,
       fakeControl(),
@@ -188,17 +262,38 @@ zz`,
     const provider = new NestedSkillProvider(
       fakeCtx,
       fakeControl(),
-      { watch: false, includeUserRoots: false, extraRoots: ["C:/ext"] },
+      { watch: false, includeUserRoots: false, extraRoots: [EXT_ROOT] },
       memoryFs({
-        "C:/ext/team/x/SKILL.md": NESTED_SKILL.replace("to-story", "ext-x").replace(
+        [at(EXT_ROOT, "team/x/SKILL.md")]: NESTED_SKILL.replace("to-story", "ext-x").replace(
           "讲述用户故事",
           "外部",
         ),
       }),
     );
-    const candidates = await provider.list({ cwd: "C:/project" });
+    const candidates = await candidatesOf(provider);
     const ext = candidates.find((candidate) => candidate.name === "ext-x");
     expect(ext?.source).toBe("custom");
+    expect(ext?.rank).toBe(NESTED_SKILL_RANKS.custom);
+  });
+
+  it("reports incomplete discovery when a watcher fails to start", async () => {
+    const provider = new NestedSkillProvider(
+      fakeCtx,
+      fakeControl(),
+      { watch: true, includeUserRoots: false },
+      memoryFs(FILES),
+      (path) => {
+        const watcher = stubWatcher();
+        setTimeout(() => watcher.emit("error", new Error(`cannot watch ${path}`)), 0);
+        return watcher as unknown as FSWatcher;
+      },
+    );
+    const result = await provider.list({ cwd: ROOT });
+    expect(Array.isArray(result)).toBe(false);
+    const observation = result as SkillProviderObservation;
+    expect(observation.complete).toBe(false);
+    expect(observation.candidates.map((candidate) => candidate.name)).toContain("to-story");
+    await provider.dispose();
   });
 
   it("invalidates on host mutations inside a scanned root only", async () => {
@@ -209,12 +304,12 @@ zz`,
       { watch: false, includeUserRoots: false },
       memoryFs(FILES),
     );
-    await provider.list({ cwd: "C:/project" });
-    provider.observeHostMutation("C:/project/.agents/skills/nano-flow/references/skills/to-story");
-    provider.observeHostMutation("C:/project/.agents/skills/nano-flow/references");
+    await provider.list({ cwd: ROOT });
+    provider.observeHostMutation(at(ROOT, ".agents/skills/nano-flow/references/skills/to-story"));
+    provider.observeHostMutation(at(ROOT, ".agents/skills/nano-flow/references"));
     await flushTurns();
     expect(invalidate).toHaveBeenCalledTimes(1);
-    provider.observeHostMutation("C:/elsewhere/file");
+    provider.observeHostMutation(at(ROOT, "../elsewhere/file"));
     await flushTurns();
     expect(invalidate).toHaveBeenCalledTimes(1);
   });
@@ -227,7 +322,7 @@ zz`,
       { watch: false, includeUserRoots: false },
       memoryFs(FILES),
     );
-    await provider.list({ cwd: "C:/project" });
+    await provider.list({ cwd: ROOT });
     controller.abort();
     await provider.dispose();
     await provider.dispose();
@@ -250,23 +345,23 @@ describe("walk helpers", () => {
 
   it("walks only SKILL.md files below the root", async () => {
     const files = await walkSkillFiles(
-      "C:/project/.agents",
+      at(ROOT, ".agents"),
       memoryFs(FILES),
       new Set(["node_modules"]),
     );
     expect(files.map((file) => file.path).sort()).toEqual([
-      "C:/project/.agents/foo/SKILL.md",
-      "C:/project/.agents/skills/a/b/c/SKILL.md",
-      "C:/project/.agents/skills/nano-flow/references/skills/bad-name/SKILL.md",
-      "C:/project/.agents/skills/nano-flow/references/skills/invalid/SKILL.md",
-      "C:/project/.agents/skills/nano-flow/references/skills/to-story/SKILL.md",
+      at(ROOT, ".agents/foo/SKILL.md"),
+      at(ROOT, ".agents/skills/a/b/c/SKILL.md"),
+      at(ROOT, ".agents/skills/nano-flow/references/skills/bad-name/SKILL.md"),
+      at(ROOT, ".agents/skills/nano-flow/references/skills/invalid/SKILL.md"),
+      at(ROOT, ".agents/skills/nano-flow/references/skills/to-story/SKILL.md"),
     ]);
   });
 
   it("finds the project root via .git presence", async () => {
-    const fs = memoryFs({ "C:/project/.git": "" });
-    expect(await findProjectRoot("C:/project", fs)).toBe("C:/project");
-    expect(await findProjectRoot("C:/project/sub", fs)).toBe("C:/project");
+    const fs = memoryFs({ [at(ROOT, ".git")]: "" });
+    expect(await findProjectRoot(ROOT, fs)).toBe(ROOT);
+    expect(await findProjectRoot(join(ROOT, "sub"), fs)).toBe(ROOT);
   });
 });
 
@@ -298,9 +393,9 @@ describe("NestedSkillProvider watcher (real filesystem)", () => {
       watchStabilityThresholdMs: 40,
       watchPollIntervalMs: 20,
     });
-    const before = await provider.list({ cwd: project });
+    const before = await candidatesOf(provider, project);
     expect(before.map((candidate) => candidate.name)).toContain("to-story");
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    await new Promise((resolveTurn) => setTimeout(resolveTurn, 500));
     await mkdir(join(project, ".agents", "skills", "nano-flow", "references", "skills", "second"), {
       recursive: true,
     });

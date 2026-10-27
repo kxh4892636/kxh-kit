@@ -33,28 +33,48 @@ test("拒绝与 Note 状态不一致的 spec 聚合状态", () => {
   }
 });
 
-test("拒绝无效的依赖顺序和 reference 生命周期", () => {
+test("拒绝无效的 Note 依赖顺序", () => {
   const rootDir = createValidWorkspace();
   try {
-    const implementingPath = path.join(
-      rootDir,
-      "docs/ordering/plans/implementing/2026-08-22-支持订单取消",
-    );
-    const referencePath = implementingPath.replace(
-      `${path.sep}implementing${path.sep}`,
-      `${path.sep}reference${path.sep}`,
-    );
-    fs.mkdirSync(path.dirname(referencePath), { recursive: true });
-    fs.renameSync(implementingPath, referencePath);
-    const notePath = path.join(referencePath, "01-取消订单.md");
+    const notePath = path.join(implementingPlanPath(rootDir), "01-取消订单.md");
     fs.writeFileSync(
       notePath,
       fs.readFileSync(notePath, "utf8").replace("blocked_by: []", 'blocked_by: ["01"]'),
       "utf8",
     );
-    const errors = checkDomain(rootDir);
-    assert.ok(errors.some((error) => error.includes("必须排在 Note 01 之前")));
-    assert.ok(errors.some((error) => error.includes("reference Plan 的 Note 必须全部 completed")));
+    assert.ok(checkDomain(rootDir).some((error) => error.includes("必须排在 Note 01 之前")));
+  } finally {
+    fs.rmSync(rootDir, { recursive: true, force: true });
+  }
+});
+
+test("reference 与 archived 生命周期跳过模板校验", () => {
+  const rootDir = createValidWorkspace();
+  try {
+    const planPath = implementingPlanPath(rootDir);
+    fs.rmSync(path.join(planPath, "story.md"));
+    fs.rmSync(path.join(planPath, "spec.md"));
+    for (const lifecycle of ["reference", "archived"]) {
+      const lifecycleRoot = path.join(rootDir, `docs/ordering/plans/${lifecycle}`);
+      fs.mkdirSync(lifecycleRoot, { recursive: true });
+      fs.renameSync(planPath, path.join(lifecycleRoot, path.basename(planPath)));
+      assert.deepEqual(checkDomain(rootDir), []);
+      fs.renameSync(path.join(lifecycleRoot, path.basename(planPath)), planPath);
+    }
+  } finally {
+    fs.rmSync(rootDir, { recursive: true, force: true });
+  }
+});
+
+test("planning 生命周期仍参与模板校验", () => {
+  const rootDir = createValidWorkspace();
+  try {
+    const planningRoot = path.join(rootDir, "docs/ordering/plans/planning");
+    fs.mkdirSync(planningRoot, { recursive: true });
+    const planPath = path.join(planningRoot, path.basename(implementingPlanPath(rootDir)));
+    fs.renameSync(implementingPlanPath(rootDir), planPath);
+    fs.rmSync(path.join(planPath, "spec.md"));
+    assert.ok(checkDomain(rootDir).some((error) => error.includes("Plan 必须包含 spec.md")));
   } finally {
     fs.rmSync(rootDir, { recursive: true, force: true });
   }
@@ -131,19 +151,6 @@ test.each([
   [
     "Plan 没有 story 或 spec",
     (rootDir) => fs.rmSync(path.join(implementingPlanPath(rootDir), "spec.md")),
-    "Plan 必须包含 spec.md",
-  ],
-  [
-    "reference Plan 没有 spec",
-    (rootDir) => {
-      fs.rmSync(path.join(implementingPlanPath(rootDir), "spec.md"));
-      const referenceRoot = path.join(rootDir, "docs/ordering/plans/reference");
-      fs.mkdirSync(referenceRoot);
-      fs.renameSync(
-        implementingPlanPath(rootDir),
-        path.join(referenceRoot, path.basename(implementingPlanPath(rootDir))),
-      );
-    },
     "Plan 必须包含 spec.md",
   ],
   [
@@ -228,27 +235,24 @@ test("校验 blocked 与 completed Note 的状态证据", () => {
   }
 });
 
-test.each(["planning", "implementing", "archived", "reference"])(
-  "%s Plan 的纯故事生命周期约束",
-  (lifecycle) => {
-    const rootDir = createValidWorkspace();
-    try {
-      const planRoot = implementingPlanPath(rootDir);
-      fs.rmSync(path.join(planRoot, "spec.md"));
-      fs.rmSync(path.join(planRoot, "01-取消订单.md"));
-      if (lifecycle !== "implementing") {
-        const lifecycleRoot = path.join(rootDir, "docs/ordering/plans", lifecycle);
-        fs.mkdirSync(lifecycleRoot, { recursive: true });
-        fs.renameSync(planRoot, path.join(lifecycleRoot, path.basename(planRoot)));
-      }
-      const errors = checkDomain(rootDir);
-      assert.ok(errors.some((error) => error.endsWith("Plan 必须包含 spec.md")));
-      assert.ok(errors.some((error) => error.endsWith("Plan 至少需要一个 Note")));
-    } finally {
-      fs.rmSync(rootDir, { recursive: true, force: true });
+test.each(["planning", "implementing"])("%s Plan 的纯故事生命周期约束", (lifecycle) => {
+  const rootDir = createValidWorkspace();
+  try {
+    const planRoot = implementingPlanPath(rootDir);
+    fs.rmSync(path.join(planRoot, "spec.md"));
+    fs.rmSync(path.join(planRoot, "01-取消订单.md"));
+    if (lifecycle !== "implementing") {
+      const lifecycleRoot = path.join(rootDir, "docs/ordering/plans", lifecycle);
+      fs.mkdirSync(lifecycleRoot, { recursive: true });
+      fs.renameSync(planRoot, path.join(lifecycleRoot, path.basename(planRoot)));
     }
-  },
-);
+    const errors = checkDomain(rootDir);
+    assert.ok(errors.some((error) => error.endsWith("Plan 必须包含 spec.md")));
+    assert.ok(errors.some((error) => error.endsWith("Plan 至少需要一个 Note")));
+  } finally {
+    fs.rmSync(rootDir, { recursive: true, force: true });
+  }
+});
 
 test.each(["pending", "in_progress", "blocked", "completed"])(
   "planning Plan 允许讨论或计划 Note 为 %s",
@@ -323,7 +327,7 @@ test("拒绝无根、缺失引用、逆序依赖和依赖环", () => {
     const specPath = path.join(planRoot, "spec.md");
     fs.appendFileSync(
       specPath,
-      "\n| 02 | [通知客户](02-通知客户.md) | pending | 01 | /code-delivery |\n",
+      "\n| 02 | [通知客户](02-通知客户.md) | pending | 01 | /delivery |\n",
     );
     replaceFile(
       specPath,
@@ -356,7 +360,7 @@ test("要求进行中 Note 的直接依赖已经完成", () => {
     replaceFile(specPath, "status: pending", "status: in_progress");
     fs.appendFileSync(
       specPath,
-      "\n| 02 | [通知客户](02-通知客户.md) | in_progress | 01 | /code-delivery |\n",
+      "\n| 02 | [通知客户](02-通知客户.md) | in_progress | 01 | /delivery |\n",
     );
     assert.ok(
       checkDomain(rootDir).some((error) =>

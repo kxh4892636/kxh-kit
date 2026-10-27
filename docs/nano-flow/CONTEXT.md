@@ -1,26 +1,34 @@
 # Nano Flow
 
-Nano Flow 将想法路由为可验收的设计、Plan 和交付 Flow，并以单一 TypeScript CLI 收口多种内建命令行能力。它同时管理与 CLI 配套的 agent skill；Anki 能力归属本域，以 `nnf anki` 子命令提供。
+Nano Flow 把开发任务收敛为可验收的 Plan 与交付：以 `manual` 或 `auto` 模式维护 story、spec 和 notes，串联逐轮拷问、可选垂直切片与带门禁的代码交付；同时以单一 TypeScript CLI 收口内建子命令并管理配套受管 skill。Anki 能力归属本域，以 `nnf anki` 子命令提供。
 
 ## Language
 
 ### Flow
 
-**Flow 发起者**：
-请求进入一次 Flow 路径的 skill；由 `/nano-flow` 选择并进入已确认的起点。
-_避免使用_：当前 skill
+**模式**：
+一次工作的推进约定：`manual` 每轮由用户确认，`auto` 由 agent 自动推进；两者均在 `dev gate` 停止并等待用户确认。
+_避免使用_：phase、cursor
 
-**入口 skill**：
-经用户确认后开始一条 Flow 路径的 skill；当前为 `/questing`。
-_避免使用_：next skill
+**Plan**：
+承载一次工作的文档集合，由 story、spec 和 notes 组成，位于 `docs/{domain-name}/plans/{lifecycle}/`；生命周期为 `planning`、`implementing`、`reference`、`archived`。
+_避免使用_：flow、工作流实例、issue 图
 
-**Flow 路径**：
-从入口开始的有序步骤与交付 receipt 链；拷问和 issue 拆分之后，按拆分结果进入直接交付或 issue 交付。
-_避免使用_：模式
+**note**：
+Plan 内推进一个原子子任务（讨论、调查、计划或实现）的文档；状态为 `pending`、`in_progress`、`blocked` 或 `completed`。
+_避免使用_：task、ticket
 
-**Flow 标识**：
-工作区内稳定且唯一的 Plan 标识；需要持久化 issue 图时，使用实际 Plan 路径。
-_避免使用_：Plan 路径、flow ID
+**拷问**：
+按决策依赖逐轮取证、提问并修订假设的收敛过程，结论记入 note 的「拷问记录」。
+_避免使用_：澄清、访谈
+
+**垂直切片**：
+把实现方案拆成可独立验收且贯穿所需层级的用户结果，并标明直接依赖；拆分结果写入 notes。
+_避免使用_：拆任务、里程碑
+
+**dev gate**：
+交付前依据 story、spec 或已确认设计明确的交付基线：工作环境、执行契约与质量门禁；未确认时等待用户。
+_避免使用_：准入检查、交付前置
 
 ### CLI
 
@@ -53,6 +61,14 @@ _Avoid_: 开发分支
 ### Skill 管理
 
 **受管 skill** 与 **skill 安装状态** 为 common 共享术语（见 [common](../common/CONTEXT.md)），Nano Flow 沿用其语义。
+
+**流程 skill**:
+以 `nano-flow` 为名的受管 skill，按模式维护 Plan，并串联拷问、垂直切片与代码交付。
+_Avoid_: 主 skill、入口 skill
+
+**子 skill**:
+随 `nano-flow` 一起分发、经流程 skill 或用户显式调用进入的 skill（如 `domain`、`questing`、`to-issues`、`code-delivery`、`code-spec`、`to-skill`、`kaizen`、`learning`）。
+_Avoid_: reference skill、内部 skill
 
 **CLI 路由 skill**:
 以 `nano-flow-cli` 为名的受管 skill，识别 CLI 任务意图并路由到正确的 `nnf` 内建子命令。

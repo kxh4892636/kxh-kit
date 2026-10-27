@@ -14,7 +14,7 @@ description: 启动或恢复开发任务时使用；选择 manual 或 auto 模�
 | 改动大、需要用户介入与深入交互 | `manual` |
 | 改动小、可自动推进修复或实现   | `auto`   |
 
-- 两者均在 `/code-delivery skill` 的 dev gate 停止, 并等待用户手动确认;
+- 两个模式均在 `/code-delivery skill` 的 dev gate 停止, 并等待用户手动确认;
 
 ## 选择路径
 

@@ -16,31 +16,46 @@ Typical layout it discovers:
                     └── SKILL.md
 ```
 
-Each nested skill is registered under its frontmatter `name` unchanged, with
-rank 250 — a same-name conflict against the shipped one-layer form (rank 200)
-resolves in favor of the explicit top-level declaration. Relative resources of
-a nested skill resolve against its own directory.
+Each nested skill is registered under its frontmatter `name` unchanged. Its rank
+is its own source's shipped one-layer rank plus one — `201` for the project
+`.agents` root, `301` for `customSkillDirs`-style extra roots, `501` for the
+user `.agents` root — so a same-name conflict resolves in favor of the explicit
+top-level declaration within one source, while cross-source precedence still
+follows the harness order (project `200` > custom `300` > user `500` > bundled
+`600`). Relative resources of a nested skill resolve against its own directory.
+When a scanned root's watcher fails to start, discovery reports `complete: false`
+alongside its candidates, so the registry keeps the catalog provisional instead of
+caching it.
 
 ## Compatibility
 
-Built and verified against DSH `0.1.5-rc.1` (the `latest` release channel); the
-DSH peer ranges (`^0.1.5-rc.1`) align with that channel. The range also accepts
-later stable `0.1.x` releases, so a channel bump still needs a manual re-check and
-re-alignment.
+Built and verified against DSH `0.2.1-rc.2` (the `latest` release channel). The
+DSH peers (`@deepseek-ai/dsh-fs`, `@deepseek-ai/dsh-skill`,
+`@deepseek-ai/dsh-home-paths`) are pinned to that exact version rather than a
+range: `^0.2.1-rc.2` would also accept `0.2.1-rc.3`, whose own peers demand
+`rc.3`, reintroducing the mixed install ADR-0003 rules out.
+
+`dsh` 0.2.x evaluates a plugin's manifest before it activates one: with no
+`engines.dsh` field, every `@deepseek-ai/dsh*` peer range must include the
+running version. A host bump therefore refuses to load this plugin until the
+pins are re-checked and re-aligned — the intended behavior, not an accident.
 
 Provider contract types come straight from the peers (`@deepseek-ai/dsh-skill`,
-`@deepseek-ai/dsh-fs`), and skill-name validation uses the host's own
-`isSkillName`, so the package no longer mirrors the harness contract by hand.
+`@deepseek-ai/dsh-fs`); skill-name validation uses the host's own `isSkillName`
+and the user root is resolved with the host's `resolveAgentsHome`, so the package
+follows the harness contract instead of mirroring it.
 
 ## Install
 
 ```powershell
-dsh plugin --profile web add file:C:\path\to\repo\packages\dsh-nested-skill
+dsh plugin --profile web add <absolute path to the packed .tgz>
 ```
 
 The profile's `dsh.profile.bundles` gains the package and its
-`cordis.patch.yml` mount. With `patchReload: live` (the shipped `web` profile)
-the plugin activates without a restart.
+`cordis.patch.yml` mount; the bundle list is composed at boot, so a running host
+picks the plugin up on its next start. A local `.tgz` keeps the install decoupled
+from this checkout (a `file:` dependency is a link projection, so every rebuild
+would need a re-sync).
 
 ## Verify
 

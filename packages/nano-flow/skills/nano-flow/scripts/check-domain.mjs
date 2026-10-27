@@ -12,6 +12,8 @@ import {
 } from "./plan-document.mjs";
 
 const LIFECYCLES = new Set(["planning", "implementing", "reference", "archived"]);
+// reference 与 archived 是冻结内容，模板差异不再校验，避免历史缺项淹没本次新增问题。
+const VALIDATED_LIFECYCLES = new Set(["planning", "implementing"]);
 const SPEC_STATUSES = new Set(["pending", "in_progress", "completed"]);
 const HAN_PATTERN = /\p{Script=Han}/u;
 
@@ -313,7 +315,7 @@ const checkNoteTable = (specContent, specPath, notes, errors, rootDir) => {
   }
 };
 
-const checkSpec = (planPath, lifecycle, markdownFiles, errors, rootDir) => {
+const checkSpec = (planPath, markdownFiles, errors, rootDir) => {
   const specPath = path.join(planPath, "spec.md");
   const specContent = readText(specPath, errors, rootDir);
   if (specContent === null) return;
@@ -349,12 +351,9 @@ const checkSpec = (planPath, lifecycle, markdownFiles, errors, rootDir) => {
   if (specStatus !== expectedSpecStatus) {
     addError(errors, rootDir, specPath, `聚合状态应为 ${expectedSpecStatus}，实际为 ${specStatus}`);
   }
-  if (lifecycle === "reference" && expectedSpecStatus !== "completed") {
-    addError(errors, rootDir, planPath, "reference Plan 的 Note 必须全部 completed");
-  }
 };
 
-const checkPlan = (planPath, lifecycle, errors, rootDir) => {
+const checkPlan = (planPath, errors, rootDir) => {
   const layout = checkPlanLayout(planPath, errors, rootDir);
   if (layout.hasStory) {
     const storyPath = path.join(planPath, "story.md");
@@ -367,7 +366,7 @@ const checkPlan = (planPath, lifecycle, errors, rootDir) => {
     }
   }
   if (layout.hasSpec) {
-    checkSpec(planPath, lifecycle, layout.markdownFiles, errors, rootDir);
+    checkSpec(planPath, layout.markdownFiles, errors, rootDir);
   }
 };
 
@@ -387,11 +386,12 @@ const checkPlans = (domainPath, errors, rootDir) => {
       );
       continue;
     }
+    if (!VALIDATED_LIFECYCLES.has(lifecycleEntry.name)) continue;
     const lifecyclePath = path.join(plansPath, lifecycleEntry.name);
     for (const planEntry of readEntries(lifecyclePath, errors, rootDir).filter((entry) =>
       entry.isDirectory(),
     )) {
-      checkPlan(path.join(lifecyclePath, planEntry.name), lifecycleEntry.name, errors, rootDir);
+      checkPlan(path.join(lifecyclePath, planEntry.name), errors, rootDir);
     }
   }
 };

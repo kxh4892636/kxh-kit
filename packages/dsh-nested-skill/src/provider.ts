@@ -1,19 +1,33 @@
-import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
-import chokidar, { type FSWatcher } from "chokidar";
+import chokidar, { type ChokidarOptions, type FSWatcher } from "chokidar";
 import type { Context } from "@deepseek-ai/cordis";
+import { resolveAgentsHome } from "@deepseek-ai/dsh-home-paths";
 import type {
   SkillCandidate,
   SkillDefinition,
   SkillLookupOptions,
   SkillProvider,
   SkillProviderControl,
+  SkillProviderObservation,
 } from "@deepseek-ai/dsh-skill";
 import { defaultHostFs, type HostFs } from "./boundary.js";
 import { parseSkillText } from "./parse.js";
 
-/** 嵌套候选在同名师冲突中输给内建一层 provider（rank 200）。 */
-export const NESTED_SKILL_RANK = 250;
+/** 嵌套 skill 的来源标签；与内建 filesystem provider 的来源名一致。 */
+export type NestedSkillSource = "project-agents" | "custom" | "user-agents";
+
+/**
+ * 同来源一层形态的 rank 加一：同来源内嵌套候选输给内建一层形态，跨来源仍按上游来源序
+ * （project-agents 200 / custom 300 / user-agents 500）。
+ */
+export const NESTED_SKILL_RANKS: Readonly<Record<NestedSkillSource, number>> = {
+  "project-agents": 201,
+  custom: 301,
+  "user-agents": 501,
+};
+
+/** 取某个来源的嵌套候选 rank。 */
+export const nestedRank = (source: NestedSkillSource): number => NESTED_SKILL_RANKS[source];
 /** 出现在 skill 目录中的 provider 标签。 */
 export const PROVIDER_NAME = "nested-agents";
 
@@ -53,7 +67,7 @@ interface ResolvedOptions {
 
 interface SkillRoot {
   path: string;
-  source: string;
+  source: NestedSkillSource;
 }
 
 interface DiscoveredFile {
@@ -74,6 +88,11 @@ const resolveOptions = (options: NestedSkillOptions): ResolvedOptions => {
   };
 };
 
+/** 创建递归 watcher 的工厂；测试可注入以模拟启动失败。 */
+export type WatchFactory = (path: string, options: ChokidarOptions) => FSWatcher;
+
+const defaultWatchFactory: WatchFactory = (path, options) => chokidar.watch(path, options);
+
 /**
  * 在 `.agents` 树内任意深度发现嵌套 SKILL.md 的 skill provider。内建
  * filesystem provider 保留一层形态（`.agents/skills/<name>/SKILL.md`），
@@ -91,11 +110,12 @@ export class NestedSkillProvider implements SkillProvider {
     control: SkillProviderControl,
     options: NestedSkillOptions = {},
     adapter?: HostFs,
+    watchFactory: WatchFactory = defaultWatchFactory,
   ) {
     this.options = resolveOptions(options);
     this.adapter = adapter ?? defaultHostFs(ctx);
     const invalidate = (): void => control.invalidate();
-    this.watchManager = new NestedWatchManager(ctx.logger, invalidate, this.options);
+    this.watchManager = new NestedWatchManager(ctx.logger, invalidate, this.options, watchFactory);
     control.signal.addEventListener(
       "abort",
       () => {
@@ -108,20 +128,25 @@ export class NestedSkillProvider implements SkillProvider {
   /**
    * 为工作区发现嵌套 skill。
    * @param options - 查找选项；`cwd` 选择项目的 `.agents` 根。
-   * @returns 按路径排序的候选，使同 provider 同名师冲突确定性解决。
+   * @returns 按路径排序的候选，使同 provider 同名师冲突确定性解决；监听启动失败时
+   *   以 `complete: false` 标注本次目录不权威，交给注册表保留上一份结果。
    */
-  async list(options: SkillLookupOptions): Promise<SkillCandidate[]> {
+  async list(options: SkillLookupOptions): Promise<SkillCandidate[] | SkillProviderObservation> {
     const roots = await this.roots(options.cwd);
+    let complete = true;
     try {
       await this.watchManager.observeRoots(roots);
-    } catch {
-      // 监听启动失败只退化为一次当前扫描，不阻断发现。
+    } catch (error) {
+      // 关闭中的失败属于正常拆除，其余失败只让本次目录失去权威性。
+      if (this.disposal !== undefined) throw error;
+      complete = false;
     }
     const candidates: SkillCandidate[] = [];
     for (const root of roots) {
       for (const candidate of await this.discover(root)) candidates.push(candidate);
     }
-    return candidates.sort((left, right) => (left.path ?? "").localeCompare(right.path ?? ""));
+    candidates.sort((left, right) => (left.path ?? "").localeCompare(right.path ?? ""));
+    return complete ? candidates : { candidates, complete };
   }
 
   /**
@@ -172,9 +197,7 @@ export class NestedSkillProvider implements SkillProvider {
       roots.push({ path: join(projectRoot, ".agents"), source: "project-agents" });
     }
     if (this.options.includeUserRoots) {
-      const agentsHome =
-        this.options.agentsHome ?? process.env["DSH_AGENTS_HOME"] ?? join(homedir(), ".agents");
-      roots.push({ path: agentsHome, source: "user-agents" });
+      roots.push({ path: resolveAgentsHome(this.options.agentsHome), source: "user-agents" });
     }
     for (const extra of this.options.extraRoots) {
       roots.push({ path: resolve(extra), source: "custom" });
@@ -196,7 +219,7 @@ export class NestedSkillProvider implements SkillProvider {
         invocation: parsed.invocation,
         provider: this.name,
         source: root.source,
-        rank: NESTED_SKILL_RANK,
+        rank: nestedRank(root.source),
         locator: { path: file.path, directory: file.directory },
         resourceBase: { kind: "directory", path: file.directory },
         path: file.path,
@@ -255,10 +278,12 @@ export const findProjectRoot = async (cwd: string, fs: HostFs): Promise<string> 
 /** 持有当前根集的有界递归 watcher 与失效逻辑。 */
 class NestedWatchManager {
   private readonly watches = new Map<string, FSWatcher>();
+  private readonly readiness = new Map<string, () => void>();
   private readonly roots = new Set<string>();
   private readonly logger: { warn(message: string): void };
   private readonly invalidate: () => void;
   private readonly options: ResolvedOptions;
+  private readonly createWatcher: WatchFactory;
   private invalidationQueued = false;
   private closing = false;
 
@@ -266,10 +291,12 @@ class NestedWatchManager {
     logger: { warn(message: string): void },
     invalidate: () => void,
     options: ResolvedOptions,
+    createWatcher: WatchFactory,
   ) {
     this.logger = logger;
     this.invalidate = invalidate;
     this.options = options;
+    this.createWatcher = createWatcher;
   }
 
   async observeRoots(roots: readonly SkillRoot[]): Promise<void> {
@@ -304,7 +331,7 @@ class NestedWatchManager {
 
   private async openWatch(path: string): Promise<void> {
     if (!this.options.watch || this.watches.has(path)) return;
-    const watcher = chokidar.watch(path, {
+    const watcher = this.createWatcher(path, {
       ignoreInitial: true,
       persistent: true,
       followSymlinks: true,
@@ -325,9 +352,41 @@ class NestedWatchManager {
       this.logger.warn(`nested-skill: watcher for ${path} failed: ${String(error)}`);
       this.queueInvalidation();
     });
+    await this.awaitReady(path, watcher);
+  }
+
+  /**
+   * 等待首次扫描完成；启动期错误让等待失败，关闭中的等待直接结束。
+   * @param path - watcher 对应的扫描根。
+   * @param watcher - 已登记的 watcher。
+   * @returns 首次扫描完成后兑现的 promise。
+   */
+  private awaitReady(path: string, watcher: FSWatcher): Promise<void> {
+    return new Promise((settled, failed) => {
+      const finish = (error?: Error): void => {
+        this.readiness.delete(path);
+        watcher.off("ready", ready);
+        watcher.off("error", broken);
+        if (error === undefined) settled();
+        else failed(error);
+      };
+      const ready = (): void => {
+        finish();
+      };
+      const broken = (error: unknown): void => {
+        finish(error instanceof Error ? error : new Error(String(error)));
+      };
+      this.readiness.set(path, () => {
+        finish();
+      });
+      watcher.once("ready", ready);
+      watcher.on("error", broken);
+    });
   }
 
   private async closeWatch(path: string): Promise<void> {
+    this.readiness.get(path)?.();
+    this.readiness.delete(path);
     const watcher = this.watches.get(path);
     if (watcher === undefined) return;
     this.watches.delete(path);

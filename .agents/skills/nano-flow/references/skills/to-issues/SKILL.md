@@ -1,7 +1,6 @@
 ---
 name: to-issues
 description: 将实现方案垂直切片时使用；按可独立验收的用户结果拆分贯穿各层的工作，明确直接依赖，结果作为 notes 交由 domain 维护。
-argument-hint: "要对什么工作进行垂直切片?"
 ---
 
 # To Issues

@@ -47,7 +47,7 @@ test.each([
   ],
   [
     "额外 Note",
-    (content) => `${content}\n| 99 | [幽灵](99-幽灵.md) | pending | — | /code-delivery |\n`,
+    (content) => `${content}\n| 99 | [幽灵](99-幽灵.md) | pending | — | /delivery |\n`,
     "Notes 索引引用了不存在的 99",
   ],
 ])("拒绝 Note 表%s", (_name, mutate, expected) => {
@@ -86,7 +86,7 @@ test("Note 表接受最小尾分隔符和两位依赖", () => {
     const specPath = path.join(planRoot, "spec.md");
     replaceFile(
       specPath,
-      "| 01 | [取消订单](01-取消订单.md) | pending | — | /code-delivery |",
+      "| 01 | [取消订单](01-取消订单.md) | pending | — | /delivery |",
       "| 01 | [取消订单](01-取消订单.md) | pending | — |\n| 02 | [通知客户](02-通知客户.md) | pending | 01 |",
     );
     assert.deepEqual(checkDomain(rootDir), []);
