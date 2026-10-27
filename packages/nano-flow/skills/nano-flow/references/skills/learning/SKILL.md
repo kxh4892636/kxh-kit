@@ -29,9 +29,12 @@ disable-model-invocation: true
 
 写入后逐项核对覆盖账本：范围内知识点均能定位到产出且无遗漏，UUID 无冲突、相对链接有效，并通过适用的文档格式与构建校验时完成。
 
+frontmatter 使用 `id` 与 `anki` 两个字段：`id` 为稳定 UUID；`anki` 缺省为 true，标记 `anki: false` 的笔记不制作卡片。
+
 ````markdown
 ---
 id: <uuid>
+anki: true
 ---
 
 # 文档主题
