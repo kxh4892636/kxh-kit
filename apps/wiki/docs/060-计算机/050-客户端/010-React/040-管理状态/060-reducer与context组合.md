@@ -1,5 +1,6 @@
 ---
 id: 4ad1e759-ec26-49bc-b40b-7dba924fb20a
+anki: false
 ---
 
 # 组合 reducer 与 Context

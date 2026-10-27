@@ -1,5 +1,6 @@
 ---
 id: c32bfa84-b1a9-4644-b790-c5b1009048ea
+anki: false
 ---
 
 # 用 reducer 提取状态逻辑

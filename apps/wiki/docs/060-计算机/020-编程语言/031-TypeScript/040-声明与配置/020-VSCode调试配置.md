@@ -1,5 +1,6 @@
 ---
 id: ed4ad2b2-1276-4a26-b71d-6b788c06e04c
+anki: false
 ---
 
 # VSCode 调试配置
