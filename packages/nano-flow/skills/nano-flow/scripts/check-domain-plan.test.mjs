@@ -327,7 +327,7 @@ test("拒绝无根、缺失引用、逆序依赖和依赖环", () => {
     const specPath = path.join(planRoot, "spec.md");
     fs.appendFileSync(
       specPath,
-      "\n| 02 | [通知客户](02-通知客户.md) | pending | 01 | /code-delivery |\n",
+      "\n| 02 | [通知客户](02-通知客户.md) | pending | 01 | /delivery |\n",
     );
     replaceFile(
       specPath,
@@ -360,7 +360,7 @@ test("要求进行中 Note 的直接依赖已经完成", () => {
     replaceFile(specPath, "status: pending", "status: in_progress");
     fs.appendFileSync(
       specPath,
-      "\n| 02 | [通知客户](02-通知客户.md) | in_progress | 01 | /code-delivery |\n",
+      "\n| 02 | [通知客户](02-通知客户.md) | in_progress | 01 | /delivery |\n",
     );
     assert.ok(
       checkDomain(rootDir).some((error) =>

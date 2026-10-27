@@ -100,7 +100,7 @@ status: pending
 
 | # | Notes | 状态 | 阻塞于 | 下一步 |
 | --- | --- | --- | --- | --- |
-| 01 | [取消订单](01-取消订单.md) | pending | — | /code-delivery |
+| 01 | [取消订单](01-取消订单.md) | pending | — | /delivery |
 `,
   );
 };
@@ -146,7 +146,7 @@ blocked_by: []
 
 ## 下一步
 
-/code-delivery
+/delivery
 `,
   );
 };
