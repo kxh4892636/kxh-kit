@@ -84,14 +84,14 @@ status: completed
 
 ## 当前进度
 
-2026-10-27 22:31，全部 notes 完成；基线 `main@bfff5afe` + 本轮改动。已完成：取证（note 01）、声明对齐到 rc.3（note 02：peer 钉版、版本 0.1.3、依赖重装、README 三处、`vp check`/`vp test` 39/39/覆盖率/`vp pack` 全绿）、tarball 装进 desktop profile（note 03：`0.1.3`、profile bundles 含本包、`dist` sha256 与工作区一致）、运行中宿主出现 6 个嵌套 skill 且顶层 skill 保留、`skill(code-delivery)` 取正文成功。阻塞：无。未验证：GUI 视觉确认、真实宿主内 watcher 失效。待办：commit。
+2026-10-27 22:31，全部 notes 完成；基线 `main@bfff5afe` + 本轮改动。已完成：取证（note 01）、声明对齐到 rc.3（note 02：peer 钉版、版本 0.1.3、依赖重装、README 三处、`vp check`/`vp test` 39/39/覆盖率/`vp pack` 全绿）、tarball 装进 desktop profile（note 03：`0.1.3`、profile bundles 含本包、`dist` sha256 与工作区一致）、运行中宿主出现 6 个嵌套 skill 且顶层 skill 保留、`skill(code-delivery)` 取正文成功。阻塞：无。未验证：GUI 视觉确认、真实宿主内 watcher 失效。代码与文档提交为 `da668e3e`、`e34682e2`；2026-10-27 经用户确认由 `implementing` 迁入 `reference`。
 
 ## 恢复入口
 
 1. 读 [story.md](story.md) 与「实施决策」，再读 [03](03-打包安装与宿主验证.md) 的安装与宿主证据；需要复现取证时读 [01](01-取证与兼容性比对.md)。
-2. 核对现场：`& '<app>\resources\runtime\cli\bin\dsh.cmd' --version` 应为 `0.2.1-rc.3`；`~/.dsh/profiles/desktop/package.json` 的 bundles 末项应为 `@kxh4892636/dsh-nested-skill`；`git log --oneline -1` 应在本 Plan 的提交之后。
-3. 下一动作：本 Plan 的交付已完成，剩余为回滚或下一轮版本适配；回滚用 `plugin --profile desktop remove @kxh4892636/dsh-nested-skill`。
-4. 停止条件：出现「装好但宿主 skill 目录没有嵌套 skill」时，先看 profile 清单是否含 bundle、再确认宿主是否重组（desktop 无 `--dump-config`，只能靠目录与日志），不要用 `allow-version` 绕过。
+2. 核对现场：`& '<app>\resources\runtime\cli\bin\dsh.cmd' --version` 应为 `0.2.1-rc.3`；`~/.dsh/profiles/desktop/package.json` 的 bundles 末项应为 `@kxh4892636/dsh-nested-skill`；`git log --oneline -1` 应在本 Plan 的归档提交之后。
+3. 下一动作：本 Plan 已归档为参考（生命周期 `reference`），无待办；宿主换版本时另建 Plan，从 [01](01-取证与兼容性比对.md) 的兼容性校验说明与 [02](02-声明对齐到rc.3.md) 的 peer 矩阵起步。
+4. 停止条件：出现「装好但宿主 skill 目录没有嵌套 skill」时，先看 profile 清单是否含 bundle、再确认宿主是否重组（desktop 无 `--dump-config`，只能靠目录与日志），不要用 `allow-version` 绕过。回滚：`plugin --profile desktop remove @kxh4892636/dsh-nested-skill`。
 
 ## Notes
 
