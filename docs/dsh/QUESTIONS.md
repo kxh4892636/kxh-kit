@@ -31,3 +31,11 @@
 - 解决方法：把 peer 精确改到宿主实装版本并重装依赖、重打包、重装；不要用豁免掩盖声明漂移（ADR-0003：声明等于已在本机验证的版本）。
 - 验证：本包由 `0.2.1-rc.2` 钉到 `0.2.1-rc.3` 后，安装不再报 incompatible。
 - 来源：[2026-10-26-dsh插件适配0.2.1-rc.2](plans/reference/2026-10-26-dsh插件适配0.2.1-rc.2/01-版本取证与兼容性比对.md)、[2026-10-27-dsh插件装进desktop宿主](plans/reference/2026-10-27-dsh插件装进desktop宿主/02-声明对齐到rc.3.md)。
+
+## 怎么让 DSH 出站流量走本机代理（如 Clash 7890）？
+
+- 适用条件与现象：系统代理已启用（如 Clash `127.0.0.1:7890`），但 DSH 的 LLM / web 搜索 / web fetch / MCP 仍直连；`~/.dsh/.env` 不存在。
+- 原因：DSH 只认**启动环境**与 `$DSH_HOME/.env`（harness home 层）里的 `http(s)` 代理，并只认 `HTTP_PROXY`/`HTTPS_PROXY`/`ALL_PROXY`/`NO_PROXY` 四个名字；它不读操作系统代理设置，且代理策略在进程启动时解析一次。
+- 解决方法：在 `$DSH_HOME/.env`（默认 `~/.dsh/.env`）写 `HTTP_PROXY=http://127.0.0.1:7890`、`HTTPS_PROXY=http://127.0.0.1:7890`、`ALL_PROXY=http://127.0.0.1:7890`，再重启 DSH。代理名不能写进项目 `.env`（启动器拒绝启动），SOCKS 与 PAC 不被支持。
+- 验证：`node -e "..."` 用 `util.parseEnv` 读回三项；重启后启动器在挂载插件前安装该策略（`dsh/lib/profile-boot-*.js` 的 `runProfile`），可再用一次需要代理的 web fetch 观察行为。2026-10-28 本机已按此法写入并核对文件内容与解析结果。
+- 来源：[ADR-0005](adr/0005-fake-ip解析经代理声明修正.md)；本机核对：`~/.dsh/.env` 缺失、Windows `ProxyEnable=1` / `ProxyServer=127.0.0.1:7890`。
