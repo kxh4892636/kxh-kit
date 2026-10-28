@@ -9,6 +9,8 @@
 - [dsh](./docs/dsh/CONTEXT.md) - DSH 扩展业务域：工作区自研的 DeepSeek Harness 插件。
 - [pi](./docs/pi/CONTEXT.md) - pi 扩展业务域：发现嵌套 skill 与以 `$` 插入并展开 skill，以及经 DeepSeek 的 web 搜索与直连 web 抓取。
 
+- [music](./docs/music/CONTEXT.md) - 本地免版权古典曲库与消费该曲库的随机播放站点。
+
 ## Relationships
 
 - **Nano Flow → Common**：Nano Flow 将跨业务域共享的基础约定贡献到 Common，并使用 Common 维护的共享基础能力。
