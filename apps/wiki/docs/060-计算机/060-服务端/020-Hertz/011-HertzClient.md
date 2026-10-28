@@ -40,7 +40,7 @@ if err := cli.Do(ctx, req, resp); err != nil {
 - 只把 `ctx` 传给 `Do` 不等于配好超时；用 `req.SetOptions(config.WithRequestTimeout(...))`，或 `DoTimeout`/`DoDeadline`;
 - 这三者写同一份配置，不要互相覆盖;
 - 失败按层判断：`context canceled` 与 deadline 立即停；建连失败谨慎重试；4xx 不重试；429 看 `Retry-After`；5xx 只在幂等时重试;
-- 预算分层与重试放大见 [超时预算](../000-服务端知识/040-可靠性/010-超时预算/010-预算模型.md)、[重试与幂等](../000-服务端知识/040-可靠性/020-重试与幂等.md);
+- 预算分层与重试放大见 [超时预算](../000-服务端知识/040-可靠性/010-预算模型.md)、[重试与幂等](../000-服务端知识/040-可靠性/030-重试与幂等.md);
 
 ## Hertz Client 和 Kitex 什么时候各用哪个？
 

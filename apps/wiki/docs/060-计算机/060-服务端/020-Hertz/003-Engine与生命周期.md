@@ -62,4 +62,4 @@ h.AddProtocol("h2", factory.NewServerFactory())
 - 启动: 读配置 → 初始化依赖 → 注册中间件与路由 → `Spin`;
 
 - 依赖就绪后才打开 readiness，未就绪不接流量；见 000「健康检查与摘流」;
-- 退出时序、`OnShutdown` 与 `SetCustomSignalWaiter` 的写法见 [014-运维接入](./014-运维接入.md);
+- 退出时序、`OnShutdown` 与 `SetCustomSignalWaiter` 的写法见 [014-运维接入](./016-运维接入.md);
