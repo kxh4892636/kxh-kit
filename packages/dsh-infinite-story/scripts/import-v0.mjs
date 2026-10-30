@@ -57,12 +57,18 @@ const state = {
   story: v0State.story ?? ID,
   updatedAt: new Date().toISOString(),
   cursor: {
+    // 新字段
     chapter: chapterNo,
     chapterFile,
     scene: v0State.cursor.scene ?? "",
     storyTime: v0Clock.storyNow ?? v0State.cursor.inWorldTime ?? "",
     location: v0State.cursor.location ?? "",
     lastBeat: v0State.cursor.lastBeat ?? "",
+    // v0 原有字段原样留住，避免信息损失
+    chapterNo: v0State.cursor.chapterNo ?? chapterNo,
+    inWorldTime: v0State.cursor.inWorldTime ?? "",
+    pov: v0State.cursor.pov ?? "",
+    locationId: v0State.cursor.locationId ?? "",
   },
   openThreads: (v0State.openThreads ?? []).filter(Boolean),
   affinity,
@@ -77,6 +83,11 @@ const clock = {
     minutes: a.advance ?? 0,
     reason: a.reason ?? "",
   })),
+  // v0 的时钟策略与虚拟日历原样保留：Brief 的时间显示依赖 calendar
+  type: v0Clock.type ?? "virtual",
+  policy: v0Clock.policy ?? "",
+  defaultAdvance: v0Clock.defaultAdvance ?? 10,
+  calendar: v0Clock.dayLabel ?? {},
 };
 
 const beats = (v0State.timedBeats ?? []).map((b) => ({
@@ -287,6 +298,17 @@ const storyEntry = {
   openThreads: state.openThreads,
   affinity: state.affinity,
   meters: state.meters,
+  // v0 的运行时字段全部保留：它们会影响 Brief 与下一拍判断
+  characters: v0State.characters ?? {},
+  physicalState: v0State.physicalState ?? {},
+  props: v0State.props ?? [],
+  revisions: v0State.revisions ?? [],
+  policies: {
+    foreshadow: v0State.foreshadowPolicy ?? null,
+    beat: v0State.beatPolicy ?? null,
+  },
+  calendar: v0Clock.dayLabel ?? {},
+  limits: v0World.limits ?? null,
   files: {
     rules: "rules.md",
 
@@ -300,12 +322,13 @@ const storyEntry = {
     beats: "beats.json",
     foreshadows: "foreshadows.json",
     chapters: "chapters/",
+    archive: "archive/",
   },
 };
 
 // ---------- write ----------
 await fs.rm(ROOT, { recursive: true, force: true });
-for (const d of ["world", "chapters", "log"]) {
+for (const d of ["world", "chapters", "log", "archive"]) {
   await fs.mkdir(path.join(ROOT, d), { recursive: true });
 }
 
@@ -333,6 +356,23 @@ if (canonWorld) await write(path.join(ROOT, "world", "world-notes.md"), canonWor
 for (const f of ["timeline.jsonl", "affinity.jsonl", "npc.jsonl"]) {
   const src = path.join(FROM, "log", f);
   if (await exists(src)) await fs.copyFile(src, path.join(ROOT, "log", f));
+}
+
+// 归档：v0 的机制细则与世界模型原样保留，运行时不读，但内容不丢
+await fs.mkdir(path.join(ROOT, "archive"), { recursive: true });
+for (const [src, name] of [
+  ["canon/clock.md", "clock.md"],
+  ["canon/beats.md", "beats.md"],
+  ["canon/foreshadows.md", "foreshadows.md"],
+  ["canon/world-model.md", "world-model.md"],
+  ["canon/characters.md", "characters.full.md"],
+  ["canon/world.md", "world.full.md"],
+  ["rules/style-guide.md", "style-guide.md"],
+  ["rules/continuation-rules.md", "continuation-rules.md"],
+  ["log/expired.md", "expired.md"],
+]) {
+  const from = path.join(FROM, src);
+  if (await exists(from)) await fs.copyFile(from, path.join(ROOT, "archive", name));
 }
 
 await fs.mkdir(path.join(WORKSPACE, ".story", "sessions"), { recursive: true });
