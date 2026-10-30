@@ -20,20 +20,21 @@ export const inject = ["tools", "systemPrompt"];
 /**
  * Mount story mode.
  *
- * Off by default at runtime: only `story_mode` is registered until a story is
- * bound. When on, the iron-rules section is injected into the system prompt and
- * the story tools appear. The section text is a byte-stable constant (see
- * prompt.ts) so every session shares one cached prefix — everything variable
- * travels in the Brief instead.
+ * Scope is per session, not per workspace: the binding lives in
+ * `.story/sessions/<id>.json`, the iron-rules section is registered on the
+ * calling agent's context, and every tool body checks the caller's binding.
+ *
+ * The section text is a byte-stable constant (see prompt.ts) — no story name,
+ * chapter, clock reading or session id — so every session that enables the mode
+ * shares one cached prefix. Everything variable travels in the Brief instead.
  */
 export const apply = (ctx: any, config: Config = {}): void => {
   if (config.enabled === false) return;
 
   const workspace = (): string => config.workspace ?? process.cwd();
-  const runtime = createRuntime(ctx, { workspace });
+  const runtime = createRuntime({ workspace, fallbackCtx: ctx });
 
   ctx.effect(() => {
-    void runtime.syncFromDisk();
-    return () => runtime.disable();
-  }, "infinite-story mode sync");
+    return () => runtime.dispose();
+  }, "infinite-story runtime");
 };

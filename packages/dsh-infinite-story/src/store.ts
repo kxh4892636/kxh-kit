@@ -6,6 +6,7 @@ import type { Beat, Clock, Foreshadow, StoryBundle, StoryState } from "./model.j
 export const LAYOUT = {
   dir: ".story",
   active: "ACTIVE.md",
+  sessions: "sessions",
   entry: "STORY.md",
   rules: "RULES.md",
   world: "WORLD.md",
@@ -18,6 +19,34 @@ export const LAYOUT = {
   foreshadows: "foreshadows.json",
   pending: "pending-issues.json",
 } as const;
+
+/** Per-session binding. One session binds exactly one story. */
+export interface SessionBinding {
+  enabled: boolean;
+  storyId: string | null;
+  updatedAt: string;
+}
+
+function sessionFile(workspace: string, key: string): string {
+  const safe = key.replace(/[^\w.-]/g, "_").slice(0, 80);
+  return path.join(workspace, LAYOUT.dir, LAYOUT.sessions, `${safe}.json`);
+}
+
+export async function readSession(workspace: string, key: string): Promise<SessionBinding> {
+  return readJson<SessionBinding>(sessionFile(workspace, key), {
+    enabled: false,
+    storyId: null,
+    updatedAt: "",
+  });
+}
+
+export async function writeSession(
+  workspace: string,
+  key: string,
+  binding: SessionBinding,
+): Promise<void> {
+  await writeJson(sessionFile(workspace, key), { ...binding, updatedAt: new Date().toISOString() });
+}
 
 export function storyRoot(workspace: string, id: string): string {
   return path.join(workspace, LAYOUT.dir, id);

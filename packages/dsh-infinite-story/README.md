@@ -21,23 +21,24 @@ This plugin answers each one at the point of failure rather than in documentatio
 
 ## Story mode
 
-Story mode is **off by default** and is switched with one tool:
+Story mode is **off by default** and is scoped to **one session at a time**:
 
 ```
-story_mode action=status        # what is bound, what exists
-story_mode action=on id=xxx     # bind and turn on
-story_mode action=off           # turn off — tools and rules are withdrawn
+story_mode action=status        # what this session has bound
+story_mode action=on id=xxx     # bind and turn on — this session only
+story_mode action=off           # turn off — this session only
 story_mode action=new id=xxx title="…"
 ```
 
-- **Off**: only `story_mode` is registered. No prompt section, no other tools —
-  the plugin is effectively invisible.
-- **On**: `story_open` / `story_write` / `story_check` are registered and the
-  iron-rules section is injected.
+Binding lives in `.story/sessions/<session-key>.json`, one file per conversation.
+Turning the mode on registers the iron-rules section **on that agent's context**, so
+other conversations never see it. Tools stay registered (they are global by contract),
+but every body checks the caller's binding first and answers `故事模式未开启（本会话）`
+when it is off.
 
-`story_mode` itself always stays visible; without it a session could never come back on.
+One session binds **one** story; switching means a new session.
 
-One session binds **one** story. Switching stories means a new session.
+There is no UI switch yet — see _Known limits_.
 
 ## Tools
 
@@ -128,8 +129,11 @@ Chapters are copied byte-for-byte; JSON is re-shaped; markdown canon is split in
 
 ## Known limits
 
-- The on/off switch is a **tool**, not a UI toggle. A client-plugin toggle needs the
-  web client's session-header extension point, which is not wired here yet.
-- Tool visibility is process-global: `tools.restrict()` requires an agent-scoped
-  context, so per-session hiding is not implemented — the switch is workspace-wide.
-- L2 has no built-in model call; it hands the work order to the session's subagent.
+- **No UI switch yet.** Step 1 (per-session state) is done; step 2 is the client plugin.
+  The slot is identified (`conversation.session.header.actions`) and the bundle format is
+  `window.__ModuleLoader__.load({ id, factory })`, but client↔host transport and a custom
+  client build are still missing.
+- **Tool visibility is global.** Tools are registered once for the process; only their
+  _behaviour_ is per-session. Hiding them per conversation needs `tools.restrict()`, which
+  requires an agent-scoped context and rejects a context-global mask.
+- **L2 has no built-in model call**; it hands the work order to the session's subagent.
