@@ -119,14 +119,6 @@ cd packages/dsh-infinite-story; pnpm pack
 
 The bundle list is composed at boot, so restart the desktop app after installing.
 
-## Migrating a v0 story
-
-```powershell
-node packages/dsh-infinite-story/scripts/import-v0.mjs <v0-dir> <workspace> <story-id>
-```
-
-Chapters are copied byte-for-byte; JSON is re-shaped; markdown canon is split into shards.
-
 ## Known limits
 
 - **No UI switch yet.** Step 1 (per-session state) is done; step 2 is the client plugin.
