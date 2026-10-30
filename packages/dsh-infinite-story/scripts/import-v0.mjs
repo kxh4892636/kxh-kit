@@ -112,6 +112,17 @@ function ruleSection(n) {
   return (storyRules.match(re)?.[0] ?? "").trim();
 }
 
+/**
+ * R14 mixes two concerns: pacing (story-specific) and advance authority
+ * (mechanism, already in the system prompt). Keep only the pacing half so the
+ * two files never say the same thing twice.
+ */
+function rhythmSection() {
+  const section = ruleSection(14);
+  const match = /^0\. \*\*节奏[\s\S]*?(?=^1\. )/m.exec(section);
+  return (match?.[0] ?? section).trim();
+}
+
 const npcCard = (n) =>
   [
     `### ${n.name}${n.role ? ` · ${n.role}` : ""}`,
@@ -199,7 +210,7 @@ const threads = [
 const rulesMd = [
   "# 故事规则（本故事特有）",
   "",
-  "> 分界：**机制**（落盘、时间、节点、世界、伏笔、校验）由插件注入系统提示；**写法**（篇幅、描写、风格、露骨度、人称、节奏、衔接、括注）与**关系禁忌**属于本故事，全文照搬 v0，未做摘要。",
+  "> 分界：**机制**由插件注入系统提示——落盘 R8、时间 R13、节点 R15、世界 R17/R19、渐进人设 R18、伏笔 R11、收账 R24、知情边界 R20、推进权 R1/R14（1–5）、不出戏 R7。本文件只写**写法与关系**，不重复上述任何一条。",
   "",
   "## 篇幅（R2）",
   "",
@@ -229,9 +240,9 @@ const rulesMd = [
   "",
   ruleSection(12) || "（v0 缺 R12）",
   "",
-  "## 节奏（R14）",
+  "## 节奏（R14 · 只取节奏部分，推进权归系统提示）",
   "",
-  ruleSection(14) || "（v0 缺 R14）",
+  rhythmSection() || "（v0 缺 R14）",
   "",
   "## 衔接（R16）",
   "",
@@ -241,6 +252,9 @@ const rulesMd = [
   "",
   ruleSection(22) || "（v0 缺 R22）",
   "",
+  ...(styleGuide
+    ? ["", "---", "", "## 附：文风与调性（v0 style-guide 全文，唯一权威）", "", styleGuide]
+    : []),
 ].join("\n");
 
 const toChar = (n) => ({
@@ -275,8 +289,7 @@ const storyEntry = {
   meters: state.meters,
   files: {
     rules: "rules.md",
-    style: "rules/style-guide.md",
-    rulesDetail: "rules/continuation-rules.md",
+
     chars: "world/chars.json",
     charactersProse: "world/characters.md",
     locations: "world/locations.json",
@@ -292,7 +305,7 @@ const storyEntry = {
 
 // ---------- write ----------
 await fs.rm(ROOT, { recursive: true, force: true });
-for (const d of ["world", "chapters", "log", "rules"]) {
+for (const d of ["world", "chapters", "log"]) {
   await fs.mkdir(path.join(ROOT, d), { recursive: true });
 }
 
@@ -317,9 +330,6 @@ await writeJson(path.join(ROOT, "world", "relations.json"), v0World.relations ??
 if (canonChars) await write(path.join(ROOT, "world", "characters.md"), canonChars);
 if (canonWorld) await write(path.join(ROOT, "world", "world-notes.md"), canonWorld);
 
-if (styleGuide) await write(path.join(ROOT, "rules", "style-guide.md"), styleGuide);
-if (storyRules) await write(path.join(ROOT, "rules", "continuation-rules.md"), storyRules);
-
 for (const f of ["timeline.jsonl", "affinity.jsonl", "npc.jsonl"]) {
   const src = path.join(FROM, "log", f);
   if (await exists(src)) await fs.copyFile(src, path.join(ROOT, "log", f));
@@ -342,6 +352,4 @@ console.log(
 console.log(`rules.md ${await size(path.join(ROOT, "rules.md"))}B`);
 console.log(`world/chars.json ${await size(path.join(ROOT, "world", "chars.json"))}B`);
 console.log(`world/characters.md ${await size(path.join(ROOT, "world", "characters.md"))}B`);
-console.log(
-  `rules/continuation-rules.md ${await size(path.join(ROOT, "rules", "continuation-rules.md"))}B`,
-);
+console.log();
