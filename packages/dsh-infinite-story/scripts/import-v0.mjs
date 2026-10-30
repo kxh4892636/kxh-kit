@@ -195,29 +195,7 @@ const threads = [
   "",
 ].join("\n");
 
-// ---------- entry docs ----------
-const storyMd = `# ${state.story}
-
-## 现在
-第 ${state.cursor.chapter} 章 · ${state.cursor.scene}
-上一拍：${state.cursor.lastBeat}
-
-## 去哪查
-- 本故事规则 → [RULES.md](./RULES.md)
-- 写法与调性 → [rules/style-guide.md](./rules/style-guide.md)
-- 人物（含语气样本、禁忌内核）→ [shards/chars-core.md](./shards/chars-core.md)
-- 配角 → [shards/chars-major.md](./shards/chars-major.md)
-- 地点 → [shards/locations.md](./shards/locations.md)
-- 线与关系 → [shards/threads.md](./shards/threads.md)
-- 时钟细则 → [shards/clock.md](./shards/clock.md)
-- 节点细则 → [shards/beats.md](./shards/beats.md)
-- 伏笔库 → [shards/foreshadows.md](./shards/foreshadows.md)
-- 世界模型 → [shards/world-model.md](./shards/world-model.md)
-
-## 悬置
-${state.openThreads.map((t) => `- ${t}`).join("\n") || "- （无）"}
-`;
-
+// ---------- docs & world json ----------
 const rulesMd = [
   "# 故事规则（本故事特有）",
   "",
@@ -265,25 +243,56 @@ const rulesMd = [
   "",
 ].join("\n");
 
-const worldMd = [
-  "# 世界索引",
-  "",
-  "| 册 | 内容 |",
-  "|---|---|",
-  "| [chars-core](./shards/chars-core.md) | 白洁与筱聿的正典全文：人设、语气样本、禁忌内核、关系动态、既定事实 |",
-  "| [chars-major](./shards/chars-major.md) | 周老师、林、李老师、张阿姨、韦：身份、已知、未揭示 |",
-  "| [locations](./shards/locations.md) | 十处场景，含邻接与焦点人物 |",
-  "| [threads](./shards/threads.md) | 六条故事线、依赖关系、社交边 |",
-  "| [clock](./shards/clock.md) | 虚拟时钟与推进细则 |",
-  "| [beats](./shards/beats.md) | 时效节点细则与过期记录 |",
-  "| [foreshadows](./shards/foreshadows.md) | 伏笔库与触发记录 |",
-  "| [world-model](./shards/world-model.md) | 多场景/多人物/多线架构与扩容预案 |",
-  "",
-].join("\n");
+const toChar = (n) => ({
+  id: n.id,
+  name: n.name,
+  role: n.role,
+  tier: n.tier,
+  tags: n.tags ?? [],
+  affinity: n.affinity ?? null,
+  knows: n.knows ?? [],
+  auto: n.auto ?? false,
+  revealed: n.revealed ?? [],
+  hidden: n.hidden ?? [],
+  note: n.note ?? "",
+});
+
+const charsJson = {
+  core: (v0World.npcs ?? []).filter((n) => n.tier === "core").map(toChar),
+  major: (v0World.npcs ?? []).filter((n) => n.tier === "major").map(toChar),
+  minor: (v0World.npcs ?? []).filter((n) => n.tier === "minor").map(toChar),
+  prose: "world/characters.md",
+  note: "prose 指向人设散文全文（语气样本、禁忌内核、关系动态）；本文件只放可查的结构化字段。",
+};
+
+const storyEntry = {
+  version: 1,
+  story: state.story,
+  updatedAt: state.updatedAt,
+  cursor: state.cursor,
+  openThreads: state.openThreads,
+  affinity: state.affinity,
+  meters: state.meters,
+  files: {
+    rules: "rules.md",
+    style: "rules/style-guide.md",
+    rulesDetail: "rules/continuation-rules.md",
+    chars: "world/chars.json",
+    charactersProse: "world/characters.md",
+    locations: "world/locations.json",
+    threads: "world/threads.json",
+    relations: "world/relations.json",
+    worldNotes: "world/world-notes.md",
+    clock: "clock.json",
+    beats: "beats.json",
+    foreshadows: "foreshadows.json",
+    chapters: "chapters/",
+  },
+};
 
 // ---------- write ----------
 await fs.rm(ROOT, { recursive: true, force: true });
-for (const d of ["shards", "chapters", "log", "rules"]) {
+for (const d of ["world", "chapters", "log", "rules"]) {
   await fs.mkdir(path.join(ROOT, d), { recursive: true });
 }
 
@@ -293,23 +302,20 @@ for (const n of names) {
   await fs.copyFile(path.join(srcChapters, n), path.join(ROOT, "chapters", n));
 }
 
-await writeJson(path.join(ROOT, "state.json"), state);
+await writeJson(path.join(ROOT, "story.json"), storyEntry);
 await writeJson(path.join(ROOT, "clock.json"), clock);
 await writeJson(path.join(ROOT, "beats.json"), beats);
 await writeJson(path.join(ROOT, "foreshadows.json"), foreshadows);
 
-await write(path.join(ROOT, "STORY.md"), storyMd);
-await write(path.join(ROOT, "RULES.md"), rulesMd);
-await write(path.join(ROOT, "WORLD.md"), worldMd);
+await write(path.join(ROOT, "rules.md"), rulesMd);
 
-await write(path.join(ROOT, "shards", "chars-core.md"), charsCore);
-await write(path.join(ROOT, "shards", "chars-major.md"), charsMajor);
-await write(path.join(ROOT, "shards", "locations.md"), locations);
-await write(path.join(ROOT, "shards", "threads.md"), threads);
-if (canonClock) await write(path.join(ROOT, "shards", "clock.md"), canonClock);
-if (canonBeats) await write(path.join(ROOT, "shards", "beats.md"), canonBeats);
-if (canonFs) await write(path.join(ROOT, "shards", "foreshadows.md"), canonFs);
-if (canonModel) await write(path.join(ROOT, "shards", "world-model.md"), canonModel);
+await writeJson(path.join(ROOT, "world", "chars.json"), charsJson);
+await writeJson(path.join(ROOT, "world", "locations.json"), v0World.locations ?? []);
+await writeJson(path.join(ROOT, "world", "threads.json"), v0World.threads ?? []);
+await writeJson(path.join(ROOT, "world", "relations.json"), v0World.relations ?? []);
+
+if (canonChars) await write(path.join(ROOT, "world", "characters.md"), canonChars);
+if (canonWorld) await write(path.join(ROOT, "world", "world-notes.md"), canonWorld);
 
 if (styleGuide) await write(path.join(ROOT, "rules", "style-guide.md"), styleGuide);
 if (storyRules) await write(path.join(ROOT, "rules", "continuation-rules.md"), storyRules);
@@ -320,6 +326,12 @@ for (const f of ["timeline.jsonl", "affinity.jsonl", "npc.jsonl"]) {
 }
 
 await fs.mkdir(path.join(WORKSPACE, ".story", "sessions"), { recursive: true });
+await writeJson(path.join(WORKSPACE, ".story", "active.json"), {
+  storyId: ID,
+  entry: `./${ID}/story.json`,
+  rules: `./${ID}/rules.md`,
+  updatedAt: new Date().toISOString(),
+});
 
 const size = async (p) => ((await exists(p)) ? (await fs.stat(p)).size : 0);
 console.log(`migrated → ${ROOT}`);
@@ -327,9 +339,9 @@ console.log(`chapters: ${names.length}`);
 console.log(
   `beats: ${beats.length}  foreshadows: ${foreshadows.length}  affinity: ${Object.keys(affinity).length}`,
 );
-console.log(`RULES.md ${await size(path.join(ROOT, "RULES.md"))}B`);
-console.log(`shards/chars-core.md ${await size(path.join(ROOT, "shards", "chars-core.md"))}B`);
-console.log(`rules/style-guide.md ${await size(path.join(ROOT, "rules", "style-guide.md"))}B`);
+console.log(`rules.md ${await size(path.join(ROOT, "rules.md"))}B`);
+console.log(`world/chars.json ${await size(path.join(ROOT, "world", "chars.json"))}B`);
+console.log(`world/characters.md ${await size(path.join(ROOT, "world", "characters.md"))}B`);
 console.log(
   `rules/continuation-rules.md ${await size(path.join(ROOT, "rules", "continuation-rules.md"))}B`,
 );

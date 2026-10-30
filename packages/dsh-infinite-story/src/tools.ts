@@ -197,11 +197,11 @@ export function createRuntime(deps: ToolDeps) {
             const id = args.id.replace(/[\\/:*?"<>|]/g, "");
             const root = storyRoot(ws, id);
             if (!(await readStory(ws, id))) {
-              for (const d of [LAYOUT.shards, LAYOUT.chapters, LAYOUT.log]) {
+              for (const d of [LAYOUT.world, LAYOUT.chapters, LAYOUT.log]) {
                 await fs.mkdir(path.join(root, d), { recursive: true });
               }
               const now = new Date().toISOString();
-              await writeJson(path.join(root, LAYOUT.state), {
+              await writeJson(path.join(root, LAYOUT.story), {
                 version: 1,
                 story: args.title,
                 updatedAt: now,
@@ -221,27 +221,14 @@ export function createRuntime(deps: ToolDeps) {
               await writeJson(path.join(root, LAYOUT.beats), []);
               await writeJson(path.join(root, LAYOUT.foreshadows), []);
               await writeText(
-                path.join(root, LAYOUT.entry),
-                `# ${args.title}\n\n## 现在\n第 0 章 · 开篇\n\n## 去哪查\n- 规则 → [RULES.md](./RULES.md)\n- 世界 → [WORLD.md](./WORLD.md)\n- 人物 → [shards/chars-core.md](./${LAYOUT.shards}/chars-core.md)\n- 地点 → [shards/locations.md](./${LAYOUT.shards}/locations.md)\n- 线 → [shards/threads.md](./${LAYOUT.shards}/threads.md)\n\n## 悬置\n- \n`,
-              );
-              await writeText(
                 path.join(root, LAYOUT.rules),
                 args.rules ??
                   "# 故事规则（本故事特有）\n\n- 禁忌：\n- 称呼：\n- 节奏：慢写 亲密/对峙；跳过 通勤/上课\n",
               );
-              await writeText(
-                path.join(root, LAYOUT.world),
-                `# 世界索引\n\n- [核心人物](./${LAYOUT.shards}/chars-core.md)\n- [次要人物](./${LAYOUT.shards}/chars-major.md)\n- [地点](./${LAYOUT.shards}/locations.md)\n- [故事线](./${LAYOUT.shards}/threads.md)\n- [大事记](./${LAYOUT.shards}/events.md)\n`,
-              );
-              for (const f of [
-                "chars-core.md",
-                "chars-major.md",
-                "locations.md",
-                "threads.md",
-                "events.md",
-              ]) {
-                await writeText(path.join(root, LAYOUT.shards, f), `# ${f.replace(/\.md$/, "")}\n`);
-              }
+              await writeJson(path.join(root, LAYOUT.chars), []);
+              await writeJson(path.join(root, LAYOUT.locations), []);
+              await writeJson(path.join(root, LAYOUT.threads), []);
+              await writeJson(path.join(root, LAYOUT.relations), []);
               await writeText(path.join(root, LAYOUT.chapters, "00-开篇.md"), "# 00 · 开篇\n");
             }
             await save({ enabled: true, storyId: id, updatedAt: "" });
@@ -367,7 +354,7 @@ export function createRuntime(deps: ToolDeps) {
           if (args.lastBeat) bundle.state.cursor.lastBeat = args.lastBeat;
           bundle.state.cursor.storyTime = bundle.clock.now;
           bundle.state.updatedAt = new Date().toISOString();
-          await writeJson(path.join(bundle.root, LAYOUT.state), bundle.state);
+          await writeJson(path.join(bundle.root, LAYOUT.story), bundle.state);
 
           await fs.mkdir(path.join(bundle.root, LAYOUT.log), { recursive: true });
           const logLine = JSON.stringify({

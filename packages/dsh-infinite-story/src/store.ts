@@ -5,15 +5,19 @@ import type { Beat, Clock, Foreshadow, StoryBundle, StoryState } from "./model.j
 /** Directory layout of one story. */
 export const LAYOUT = {
   dir: ".story",
-  active: "ACTIVE.md",
+  /** Fixed pointer read by the system prompt: `{ "storyId": "…" }`. */
+  active: "active.json",
   sessions: "sessions",
-  entry: "STORY.md",
-  rules: "RULES.md",
-  world: "WORLD.md",
-  shards: "shards",
+  /** The story's own entry: progress + where every other file lives. */
+  story: "story.json",
+  rules: "rules.md",
+  world: "world",
+  chars: "world/chars.json",
+  locations: "world/locations.json",
+  threads: "world/threads.json",
+  relations: "world/relations.json",
   chapters: "chapters",
   log: "log",
-  state: "state.json",
   clock: "clock.json",
   beats: "beats.json",
   foreshadows: "foreshadows.json",
@@ -80,7 +84,7 @@ export async function readStory(workspace: string, id: string): Promise<StoryBun
   const root = storyRoot(workspace, id);
   let state: StoryState;
   try {
-    state = JSON.parse(await fs.readFile(path.join(root, LAYOUT.state), "utf8")) as StoryState;
+    state = JSON.parse(await fs.readFile(path.join(root, LAYOUT.story), "utf8")) as StoryState;
   } catch {
     return null;
   }
@@ -109,24 +113,22 @@ export async function listStories(workspace: string): Promise<string[]> {
 /** Which story this session is bound to; the pointer file is the single source. */
 export async function readActive(workspace: string): Promise<string | null> {
   try {
-    const text = await fs.readFile(activePath(workspace), "utf8");
-    const hit = /\.\/([^\s/]+)\/STORY\.md/.exec(text);
-    return hit?.[1] ?? null;
+    const raw = JSON.parse(await fs.readFile(activePath(workspace), "utf8")) as {
+      storyId?: string;
+    };
+    return raw.storyId ?? null;
   } catch {
     return null;
   }
 }
 
 export async function writeActive(workspace: string, id: string): Promise<void> {
-  const body = [
-    "# 当前故事",
-    "",
-    `- 入口：./${id}/${LAYOUT.entry}`,
-    `- 规则：./${id}/${LAYOUT.rules}`,
-    `- 分片：./${id}/${LAYOUT.shards}/`,
-    "",
-  ].join("\n");
-  await writeText(activePath(workspace), body);
+  await writeJson(activePath(workspace), {
+    storyId: id,
+    entry: `./${id}/${LAYOUT.story}`,
+    rules: `./${id}/${LAYOUT.rules}`,
+    updatedAt: new Date().toISOString(),
+  });
 }
 
 export async function nextChapterFile(
