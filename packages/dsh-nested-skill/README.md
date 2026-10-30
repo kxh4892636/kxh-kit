@@ -29,17 +29,21 @@ caching it.
 
 ## Compatibility
 
-Built and verified against DSH `0.2.1-rc.3`, the version bundled with the
-DeepSeek Harness desktop app (`DeepSeek Harness.exe`). The DSH peers
-(`@deepseek-ai/dsh-fs`, `@deepseek-ai/dsh-skill`, `@deepseek-ai/dsh-home-paths`)
-are pinned to that exact version rather than a range: `^0.2.1-rc.3` would also
-accept `0.2.1-rc.4`, whose own peers demand `rc.4`, reintroducing the mixed
-install ADR-0003 rules out.
+No host version is pinned. The DSH peers (`@deepseek-ai/dsh-fs`,
+`@deepseek-ai/dsh-skill`, `@deepseek-ai/dsh-home-paths`) declare only a floor —
+`>=0.2.1-rc.3`, the API generation the provider contract was written against —
+so any newer host, prerelease or stable, satisfies them. There is no upper bound
+to re-align on a host bump, and no `engines.dsh` field:
 
-`dsh` 0.2.x evaluates a plugin's manifest before it activates one: with no
+`dsh` 0.2.x evaluates a plugin's manifest before it activates one; with no
 `engines.dsh` field, every `@deepseek-ai/dsh*` peer range must include the
-running version. A host bump therefore refuses to load this plugin until the
-pins are re-checked and re-aligned — the intended behavior, not an accident.
+running version. An open-ended floor satisfies that check for the whole 0.2.x
+line and beyond, so a desktop or web host upgrade keeps loading this plugin
+instead of refusing it.
+
+The contract was re-read against the desktop host's bundled `0.2.1-rc.5`
+(`dsh-skill` provider registration, `SkillCandidate` validation,
+`fs/observed` payload, `resolveAgentsHome`) and is unchanged from `rc.3`.
 
 Provider contract types come straight from the peers (`@deepseek-ai/dsh-skill`,
 `@deepseek-ai/dsh-fs`); skill-name validation uses the host's own `isSkillName`
