@@ -322,13 +322,12 @@ const storyEntry = {
     beats: "beats.json",
     foreshadows: "foreshadows.json",
     chapters: "chapters/",
-    archive: "archive/",
   },
 };
 
 // ---------- write ----------
 await fs.rm(ROOT, { recursive: true, force: true });
-for (const d of ["world", "chapters", "log", "archive"]) {
+for (const d of ["world", "chapters", "log"]) {
   await fs.mkdir(path.join(ROOT, d), { recursive: true });
 }
 
@@ -358,21 +357,17 @@ for (const f of ["timeline.jsonl", "affinity.jsonl", "npc.jsonl"]) {
   if (await exists(src)) await fs.copyFile(src, path.join(ROOT, "log", f));
 }
 
-// 归档：v0 的机制细则与世界模型原样保留，运行时不读，但内容不丢
-await fs.mkdir(path.join(ROOT, "archive"), { recursive: true });
-for (const [src, name] of [
-  ["canon/clock.md", "clock.md"],
-  ["canon/beats.md", "beats.md"],
-  ["canon/foreshadows.md", "foreshadows.md"],
-  ["canon/world-model.md", "world-model.md"],
-  ["canon/characters.md", "characters.full.md"],
-  ["canon/world.md", "world.full.md"],
-  ["rules/style-guide.md", "style-guide.md"],
-  ["rules/continuation-rules.md", "continuation-rules.md"],
-  ["log/expired.md", "expired.md"],
-]) {
-  const from = path.join(FROM, src);
-  if (await exists(from)) await fs.copyFile(from, path.join(ROOT, "archive", name));
+// 语义覆盖，不留副本：world-model 里唯一没被别处覆盖的是「规模与扩容预案」，并入 world-notes
+const modelMd = await readText(path.join(FROM, "canon", "world-model.md"));
+const gStart = modelMd.search(/^## 九、规模/m);
+const gEnd = modelMd.search(/^## 十、/m);
+const growth = gStart >= 0 ? modelMd.slice(gStart, gEnd > gStart ? gEnd : undefined).trim() : "";
+if (growth) {
+  const notes = await readText(path.join(ROOT, "world", "world-notes.md"));
+  await write(path.join(ROOT, "world", "world-notes.md"), `${notes}\n\n---\n\n${growth}\n`);
+}
+if (await exists(path.join(FROM, "log", "expired.md"))) {
+  await fs.copyFile(path.join(FROM, "log", "expired.md"), path.join(ROOT, "log", "expired.md"));
 }
 
 await fs.mkdir(path.join(WORKSPACE, ".story", "sessions"), { recursive: true });
