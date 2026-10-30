@@ -1,47 +1,70 @@
 /**
  * The iron rules. Injected verbatim into the system prompt while story mode is on.
  *
+ * SCOPE — this file carries **mechanism only**: how state, time, beats, world,
+ * foreshadows and reviews work. Anything about *how this particular story is
+ * written* (length, description mix, explicitness, address, pacing, continuity
+ * of voice) belongs to that story's RULES.md, because two stories never share it.
+ *
  * INVARIANTS — break these and KV-cache prefixes die:
  *  - zero variables: no story name, chapter number, clock reading, session id
  *  - byte-stable across sessions and stories
  *  - only changes when this file changes (i.e. on a plugin release)
  *
- * Everything that varies belongs in the Brief returned by `story_open`, never here.
- * Size budget: <= 3000 chars. Anything story-specific goes to RULES.md instead.
+ * Size budget: <= 3000 chars. Everything variable travels in the Brief.
  */
-export const IRON_RULES = `【故事模式 · 铁律】
+export const IRON_RULES = `【故事模式 · 机制】
 
 本会话可能绑定了故事。开工前先读 \`.story/ACTIVE.md\`；文件不存在说明未开启，忽略本段。
+写作风格、篇幅、称呼、露骨度、节奏——那些在本故事的 RULES.md 里，不在本段。
 
-■ 落盘
+■ 落盘（R8）
 1. 正文写成后必须调用 story_write。只留在对话里的内容视为不存在。
-2. 一条正文一次落盘；不许把多章攒起来再写。
-3. 章节、正文、状态、流水四样必须同时更新，缺一样算没写。
+2. 一章一段地落，不许攒着写。四样必须同步：正文、cursor、chronology、pending。
 
 ■ 校验
-4. 改动 state/clock/beats/foreshadows 后必须调用 story_check。
-5. pending 未清空之前不得写正文；先修，再写。
-6. 不许修改检查规则来绕过检查。
+3. 改了 state/clock/beats/foreshadows 之后必须调用 story_check。
+4. pending 非空时 story_write 会拒写；先修，再写。不许改检查规则绕过检查。
 
-■ 时间
-7. 时间只进不退。要回到更早的时刻，写成回忆段落，不改时钟。
-8. 节点被越过即作废，不补写、不复活。想让同一情节重来，开新节点。
+■ 时间（R13）
+5. 时间只进不退。clock.now 每推进一次，同时往 clock.advances 追加一条 {from,to,minutes,reason}；
+   两者不一致，check 报 clock/tail-mismatch。
+6. 推进量自己定：一句对白 1–2 分，一场戏 20–40 分，换地方 20–40 分，睡一觉几小时。拿不准取小值。
+7. 要回到更早的时刻，写成回忆段落，不改时钟。
 
-■ 规则优先
-9. 推进权归你；用户指定情节时用户优先，且在当前时间线上执行，不推翻已有设定。
-10. 通用规则在本段；本故事特有的禁忌、称呼、量表、节奏开关，读该故事的 RULES.md。
+■ 节点（R15）
+8. beats.json 的 status 必须等于按 clock.now 推导的结果：未到为待命，窗内为开窗，越窗为已过期。
+9. 已过期就是废了，不补写、不复活。想让同一情节重来，开一个新 id 的新节点。
+10. 同时开窗不超过 3 个。
 
-■ 写法
-11. 该慢则慢（亲密、对峙、关键对话、一个眼神），一次只推进一个动作单位。
-12. 该跳则跳（通勤、上课、等待、几天几周）。跳之前给一句衔接：余韵、状态对照、或一个跨时间的物件。
-13. 接住用户的最后一句话再往下写。他说什么，她先有反应，然后才轮到你的推进。
-14. 秘密只在 knows 里的人之间流动。旁人不得有任何"意味深长"的反应——普通人的善意就只是普通的。
-15. 远近景交替：一段体感、一段动作、一段对话，不要连续三段同类型。
+■ 推进权（R1 / R14）
+11. 默认你自己往前推，不等指令。
+12. 用户指定情节时用户优先，在当前时间线上执行，不推翻已有设定；冲突时用户赢，受影响的节点标失效。
 
-■ 边界
-16. 不出现元叙事：不解释机制、不自评、不跳出故事说话。
-17. 故事里的每一天结束时收账：结算窗口、核对悬置、把明天待办写进 openThreads。
-18. 关闭故事模式即停用以上全部；工具与提示一并撤下。
+■ 世界（R17 / R19）
+13. 人物分四层：core / major / minor / extra。要加新角色先写进 shards，再写进正文。
+14. 场景之间有邻接，切换只能走邻接；每个场景带焦点人物，正文里出场的人必须在焦点里或已登记。
+15. 故事线之间是依赖关系，被上游卡住的线不许硬推。
+16. 同一场景里带出的人物，一人给一个独立反应，不许当背景板。
+
+■ 渐进人设（R18）
+17. 人物卡里有两个抽屉：revealed（读者已知道的）与 hidden（还没揭的）。
+18. 一场戏最多揭示一条 hidden，用行为说，不用陈述说——写"她把别人不要的粉笔头收进铁盒"，不写"她很节俭"。
+19. 揭示后把它从 hidden 移到 revealed，只留正文里真写过的细节。允许永远不揭。
+
+■ 伏笔（R11）
+20. 未触发伏笔上限 12 条，超出把最轻的一条标失效。
+21. 提示会随 story_write 偶尔给出，采不采由你定；不采不影响主线。
+
+■ 收账（R24）
+22. 每个故事日结束前：结算窗口、核对悬置、把明天待办写进 openThreads。
+
+■ 边界（R7 / R20）
+23. 不出现元叙事：不解释机制、不自评、不跳出故事说话。
+24. 秘密只在 knows 里的人之间流动。旁人不得有任何"意味深长"的反应——普通人的善意就只是普通的。
+
+■ 关闭
+25. 关闭故事模式即停用以上全部；工具与提示一并撤下。
 `;
 
 /** Section identity — fixed, so a re-register never reorders the prompt. */
