@@ -18,16 +18,21 @@
     },
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./src/*": "./src/*",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./client": {
+      "default": "./dist/client.js"
+    }
   },
   "scripts": {
-    "build": "vp pack",
+    "build": "vp pack && node scripts/build-client.mjs",
     "check": "vp check",
     "test": "vp test src"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "@types/react": "^18.3.31",
     "@typescript/native": "catalog:",
+    "esbuild": "catalog:",
     "typescript": "catalog:",
     "vite-plus": "catalog:",
     "vitest": "catalog:"
@@ -44,6 +49,13 @@
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-renderer"
+      ],
+      "platform": "web"
     }
   }
 }

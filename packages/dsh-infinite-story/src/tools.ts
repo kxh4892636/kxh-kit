@@ -29,6 +29,7 @@ type Disposer = () => void;
 interface Ctx {
   tools: { register: (def: unknown) => Disposer };
   systemPrompt: { section: (sec: unknown) => unknown };
+  agents?: { get?: (id: string) => { ctx?: Ctx } | undefined };
 }
 interface Exec {
   agent?: unknown;
@@ -120,6 +121,21 @@ export function createRuntime(deps: ToolDeps) {
     });
     if (typeof d === "function") sections.set(key, d as Disposer);
     else sections.set(key, () => {});
+  };
+
+  /** GUI path: no tool call, so resolve the agent by session id. */
+  const ensureSectionFor = (session: string): void => {
+    if (sections.has(session)) return;
+    const agent = deps.fallbackCtx.agents?.get?.(session);
+    const target = agent?.ctx ?? deps.fallbackCtx;
+    const d = target.systemPrompt.section({
+      name: SECTION_NAME,
+      order: SECTION_ORDER,
+      text: IRON_RULES,
+      interpolate: false,
+    });
+    if (typeof d === "function") sections.set(session, d as Disposer);
+    else sections.set(session, () => {});
   };
 
   const dropSection = (key: string): void => {
@@ -443,6 +459,18 @@ export function createRuntime(deps: ToolDeps) {
   );
 
   return {
+    /** Enable/disable a session's section from outside a tool call (GUI switch). */
+    setSection(session: string, enabled: boolean): void {
+      if (enabled) {
+        ensureSectionFor(session);
+      } else {
+        dropSection(session);
+      }
+    },
+    readBinding: (session: string) => readSession(workspace(), session),
+    writeBinding: (session: string, next: SessionBinding) =>
+      writeSession(workspace(), session, next),
+    listStories: () => listStories(workspace()),
     /** Drop every session section on unload. */
     dispose(): void {
       for (const d of unregisterTools.splice(0)) {
