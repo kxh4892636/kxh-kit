@@ -44,3 +44,6 @@ release
 # Test coverage reports
 coverage
 .vitest/
+
+# Story-mode runtime data (private drafts, not source)
+.story/

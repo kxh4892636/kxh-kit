@@ -1,0 +1,4 @@
+# dsh-infinite-story bundle patch: mounts the story runtime over the profile.
+- insert:
+    - id: infinite-story
+      name: "@kxh4892636/dsh-infinite-story"
