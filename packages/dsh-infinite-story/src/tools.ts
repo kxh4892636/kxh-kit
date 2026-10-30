@@ -9,19 +9,15 @@ import {
   LAYOUT,
   listStories,
   nextChapterFile,
-  readSession,
+  readActive,
   readStory,
-  storyRoot,
-  writeSession,
+  writeActive,
   writeJson,
-  writeText,
-  type SessionBinding,
 } from "./store.js";
 
 export interface ToolDeps {
   /** Absolute workspace root — where `.story/` lives. */
   workspace: () => string;
-  /** Plugin-root context, used when a call carries no agent-scoped context. */
   fallbackCtx: Ctx;
 }
 
@@ -29,26 +25,9 @@ type Disposer = () => void;
 interface Ctx {
   tools: { register: (def: unknown) => Disposer };
   systemPrompt: { section: (sec: unknown) => unknown };
-  agents?: { get?: (id: string) => { ctx?: Ctx } | undefined };
-}
-interface Exec {
-  agent?: unknown;
 }
 
 const text = (value: string) => [{ type: "text" as const, text: value }];
-
-/** Session identity: the switch is per-conversation, never workspace-wide. */
-function sessionKey(exec: Exec | undefined): string {
-  const agent = exec?.agent as
-    | { id?: string; sessionId?: string; session?: { id?: string } }
-    | undefined;
-  return String(agent?.sessionId ?? agent?.session?.id ?? agent?.id ?? "local");
-}
-
-function agentCtx(exec: Exec | undefined, fallback: Ctx): Ctx {
-  const agent = exec?.agent as { ctx?: Ctx } | undefined;
-  return agent?.ctx ?? fallback;
-}
 
 async function chaptersOf(root: string): Promise<string[]> {
   try {
@@ -77,14 +56,13 @@ async function savePending(root: string, issues: GuardIssue[]): Promise<void> {
   await writeJson(path.join(root, LAYOUT.pending), errors);
 }
 
-const OFF_HINT =
-  "故事模式未开启（本会话）。用 story_mode action=on 绑定一个故事，或 action=new 新建。";
+const NO_STORY = "还没有绑定故事：调用 story_mode action=bind id=<故事目录>。";
 
-async function loadBound(workspace: string, key: string): Promise<StoryBundle> {
-  const binding = await readSession(workspace, key);
-  if (!binding.enabled || !binding.storyId) throw new Error(OFF_HINT);
-  const bundle = await readStory(workspace, binding.storyId);
-  if (!bundle) throw new Error(`绑定的故事目录损坏或不存在：.story/${binding.storyId}`);
+async function loadBound(workspace: string): Promise<StoryBundle> {
+  const id = await readActive(workspace);
+  if (!id) throw new Error(NO_STORY);
+  const bundle = await readStory(workspace, id);
+  if (!bundle) throw new Error(`绑定的故事目录损坏或不存在：.story/${id}`);
   return bundle;
 }
 
@@ -97,177 +75,78 @@ function digestRules(markdown: string): string {
 }
 
 /**
- * Story mode runtime.
+ * Story mode.
  *
- * Scope is the **session**, not the workspace:
- *  - binding lives in `.story/sessions/<key>.json`
- *  - the iron-rules section is registered on the calling agent's context, so it
- *    only reaches sessions that turned the mode on
- *  - tools stay registered (they are global by contract) but every body checks
- *    the calling session's binding first
+ * Mounting this plugin IS the switch: the "故事模式" agent preset carries the row,
+ * so selecting the preset turns story mode on and selecting another preset turns it
+ * off. No per-session file, no UI toggle — the preset selector is the UI.
+ *
+ * What the preset does not decide is *which* story: that lives in
+ * `.story/active.json`, so many sessions can run the same preset against one story.
  */
 export function createRuntime(deps: ToolDeps) {
   const workspace = deps.workspace;
-  const sections = new Map<string, Disposer>();
+  const disposers: Disposer[] = [];
 
-  const ensureSection = (exec: Exec | undefined, key: string): void => {
-    if (sections.has(key)) return;
-    const target = agentCtx(exec, deps.fallbackCtx);
-    const d = target.systemPrompt.section({
-      name: SECTION_NAME,
-      order: SECTION_ORDER,
-      text: IRON_RULES,
-      interpolate: false,
-    });
-    if (typeof d === "function") sections.set(key, d as Disposer);
-    else sections.set(key, () => {});
-  };
+  const section = deps.fallbackCtx.systemPrompt.section({
+    name: SECTION_NAME,
+    order: SECTION_ORDER,
+    text: IRON_RULES,
+    interpolate: false,
+  });
+  if (typeof section === "function") disposers.push(section as Disposer);
 
-  /** GUI path: no tool call, so resolve the agent by session id. */
-  const ensureSectionFor = (session: string): void => {
-    if (sections.has(session)) return;
-    const agent = deps.fallbackCtx.agents?.get?.(session);
-    const target = agent?.ctx ?? deps.fallbackCtx;
-    const d = target.systemPrompt.section({
-      name: SECTION_NAME,
-      order: SECTION_ORDER,
-      text: IRON_RULES,
-      interpolate: false,
-    });
-    if (typeof d === "function") sections.set(session, d as Disposer);
-    else sections.set(session, () => {});
-  };
-
-  const dropSection = (key: string): void => {
-    const d = sections.get(key);
-    if (!d) return;
-    sections.delete(key);
-    try {
-      d();
-    } catch {
-      /* already gone */
-    }
-  };
-
-  const unregisterTools: Disposer[] = [];
-
-  unregisterTools.push(
+  disposers.push(
     deps.fallbackCtx.tools.register(
       defineTool({
         name: "story_mode",
         description:
-          "故事模式开关（按会话生效）。status 看本会话绑定；on 绑定已有故事并开启；off 关闭本会话；new 新建并开启。",
+          "故事模式已由「故事模式」预设开启。本工具只做两件事：status 看当前绑定与可用故事；bind 切换本工作区绑定的故事。",
         parameters: {
-          action: { type: "string", required: true, description: "status | on | off | new" },
-          id: { type: "string", description: "on / new 时的故事目录名" },
-          title: { type: "string", description: "new 时的故事标题" },
-          rules: { type: "string", description: "new 时的 RULES.md 初始内容" },
+          action: { type: "string", required: true, description: "status | bind" },
+          id: { type: "string", description: "bind 时的故事目录名" },
         },
         output: { schema: { type: "string" }, render: (_a: unknown, v: string) => text(v) },
-        async execute(
-          args: { action: string; id?: string; title?: string; rules?: string },
-          exec: Exec,
-        ) {
+        async execute(args: { action: string; id?: string }) {
           const ws = workspace();
-          const key = sessionKey(exec);
-          const action = args.action?.trim();
-          const binding = await readSession(ws, key);
+          const bound = await readActive(ws);
+          const ids = await listStories(ws);
 
-          const save = async (next: SessionBinding) => writeSession(ws, key, next);
-
-          if (action === "status") {
-            const ids = await listStories(ws);
+          if (args.action === "status") {
             return [
-              `故事模式：${binding.enabled ? "已开启" : "已关闭"}（本会话 ${key}）`,
-              `绑定：${binding.storyId ?? "（无）"}`,
+              "故事模式：已开启（由预设挂载）",
+              `绑定：${bound ?? "（无）"}`,
               ids.length
-                ? `工作区故事：\n${ids.map((i) => `${i === binding.storyId ? "▶" : " "} ${i}`).join("\n")}`
-                : "工作区故事：（还没有）",
+                ? `可用故事：\n${ids.map((i) => `${i === bound ? "▶" : " "} ${i}`).join("\n")}`
+                : "可用故事：（还没有，先在 .story/ 下建一个）",
             ].join("\n");
           }
 
-          if (action === "off") {
-            await save({ enabled: false, storyId: binding.storyId, updatedAt: "" });
-            dropSection(key);
-            return "本会话故事模式已关闭。文件都还在，重新 on 即可继续。";
-          }
-
-          if (action === "new") {
-            if (!args.id || !args.title) return "new 需要 id 与 title。";
-            const id = args.id.replace(/[\\/:*?"<>|]/g, "");
-            const root = storyRoot(ws, id);
-            if (!(await readStory(ws, id))) {
-              for (const d of [LAYOUT.world, LAYOUT.chapters, LAYOUT.log]) {
-                await fs.mkdir(path.join(root, d), { recursive: true });
-              }
-              const now = new Date().toISOString();
-              await writeJson(path.join(root, LAYOUT.story), {
-                version: 1,
-                story: args.title,
-                updatedAt: now,
-                cursor: {
-                  chapter: 0,
-                  chapterFile: "00-开篇.md",
-                  scene: "开篇",
-                  storyTime: now,
-                  location: "",
-                  lastBeat: "",
-                },
-                openThreads: [],
-                affinity: {},
-                meters: {},
-              });
-              await writeJson(path.join(root, LAYOUT.clock), { now, advances: [] });
-              await writeJson(path.join(root, LAYOUT.beats), []);
-              await writeJson(path.join(root, LAYOUT.foreshadows), []);
-              await writeText(
-                path.join(root, LAYOUT.rules),
-                args.rules ??
-                  "# 故事规则（本故事特有）\n\n- 禁忌：\n- 称呼：\n- 节奏：慢写 亲密/对峙；跳过 通勤/上课\n",
-              );
-              await writeJson(path.join(root, LAYOUT.chars), []);
-              await writeJson(path.join(root, LAYOUT.locations), []);
-              await writeJson(path.join(root, LAYOUT.threads), []);
-              await writeJson(path.join(root, LAYOUT.relations), []);
-              await writeText(path.join(root, LAYOUT.chapters, "00-开篇.md"), "# 00 · 开篇\n");
-            }
-            await save({ enabled: true, storyId: id, updatedAt: "" });
-            ensureSection(exec, key);
-            return `已创建并开启：.story/${id}（本会话）\n调用 story_open 拿 Brief。`;
-          }
-
-          if (action === "on") {
-            let id = args.id ?? binding.storyId ?? undefined;
-            if (!id) {
-              const ids = await listStories(ws);
-              if (ids.length === 0) return "还没有故事。先 story_mode action=new。";
-              if (ids.length > 1) return `有多个故事，请指定 id：${ids.join("、")}`;
-              id = ids[0];
-            }
-            if (!id) return "还没有故事。先 story_mode action=new。";
+          if (args.action === "bind") {
+            const id = args.id;
+            if (!id) return `bind 需要 id。可用：${ids.join("、") || "（无）"}`;
             if (!(await readStory(ws, id))) return `没有这个故事：${id}`;
-            await save({ enabled: true, storyId: id, updatedAt: "" });
-            ensureSection(exec, key);
-            return `本会话已开启故事模式：${id}\n调用 story_open 拿 Brief。`;
+            await writeActive(ws, id);
+            return `已绑定：${id}\n调用 story_open 拿 Brief。`;
           }
 
-          return "未知 action。可用：status | on | off | new";
+          return "未知 action。可用：status | bind";
         },
       }),
     ),
   );
 
-  unregisterTools.push(
+  disposers.push(
     deps.fallbackCtx.tools.register(
       defineTool({
         name: "story_open",
         description:
-          "打开本会话绑定的故事，返回操作手册（此刻、上一拍、附近节点、悬置、伏笔、待修问题）。开工前必读。",
+          "打开绑定的故事，返回操作手册（此刻、上一拍、附近节点、悬置、伏笔、待修问题）。开工前必读。",
         parameters: {},
         output: { schema: { type: "string" }, render: (_a: unknown, v: string) => text(v) },
-        async execute(_args: unknown, exec: Exec) {
+        async execute() {
           const ws = workspace();
-          const bundle = await loadBound(ws, sessionKey(exec));
+          const bundle = await loadBound(ws);
           const issues = guard({ bundle, chapters: await chaptersOf(bundle.root) });
           await savePending(bundle.root, issues);
           let rulesDigest = "";
@@ -276,7 +155,7 @@ export function createRuntime(deps: ToolDeps) {
               await fs.readFile(path.join(bundle.root, LAYOUT.rules), "utf8"),
             );
           } catch {
-            /* no RULES.md yet */
+            /* no rules.md yet */
           }
           return renderBrief(bundle, {
             pending: issues.filter((i) => i.level === "error"),
@@ -287,7 +166,7 @@ export function createRuntime(deps: ToolDeps) {
     ),
   );
 
-  unregisterTools.push(
+  disposers.push(
     deps.fallbackCtx.tools.register(
       defineTool({
         name: "story_write",
@@ -306,19 +185,16 @@ export function createRuntime(deps: ToolDeps) {
           chapterTitle: { type: "string", description: "切到新章时给章标题" },
         },
         output: { schema: { type: "string" }, render: (_a: unknown, v: string) => text(v) },
-        async execute(
-          args: {
-            text: string;
-            scene?: string;
-            location?: string;
-            lastBeat?: string;
-            chapter?: number;
-            chapterTitle?: string;
-          },
-          exec: Exec,
-        ) {
+        async execute(args: {
+          text: string;
+          scene?: string;
+          location?: string;
+          lastBeat?: string;
+          chapter?: number;
+          chapterTitle?: string;
+        }) {
           const ws = workspace();
-          const bundle = await loadBound(ws, sessionKey(exec));
+          const bundle = await loadBound(ws);
 
           const pending = await pendingIssues(bundle.root);
           if (pending.length > 0) {
@@ -385,7 +261,7 @@ export function createRuntime(deps: ToolDeps) {
               "",
               "── 语义检查（每章一次）──",
               `可以委派一个 subagent 审第 ${chapterNo} 章快照：`,
-              `  读 .story/${bundle.id}/RULES.md、.story/${bundle.id}/shards/chars-core.md、chapters/${path.basename(target)}`,
+              `  读 .story/${bundle.id}/rules.md、.story/${bundle.id}/world/characters.md、chapters/${path.basename(target)}`,
               "  只报违规、不改稿：禁忌项（引原文为证）、称呼与口癖漂移、外人越权知情、结局基调偏离。",
               "  结构校验已经在刚才写入时跑过，不必重复。",
             );
@@ -396,17 +272,17 @@ export function createRuntime(deps: ToolDeps) {
     ),
   );
 
-  unregisterTools.push(
+  disposers.push(
     deps.fallbackCtx.tools.register(
       defineTool({
         name: "story_check",
         description:
-          "主动复查故事结构（章节连续、cursor、时钟单调、节点状态、伏笔与好感度）。结构校验已内建在 story_write 里，平时不必手动调用；本工具用于改完状态文件后主动复核，或拿一份语义检查工单。",
+          "主动复查故事结构（章节连续、cursor、时钟单调、节点状态、伏笔与好感度）。结构校验已内建在 story_write 里；本工具用于改完状态文件后主动复核，或拿一份语义检查工单。",
         parameters: {},
         output: { schema: { type: "string" }, render: (_a: unknown, v: string) => text(v) },
-        async execute(_args: unknown, exec: Exec) {
+        async execute() {
           const ws = workspace();
-          const bundle = await loadBound(ws, sessionKey(exec));
+          const bundle = await loadBound(ws);
           const issues = guard({ bundle, chapters: await chaptersOf(bundle.root) });
           await savePending(bundle.root, issues);
 
@@ -428,17 +304,17 @@ export function createRuntime(deps: ToolDeps) {
           );
           lines.push("任务：以读者视角审最新章节，只报违规，不改稿。");
           lines.push(
-            `读这些文件：.story/${bundle.id}/RULES.md、.story/${bundle.id}/shards/chars-core.md、.story/${bundle.id}/chapters/ 下最近两章。`,
+            `读这些文件：.story/${bundle.id}/rules.md、.story/${bundle.id}/world/characters.md、.story/${bundle.id}/chapters/ 下最近两章。`,
           );
           lines.push("逐条判：");
-          lines.push("  1. 是否触犯 RULES.md 里的禁忌项（引用原文片段作为证据）");
-          lines.push("  2. 人物语气是否漂移：称呼、自称、口癖是否与 chars-core.md 的样本一致");
+          lines.push("  1. 是否触犯 rules.md 里的禁忌项（引用原文片段作为证据）");
+          lines.push("  2. 人物语气是否漂移：称呼、自称、口癖是否与 characters.md 的样本一致");
           lines.push("  3. 是否出现「外人识破关系」类越权知情");
           lines.push("  4. 结局基调是否偏离已声明的方向");
           lines.push(
             "输出格式：{pass: boolean, violations: [{rule, evidence, location}], suggestion}",
           );
-          if (rules.trim()) lines.push("", "本故事 RULES.md 摘要：", digestRules(rules));
+          if (rules.trim()) lines.push("", "本故事 rules.md 摘要：", digestRules(rules));
           return lines.join("\n");
         },
       }),
@@ -446,29 +322,15 @@ export function createRuntime(deps: ToolDeps) {
   );
 
   return {
-    /** Enable/disable a session's section from outside a tool call (GUI switch). */
-    setSection(session: string, enabled: boolean): void {
-      if (enabled) {
-        ensureSectionFor(session);
-      } else {
-        dropSection(session);
-      }
-    },
-    readBinding: (session: string) => readSession(workspace(), session),
-    writeBinding: (session: string, next: SessionBinding) =>
-      writeSession(workspace(), session, next),
-    listStories: () => listStories(workspace()),
-    /** Drop every session section on unload. */
     dispose(): void {
-      for (const d of unregisterTools.splice(0)) {
+      for (const d of disposers.splice(0)) {
         try {
           d();
         } catch {
           /* already gone */
         }
       }
-      for (const key of sections.keys()) dropSection(key);
     },
-    sessionCount: () => sections.size,
+    toolCount: () => 4,
   };
 }
