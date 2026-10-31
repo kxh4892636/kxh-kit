@@ -50,8 +50,20 @@ const text = (value: string) => [{ type: "text" as const, text: value }];
 
 /** Background bookkeeping: silent on success, only drift reaches the session. */
 function jobRegistry(ctx: Ctx): JobRegistry | undefined {
-  const viaGet = typeof ctx.get === "function" ? ctx.get("jobs") : undefined;
-  return (ctx.jobs ?? (viaGet as JobRegistry | undefined)) || undefined;
+  try {
+    const direct = ctx.jobs;
+    if (direct) return direct;
+  } catch {
+    /* service not injected into this composition */
+  }
+  try {
+    return (
+      (typeof ctx.get === "function" ? (ctx.get("jobs") as JobRegistry | undefined) : undefined) ||
+      undefined
+    );
+  } catch {
+    return undefined;
+  }
 }
 
 /** The job's owner is the calling Session, when the execution context exposes it. */

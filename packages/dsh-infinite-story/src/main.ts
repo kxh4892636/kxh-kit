@@ -15,7 +15,7 @@ export const Config: Schema<Config> = z.object({
 });
 
 export const name = "infinite-story";
-export const inject = ["tools", "systemPrompt"];
+export const inject = { required: ["tools", "systemPrompt"], optional: ["jobs"] };
 
 /**
  * Story mode is a **preset**, not a toggle.
