@@ -103,6 +103,30 @@ export async function autoRepair(bundle: StoryBundle, chapters: string[]): Promi
     }
   }
 
+  // 4.5 世界图：单向 link 补成双向
+  let linksChanged = false;
+  for (const loc of bundle.world.locations) {
+    for (const link of loc.links ?? []) {
+      const back = bundle.world.locations.find((l) => l.id === link);
+      if (back && !(back.links ?? []).includes(loc.id)) {
+        back.links = [...(back.links ?? []), loc.id];
+        linksChanged = true;
+        fixed.push(`${back.id}.links 补回 ${loc.id}`);
+      }
+    }
+  }
+  if (linksChanged) {
+    const file = path.join(bundle.root, LAYOUT.locations);
+    const raw = JSON.parse(await fs.readFile(file, "utf8")) as any;
+    if (Array.isArray(raw)) {
+      for (const loc of bundle.world.locations) {
+        const hit = raw.find((l: any) => l?.id === loc.id);
+        if (hit) hit.links = loc.links;
+      }
+      await writeJson(file, raw);
+    }
+  }
+
   // 5. 渐进人设：同一句同时留在 revealed 与 hidden —— 从 hidden 删掉
   let charsChanged = false;
   for (const char of bundle.world.chars) {

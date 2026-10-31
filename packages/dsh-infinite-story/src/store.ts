@@ -32,6 +32,7 @@ export const LAYOUT = {
   clock: "clock.json",
   beats: "beats.json",
   foreshadows: "foreshadows.json",
+  brief: "brief.md",
   pending: "pending-issues.json",
 } as const;
 

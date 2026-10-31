@@ -234,6 +234,99 @@ export function guard(input: GuardInput): GuardIssue[] {
       seen.add(item);
     }
   }
+  // ---- 世界图：闭合、可达、依赖无环 ----
+  const locationIds = new Set(bundle.world.locations.map((l) => l.id));
+  for (const loc of bundle.world.locations) {
+    for (const link of loc.links ?? []) {
+      const back = bundle.world.locations.find((l) => l.id === link);
+      if (!back) {
+        issues.push({
+          level: "error",
+          code: "world/link-missing",
+          message: `${loc.id} 连到不存在的场景 ${link}`,
+          fix: "补场景，或删掉这条 link",
+        });
+        continue;
+      }
+      if (!(back.links ?? []).includes(loc.id)) {
+        issues.push({
+          level: "error",
+          code: "world/link-oneway",
+          message: `${loc.id} → ${link} 是单向的（${link} 没有回指）`,
+          fix: `在 ${link}.links 里补 ${loc.id}`,
+        });
+      }
+    }
+    for (const id of loc.focus ?? []) {
+      if (!bundle.world.ids.has(id)) {
+        issues.push({
+          level: "error",
+          code: "world/focus-unknown",
+          message: `${loc.id} 的焦点人物 ${id} 没有登记`,
+          fix: "先在 chars.json 里登记，再放进 focus",
+        });
+      }
+    }
+  }
+
+  const threadIds = new Set(bundle.world.threads.map((t) => t.id));
+  for (const thread of bundle.world.threads) {
+    for (const dep of thread.dependsOn ?? []) {
+      if (!threadIds.has(dep)) {
+        issues.push({
+          level: "error",
+          code: "thread/dep-missing",
+          message: `${thread.id} 依赖不存在的线 ${dep}`,
+          fix: "补线，或删掉这条依赖",
+        });
+      }
+      if (dep === thread.id) {
+        issues.push({
+          level: "error",
+          code: "thread/self-dep",
+          message: `${thread.id} 依赖它自己`,
+          fix: "删掉自依赖",
+        });
+      }
+    }
+    for (const id of thread.participants ?? []) {
+      if (!bundle.world.ids.has(id)) {
+        issues.push({
+          level: "error",
+          code: "thread/participant-unknown",
+          message: `${thread.id} 的参与者 ${id} 没有登记`,
+          fix: "先在 chars.json 里登记",
+        });
+      }
+    }
+  }
+  // 依赖成环
+  const visit = (id: string, trail: string[]): void => {
+    if (trail.includes(id)) {
+      issues.push({
+        level: "error",
+        code: "thread/cycle",
+        message: `故事线依赖成环：${[...trail, id].join(" → ")}`,
+        fix: "打断环上的一条 dependsOn",
+      });
+      return;
+    }
+    const thread = bundle.world.threads.find((t) => t.id === id);
+    for (const dep of thread?.dependsOn ?? []) visit(dep, [...trail, id]);
+  };
+  for (const thread of bundle.world.threads) visit(thread.id, []);
+
+  for (const beat of bundle.beats) {
+    const scene = (beat as { scene?: string }).scene;
+    if (scene && !locationIds.has(scene)) {
+      issues.push({
+        level: "error",
+        code: "world/beat-scene",
+        message: `${beat.id} 挂在未登记的场景 ${scene}`,
+        fix: "先在 locations.json 里登记该场景",
+      });
+    }
+  }
   // ---- shards ----
   if (input.shardFiles) {
     const missing = input.shardFiles.filter((f) => !chapters.includes(f) && !f.endsWith(".md"));

@@ -9,6 +9,8 @@ export interface Cursor {
   storyTime: ISO;
   location: string;
   lastBeat: string;
+  /** 场景 id（world/locations.json 里的 id）。 */
+  locationId?: string;
 }
 
 export interface Affinity {
@@ -84,13 +86,18 @@ export interface WorldLocation {
   name: string;
   links?: string[];
   focus?: string[];
+  privacy?: number;
 }
 
 export interface WorldThread {
   id: string;
   title?: string;
+  status?: string;
+  weight?: string;
   dependsOn?: string[];
   participants?: string[];
+  /** 这条线接下来可写的东西（软提示）。 */
+  nextMoves?: string[];
 }
 
 export interface WorldRelation {

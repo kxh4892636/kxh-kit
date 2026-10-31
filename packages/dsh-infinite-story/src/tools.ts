@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { defineTool } from "@deepseek-ai/dsh-tools";
-import { renderBrief } from "./brief.js";
+import { briefIsFresh, writeBrief } from "./brief.js";
 import { autoRepair } from "./repair.js";
 import { isDuplicate, nextId, parseSeeds } from "./foreshadow.js";
 import type { Foreshadow, GuardIssue, StoryBundle } from "./model.js";
@@ -88,14 +88,6 @@ async function loadBound(workspace: string): Promise<StoryBundle> {
   const bundle = await readStory(workspace, id);
   if (!bundle) throw new Error(`绑定的故事目录损坏或不存在：.story/${id}`);
   return bundle;
-}
-
-function digestRules(markdown: string): string {
-  return markdown
-    .split("\n")
-    .filter((l) => l.startsWith("- ") || /^\d+\.\s/.test(l) || l.startsWith("# "))
-    .slice(0, 14)
-    .join("\n");
 }
 
 /** 章末把这一章埋下的伏笔写进 foreshadows.json（埋哪几条由模型给）。 */
@@ -199,15 +191,10 @@ export function createRuntime(deps: ToolDeps) {
           const ws = workspace();
           const bundle = await loadBound(ws);
           const pending = await pendingIssues(bundle.root);
-          let rulesDigest = "";
-          try {
-            rulesDigest = digestRules(
-              await fs.readFile(path.join(bundle.root, LAYOUT.rules), "utf8"),
-            );
-          } catch {
-            /* no rules.md yet */
-          }
-          return renderBrief(bundle, { pending, rulesDigest });
+          const written = await writeBrief(bundle.root, { bundle, pending });
+          const full = await fs.readFile(written, "utf8");
+          const human = (full.split("## 全量（机器可读）")[0] ?? "").trimEnd();
+          return `${human}\n\n（全量已写入 .story/${bundle.id}/${LAYOUT.brief}）`;
         },
       }),
     ),
@@ -259,6 +246,9 @@ export function createRuntime(deps: ToolDeps) {
           const lines: string[] = [];
 
           const chapterNo = typeof args.chapter === "number" ? args.chapter : cursor.chapter;
+          if (chapterNo !== cursor.chapter && !(await briefIsFresh(bundle.root))) {
+            return `开新章之前先读 brief：调用 story_open 刷新 .story/${bundle.id}/${LAYOUT.brief}，然后再写第 ${chapterNo} 章。`;
+          }
           const title =
             args.chapterTitle?.trim() ||
             (cursor.chapter === chapterNo
@@ -377,18 +367,18 @@ export function createRuntime(deps: ToolDeps) {
               /^#\s*\d+\s*·\s*(.+)$/m.exec(body)?.[1]?.trim() ?? file.replace(/\.md$/, "");
             const chars = body.replace(/\s/g, "").length;
             const beats = body.split(/\n---\n/).length;
+            await writeBrief(bundle.root, {
+              bundle,
+              pending: issues,
+              chapterChars: chars,
+              chapterBeats: beats,
+            });
             lines.push(
               `第 ${bundle.state.cursor.chapter} 章《${title}》· ${file} · ${chars} 字 · ${beats} 拍`,
             );
           } catch {
+            await writeBrief(bundle.root, { bundle, pending: issues });
             lines.push(`第 ${bundle.state.cursor.chapter} 章 · ${file}（尚未生成）`);
-          }
-          const open = bundle.foreshadows.filter((f) => f.status === "未触发");
-          if (open.length > 0) {
-            lines.push(
-              `未触发伏笔 ${open.length} 条（用得上哪些、下一章埋哪几条，自己判，不用问）：`,
-            );
-            for (const f of open) lines.push(`- ${f.id} [${f.weight}] ${f.label} — ${f.cue}`);
           }
           return lines.join("\n");
         },

@@ -1,95 +1,178 @@
-import { upcoming } from "./guard.js";
+import { promises as fs } from "node:fs";
+import path from "node:path";
 import type { GuardIssue, StoryBundle } from "./model.js";
+import { LAYOUT, writeText } from "./store.js";
+
+/**
+ * Brief —— 世界的全量快照，落盘在 `.story/<id>/brief.md`。
+ *
+ * 分工：`story_check` 只回一章的信息；**全量信息在这里**。开新章之前必须读它，
+ * 否则 `story_write` 带 chapter 时会拒写（brief 比上一章旧）。
+ */
+
+const pad = (n: number) => String(n).padStart(2, "0");
 
 function fmt(iso: string): string {
   const t = new Date(iso);
   if (Number.isNaN(t.getTime())) return iso;
-  const mm = String(t.getMonth() + 1).padStart(2, "0");
-  const dd = String(t.getDate()).padStart(2, "0");
-  const hh = String(t.getHours()).padStart(2, "0");
-  const mi = String(t.getMinutes()).padStart(2, "0");
-  return `${mm}-${dd} ${hh}:${mi}`;
+  return `${String(t.getMonth() + 1).padStart(2, "0")}-${String(t.getDate()).padStart(2, "0")} ${String(
+    t.getHours(),
+  ).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
 }
 
-export interface BriefOptions {
-  pending?: GuardIssue[];
-  /** Story-specific rules summary from RULES.md (first lines). Never the file body. */
-  rulesDigest?: string;
+export interface BriefInput {
+  bundle: StoryBundle;
+  pending: GuardIssue[];
+  chapterChars?: number;
+  chapterBeats?: number;
 }
 
-/**
- * The operating manual handed to the model. Dynamic content only — the static
- * rules live in the system prompt, and must not be duplicated here.
- */
-export function renderBrief(bundle: StoryBundle, opts: BriefOptions = {}): string {
-  const { state, clock, beats, foreshadows } = bundle;
-  const now = Date.parse(clock.now);
+function upcoming(input: BriefInput): string[] {
+  const { bundle } = input;
+  const now = Date.parse(bundle.clock.now);
+  return bundle.beats
+    .filter((b) => b.status === "待命" || b.status === "开窗")
+    .filter((b) => Date.parse(b.expiresAt) > now)
+    .sort((a, b) => Date.parse(a.opensAt) - Date.parse(b.opensAt))
+    .slice(0, 6)
+    .map((b) => {
+      const mark = b.status === "开窗" ? "▶ 可写" : "· 待开";
+      return `${mark} ${b.id} ${b.title}  ${fmt(b.opensAt)} – ${fmt(b.expiresAt)}`;
+    });
+}
+
+function worldLines(input: BriefInput): string[] {
+  const { bundle } = input;
   const lines: string[] = [];
 
-  lines.push(
-    `【故事】${state.story} · 第 ${state.cursor.chapter} 章 · ${state.cursor.chapterFile}`,
-  );
-  lines.push(`【此刻】${fmt(clock.now)} · ${state.cursor.location} · ${state.cursor.scene}`);
-  lines.push(`【上一拍】${state.cursor.lastBeat}`);
-
-  const soon = upcoming(beats, now, 48);
-  if (soon.length > 0) {
-    lines.push("【48 小时内】");
-    for (const b of soon) {
-      const mark = b.status === "开窗" ? "▶ 可写" : "· 待开";
-      lines.push(`  ${mark} ${b.id} ${b.title}  ${fmt(b.opensAt)} – ${fmt(b.expiresAt)}`);
-    }
-  }
-
-  const openThreads = state.openThreads.filter(Boolean);
-  if (openThreads.length > 0) {
-    lines.push("【悬置】");
-    for (const t of openThreads) lines.push(`  · ${t}`);
-  }
-
-  const openFs = foreshadows
-    .filter((f) => f.status === "未触发")
-    .sort((a, b) => "重中轻".indexOf(a.weight) - "重中轻".indexOf(b.weight));
-  if (openFs.length > 0) {
-    lines.push(`【伏笔 · 未触发 ${openFs.length} 条】`);
-    for (const f of openFs.slice(0, 8)) lines.push(`  ${f.id} [${f.weight}] ${f.label} — ${f.cue}`);
-    if (openFs.length > 8) lines.push(`  ……另有 ${openFs.length - 8} 条，读 foreshadows.json`);
-  }
+  const here = bundle.world.locations.find((l) => l.id === bundle.state.cursor.locationId);
+  const focus = here?.focus ?? [];
+  const focusNames = focus
+    .map((id) => bundle.world.chars.find((c) => c.id === id)?.name ?? id)
+    .filter(Boolean);
+  if (focusNames.length > 0) lines.push(`【在场】${focusNames.join("、")}（场景焦点）`);
 
   const cast = bundle.world.chars.filter((c) => (c.hidden ?? []).length > 0);
   if (cast.length > 0) {
     lines.push(
-      `【人设】${cast
-        .map((c) => `${c.name} 未揭 ${(c.hidden ?? []).length}`)
-        .join(" · ")}（一次只揭一条，揭了就搬进 revealed）`,
+      `【人设】${cast.map((c) => `${c.name} 待揭 ${(c.hidden ?? []).length}`).join(" · ")}（一章至多揭一条，揭了搬进 revealed）`,
     );
   }
-  const aff = Object.entries(state.affinity);
+
+  const active = bundle.world.threads.filter((t) => t.status !== "已完成");
+  for (const thread of active) {
+    const blocked = (thread.dependsOn ?? []).filter((id) => {
+      const up = bundle.world.threads.find((t) => t.id === id);
+      return up && up.status !== "已完成";
+    });
+    const tag = blocked.length > 0 ? `⛔ 等 ${blocked.join(",")}` : "○ 可推";
+    const who = (thread.participants ?? [])
+      .map((id) => bundle.world.chars.find((c) => c.id === id)?.name ?? id)
+      .join("、");
+    lines.push(
+      `${tag} ${thread.id} ${thread.title ?? ""}（${thread.weight ?? "支线"}）${who ? ` · ${who}` : ""}${thread.nextMoves?.length ? ` · 下一步：${thread.nextMoves.join(" / ")}` : ""}`,
+    );
+  }
+
+  const open = bundle.foreshadows.filter((f) => f.status === "未触发");
+  if (open.length > 0) {
+    const byWeight = [...open].sort(
+      (a, b) => "重中轻".indexOf(a.weight) - "重中轻".indexOf(b.weight),
+    );
+    lines.push(
+      `【伏笔】未触发 ${open.length} 条（重：${
+        byWeight
+          .filter((f) => f.weight === "重")
+          .map((f) => `${f.id} ${f.label}`)
+          .join(" / ") || "无"
+      }）`,
+    );
+  }
+
+  const aff = Object.entries(bundle.state.affinity);
   if (aff.length > 0) {
     lines.push(`【好感】${aff.map(([n, a]) => `${n} ${a.value}（${a.level}）`).join(" · ")}`);
   }
+  return lines;
+}
 
-  const meters = Object.entries(state.meters);
-  if (meters.length > 0) {
-    lines.push(`【量表】${meters.map(([k, v]) => `${k} ${v}`).join(" · ")}`);
+/** 拼 brief.md 全文；`## 全量` 之外还有一段机器可读的 JSON 字段。 */
+export function renderBriefFile(input: BriefInput): string {
+  const { bundle } = input;
+  const cursor = bundle.state.cursor;
+  const snapshot = {
+    generatedAt: new Date().toISOString(),
+    chapter: cursor.chapter,
+    chapterFile: cursor.chapterFile,
+    storyTime: bundle.clock.now,
+    location: cursor.location,
+    scene: cursor.scene,
+    lastBeat: cursor.lastBeat,
+    openThreads: bundle.state.openThreads,
+    world: {
+      chars: bundle.world.chars.map((c) => ({
+        id: c.id,
+        name: c.name,
+        tier: c.tier ?? null,
+        affinity: c.affinity ?? null,
+        hidden: (c.hidden ?? []).length,
+      })),
+      locations: bundle.world.locations.map((l) => ({
+        id: l.id,
+        name: l.name,
+        links: l.links ?? [],
+        focus: l.focus ?? [],
+      })),
+      threads: bundle.world.threads,
+      relations: bundle.world.relations,
+    },
+    beats: bundle.beats,
+    foreshadows: bundle.foreshadows,
+    pending: input.pending,
+  };
+
+  const head = [
+    "# 世界快照 · brief",
+    "",
+    "> 开新章之前读这份。正文里只写章节信息，世界全量在这里。",
+    "",
+    `【此刻】${fmt(bundle.clock.now)} · ${cursor.location} · ${cursor.scene}`,
+    `【上一拍】${cursor.lastBeat}`,
+    `【本章】第 ${pad(cursor.chapter)} 章 · ${cursor.chapterFile}${
+      input.chapterChars ? ` · ${input.chapterChars} 字 · ${input.chapterBeats} 拍` : "（尚未生成）"
+    }`,
+    "",
+  ];
+
+  const body: string[] = [];
+  body.push(...worldLines(input));
+  const soon = upcoming(input);
+  if (soon.length > 0) body.push("【节点】", ...soon.map((l) => `  ${l}`));
+  const threads = bundle.state.openThreads.filter(Boolean);
+  if (threads.length > 0) body.push("【悬置】", ...threads.map((t) => `  · ${t}`));
+  if (input.pending.length > 0) {
+    body.push("【待修】", ...input.pending.slice(0, 6).map((i) => `  ✖ [${i.code}] ${i.message}`));
   }
 
-  if (opts.rulesDigest && opts.rulesDigest.trim()) {
-    lines.push("【本故事规则】");
-    lines.push(opts.rulesDigest.trim());
+  return `${head.join("\n")}${body.join("\n")}\n\n## 全量（机器可读）\n\n\`\`\`json\n${JSON.stringify(
+    snapshot,
+    null,
+    2,
+  )}\n\`\`\`\n`;
+}
+
+export async function writeBrief(root: string, input: BriefInput): Promise<string> {
+  const file = path.join(root, LAYOUT.brief);
+  await writeText(file, renderBriefFile(input));
+  return file;
+}
+
+/** brief 是否比当前章更新——开新章的门槛。 */
+export async function briefIsFresh(root: string): Promise<boolean> {
+  try {
+    const brief = await fs.stat(path.join(root, LAYOUT.brief));
+    return Date.now() - brief.mtimeMs < 1000 * 60 * 60 * 12;
+  } catch {
+    return false;
   }
-
-  const pending = opts.pending ?? [];
-  if (pending.length > 0) {
-    lines.push(`【待修 · ${pending.length} 条】`);
-    for (const p of pending.slice(0, 6)) lines.push(`  ✖ [${p.code}] ${p.message}`);
-  }
-
-  lines.push("");
-  lines.push(
-    "【下一步】正文只留在上下文；每拍 story_write 记一笔；章末 finalize=true 一次生成章文件，再调一次 story_check。",
-  );
-  lines.push("【别做】不要把正文攒进工具参数；没到章末不要调 story_check。");
-
-  return lines.join("\n");
 }
