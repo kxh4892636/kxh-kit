@@ -1,6 +1,14 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { defineTool } from "@deepseek-ai/dsh-tools";
+import {
+  chapterChars as walCharsOf,
+  finishedChars,
+  loadSnapshot,
+  makeSnapshot,
+  saveSnapshot,
+  type ExpansionInput,
+} from "./budget.js";
 import { briefIsFresh, writeBrief, type ReviewResult } from "./brief.js";
 import { autoRepair } from "./repair.js";
 import { isDuplicate, nextId, parseSeeds } from "./foreshadow.js";
@@ -92,6 +100,29 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const slug = (t: string) => t.replace(/[\\/:*?"<>|\s]/g, "") || "未命名";
 
 const NO_STORY = "还没有绑定故事：调用 story_mode action=bind id=<故事目录>。";
+
+/** 本章正文字数：优先数 WAL，没有就取 index 里已生成的这一章。 */
+async function chapterCharsNow(root: string, chapter: number): Promise<number> {
+  const wal = await walCharsOf(root, chapter);
+  if (wal > 0) return wal;
+  try {
+    const raw = await fs.readFile(path.join(root, LAYOUT.chapters, "index.json"), "utf8");
+    const index = JSON.parse(raw) as Array<{ no?: number; chars?: number }>;
+    const hit = index.find((e) => e.no === chapter);
+    return typeof hit?.chars === "number" ? hit.chars : 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** 扩张预算的输入：章末快照 + 本章字数。 */
+async function expansionOf(bundle: StoryBundle, chapter: number): Promise<ExpansionInput> {
+  return {
+    snapshot: await loadSnapshot(bundle.root),
+    chapter,
+    chapterChars: await chapterCharsNow(bundle.root, chapter),
+  };
+}
 
 async function loadBound(workspace: string): Promise<StoryBundle> {
   const id = await readActive(workspace);
@@ -291,8 +322,12 @@ export function createRuntime(deps: ToolDeps) {
         description:
           "同步记一拍（不碰正文）：推进时钟、回写 cursor 与时间流水、跑机械检查。正文留在上下文里，由回复输出。finalize=true 时把 text（整章正文）一次性写成 chapters/NN-title.md，并用 plant 登记本章新埋的伏笔。",
         parameters: {
-          scene: { type: "string", description: "更新后的场景名" },
-          location: { type: "string", description: "更新后的地点" },
+          scene: { type: "string", description: "更新后的场景名（地点下面的一间屋子/一个角落）" },
+          location: { type: "string", description: "更新后的地点名" },
+          locationId: {
+            type: "string",
+            description: "地点的 id（world/locations.json 里的 id）；换地点时给，供场景归属校验",
+          },
           lastBeat: { type: "string", description: "一句话概括这一拍（写进 cursor）" },
           chapter: { type: "number", description: "切到新章时给章号（从 0 起）" },
           chapterTitle: { type: "string", description: "切到新章时给章标题" },
@@ -329,6 +364,7 @@ export function createRuntime(deps: ToolDeps) {
         async execute(args: {
           scene?: string;
           location?: string;
+          locationId?: string;
           lastBeat?: string;
           chapter?: number;
           chapterTitle?: string;
@@ -457,6 +493,7 @@ export function createRuntime(deps: ToolDeps) {
           cursor.chapterFile = file;
           if (args.scene) cursor.scene = args.scene;
           if (args.location) cursor.location = args.location;
+          if (args.locationId) cursor.locationId = args.locationId;
           if (args.lastBeat) cursor.lastBeat = args.lastBeat;
           cursor.storyTime = bundle.clock.now;
           bundle.state.updatedAt = new Date().toISOString();
@@ -556,11 +593,22 @@ export function createRuntime(deps: ToolDeps) {
               for (const f of await plantForeshadows(bundle, args.plant)) {
                 lines.push(`新埋入伏笔：${f.id} [${f.weight}] ${f.label} — ${f.cue}`);
               }
+              // 章末落扩张基线：下一章拿它算新添了什么
+              const totalNow = await finishedChars(bundle.root);
+              const prevSnapshot = await loadSnapshot(bundle.root);
+              await saveSnapshot(
+                bundle.root,
+                makeSnapshot(bundle, chapterNo, totalNow, prevSnapshot),
+              );
+              lines.push(
+                `扩张基线已记：第 ${chapterNo} 章末，累计 ${totalNow} 字（人物 ${bundle.world.chars.length} / 地点 ${bundle.world.locations.length} / 子场景 ${bundle.world.sceneIds.size} / 线 ${bundle.world.threads.length}）`,
+              );
             }
           }
 
           const chapters = await chaptersOf(bundle.root);
-          const repaired = await autoRepair(bundle, chapters);
+          const expansion = await expansionOf(bundle, chapterNo);
+          const repaired = await autoRepair(bundle, chapters, expansion);
           if (repaired.fixed.length > 0) lines.push(`自动修正：${repaired.fixed.join("；")}`);
 
           const issues = repaired.remaining.filter(
@@ -587,7 +635,8 @@ export function createRuntime(deps: ToolDeps) {
           const ws = workspace();
           const bundle = await loadBound(ws);
           const chapters = await chaptersOf(bundle.root);
-          const repaired = await autoRepair(bundle, chapters);
+          const expansion = await expansionOf(bundle, bundle.state.cursor.chapter);
+          const repaired = await autoRepair(bundle, chapters, expansion);
           const issues = repaired.remaining;
           await savePending(bundle.root, issues);
           const lines: string[] = [];

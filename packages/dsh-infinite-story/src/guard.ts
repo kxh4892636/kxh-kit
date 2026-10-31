@@ -1,3 +1,4 @@
+import { guardExpansion, type ExpansionInput } from "./budget.js";
 import { levelOf, type Beat, type BeatStatus, type GuardIssue, type StoryBundle } from "./model.js";
 
 const MINUTE = 60_000;
@@ -41,6 +42,9 @@ export interface GuardInput {
 
   /** Files referenced by WORLD.md; used to detect dangling links. */
   shardFiles?: string[];
+
+  /** 扩张预算的输入：章末快照 + 本章字数。不给就不查扩张。 */
+  expansion?: ExpansionInput;
 }
 
 /**
@@ -269,7 +273,58 @@ export function guard(input: GuardInput): GuardIssue[] {
     }
   }
 
+  // ---- 场景必须挂在地点下面 ----
+  const cursorScene = bundle.state.cursor.scene;
+  if (cursorScene) {
+    const wantedLoc = bundle.state.cursor.locationId;
+    const fallbackName = (bundle.state.cursor.location ?? "").split(" · ")[0] ?? "";
+    const loc = wantedLoc
+      ? bundle.world.locations.find((l) => l.id === wantedLoc)
+      : bundle.world.locations.find((l) => l.name.startsWith(fallbackName));
+    const known = new Set<string>();
+    for (const s of loc?.scenes ?? []) {
+      known.add(s.id);
+      known.add(s.name);
+    }
+    if (loc && known.size > 0 && !known.has(cursorScene)) {
+      issues.push({
+        level: "warn",
+        code: "scene/unknown",
+        message: `cursor.scene「${cursorScene}」不在 ${loc.id} 的子场景里（${[...known].join(" / ")}）`,
+        fix: "改 scene，或在 locations.json 里把这个子场景登记到该地点下",
+      });
+    }
+  }
+
   const threadIds = new Set(bundle.world.threads.map((t) => t.id));
+  // 一条故事线 = 一条贯穿全篇的主线 + 若干支线。主线只能有一条，且是根。
+  const mains = bundle.world.threads.filter((t) => t.weight === "主线");
+  if (mains.length === 0) {
+    issues.push({
+      level: "error",
+      code: "thread/no-main",
+      message: "没有任何一条线标为「主线」",
+      fix: '全篇贯穿到底的那条（主角之间的关系）标 weight:"主线"，其余标「支线」',
+    });
+  }
+  if (mains.length > 1) {
+    issues.push({
+      level: "error",
+      code: "thread/multiple-main",
+      message: `标为主线的有 ${mains.length} 条：${mains.map((t) => `${t.id}${t.title ? `（${t.title}）` : ""}`).join("、")}`,
+      fix: "全篇只有一条主线；把其余改成「支线」",
+    });
+  }
+  for (const main of mains) {
+    if ((main.dependsOn ?? []).length > 0) {
+      issues.push({
+        level: "error",
+        code: "thread/main-root",
+        message: `主线 ${main.id} 挂了 dependsOn（${(main.dependsOn ?? []).join("、")}）`,
+        fix: "主线是根，不依赖任何线；依赖关系放在支线上",
+      });
+    }
+  }
   for (const thread of bundle.world.threads) {
     for (const dep of thread.dependsOn ?? []) {
       if (!threadIds.has(dep)) {
@@ -338,6 +393,9 @@ export function guard(input: GuardInput): GuardIssue[] {
       });
     }
   }
+
+  // ---- 扩张预算（新内容随字数走）----
+  if (input.expansion) issues.push(...guardExpansion(bundle, input.expansion));
 
   return issues;
 }

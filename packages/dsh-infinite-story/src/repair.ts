@@ -1,5 +1,6 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
+import type { ExpansionInput } from "./budget.js";
 import { deriveBeatStatus, guard } from "./guard.js";
 import { levelOf, type GuardIssue, type StoryBundle } from "./model.js";
 import { LAYOUT, writeJson } from "./store.js";
@@ -14,7 +15,11 @@ export interface RepairResult {
   remaining: GuardIssue[];
 }
 
-export async function autoRepair(bundle: StoryBundle, chapters: string[]): Promise<RepairResult> {
+export async function autoRepair(
+  bundle: StoryBundle,
+  chapters: string[],
+  expansion?: ExpansionInput,
+): Promise<RepairResult> {
   const fixed: string[] = [];
   const { state, clock } = bundle;
 
@@ -164,6 +169,6 @@ export async function autoRepair(bundle: StoryBundle, chapters: string[]): Promi
     }
   }
 
-  const remaining = guard({ bundle, chapters });
+  const remaining = guard({ bundle, chapters, ...(expansion ? { expansion } : {}) });
   return { fixed, remaining };
 }

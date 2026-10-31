@@ -3,6 +3,7 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { deriveBeatStatus, guard, hasErrors, minutesBetween, upcoming } from "./guard.js";
 import type { Beat, StoryBundle, World } from "./model.js";
+import { readWorld } from "./store.js";
 
 const beat = (over: Partial<Beat> = {}): Beat => ({
   id: "T1",
@@ -68,15 +69,7 @@ async function loadMigrated(): Promise<{ bundle: StoryBundle; chapters: string[]
     const chapters = (await fs.readdir(path.join(root, "chapters")))
       .filter((n) => n.endsWith(".md"))
       .sort();
-    const world: World = {
-      ids: new Set<string>(),
-      chars: [],
-      locations: [],
-      threads: [],
-      relations: [],
-      threadIds: new Set<string>(),
-      locationIds: new Set<string>(),
-    };
+    const world: World = await readWorld(root);
     return {
       bundle: { id: "mama-story", root, state, clock, beats, foreshadows, world },
       chapters,

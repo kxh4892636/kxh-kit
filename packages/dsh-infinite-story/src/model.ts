@@ -26,6 +26,52 @@ export interface StoryState {
   openThreads: string[];
   affinity: Record<string, Affinity>;
   meters: Record<string, number>;
+  /** 扩张预算：新内容随字数走，不随心情走。缺省用 DEFAULT_BUDGET。 */
+  budget?: BudgetConfig;
+}
+
+/** 一个新条目是怎么来的。reported / user 不占预算，只上场的才算。 */
+export type Origin = "user" | "met" | "reported" | "unknown";
+
+export interface RateRule {
+  /** 多少字换一个额度。 */
+  rate: number;
+  /** 单章封顶。 */
+  cap: number;
+}
+
+export interface BudgetConfig {
+  chars: RateRule;
+  locations: RateRule;
+  /** 子场景：一个地点下面的房间/角落。比开新地点便宜，所以配额宽一些。 */
+  scenes: RateRule;
+  threads: RateRule;
+  /** 本章超过这个字数却一个新东西都没添，算原地打转。 */
+  stagnantAfter: number;
+  /** 不足这个字数就添人添景，算硬塞。 */
+  shortBelow: number;
+}
+
+/**
+ * 比例取自长篇的实测密度：有名角色约 1 万–2.6 万字一个，主要活动场所
+ * 约 2 万–5 万字一个（红楼梦 73 万字 30 个场所，金瓶梅 100 万字 20 个）。
+ * 配额随章内字数涨，但一封顶就顶死，靠写长来换人换景换不通。
+ */
+export const DEFAULT_BUDGET: BudgetConfig = {
+  chars: { rate: 10000, cap: 2 },
+  locations: { rate: 30000, cap: 1 },
+  scenes: { rate: 8000, cap: 3 },
+  threads: { rate: 40000, cap: 1 },
+  stagnantAfter: 8000,
+  shortBelow: 3000,
+};
+
+/** 地点下面的一间屋子、一个角落。正文的 `scene` 就是它。 */
+export interface WorldScene {
+  id: string;
+  name: string;
+  origin?: Origin;
+  note?: string;
 }
 
 export interface Advance {
@@ -72,6 +118,8 @@ export interface GuardIssue {
 export interface WorldChar {
   id: string;
   name: string;
+  /** 这个角色怎么来的；reported / user 不占扩张预算。 */
+  origin?: Origin;
   tier?: string;
   knows?: string[];
   affinity?: { value: number; level: string } | null;
@@ -84,6 +132,10 @@ export interface WorldChar {
 export interface WorldLocation {
   id: string;
   name: string;
+  /** 这个地点怎么来的；reported / user 不占扩张预算。 */
+  origin?: Origin;
+  /** 这个地点下面的子场景。正文的 `scene` 必须是其中之一。 */
+  scenes?: WorldScene[];
   links?: string[];
   focus?: string[];
   privacy?: number;
@@ -92,6 +144,8 @@ export interface WorldLocation {
 export interface WorldThread {
   id: string;
   title?: string;
+  /** 这条线怎么来的；reported / user 不占扩张预算。 */
+  origin?: Origin;
   status?: string;
   weight?: string;
   dependsOn?: string[];
@@ -115,6 +169,8 @@ export interface World {
   relations: WorldRelation[];
   threadIds: Set<string>;
   locationIds: Set<string>;
+  /** 所有地点下的子场景 id。 */
+  sceneIds: Set<string>;
 }
 
 /** Everything `story_open` needs, loaded in one shot. */

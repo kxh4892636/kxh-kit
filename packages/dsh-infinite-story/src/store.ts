@@ -34,6 +34,8 @@ export const LAYOUT = {
   foreshadows: "foreshadows.json",
   brief: "brief.md",
   pending: "pending-issues.json",
+  /** 章末落的扩张基线快照：下一章拿它算新添了什么。 */
+  snapshot: "world/snapshot.json",
 } as const;
 
 /** Per-session binding. One session binds exactly one story. */
@@ -133,10 +135,12 @@ export async function readWorld(root: string): Promise<World> {
   const chars = flattenChars(await readJson<unknown>(path.join(root, LAYOUT.chars), []));
   const rawLocations = await readJson<WorldLocation[]>(path.join(root, LAYOUT.locations), []);
   // focus / links 可能被写成字符串，统一成数组，免得被逐字符遍历
+  // 场景只能挂在地点下面：一个地点可以有几间屋子/几个角落
   const locations = rawLocations.map((l) => ({
     ...l,
     links: toList(l.links),
     focus: toList(l.focus),
+    scenes: Array.isArray(l.scenes) ? l.scenes : [],
   }));
   const threads = await readJson<WorldThread[]>(path.join(root, LAYOUT.threads), []);
   const relations = await readJson<WorldRelation[]>(path.join(root, LAYOUT.relations), []);
@@ -144,6 +148,8 @@ export async function readWorld(root: string): Promise<World> {
   const ids = new Set<string>(chars.map((c) => c.id));
   ids.add("you");
   ids.add("筱聿");
+  const sceneIds = new Set<string>();
+  for (const loc of locations) for (const s of loc.scenes ?? []) sceneIds.add(s.id);
   return {
     ids,
     chars,
@@ -152,6 +158,7 @@ export async function readWorld(root: string): Promise<World> {
     relations,
     threadIds: new Set(threads.map((t) => t.id)),
     locationIds: new Set(locations.map((l) => l.id)),
+    sceneIds,
   };
 }
 

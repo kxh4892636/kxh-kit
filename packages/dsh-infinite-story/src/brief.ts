@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { GuardIssue, StoryBundle } from "./model.js";
+import { countExpansion, type Snapshot } from "./budget.js";
+import { DEFAULT_BUDGET, type GuardIssue, type StoryBundle } from "./model.js";
 import { LAYOUT, writeText } from "./store.js";
 
 /**
@@ -33,6 +34,8 @@ export interface BriefInput {
   review?: ReviewResult | null;
   chapterChars?: number;
   chapterBeats?: number;
+  /** 上一章末的扩张基线；不给就按当前存量当基线（新增显示 0）。 */
+  snapshot?: Snapshot | null;
 }
 
 function upcoming(input: BriefInput): string[] {
@@ -127,6 +130,30 @@ function worldLines(input: BriefInput): string[] {
   if (aff.length > 0) {
     lines.push(`【好感】${aff.map(([n, a]) => `${n} ${a.value}（${a.level}）`).join(" · ")}`);
   }
+
+  // 扩张预算：新内容随字数走，不随心情走
+  const cfg = bundle.state.budget ?? DEFAULT_BUDGET;
+  const chars = input.chapterChars ?? 0;
+  const { counts } = countExpansion(
+    bundle.world.chars,
+    bundle.world.locations,
+    bundle.world.threads,
+    input.snapshot ?? null,
+    chars,
+    cfg,
+  );
+  const scenes = bundle.world.locations.flatMap((l) => l.scenes ?? []);
+  lines.push(
+    `【扩张】本章 ${chars} 字 · 已添 人物 ${counts.newChars}/${counts.quotients.chars} · 地点 ${counts.newLocations}/${counts.quotients.locations} · 子场景 ${counts.newScenes}/${counts.quotients.scenes} · 线 ${counts.newThreads}/${counts.quotients.threads}`,
+  );
+  lines.push(
+    `【世界存量】人物 ${bundle.world.chars.length} · 地点 ${bundle.world.locations.length} · 子场景 ${scenes.length} · 线 ${bundle.world.threads.length}（主线 ${
+      bundle.world.threads
+        .filter((t) => t.weight === "主线")
+        .map((t) => t.id)
+        .join(",") || "无"
+    }）`,
+  );
   return lines;
 }
 
