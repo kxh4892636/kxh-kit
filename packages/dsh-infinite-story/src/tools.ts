@@ -58,17 +58,6 @@ async function savePending(root: string, issues: GuardIssue[]): Promise<void> {
   await writeJson(path.join(root, LAYOUT.pending), errors);
 }
 
-function driftReport(issues: GuardIssue[]): string[] {
-  const errors = issues.filter((i) => i.level === "error").length;
-  const lines = [`漂移：${errors} 错 / ${issues.length - errors} 警`];
-  for (const issue of issues.slice(0, 8)) {
-    lines.push(`[${issue.code}] ${issue.message}${issue.fix ? `（修：${issue.fix}）` : ""}`);
-  }
-  if (issues.length > 8) lines.push(`……另有 ${issues.length - 8} 条`);
-  lines.push("要改吗？");
-  return lines;
-}
-
 /** 以原文的时区偏移推进时间，输出保持同样的 `+08:00` 形式。 */
 function shiftIso(from: string, minutes: number): string {
   const offset = /([+-]\d{2}:\d{2})$/.exec(from)?.[1] ?? "+00:00";
@@ -484,9 +473,13 @@ export function createRuntime(deps: ToolDeps) {
             (issue) => generated || !(issue.code === "cursor/chapter" && issue.level === "error"),
           );
           await savePending(bundle.root, issues);
-          if (issues.length > 0) lines.push(...driftReport(issues));
+          // 漂移不进对话：留在 pending 与 brief，下一章开章时 autoRepair 再修
+          await writeBrief(bundle.root, { bundle, pending: issues });
+          if (generated) {
+            lines.push(`本章生成：chapters/${file}`);
+          }
 
-          return lines.join("\n");
+          return generated ? lines.join("\n") : "";
         },
       }),
     ),
@@ -497,7 +490,7 @@ export function createRuntime(deps: ToolDeps) {
       defineTool({
         name: "story_check",
         description:
-          "章末用一次：结构复查，只回本章章节信息（章号 / 标题 / 字数 / 拍数）。有漂移时一并报出。",
+          "章末用一次：结构复查 + 写 brief，只回本章章节信息（章号 / 标题 / 字数 / 拍数）。漂移不进对话，写进 brief 与 pending，下一章开章时自动修。",
         parameters: {},
         output: { schema: { type: "string" }, render: (_a: unknown, v: string) => text(v) },
         async execute() {
@@ -507,8 +500,7 @@ export function createRuntime(deps: ToolDeps) {
           const repaired = await autoRepair(bundle, chapters);
           const issues = repaired.remaining;
           await savePending(bundle.root, issues);
-          const lines: string[] = issues.length > 0 ? driftReport(issues) : [];
-          if (repaired.fixed.length > 0) lines.push(`自动修正：${repaired.fixed.join("；")}`);
+          const lines: string[] = [];
 
           // 章节信息：只回这一行
           const file = bundle.state.cursor.chapterFile;
