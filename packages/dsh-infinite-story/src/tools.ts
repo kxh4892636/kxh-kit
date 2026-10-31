@@ -2,8 +2,8 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { renderBrief } from "./brief.js";
-import { MAX_OPEN_FORESHADOWS, isDuplicate, nextId, parseSeeds } from "./foreshadow.js";
-import { guard, renderIssues } from "./guard.js";
+import { guard } from "./guard.js";
+import { isDuplicate, nextId, parseSeeds } from "./foreshadow.js";
 import type { Foreshadow, GuardIssue, StoryBundle } from "./model.js";
 import { IRON_RULES, SECTION_NAME, SECTION_ORDER } from "./prompt.js";
 import {
@@ -23,65 +23,12 @@ export interface ToolDeps {
 }
 
 type Disposer = () => void;
-
-interface JobHandle {
-  append: (text: string) => void;
-  updateProgress?: (line: string) => void;
-}
-
-interface JobOutcome {
-  status: "completed" | "failed";
-  detail?: string;
-}
-
-interface JobRegistry {
-  start: (spec: {
-    kind: string;
-    label: string;
-    owner?: string | undefined;
-    run: (handle: JobHandle) => { cancel: () => void; done: Promise<JobOutcome> };
-  }) => string;
-}
-
 interface Ctx {
   tools: { register: (def: unknown) => Disposer };
   systemPrompt: { section: (sec: unknown) => unknown };
-  /** Optional: the dsh-jobs registry (`ctx.jobs`), present when a job controller is loaded. */
-  jobs?: JobRegistry;
-  get?: (name: string) => unknown;
 }
 
 const text = (value: string) => [{ type: "text" as const, text: value }];
-
-/** Background bookkeeping: silent on success, only drift reaches the session. */
-function jobRegistry(ctx: Ctx): JobRegistry | undefined {
-  try {
-    const direct = ctx.jobs;
-    if (direct) return direct;
-  } catch {
-    /* service not injected into this composition */
-  }
-  try {
-    return (
-      (typeof ctx.get === "function" ? (ctx.get("jobs") as JobRegistry | undefined) : undefined) ||
-      undefined
-    );
-  } catch {
-    return undefined;
-  }
-}
-
-/** The job's owner is the calling Session, when the execution context exposes it. */
-function ownerOf(exec: unknown): string | undefined {
-  const e = exec as Record<string, unknown> | undefined;
-  if (!e) return undefined;
-  const session = e["session"] as Record<string, unknown> | undefined;
-  const agent = e["agent"] as Record<string, unknown> | undefined;
-  const agentSession = agent?.["session"] as Record<string, unknown> | undefined;
-  const candidates = [e["sessionId"], session?.["id"], agentSession?.["id"], agent?.["sessionId"]];
-  for (const value of candidates) if (typeof value === "string" && value.length > 0) return value;
-  return undefined;
-}
 
 async function chaptersOf(root: string): Promise<string[]> {
   try {
@@ -110,6 +57,17 @@ async function savePending(root: string, issues: GuardIssue[]): Promise<void> {
   await writeJson(path.join(root, LAYOUT.pending), errors);
 }
 
+function driftReport(issues: GuardIssue[]): string[] {
+  const errors = issues.filter((i) => i.level === "error").length;
+  const lines = [`漂移：${errors} 错 / ${issues.length - errors} 警`];
+  for (const issue of issues.slice(0, 8)) {
+    lines.push(`[${issue.code}] ${issue.message}${issue.fix ? `（修：${issue.fix}）` : ""}`);
+  }
+  if (issues.length > 8) lines.push(`……另有 ${issues.length - 8} 条`);
+  lines.push("要改吗？");
+  return lines;
+}
+
 const pad = (n: number) => String(n).padStart(2, "0");
 const slug = (t: string) => t.replace(/[\\/:*?"<>|\s]/g, "") || "未命名";
 
@@ -131,7 +89,7 @@ function digestRules(markdown: string): string {
     .join("\n");
 }
 
-/** 章末把这一章埋下的伏笔写进 foreshadows.json：显式声明优先，其余从正文抽。 */
+/** 章末把这一章埋下的伏笔写进 foreshadows.json（埋哪几条由模型给）。 */
 async function plantForeshadows(bundle: StoryBundle, declared?: string): Promise<Foreshadow[]> {
   const file = path.join(bundle.root, LAYOUT.foreshadows);
   let all: Foreshadow[] = [];
@@ -140,38 +98,22 @@ async function plantForeshadows(bundle: StoryBundle, declared?: string): Promise
   } catch {
     return [];
   }
-
-  const seeds = parseSeeds(declared);
-
   const added: Foreshadow[] = [];
-  for (const seed of seeds) {
+  for (const seed of parseSeeds(declared)) {
     const open = all.filter((f) => f.status === "未触发").length + added.length;
-    if (open >= MAX_OPEN_FORESHADOWS) break;
+    if (open >= 12) break;
     if (isDuplicate(seed, [...all, ...added])) continue;
-    const item: Foreshadow = {
+    added.push({
       id: nextId([...all, ...added]),
       label: seed.label,
       weight: seed.weight,
       status: "未触发",
       cue: seed.cue,
-    };
-    added.push(item);
+    });
   }
-
   if (added.length === 0) return [];
   await writeJson(file, [...all, ...added]);
   return added;
-}
-
-function driftReport(issues: GuardIssue[]): string[] {
-  const errors = issues.filter((i) => i.level === "error").length;
-  const lines = [`漂移：${errors} 错 / ${issues.length - errors} 警`];
-  for (const issue of issues.slice(0, 8)) {
-    lines.push(`[${issue.code}] ${issue.message}${issue.fix ? `（修：${issue.fix}）` : ""}`);
-  }
-  if (issues.length > 8) lines.push(`……另有 ${issues.length - 8} 条`);
-  lines.push("要改吗？");
-  return lines;
 }
 
 /**
@@ -240,7 +182,8 @@ export function createRuntime(deps: ToolDeps) {
     deps.fallbackCtx.tools.register(
       defineTool({
         name: "story_open",
-        description: "打开绑定的故事，返回操作手册。开工前必读。不跑校验。",
+        description:
+          "打开绑定的故事，返回操作手册（此刻、上一拍、悬置、伏笔、待修问题）。不跑校验。",
         parameters: {},
         output: { schema: { type: "string" }, render: (_a: unknown, v: string) => text(v) },
         async execute() {
@@ -266,13 +209,8 @@ export function createRuntime(deps: ToolDeps) {
       defineTool({
         name: "story_write",
         description:
-          "后台记账（静默）：正文不进参数，直接写在回复里。本工具只把 cursor / 场景 / 时间流水写回，并在后台跑机械检查——只有漂移时才返回提醒。finalize=true 时把 text（整章正文）一次性写成 chapters/NN-title.md。",
+          "同步记一拍（不碰正文）：推进时钟、回写 cursor 与时间流水、跑机械检查。正文留在上下文里，由回复输出。finalize=true 时把 text（整章正文）一次性写成 chapters/NN-title.md，并用 plant 登记本章新埋的伏笔。",
         parameters: {
-          text: {
-            type: "string",
-            description:
-              "只在 finalize=true 时给：整章正文（Markdown，含拍间分隔），不带章标题。平时不传。",
-          },
           scene: { type: "string", description: "更新后的场景名" },
           location: { type: "string", description: "更新后的地点" },
           lastBeat: { type: "string", description: "一句话概括这一拍（写进 cursor）" },
@@ -280,164 +218,125 @@ export function createRuntime(deps: ToolDeps) {
           chapterTitle: { type: "string", description: "切到新章时给章标题" },
           advanceMinutes: {
             type: "number",
-            description: "这一拍推进多少分钟（0 表示不推进）。插件在后台写 clock.now 与 advances。",
+            description: "这一拍推进多少分钟（0 表示不推进）；同时写 clock.now 与 advances",
           },
           advanceReason: { type: "string", description: "推进理由，写进 clock.advances" },
+          finalize: { type: "boolean", description: "本章最后一拍：生成章节文件" },
+          text: {
+            type: "string",
+            description: "只在 finalize=true 时给：整章正文（Markdown，含拍间分隔），不带章标题",
+          },
           plant: {
             type: "string",
-            description:
-              "可选：这一章明确埋下的伏笔，一条一行，`label|cue` 或 `label|重|cue`。不给就从章末正文里自动抽。",
-          },
-          finalize: {
-            type: "boolean",
-            description: "本章最后一拍：设为 true，并用 text 给整章正文，一次生成章文件",
+            description: "本章新埋的伏笔，一条一行：`label|cue` 或 `label|重|cue`",
           },
         },
         output: { schema: { type: "string" }, render: (_a: unknown, v: string) => text(v) },
-        async execute(
-          args: {
-            text?: string;
-            scene?: string;
-            location?: string;
-            lastBeat?: string;
-            chapter?: number;
-            chapterTitle?: string;
-            finalize?: boolean;
-            plant?: string;
-            advanceMinutes?: number;
-            advanceReason?: string;
-          },
-          exec?: unknown,
-        ) {
+        async execute(args: {
+          scene?: string;
+          location?: string;
+          lastBeat?: string;
+          chapter?: number;
+          chapterTitle?: string;
+          advanceMinutes?: number;
+          advanceReason?: string;
+          finalize?: boolean;
+          text?: string;
+          plant?: string;
+        }) {
           const ws = workspace();
           const bundle = await loadBound(ws);
-          const chapterNo =
-            typeof args.chapter === "number" ? args.chapter : bundle.state.cursor.chapter;
+          const cursor = bundle.state.cursor;
+          const lines: string[] = [];
+
+          const chapterNo = typeof args.chapter === "number" ? args.chapter : cursor.chapter;
           const title =
             args.chapterTitle?.trim() ||
-            (bundle.state.cursor.chapter === chapterNo
-              ? (bundle.state.cursor.chapterFile ?? "").replace(/\.md$/, "").replace(/^\d+-/, "") ||
-                "未命名"
+            (cursor.chapter === chapterNo
+              ? (cursor.chapterFile ?? "").replace(/\.md$/, "").replace(/^\d+-/, "") || "未命名"
               : "未命名");
+          const file = `${pad(chapterNo)}-${slug(title)}.md`;
 
-          const work = async (out: (line: string) => void): Promise<void> => {
-            const cursor = bundle.state.cursor;
-            const file = `${pad(chapterNo)}-${slug(title)}.md`;
+          // 时钟
+          if (typeof args.advanceMinutes === "number" && args.advanceMinutes !== 0) {
+            const from = bundle.clock.now;
+            const to = new Date(
+              new Date(from).getTime() + args.advanceMinutes * 60_000,
+            ).toISOString();
+            bundle.clock.advances.push({
+              from,
+              to,
+              minutes: args.advanceMinutes,
+              reason: (args.advanceReason ?? args.lastBeat ?? "推进").replace(/\s+/g, " "),
+            });
+            bundle.clock.now = to;
+            await writeJson(path.join(bundle.root, LAYOUT.clock), bundle.clock);
+          }
 
-            if (typeof args.advanceMinutes === "number" && args.advanceMinutes !== 0) {
-              const from = bundle.clock.now;
-              const to = new Date(
-                new Date(from).getTime() + args.advanceMinutes * 60_000,
-              ).toISOString();
-              bundle.clock.advances.push({
-                from,
-                to,
-                minutes: args.advanceMinutes,
-                reason: (args.advanceReason ?? args.lastBeat ?? "推进").replace(/\s+/g, " "),
-              });
-              bundle.clock.now = to;
-              await writeJson(path.join(bundle.root, LAYOUT.clock), bundle.clock);
-            }
+          cursor.chapter = chapterNo;
+          cursor.chapterFile = file;
+          if (args.scene) cursor.scene = args.scene;
+          if (args.location) cursor.location = args.location;
+          if (args.lastBeat) cursor.lastBeat = args.lastBeat;
+          cursor.storyTime = bundle.clock.now;
+          bundle.state.updatedAt = new Date().toISOString();
+          await writeJson(path.join(bundle.root, LAYOUT.story), bundle.state);
 
-            cursor.chapter = chapterNo;
-            cursor.chapterFile = file;
-            if (args.scene) cursor.scene = args.scene;
-            if (args.location) cursor.location = args.location;
-            if (args.lastBeat) cursor.lastBeat = args.lastBeat;
-            cursor.storyTime = bundle.clock.now;
-            bundle.state.updatedAt = new Date().toISOString();
-            await writeJson(path.join(bundle.root, LAYOUT.story), bundle.state);
+          await fs.mkdir(path.join(bundle.root, LAYOUT.log), { recursive: true });
+          await fs.appendFile(
+            path.join(bundle.root, LAYOUT.log, "timeline.jsonl"),
+            `${JSON.stringify({
+              t: bundle.clock.now,
+              ch: chapterNo,
+              event: (args.lastBeat ?? "（未记）").replace(/\s+/g, " "),
+            })}\n`,
+            "utf8",
+          );
 
-            await fs.mkdir(path.join(bundle.root, LAYOUT.log), { recursive: true });
-            await fs.appendFile(
-              path.join(bundle.root, LAYOUT.log, "timeline.jsonl"),
-              `${JSON.stringify({
-                t: bundle.clock.now,
-                ch: chapterNo,
-                event: (args.lastBeat ?? "（未记）").replace(/\s+/g, " "),
-              })}\n`,
-              "utf8",
-            );
-
-            let generated = false;
-            if (args.finalize) {
-              const body = (args.text ?? "").trim();
-              if (!body) {
-                out(`第 ${chapterNo} 章 finalize 少了整章 text，章文件没生成。要补吗？`);
-              } else {
-                const target = path.join(bundle.root, LAYOUT.chapters, file);
-                let existing = "";
-                try {
-                  existing = (await fs.readFile(target, "utf8")).trimEnd();
-                } catch {
-                  /* new chapter */
-                }
-                const written = existing
-                  ? `${existing}\n\n---\n\n${body}\n`
-                  : [
-                      `# ${pad(chapterNo)} · ${title}`,
-                      "",
-                      `> 世界内时间：${bundle.clock.now}`,
-                      ...(cursor.location ? [`> 地点：${cursor.location}`] : []),
-                      "",
-                      "---",
-                      "",
-                      body,
-                      "",
-                    ].join("\n");
-                await writeText(target, written);
-                generated = true;
-
-                // 这一章埋下的伏笔：埋哪几条由模型判断，这里只落盘
-                const registered = await plantForeshadows(bundle, args.plant);
-                for (const f of registered) {
-                  out(`新埋入伏笔：${f.id} [${f.weight}] ${f.label} — ${f.cue}`);
-                }
+          let generated = false;
+          if (args.finalize) {
+            const body = (args.text ?? "").trim();
+            if (!body) {
+              lines.push(`第 ${chapterNo} 章 finalize 少了整章 text，章文件没生成。要补吗？`);
+            } else {
+              const target = path.join(bundle.root, LAYOUT.chapters, file);
+              let existing = "";
+              try {
+                existing = (await fs.readFile(target, "utf8")).trimEnd();
+              } catch {
+                /* new chapter */
+              }
+              const written = existing
+                ? `${existing}\n\n---\n\n${body}\n`
+                : [
+                    `# ${pad(chapterNo)} · ${title}`,
+                    "",
+                    `> 世界内时间：${bundle.clock.now}`,
+                    ...(cursor.location ? [`> 地点：${cursor.location}`] : []),
+                    "",
+                    "---",
+                    "",
+                    body,
+                    "",
+                  ].join("\n");
+              await writeText(target, written);
+              generated = true;
+              lines.push(`本章生成：chapters/${file}（${body.length} 字）`);
+              for (const f of await plantForeshadows(bundle, args.plant)) {
+                lines.push(`新埋入伏笔：${f.id} [${f.weight}] ${f.label} — ${f.cue}`);
               }
             }
-
-            const issues = guard({
-              bundle,
-              chapters: await chaptersOf(bundle.root),
-              ...(generated ? {} : { unwrittenChapter: chapterNo }),
-            });
-            await savePending(bundle.root, issues);
-            if (issues.length > 0) for (const line of driftReport(issues)) out(line);
-          };
-
-          // 每拍都起后台任务：任务结算会通知，读完 job_output 再决定要不要往下写。
-          const owner = ownerOf(exec);
-          const jobs = owner ? jobRegistry(deps.fallbackCtx) : undefined;
-          if (jobs) {
-            const label = `第 ${chapterNo} 章 · ${args.finalize ? "章末生成" : (args.lastBeat ?? "记一拍")}`;
-            try {
-              jobs.start({
-                kind: "story",
-                label,
-                owner,
-                run: (handle) => {
-                  const done = work((line) => handle.append(`${line}\n`))
-                    .then(() => ({ status: "completed" as const }))
-                    .catch((error) => {
-                      handle.append(`后台记账失败：${String(error)}\n`);
-                      return { status: "failed" as const, detail: String(error) };
-                    });
-                  return { cancel: () => {}, done };
-                },
-              });
-              return "";
-            } catch {
-              /* 没有控制器可用时退回内联 */
-            }
           }
 
-          const buffered: string[] = [];
-          try {
-            await work((line) => buffered.push(line));
-          } catch (error) {
-            return `记账失败：${String(error)}`;
-          }
-          return buffered.join("\n");
+          const issues = guard({
+            bundle,
+            chapters: await chaptersOf(bundle.root),
+            ...(generated ? {} : { unwrittenChapter: chapterNo }),
+          });
+          await savePending(bundle.root, issues);
+          if (issues.length > 0) lines.push(...driftReport(issues));
+
+          return lines.join("\n");
         },
       }),
     ),
@@ -447,53 +346,24 @@ export function createRuntime(deps: ToolDeps) {
     deps.fallbackCtx.tools.register(
       defineTool({
         name: "story_check",
-        description:
-          "章末用一次（后台，静默）：结构复查 + 语义自检清单。没有漂移就不出声；有漂移才返回提醒。语义自检在当前会话直接做，不委派 subagent。",
+        description: "章末用一次：结构复查 + 未触发伏笔清单。同步执行；没有漂移就不提。",
         parameters: {},
         output: { schema: { type: "string" }, render: (_a: unknown, v: string) => text(v) },
-        async execute(_args: unknown, exec?: unknown) {
+        async execute() {
           const ws = workspace();
           const bundle = await loadBound(ws);
+          const issues = guard({ bundle, chapters: await chaptersOf(bundle.root) });
+          await savePending(bundle.root, issues);
+          const lines = issues.length > 0 ? driftReport(issues) : [];
 
-          const work = async (out: (line: string) => void): Promise<void> => {
-            const issues = guard({ bundle, chapters: await chaptersOf(bundle.root) });
-            await savePending(bundle.root, issues);
-            if (issues.length > 0) for (const line of driftReport(issues)) out(line);
-
-            // 伏笔：只把账翻出来，判断留给模型（语义，不是词表）
-            const open = bundle.foreshadows.filter((f) => f.status === "未触发");
-            if (open.length > 0) {
-              out(`未触发伏笔 ${open.length} 条（用得上哪些、下一章埋哪几条，自己判，不用问）：`);
-              for (const f of open) out(`- ${f.id} [${f.weight}] ${f.label} — ${f.cue}`);
-            }
-          };
-          const owner = ownerOf(exec);
-          const jobs = owner ? jobRegistry(deps.fallbackCtx) : undefined;
-          if (jobs) {
-            try {
-              jobs.start({
-                kind: "story",
-                label: `第 ${bundle.state.cursor.chapter} 章 · 章末检查`,
-                owner,
-                run: (handle) => {
-                  const done = work((line) => handle.append(`${line}\n`))
-                    .then(() => ({ status: "completed" as const }))
-                    .catch((error) => {
-                      handle.append(`后台检查失败：${String(error)}\n`);
-                      return { status: "failed" as const, detail: String(error) };
-                    });
-                  return { cancel: () => {}, done };
-                },
-              });
-              return "";
-            } catch {
-              /* 退回内联 */
-            }
+          const open = bundle.foreshadows.filter((f) => f.status === "未触发");
+          if (open.length > 0) {
+            lines.push(
+              `未触发伏笔 ${open.length} 条（用得上哪些、下一章埋哪几条，自己判，不用问）：`,
+            );
+            for (const f of open) lines.push(`- ${f.id} [${f.weight}] ${f.label} — ${f.cue}`);
           }
-
-          const buffered: string[] = [];
-          await work((line) => buffered.push(line));
-          return buffered.length > 0 ? buffered.join("\n") : "结构检查通过。";
+          return lines.join("\n");
         },
       }),
     ),
@@ -512,5 +382,3 @@ export function createRuntime(deps: ToolDeps) {
     toolCount: () => 4,
   };
 }
-
-export { renderIssues };
