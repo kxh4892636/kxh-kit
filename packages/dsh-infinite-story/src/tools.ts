@@ -2,8 +2,9 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { renderBrief } from "./brief.js";
+import { MAX_OPEN_FORESHADOWS, isDuplicate, nextId, parseSeeds } from "./foreshadow.js";
 import { guard, renderIssues } from "./guard.js";
-import type { GuardIssue, StoryBundle } from "./model.js";
+import type { Foreshadow, GuardIssue, StoryBundle } from "./model.js";
 import { IRON_RULES, SECTION_NAME, SECTION_ORDER } from "./prompt.js";
 import {
   LAYOUT,
@@ -111,6 +112,38 @@ function digestRules(markdown: string): string {
     .filter((l) => l.startsWith("- ") || /^\d+\.\s/.test(l) || l.startsWith("# "))
     .slice(0, 14)
     .join("\n");
+}
+
+/** 章末把这一章埋下的伏笔写进 foreshadows.json：显式声明优先，其余从正文抽。 */
+async function plantForeshadows(bundle: StoryBundle, declared?: string): Promise<Foreshadow[]> {
+  const file = path.join(bundle.root, LAYOUT.foreshadows);
+  let all: Foreshadow[] = [];
+  try {
+    all = JSON.parse(await fs.readFile(file, "utf8")) as Foreshadow[];
+  } catch {
+    return [];
+  }
+
+  const seeds = parseSeeds(declared);
+
+  const added: Foreshadow[] = [];
+  for (const seed of seeds) {
+    const open = all.filter((f) => f.status === "未触发").length + added.length;
+    if (open >= MAX_OPEN_FORESHADOWS) break;
+    if (isDuplicate(seed, [...all, ...added])) continue;
+    const item: Foreshadow = {
+      id: nextId([...all, ...added]),
+      label: seed.label,
+      weight: seed.weight,
+      status: "未触发",
+      cue: seed.cue,
+    };
+    added.push(item);
+  }
+
+  if (added.length === 0) return [];
+  await writeJson(file, [...all, ...added]);
+  return added;
 }
 
 function driftReport(issues: GuardIssue[]): string[] {
@@ -228,6 +261,11 @@ export function createRuntime(deps: ToolDeps) {
           lastBeat: { type: "string", description: "一句话概括这一拍（写进 cursor）" },
           chapter: { type: "number", description: "切到新章时给章号（从 0 起）" },
           chapterTitle: { type: "string", description: "切到新章时给章标题" },
+          plant: {
+            type: "string",
+            description:
+              "可选：这一章明确埋下的伏笔，一条一行，`label|cue` 或 `label|重|cue`。不给就从章末正文里自动抽。",
+          },
           finalize: {
             type: "boolean",
             description: "本章最后一拍：设为 true，并用 text 给整章正文，一次生成章文件",
@@ -243,6 +281,7 @@ export function createRuntime(deps: ToolDeps) {
             chapter?: number;
             chapterTitle?: string;
             finalize?: boolean;
+            plant?: string;
           },
           exec?: unknown,
         ) {
@@ -309,6 +348,12 @@ export function createRuntime(deps: ToolDeps) {
                     ].join("\n");
                 await writeText(target, written);
                 generated = true;
+
+                // 这一章埋下的伏笔：埋哪几条由模型判断，这里只落盘
+                const registered = await plantForeshadows(bundle, args.plant);
+                for (const f of registered) {
+                  out(`新埋入伏笔：${f.id} [${f.weight}] ${f.label} — ${f.cue}`);
+                }
               }
             }
 
@@ -370,8 +415,14 @@ export function createRuntime(deps: ToolDeps) {
             const issues = guard({ bundle, chapters: await chaptersOf(bundle.root) });
             await savePending(bundle.root, issues);
             if (issues.length > 0) for (const line of driftReport(issues)) out(line);
-          };
 
+            // 伏笔：只把账翻出来，判断留给模型（语义，不是词表）
+            const open = bundle.foreshadows.filter((f) => f.status === "未触发");
+            if (open.length > 0) {
+              out(`未触发伏笔 ${open.length} 条（用得上哪些、下一章埋哪几条，自己判，不用问）：`);
+              for (const f of open) out(`- ${f.id} [${f.weight}] ${f.label} — ${f.cue}`);
+            }
+          };
           const jobs = jobRegistry(deps.fallbackCtx);
           if (jobs) {
             try {
