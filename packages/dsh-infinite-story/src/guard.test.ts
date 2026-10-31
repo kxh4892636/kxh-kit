@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { deriveBeatStatus, guard, hasErrors, minutesBetween, upcoming } from "./guard.js";
-import type { Beat, StoryBundle } from "./model.js";
+import type { Beat, StoryBundle, World } from "./model.js";
 
 const beat = (over: Partial<Beat> = {}): Beat => ({
   id: "T1",
@@ -61,14 +61,26 @@ describe("time helpers", () => {
 async function loadMigrated(): Promise<{ bundle: StoryBundle; chapters: string[] } | null> {
   const root = path.resolve(__dirname, "../../../.story/mama-story");
   try {
-    const state = JSON.parse(await fs.readFile(path.join(root, "state.json"), "utf8"));
+    const state = JSON.parse(await fs.readFile(path.join(root, "story.json"), "utf8"));
     const clock = JSON.parse(await fs.readFile(path.join(root, "clock.json"), "utf8"));
     const beats = JSON.parse(await fs.readFile(path.join(root, "beats.json"), "utf8"));
     const foreshadows = JSON.parse(await fs.readFile(path.join(root, "foreshadows.json"), "utf8"));
     const chapters = (await fs.readdir(path.join(root, "chapters")))
       .filter((n) => n.endsWith(".md"))
       .sort();
-    return { bundle: { id: "mama-story", root, state, clock, beats, foreshadows }, chapters };
+    const world: World = {
+      ids: new Set<string>(),
+      chars: [],
+      locations: [],
+      threads: [],
+      relations: [],
+      threadIds: new Set<string>(),
+      locationIds: new Set<string>(),
+    };
+    return {
+      bundle: { id: "mama-story", root, state, clock, beats, foreshadows, world },
+      chapters,
+    };
   } catch {
     return null;
   }

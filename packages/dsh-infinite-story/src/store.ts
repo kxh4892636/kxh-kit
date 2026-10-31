@@ -1,6 +1,17 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { Beat, Clock, Foreshadow, StoryBundle, StoryState } from "./model.js";
+import type {
+  Beat,
+  Clock,
+  Foreshadow,
+  StoryBundle,
+  StoryState,
+  World,
+  WorldChar,
+  WorldLocation,
+  WorldRelation,
+  WorldThread,
+} from "./model.js";
 
 /** Directory layout of one story. */
 export const LAYOUT = {
@@ -94,7 +105,44 @@ export async function readStory(workspace: string, id: string): Promise<StoryBun
   });
   const beats = await readJson<Beat[]>(path.join(root, LAYOUT.beats), []);
   const foreshadows = await readJson<Foreshadow[]>(path.join(root, LAYOUT.foreshadows), []);
-  return { id, root, state, clock, beats, foreshadows };
+  const world = await readWorld(root);
+  return { id, root, state, clock, beats, foreshadows, world };
+}
+
+/** chars.json 允许两种写法：扁平数组，或按 tier 分层的对象。都摊平成数组。 */
+function flattenChars(raw: unknown): WorldChar[] {
+  if (Array.isArray(raw)) return raw as WorldChar[];
+  if (raw && typeof raw === "object") {
+    const buckets = raw as Record<string, unknown>;
+    const out: WorldChar[] = [];
+    for (const tier of ["core", "major", "minor", "extra"]) {
+      const list = buckets[tier];
+      if (Array.isArray(list)) out.push(...(list as WorldChar[]));
+    }
+    return out;
+  }
+  return [];
+}
+
+/** Load the four world tables and precompute the id sets the guard needs. */
+export async function readWorld(root: string): Promise<World> {
+  const chars = flattenChars(await readJson<unknown>(path.join(root, LAYOUT.chars), []));
+  const locations = await readJson<WorldLocation[]>(path.join(root, LAYOUT.locations), []);
+  const threads = await readJson<WorldThread[]>(path.join(root, LAYOUT.threads), []);
+  const relations = await readJson<WorldRelation[]>(path.join(root, LAYOUT.relations), []);
+
+  const ids = new Set<string>(chars.map((c) => c.id));
+  ids.add("you");
+  ids.add("筱聿");
+  return {
+    ids,
+    chars,
+    locations,
+    threads,
+    relations,
+    threadIds: new Set(threads.map((t) => t.id)),
+    locationIds: new Set(locations.map((l) => l.id)),
+  };
 }
 
 export async function listStories(workspace: string): Promise<string[]> {

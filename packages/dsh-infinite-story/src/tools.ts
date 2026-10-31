@@ -2,17 +2,17 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { renderBrief } from "./brief.js";
-import { guard, hasErrors, renderIssues } from "./guard.js";
+import { guard, renderIssues } from "./guard.js";
 import type { GuardIssue, StoryBundle } from "./model.js";
 import { IRON_RULES, SECTION_NAME, SECTION_ORDER } from "./prompt.js";
 import {
   LAYOUT,
   listStories,
-  nextChapterFile,
   readActive,
   readStory,
   writeActive,
   writeJson,
+  writeText,
 } from "./store.js";
 
 export interface ToolDeps {
@@ -22,12 +22,48 @@ export interface ToolDeps {
 }
 
 type Disposer = () => void;
+
+interface JobHandle {
+  append: (text: string) => void;
+  updateProgress?: (line: string) => void;
+}
+
+interface JobRegistry {
+  start: (spec: {
+    kind: string;
+    label: string;
+    owner?: string;
+    run: (handle: JobHandle) => { cancel: () => void };
+  }) => string;
+}
+
 interface Ctx {
   tools: { register: (def: unknown) => Disposer };
   systemPrompt: { section: (sec: unknown) => unknown };
+  /** Optional: the dsh-jobs registry (`ctx.jobs`), present when a job controller is loaded. */
+  jobs?: JobRegistry;
+  get?: (name: string) => unknown;
 }
 
 const text = (value: string) => [{ type: "text" as const, text: value }];
+
+/** Background bookkeeping: silent on success, only drift reaches the session. */
+function jobRegistry(ctx: Ctx): JobRegistry | undefined {
+  const viaGet = typeof ctx.get === "function" ? ctx.get("jobs") : undefined;
+  return (ctx.jobs ?? (viaGet as JobRegistry | undefined)) || undefined;
+}
+
+/** The job's owner is the calling Session, when the execution context exposes it. */
+function ownerOf(exec: unknown): string | undefined {
+  const e = exec as Record<string, unknown> | undefined;
+  if (!e) return undefined;
+  const session = e["session"] as Record<string, unknown> | undefined;
+  const agent = e["agent"] as Record<string, unknown> | undefined;
+  const agentSession = agent?.["session"] as Record<string, unknown> | undefined;
+  const candidates = [e["sessionId"], session?.["id"], agentSession?.["id"], agent?.["sessionId"]];
+  for (const value of candidates) if (typeof value === "string" && value.length > 0) return value;
+  return undefined;
+}
 
 async function chaptersOf(root: string): Promise<string[]> {
   try {
@@ -56,6 +92,9 @@ async function savePending(root: string, issues: GuardIssue[]): Promise<void> {
   await writeJson(path.join(root, LAYOUT.pending), errors);
 }
 
+const pad = (n: number) => String(n).padStart(2, "0");
+const slug = (t: string) => t.replace(/[\\/:*?"<>|\s]/g, "") || "未命名";
+
 const NO_STORY = "还没有绑定故事：调用 story_mode action=bind id=<故事目录>。";
 
 async function loadBound(workspace: string): Promise<StoryBundle> {
@@ -69,9 +108,20 @@ async function loadBound(workspace: string): Promise<StoryBundle> {
 function digestRules(markdown: string): string {
   return markdown
     .split("\n")
-    .filter((l) => l.startsWith("- ") || /^\d+\.\s/.test(l) || l.startsWith("## "))
+    .filter((l) => l.startsWith("- ") || /^\d+\.\s/.test(l) || l.startsWith("# "))
     .slice(0, 14)
     .join("\n");
+}
+
+function driftReport(issues: GuardIssue[]): string[] {
+  const errors = issues.filter((i) => i.level === "error").length;
+  const lines = [`漂移：${errors} 错 / ${issues.length - errors} 警`];
+  for (const issue of issues.slice(0, 8)) {
+    lines.push(`[${issue.code}] ${issue.message}${issue.fix ? `（修：${issue.fix}）` : ""}`);
+  }
+  if (issues.length > 8) lines.push(`……另有 ${issues.length - 8} 条`);
+  lines.push("要改吗？");
+  return lines;
 }
 
 /**
@@ -140,15 +190,13 @@ export function createRuntime(deps: ToolDeps) {
     deps.fallbackCtx.tools.register(
       defineTool({
         name: "story_open",
-        description:
-          "打开绑定的故事，返回操作手册（此刻、上一拍、附近节点、悬置、伏笔、待修问题）。开工前必读。",
+        description: "打开绑定的故事，返回操作手册。开工前必读。不跑校验。",
         parameters: {},
         output: { schema: { type: "string" }, render: (_a: unknown, v: string) => text(v) },
         async execute() {
           const ws = workspace();
           const bundle = await loadBound(ws);
-          const issues = guard({ bundle, chapters: await chaptersOf(bundle.root) });
-          await savePending(bundle.root, issues);
+          const pending = await pendingIssues(bundle.root);
           let rulesDigest = "";
           try {
             rulesDigest = digestRules(
@@ -157,10 +205,7 @@ export function createRuntime(deps: ToolDeps) {
           } catch {
             /* no rules.md yet */
           }
-          return renderBrief(bundle, {
-            pending: issues.filter((i) => i.level === "error"),
-            rulesDigest,
-          });
+          return renderBrief(bundle, { pending, rulesDigest });
         },
       }),
     ),
@@ -171,102 +216,139 @@ export function createRuntime(deps: ToolDeps) {
       defineTool({
         name: "story_write",
         description:
-          "把一段正文落盘到当前章，并回写 cursor、追加流水、跑一致性校验。校验不通过会拒绝写入并返回问题清单。",
+          "后台记账（静默）：正文不进参数，直接写在回复里。本工具只把 cursor / 场景 / 时间流水写回，并在后台跑机械检查——只有漂移时才返回提醒。finalize=true 时把 text（整章正文）一次性写成 chapters/NN-title.md。",
         parameters: {
           text: {
             type: "string",
-            required: true,
-            description: "本章正文段落（Markdown），不要带章标题",
+            description:
+              "只在 finalize=true 时给：整章正文（Markdown，含拍间分隔），不带章标题。平时不传。",
           },
           scene: { type: "string", description: "更新后的场景名" },
           location: { type: "string", description: "更新后的地点" },
           lastBeat: { type: "string", description: "一句话概括这一拍（写进 cursor）" },
           chapter: { type: "number", description: "切到新章时给章号（从 0 起）" },
           chapterTitle: { type: "string", description: "切到新章时给章标题" },
+          finalize: {
+            type: "boolean",
+            description: "本章最后一拍：设为 true，并用 text 给整章正文，一次生成章文件",
+          },
         },
         output: { schema: { type: "string" }, render: (_a: unknown, v: string) => text(v) },
-        async execute(args: {
-          text: string;
-          scene?: string;
-          location?: string;
-          lastBeat?: string;
-          chapter?: number;
-          chapterTitle?: string;
-        }) {
+        async execute(
+          args: {
+            text?: string;
+            scene?: string;
+            location?: string;
+            lastBeat?: string;
+            chapter?: number;
+            chapterTitle?: string;
+            finalize?: boolean;
+          },
+          exec?: unknown,
+        ) {
           const ws = workspace();
           const bundle = await loadBound(ws);
+          const chapterNo =
+            typeof args.chapter === "number" ? args.chapter : bundle.state.cursor.chapter;
+          const title =
+            args.chapterTitle?.trim() ||
+            (bundle.state.cursor.chapter === chapterNo
+              ? (bundle.state.cursor.chapterFile ?? "").replace(/\.md$/, "").replace(/^\d+-/, "") ||
+                "未命名"
+              : "未命名");
 
-          const pending = await pendingIssues(bundle.root);
-          if (pending.length > 0) {
-            return `拒绝写入：还有 ${pending.length} 条问题未修。\n${renderIssues(pending)}\n先修完再调用 story_write。`;
-          }
-          const before = guard({ bundle, chapters: await chaptersOf(bundle.root) });
-          if (hasErrors(before)) {
-            await savePending(bundle.root, before);
-            return `拒绝写入：当前状态不一致，先修。\n${renderIssues(before)}`;
-          }
+          const work = async (out: (line: string) => void): Promise<void> => {
+            const cursor = bundle.state.cursor;
+            const file = `${pad(chapterNo)}-${slug(title)}.md`;
 
-          let chapterNo = bundle.state.cursor.chapter;
-          let file = bundle.state.cursor.chapterFile;
-          const openedChapter =
-            typeof args.chapter === "number" && args.chapter !== bundle.state.cursor.chapter;
-          if (typeof args.chapter === "number") {
-            chapterNo = args.chapter;
-            const title = (args.chapterTitle ?? "未命名").replace(/[\\/:*?"<>|\s]/g, "");
-            file = `${String(chapterNo).padStart(2, "0")}-${title}.md`;
-          }
-          const target =
-            file === bundle.state.cursor.chapterFile
-              ? await nextChapterFile(ws, bundle.id, chapterNo)
-              : path.join(bundle.root, LAYOUT.chapters, file);
+            cursor.chapter = chapterNo;
+            cursor.chapterFile = file;
+            if (args.scene) cursor.scene = args.scene;
+            if (args.location) cursor.location = args.location;
+            if (args.lastBeat) cursor.lastBeat = args.lastBeat;
+            cursor.storyTime = bundle.clock.now;
+            bundle.state.updatedAt = new Date().toISOString();
+            await writeJson(path.join(bundle.root, LAYOUT.story), bundle.state);
 
-          await fs.mkdir(path.dirname(target), { recursive: true });
-          await fs.appendFile(target, `\n\n${args.text.trim()}\n`, "utf8");
-
-          bundle.state.cursor.chapter = chapterNo;
-          bundle.state.cursor.chapterFile = path.basename(target);
-          if (args.scene) bundle.state.cursor.scene = args.scene;
-          if (args.location) bundle.state.cursor.location = args.location;
-          if (args.lastBeat) bundle.state.cursor.lastBeat = args.lastBeat;
-          bundle.state.cursor.storyTime = bundle.clock.now;
-          bundle.state.updatedAt = new Date().toISOString();
-          await writeJson(path.join(bundle.root, LAYOUT.story), bundle.state);
-
-          await fs.mkdir(path.join(bundle.root, LAYOUT.log), { recursive: true });
-          const logLine = JSON.stringify({
-            t: bundle.clock.now,
-            ch: chapterNo,
-            event: (args.lastBeat ?? args.text.slice(0, 40)).replace(/\s+/g, " "),
-          });
-          await fs.appendFile(
-            path.join(bundle.root, LAYOUT.log, "timeline.jsonl"),
-            `${logLine}\n`,
-            "utf8",
-          );
-
-          const after = guard({ bundle, chapters: await chaptersOf(bundle.root) });
-          await savePending(bundle.root, after);
-
-          const lines = [`已落盘：${path.basename(target)}（${args.text.trim().length} 字）`];
-          if (hasErrors(after)) lines.push("", "写入后出现新问题：", renderIssues(after));
-
-          const openFs = bundle.foreshadows.filter((f) => f.status === "未触发");
-          const pick = openFs[Math.floor(Math.random() * openFs.length)];
-          if (pick && Math.random() < 0.35) {
-            lines.push("", `〔可触发 · ${pick.id} ${pick.label}〕${pick.cue}`);
-          }
-
-          if (openedChapter) {
-            lines.push(
-              "",
-              "── 语义检查（每章一次）──",
-              `可以委派一个 subagent 审第 ${chapterNo} 章快照：`,
-              `  读 .story/${bundle.id}/rules.md、.story/${bundle.id}/world/characters.md、chapters/${path.basename(target)}`,
-              "  只报违规、不改稿：禁忌项（引原文为证）、称呼与口癖漂移、外人越权知情、结局基调偏离。",
-              "  结构校验已经在刚才写入时跑过，不必重复。",
+            await fs.mkdir(path.join(bundle.root, LAYOUT.log), { recursive: true });
+            await fs.appendFile(
+              path.join(bundle.root, LAYOUT.log, "timeline.jsonl"),
+              `${JSON.stringify({
+                t: bundle.clock.now,
+                ch: chapterNo,
+                event: (args.lastBeat ?? "（未记）").replace(/\s+/g, " "),
+              })}\n`,
+              "utf8",
             );
+
+            let generated = false;
+            if (args.finalize) {
+              const body = (args.text ?? "").trim();
+              if (!body) {
+                out(`第 ${chapterNo} 章 finalize 少了整章 text，章文件没生成。要补吗？`);
+              } else {
+                const target = path.join(bundle.root, LAYOUT.chapters, file);
+                let existing = "";
+                try {
+                  existing = (await fs.readFile(target, "utf8")).trimEnd();
+                } catch {
+                  /* new chapter */
+                }
+                const written = existing
+                  ? `${existing}\n\n---\n\n${body}\n`
+                  : [
+                      `# ${pad(chapterNo)} · ${title}`,
+                      "",
+                      `> 世界内时间：${bundle.clock.now}`,
+                      ...(cursor.location ? [`> 地点：${cursor.location}`] : []),
+                      "",
+                      "---",
+                      "",
+                      body,
+                      "",
+                    ].join("\n");
+                await writeText(target, written);
+                generated = true;
+              }
+            }
+
+            const issues = guard({
+              bundle,
+              chapters: await chaptersOf(bundle.root),
+              ...(generated ? {} : { unwrittenChapter: chapterNo }),
+            });
+            await savePending(bundle.root, issues);
+            if (issues.length > 0) for (const line of driftReport(issues)) out(line);
+          };
+
+          const jobs = jobRegistry(deps.fallbackCtx);
+          if (jobs) {
+            const label = `第 ${chapterNo} 章 · ${args.finalize ? "章末生成" : (args.lastBeat ?? "记一拍")}`;
+            try {
+              jobs.start({
+                kind: "story",
+                label,
+                ...(ownerOf(exec) ? { owner: ownerOf(exec)! } : {}),
+                run: (handle) => {
+                  void work((line) => handle.append(`${line}\n`)).catch((error) => {
+                    handle.append(`后台记账失败：${String(error)}\n`);
+                  });
+                  return { cancel: () => {} };
+                },
+              });
+              return "";
+            } catch {
+              /* 没有控制器可用时退回内联 */
+            }
           }
-          return lines.join("\n");
+
+          const buffered: string[] = [];
+          try {
+            await work((line) => buffered.push(line));
+          } catch (error) {
+            return `记账失败：${String(error)}`;
+          }
+          return buffered.join("\n");
         },
       }),
     ),
@@ -277,45 +359,42 @@ export function createRuntime(deps: ToolDeps) {
       defineTool({
         name: "story_check",
         description:
-          "主动复查故事结构（章节连续、cursor、时钟单调、节点状态、伏笔与好感度）。结构校验已内建在 story_write 里；本工具用于改完状态文件后主动复核，或拿一份语义检查工单。",
+          "章末用一次（后台，静默）：结构复查 + 语义自检清单。没有漂移就不出声；有漂移才返回提醒。语义自检在当前会话直接做，不委派 subagent。",
         parameters: {},
         output: { schema: { type: "string" }, render: (_a: unknown, v: string) => text(v) },
-        async execute() {
+        async execute(_args: unknown, exec?: unknown) {
           const ws = workspace();
           const bundle = await loadBound(ws);
-          const issues = guard({ bundle, chapters: await chaptersOf(bundle.root) });
-          await savePending(bundle.root, issues);
 
-          const lines: string[] = [];
-          lines.push(
-            issues.length === 0
-              ? `结构检查通过 · 第 ${bundle.state.cursor.chapter} 章 · ${bundle.clock.now}`
-              : `${issues.length} 条问题：\n${renderIssues(issues)}`,
-          );
+          const work = async (out: (line: string) => void): Promise<void> => {
+            const issues = guard({ bundle, chapters: await chaptersOf(bundle.root) });
+            await savePending(bundle.root, issues);
+            if (issues.length > 0) for (const line of driftReport(issues)) out(line);
+          };
 
-          const rules = await fs
-            .readFile(path.join(bundle.root, LAYOUT.rules), "utf8")
-            .catch(() => "");
-          lines.push(
-            "",
-            "── 语义检查工单 ──",
-            "本地校验只管结构。以下交派一个 subagent 执行（不污染本会话上下文）：",
-            "",
-          );
-          lines.push("任务：以读者视角审最新章节，只报违规，不改稿。");
-          lines.push(
-            `读这些文件：.story/${bundle.id}/rules.md、.story/${bundle.id}/world/characters.md、.story/${bundle.id}/chapters/ 下最近两章。`,
-          );
-          lines.push("逐条判：");
-          lines.push("  1. 是否触犯 rules.md 里的禁忌项（引用原文片段作为证据）");
-          lines.push("  2. 人物语气是否漂移：称呼、自称、口癖是否与 characters.md 的样本一致");
-          lines.push("  3. 是否出现「外人识破关系」类越权知情");
-          lines.push("  4. 结局基调是否偏离已声明的方向");
-          lines.push(
-            "输出格式：{pass: boolean, violations: [{rule, evidence, location}], suggestion}",
-          );
-          if (rules.trim()) lines.push("", "本故事 rules.md 摘要：", digestRules(rules));
-          return lines.join("\n");
+          const jobs = jobRegistry(deps.fallbackCtx);
+          if (jobs) {
+            try {
+              jobs.start({
+                kind: "story",
+                label: `第 ${bundle.state.cursor.chapter} 章 · 章末检查`,
+                ...(ownerOf(exec) ? { owner: ownerOf(exec)! } : {}),
+                run: (handle) => {
+                  void work((line) => handle.append(`${line}\n`)).catch((error) => {
+                    handle.append(`后台检查失败：${String(error)}\n`);
+                  });
+                  return { cancel: () => {} };
+                },
+              });
+              return "";
+            } catch {
+              /* 退回内联 */
+            }
+          }
+
+          const buffered: string[] = [];
+          await work((line) => buffered.push(line));
+          return buffered.length > 0 ? buffered.join("\n") : "结构检查通过。";
         },
       }),
     ),
@@ -334,3 +413,5 @@ export function createRuntime(deps: ToolDeps) {
     toolCount: () => 4,
   };
 }
+
+export { renderIssues };

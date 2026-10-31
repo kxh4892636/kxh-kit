@@ -42,12 +42,12 @@ There is no UI switch yet — see _Known limits_.
 
 ## Tools
 
-| Tool          | What it does                                                                                   |
-| ------------- | ---------------------------------------------------------------------------------------------- |
-| `story_mode`  | switch, bind, create                                                                           |
-| `story_open`  | returns the **Brief**: now, last beat, nearby beats, open threads, foreshadows, pending issues |
-| `story_write` | appends prose, writes back the cursor, appends the log, runs L0/L1, **refuses on error**       |
-| `story_check` | structural verification + a semantic review work order for a subagent                          |
+| Tool          | What it does                                                                                                                                                                     |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `story_mode`  | switch, bind, create                                                                                                                                                             |
+| `story_open`  | returns the **Brief**: now, last beat, nearby beats, open threads, foreshadows, pending issues                                                                                   |
+| `story_write` | background job: writes back the cursor and the log, then runs the mechanical guard; silent unless it finds drift. `finalize:true` writes the whole chapter file in the same pass |
+| `story_check` | chapter-end only, background job: structural verification again; silent unless it finds drift. The semantic self-check list is applied in the current session                    |
 
 Everything else — clock, beats, foreshadows, affinity, meters, shards — is **plain
 files the model edits directly**. `story_check` verifies afterwards. Adding a new
@@ -94,17 +94,17 @@ points at it never changes.
 
 | Tier           | Checks                                                                | When                                           | Cost              |
 | -------------- | --------------------------------------------------------------------- | ---------------------------------------------- | ----------------- |
-| L0 structural  | schema, chapter numbering, cursor, links, quotas, clock monotonic     | every `story_write` (entry + exit)             | free, local       |
-| L1 consistency | chapter time vs clock, beat status vs window, affinity level vs value | every `story_write`                            | free, local       |
+| L0 structural  | schema, chapter numbering, cursor, links, quotas, clock monotonic     | `story_check` after a chapter is generated     | free, local       |
+| L1 consistency | chapter time vs clock, beat status vs window, affinity level vs value | `story_check` after a chapter is generated     | free, local       |
 | L2 semantic    | taboos, voice drift, ending tone, unearned knowledge                  | **once per chapter**, when a new chapter opens | one subagent call |
 
 Frequency is decided by structure, not by the model's mood:
 
 - structure checks are welded to the write path — impossible to skip, costs nothing
 - semantic review rides on the **chapter boundary** — one call per chapter, not per scene
-- `story_check` is for manual re-verification after editing state files by hand, not a per-turn ritual
+- `story_check` runs once per chapter, right after `finalize:true` generates it — not a per-turn ritual
 
-L2 is a **work order**, not a hidden call: `story_write` (on a new chapter) and `story_check`
+L2 is a **self-check list**, not a hidden call: `story_check` (after a chapter is generated)
 both print exactly what to delegate and what to read, so the review runs in a child context
 instead of polluting the session.
 
@@ -128,4 +128,4 @@ The bundle list is composed at boot, so restart the desktop app after installing
 - **Tool visibility is global.** Tools are registered once for the process; only their
   _behaviour_ is per-session. Hiding them per conversation needs `tools.restrict()`, which
   requires an agent-scoped context and rejects a context-global mask.
-- **L2 has no built-in model call**; it hands the work order to the session's subagent.
+- **L2 has no built-in model call**; it returns a short self-check list the current session applies itself — no subagent, no second context.

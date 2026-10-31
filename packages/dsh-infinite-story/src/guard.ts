@@ -36,6 +36,9 @@ export interface GuardInput {
   bundle: StoryBundle;
   /** Chapter file names, e.g. "00-夜里.md". Sorted or not, we sort. */
   chapters: string[];
+  /** Chapter being written right now — its file appears only at finalize, so its absence is not an error. */
+  unwrittenChapter?: number;
+
   /** Files referenced by WORLD.md; used to detect dangling links. */
   shardFiles?: string[];
 }
@@ -183,14 +186,15 @@ export function guard(input: GuardInput): GuardIssue[] {
   const cursorFile = chapters.find((n) =>
     n.startsWith(String(bundle.state.cursor.chapter).padStart(2, "0") + "-"),
   );
-  if (chapters.length > 0 && !cursorFile) {
+  const pendingChapter = input.unwrittenChapter === bundle.state.cursor.chapter;
+  if (chapters.length > 0 && !cursorFile && !pendingChapter) {
     issues.push({
       level: "error",
       code: "cursor/chapter",
       message: `cursor 指向第 ${bundle.state.cursor.chapter} 章，但目录里没有对应文件`,
       fix: "修正 cursor.chapter 与 chapterFile",
     });
-  } else if (cursorFile && cursorFile !== bundle.state.cursor.chapterFile) {
+  } else if (cursorFile && !pendingChapter && cursorFile !== bundle.state.cursor.chapterFile) {
     issues.push({
       level: "error",
       code: "cursor/chapter-file",

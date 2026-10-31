@@ -73,18 +73,15 @@ export function renderBrief(bundle: StoryBundle, opts: BriefOptions = {}): strin
 
   const pending = opts.pending ?? [];
   if (pending.length > 0) {
-    lines.push(`【先修 · ${pending.length} 条】`);
+    lines.push(`【待修 · ${pending.length} 条】`);
     for (const p of pending.slice(0, 6)) lines.push(`  ✖ [${p.code}] ${p.message}`);
-    lines.push("  未清空之前不要写正文。");
-  } else {
-    lines.push("【检查】通过");
   }
 
   lines.push("");
   lines.push(
-    "【下一步】写完正文调用 story_write；改过 state/clock/beats/foreshadows 后调用 story_check。",
+    "【下一步】正文只留在上下文；每拍 story_write 记一笔；章末 finalize=true 一次生成章文件，再调一次 story_check。",
   );
-  lines.push("【别做】不要只把正文留在对话里；不要改检查规则来绕过检查。");
+  lines.push("【别做】不要把正文攒进工具参数；没到章末不要调 story_check。");
 
   return lines.join("\n");
 }

@@ -66,6 +66,46 @@ export interface GuardIssue {
   fix?: string;
 }
 
+/** World data. Structural only — semantics stay with the writer and the reviewer. */
+export interface WorldChar {
+  id: string;
+  name: string;
+  tier?: string;
+  knows?: string[];
+  affinity?: { value: number; level: string } | null;
+}
+
+export interface WorldLocation {
+  id: string;
+  name: string;
+  links?: string[];
+  focus?: string[];
+}
+
+export interface WorldThread {
+  id: string;
+  title?: string;
+  dependsOn?: string[];
+  participants?: string[];
+}
+
+export interface WorldRelation {
+  a: string;
+  b: string;
+  type?: string;
+}
+
+export interface World {
+  /** Every entity id that may be referenced: characters plus the protagonist. */
+  ids: Set<string>;
+  chars: WorldChar[];
+  locations: WorldLocation[];
+  threads: WorldThread[];
+  relations: WorldRelation[];
+  threadIds: Set<string>;
+  locationIds: Set<string>;
+}
+
 /** Everything `story_open` needs, loaded in one shot. */
 export interface StoryBundle {
   id: string;
@@ -74,6 +114,7 @@ export interface StoryBundle {
   clock: Clock;
   beats: Beat[];
   foreshadows: Foreshadow[];
+  world: World;
 }
 
 export const LEVELS: ReadonlyArray<readonly [number, string]> = [
