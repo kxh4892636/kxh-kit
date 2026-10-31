@@ -125,10 +125,19 @@ function flattenChars(raw: unknown): WorldChar[] {
   return [];
 }
 
+const toList = <T>(value: T | T[] | undefined): T[] =>
+  Array.isArray(value) ? value : value === undefined || value === null ? [] : [value];
+
 /** Load the four world tables and precompute the id sets the guard needs. */
 export async function readWorld(root: string): Promise<World> {
   const chars = flattenChars(await readJson<unknown>(path.join(root, LAYOUT.chars), []));
-  const locations = await readJson<WorldLocation[]>(path.join(root, LAYOUT.locations), []);
+  const rawLocations = await readJson<WorldLocation[]>(path.join(root, LAYOUT.locations), []);
+  // focus / links 可能被写成字符串，统一成数组，免得被逐字符遍历
+  const locations = rawLocations.map((l) => ({
+    ...l,
+    links: toList(l.links),
+    focus: toList(l.focus),
+  }));
   const threads = await readJson<WorldThread[]>(path.join(root, LAYOUT.threads), []);
   const relations = await readJson<WorldRelation[]>(path.join(root, LAYOUT.relations), []);
 

@@ -4,6 +4,7 @@ import { defineTool } from "@deepseek-ai/dsh-tools";
 import { briefIsFresh, writeBrief } from "./brief.js";
 import { autoRepair } from "./repair.js";
 import { isDuplicate, nextId, parseSeeds } from "./foreshadow.js";
+import { levelOf } from "./model.js";
 import type { Foreshadow, GuardIssue, StoryBundle } from "./model.js";
 import { IRON_RULES, SECTION_NAME, SECTION_ORDER } from "./prompt.js";
 import {
@@ -220,7 +221,21 @@ export function createRuntime(deps: ToolDeps) {
           finalize: { type: "boolean", description: "本章最后一拍：生成章节文件" },
           text: {
             type: "string",
-            description: "只在 finalize=true 时给：整章正文（Markdown，含拍间分隔），不带章标题",
+            description:
+              "这一拍的正文。它只写进 beats.jsonl（崩溃恢复用的 WAL），不进对话、不进上下文。",
+          },
+          participants: {
+            type: "string",
+            description: "这一拍在场的人物 id，逗号分隔（写进 WAL，供在场一致性检查）",
+          },
+          thread: { type: "string", description: "这一拍推进的故事线 id（如 TH02）" },
+          affinity: {
+            type: "string",
+            description: "好感变动，逗号分隔：`mom:+3,teacher-zhou:-2`；原因用 advanceReason",
+          },
+          summary: {
+            type: "string",
+            description: "本章一句话摘要（60 字内），写进 chapters/index.json",
           },
           plant: {
             type: "string",
@@ -239,6 +254,10 @@ export function createRuntime(deps: ToolDeps) {
           finalize?: boolean;
           text?: string;
           plant?: string;
+          participants?: string;
+          thread?: string;
+          affinity?: string;
+          summary?: string;
         }) {
           const ws = workspace();
           const bundle = await loadBound(ws);
@@ -267,9 +286,90 @@ export function createRuntime(deps: ToolDeps) {
               reason: (args.advanceReason ?? args.lastBeat ?? "推进").replace(/\s+/g, " "),
             });
             bundle.clock.now = to;
+            // 按日压缩：只保留最近 3 天的时间账，更早的折成一条写进 log/days.jsonl
+            const dayOf = (iso: string): string => {
+              const d = new Date(iso);
+              return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+            };
+            const days = [...new Set(bundle.clock.advances.map((a) => dayOf(a.to)))].sort();
+            if (days.length > 3) {
+              const keepFrom = days[days.length - 3] ?? "";
+              const dropped = bundle.clock.advances.filter((a) => dayOf(a.to) < keepFrom);
+              if (dropped.length > 0) {
+                const ledger = days
+                  .filter((d) => d < keepFrom)
+                  .map((date) => {
+                    const items = dropped.filter((a) => dayOf(a.to) === date);
+                    return {
+                      date,
+                      minutes: items.reduce((n, a) => n + a.minutes, 0),
+                      from: items[0]?.from,
+                      to: items[items.length - 1]?.to,
+                      beats: items.length,
+                      reasons: items.map((a) => a.reason),
+                    };
+                  });
+                await fs.appendFile(
+                  path.join(bundle.root, LAYOUT.log, "days.jsonl"),
+                  ledger.map((l) => JSON.stringify(l)).join("\n") + "\n",
+                  "utf8",
+                );
+                bundle.clock.advances = bundle.clock.advances.filter(
+                  (a) => dayOf(a.to) >= keepFrom,
+                );
+              }
+            }
             await writeJson(path.join(bundle.root, LAYOUT.clock), bundle.clock);
           }
 
+          // WAL：这一拍的正文追加进 beats.jsonl，崩溃可恢复；不进上下文
+          if (args.text?.trim()) {
+            await fs.mkdir(path.join(bundle.root, LAYOUT.log), { recursive: true });
+            await fs.appendFile(
+              path.join(bundle.root, LAYOUT.log, "beats.jsonl"),
+              `${JSON.stringify({
+                t: bundle.clock.now,
+                ch: chapterNo,
+                scene: args.scene ?? cursor.scene,
+                location: args.location ?? cursor.location,
+                participants: (args.participants ?? "")
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+                thread: args.thread ?? null,
+                lastBeat: args.lastBeat ?? null,
+                text: args.text.trim(),
+              })}\n`,
+              "utf8",
+            );
+          }
+
+          // 好感结算：夹值、重算等级、写流水
+          if (args.affinity?.trim()) {
+            const entries = [];
+            for (const part of args.affinity.split(",")) {
+              const [who, raw] = part.split(":").map((s) => s.trim());
+              const delta = Number(raw);
+              if (!who || !Number.isFinite(delta)) continue;
+              const current = bundle.state.affinity[who] ?? { value: 0, level: "中立" };
+              const value = Math.max(-100, Math.min(100, current.value + delta));
+              bundle.state.affinity[who] = { value, level: levelOf(value) };
+              entries.push({
+                npc: who,
+                from: current.value,
+                to: value,
+                delta,
+                reason: args.advanceReason ?? args.lastBeat ?? "",
+              });
+            }
+            if (entries.length > 0) {
+              await fs.appendFile(
+                path.join(bundle.root, LAYOUT.log, "affinity.jsonl"),
+                entries.map((e) => JSON.stringify({ ...e, t: bundle.clock.now })).join("\n") + "\n",
+                "utf8",
+              );
+            }
+          }
           cursor.chapter = chapterNo;
           cursor.chapterFile = file;
           if (args.scene) cursor.scene = args.scene;
@@ -292,7 +392,34 @@ export function createRuntime(deps: ToolDeps) {
 
           let generated = false;
           if (args.finalize) {
-            const body = (args.text ?? "").trim();
+            let body = (args.text ?? "").trim();
+            if (!body) {
+              // 从 WAL 聚合这一章：崩溃后也能把章生成出来
+              try {
+                const wal = await fs.readFile(
+                  path.join(bundle.root, LAYOUT.log, "beats.jsonl"),
+                  "utf8",
+                );
+                const beatsOfChapter = wal
+                  .split("\n")
+                  .filter(Boolean)
+                  .map((line) => {
+                    try {
+                      return JSON.parse(line) as { ch: number; text: string };
+                    } catch {
+                      return null;
+                    }
+                  })
+                  .filter(
+                    (b): b is { ch: number; text: string } => Boolean(b) && b!.ch === chapterNo,
+                  )
+                  .map((b) => b.text.trim())
+                  .filter(Boolean);
+                body = beatsOfChapter.join("\n\n---\n\n");
+              } catch {
+                /* 没有 WAL */
+              }
+            }
             if (!body) {
               lines.push(`第 ${chapterNo} 章 finalize 少了整章 text，章文件没生成。要补吗？`);
             } else {
@@ -318,7 +445,31 @@ export function createRuntime(deps: ToolDeps) {
                   ].join("\n");
               await writeText(target, written);
               generated = true;
-              lines.push(`本章生成：chapters/${file}（${body.length} 字）`);
+              const indexFile = path.join(bundle.root, LAYOUT.chapters, "index.json");
+              let index: unknown[] = [];
+              try {
+                index = JSON.parse(await fs.readFile(indexFile, "utf8")) as unknown[];
+              } catch {
+                index = [];
+              }
+              const kept = index.filter((e) => (e as { no?: number }).no !== chapterNo);
+              kept.push({
+                no: chapterNo,
+                title,
+                file,
+                chars: body.replace(/\s/g, "").length,
+                beats: body.split(/\n---\n/).length,
+                storyTime: bundle.clock.now,
+                participants: (args.participants ?? "")
+                  .split(",")
+                  .map((s) => s.trim())
+                  .filter(Boolean),
+                thread: args.thread ?? null,
+                summary: args.summary ?? "",
+              });
+              (kept as { no?: number }[]).sort((a, b) => (a.no ?? 0) - (b.no ?? 0));
+              await writeJson(indexFile, kept);
+              lines.push(`本章生成：chapters/${file}（${body.replace(/\s/g, "").length} 字）`);
               for (const f of await plantForeshadows(bundle, args.plant)) {
                 lines.push(`新埋入伏笔：${f.id} [${f.weight}] ${f.label} — ${f.cue}`);
               }

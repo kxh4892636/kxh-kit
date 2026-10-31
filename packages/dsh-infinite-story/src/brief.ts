@@ -41,6 +41,32 @@ function upcoming(input: BriefInput): string[] {
     });
 }
 
+interface IndexEntry {
+  no: number;
+  title: string;
+  file: string;
+  chars?: number;
+  summary?: string;
+}
+
+/** 近几章的索引摘要——给上下文一个「我们写到哪儿了」的锚点。 */
+async function recentChapters(root: string, limit = 5): Promise<string[]> {
+  try {
+    const raw = JSON.parse(
+      await fs.readFile(path.join(root, LAYOUT.chapters, "index.json"), "utf8"),
+    ) as IndexEntry[];
+    const tail = raw
+      .filter((e) => typeof e.no === "number")
+      .sort((a, b) => a.no - b.no)
+      .slice(-limit);
+    return tail.map(
+      (e) =>
+        `  第 ${pad(e.no)} 章《${e.title}》${e.chars ? ` · ${e.chars} 字` : ""}${e.summary ? ` · ${e.summary}` : ""}`,
+    );
+  } catch {
+    return [];
+  }
+}
 function worldLines(input: BriefInput): string[] {
   const { bundle } = input;
   const lines: string[] = [];
@@ -97,7 +123,7 @@ function worldLines(input: BriefInput): string[] {
 }
 
 /** 拼 brief.md 全文；`## 全量` 之外还有一段机器可读的 JSON 字段。 */
-export function renderBriefFile(input: BriefInput): string {
+export async function renderBriefFile(input: BriefInput): Promise<string> {
   const { bundle } = input;
   const cursor = bundle.state.cursor;
   const snapshot = {
@@ -145,6 +171,8 @@ export function renderBriefFile(input: BriefInput): string {
   ];
 
   const body: string[] = [];
+  const recent = await recentChapters(bundle.root);
+  if (recent.length > 0) body.push("【近章】", ...recent);
   body.push(...worldLines(input));
   const soon = upcoming(input);
   if (soon.length > 0) body.push("【节点】", ...soon.map((l) => `  ${l}`));
@@ -163,7 +191,7 @@ export function renderBriefFile(input: BriefInput): string {
 
 export async function writeBrief(root: string, input: BriefInput): Promise<string> {
   const file = path.join(root, LAYOUT.brief);
-  await writeText(file, renderBriefFile(input));
+  await writeText(file, await renderBriefFile(input));
   return file;
 }
 
