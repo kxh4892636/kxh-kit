@@ -27,7 +27,7 @@ export const IRON_RULES = `【故事模式 · 机制】
 
 ■ 章节生成
 5. 一章写完才生成：本章最后一拍用 story_write finalize=true，text 放整章正文（含拍间分隔），一次写成 chapters/NN-title.md。本章新埋的伏笔用 plant 一行一条（label|重|cue）带上，插件写进 foreshadows.json。
-6. 换章时先调一次 story_open 拿 Brief（未触发伏笔、悬置、待修），再给 chapter 与 chapterTitle；上一章没生成就先 finalize，不要带着半章往下走。
+6. 换章时给 chapter 与 chapterTitle；上一章没生成就先 finalize，不要带着半章往下走。
 
 ■ 校验（只在章末）
 7. 工具同步执行，没有后台任务、不用读 job。机械漂移一律自动修正，不要问用户：改完把动过的字段念一行即可；只有修不动的（章节断号、伏笔 id 重复）才报。story_check 只回这一行加本章信息，其余不输出。
