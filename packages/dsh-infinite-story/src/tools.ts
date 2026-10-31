@@ -68,6 +68,15 @@ function driftReport(issues: GuardIssue[]): string[] {
   return lines;
 }
 
+/** 以原文的时区偏移推进时间，输出保持同样的 `+08:00` 形式。 */
+function shiftIso(from: string, minutes: number): string {
+  const offset = /([+-]\d{2}:\d{2})$/.exec(from)?.[1] ?? "+00:00";
+  const sign = offset.startsWith("-") ? -1 : 1;
+  const offsetMinutes = sign * (Number(offset.slice(1, 3)) * 60 + Number(offset.slice(4, 6)));
+  const shifted = new Date(new Date(from).getTime() + minutes * 60_000 + offsetMinutes * 60_000);
+  return `${shifted.toISOString().slice(0, 19)}${offset}`;
+}
+
 const pad = (n: number) => String(n).padStart(2, "0");
 const slug = (t: string) => t.replace(/[\\/:*?"<>|\s]/g, "") || "未命名";
 
@@ -260,9 +269,7 @@ export function createRuntime(deps: ToolDeps) {
           // 时钟
           if (typeof args.advanceMinutes === "number" && args.advanceMinutes !== 0) {
             const from = bundle.clock.now;
-            const to = new Date(
-              new Date(from).getTime() + args.advanceMinutes * 60_000,
-            ).toISOString();
+            const to = shiftIso(from, args.advanceMinutes);
             bundle.clock.advances.push({
               from,
               to,
