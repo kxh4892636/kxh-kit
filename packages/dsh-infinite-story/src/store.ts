@@ -6,6 +6,7 @@ import type {
   Foreshadow,
   StoryBundle,
   StoryState,
+  ThreadGroup,
   World,
   WorldChar,
   WorldLocation,
@@ -26,6 +27,7 @@ export const LAYOUT = {
   chars: "world/chars.json",
   locations: "world/locations.json",
   threads: "world/threads.json",
+  groups: "world/groups.json",
   relations: "world/relations.json",
   chapters: "chapters",
   log: "log",
@@ -143,6 +145,7 @@ export async function readWorld(root: string): Promise<World> {
     scenes: Array.isArray(l.scenes) ? l.scenes : [],
   }));
   const threads = await readJson<WorldThread[]>(path.join(root, LAYOUT.threads), []);
+  const groups = await readJson<ThreadGroup[]>(path.join(root, LAYOUT.groups), []);
   const relations = await readJson<WorldRelation[]>(path.join(root, LAYOUT.relations), []);
 
   const ids = new Set<string>(chars.map((c) => c.id));
@@ -155,6 +158,7 @@ export async function readWorld(root: string): Promise<World> {
     chars,
     locations,
     threads,
+    groups,
     relations,
     threadIds: new Set(threads.map((t) => t.id)),
     locationIds: new Set(locations.map((l) => l.id)),

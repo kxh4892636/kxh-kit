@@ -146,12 +146,27 @@ export interface WorldThread {
   title?: string;
   /** 这条线怎么来的；reported / user 不占扩张预算。 */
   origin?: Origin;
+  /** 归属哪条故事线（groups.json 里的 id）。 */
+  group?: string;
   status?: string;
   weight?: string;
   dependsOn?: string[];
   participants?: string[];
   /** 这条线接下来可写的东西（软提示）。 */
   nextMoves?: string[];
+}
+
+/**
+ * 故事线（storyline）：一条故事线 = 一条主线 + 若干支线。
+ * 一个故事有几条故事线，其中恰好一条是贯穿全文的（throughline）。
+ */
+export interface ThreadGroup {
+  id: string;
+  title: string;
+  /** 贯穿全文的那条故事线；全篇恰好一条。 */
+  throughline?: boolean;
+  origin?: Origin;
+  note?: string;
 }
 
 export interface WorldRelation {
@@ -166,6 +181,8 @@ export interface World {
   chars: WorldChar[];
   locations: WorldLocation[];
   threads: WorldThread[];
+  /** 故事线（一组主+支）。 */
+  groups: ThreadGroup[];
   relations: WorldRelation[];
   threadIds: Set<string>;
   locationIds: Set<string>;

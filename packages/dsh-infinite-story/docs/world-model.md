@@ -9,13 +9,14 @@
 
 四类节点，两类边。
 
-| 节点   | 文件                   | 关键字段                                                              |
-| ------ | ---------------------- | --------------------------------------------------------------------- |
-| 人物   | `world/chars.json`     | `id` `name` `tier` `affinity` `knows` `revealed` `hidden`             |
-| 地点   | `world/locations.json` | `id` `name` `scenes` `links` `focus`                                  |
-| 故事线 | `world/threads.json`   | `id` `title` `weight` `status` `participants` `dependsOn` `nextMoves` |
+| 节点     | 文件                   | 关键字段                                                                      |
+| -------- | ---------------------- | ----------------------------------------------------------------------------- |
+| 人物     | `world/chars.json`     | `id` `name` `tier` `affinity` `knows` `revealed` `hidden`                     |
+| 地点     | `world/locations.json` | `id` `name` `scenes` `links` `focus`                                          |
+| 故事线   | `world/threads.json`   | `id` `title` `group` `weight` `status` `participants` `dependsOn` `nextMoves` |
+| 故事线组 | `world/groups.json`    | `id` `title` `throughline`                                                    |
 
-**故事线只有两层**：全篇一条贯穿到底的 **主线**（主角之间的关系），下面是若干 **支线**（考试、单位、外人、搬家…）。`weight` 只能是 `主线` 或 `支线`；主线恰好一条、且不挂 `dependsOn`（它是根），支线可以依赖主线或别的支线。一章同时只推 1 条主线 + 最多 1 条支线。
+**三层：故事 → 故事线 → 线**。一个故事有几条 **故事线**（`groups.json`），其中恰好一条是 **贯穿全文** 的（`throughline: true`），就是主角之间的关系；每条故事线下面有 **一条主线 + 若干支线**（`threads.json` 的 `weight`）。主线是它那条线的根，不挂 `dependsOn`；支线可以依赖本组主线，也可以跨组依赖，但不许成环。一章同时只推 1 条主线 + 最多 1 条支线。
 | 节点（时效机会） | `beats.json` | `id` `title` `scene` `opensAt` `expiresAt` `status` |
 
 | 边                 | 文件                   | 含义                                                                |

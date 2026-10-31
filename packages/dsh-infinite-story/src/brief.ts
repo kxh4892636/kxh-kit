@@ -97,7 +97,23 @@ function worldLines(input: BriefInput): string[] {
   }
 
   const active = bundle.world.threads.filter((t) => t.status !== "已完成");
-  for (const thread of active) {
+  const groupTitle = (id: string | undefined): string => {
+    const g = bundle.world.groups.find((x) => x.id === id);
+    if (!g) return "（未归属）";
+    return g.throughline ? `${g.title}｜贯穿全文` : g.title;
+  };
+  const order = [
+    ...bundle.world.groups.filter((g) => g.throughline),
+    ...bundle.world.groups.filter((g) => !g.throughline),
+  ];
+  const sorted = [...active].sort((a, b) => {
+    const ia = order.findIndex((g) => g.id === a.group);
+    const ib = order.findIndex((g) => g.id === b.group);
+    const wa = a.weight === "主线" ? 0 : 1;
+    const wb = b.weight === "主线" ? 0 : 1;
+    return ia - ib || wa - wb;
+  });
+  for (const thread of sorted) {
     const blocked = (thread.dependsOn ?? []).filter((id) => {
       const up = bundle.world.threads.find((t) => t.id === id);
       return up && up.status !== "已完成";
@@ -107,7 +123,7 @@ function worldLines(input: BriefInput): string[] {
       .map((id) => bundle.world.chars.find((c) => c.id === id)?.name ?? id)
       .join("、");
     lines.push(
-      `${tag} ${thread.id} ${thread.title ?? ""}（${thread.weight ?? "支线"}）${who ? ` · ${who}` : ""}${thread.nextMoves?.length ? ` · 下一步：${thread.nextMoves.join(" / ")}` : ""}`,
+      `${tag} 〔${groupTitle(thread.group)}〕 ${thread.id} ${thread.title ?? ""}（${thread.weight ?? "支线"}）${who ? ` · ${who}` : ""}${thread.nextMoves?.length ? ` · 下一步：${thread.nextMoves.join(" / ")}` : ""}`,
     );
   }
 

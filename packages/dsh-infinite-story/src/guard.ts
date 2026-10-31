@@ -297,33 +297,64 @@ export function guard(input: GuardInput): GuardIssue[] {
   }
 
   const threadIds = new Set(bundle.world.threads.map((t) => t.id));
-  // 一条故事线 = 一条贯穿全篇的主线 + 若干支线。主线只能有一条，且是根。
-  const mains = bundle.world.threads.filter((t) => t.weight === "主线");
-  if (mains.length === 0) {
+  // 一个故事线 = 一条主线 + 若干支线；一个故事有几条线，其中恰好一条贯穿全文。
+  const groupIds = new Set(bundle.world.groups.map((g) => g.id));
+  const through = bundle.world.groups.filter((g) => g.throughline);
+  if (bundle.world.groups.length > 0 && through.length === 0) {
     issues.push({
       level: "error",
-      code: "thread/no-main",
-      message: "没有任何一条线标为「主线」",
-      fix: '全篇贯穿到底的那条（主角之间的关系）标 weight:"主线"，其余标「支线」',
+      code: "thread/no-throughline",
+      message: "没有任何一条故事线标为贯穿全文（throughline）",
+      fix: "全篇贯穿到底的那条（主角之间的关系）在 groups.json 里标 throughline:true",
     });
   }
-  if (mains.length > 1) {
+  if (through.length > 1) {
     issues.push({
       level: "error",
-      code: "thread/multiple-main",
-      message: `标为主线的有 ${mains.length} 条：${mains.map((t) => `${t.id}${t.title ? `（${t.title}）` : ""}`).join("、")}`,
-      fix: "全篇只有一条主线；把其余改成「支线」",
+      code: "thread/multiple-throughline",
+      message: `标为贯穿全文的故事线有 ${through.length} 条：${through.map((g) => `${g.id}（${g.title}）`).join("、")}`,
+      fix: "全篇只有一条贯穿全文的故事线",
     });
   }
-  for (const main of mains) {
-    if ((main.dependsOn ?? []).length > 0) {
+  for (const group of bundle.world.groups) {
+    const members = bundle.world.threads.filter((t) => t.group === group.id);
+    if (members.length === 0) {
+      issues.push({
+        level: "warn",
+        code: "thread/group-empty",
+        message: `故事线 ${group.id}（${group.title}）下面一条线都没有`,
+        fix: "给它挂一条主线，或者删掉这条故事线",
+      });
+      continue;
+    }
+    const mains = members.filter((t) => t.weight === "主线");
+    if (mains.length !== 1) {
       issues.push({
         level: "error",
-        code: "thread/main-root",
-        message: `主线 ${main.id} 挂了 dependsOn（${(main.dependsOn ?? []).join("、")}）`,
-        fix: "主线是根，不依赖任何线；依赖关系放在支线上",
+        code: "thread/group-main",
+        message: `故事线 ${group.id}（${group.title}）里有 ${mains.length} 条主线，应该恰好 1 条`,
+        fix: "每条故事线只有一条主线，其余标「支线」",
       });
     }
+    for (const main of mains) {
+      if ((main.dependsOn ?? []).length > 0) {
+        issues.push({
+          level: "error",
+          code: "thread/main-root",
+          message: `故事线 ${group.id} 的主线 ${main.id} 挂了 dependsOn（${(main.dependsOn ?? []).join("、")}）`,
+          fix: "主线是它那条线的根，不依赖任何线",
+        });
+      }
+    }
+  }
+  const orphans = bundle.world.threads.filter((t) => !t.group || !groupIds.has(t.group));
+  if (orphans.length > 0 && bundle.world.groups.length > 0) {
+    issues.push({
+      level: "error",
+      code: "thread/group-missing",
+      message: `${orphans.length} 条线没挂故事线或挂错了：${orphans.map((t) => `${t.id}${t.group ? `→${t.group}` : ""}`).join("、")}`,
+      fix: "在 groups.json 里登记该故事线，并把线的 group 改成它",
+    });
   }
   for (const thread of bundle.world.threads) {
     for (const dep of thread.dependsOn ?? []) {
