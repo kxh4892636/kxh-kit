@@ -2,7 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { defineTool } from "@deepseek-ai/dsh-tools";
 import { renderBrief } from "./brief.js";
-import { guard } from "./guard.js";
+import { autoRepair } from "./repair.js";
 import { isDuplicate, nextId, parseSeeds } from "./foreshadow.js";
 import type { Foreshadow, GuardIssue, StoryBundle } from "./model.js";
 import { IRON_RULES, SECTION_NAME, SECTION_ORDER } from "./prompt.js";
@@ -335,11 +335,13 @@ export function createRuntime(deps: ToolDeps) {
             }
           }
 
-          const issues = guard({
-            bundle,
-            chapters: await chaptersOf(bundle.root),
-            ...(generated ? {} : { unwrittenChapter: chapterNo }),
-          });
+          const chapters = await chaptersOf(bundle.root);
+          const repaired = await autoRepair(bundle, chapters);
+          if (repaired.fixed.length > 0) lines.push(`自动修正：${repaired.fixed.join("；")}`);
+
+          const issues = repaired.remaining.filter(
+            (issue) => generated || !(issue.code === "cursor/chapter" && issue.level === "error"),
+          );
           await savePending(bundle.root, issues);
           if (issues.length > 0) lines.push(...driftReport(issues));
 
@@ -360,9 +362,12 @@ export function createRuntime(deps: ToolDeps) {
         async execute() {
           const ws = workspace();
           const bundle = await loadBound(ws);
-          const issues = guard({ bundle, chapters: await chaptersOf(bundle.root) });
+          const chapters = await chaptersOf(bundle.root);
+          const repaired = await autoRepair(bundle, chapters);
+          const issues = repaired.remaining;
           await savePending(bundle.root, issues);
-          const lines = issues.length > 0 ? driftReport(issues) : [];
+          const lines: string[] = issues.length > 0 ? driftReport(issues) : [];
+          if (repaired.fixed.length > 0) lines.push(`自动修正：${repaired.fixed.join("；")}`);
 
           // 章节信息：只回这一行
           const file = bundle.state.cursor.chapterFile;
