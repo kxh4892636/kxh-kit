@@ -1,7 +1,7 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import type { ExpansionInput } from "./budget.js";
-import { deriveBeatStatus, guard } from "./guard.js";
+import { deriveBeatStatus, guard, type ProgressInput } from "./guard.js";
 import { levelOf, type GuardIssue, type StoryBundle } from "./model.js";
 import { LAYOUT, writeJson } from "./store.js";
 
@@ -19,6 +19,7 @@ export async function autoRepair(
   bundle: StoryBundle,
   chapters: string[],
   expansion?: ExpansionInput,
+  progress?: ProgressInput,
 ): Promise<RepairResult> {
   const fixed: string[] = [];
   const { state, clock } = bundle;
@@ -169,6 +170,11 @@ export async function autoRepair(
     }
   }
 
-  const remaining = guard({ bundle, chapters, ...(expansion ? { expansion } : {}) });
+  const remaining = guard({
+    bundle,
+    chapters,
+    ...(expansion ? { expansion } : {}),
+    ...(progress ? { progress } : {}),
+  });
   return { fixed, remaining };
 }

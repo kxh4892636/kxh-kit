@@ -30,6 +30,8 @@ export interface StoryState {
   meters: Record<string, number>;
   /** 扩张预算：新内容随字数走，不随心情走。缺省用 DEFAULT_BUDGET。 */
   budget?: BudgetConfig;
+  /** 卷：按章节顺序每 10 章一卷，每卷一份 chapters/<C>/index.md（概述 + 节点索引）。 */
+  chunks?: Array<{ id: string; title?: string; overview?: string }>;
 }
 
 /** 一个新条目是怎么来的。reported / user 不占预算，只上场的才算。 */
@@ -143,6 +145,14 @@ export interface WorldLocation {
   privacy?: number;
 }
 
+/** 一条线下面的一个故事节点：这段戏要落到的那件事。 */
+export interface ThreadNode {
+  id: string;
+  title: string;
+  status?: "待" | "进行" | "完成";
+  note?: string;
+}
+
 export interface WorldThread {
   id: string;
   title?: string;
@@ -150,6 +160,8 @@ export interface WorldThread {
   origin?: Origin;
   /** 归属哪条故事线（groups.json 里的 id）。 */
   group?: string;
+  /** 这条线下面挂着的故事节点，按顺序走。 */
+  nodes?: ThreadNode[];
   status?: string;
   weight?: string;
   dependsOn?: string[];
@@ -167,6 +179,8 @@ export interface ThreadGroup {
   title: string;
   /** 贯穿全文的那条故事线；全篇恰好一条。 */
   throughline?: boolean;
+  /** 这条线到目前为止讲到哪儿了（写进 chapters/<GROUP>/index.md 的开头）。 */
+  overview?: string;
   origin?: Origin;
   note?: string;
 }

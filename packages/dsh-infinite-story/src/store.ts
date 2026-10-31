@@ -200,6 +200,35 @@ export async function writeActive(workspace: string, id: string): Promise<void> 
   });
 }
 
+/**
+ * 递进式披露的章节布局：
+ *   chapters/index.json   一级索引（每章一行：编号、标题、故事线、字数、拍数、摘要、文件）
+ *   chapters/<GROUP>/NN-title.md   二级目录，章节平铺
+ * 读取时只给索引；要细节再按故事线取那一组。
+ */
+export async function listChapterFiles(root: string): Promise<string[]> {
+  const dir = path.join(root, LAYOUT.chapters);
+  const out: string[] = [];
+  const walk = async (rel: string): Promise<void> => {
+    let entries;
+    try {
+      entries = await fs.readdir(path.join(dir, rel), { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      const next = rel ? `${rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        await walk(next);
+        continue;
+      }
+      if (entry.name.endsWith(".md") && entry.name !== "index.md") out.push(next);
+    }
+  };
+  await walk("");
+  return out.sort();
+}
+
 export async function nextChapterFile(
   workspace: string,
   id: string,
@@ -208,8 +237,8 @@ export async function nextChapterFile(
   const dir = path.join(storyRoot(workspace, id), LAYOUT.chapters);
   const prefix = String(chapter).padStart(2, "0");
   try {
-    const entries = await fs.readdir(dir);
-    const hit = entries.find((name) => name.startsWith(`${prefix}-`) && name.endsWith(".md"));
+    const entries = await listChapterFiles(path.join(storyRoot(workspace, id)));
+    const hit = entries.find((name) => (name.split("/").pop() ?? "").startsWith(`${prefix}-`));
     if (hit) return path.join(dir, hit);
   } catch {
     /* dir may not exist yet */

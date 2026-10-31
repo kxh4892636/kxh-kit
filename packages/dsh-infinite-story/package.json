@@ -1,6 +1,6 @@
 {
   "name": "@kxh4892636/dsh-infinite-story",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "description": "DSH plugin: run a long-form story as a persistent state machine — rules in the system prompt, state on disk, drift blocked at write time.",
   "license": "MIT",
   "files": [

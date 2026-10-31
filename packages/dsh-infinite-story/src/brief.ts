@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { countExpansion, type Snapshot } from "./budget.js";
+import { chunkOf, readChapterIndex } from "./chapter-index.js";
 import { DEFAULT_BUDGET, type GuardIssue, type StoryBundle } from "./model.js";
 import { LAYOUT, writeText } from "./store.js";
 
@@ -173,45 +174,46 @@ function worldLines(input: BriefInput): string[] {
   return lines;
 }
 
-/** 拼 brief.md 全文；`## 全量` 之外还有一段机器可读的 JSON 字段。 */
+/** 一级索引（全书目录）+ 二级索引（每卷一份 index.md）。只给指路，不给正文。 */
+async function chapterCatalogue(bundle: StoryBundle): Promise<string[]> {
+  const index = await readChapterIndex(bundle.root);
+  if (index.length === 0) return [];
+  const lines: string[] = [];
+  const total = index.reduce((n, e) => n + (e.chars ?? 0), 0);
+  lines.push(
+    `  全书 ${index.length} 章 / ${total} 字 · 一级目录 chapters/index.json；每卷一份 index.md（概述 + 节点索引），先读它，要原文再按章取`,
+  );
+  const chunkIds = [...new Set(index.map((e) => e.chunk ?? chunkOf(e.no ?? 0)))].sort();
+  for (const id of chunkIds) {
+    const list = index
+      .filter((e) => (e.chunk ?? chunkOf(e.no ?? 0)) === id)
+      .sort((a, b) => (a.no ?? 0) - (b.no ?? 0));
+    const chars = list.reduce((n, e) => n + (e.chars ?? 0), 0);
+    const first = String(list[0]?.no ?? 0).padStart(2, "0");
+    const last = String(list[list.length - 1]?.no ?? 0).padStart(2, "0");
+    const meta = bundle.state.chunks?.find((c) => c.id === id);
+    lines.push(
+      `  〔${id} 第 ${id.slice(1)} 卷〕${list.length} 章（${first}–${last}）/ ${chars} 字 · chapters/${id}/index.md`,
+    );
+    if (meta?.overview) {
+      const head = meta.overview.split(/[。\n]/)[0] ?? "";
+      lines.push(`    ${head.slice(0, 90)}`);
+    }
+  }
+  return lines;
+}
+
+/** 拼 brief.md 全文 —— 只有人读的一页。
+ *  世界数据本身的权威来源是 world/*.json 与 beats.json，这里不再复制一份全量：
+ *  同一样东西存两处，迟早会不一致；brief 只记「此刻要看什么」。 */
 export async function renderBriefFile(input: BriefInput): Promise<string> {
   const { bundle } = input;
   const cursor = bundle.state.cursor;
-  const snapshot = {
-    generatedAt: new Date().toISOString(),
-    chapter: cursor.chapter,
-    chapterFile: cursor.chapterFile,
-    storyTime: bundle.clock.now,
-    location: cursor.location,
-    scene: cursor.scene,
-    lastBeat: cursor.lastBeat,
-    openThreads: bundle.state.openThreads,
-    world: {
-      chars: bundle.world.chars.map((c) => ({
-        id: c.id,
-        name: c.name,
-        tier: c.tier ?? null,
-        affinity: c.affinity ?? null,
-        hidden: (c.hidden ?? []).length,
-      })),
-      locations: bundle.world.locations.map((l) => ({
-        id: l.id,
-        name: l.name,
-        links: l.links ?? [],
-        focus: l.focus ?? [],
-      })),
-      threads: bundle.world.threads,
-      relations: bundle.world.relations,
-    },
-    beats: bundle.beats,
-    foreshadows: bundle.foreshadows,
-    pending: input.pending,
-  };
 
   const head = [
     "# 世界快照 · brief",
     "",
-    "> 开新章之前读这份。正文里只写章节信息，世界全量在这里。",
+    "> 开新章之前读这份。世界档案在 world/*.json，章节正文在 chapters/<故事线>/。",
     "",
     `【此刻】${fmt(bundle.clock.now)} · ${cursor.location} · ${cursor.scene}`,
     `【上一拍】${cursor.lastBeat}`,
@@ -224,6 +226,9 @@ export async function renderBriefFile(input: BriefInput): Promise<string> {
   const body: string[] = [];
   const recent = await recentChapters(bundle.root);
   if (recent.length > 0) body.push("【近章】", ...recent);
+  // 一级索引 + 二级索引：先给全书目录，再按故事线给到每一章；正文按需再读
+  const catalogue = await chapterCatalogue(bundle);
+  if (catalogue.length > 0) body.push("【章节索引 · 按故事线】", ...catalogue);
   body.push(...worldLines(input));
   const soon = upcoming(input);
   if (soon.length > 0) body.push("【节点】", ...soon.map((l) => `  ${l}`));
@@ -243,11 +248,7 @@ export async function renderBriefFile(input: BriefInput): Promise<string> {
     body.push("【待修】", ...input.pending.slice(0, 6).map((i) => `  ✖ [${i.code}] ${i.message}`));
   }
 
-  return `${head.join("\n")}${body.join("\n")}\n\n## 全量（机器可读）\n\n\`\`\`json\n${JSON.stringify(
-    snapshot,
-    null,
-    2,
-  )}\n\`\`\`\n`;
+  return `${head.join("\n")}${body.join("\n")}\n`;
 }
 
 export async function writeBrief(root: string, input: BriefInput): Promise<string> {

@@ -33,6 +33,12 @@ export function upcoming(beats: Beat[], now: number, hours = 48): Beat[] {
     .sort((a, b) => time(a.opensAt) - time(b.opensAt));
 }
 
+/** 本章推进了几拍故事线、结了几笔好感账。推线就必须结账。 */
+export interface ProgressInput {
+  threads: number;
+  affinity: number;
+}
+
 export interface GuardInput {
   bundle: StoryBundle;
   /** Chapter file names, e.g. "00-夜里.md". Sorted or not, we sort. */
@@ -45,6 +51,9 @@ export interface GuardInput {
 
   /** 扩张预算的输入：章末快照 + 本章字数。不给就不查扩张。 */
   expansion?: ExpansionInput;
+
+  /** 故事线推进与好感结账的计数。不给就不查。 */
+  progress?: ProgressInput;
 }
 
 /**
@@ -170,8 +179,10 @@ export function guard(input: GuardInput): GuardIssue[] {
   }
 
   // ---- chapters ----
+  // 二级目录：chapters/<GROUP>/NN-title.md，所以按 basename 取编号
+  const baseName = (p: string): string => p.split("/").pop() ?? p;
   const numbers = chapters
-    .map((n) => /^(\d{2})-/.exec(n)?.[1])
+    .map((n) => /^(\d{2})-/.exec(baseName(n))?.[1])
     .filter((n): n is string => Boolean(n))
     .map(Number)
     .sort((a, b) => a - b);
@@ -188,7 +199,7 @@ export function guard(input: GuardInput): GuardIssue[] {
   }
 
   const cursorFile = chapters.find((n) =>
-    n.startsWith(String(bundle.state.cursor.chapter).padStart(2, "0") + "-"),
+    baseName(n).startsWith(String(bundle.state.cursor.chapter).padStart(2, "0") + "-"),
   );
   const pendingChapter = input.unwrittenChapter === bundle.state.cursor.chapter;
   // 正在写的这一章还没有文件：章末才生成，不算错。
@@ -201,7 +212,11 @@ export function guard(input: GuardInput): GuardIssue[] {
       message: `cursor 指向第 ${bundle.state.cursor.chapter} 章，但目录里没有对应文件`,
       fix: "修正 cursor.chapter 与 chapterFile",
     });
-  } else if (cursorFile && !pendingChapter && cursorFile !== bundle.state.cursor.chapterFile) {
+  } else if (
+    cursorFile &&
+    !pendingChapter &&
+    baseName(cursorFile) !== baseName(bundle.state.cursor.chapterFile ?? "")
+  ) {
     issues.push({
       level: "error",
       code: "cursor/chapter-file",
@@ -347,6 +362,42 @@ export function guard(input: GuardInput): GuardIssue[] {
       }
     }
   }
+  // ---- 故事节点：每条线下面按顺序走的几件事 ----
+  for (const thread of bundle.world.threads) {
+    const nodes = thread.nodes ?? [];
+    const seen = new Set<string>();
+    for (const node of nodes) {
+      if (seen.has(node.id)) {
+        issues.push({
+          level: "error",
+          code: "thread/node-duplicate",
+          message: `${thread.id} 的节点 id 重复：${node.id}`,
+          fix: "换一个未占用的 id",
+        });
+      }
+      seen.add(node.id);
+      if (node.status && !["待", "进行", "完成"].includes(node.status)) {
+        issues.push({
+          level: "error",
+          code: "thread/node-status",
+          message: `${thread.id}/${node.id} 的状态「${node.status}」不合法`,
+          fix: "只能是 待 / 进行 / 完成",
+        });
+      }
+    }
+    if (nodes.length > 0 && thread.status === "已完成") {
+      const open = nodes.filter((n) => n.status !== "完成");
+      if (open.length > 0) {
+        issues.push({
+          level: "warn",
+          code: "thread/node-open",
+          message: `${thread.id} 标了已完成，但还有 ${open.length} 个节点没收口（${open.map((n) => n.title).join("、")}）`,
+          fix: "把节点补完，或把线的状态改回进行中",
+        });
+      }
+    }
+  }
+
   const orphans = bundle.world.threads.filter((t) => !t.group || !groupIds.has(t.group));
   if (orphans.length > 0 && bundle.world.groups.length > 0) {
     issues.push({
@@ -421,6 +472,27 @@ export function guard(input: GuardInput): GuardIssue[] {
         level: "warn",
         code: "shard/link",
         message: `WORLD.md 里的链接看起来有问题：${missing.join(", ")}`,
+      });
+    }
+  }
+
+  // ---- 推线必结账 ----
+  if (input.progress) {
+    const { threads, affinity } = input.progress;
+    if (threads > 0 && affinity === 0) {
+      issues.push({
+        level: "error",
+        code: "affinity/required",
+        message: `本章推进了 ${threads} 拍故事线，好感度一笔没结`,
+        fix: "推线就要结账：story_write 带 affinity（如 `mom:-4`），原因写进 advanceReason",
+      });
+    }
+    if (affinity > 0 && threads === 0) {
+      issues.push({
+        level: "warn",
+        code: "affinity/orphan",
+        message: `本章结了 ${affinity} 笔好感账，却没标推进了哪条线`,
+        fix: "给这几拍补上 thread（TH01 / TH02 …），否则这笔账挂在半空",
       });
     }
   }

@@ -10,13 +10,16 @@ import {
   type ExpansionInput,
 } from "./budget.js";
 import { briefIsFresh, writeBrief, type ReviewResult } from "./brief.js";
+import type { ProgressInput } from "./guard.js";
 import { autoRepair } from "./repair.js";
+import { chunkOf, readChapterIndex, writeChunkIndex } from "./chapter-index.js";
 import { isDuplicate, nextId, parseSeeds } from "./foreshadow.js";
 import { levelOf } from "./model.js";
 import type { Foreshadow, GuardIssue, StoryBundle } from "./model.js";
 import { IRON_RULES, SECTION_NAME, SECTION_ORDER } from "./prompt.js";
 import {
   LAYOUT,
+  listChapterFiles,
   listStories,
   readActive,
   readStory,
@@ -60,13 +63,7 @@ interface Ctx {
 const text = (value: string) => [{ type: "text" as const, text: value }];
 
 async function chaptersOf(root: string): Promise<string[]> {
-  try {
-    return (await fs.readdir(path.join(root, LAYOUT.chapters)))
-      .filter((n) => n.endsWith(".md"))
-      .sort();
-  } catch {
-    return [];
-  }
+  return listChapterFiles(root);
 }
 
 async function pendingIssues(root: string): Promise<GuardIssue[]> {
@@ -123,6 +120,41 @@ async function expansionOf(bundle: StoryBundle, chapter: number): Promise<Expans
   };
 }
 
+/** 本章推进了几拍故事线、结了几笔好感账。 */
+async function progressOf(root: string, chapter: number): Promise<ProgressInput> {
+  let threads = 0;
+  try {
+    const wal = await fs.readFile(path.join(root, LAYOUT.log, "beats.jsonl"), "utf8");
+    for (const line of wal.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const beat = JSON.parse(line) as { ch?: number; thread?: string | null };
+        if (beat.ch === chapter && beat.thread) threads += 1;
+      } catch {
+        /* 坏行跳过 */
+      }
+    }
+  } catch {
+    /* 没有 WAL */
+  }
+  let affinity = 0;
+  try {
+    const rows = await fs.readFile(path.join(root, LAYOUT.log, "affinity.jsonl"), "utf8");
+    for (const line of rows.split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const row = JSON.parse(line) as { ch?: number };
+        if (row.ch === chapter) affinity += 1;
+      } catch {
+        /* 坏行跳过 */
+      }
+    }
+  } catch {
+    /* 没有流水 */
+  }
+  return { threads, affinity };
+}
+
 async function loadBound(workspace: string): Promise<StoryBundle> {
   const id = await readActive(workspace);
   if (!id) throw new Error(NO_STORY);
@@ -132,6 +164,95 @@ async function loadBound(workspace: string): Promise<StoryBundle> {
 }
 
 /** 章末把这一章埋下的伏笔写进 foreshadows.json（埋哪几条由模型给）。 */
+/**
+ * 卷索引由模型语义总结：读这一卷的正文，产出「概述 + 每章节点」。
+ * 不用机械拼接——机械拼接只能给出文件清单，给不出发生了什么。
+ */
+async function digestChunk(
+  ctx: Ctx,
+  bundle: StoryBundle,
+  chunkId: string,
+): Promise<{ overview: string; chapters: Array<{ no: number; nodes: string[] }> } | null> {
+  const llm = ctx.get?.("llm") as LlmService | undefined;
+  const selector = ctx.get?.("agentDefaultModel") as ModelSelector | undefined;
+  if (!llm || !selector) return null;
+  let provider = "";
+  let model = "";
+  try {
+    const current = selector.current();
+    provider = current.provider;
+    model = current.model;
+  } catch {
+    return null;
+  }
+  if (!provider || !model) return null;
+
+  const index = await readChapterIndex(bundle.root);
+  const list = index
+    .filter((e) => (e.chunk ?? chunkOf(e.no ?? 0)) === chunkId)
+    .sort((a, b) => (a.no ?? 0) - (b.no ?? 0));
+  if (list.length === 0) return null;
+
+  const parts: string[] = [];
+  for (const entry of list) {
+    let body = "";
+    try {
+      body = await fs.readFile(path.join(bundle.root, LAYOUT.chapters, entry.file ?? ""), "utf8");
+    } catch {
+      body = "";
+    }
+    parts.push(`《${entry.title ?? "未命名"}》（第 ${entry.no ?? 0} 章）\n${body.slice(0, 8000)}`);
+  }
+
+  const prompt = [
+    "你在为一部长篇写卷索引。只做归纳，不评论、不夸奖、不写建议。",
+    `这一卷共 ${list.length} 章，下面是正文（节选）。`,
+    "要产出两样：",
+    "1. overview：300–500 字，说清这一卷讲到了哪儿——关系走到什么位置、哪些事被提出、哪些落了地、哪些还悬着。按时间顺序写，不铺陈。",
+    "2. chapters：每章 3–5 条「发生了什么」，每条不超过 40 字，写具体的动作或决定，不写评价。",
+    '只输出 JSON：{"overview":"…","chapters":[{"no":0,"nodes":["…"]}]}',
+    "",
+    ...parts,
+  ].join("\n");
+
+  let out = "";
+  try {
+    for await (const chunk of llm.stream({
+      provider,
+      model,
+      messages: [{ role: "user", content: [{ type: "text", text: prompt }] }],
+    })) {
+      const piece = chunk.text ?? chunk.delta ?? "";
+      if (typeof piece === "string") out += piece;
+    }
+  } catch {
+    return null;
+  }
+  const match = /\{[\s\S]*\}/.exec(out);
+  if (!match) return null;
+  try {
+    const parsed = JSON.parse(match[0]) as {
+      overview?: string;
+      chapters?: Array<{ no?: number; nodes?: string[] }>;
+    };
+    if (!parsed.overview) return null;
+    return {
+      overview: String(parsed.overview).trim(),
+      chapters: (parsed.chapters ?? [])
+        .filter((c) => typeof c.no === "number")
+        .map((c) => ({
+          no: Number(c.no),
+          nodes: (c.nodes ?? [])
+            .map((n) => String(n).trim())
+            .filter(Boolean)
+            .slice(0, 6),
+        })),
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** 章末语义审：用主会话同一个模型判这一章有没有跑偏；结论只进 brief。 */
 async function reviewChapter(
   ctx: Ctx,
@@ -315,8 +436,7 @@ export function createRuntime(deps: ToolDeps) {
           const pending = await pendingIssues(bundle.root);
           const written = await writeBrief(bundle.root, { bundle, pending });
           const full = await fs.readFile(written, "utf8");
-          const human = (full.split("## 全量（机器可读）")[0] ?? "").trimEnd();
-          return `${human}\n\n（全量已写入 .story/${bundle.id}/${LAYOUT.brief}）`;
+          return `${full.trimEnd()}\n\n（brief 已刷新：.story/${bundle.id}/${LAYOUT.brief}；世界档案仍在 world/*.json，正文按故事线去 chapters/<GROUP>/ 取）`;
         },
       }),
     ),
@@ -338,6 +458,11 @@ export function createRuntime(deps: ToolDeps) {
           lastBeat: { type: "string", description: "一句话概括这一拍（写进 cursor）" },
           chapter: { type: "number", description: "切到新章时给章号（从 0 起）" },
           chapterTitle: { type: "string", description: "切到新章时给章标题" },
+          group: {
+            type: "string",
+            description:
+              "这一章的主导故事线（groups.json 的 id，如 G1），只用于统计；目录按章节顺序切卷，与它无关",
+          },
           advanceMinutes: {
             type: "number",
             description: "这一拍推进多少分钟（0 表示不推进）；同时写 clock.now 与 advances",
@@ -354,10 +479,9 @@ export function createRuntime(deps: ToolDeps) {
             description: "这一拍在场的人物 id，逗号分隔（写进 WAL，供在场一致性检查）",
           },
           thread: { type: "string", description: "这一拍推进的故事线 id（如 TH02）" },
-          group: {
+          node: {
             type: "string",
-            description:
-              "这一章主导的故事线 id（world/groups.json，如 G1）；贯穿全文那条永远在场，不必标。切章时给。",
+            description: "这一拍收掉的故事节点 id 或标题（该线 nodes 里的一条）；给了就标为完成",
           },
           affinity: {
             type: "string",
@@ -366,6 +490,20 @@ export function createRuntime(deps: ToolDeps) {
           summary: {
             type: "string",
             description: "本章一句话摘要（60 字内），写进 chapters/index.json",
+          },
+          chunkOverview: {
+            type: "string",
+            description:
+              "这一卷到目前为止讲到哪儿了（几百字），写进 chapters/<C>/index.md 的「概述」；不给就沿用旧的",
+          },
+          nodes: {
+            type: "string",
+            description:
+              "这一章里发生的那几件事，一条一行（写进卷索引的节点清单）；不给就用 summary",
+          },
+          threadText: {
+            type: "string",
+            description: "这一章牵到的故事线 id，逗号分隔（TH01,TH03）；写进卷索引",
           },
           plant: {
             type: "string",
@@ -380,6 +518,7 @@ export function createRuntime(deps: ToolDeps) {
           lastBeat?: string;
           chapter?: number;
           chapterTitle?: string;
+          group?: string;
           advanceMinutes?: number;
           advanceReason?: string;
           finalize?: boolean;
@@ -387,9 +526,12 @@ export function createRuntime(deps: ToolDeps) {
           plant?: string;
           participants?: string;
           thread?: string;
-          group?: string;
+          node?: string;
           affinity?: string;
           summary?: string;
+          chunkOverview?: string;
+          nodes?: string;
+          threadText?: string;
         }) {
           const ws = workspace();
           const bundle = await loadBound(ws);
@@ -455,7 +597,8 @@ export function createRuntime(deps: ToolDeps) {
           }
 
           // WAL：这一拍的正文追加进 beats.jsonl，崩溃可恢复；不进上下文
-          if (args.text?.trim()) {
+          // 没有正文也要落一条（推了线、结了账都算这一拍的账）
+          if (args.text?.trim() || args.thread?.trim() || args.affinity?.trim()) {
             await fs.mkdir(path.join(bundle.root, LAYOUT.log), { recursive: true });
             await fs.appendFile(
               path.join(bundle.root, LAYOUT.log, "beats.jsonl"),
@@ -469,8 +612,10 @@ export function createRuntime(deps: ToolDeps) {
                   .map((s) => s.trim())
                   .filter(Boolean),
                 thread: args.thread ?? null,
+                node: args.node ?? null,
+                affinity: args.affinity ?? null,
                 lastBeat: args.lastBeat ?? null,
-                text: args.text.trim(),
+                text: (args.text ?? "").trim(),
               })}\n`,
               "utf8",
             );
@@ -497,11 +642,51 @@ export function createRuntime(deps: ToolDeps) {
             if (entries.length > 0) {
               await fs.appendFile(
                 path.join(bundle.root, LAYOUT.log, "affinity.jsonl"),
-                entries.map((e) => JSON.stringify({ ...e, t: bundle.clock.now })).join("\n") + "\n",
+                entries
+                  .map((e) => JSON.stringify({ ...e, t: bundle.clock.now, ch: chapterNo }))
+                  .join("\n") + "\n",
                 "utf8",
               );
             }
           }
+          // 推线：当场查这条线在不在、节点在不在、上游通不通；推了就要求结账
+          let progressNote = "";
+          if (args.thread?.trim()) {
+            const key = args.thread.trim();
+            const thread = bundle.world.threads.find((t) => t.id === key || t.title === key);
+            if (!thread) {
+              return `没有这条故事线：${key}。可用：${bundle.world.threads
+                .map((t) => `${t.id} ${t.title ?? ""}`)
+                .join("、")}`;
+            }
+            const blocked = (thread.dependsOn ?? []).filter((id) => {
+              const up = bundle.world.threads.find((t) => t.id === id);
+              return up && up.status !== "已完成";
+            });
+            let nodeNote = "";
+            if (args.node?.trim()) {
+              const nodeKey = args.node.trim();
+              const nodes = thread.nodes ?? [];
+              const node = nodes.find((n) => n.id === nodeKey || n.title === nodeKey);
+              if (!node) {
+                return `故事线 ${thread.id} 没有这个节点：${nodeKey}。它下面有：${
+                  nodes.map((n) => `${n.id} ${n.title}`).join("、") || "（还没配节点）"
+                }`;
+              }
+              node.status = "完成";
+              for (const n of nodes) {
+                if (n.id === node.id) break;
+                if (!n.status || n.status === "待") n.status = "进行";
+              }
+              await writeJson(path.join(bundle.root, LAYOUT.threads), bundle.world.threads);
+              nodeNote = ` · 节点「${node.title}」→ 完成`;
+            }
+            progressNote = `推线：${thread.id} ${thread.title ?? ""}${nodeNote}${
+              blocked.length ? `（⛔ 上游未完成：${blocked.join(",")}，这一拍算硬推）` : ""
+            }`;
+            if (!args.affinity?.trim()) progressNote += " · ⚠ 推了线却没结好感账";
+          }
+
           cursor.chapter = chapterNo;
           cursor.chapterFile = file;
           if (args.scene) cursor.scene = args.scene;
@@ -556,7 +741,10 @@ export function createRuntime(deps: ToolDeps) {
             if (!body) {
               lines.push(`第 ${chapterNo} 章 finalize 少了整章 text，章文件没生成。要补吗？`);
             } else {
-              const target = path.join(bundle.root, LAYOUT.chapters, file);
+              // 目录按章节顺序切卷：chapters/<C1>/NN-title.md；一章可牵多条线，互不干扰
+              const chunkId = chunkOf(chapterNo);
+              const rel = `${chunkId}/${file}`;
+              const target = path.join(bundle.root, LAYOUT.chapters, chunkId, file);
               let existing = "";
               try {
                 existing = (await fs.readFile(target, "utf8")).trimEnd();
@@ -589,7 +777,17 @@ export function createRuntime(deps: ToolDeps) {
               kept.push({
                 no: chapterNo,
                 title,
-                file,
+                chunk: chunkId,
+                group: args.group?.trim() || undefined,
+                threads: (args.threadText ?? "")
+                  .split(",")
+                  .map((x) => x.trim())
+                  .filter(Boolean),
+                nodes: (args.nodes ?? "")
+                  .split("\n")
+                  .map((x) => x.replace(/^[-·\s]+/, "").trim())
+                  .filter(Boolean),
+                file: rel,
                 chars: body.replace(/\s/g, "").length,
                 beats: body.split(/\n---\n/).length,
                 storyTime: bundle.clock.now,
@@ -602,7 +800,41 @@ export function createRuntime(deps: ToolDeps) {
               });
               (kept as { no?: number }[]).sort((a, b) => (a.no ?? 0) - (b.no ?? 0));
               await writeJson(indexFile, kept);
-              lines.push(`本章生成：chapters/${file}（${body.replace(/\s/g, "").length} 字）`);
+              // 卷概述：模型在章末给一段「这一卷讲到哪儿了」
+              if (args.chunkOverview?.trim()) {
+                const chunks = bundle.state.chunks ?? [];
+                const hit = chunks.find((c) => c.id === chunkId);
+                if (hit) hit.overview = args.chunkOverview.trim();
+                else chunks.push({ id: chunkId, overview: args.chunkOverview.trim() });
+                bundle.state.chunks = chunks;
+                await writeJson(path.join(bundle.root, LAYOUT.story), bundle.state);
+              }
+              lines.push(`本章生成：chapters/${rel}（${body.replace(/\s/g, "").length} 字）`);
+              // 每条故事线一份 index.md：概述 + 该组所有章节的摘要与路径
+              // 卷末（每 {CHUNK_SIZE} 章）：让模型读整卷，写一份语义索引
+              let digestNote = "";
+              if ((chapterNo + 1) % 10 === 0) {
+                const digest = await digestChunk(deps.fallbackCtx, bundle, chunkId);
+                if (digest) {
+                  const chunks = bundle.state.chunks ?? [];
+                  const hit = chunks.find((c) => c.id === chunkId);
+                  if (hit) hit.overview = digest.overview;
+                  else chunks.push({ id: chunkId, overview: digest.overview });
+                  bundle.state.chunks = chunks;
+                  await writeJson(path.join(bundle.root, LAYOUT.story), bundle.state);
+                  for (const c of digest.chapters) {
+                    const row = (kept as Array<{ no?: number; nodes?: string[] }>).find(
+                      (e) => e.no === c.no,
+                    );
+                    if (row) row.nodes = c.nodes;
+                  }
+                  await writeJson(indexFile, kept);
+                  digestNote = `（卷索引由模型语义总结：概述 ${digest.overview.length} 字 / ${digest.chapters.length} 章节点）`;
+                }
+              }
+              const sidebar = await writeChunkIndex(bundle.root, bundle, chunkId);
+              lines.push(`卷索引已更新：chapters/${sidebar}${digestNote}`);
+              lines.push(`故事线索引已更新：chapters/${sidebar}`);
               for (const f of await plantForeshadows(bundle, args.plant)) {
                 lines.push(`新埋入伏笔：${f.id} [${f.weight}] ${f.label} — ${f.cue}`);
               }
@@ -621,7 +853,12 @@ export function createRuntime(deps: ToolDeps) {
 
           const chapters = await chaptersOf(bundle.root);
           const expansion = await expansionOf(bundle, chapterNo);
-          const repaired = await autoRepair(bundle, chapters, expansion);
+          const repaired = await autoRepair(
+            bundle,
+            chapters,
+            expansion,
+            await progressOf(bundle.root, chapterNo),
+          );
           if (repaired.fixed.length > 0) lines.push(`自动修正：${repaired.fixed.join("；")}`);
 
           const issues = repaired.remaining.filter(
@@ -630,7 +867,7 @@ export function createRuntime(deps: ToolDeps) {
           await savePending(bundle.root, issues);
           // 漂移不进对话：留在 pending 与 brief，下一章开章时 autoRepair 再修
           await writeBrief(bundle.root, { bundle, pending: issues });
-          return generated ? lines.join("\n") : "";
+          return generated ? lines.join("\n") : progressNote;
         },
       }),
     ),
@@ -649,7 +886,12 @@ export function createRuntime(deps: ToolDeps) {
           const bundle = await loadBound(ws);
           const chapters = await chaptersOf(bundle.root);
           const expansion = await expansionOf(bundle, bundle.state.cursor.chapter);
-          const repaired = await autoRepair(bundle, chapters, expansion);
+          const repaired = await autoRepair(
+            bundle,
+            chapters,
+            expansion,
+            await progressOf(bundle.root, bundle.state.cursor.chapter),
+          );
           const issues = repaired.remaining;
           await savePending(bundle.root, issues);
           const lines: string[] = [];
