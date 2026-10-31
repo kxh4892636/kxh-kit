@@ -20,9 +20,17 @@ function fmt(iso: string): string {
   ).padStart(2, "0")}:${String(t.getMinutes()).padStart(2, "0")}`;
 }
 
+export interface ReviewResult {
+  pass: boolean;
+  violations: Array<{ rule?: string; evidence?: string; fix?: string }>;
+  suggestion?: string;
+}
+
 export interface BriefInput {
   bundle: StoryBundle;
   pending: GuardIssue[];
+  /** 章末语义审的结论（模型判的，不是代码判的）。 */
+  review?: ReviewResult | null;
   chapterChars?: number;
   chapterBeats?: number;
 }
@@ -178,6 +186,16 @@ export async function renderBriefFile(input: BriefInput): Promise<string> {
   if (soon.length > 0) body.push("【节点】", ...soon.map((l) => `  ${l}`));
   const threads = bundle.state.openThreads.filter(Boolean);
   if (threads.length > 0) body.push("【悬置】", ...threads.map((t) => `  · ${t}`));
+  if (input.review) {
+    const r = input.review;
+    body.push(`【语义审】${r.pass ? "通过" : `${r.violations.length} 条`}`);
+    for (const v of r.violations.slice(0, 6)) {
+      body.push(
+        `  ✖ ${v.rule ?? ""}${v.evidence ? `：${v.evidence}` : ""}${v.fix ? `（修：${v.fix}）` : ""}`,
+      );
+    }
+    if (r.suggestion) body.push(`  → ${r.suggestion}`);
+  }
   if (input.pending.length > 0) {
     body.push("【待修】", ...input.pending.slice(0, 6).map((i) => `  ✖ [${i.code}] ${i.message}`));
   }

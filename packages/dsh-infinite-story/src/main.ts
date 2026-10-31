@@ -26,7 +26,10 @@ export const name = "infinite-story";
  * `jobs` stays out of the list on purpose: it is host-optional, and the runtime
  * reads it with `ctx.get("jobs")`, which needs no injection.
  */
-export const inject = ["tools", "systemPrompt"];
+export const inject = {
+  required: ["tools", "systemPrompt"],
+  optional: ["llm", "agentDefaultModel"],
+};
 
 /**
  * Story mode is a **preset**, not a toggle.

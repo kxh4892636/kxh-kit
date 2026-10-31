@@ -1,7 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { defineTool } from "@deepseek-ai/dsh-tools";
-import { briefIsFresh, writeBrief } from "./brief.js";
+import { briefIsFresh, writeBrief, type ReviewResult } from "./brief.js";
 import { autoRepair } from "./repair.js";
 import { isDuplicate, nextId, parseSeeds } from "./foreshadow.js";
 import { levelOf } from "./model.js";
@@ -24,9 +24,30 @@ export interface ToolDeps {
 }
 
 type Disposer = () => void;
+interface LlmChunk {
+  type?: string;
+  text?: string;
+  delta?: string;
+}
+
+interface LlmService {
+  stream: (options: {
+    provider: string;
+    model: string;
+    messages: Array<{ role: "user"; content: Array<{ type: "text"; text: string }> }>;
+  }) => AsyncIterable<LlmChunk>;
+}
+
+interface ModelSelector {
+  current: () => { provider: string; model: string };
+}
+
 interface Ctx {
   tools: { register: (def: unknown) => Disposer };
   systemPrompt: { section: (sec: unknown) => unknown };
+  llm?: LlmService;
+  agentDefaultModel?: ModelSelector;
+  get?: (name: string) => unknown;
 }
 
 const text = (value: string) => [{ type: "text" as const, text: value }];
@@ -81,6 +102,79 @@ async function loadBound(workspace: string): Promise<StoryBundle> {
 }
 
 /** 章末把这一章埋下的伏笔写进 foreshadows.json（埋哪几条由模型给）。 */
+/** 章末语义审：用主会话同一个模型判这一章有没有跑偏；结论只进 brief。 */
+async function reviewChapter(
+  ctx: Ctx,
+  bundle: StoryBundle,
+  chapterText: string,
+): Promise<ReviewResult | null> {
+  const llm = ctx.llm ?? (ctx.get?.("llm") as LlmService | undefined);
+  const selector =
+    ctx.agentDefaultModel ?? (ctx.get?.("agentDefaultModel") as ModelSelector | undefined);
+  if (!llm || !selector) return null;
+
+  let provider = "";
+  let model = "";
+  try {
+    const current = selector.current();
+    provider = current.provider;
+    model = current.model;
+  } catch {
+    return null;
+  }
+  if (!provider || !model) return null;
+
+  let rules = "";
+  try {
+    rules = (await fs.readFile(path.join(bundle.root, LAYOUT.rules), "utf8")).slice(0, 3000);
+  } catch {
+    rules = "";
+  }
+  const cast = bundle.world.chars.map((c) => `${c.name}（${c.id}）`).join("、");
+  const prompt = [
+    "你是读者视角的审稿人。只判这一章有没有跑偏，不改稿，不夸奖。",
+    `世界：人物 ${cast}；故事线 ${bundle.world.threads.map((t) => `${t.id} ${t.title ?? ""}`).join("、")}`,
+    "判据（违反任意一条即算漂移）：",
+    "1. 设定冲突：与 rules.md 的禁忌、称呼、篇幅、既成事实相抵触。",
+    "2. 人物走形：语气、自称、口癖、行为不像该人物。",
+    "3. 知情越界：秘密被不该知道的人知道；旁人显得「意味深长」。",
+    "4. 弧未成立：本章没有提出—推动—落地的变化，或停在半空。",
+    "5. 伏笔失配：正文写了却没登记，或登记了 cue 完全没落到动作上。",
+    '只输出 JSON：{"pass":true|false,"violations":[{"rule":"判据编号","evidence":"原文片段","fix":"一句话怎么改"}],"suggestion":"一句话"}',
+    "",
+    "故事规则（节选）：",
+    rules,
+    "",
+    "本章正文：",
+    chapterText.slice(-8000),
+  ].join("\n");
+
+  let out = "";
+  try {
+    for await (const chunk of llm.stream({
+      provider,
+      model,
+      messages: [{ role: "user", content: [{ type: "text", text: prompt }] }],
+    })) {
+      const piece = chunk.text ?? chunk.delta ?? "";
+      if (typeof piece === "string") out += piece;
+    }
+  } catch {
+    return null;
+  }
+  const match = /\{[\s\S]*\}/.exec(out);
+  if (!match) return null;
+  try {
+    const parsed = JSON.parse(match[0]) as ReviewResult;
+    return {
+      pass: Boolean(parsed.pass),
+      violations: Array.isArray(parsed.violations) ? parsed.violations.slice(0, 8) : [],
+      suggestion: typeof parsed.suggestion === "string" ? parsed.suggestion : "",
+    };
+  } catch {
+    return null;
+  }
+}
 async function plantForeshadows(bundle: StoryBundle, declared?: string): Promise<Foreshadow[]> {
   const file = path.join(bundle.root, LAYOUT.foreshadows);
   let all: Foreshadow[] = [];
@@ -475,10 +569,6 @@ export function createRuntime(deps: ToolDeps) {
           await savePending(bundle.root, issues);
           // 漂移不进对话：留在 pending 与 brief，下一章开章时 autoRepair 再修
           await writeBrief(bundle.root, { bundle, pending: issues });
-          if (generated) {
-            lines.push(`本章生成：chapters/${file}`);
-          }
-
           return generated ? lines.join("\n") : "";
         },
       }),
@@ -510,15 +600,15 @@ export function createRuntime(deps: ToolDeps) {
               /^#\s*\d+\s*·\s*(.+)$/m.exec(body)?.[1]?.trim() ?? file.replace(/\.md$/, "");
             const chars = body.replace(/\s/g, "").length;
             const beats = body.split(/\n---\n/).length;
+            const review = await reviewChapter(deps.fallbackCtx, bundle, body);
             await writeBrief(bundle.root, {
               bundle,
               pending: issues,
               chapterChars: chars,
               chapterBeats: beats,
+              ...(review ? { review } : {}),
             });
-            lines.push(
-              `第 ${bundle.state.cursor.chapter} 章《${title}》· ${file} · ${chars} 字 · ${beats} 拍`,
-            );
+            lines.push(`第 ${bundle.state.cursor.chapter} 章《${title}》`);
           } catch {
             await writeBrief(bundle.root, { bundle, pending: issues });
             lines.push(`第 ${bundle.state.cursor.chapter} 章 · ${file}（尚未生成）`);
