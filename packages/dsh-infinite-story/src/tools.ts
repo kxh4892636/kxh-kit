@@ -29,12 +29,17 @@ interface JobHandle {
   updateProgress?: (line: string) => void;
 }
 
+interface JobOutcome {
+  status: "completed" | "failed";
+  detail?: string;
+}
+
 interface JobRegistry {
   start: (spec: {
     kind: string;
     label: string;
-    owner?: string;
-    run: (handle: JobHandle) => { cancel: () => void };
+    owner?: string | undefined;
+    run: (handle: JobHandle) => { cancel: () => void; done: Promise<JobOutcome> };
   }) => string;
 }
 
@@ -378,19 +383,23 @@ export function createRuntime(deps: ToolDeps) {
             if (issues.length > 0) for (const line of driftReport(issues)) out(line);
           };
 
-          const jobs = jobRegistry(deps.fallbackCtx);
+          const owner = ownerOf(exec);
+          const jobs = owner ? jobRegistry(deps.fallbackCtx) : undefined;
           if (jobs) {
             const label = `第 ${chapterNo} 章 · ${args.finalize ? "章末生成" : (args.lastBeat ?? "记一拍")}`;
             try {
               jobs.start({
                 kind: "story",
                 label,
-                ...(ownerOf(exec) ? { owner: ownerOf(exec)! } : {}),
+                owner,
                 run: (handle) => {
-                  void work((line) => handle.append(`${line}\n`)).catch((error) => {
-                    handle.append(`后台记账失败：${String(error)}\n`);
-                  });
-                  return { cancel: () => {} };
+                  const done = work((line) => handle.append(`${line}\n`))
+                    .then(() => ({ status: "completed" as const }))
+                    .catch((error) => {
+                      handle.append(`后台记账失败：${String(error)}\n`);
+                      return { status: "failed" as const, detail: String(error) };
+                    });
+                  return { cancel: () => {}, done };
                 },
               });
               return "";
@@ -435,18 +444,22 @@ export function createRuntime(deps: ToolDeps) {
               for (const f of open) out(`- ${f.id} [${f.weight}] ${f.label} — ${f.cue}`);
             }
           };
-          const jobs = jobRegistry(deps.fallbackCtx);
+          const owner = ownerOf(exec);
+          const jobs = owner ? jobRegistry(deps.fallbackCtx) : undefined;
           if (jobs) {
             try {
               jobs.start({
                 kind: "story",
                 label: `第 ${bundle.state.cursor.chapter} 章 · 章末检查`,
-                ...(ownerOf(exec) ? { owner: ownerOf(exec)! } : {}),
+                owner,
                 run: (handle) => {
-                  void work((line) => handle.append(`${line}\n`)).catch((error) => {
-                    handle.append(`后台检查失败：${String(error)}\n`);
-                  });
-                  return { cancel: () => {} };
+                  const done = work((line) => handle.append(`${line}\n`))
+                    .then(() => ({ status: "completed" as const }))
+                    .catch((error) => {
+                      handle.append(`后台检查失败：${String(error)}\n`);
+                      return { status: "failed" as const, detail: String(error) };
+                    });
+                  return { cancel: () => {}, done };
                 },
               });
               return "";

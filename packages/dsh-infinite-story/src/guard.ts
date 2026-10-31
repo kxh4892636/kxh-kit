@@ -187,7 +187,10 @@ export function guard(input: GuardInput): GuardIssue[] {
     n.startsWith(String(bundle.state.cursor.chapter).padStart(2, "0") + "-"),
   );
   const pendingChapter = input.unwrittenChapter === bundle.state.cursor.chapter;
-  if (chapters.length > 0 && !cursorFile && !pendingChapter) {
+  // 正在写的这一章还没有文件：章末才生成，不算错。
+  const highest = numbers.length > 0 ? Math.max(...numbers) : -1;
+  const chapterInProgress = bundle.state.cursor.chapter === highest + 1;
+  if (chapters.length > 0 && !cursorFile && !pendingChapter && !chapterInProgress) {
     issues.push({
       level: "error",
       code: "cursor/chapter",

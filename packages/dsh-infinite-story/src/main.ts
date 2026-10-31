@@ -15,7 +15,18 @@ export const Config: Schema<Config> = z.object({
 });
 
 export const name = "infinite-story";
-export const inject = { required: ["tools", "systemPrompt"], optional: ["jobs"] };
+/**
+ * Cordis reads `inject` as a **map of service names** — an array is the
+ * shorthand. An object shaped `{ required, optional }` is not a dependency
+ * declaration: it registers two services literally named `required` and
+ * `optional`, so the row waits forever, the preset audit reports it as
+ * `waiting for required, optional`, and `agent-preset-registry` marks the whole
+ * preset `broken` (a session cannot start on it).
+ *
+ * `jobs` stays out of the list on purpose: it is host-optional, and the runtime
+ * reads it with `ctx.get("jobs")`, which needs no injection.
+ */
+export const inject = ["tools", "systemPrompt"];
 
 /**
  * Story mode is a **preset**, not a toggle.
