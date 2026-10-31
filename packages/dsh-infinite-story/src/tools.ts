@@ -405,12 +405,11 @@ export function createRuntime(deps: ToolDeps) {
             if (issues.length > 0) for (const line of driftReport(issues)) out(line);
           };
 
-          // 逐拍内联：记账是几次小写入，毫秒级，且不出通知；章末生成才起后台任务，
-          // 这样一章只来一条完成通知，来时再 job_output 读漂移。
-          const owner = args.finalize ? ownerOf(exec) : undefined;
+          // 每拍都起后台任务：任务结算会通知，读完 job_output 再决定要不要往下写。
+          const owner = ownerOf(exec);
           const jobs = owner ? jobRegistry(deps.fallbackCtx) : undefined;
           if (jobs) {
-            const label = `第 ${chapterNo} 章 · 章末生成`;
+            const label = `第 ${chapterNo} 章 · ${args.finalize ? "章末生成" : (args.lastBeat ?? "记一拍")}`;
             try {
               jobs.start({
                 kind: "story",
