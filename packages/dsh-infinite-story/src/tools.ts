@@ -354,6 +354,11 @@ export function createRuntime(deps: ToolDeps) {
             description: "这一拍在场的人物 id，逗号分隔（写进 WAL，供在场一致性检查）",
           },
           thread: { type: "string", description: "这一拍推进的故事线 id（如 TH02）" },
+          group: {
+            type: "string",
+            description:
+              "这一章主导的故事线 id（world/groups.json，如 G1）；贯穿全文那条永远在场，不必标。切章时给。",
+          },
           affinity: {
             type: "string",
             description: "好感变动，逗号分隔：`mom:+3,teacher-zhou:-2`；原因用 advanceReason",
@@ -382,6 +387,7 @@ export function createRuntime(deps: ToolDeps) {
           plant?: string;
           participants?: string;
           thread?: string;
+          group?: string;
           affinity?: string;
           summary?: string;
         }) {

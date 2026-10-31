@@ -11,6 +11,8 @@ export interface Cursor {
   lastBeat: string;
   /** 场景 id（world/locations.json 里的 id）。 */
   locationId?: string;
+  /** 这一章主导的故事线 id（world/groups.json）。贯穿全文那条永远在场，不必标。 */
+  group?: string;
 }
 
 export interface Affinity {
