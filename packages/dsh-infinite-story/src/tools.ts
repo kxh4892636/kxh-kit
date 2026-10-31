@@ -278,6 +278,11 @@ export function createRuntime(deps: ToolDeps) {
           lastBeat: { type: "string", description: "一句话概括这一拍（写进 cursor）" },
           chapter: { type: "number", description: "切到新章时给章号（从 0 起）" },
           chapterTitle: { type: "string", description: "切到新章时给章标题" },
+          advanceMinutes: {
+            type: "number",
+            description: "这一拍推进多少分钟（0 表示不推进）。插件在后台写 clock.now 与 advances。",
+          },
+          advanceReason: { type: "string", description: "推进理由，写进 clock.advances" },
           plant: {
             type: "string",
             description:
@@ -299,6 +304,8 @@ export function createRuntime(deps: ToolDeps) {
             chapterTitle?: string;
             finalize?: boolean;
             plant?: string;
+            advanceMinutes?: number;
+            advanceReason?: string;
           },
           exec?: unknown,
         ) {
@@ -316,6 +323,21 @@ export function createRuntime(deps: ToolDeps) {
           const work = async (out: (line: string) => void): Promise<void> => {
             const cursor = bundle.state.cursor;
             const file = `${pad(chapterNo)}-${slug(title)}.md`;
+
+            if (typeof args.advanceMinutes === "number" && args.advanceMinutes !== 0) {
+              const from = bundle.clock.now;
+              const to = new Date(
+                new Date(from).getTime() + args.advanceMinutes * 60_000,
+              ).toISOString();
+              bundle.clock.advances.push({
+                from,
+                to,
+                minutes: args.advanceMinutes,
+                reason: (args.advanceReason ?? args.lastBeat ?? "推进").replace(/\s+/g, " "),
+              });
+              bundle.clock.now = to;
+              await writeJson(path.join(bundle.root, LAYOUT.clock), bundle.clock);
+            }
 
             cursor.chapter = chapterNo;
             cursor.chapterFile = file;
