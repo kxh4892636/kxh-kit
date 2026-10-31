@@ -73,6 +73,10 @@ export interface WorldChar {
   tier?: string;
   knows?: string[];
   affinity?: { value: number; level: string } | null;
+  /** 读者已经看见的那些细节。 */
+  revealed?: string[];
+  /** 还没揭的那些——一次只搬一条。 */
+  hidden?: string[];
 }
 
 export interface WorldLocation {

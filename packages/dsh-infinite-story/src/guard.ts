@@ -206,6 +206,34 @@ export function guard(input: GuardInput): GuardIssue[] {
     });
   }
 
+  // ---- 渐进人设（R18）----
+  for (const char of bundle.world.chars) {
+    const revealed = char.revealed ?? [];
+    const hidden = char.hidden ?? [];
+    for (const item of revealed) {
+      const hit = hidden.find((h) => h && (item.includes(h) || h.includes(item)));
+      if (hit) {
+        issues.push({
+          level: "error",
+          code: "npc/revealed-hidden",
+          message: `${char.name}：「${hit}」同时留在 revealed 和 hidden`,
+          fix: "从 hidden 里删掉这一条——揭过的东西不再算没揭",
+        });
+      }
+    }
+    const seen = new Set<string>();
+    for (const item of revealed) {
+      if (seen.has(item)) {
+        issues.push({
+          level: "warn",
+          code: "npc/duplicate-revealed",
+          message: `${char.name}：revealed 里重复了「${item}」`,
+          fix: "删掉重复的那条",
+        });
+      }
+      seen.add(item);
+    }
+  }
   // ---- shards ----
   if (input.shardFiles) {
     const missing = input.shardFiles.filter((f) => !chapters.includes(f) && !f.endsWith(".md"));

@@ -1,4 +1,5 @@
 import path from "node:path";
+import { promises as fs } from "node:fs";
 import { deriveBeatStatus, guard } from "./guard.js";
 import { levelOf, type GuardIssue, type StoryBundle } from "./model.js";
 import { LAYOUT, writeJson } from "./store.js";
@@ -99,6 +100,43 @@ export async function autoRepair(bundle: StoryBundle, chapters: string[]): Promi
       victim.status = "失效";
       await writeJson(path.join(bundle.root, LAYOUT.foreshadows), bundle.foreshadows);
       fixed.push(`${victim.id} 标为失效（未触发上限 12）`);
+    }
+  }
+
+  // 5. 渐进人设：同一句同时留在 revealed 与 hidden —— 从 hidden 删掉
+  let charsChanged = false;
+  for (const char of bundle.world.chars) {
+    const revealed = char.revealed ?? [];
+    const hidden = char.hidden ?? [];
+    const keep = hidden.filter(
+      (item) => !revealed.some((r) => item && (r.includes(item) || item.includes(r))),
+    );
+    if (keep.length !== hidden.length) {
+      char.hidden = keep;
+      charsChanged = true;
+      fixed.push(`${char.name} 的 hidden 清掉 ${hidden.length - keep.length} 条已揭示项`);
+    }
+  }
+  if (charsChanged) {
+    const file = path.join(bundle.root, LAYOUT.chars);
+    const raw = JSON.parse(await fs.readFile(file, "utf8")) as unknown;
+    const flat = Array.isArray(raw) ? (raw as any[]) : null;
+    if (flat) {
+      for (const char of bundle.world.chars) {
+        const hit = flat.find((c) => c?.id === char.id);
+        if (hit) hit.hidden = char.hidden;
+      }
+      await writeJson(file, flat);
+    } else {
+      for (const tier of ["core", "major", "minor", "extra"]) {
+        const list = (raw as any)?.[tier];
+        if (!Array.isArray(list)) continue;
+        for (const char of bundle.world.chars) {
+          const hit = list.find((c: any) => c?.id === char.id);
+          if (hit) hit.hidden = char.hidden;
+        }
+      }
+      await writeJson(file, raw);
     }
   }
 

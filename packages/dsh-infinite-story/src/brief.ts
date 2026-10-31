@@ -56,6 +56,14 @@ export function renderBrief(bundle: StoryBundle, opts: BriefOptions = {}): strin
     if (openFs.length > 8) lines.push(`  ……另有 ${openFs.length - 8} 条，读 foreshadows.json`);
   }
 
+  const cast = bundle.world.chars.filter((c) => (c.hidden ?? []).length > 0);
+  if (cast.length > 0) {
+    lines.push(
+      `【人设】${cast
+        .map((c) => `${c.name} 未揭 ${(c.hidden ?? []).length}`)
+        .join(" · ")}（一次只揭一条，揭了就搬进 revealed）`,
+    );
+  }
   const aff = Object.entries(state.affinity);
   if (aff.length > 0) {
     lines.push(`【好感】${aff.map(([n, a]) => `${n} ${a.value}（${a.level}）`).join(" · ")}`);

@@ -27,7 +27,7 @@ export const IRON_RULES = `【故事模式 · 机制】
 
 ■ 章节生成
 5. 一章写完才生成：本章最后一拍用 story_write finalize=true，text 放整章正文（含拍间分隔），一次写成 chapters/NN-title.md。本章新埋的伏笔用 plant 一行一条（label|重|cue）带上，插件写进 foreshadows.json。
-6. 换章时给 chapter 与 chapterTitle；上一章没生成就先 finalize，不要带着半章往下走。
+6. 一章按「一个故事日 / 一个完整事件段」划，同一天里换场景只写 --- 不换章。换章时给 chapter 与 chapterTitle；上一章没生成就先 finalize，不要带着半章往下走。
 
 ■ 校验（只在章末）
 7. 工具同步执行，没有后台任务、不用读 job。机械漂移一律自动修正，不要问用户：改完把动过的字段念一行即可；只有修不动的（章节断号、伏笔 id 重复）才报。章末把 story_check 的返回照原样交给用户：修正行、本章信息、未触发伏笔清单。
@@ -56,7 +56,7 @@ export const IRON_RULES = `【故事模式 · 机制】
 
 ■ 渐进人设（R18）
 21. 人物卡里有两个抽屉：revealed（读者已知道的）与 hidden（还没揭的）。
-22. 一场戏最多揭示一条 hidden，用行为说，不用陈述说——写"她把别人不要的粉笔头收进铁盒"，不写"她很节俭"。
+22. 一场戏最多揭示一条 hidden，用行为说、不用陈述说。揭示就是搬家：把那条从 hidden 删掉、写进 revealed，只留正文真写过的原话；这两个抽屉你自己维护，和别的 json 一样直接改文件，别留给别人。
 23. 揭示后把它从 hidden 移到 revealed，只留正文里真写过的细节。允许永远不揭。
 
 ■ 伏笔（R11）
