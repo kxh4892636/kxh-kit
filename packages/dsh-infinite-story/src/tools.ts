@@ -353,7 +353,8 @@ export function createRuntime(deps: ToolDeps) {
     deps.fallbackCtx.tools.register(
       defineTool({
         name: "story_check",
-        description: "章末用一次：结构复查 + 未触发伏笔清单。同步执行；没有漂移就不提。",
+        description:
+          "章末用一次：结构复查，只回本章章节信息（章号 / 标题 / 字数 / 拍数）。有漂移时一并报出。",
         parameters: {},
         output: { schema: { type: "string" }, render: (_a: unknown, v: string) => text(v) },
         async execute() {
@@ -363,12 +364,19 @@ export function createRuntime(deps: ToolDeps) {
           await savePending(bundle.root, issues);
           const lines = issues.length > 0 ? driftReport(issues) : [];
 
-          const open = bundle.foreshadows.filter((f) => f.status === "未触发");
-          if (open.length > 0) {
+          // 章节信息：只回这一行
+          const file = bundle.state.cursor.chapterFile;
+          try {
+            const body = await fs.readFile(path.join(bundle.root, LAYOUT.chapters, file), "utf8");
+            const title =
+              /^#\s*\d+\s*·\s*(.+)$/m.exec(body)?.[1]?.trim() ?? file.replace(/\.md$/, "");
+            const chars = body.replace(/\s/g, "").length;
+            const beats = body.split(/\n---\n/).length;
             lines.push(
-              `未触发伏笔 ${open.length} 条（用得上哪些、下一章埋哪几条，自己判，不用问）：`,
+              `第 ${bundle.state.cursor.chapter} 章《${title}》· ${file} · ${chars} 字 · ${beats} 拍`,
             );
-            for (const f of open) lines.push(`- ${f.id} [${f.weight}] ${f.label} — ${f.cue}`);
+          } catch {
+            lines.push(`第 ${bundle.state.cursor.chapter} 章 · ${file}（尚未生成）`);
           }
           return lines.join("\n");
         },
