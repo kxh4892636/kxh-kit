@@ -383,6 +383,13 @@ export function createRuntime(deps: ToolDeps) {
           } catch {
             lines.push(`第 ${bundle.state.cursor.chapter} 章 · ${file}（尚未生成）`);
           }
+          const open = bundle.foreshadows.filter((f) => f.status === "未触发");
+          if (open.length > 0) {
+            lines.push(
+              `未触发伏笔 ${open.length} 条（用得上哪些、下一章埋哪几条，自己判，不用问）：`,
+            );
+            for (const f of open) lines.push(`- ${f.id} [${f.weight}] ${f.label} — ${f.cue}`);
+          }
           return lines.join("\n");
         },
       }),
