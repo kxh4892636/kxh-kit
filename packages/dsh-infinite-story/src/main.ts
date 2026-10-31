@@ -16,20 +16,23 @@ export const Config: Schema<Config> = z.object({
 
 export const name = "infinite-story";
 /**
- * Cordis reads `inject` as a **map of service names** — an array is the
- * shorthand. An object shaped `{ required, optional }` is not a dependency
- * declaration: it registers two services literally named `required` and
- * `optional`, so the row waits forever, the preset audit reports it as
- * `waiting for required, optional`, and `agent-preset-registry` marks the whole
- * preset `broken` (a session cannot start on it).
+ * Only the services the runtime touches unconditionally.
  *
- * `jobs` stays out of the list on purpose: it is host-optional, and the runtime
- * reads it with `ctx.get("jobs")`, which needs no injection.
+ * Cordis reads `inject` as a **map of service names**, and an array is the
+ * shorthand for `{ name: null }`. An object shaped `{ required, optional }` is
+ * not a dependency declaration: its two KEYS become the dependency names, so
+ * the row waits for two services literally called `required` and `optional`.
+ * Neither is ever provided, `auditRows` reports
+ * `waiting for required, optional`, and `agent-preset-registry` marks the whole
+ * preset `broken` — the session cannot start and the selector shows 加载失败.
+ *
+ * Host-optional services stay out on purpose: `llm`, `agentDefaultModel` and
+ * `jobs` are read with `ctx.get(name)` inside the tools, which needs no
+ * injection and yields `undefined` when the host does not provide them.
+ * Reading them as `ctx.llm` instead would THROW (`cannot get property "llm"
+ * without inject`) whenever the host omits them, so never promote them here.
  */
-export const inject = {
-  required: ["tools", "systemPrompt"],
-  optional: ["llm", "agentDefaultModel"],
-};
+export const inject = ["tools", "systemPrompt"];
 
 /**
  * Story mode is a **preset**, not a toggle.

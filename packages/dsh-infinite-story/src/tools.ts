@@ -53,8 +53,7 @@ interface ModelSelector {
 interface Ctx {
   tools: { register: (def: unknown) => Disposer };
   systemPrompt: { section: (sec: unknown) => unknown };
-  llm?: LlmService;
-  agentDefaultModel?: ModelSelector;
+  /** Service reads only: `ctx.get(name)` never requires an `inject` entry. */
   get?: (name: string) => unknown;
 }
 
@@ -139,10 +138,18 @@ async function reviewChapter(
   bundle: StoryBundle,
   chapterText: string,
 ): Promise<ReviewResult | null> {
-  const llm = ctx.llm ?? (ctx.get?.("llm") as LlmService | undefined);
-  const selector =
-    ctx.agentDefaultModel ?? (ctx.get?.("agentDefaultModel") as ModelSelector | undefined);
-  if (!llm || !selector) return null;
+  // `llm` and `agentDefaultModel` are host-optional and NOT injected: reading
+  // them as `ctx.llm` throws in a realm that does not provide them, which would
+  // abort the caller's try block. `ctx.get` degrades to undefined instead.
+  let llm: LlmService | undefined;
+  let selector: ModelSelector | undefined;
+  try {
+    llm = ctx.get?.("llm") as LlmService | undefined;
+    selector = ctx.get?.("agentDefaultModel") as ModelSelector | undefined;
+  } catch {
+    return null;
+  }
+  if (typeof llm?.stream !== "function" || typeof selector?.current !== "function") return null;
 
   let provider = "";
   let model = "";
