@@ -8,6 +8,7 @@
       name="description"
       content="本地古典曲库的随机播放器：一首曲子一条波形，听过的最多留 13 首。"
     />
+    <link rel="icon" href="data:," />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
@@ -21,7 +22,7 @@
         </button>
         <button class="pill" id="next" type="button">下一首</button>
       </div>
-      <p class="bar__hint"><kbd>空格</kbd> 播放 / <kbd>n</kbd> 下一首</p>
+      <p class="bar__hint"><kbd>空格</kbd> 播放，<kbd>n</kbd> 下一首，洗牌抽取</p>
     </header>
 
     <main class="stage">
@@ -30,14 +31,26 @@
         <h1 id="work">Goldberg Variations</h1>
         <p class="movement">
           <span id="movement">Variation 4</span>
-          <span class="movement__time num" id="time">0:00 / 0:54</span>
+          <span class="movement__time num" id="time">0:00 / 0:53</span>
         </p>
 
-        <figure class="wave" style="--wave-src: url(&quot;media/bach-var4-wave.png&quot;)">
+        <figure
+          class="wave"
+          style="--wave-src: url(&quot;media/bach-var4-wave.png&quot;)"
+          tabindex="0"
+          role="slider"
+          aria-label="播放进度，左右方向键微调"
+          aria-valuemin="0"
+          aria-valuemax="0"
+          aria-valuenow="0"
+        >
           <span class="wave__ink" id="ink" aria-hidden="true"></span>
           <span class="wave__passed" id="passed" aria-hidden="true"></span>
           <span class="wave__head" id="head" aria-hidden="true"></span>
         </figure>
+        <p class="state" id="audio-error" hidden>
+          这段音频打不开，文件可能不在本机。按「下一首」换一首。
+        </p>
 
         <section class="library" aria-labelledby="library-head">
           <h2 id="library-head">试听样张</h2>
@@ -68,7 +81,7 @@
 
       <aside class="history" aria-labelledby="history-head">
         <h2 id="history-head">最近听过</h2>
-        <p class="history__note">最多留 13 首，刷新也在。</p>
+        <p class="history__note">最多留 13 首（样张 4 首），刷新也在。</p>
         <p class="state" id="state-empty">还没有听过。按下播放，这里会记下刚才的曲目。</p>
         <ol class="history__list" id="history-list"></ol>
       </aside>

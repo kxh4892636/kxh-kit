@@ -14,11 +14,11 @@ Copy-Item "$src\Greig_PeerGynt\EdvardGrieg-PeerGyntSuiteNo.1Op.46-01-Morning.fla
 Copy-Item "$src\Mozart_MagicFluteOverture\WolfgangAmadeusMozart-MagicFluteOverture.flac" docs/music/design/ui-comp/media/mozart-flute.flac
 Copy-Item "$src\Suk_Meditation\JosefSuk-Meditation.flac" docs/music/design/ui-comp/media/suk-meditation.flac
 
-# 2) 起一个静态服务（file:// 下 fetch 会被拦）
-python -m http.server 5271 --bind 127.0.0.1 --directory docs/music/design/ui-comp
+# 2) 起一个带 Range 的静态服务（file:// 下 fetch 会被拦；python -m http.server 不认 Range，波形无法定位）
+python docs/music/design/ui-comp/tools/serve_range.py 5271
 ```
 
-打开 <http://127.0.0.1:5271/>。没有音频文件时页面照常渲染，点「播放」会静默失败——这是样张的已知限制。
+打开 <http://127.0.0.1:5271/>。`tools/serve_range.py` 返回 `206` 与 `Content-Range`，与正式站点由 Hono `serve-static` 提供的能力一致。没有音频文件时页面照常渲染，点「播放」会静默失败——这是样张的已知限制。
 
 ## 组成
 

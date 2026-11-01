@@ -10,7 +10,6 @@ const el = {
   work: document.getElementById("work"),
   movement: document.getElementById("movement"),
   time: document.getElementById("time"),
-  ink: document.getElementById("ink"),
   wave: document.querySelector(".wave"),
   passed: document.getElementById("passed"),
   head: document.getElementById("head"),
@@ -19,18 +18,34 @@ const el = {
   loading: document.getElementById("state-loading"),
   error: document.getElementById("state-error"),
   retry: document.getElementById("retry"),
+  audioError: document.getElementById("audio-error"),
   historyList: document.getElementById("history-list"),
   historyEmpty: document.getElementById("state-empty"),
   announcer: document.getElementById("announcer"),
   note: document.getElementById("library-note"),
 };
 
-const state = { data: null, bag: [], current: null, history: [] };
+const state = {
+  data: null,
+  bag: [],
+  current: null,
+  pending: null,
+  history: [],
+  dragging: false,
+};
 
 const formatTime = (seconds) => {
   if (!Number.isFinite(seconds) || seconds < 0) return "0:00";
   const whole = Math.floor(seconds);
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, "0")}`;
+};
+
+const formatWhen = (at) => {
+  const date = new Date(at);
+  const now = new Date();
+  const sameDay = date.toDateString() === now.toDateString();
+  const clock = date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+  return sameDay ? clock : `${date.getMonth() + 1}月${date.getDate()}日 ${clock}`;
 };
 
 const shuffle = (list) => {
@@ -61,7 +76,7 @@ const saveHistory = () => {
 
 const byId = (id) => state.data?.tracks.find((track) => track.id === id) ?? null;
 
-const trackLabel = (track) => [track.work, track.movement].filter(Boolean).join("，");
+const trackLabel = (track) => [track.work, track.movement || "单乐章"].join("，");
 
 const refillBag = () => {
   const ids = shuffle((state.data?.tracks ?? []).map((track) => track.id));
@@ -79,10 +94,12 @@ const setPlaying = (playing) => {
 const paintProgress = () => {
   const total = el.audio.duration || state.current?.seconds || 0;
   const ratio = total > 0 ? Math.min(el.audio.currentTime / total, 1) : 0;
+  const now = el.audio.currentTime || 0;
   el.wave.style.setProperty("--p", ratio.toFixed(4));
-  el.passed.style.setProperty("--p", ratio.toFixed(4));
-  el.head.style.setProperty("--p", ratio.toFixed(4));
-  el.time.textContent = `${formatTime(el.audio.currentTime)} / ${formatTime(total)}`;
+  el.time.textContent = `${formatTime(now)} / ${formatTime(total)}`;
+  el.wave.setAttribute("aria-valuemax", String(Math.round(total)));
+  el.wave.setAttribute("aria-valuenow", String(Math.round(now)));
+  el.wave.setAttribute("aria-valuetext", `${formatTime(now)} / ${formatTime(total)}`);
 };
 
 const markCurrentRows = () => {
@@ -94,15 +111,57 @@ const markCurrentRows = () => {
   }
 };
 
-const showTrack = (track) => {
+const select = (id) => {
+  const track = byId(id);
+  if (!track) return;
+  state.current = track;
+  state.pending = id;
+  el.audio.src = track.audio;
+  el.audio.load();
   el.composer.textContent = track.composer;
   el.work.textContent = track.work;
   el.movement.textContent = track.movement || "单乐章";
-  el.wave.style.setProperty("--wave-src", `url("${track.mask}")`);
   el.time.textContent = `0:00 / ${formatTime(track.seconds)}`;
-  el.wave.setAttribute("aria-label", `${track.composer}，${trackLabel(track)}`);
-  el.announcer.textContent = `正在播放 ${trackLabel(track)}，${track.composer}`;
+  el.wave.style.setProperty("--wave-src", `url("${track.mask}")`);
+  el.wave.setAttribute("aria-label", `${track.composer}，${trackLabel(track)}，可拖动调整进度`);
+  el.audioError.hidden = true;
   markCurrentRows();
+  paintProgress();
+};
+
+const play = async () => {
+  if (!state.current) return;
+  try {
+    await el.audio.play();
+  } catch {
+    setPlaying(false);
+  }
+};
+
+const startNext = async () => {
+  if (!state.data) return;
+  if (state.bag.length === 0) refillBag();
+  select(state.bag.shift());
+  await play();
+};
+
+const toggle = () => {
+  if (!state.current) return;
+  if (el.audio.paused) void play();
+  else el.audio.pause();
+};
+
+const seekToRatio = (ratio) => {
+  const total = el.audio.duration;
+  if (!Number.isFinite(total) || total <= 0) return;
+  const clamped = Math.min(Math.max(ratio, 0), 1);
+  el.audio.currentTime = clamped * total;
+  paintProgress();
+};
+
+const ratioFromEvent = (event) => {
+  const rect = el.wave.getBoundingClientRect();
+  return rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0;
 };
 
 const pushHistory = (id) => {
@@ -129,15 +188,13 @@ const renderHistory = () => {
     const button = document.createElement("button");
     button.type = "button";
     button.addEventListener("click", () => {
-      void playTrack(track.id);
+      select(track.id);
+      void play();
     });
 
     const when = document.createElement("span");
     when.className = "history__when num";
-    when.textContent = new Date(entry.at).toLocaleTimeString("zh-CN", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    when.textContent = formatWhen(entry.at);
 
     const what = document.createElement("span");
     what.className = "history__what";
@@ -175,15 +232,16 @@ const renderIndex = () => {
     length.textContent = formatTime(track.seconds);
 
     const action = document.createElement("td");
-    const play = document.createElement("button");
-    play.type = "button";
-    play.className = "index__play";
-    play.textContent = "播放";
-    play.setAttribute("aria-label", `播放 ${trackLabel(track)}`);
-    play.addEventListener("click", () => {
-      void playTrack(track.id);
+    const playButton = document.createElement("button");
+    playButton.type = "button";
+    playButton.className = "index__play";
+    playButton.textContent = "播放";
+    playButton.setAttribute("aria-label", `播放 ${trackLabel(track)}`);
+    playButton.addEventListener("click", () => {
+      select(track.id);
+      void play();
     });
-    action.append(play);
+    action.append(playButton);
 
     row.append(work, movement, composer, length, action);
     el.indexBody.append(row);
@@ -191,74 +249,93 @@ const renderIndex = () => {
   markCurrentRows();
 };
 
-const playTrack = async (id, { autoplay = true } = {}) => {
-  const track = byId(id);
-  if (!track) return;
-  state.current = track;
-  el.audio.src = track.audio;
-  el.audio.load();
-  showTrack(track);
-  paintProgress();
-  if (autoplay) {
-    try {
-      await el.audio.play();
-    } catch {
-      setPlaying(false);
-    }
-  }
-};
-
-const next = () => {
-  if (!state.data) return;
-  if (state.bag.length === 0) refillBag();
-  const id = state.bag.shift();
-  void playTrack(id);
-};
-
-const toggle = () => {
-  if (!state.current) {
-    next();
-    return;
-  }
-  if (el.audio.paused) {
-    void el.audio.play().catch(() => setPlaying(false));
-  } else {
-    el.audio.pause();
-  }
+const setTransportEnabled = (enabled) => {
+  el.play.disabled = !enabled;
+  el.next.disabled = !enabled;
 };
 
 el.play.addEventListener("click", toggle);
-el.next.addEventListener("click", next);
+el.next.addEventListener("click", () => {
+  void startNext();
+});
+
+el.wave.addEventListener("pointerdown", (event) => {
+  seekToRatio(ratioFromEvent(event));
+  state.dragging = true;
+  try {
+    el.wave.setPointerCapture(event.pointerId);
+  } catch {
+    /* capture is a nicety; seeking already happened */
+  }
+});
+el.wave.addEventListener("pointermove", (event) => {
+  if (!state.dragging) return;
+  seekToRatio(ratioFromEvent(event));
+});
+el.wave.addEventListener("pointerup", (event) => {
+  state.dragging = false;
+  try {
+    el.wave.releasePointerCapture(event.pointerId);
+  } catch {
+    /* nothing captured */
+  }
+});
+el.wave.addEventListener("pointercancel", () => {
+  state.dragging = false;
+});
+el.wave.addEventListener("keydown", (event) => {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  event.preventDefault();
+  const step = event.key === "ArrowRight" ? 5 : -5;
+  el.audio.currentTime = Math.max(0, Math.min(el.audio.duration || 0, el.audio.currentTime + step));
+  paintProgress();
+});
 
 document.addEventListener("keydown", (event) => {
-  const tag = event.target instanceof HTMLElement ? event.target.tagName : "";
-  if (tag === "INPUT" || tag === "TEXTAREA" || event.metaKey || event.ctrlKey) return;
+  const target = event.target;
+  if (
+    target instanceof HTMLElement &&
+    target.closest("button, a, input, textarea, [role='slider']")
+  ) {
+    return;
+  }
+  if (event.metaKey || event.ctrlKey) return;
   if (event.code === "Space") {
     event.preventDefault();
     toggle();
   }
   if (event.key === "n" || event.key === "N") {
     event.preventDefault();
-    next();
+    void startNext();
   }
 });
 
 el.audio.addEventListener("playing", () => {
   setPlaying(true);
-  if (state.current) pushHistory(state.current.id);
+  if (!state.current) return;
+  pushHistory(state.current.id);
+  if (state.pending === state.current.id) {
+    state.bag = state.bag.filter((id) => id !== state.current.id);
+    state.pending = null;
+  }
 });
 el.audio.addEventListener("pause", () => setPlaying(false));
 el.audio.addEventListener("timeupdate", paintProgress);
-el.audio.addEventListener("ended", next);
+el.audio.addEventListener("ended", () => {
+  void startNext();
+});
 el.audio.addEventListener("error", () => {
   setPlaying(false);
-  el.announcer.textContent = "这段音频没能打开，可以按下一首换一首";
+  if (!el.audio.getAttribute("src")) return;
+  el.audioError.hidden = false;
 });
 
 const load = async () => {
+  setTransportEnabled(false);
   el.loading.hidden = false;
   el.error.hidden = true;
   el.index.hidden = true;
+  el.audioError.hidden = true;
   try {
     const response = await fetch("library.json", { cache: "no-store" });
     if (!response.ok) throw new Error(String(response.status));
@@ -270,6 +347,8 @@ const load = async () => {
     renderIndex();
     renderHistory();
     refillBag();
+    select(state.bag[0]);
+    setTransportEnabled(true);
   } catch {
     el.loading.hidden = true;
     el.error.hidden = false;

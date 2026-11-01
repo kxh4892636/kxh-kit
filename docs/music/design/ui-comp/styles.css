@@ -213,6 +213,7 @@ kbd {
 }
 
 .stage {
+  width: 100%;
   display: grid;
   grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
   gap: var(--gap-columns);
@@ -249,6 +250,8 @@ kbd {
 
 .wave {
   position: relative;
+  cursor: pointer;
+  touch-action: none;
   margin: var(--space-lg) 0 0;
   aspect-ratio: 4 / 1;
   container-type: inline-size;
@@ -264,6 +267,11 @@ kbd {
     100% 25px;
   mask-image: linear-gradient(to right, var(--color-ink) 62%, transparent 92%);
   overflow: hidden;
+}
+
+.wave:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 3px;
 }
 
 .wave__ink {
