@@ -21,7 +21,7 @@ status: in_progress
 
 1. **曲库落地**（[01](01-曲库落地与校验.md)）：用 8 路并发、断点续传、md5 校验的 HTTP 抓取，把条目的 580 个文件落到 `C:\Users\kxh\Music\musopen-flac`，保留目录结构（`<作品目录>/<文件>`）。BT 路径已实测淘汰，理由见下。
 2. **曲目索引**（[03](03-曲目索引生成.md)）：从 Internet Archive 元数据、ffprobe 与目录结构派生 `works` / `tracks` 两张表写进 SQLite，作为站点唯一数据源。
-3. **站点**（[02](02-站点形态与技术选型.md) → [04](04-随机播放站点实现.md)）：前端静态产物由 Hono 托管，音频由 `@hono/node-server/serve-static` 以 Range/206 流式直出 FLAC；随机与历史走 [05](05-播放历史与洗牌袋.md) 的接口。
+3. **站点**（[02](02-站点形态与技术选型.md) → [04](04-随机播放站点实现.md)）：前端静态产物由 Hono 托管，音频由 `@hono/node-server/serve-static` 以 Range/206 流式直出 FLAC；随机与历史全在前端 store。
 
 ## 已排除的备选
 
@@ -36,11 +36,11 @@ status: in_progress
 - **下载器**：`.temp/musopen/fetch_all.py`，标准库 + `curl.exe` 子进程，8 线程；每个文件 `-C -` 续传、`--retry 3`、完成后按 IA 元数据的 md5 校验，不一致删除重下（最多 4 轮）。
 - **状态与错误**：`.temp/musopen/status.json`（总数/完成数/字节数/更新时间）、`.temp/musopen/errors.json`（失败清单），供恢复与验收读取。
 - **落盘布局**：保留源目录层级，例如 `Bach_GoldbergVariations/JohannSebastianBach-01-GoldbergVariationsBwv.988-Aria.flac`；同目录并存 `.mp3`、`.ogg`、`.png`（封面）。
-- **数据库选型**：2026-11-01 用户指定 Kysely + SQLite（驱动 `better-sqlite3`，`kysely` 自带 `SqliteDialect`）；迁移用 `kysely-ctl` 或 `Migrator` 脚本。**入库范围待定**：只存历史（推荐）、完全不入库、或三表全量，见「待定」。
-- **曲目索引形状**：`tracks(id, composer, work, movement, title, format, bytes, seconds, sample_rate, bits, cover, path, source_url, license)` 与 `works(id, composer, work_title)`；若采用「只存历史」形态，这两张表改为构建期生成的 `tracks.json`，字段同构。
-- **随机策略**：洗牌袋（Fisher–Yates 洗一轮，抽完再洗），状态放服务端内存；不使用 `Math.random()` 直抽（会连续重复）。
-- **播放历史**：`play_history(id, track_id, played_at)`，写入后裁剪到最近 13 条；同曲重播只更新时间戳。
-- **音频交付**：FLAC 直出，走 Range/206 渐进加载与按需分片；已验证 `@hono/node-server@2.1.1` 的 `serve-static` 自带该能力（`Accept-Ranges`、`Content-Range`、`createReadStream`）。
+- **不用数据库**（2026-11-01 用户定稿）：服务端无状态，不引入 SQLite/Kysely，也就不需要迁移与连接生命周期。
+- **曲目索引形状**：静态 `tracks.json`，`{ item, license, source, tracks[], works[] }`；每条曲目含 `id`（路径 sha1 前 12 位）、`composer`、`work`、`movement`、`track_no`、`title`、`artist`、`bytes`、`seconds`、`sample_rate`、`bits`、`cover`、`path`、`source_url`、`md5`、`license`。生成脚本 `.temp/musopen/build_index.py`，产物落 `apps/music/client/public/tracks.json`。
+- **随机策略**：洗牌袋（Fisher–Yates 洗一轮，抽完再洗），状态在前端内存；重洗后首项若等于刚播曲目则与次项交换。
+- **播放历史**：前端 `localStorage`（`zustand/persist`，`partialize` 只存 `history`），`{ id, playedAt }[]`，同曲先去重再 `slice(0, 13)`；写入时机为 `<audio>` 的 `playing` 事件。
+- **音频交付**：FLAC 直出，走 Range/206 渐进加载与按需分片；已验证 `@hono/node-server@2.1.1` 的 `serve-static` 自带该能力。曲库与封面统一挂 `/media/*` → `MUSIC_ROOT`（默认 `C:\Users\kxh\Music\musopen-flac`），前端拼接 `path`/`cover`。
 - **许可标注**：页面固定展示「来源 Internet Archive / Musopen，CC PD Mark 1.0」及条目链接。
 
 ## 工作环境
@@ -77,10 +77,10 @@ status: in_progress
 - ~~部署范围~~：2026-11-01 已定——暂只本机 `127.0.0.1`。
 - ~~功能边界~~：2026-11-01 已定——随机播放 + 下一首 + 近 13 条播放历史。
 - ~~格式策略~~：2026-11-01 已定——FLAC 直出，配 Range 流式/分片。
-- ~~是否自建~~：2026-11-01 已定——完全自建（TS / React 静态前端 / Hono / SQLite，范式参考 `apps/etf`）。
-- **逐层框架**：用户将从 [02](02-站点形态与技术选型.md) 的「框架清单」中勾选；已定：Kysely（数据库）、shadcn/ui（UI），未定项含路由库、播放器封装、测试栈与启动方式。
-- **数据库是否必要**：见 [02](02-站点形态与技术选型.md#2026-11-01-第二轮框架选择与数据库必要性) 的 S / J / F 三形态。我的建议是 S（只让 SQLite 管 `play_history`，曲目走 `tracks.json`）；用户确认后定稿。
-- **音频交付细节**：Range 渐进加载为默认；若改选 HLS 切片，需要 ffmpeg 转码与额外产物目录，体积约翻倍。
+- ~~是否自建~~：2026-11-01 已定——完全自建（TS / React 静态前端 / Hono，范式参考 `apps/etf`）。
+- ~~逐层框架~~：2026-11-01 已定稿，见「实施决策」与 [02](02-站点形态与技术选型.md)。
+- ~~数据库~~：2026-11-01 已定——不用数据库；索引为静态 `tracks.json`，历史与洗牌全在前端。
+- **音频交付细节**：Range 渐进加载为当前方案；HLS 切片不在范围（需 ffmpeg 转码，体积约翻倍），若日后要移动端自适应再单开 Plan。
 
 ## 上下文
 
@@ -91,21 +91,20 @@ status: in_progress
 
 ## 当前进度
 
-2026-11-01 17:06：曲库下载与校验全部完成——580 个文件 / 9,607,881,823 字节，md5 全量复核 `missing=0 extra=0 bad=0`，[01](01-曲库落地与校验.md) 已 `completed`。索引已用 `.temp/musopen/build_index.py` 跑出 `tracks.json`（145 曲 / 37 作品 / 168 KB），[03](03-曲目索引生成.md) 进入 `in_progress`，等 S/J/F 决定落地形态。框架已定 Kysely + shadcn/ui；其余层次与数据库形态待用户回复。阻塞：无（等待用户决策）。
+2026-11-01 17:12：01 曲库（580/580、md5 全过）、02 选型（无数据库 + 全前端状态）、03 索引（`tracks.json` 145 曲 / 37 作品 / 168 KB）均已完成。剩余 [04](04-随机播放站点实现.md)（依赖 03，含前端 store）。阻塞：无；下一步为 04 的 dev gate 停等确认。
 
 ## 恢复入口
 
 1. 读 [story.md](story.md) 与本 spec 的「实施决策」，再读 [01](01-曲库落地与校验.md) 的探针结论与检查点。
-2. 核对现场：`.temp/musopen/status.json` 的 `done_files/total_files` 与 `C:\Users\kxh\Music\musopen-flac` 实际文件数、体积是否一致；后台任务是否仍在跑（`job_list`）。
-3. 下一动作：下载未完成则轮询状态（脚本可安全重跑，只补缺）；完成后按 [03](03-曲目索引生成.md) 用 ffprobe + IA 元数据写 `tracks` / `works` 表；框架选择见 [02](02-站点形态与技术选型.md) 的清单。
-4. 停止条件：出现 md5 反复不一致或大量 404 时，先核对 IA 元数据是否变更，不要放宽校验；`errors.json` 非空即视为未完成。
+2. 核对现场：`C:\Users\kxh\Music\musopen-flac` 应为 580 个文件 / 9,607,881,823 字节；`.temp/musopen/tracks.json` 应为 145 曲 / 37 作品；`apps/music` 尚未创建。
+3. 下一动作：按 [04](04-随机播放站点实现.md) 的 dev gate 基线开工，先建 `apps/music` 骨架与 `/media` 的 206 冒烟，再落 `tracks.json` 与播放器。
+4. 停止条件：dev gate 未确认不动代码；206 或自动播放失败时先查 `MUSIC_ROOT` 与实际路径，不放宽验收口径。
 
 ## Notes
 
-| #   | Notes                                          | 状态        | 阻塞于 | 下一步                                         |
-| --- | ---------------------------------------------- | ----------- | ------ | ---------------------------------------------- |
-| 01  | [曲库落地与校验](01-曲库落地与校验.md)         | completed   | —      | 轮询 `status.json` 直到 580/580 且 errors 为空 |
-| 02  | [站点形态与技术选型](02-站点形态与技术选型.md) | in_progress | —      | 用户在「框架清单」中逐层勾选                   |
-| 03  | [曲目索引生成](03-曲目索引生成.md)             | in_progress | 01     | ffprobe + IA 元数据写 `tracks`/`works` 表      |
-| 04  | [随机播放站点实现](04-随机播放站点实现.md)     | pending     | 02, 03 | `/delivery` dev gate 停等确认                  |
-| 05  | [播放历史与洗牌袋](05-播放历史与洗牌袋.md)     | pending     | 03     | 建表、接口与单测                               |
+| #   | Notes                                          | 状态      | 阻塞于 | 下一步                                  |
+| --- | ---------------------------------------------- | --------- | ------ | --------------------------------------- |
+| 01  | [曲库落地与校验](01-曲库落地与校验.md)         | completed | —      | —                                       |
+| 02  | [站点形态与技术选型](02-站点形态与技术选型.md) | completed | —      | —                                       |
+| 03  | [曲目索引生成](03-曲目索引生成.md)             | completed | 01     | —                                       |
+| 04  | [随机播放站点实现](04-随机播放站点实现.md)     | pending   | 03     | dev gate 停等确认后搭 `apps/music` 骨架 |
