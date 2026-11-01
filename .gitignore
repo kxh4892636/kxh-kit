@@ -47,3 +47,7 @@ coverage
 
 # Story-mode runtime data (private drafts, not source)
 .story/
+
+# Hallmark run state
+.hallmark/
+.tmp-trace/

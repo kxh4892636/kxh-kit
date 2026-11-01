@@ -1,0 +1,56 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const store = new Map<string, string>();
+
+vi.stubGlobal("localStorage", {
+  getItem: (key: string) => store.get(key) ?? null,
+  setItem: (key: string, value: string) => void store.set(key, value),
+  removeItem: (key: string) => void store.delete(key),
+});
+
+const { resetPlayer, usePlayerStore } = await import("./player.ts");
+
+beforeEach(() => {
+  resetPlayer();
+  store.clear();
+});
+
+describe("player store", () => {
+  it("starts with a shuffled bag and a current track", () => {
+    usePlayerStore.getState().start(["a", "b", "c"]);
+    const state = usePlayerStore.getState();
+    expect(state.bag).toHaveLength(3);
+    expect(state.currentId).toBe(state.bag[0]);
+  });
+
+  it("advances through the bag and refills when empty", () => {
+    usePlayerStore.getState().start(["a", "b", "c"]);
+    const first = usePlayerStore.getState().currentId;
+    const second = usePlayerStore.getState().advance(["a", "b", "c"]);
+    expect(second).not.toBe(first);
+    usePlayerStore.getState().advance(["a", "b", "c"]);
+    const third = usePlayerStore.getState().advance(["a", "b", "c"]);
+    expect(third).not.toBeNull();
+  });
+
+  it("records a play once and trims to the cap", () => {
+    const { commitPlayed } = usePlayerStore.getState();
+    for (let index = 0; index < 20; index += 1) {
+      commitPlayed(`t${index}`, index);
+    }
+    const { history } = usePlayerStore.getState();
+    expect(history).toHaveLength(13);
+    expect(history[0]?.id).toBe("t19");
+    commitPlayed("t19", 99);
+    expect(usePlayerStore.getState().history[0]?.at).toBe(99);
+    expect(usePlayerStore.getState().history.filter((entry) => entry.id === "t19")).toHaveLength(1);
+  });
+
+  it("drops a committed track from the bag", () => {
+    usePlayerStore.getState().start(["a", "b"]);
+    const current = usePlayerStore.getState().currentId;
+    if (!current) throw new Error("没有当前曲目");
+    usePlayerStore.getState().commitPlayed(current);
+    expect(usePlayerStore.getState().bag).not.toContain(current);
+  });
+});

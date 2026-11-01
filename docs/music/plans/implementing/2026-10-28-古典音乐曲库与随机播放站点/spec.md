@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 ---
 
 # 古典音乐曲库与随机播放站点
@@ -92,7 +92,7 @@ status: in_progress
 
 ## 当前进度
 
-2026-11-01 20:12：01 曲库、02 选型、03 索引、05 界面视觉方向均已 `completed`；05 经独立评审（结论 fix）逐条修复后复验通过。05 交付了 Hallmark Bloom 样张（`docs/music/design/ui-comp/`，sloplint 静态与 render 两档 0 FAIL / 0 REFLEX / 0 WARN，1440 与 390 截图在 `docs/music/design/shots/`）。剩余 [04](04-随机播放站点实现.md)：dev gate 基线已列，等待确认后开工。
+2026-11-01 21:05：全部 notes 完成。04 已交付 `apps/music`：React 19 + TanStack Router/Query + zustand + shadcn/ui（Button）+ Hono（`/api/tracks` 带 ETag、`/media/*` Range/206、SPA 回落），历史与洗牌袋在前端（localStorage，13 条）。`vp check` 全绿、37 个单测通过（语句 92.53% / 分支 86.66%）、`pnpm build` 双产物、接口冒烟与 Playwright e2e 全绿。以下为历史记录。2026-11-01 20:12：01 曲库、02 选型、03 索引、05 界面视觉方向均已 `completed`；05 经独立评审（结论 fix）逐条修复后复验通过。05 交付了 Hallmark Bloom 样张（`docs/music/design/ui-comp/`，sloplint 静态与 render 两档 0 FAIL / 0 REFLEX / 0 WARN，1440 与 390 截图在 `docs/music/design/shots/`）。04 随机播放站点已实现并验收：`apps/music`（React + Hono + Range/206 + localStorage 历史），`vp check`、37 个单测（覆盖率 92.5%/86.7%）、`pnpm build`、接口冒烟与 Playwright e2e 全绿；截图在 `docs/music/design/shots/app-*.png`。
 
 ## 恢复入口
 
@@ -103,9 +103,9 @@ status: in_progress
 
 ## Notes
 
-| #   | Notes                                          | 状态      | 阻塞于 | 下一步                                  |
-| --- | ---------------------------------------------- | --------- | ------ | --------------------------------------- |
-| 01  | [曲库落地与校验](01-曲库落地与校验.md)         | completed | —      | —                                       |
-| 02  | [站点形态与技术选型](02-站点形态与技术选型.md) | completed | —      | —                                       |
-| 03  | [曲目索引生成](03-曲目索引生成.md)             | completed | 01     | —                                       |
-| 04  | [随机播放站点实现](04-随机播放站点实现.md)     | pending   | 03     | dev gate 停等确认后搭 `apps/music` 骨架 |
+| #   | Notes                                          | 状态      | 阻塞于 | 下一步 |
+| --- | ---------------------------------------------- | --------- | ------ | ------ |
+| 01  | [曲库落地与校验](01-曲库落地与校验.md)         | completed | —      | —      |
+| 02  | [站点形态与技术选型](02-站点形态与技术选型.md) | completed | —      | —      |
+| 03  | [曲目索引生成](03-曲目索引生成.md)             | completed | 01     | —      |
+| 04  | [随机播放站点实现](04-随机播放站点实现.md)     | completed | 03     | —      |
