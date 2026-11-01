@@ -93,12 +93,22 @@ body::after {
   flex-wrap: wrap;
   align-items: baseline;
   gap: var(--space-xs) var(--space-lg);
-  margin-top: var(--space-lg);
+  margin-top: var(--space-2xl);
 }
 
 .console__hint {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2xs);
+  margin: 0;
   font-size: var(--text-sm);
+  line-height: 1;
   color: var(--color-muted);
+}
+
+.console__hint kbd {
+  line-height: 1.2;
 }
 
 kbd {
