@@ -37,7 +37,7 @@ status: in_progress
 - **状态与错误**：`.temp/musopen/status.json`（总数/完成数/字节数/更新时间）、`.temp/musopen/errors.json`（失败清单），供恢复与验收读取。
 - **落盘布局**：保留源目录层级，例如 `Bach_GoldbergVariations/JohannSebastianBach-01-GoldbergVariationsBwv.988-Aria.flac`；同目录并存 `.mp3`、`.ogg`、`.png`（封面）。
 - **不用数据库**（2026-11-01 用户定稿）：服务端无状态，不引入 SQLite/Kysely，也就不需要迁移与连接生命周期。
-- **曲目索引形状**：静态 `tracks.json`，`{ item, license, source, tracks[], works[] }`；每条曲目含 `id`（路径 sha1 前 12 位）、`composer`、`work`、`movement`、`track_no`、`title`、`artist`、`bytes`、`seconds`、`sample_rate`、`bits`、`cover`、`path`、`source_url`、`md5`、`license`。生成脚本 `.temp/musopen/build_index.py`，产物落 `apps/music/client/public/tracks.json`。
+- **曲目索引形状**：静态 `tracks.json`，`{ item, license, source, tracks[], works[] }`；每条曲目含 `id`（路径 sha1 前 12 位）、`composer`、`work`、`movement`、`track_no`、`title`、`artist`、`bytes`、`seconds`、`sample_rate`、`bits`、`cover`、`path`、`source_url`、`md5`、`license`。生成脚本 `.temp/musopen/build_index.py`，**由后端持有**：文件落 `apps/music/server/data/tracks.json`（可用 `TRACKS_FILE` 覆盖），经 `GET /api/tracks` 提供，不参与前端构建。
 - **随机策略**：洗牌袋（Fisher–Yates 洗一轮，抽完再洗），状态在前端内存；重洗后首项若等于刚播曲目则与次项交换。
 - **播放历史**：前端 `localStorage`（`zustand/persist`，`partialize` 只存 `history`），`{ id, playedAt }[]`，同曲先去重再 `slice(0, 13)`；写入时机为 `<audio>` 的 `playing` 事件。
 - **音频交付**：FLAC 直出，走 Range/206 渐进加载与按需分片；已验证 `@hono/node-server@2.1.1` 的 `serve-static` 自带该能力。曲库与封面统一挂 `/media/*` → `MUSIC_ROOT`（默认 `C:\Users\kxh\Music\musopen-flac`），前端拼接 `path`/`cover`。
