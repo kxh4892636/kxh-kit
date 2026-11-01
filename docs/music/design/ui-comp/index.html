@@ -15,7 +15,6 @@
     <header class="bar">
       <p class="bar__mark">Musopen</p>
       <p class="bar__sub">本地曲库</p>
-      <p class="bar__hint"><kbd>空格</kbd> 播放，<kbd>n</kbd> 下一首，洗牌抽取</p>
     </header>
 
     <main class="stage">
@@ -26,14 +25,6 @@
           <span id="movement">Variation 4</span>
           <span class="movement__time num" id="time">0:00 / 0:53</span>
         </p>
-
-        <div class="transport">
-          <button class="cap" id="play" type="button" aria-pressed="false">
-            <span class="cap__well" aria-hidden="true"><span class="cap__rubber"></span></span>
-            <span class="cap__label" id="playlabel">播放</span>
-          </button>
-          <button class="pill" id="next" type="button">下一首</button>
-        </div>
 
         <figure
           class="wave"
@@ -49,6 +40,17 @@
           <span class="wave__passed" id="passed" aria-hidden="true"></span>
           <span class="wave__head" id="head" aria-hidden="true"></span>
         </figure>
+
+        <div class="console">
+          <div class="transport">
+            <button class="cap" id="play" type="button" aria-pressed="false">
+              <span class="cap__well" aria-hidden="true"><span class="cap__rubber"></span></span>
+              <span class="cap__label" id="playlabel">播放</span>
+            </button>
+            <button class="pill" id="next" type="button">下一首</button>
+          </div>
+          <p class="console__hint"><kbd>空格</kbd> 播放，<kbd>n</kbd> 下一首，洗牌抽取</p>
+        </div>
 
         <p class="state" id="audio-error" hidden>
           这段音频打不开，文件可能不在本机。按「下一首」换一首。

@@ -88,7 +88,15 @@ body::after {
   color: var(--color-muted);
 }
 
-.bar__hint {
+.console {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-md);
+  margin-top: var(--space-lg);
+}
+
+.console__hint {
   margin-inline-start: auto;
   font-size: var(--text-sm);
   color: var(--color-muted);
@@ -143,7 +151,6 @@ kbd {
   display: flex;
   align-items: center;
   gap: var(--space-sm);
-  margin-top: var(--space-lg);
 }
 
 .cap {
@@ -397,8 +404,8 @@ kbd {
     flex-wrap: wrap;
   }
 
-  .bar__hint {
-    width: 100%;
+  .console__hint {
+    margin-inline-start: 0;
   }
 }
 
