@@ -36,7 +36,8 @@ status: in_progress
 - **下载器**：`.temp/musopen/fetch_all.py`，标准库 + `curl.exe` 子进程，8 线程；每个文件 `-C -` 续传、`--retry 3`、完成后按 IA 元数据的 md5 校验，不一致删除重下（最多 4 轮）。
 - **状态与错误**：`.temp/musopen/status.json`（总数/完成数/字节数/更新时间）、`.temp/musopen/errors.json`（失败清单），供恢复与验收读取。
 - **落盘布局**：保留源目录层级，例如 `Bach_GoldbergVariations/JohannSebastianBach-01-GoldbergVariationsBwv.988-Aria.flac`；同目录并存 `.mp3`、`.ogg`、`.png`（封面）。
-- **曲目索引形状**（2026-11-01 从 `tracks.json` 改为 SQLite 表）：`tracks(id, composer, work, movement, title, format, bytes, seconds, sample_rate, bits, cover, path, source_url, license)` 与 `works(id, composer, work_title)`；`path` 相对曲库根，接口拼成 `/audio/<path>`。
+- **数据库选型**：2026-11-01 用户指定 Kysely + SQLite（驱动 `better-sqlite3`，`kysely` 自带 `SqliteDialect`）；迁移用 `kysely-ctl` 或 `Migrator` 脚本。**入库范围待定**：只存历史（推荐）、完全不入库、或三表全量，见「待定」。
+- **曲目索引形状**：`tracks(id, composer, work, movement, title, format, bytes, seconds, sample_rate, bits, cover, path, source_url, license)` 与 `works(id, composer, work_title)`；若采用「只存历史」形态，这两张表改为构建期生成的 `tracks.json`，字段同构。
 - **随机策略**：洗牌袋（Fisher–Yates 洗一轮，抽完再洗），状态放服务端内存；不使用 `Math.random()` 直抽（会连续重复）。
 - **播放历史**：`play_history(id, track_id, played_at)`，写入后裁剪到最近 13 条；同曲重播只更新时间戳。
 - **音频交付**：FLAC 直出，走 Range/206 渐进加载与按需分片；已验证 `@hono/node-server@2.1.1` 的 `serve-static` 自带该能力（`Accept-Ranges`、`Content-Range`、`createReadStream`）。
@@ -77,7 +78,8 @@ status: in_progress
 - ~~功能边界~~：2026-11-01 已定——随机播放 + 下一首 + 近 13 条播放历史。
 - ~~格式策略~~：2026-11-01 已定——FLAC 直出，配 Range 流式/分片。
 - ~~是否自建~~：2026-11-01 已定——完全自建（TS / React 静态前端 / Hono / SQLite，范式参考 `apps/etf`）。
-- **逐层框架**：用户将从 [02](02-站点形态与技术选型.md) 的「框架清单」中勾选；未定项含路由库、UI 库、播放器封装、测试栈与启动方式。
+- **逐层框架**：用户将从 [02](02-站点形态与技术选型.md) 的「框架清单」中勾选；已定：Kysely（数据库）、shadcn/ui（UI），未定项含路由库、播放器封装、测试栈与启动方式。
+- **数据库是否必要**：见 [02](02-站点形态与技术选型.md#2026-11-01-第二轮框架选择与数据库必要性) 的 S / J / F 三形态。我的建议是 S（只让 SQLite 管 `play_history`，曲目走 `tracks.json`）；用户确认后定稿。
 - **音频交付细节**：Range 渐进加载为默认；若改选 HLS 切片，需要 ffmpeg 转码与额外产物目录，体积约翻倍。
 
 ## 上下文
