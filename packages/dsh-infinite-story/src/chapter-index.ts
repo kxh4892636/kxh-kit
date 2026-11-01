@@ -133,3 +133,45 @@ export async function writeChunkIndex(
   await writeText(path.join(root, LAYOUT.chapters, chunkId, "index.md"), body);
   return rel;
 }
+
+/**
+ * 全书目录 `chapters/index.md`：每卷一行。
+ *
+ * 三层递进：这一行（全书）→ 那一卷的 index.md（约正文的 5%）→ 那一章的原文。
+ * 120 卷 × 约 5000 字索引 ≈ 60 万字，但上下文里一次只装一层。
+ */
+export async function renderBookIndex(root: string, bundle: StoryBundle): Promise<string> {
+  const index = await readChapterIndex(root);
+  const chunkIds = [...new Set(index.map((e) => e.chunk ?? chunkOf(e.no ?? 0)))].sort();
+  const totalChars = index.reduce((n, e) => n + (e.chars ?? 0), 0);
+  const totalBeats = index.reduce((n, e) => n + (e.beats ?? 0), 0);
+
+  const lines: string[] = [];
+  lines.push("# 全书目录");
+  lines.push("");
+  lines.push(
+    `> ${index.length} 章 / ${totalChars} 字 / ${totalBeats} 拍 · 每卷一份 index.md（约正文的 5%），正文按章取`,
+  );
+  lines.push("");
+  lines.push("| 卷 | 标题 | 章 | 字数 | 讲到了哪儿 |");
+  lines.push("|---|---|---|---|---|");
+  for (const id of chunkIds) {
+    const list = index.filter((e) => (e.chunk ?? chunkOf(e.no ?? 0)) === id);
+    const meta = bundle.state.chunks?.find((c) => c.id === id);
+    const chars = list.reduce((n, e) => n + (e.chars ?? 0), 0);
+    const first = String(list[0]?.no ?? 0).padStart(2, "0");
+    const last = String(list[list.length - 1]?.no ?? 0).padStart(2, "0");
+    const head = (meta?.overview ?? "").split(/[。\n]/)[0] ?? "";
+    lines.push(
+      `| [${id}](${id}/index.md) | ${meta?.title ?? `第 ${id.slice(1)} 卷`} | ${first}–${last}（${list.length}） | ${chars} | ${head.slice(0, 60)} |`,
+    );
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+export async function writeBookIndex(root: string, bundle: StoryBundle): Promise<string> {
+  const body = await renderBookIndex(root, bundle);
+  await writeText(path.join(root, LAYOUT.chapters, "index.md"), body);
+  return "index.md";
+}

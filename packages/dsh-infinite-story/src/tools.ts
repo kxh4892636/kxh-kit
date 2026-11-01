@@ -12,7 +12,7 @@ import {
 import { briefIsFresh, writeBrief, type ReviewResult } from "./brief.js";
 import type { ProgressInput } from "./guard.js";
 import { autoRepair } from "./repair.js";
-import { chunkOf, readChapterIndex, writeChunkIndex } from "./chapter-index.js";
+import { chunkOf, readChapterIndex, writeBookIndex, writeChunkIndex } from "./chapter-index.js";
 import { isDuplicate, nextId, parseSeeds } from "./foreshadow.js";
 import { levelOf } from "./model.js";
 import type { Foreshadow, GuardIssue, StoryBundle } from "./model.js";
@@ -204,12 +204,15 @@ async function digestChunk(
     parts.push(`《${entry.title ?? "未命名"}》（第 ${entry.no ?? 0} 章）\n${body.slice(0, 8000)}`);
   }
 
+  const totalChars = list.reduce((n, e) => n + (e.chars ?? 0), 0);
+  const target = Math.max(3000, Math.round(totalChars * 0.05));
   const prompt = [
     "你在为一部长篇写卷索引。只做归纳，不评论、不夸奖、不写建议。",
-    `这一卷共 ${list.length} 章，下面是正文（节选）。`,
+    `这一卷共 ${list.length} 章、约 ${totalChars} 字，下面是正文（逐章节选）。`,
+    `整份索引的目标长度约 ${target} 字——约为这一卷正文的 5%。压到 5% 是设计要求：索引要能替正文被读完，又必须留住能指回原文的细节。`,
     "要产出两样：",
-    "1. overview：300–500 字，说清这一卷讲到了哪儿——关系走到什么位置、哪些事被提出、哪些落了地、哪些还悬着。按时间顺序写，不铺陈。",
-    "2. chapters：每章 3–5 条「发生了什么」，每条不超过 40 字，写具体的动作或决定，不写评价。",
+    "1. overview：800–1200 字。说清这一卷讲到了哪儿——关系走到什么位置、哪些事被提出、哪些落了地、哪些还悬着。按时间顺序写，不铺陈、不分小标题。",
+    "2. chapters：每章 5–8 条「发生了什么」，每条 40–80 字。写具体的动作、决定、原话片段，不写评价；一条要能让读者知道「这件事在这一章的哪个位置」。",
     '只输出 JSON：{"overview":"…","chapters":[{"no":0,"nodes":["…"]}]}',
     "",
     ...parts,
@@ -833,7 +836,9 @@ export function createRuntime(deps: ToolDeps) {
                 }
               }
               const sidebar = await writeChunkIndex(bundle.root, bundle, chunkId);
+              const bookIndex = await writeBookIndex(bundle.root, bundle);
               lines.push(`卷索引已更新：chapters/${sidebar}${digestNote}`);
+              lines.push(`全书目录已更新：chapters/${bookIndex}`);
               lines.push(`故事线索引已更新：chapters/${sidebar}`);
               for (const f of await plantForeshadows(bundle, args.plant)) {
                 lines.push(`新埋入伏笔：${f.id} [${f.weight}] ${f.label} — ${f.cue}`);
@@ -878,22 +883,14 @@ export function createRuntime(deps: ToolDeps) {
       defineTool({
         name: "story_check",
         description:
-          "章末用一次：结构复查 + 写 brief，只回本章章节信息（章号 / 标题 / 字数 / 拍数）。漂移不进对话，写进 brief 与 pending，下一章开章时自动修。",
+          "章末用一次：语义审 + 写 brief，只回本章标题。结构检查由 story_write 负责，这里不再跑。",
         parameters: {},
         output: { schema: { type: "string" }, render: (_a: unknown, v: string) => text(v) },
         async execute() {
           const ws = workspace();
           const bundle = await loadBound(ws);
-          const chapters = await chaptersOf(bundle.root);
-          const expansion = await expansionOf(bundle, bundle.state.cursor.chapter);
-          const repaired = await autoRepair(
-            bundle,
-            chapters,
-            expansion,
-            await progressOf(bundle.root, bundle.state.cursor.chapter),
-          );
-          const issues = repaired.remaining;
-          await savePending(bundle.root, issues);
+          // 结构检查与自动修正只在 story_write 里做一次；这里只读现成的结论
+          const issues = await pendingIssues(bundle.root);
           const lines: string[] = [];
 
           // 章节信息：只回这一行
