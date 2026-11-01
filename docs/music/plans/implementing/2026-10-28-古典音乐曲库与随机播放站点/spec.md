@@ -20,8 +20,8 @@ status: in_progress
 分两段推进，先让曲库「完整且可核对」，再让站点「只读索引 + 本地音频」：
 
 1. **曲库落地**（[01](01-曲库落地与校验.md)）：用 8 路并发、断点续传、md5 校验的 HTTP 抓取，把条目的 580 个文件落到 `C:\Users\kxh\Music\musopen-flac`，保留目录结构（`<作品目录>/<文件>`）。BT 路径已实测淘汰，理由见下。
-2. **曲目索引**（[03](03-曲目索引生成.md)）：从 Internet Archive 元数据（`title`、`length`、`md5`、文件路径）与目录结构派生 `tracks.json`，作为站点唯一数据源。
-3. **站点**（[02](02-站点形态与技术选型.md) → [04](04-随机播放站点实现.md)）：静态前端 + 静态音频（构建期复制或符号链接到 `public/audio`），`<audio>` 直接播 FLAC；随机用洗牌袋，不在播放中重复。
+2. **曲目索引**（[03](03-曲目索引生成.md)）：从 Internet Archive 元数据、ffprobe 与目录结构派生 `works` / `tracks` 两张表写进 SQLite，作为站点唯一数据源。
+3. **站点**（[02](02-站点形态与技术选型.md) → [04](04-随机播放站点实现.md)）：前端静态产物由 Hono 托管，音频由 `@hono/node-server/serve-static` 以 Range/206 流式直出 FLAC；随机与历史走 [05](05-播放历史与洗牌袋.md) 的接口。
 
 ## 已排除的备选
 
@@ -36,9 +36,10 @@ status: in_progress
 - **下载器**：`.temp/musopen/fetch_all.py`，标准库 + `curl.exe` 子进程，8 线程；每个文件 `-C -` 续传、`--retry 3`、完成后按 IA 元数据的 md5 校验，不一致删除重下（最多 4 轮）。
 - **状态与错误**：`.temp/musopen/status.json`（总数/完成数/字节数/更新时间）、`.temp/musopen/errors.json`（失败清单），供恢复与验收读取。
 - **落盘布局**：保留源目录层级，例如 `Bach_GoldbergVariations/JohannSebastianBach-01-GoldbergVariationsBwv.988-Aria.flac`；同目录并存 `.mp3`、`.ogg`、`.png`（封面）。
-- **曲目索引形状**（草案，待 [03](03-曲目索引生成.md) 定稿）：`{ id, composer, work, movement, title, format, bytes, seconds, cover, path, sourceUrl, license }`；`path` 相对曲库根，站点按需拼成可被静态服务器 Range 提供的 URL。
-- **随机策略**：洗牌袋（Fisher–Yates 洗一轮，抽完再洗），可选「同作曲家不相邻」约束；不使用 `Math.random()` 直接抽（会连续重复）。
-- **音频交付**：优先 FLAC（Chrome/Firefox/Safari 均支持），必要时构建期转 Opus 兜底；静态服务器必须支持 `Accept-Ranges`（Vite dev / `serve` / nginx 默认满足）。
+- **曲目索引形状**（2026-11-01 从 `tracks.json` 改为 SQLite 表）：`tracks(id, composer, work, movement, title, format, bytes, seconds, sample_rate, bits, cover, path, source_url, license)` 与 `works(id, composer, work_title)`；`path` 相对曲库根，接口拼成 `/audio/<path>`。
+- **随机策略**：洗牌袋（Fisher–Yates 洗一轮，抽完再洗），状态放服务端内存；不使用 `Math.random()` 直抽（会连续重复）。
+- **播放历史**：`play_history(id, track_id, played_at)`，写入后裁剪到最近 13 条；同曲重播只更新时间戳。
+- **音频交付**：FLAC 直出，走 Range/206 渐进加载与按需分片；已验证 `@hono/node-server@2.1.1` 的 `serve-static` 自带该能力（`Accept-Ranges`、`Content-Range`、`createReadStream`）。
 - **许可标注**：页面固定展示「来源 Internet Archive / Musopen，CC PD Mark 1.0」及条目链接。
 
 ## 工作环境
@@ -72,10 +73,12 @@ status: in_progress
 
 ## 待定
 
-- **部署范围**：仅本机 `localhost`，还是局域网其他设备也能访问？影响是否引入服务端与监听地址。
-- **功能边界**：只要随机播放，还是需要按作曲家/时期筛选、收藏、历史？
-- **格式策略**：FLAC 直出（省事、体积大）还是构建期转 Opus（省流量、多一步）。
-- **是否自建**：Navidrome / Jellyfin 等开源音乐服务器已含随机播放与现成客户端；自建换取的是界面与随机策略的完全掌控。待用户在 [02](02-站点形态与技术选型.md) 中拍板。
+- ~~部署范围~~：2026-11-01 已定——暂只本机 `127.0.0.1`。
+- ~~功能边界~~：2026-11-01 已定——随机播放 + 下一首 + 近 13 条播放历史。
+- ~~格式策略~~：2026-11-01 已定——FLAC 直出，配 Range 流式/分片。
+- ~~是否自建~~：2026-11-01 已定——完全自建（TS / React 静态前端 / Hono / SQLite，范式参考 `apps/etf`）。
+- **逐层框架**：用户将从 [02](02-站点形态与技术选型.md) 的「框架清单」中勾选；未定项含路由库、UI 库、播放器封装、测试栈与启动方式。
+- **音频交付细节**：Range 渐进加载为默认；若改选 HLS 切片，需要 ffmpeg 转码与额外产物目录，体积约翻倍。
 
 ## 上下文
 
@@ -86,13 +89,13 @@ status: in_progress
 
 ## 当前进度
 
-2026-10-28 19:47：曲库下载进行中——目标 580 个文件 / 9,607,881,823 字节（约 9.61 GB），当时已完成 55 个文件、125 MB，速率约 1.25 MB/s。BT 探针与取舍已完成并记录在 [01](01-曲库落地与校验.md)。站点与索引尚未开始（notes 02–04 pending）。阻塞：无。
+2026-11-01 16:56：曲库下载已续跑（12 并发），磁盘约 2.07 GB / 9.61 GB，速率约 10 MB/s；此前 2026-10-29 的会话中断导致 `status.json`、`errors.json` 被写成空白，脚本重启后自行重写，已完成文件的 md5 会被逐条复核。四项需求已由用户拍板（本机、随机+下一首+13 条历史、FLAC 直出 + Range、完全自建），框架逐层待勾选。索引与站点尚未开始（notes 03–05 pending）。阻塞：无。
 
 ## 恢复入口
 
 1. 读 [story.md](story.md) 与本 spec 的「实施决策」，再读 [01](01-曲库落地与校验.md) 的探针结论与检查点。
 2. 核对现场：`.temp/musopen/status.json` 的 `done_files/total_files` 与 `C:\Users\kxh\Music\musopen-flac` 实际文件数、体积是否一致；后台任务是否仍在跑（`job_list`）。
-3. 下一动作：下载未完成则轮询状态（脚本可安全重跑，只补缺）；完成后按 [03](03-曲目索引生成.md) 生成 `tracks.json`，同时用 [02](02-站点形态与技术选型.md) 向用户收敛四个待定。
+3. 下一动作：下载未完成则轮询状态（脚本可安全重跑，只补缺）；完成后按 [03](03-曲目索引生成.md) 用 ffprobe + IA 元数据写 `tracks` / `works` 表；框架选择见 [02](02-站点形态与技术选型.md) 的清单。
 4. 停止条件：出现 md5 反复不一致或大量 404 时，先核对 IA 元数据是否变更，不要放宽校验；`errors.json` 非空即视为未完成。
 
 ## Notes
@@ -100,6 +103,7 @@ status: in_progress
 | #   | Notes                                          | 状态        | 阻塞于 | 下一步                                         |
 | --- | ---------------------------------------------- | ----------- | ------ | ---------------------------------------------- |
 | 01  | [曲库落地与校验](01-曲库落地与校验.md)         | in_progress | —      | 轮询 `status.json` 直到 580/580 且 errors 为空 |
-| 02  | [站点形态与技术选型](02-站点形态与技术选型.md) | pending     | —      | `/questing` 收敛部署范围、功能、格式、是否自建 |
-| 03  | [曲目索引生成](03-曲目索引生成.md)             | pending     | 01     | 用 IA 元数据与目录派生 `tracks.json`           |
+| 02  | [站点形态与技术选型](02-站点形态与技术选型.md) | in_progress | —      | 用户在「框架清单」中逐层勾选                   |
+| 03  | [曲目索引生成](03-曲目索引生成.md)             | pending     | 01     | ffprobe + IA 元数据写 `tracks`/`works` 表      |
 | 04  | [随机播放站点实现](04-随机播放站点实现.md)     | pending     | 02, 03 | `/delivery` dev gate 停等确认                  |
+| 05  | [播放历史与洗牌袋](05-播放历史与洗牌袋.md)     | pending     | 03     | 建表、接口与单测                               |
