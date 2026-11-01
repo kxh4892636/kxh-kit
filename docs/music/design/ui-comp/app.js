@@ -11,10 +11,6 @@ const el = {
   movement: document.getElementById("movement"),
   time: document.getElementById("time"),
   wave: document.querySelector(".wave"),
-  passed: document.getElementById("passed"),
-  head: document.getElementById("head"),
-  index: document.getElementById("index"),
-  indexBody: document.getElementById("index-body"),
   loading: document.getElementById("state-loading"),
   error: document.getElementById("state-error"),
   retry: document.getElementById("retry"),
@@ -43,9 +39,10 @@ const formatTime = (seconds) => {
 const formatWhen = (at) => {
   const date = new Date(at);
   const now = new Date();
-  const sameDay = date.toDateString() === now.toDateString();
   const clock = date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
-  return sameDay ? clock : `${date.getMonth() + 1}月${date.getDate()}日 ${clock}`;
+  return date.toDateString() === now.toDateString()
+    ? clock
+    : `${date.getMonth() + 1}月${date.getDate()}日 ${clock}`;
 };
 
 const shuffle = (list) => {
@@ -91,6 +88,11 @@ const setPlaying = (playing) => {
   el.playLabel.textContent = playing ? "暂停" : "播放";
 };
 
+const setTransportEnabled = (enabled) => {
+  el.play.disabled = !enabled;
+  el.next.disabled = !enabled;
+};
+
 const paintProgress = () => {
   const total = el.audio.duration || state.current?.seconds || 0;
   const ratio = total > 0 ? Math.min(el.audio.currentTime / total, 1) : 0;
@@ -102,13 +104,56 @@ const paintProgress = () => {
   el.wave.setAttribute("aria-valuetext", `${formatTime(now)} / ${formatTime(total)}`);
 };
 
-const markCurrentRows = () => {
-  for (const row of el.indexBody.querySelectorAll("tr")) {
-    row.classList.toggle("is-current", row.dataset.id === state.current?.id);
-  }
+const markHistoryCurrent = () => {
   for (const item of el.historyList.querySelectorAll("li")) {
     item.classList.toggle("is-current", item.dataset.id === state.current?.id);
   }
+};
+
+const renderHistory = () => {
+  el.historyList.replaceChildren();
+  el.historyEmpty.hidden = state.history.length > 0;
+  for (const entry of state.history) {
+    const track = byId(entry.id);
+    if (!track) continue;
+    const item = document.createElement("li");
+    item.className = "history__item";
+    item.dataset.id = track.id;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.addEventListener("click", () => {
+      select(track.id);
+      void play();
+    });
+
+    const when = document.createElement("span");
+    when.className = "history__when num";
+    when.textContent = formatWhen(entry.at);
+
+    const what = document.createElement("span");
+    what.className = "history__what";
+    what.textContent = trackLabel(track);
+
+    const who = document.createElement("span");
+    who.className = "history__who";
+    who.textContent = track.composer;
+
+    button.append(when, what, who);
+    item.append(button);
+    el.historyList.append(item);
+  }
+  markHistoryCurrent();
+};
+
+const pushHistory = (id) => {
+  const track = byId(id);
+  if (!track) return;
+  state.history = state.history.filter((entry) => entry.id !== id);
+  state.history.unshift({ id, at: Date.now() });
+  state.history = state.history.slice(0, HISTORY_MAX);
+  saveHistory();
+  renderHistory();
 };
 
 const select = (id) => {
@@ -125,7 +170,7 @@ const select = (id) => {
   el.wave.style.setProperty("--wave-src", `url("${track.mask}")`);
   el.wave.setAttribute("aria-label", `${track.composer}，${trackLabel(track)}，可拖动调整进度`);
   el.audioError.hidden = true;
-  markCurrentRows();
+  markHistoryCurrent();
   paintProgress();
 };
 
@@ -154,104 +199,13 @@ const toggle = () => {
 const seekToRatio = (ratio) => {
   const total = el.audio.duration;
   if (!Number.isFinite(total) || total <= 0) return;
-  const clamped = Math.min(Math.max(ratio, 0), 1);
-  el.audio.currentTime = clamped * total;
+  el.audio.currentTime = Math.min(Math.max(ratio, 0), 1) * total;
   paintProgress();
 };
 
 const ratioFromEvent = (event) => {
   const rect = el.wave.getBoundingClientRect();
   return rect.width > 0 ? (event.clientX - rect.left) / rect.width : 0;
-};
-
-const pushHistory = (id) => {
-  const track = byId(id);
-  if (!track) return;
-  state.history = state.history.filter((entry) => entry.id !== id);
-  state.history.unshift({ id, at: Date.now() });
-  state.history = state.history.slice(0, HISTORY_MAX);
-  saveHistory();
-  renderHistory();
-};
-
-const renderHistory = () => {
-  el.historyList.replaceChildren();
-  el.historyEmpty.hidden = state.history.length > 0;
-  for (const entry of state.history) {
-    const track = byId(entry.id);
-    if (!track) continue;
-    const item = document.createElement("li");
-    item.className = "history__item";
-    item.dataset.id = track.id;
-    if (track.id === state.current?.id) item.classList.add("is-current");
-
-    const button = document.createElement("button");
-    button.type = "button";
-    button.addEventListener("click", () => {
-      select(track.id);
-      void play();
-    });
-
-    const when = document.createElement("span");
-    when.className = "history__when num";
-    when.textContent = formatWhen(entry.at);
-
-    const what = document.createElement("span");
-    what.className = "history__what";
-    what.textContent = trackLabel(track);
-
-    const who = document.createElement("span");
-    who.className = "history__who";
-    who.textContent = track.composer;
-
-    button.append(when, what, who);
-    item.append(button);
-    el.historyList.append(item);
-  }
-  markCurrentRows();
-};
-
-const renderIndex = () => {
-  el.indexBody.replaceChildren();
-  for (const track of state.data.tracks) {
-    const row = document.createElement("tr");
-    row.dataset.id = track.id;
-
-    const work = document.createElement("td");
-    work.className = "index__work";
-    work.textContent = track.work;
-
-    const movement = document.createElement("td");
-    movement.textContent = track.movement || "单乐章";
-
-    const composer = document.createElement("td");
-    composer.textContent = track.composer;
-
-    const length = document.createElement("td");
-    length.className = "index__num num";
-    length.textContent = formatTime(track.seconds);
-
-    const action = document.createElement("td");
-    const playButton = document.createElement("button");
-    playButton.type = "button";
-    playButton.className = "index__play";
-    playButton.textContent = "播放";
-    playButton.setAttribute("aria-label", `播放 ${trackLabel(track)}`);
-    playButton.addEventListener("click", () => {
-      select(track.id);
-      void play();
-    });
-    action.append(playButton);
-
-    row.append(work, movement, composer, length, action);
-    el.indexBody.append(row);
-  }
-  markCurrentRows();
-};
-
-const setTransportEnabled = (enabled) => {
-  el.play.disabled = !enabled;
-  el.next.disabled = !enabled;
 };
 
 el.play.addEventListener("click", toggle);
@@ -334,7 +288,6 @@ const load = async () => {
   setTransportEnabled(false);
   el.loading.hidden = false;
   el.error.hidden = true;
-  el.index.hidden = true;
   el.audioError.hidden = true;
   try {
     const response = await fetch("library.json", { cache: "no-store" });
@@ -342,9 +295,7 @@ const load = async () => {
     state.data = await response.json();
     state.history = readHistory();
     el.loading.hidden = true;
-    el.index.hidden = false;
-    el.note.textContent = `样张 ${state.data.excerpt} 首，正式曲库 ${state.data.library.tracks} 首 / ${state.data.library.works} 部作品。`;
-    renderIndex();
+    el.note.textContent = `试听样张 ${state.data.excerpt} 首，正式曲库 ${state.data.library.tracks} 首 / ${state.data.library.works} 部作品。`;
     renderHistory();
     refillBag();
     select(state.bag[0]);

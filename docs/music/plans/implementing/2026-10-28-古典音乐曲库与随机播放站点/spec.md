@@ -42,7 +42,7 @@ status: in_progress
 - **播放历史**：前端 `localStorage`（`zustand/persist`，`partialize` 只存 `history`），`{ id, playedAt }[]`，同曲先去重再 `slice(0, 13)`；写入时机为 `<audio>` 的 `playing` 事件。
 - **音频交付**：FLAC 直出，走 Range/206 渐进加载与按需分片；已验证 `@hono/node-server@2.1.1` 的 `serve-static` 自带该能力。曲库与封面统一挂 `/media/*` → `MUSIC_ROOT`（默认 `C:\Users\kxh\Music\musopen-flac`），前端拼接 `path`/`cover`。
 - **许可标注**：页面固定展示「来源 Internet Archive / Musopen，CC PD Mark 1.0」及条目链接。
-- **界面风格**（2026-11-01，[05](05-界面视觉方向.md)）：Hallmark 的 Bloom 主题——暖纸 `oklch(97% 0.010 72)`、赭石 `oklch(53% 0.145 36)`、Ranade（400/500/700，自托管）、纸张网格只出现在波形块并向右淡出；签名是「录音自己的波形 + 走过的赭石进度线」，波形由 IA 封面 PNG 的 alpha 反相成剪影后 `mask-image` 着色；控制件 44px，强调色只落在播放帽、当前行、进度线与悬停动作。
+- **界面风格**（2026-11-01，[05](05-界面视觉方向.md)）：单屏只有「当前曲目 + 最近听过」，无曲目列表，传输条位于曲目信息下方；Hallmark 的 Bloom 主题——暖纸 `oklch(97% 0.010 72)`、赭石 `oklch(53% 0.145 36)`、Ranade（400/500/700，自托管）、纸张网格只出现在波形块并向右淡出；签名是「录音自己的波形 + 走过的赭石进度线」，波形由 IA 封面 PNG 的 alpha 反相成剪影后 `mask-image` 着色；控制件 44px，强调色只落在播放帽、当前行、进度线与悬停动作。
 
 ## 工作环境
 
