@@ -47,6 +47,7 @@ status: completed
 ## 工作环境
 
 - 主机：Windows，工作区 `C:\Users\kxh\kxh-awesome\projects\kxh-kit`（仓库），曲库在仓库外 `C:\Users\kxh\Music\musopen-flac`。
+- 部署主机：`ali`（`123.57.92.26`，Debian 13），应用 `/srv/music-app`、曲库 `/srv/music-library`，服务 `music.service`（127.0.0.1:5210，`BASE_PATH=/music`），nginx 反代 `/music/`。
 - 网络：`HTTP_PROXY/HTTPS_PROXY/ALL_PROXY = http://127.0.0.1:7890`；直连 archive.org 8 秒超时，必须走代理。
 - 工具：Python 3.12（uv 管理，仓库内 `.temp/musopen/venv` 装过 libtorrent 2.1.1 供探针用）、`curl.exe`、Node 24 + pnpm（仓库既有 `vite-plus` 工具链）。
 - 磁盘：C 盘剩余约 628 GB，9.6 GB 曲库无压力。
@@ -92,7 +93,7 @@ status: completed
 
 ## 当前进度
 
-2026-11-01 21:05：全部 notes 完成。04 已交付 `apps/music`：React 19 + TanStack Router/Query + zustand + shadcn/ui（Button）+ Hono（`/api/tracks` 带 ETag、`/media/*` Range/206、SPA 回落），历史与洗牌袋在前端（localStorage，13 条）。`vp check` 全绿、37 个单测通过（语句 92.53% / 分支 86.66%）、`pnpm build` 双产物、接口冒烟与 Playwright e2e 全绿。以下为历史记录。2026-11-01 20:12：01 曲库、02 选型、03 索引、05 界面视觉方向均已 `completed`；05 经独立评审（结论 fix）逐条修复后复验通过。05 交付了 Hallmark Bloom 样张（`docs/music/design/ui-comp/`，sloplint 静态与 render 两档 0 FAIL / 0 REFLEX / 0 WARN，1440 与 390 截图在 `docs/music/design/shots/`）。04 随机播放站点已实现并验收：`apps/music`（React + Hono + Range/206 + localStorage 历史），`vp check`、37 个单测（覆盖率 92.5%/86.7%）、`pnpm build`、接口冒烟与 Playwright e2e 全绿；截图在 `docs/music/design/shots/app-*.png`。
+2026-11-01 23:05：已部署到 `123.57.92.26/music/`（nginx 反代、systemd 托管、ufw + fail2ban、媒体 512 KB 分片），验收见 [06](06-部署到服务器.md)。以下为历史记录。2026-11-01 21:05：全部 notes 完成。04 已交付 `apps/music`：React 19 + TanStack Router/Query + zustand + shadcn/ui（Button）+ Hono（`/api/tracks` 带 ETag、`/media/*` Range/206、SPA 回落），历史与洗牌袋在前端（localStorage，13 条）。`vp check` 全绿、37 个单测通过（语句 92.53% / 分支 86.66%）、`pnpm build` 双产物、接口冒烟与 Playwright e2e 全绿。以下为历史记录。2026-11-01 20:12：01 曲库、02 选型、03 索引、05 界面视觉方向均已 `completed`；05 经独立评审（结论 fix）逐条修复后复验通过。05 交付了 Hallmark Bloom 样张（`docs/music/design/ui-comp/`，sloplint 静态与 render 两档 0 FAIL / 0 REFLEX / 0 WARN，1440 与 390 截图在 `docs/music/design/shots/`）。04 随机播放站点已实现并验收：`apps/music`（React + Hono + Range/206 + localStorage 历史），`vp check`、37 个单测（覆盖率 92.5%/86.7%）、`pnpm build`、接口冒烟与 Playwright e2e 全绿；截图在 `docs/music/design/shots/app-*.png`。
 
 ## 恢复入口
 
@@ -109,3 +110,4 @@ status: completed
 | 02  | [站点形态与技术选型](02-站点形态与技术选型.md) | completed | —      | —      |
 | 03  | [曲目索引生成](03-曲目索引生成.md)             | completed | 01     | —      |
 | 04  | [随机播放站点实现](04-随机播放站点实现.md)     | completed | 03     | —      |
+| 06  | [部署到服务器](06-部署到服务器.md)             | completed | 04     | —      |

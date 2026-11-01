@@ -19,9 +19,9 @@ const track = {
   seconds: 292.4,
   sampleRate: 44100,
   bits: 24,
-  audio: "/media/Bach/aria.flac",
-  cover: "/media/Bach/aria.png",
-  mask: "/waves/t1.png",
+  audio: "media/Bach/aria.flac",
+  cover: "media/Bach/aria.png",
+  mask: "waves/t1.png",
   sourceUrl: "https://archive.org/download/item/aria.flac",
   md5: "abc",
   license: "CC PD Mark 1.0",
@@ -29,7 +29,7 @@ const track = {
 
 const FILE_BYTES = CHUNK_BYTES + 2048;
 
-const buildApp = () => {
+const buildApp = (basePath?: string) => {
   const root = mkdtempSync(join(tmpdir(), "music-app-"));
   const music = join(root, "music");
   const waves = join(root, "waves");
@@ -59,8 +59,28 @@ const buildApp = () => {
     musicRoot: music,
     wavesRoot: waves,
     clientDir: client,
+    ...(basePath ? { basePath } : {}),
   });
 };
+
+describe("createApp under /music", () => {
+  it("serves the api behind the prefix and redirects the bare root", async () => {
+    const app = buildApp("/music");
+    const health = await app.request("/music/api/health");
+    expect(health.status).toBe(200);
+
+    const redirect = await app.request("/");
+    expect(redirect.status).toBe(302);
+    expect(redirect.headers.get("location")).toBe("/music/");
+
+    const unprefixed = await app.request("/api/health");
+    expect(unprefixed.status).toBe(404);
+
+    const deepLink = await app.request("/music/somewhere");
+    expect(deepLink.status).toBe(200);
+    expect(await deepLink.text()).toContain("听");
+  });
+});
 
 describe("createApp", () => {
   it("reports health with the track count", async () => {

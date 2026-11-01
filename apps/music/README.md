@@ -49,6 +49,17 @@ pnpm --filter @kxh4892636/music data
 
 波形剪影来自 Internet Archive 的封面 PNG：那张图是黑底 + 挖空的波形，脚本把 alpha 反相成白色剪影，前端用 `mask-image` 以墨色着色。
 
+## 部署
+
+生产在 `ali`（`123.57.92.26`）上跑 `/music/`：应用在 `/srv/music-app`，曲库在 `/srv/music-library`，systemd 单元 `music.service` 监听 `127.0.0.1:5210`，nginx 只反代 `/music/`。构建要带前缀：
+
+```powershell
+$env:MUSIC_BASE = "/music/"
+pnpm --filter @kxh4892636/music build
+```
+
+服务器侧的 `BASE_PATH=/music` 让 Hono 把页面、API、音频一起挂在 `/music` 下。步骤与安全措施见 [06-部署到服务器](../../docs/music/plans/implementing/2026-10-28-古典音乐曲库与随机播放站点/06-部署到服务器.md)。
+
 ## 测试
 
 ```powershell

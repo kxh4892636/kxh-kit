@@ -1,4 +1,5 @@
 import { librarySchema, type Library } from "../../../shared/tracks.ts";
+import { apiUrl } from "../lib/url.ts";
 
 export class LibraryRequestError extends Error {}
 
@@ -7,7 +8,7 @@ export class LibraryRequestError extends Error {}
  * check the envelope and every record before anything renders.
  */
 export const fetchLibrary = async (signal?: AbortSignal): Promise<Library> => {
-  const response = await fetch("/api/tracks", {
+  const response = await fetch(apiUrl("api/tracks"), {
     signal: signal ?? null,
     headers: { accept: "application/json" },
   });

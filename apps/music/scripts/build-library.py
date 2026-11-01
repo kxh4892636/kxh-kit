@@ -39,7 +39,7 @@ def mask_for(cover_relative: str, track_id: str) -> str | None:
     silhouette.putalpha(alpha.point(lambda value: 255 - value))
     out = WAVES / f"{track_id}.png"
     silhouette.save(out, optimize=True)
-    return f"/waves/{track_id}.png"
+    return f"waves/{track_id}.png"
 
 
 def main() -> None:
@@ -69,8 +69,8 @@ def main() -> None:
                 "seconds": round(track["seconds"], 1),
                 "sampleRate": track.get("sample_rate", 0),
                 "bits": track.get("bits", 0),
-                "audio": f"/media/{track['path']}",
-                "cover": f"/media/{track['cover']}",
+                "audio": f"media/{track['path']}",
+                "cover": f"media/{track['cover']}",
                 "mask": mask,
                 "sourceUrl": track["source_url"],
                 "md5": track["md5"],
@@ -96,3 +96,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

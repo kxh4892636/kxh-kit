@@ -16,6 +16,7 @@ export const startServer = (config: Config): RunningServer => {
     musicRoot: config.musicRoot,
     wavesRoot: config.wavesRoot,
     clientDir: config.clientDir,
+    basePath: config.basePath,
   });
 
   const server = serve({ fetch: app.fetch, port: config.port, hostname: "127.0.0.1" });

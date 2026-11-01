@@ -41,6 +41,11 @@ describe("resolveMediaPath", () => {
     expect(resolveMediaPath("C:\\music", "/Bach/aria.flac")).toContain("aria.flac");
   });
 
+  it("refuses dotfiles", () => {
+    expect(resolveMediaPath("C:\\\\music", "/Bach/.done")).toBeNull();
+    expect(resolveMediaPath("C:\\\\music", "/.env")).toBeNull();
+  });
+
   it("refuses to escape the root", () => {
     expect(resolveMediaPath("C:\\music", "/../secret.txt")).toBeNull();
     expect(resolveMediaPath("C:\\music", "/Bach/../../secret.txt")).toBeNull();

@@ -7,6 +7,7 @@ import { NowPlaying } from "../components/now-playing.tsx";
 import { StateLine } from "../components/state-line.tsx";
 import { Button } from "../components/ui/button.tsx";
 import { WaveSeek } from "../components/wave-seek.tsx";
+import { appUrl } from "../lib/url.ts";
 import { usePlayback } from "../playback/use-playback.ts";
 import { HISTORY_MAX } from "../store/history.ts";
 import { usePlayerStore } from "../store/player.ts";
@@ -79,7 +80,7 @@ export const HomeRoute: React.FC = () => {
                 total={playback.total}
               />
               <WaveSeek
-                mask={current.mask}
+                mask={current.mask ? appUrl(current.mask) : null}
                 label={`${current.composer}，${labelOf(current)}，可拖动调整进度`}
                 progress={progress}
                 valueNow={playback.elapsed}

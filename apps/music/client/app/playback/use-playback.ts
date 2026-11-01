@@ -72,7 +72,7 @@ export const usePlayback = (
 
   useEffect(() => {
     if (!current) return;
-    audio.src = current.audio;
+    audio.src = import.meta.env.BASE_URL + current.audio;
     audio.load();
     setElapsed(0);
     setFailed(false);

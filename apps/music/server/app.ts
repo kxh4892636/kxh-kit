@@ -12,6 +12,7 @@ export interface AppOptions {
   musicRoot: string;
   wavesRoot: string;
   clientDir: string;
+  basePath?: string;
 }
 
 const stripPrefix =
@@ -21,11 +22,15 @@ const stripPrefix =
 
 /**
  * The backend owns three things: the index (with an ETag), the audio bytes
- * (Range comes from serve-static), and the built client. History and the
+ * (Range is answered by media.ts) and the built client. History and the
  * shuffle bag are the browser's business.
  */
-export const createApp = (options: AppOptions): Hono => {
+const buildApp = (options: AppOptions): Hono => {
   const { snapshot, musicRoot, wavesRoot, clientDir } = options;
+  const base = options.basePath && options.basePath !== "/" ? options.basePath : "";
+  // Mounted under /music the handlers still see the prefixed path.
+  const stripBase = (path: string): string =>
+    base && path.startsWith(base) ? path.slice(base.length) || "/" : path;
   const indexHtml = readFileSync(join(clientDir, "index.html"), "utf8");
 
   const app = new Hono();
@@ -44,9 +49,17 @@ export const createApp = (options: AppOptions): Hono => {
     return c.json(apiOk(snapshot.library), 200, headers);
   });
 
-  app.get("/media/*", (c) => serveMedia(c, musicRoot, c.req.path.replace(/^\/media/, "")));
-  app.use("/waves/*", serveStatic({ root: wavesRoot, rewriteRequestPath: stripPrefix("/waves") }));
-  app.use("/*", serveStatic({ root: clientDir }));
+  app.get("/media/*", (c) =>
+    serveMedia(c, musicRoot, stripBase(c.req.path).replace(/^\/media/, "")),
+  );
+  app.use(
+    "/waves/*",
+    serveStatic({
+      root: wavesRoot,
+      rewriteRequestPath: (path) => stripPrefix("/waves")(stripBase(path)),
+    }),
+  );
+  app.use("/*", serveStatic({ root: clientDir, rewriteRequestPath: stripBase }));
 
   app.notFound((c) => {
     if (c.req.path.startsWith("/api/")) {
@@ -64,6 +77,34 @@ export const createApp = (options: AppOptions): Hono => {
   });
 
   return app;
+};
+
+/**
+ * Deployed under `/music`, every route — page, API, audio, waveform — lives
+ * behind the same prefix, so the client base and the proxy agree without any
+ * rewrite rules.
+ */
+export const createApp = (options: AppOptions): Hono => {
+  const app = buildApp(options);
+  const base = options.basePath && options.basePath !== "/" ? options.basePath : "";
+  if (!base) return app;
+
+  const root = new Hono();
+  root.route(base, app);
+  root.get("/", (c) => c.redirect(`${base}/`));
+  root.get(base, (c) => c.redirect(`${base}/`));
+
+  // The mounted app keeps its notFound inside its own router, so unmatched
+  // client routes under the prefix need the fallback here as well.
+  const indexHtml = readFileSync(join(options.clientDir, "index.html"), "utf8");
+  root.notFound((c) => {
+    const path = c.req.path;
+    if (path.startsWith(`${base}/api/`) || path.startsWith("/api/")) {
+      return c.json(apiFail("route_not_found", "接口不存在"), 404);
+    }
+    return c.html(indexHtml, 200);
+  });
+  return root;
 };
 
 export type AppType = ReturnType<typeof createApp>;

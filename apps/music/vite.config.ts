@@ -6,6 +6,7 @@ const backend = process.env["MUSIC_API_ORIGIN"] ?? "http://127.0.0.1:5210";
 
 export default defineConfig({
   root: "client",
+  base: process.env["MUSIC_BASE"] ?? "/",
   plugins: [tailwindcss()],
   resolve: {
     alias: {

@@ -48,6 +48,8 @@ export const parseRange = (header: string | undefined, size: number): RangeResul
 /** Resolve a URL path under a root, refusing anything that escapes it. */
 export const resolveMediaPath = (root: string, urlPath: string): string | null => {
   const relative = decodeURIComponent(urlPath).replace(/^\/+/, "");
+  // No dotfiles: the library keeps .done markers next to the audio.
+  if (relative.split("/").some((segment) => segment.startsWith("."))) return null;
   const target = normalize(join(root, relative));
   const base = normalize(root).replace(new RegExp(`${sep}$`), "");
   return target.startsWith(base + sep) ? target : null;

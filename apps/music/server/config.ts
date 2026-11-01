@@ -7,6 +7,7 @@ const settings = z.object({
   TRACKS_FILE: z.string().trim().min(1),
   WAVES_ROOT: z.string().trim().min(1),
   CLIENT_DIR: z.string().trim().min(1),
+  BASE_PATH: z.string().trim().optional(),
 });
 
 export interface Config {
@@ -15,9 +16,17 @@ export interface Config {
   tracksFile: string;
   wavesRoot: string;
   clientDir: string;
+  basePath: string;
 }
 
-const KEYS = ["PORT", "MUSIC_ROOT", "TRACKS_FILE", "WAVES_ROOT", "CLIENT_DIR"] as const;
+const KEYS = [
+  "PORT",
+  "MUSIC_ROOT",
+  "TRACKS_FILE",
+  "WAVES_ROOT",
+  "CLIENT_DIR",
+  "BASE_PATH",
+] as const;
 
 type Key = (typeof KEYS)[number];
 
@@ -53,6 +62,7 @@ export const loadConfig = (file: string, environment: NodeJS.ProcessEnv = proces
     TRACKS_FILE: pick("TRACKS_FILE", "./server/data/tracks.json"),
     WAVES_ROOT: pick("WAVES_ROOT", "./server/data/waves"),
     CLIENT_DIR: pick("CLIENT_DIR", "./dist/client"),
+    BASE_PATH: pick("BASE_PATH", ""),
   });
 
   return {
@@ -61,5 +71,6 @@ export const loadConfig = (file: string, environment: NodeJS.ProcessEnv = proces
     tracksFile: parsed.TRACKS_FILE,
     wavesRoot: parsed.WAVES_ROOT,
     clientDir: parsed.CLIENT_DIR,
+    basePath: parsed.BASE_PATH ?? "",
   };
 };
