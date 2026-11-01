@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Musopen 本地曲库 · 听</title>
+    <meta
+      name="description"
+      content="本地古典曲库的随机播放器：一首曲子一条波形，听过的最多留 13 首。"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="bar">
+      <p class="bar__mark">Musopen</p>
+      <p class="bar__sub">本地曲库</p>
+      <div class="transport">
+        <button class="cap" id="play" type="button" aria-pressed="false">
+          <span class="cap__well" aria-hidden="true"><span class="cap__rubber"></span></span>
+          <span class="cap__label" id="playlabel">播放</span>
+        </button>
+        <button class="pill" id="next" type="button">下一首</button>
+      </div>
+      <p class="bar__hint"><kbd>空格</kbd> 播放 / <kbd>n</kbd> 下一首</p>
+    </header>
+
+    <main class="stage">
+      <section class="now" aria-labelledby="work">
+        <p class="byline" id="composer">Johann Sebastian Bach</p>
+        <h1 id="work">Goldberg Variations</h1>
+        <p class="movement">
+          <span id="movement">Variation 4</span>
+          <span class="movement__time num" id="time">0:00 / 0:54</span>
+        </p>
+
+        <figure class="wave" style="--wave-src: url(&quot;media/bach-var4-wave.png&quot;)">
+          <span class="wave__ink" id="ink" aria-hidden="true"></span>
+          <span class="wave__passed" id="passed" aria-hidden="true"></span>
+          <span class="wave__head" id="head" aria-hidden="true"></span>
+        </figure>
+
+        <section class="library" aria-labelledby="library-head">
+          <h2 id="library-head">试听样张</h2>
+          <p class="library__note" id="library-note">样张 4 首，正式曲库 145 首 / 37 部作品。</p>
+          <div id="state-loading" class="skeleton" role="status">
+            <span class="skeleton__row"></span>
+            <span class="skeleton__row"></span>
+            <span class="skeleton__row"></span>
+            <span class="visually-hidden">正在读取曲目</span>
+          </div>
+          <p id="state-error" class="state" hidden>
+            曲目没能读出来。<button class="pill" id="retry" type="button">重试</button>
+          </p>
+          <table class="index" id="index" hidden>
+            <thead>
+              <tr>
+                <th scope="col">作品</th>
+                <th scope="col">乐章</th>
+                <th scope="col">作曲家</th>
+                <th scope="col" class="index__num">时长</th>
+                <th scope="col"><span class="visually-hidden">播放</span></th>
+              </tr>
+            </thead>
+            <tbody id="index-body"></tbody>
+          </table>
+        </section>
+      </section>
+
+      <aside class="history" aria-labelledby="history-head">
+        <h2 id="history-head">最近听过</h2>
+        <p class="history__note">最多留 13 首，刷新也在。</p>
+        <p class="state" id="state-empty">还没有听过。按下播放，这里会记下刚才的曲目。</p>
+        <ol class="history__list" id="history-list"></ol>
+      </aside>
+    </main>
+
+    <footer class="foot">
+      <p>
+        录音来自
+        <a href="https://archive.org/details/MusopenCollectionAsFlac">Internet Archive · Musopen</a
+        >， CC PD Mark 1.0。
+      </p>
+      <p>本地播放，不联网取音频。</p>
+    </footer>
+
+    <audio id="audio" preload="metadata"></audio>
+    <p class="visually-hidden" role="status" id="announcer"></p>
+    <script src="app.js"></script>
+  </body>
+</html>
