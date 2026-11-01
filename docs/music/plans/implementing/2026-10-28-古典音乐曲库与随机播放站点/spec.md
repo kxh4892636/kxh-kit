@@ -40,7 +40,7 @@ status: completed
 - **曲目索引形状**：静态 `tracks.json`，`{ item, license, source, tracks[], works[] }`；每条曲目含 `id`（路径 sha1 前 12 位）、`composer`、`work`、`movement`、`track_no`、`title`、`artist`、`bytes`、`seconds`、`sample_rate`、`bits`、`cover`、`path`、`source_url`、`md5`、`license`。生成脚本 `.temp/musopen/build_index.py`，**由后端持有**：文件落 `apps/music/server/data/tracks.json`（可用 `TRACKS_FILE` 覆盖），经 `GET /api/tracks` 提供，不参与前端构建。
 - **随机策略**：洗牌袋（Fisher–Yates 洗一轮，抽完再洗），状态在前端内存；重洗后首项若等于刚播曲目则与次项交换。
 - **播放历史**：前端 `localStorage`（`zustand/persist`，`partialize` 只存 `history`），`{ id, playedAt }[]`，同曲先去重再 `slice(0, 13)`；写入时机为 `<audio>` 的 `playing` 事件。
-- **音频交付**：FLAC 直出，走 Range/206 渐进加载与按需分片；已验证 `@hono/node-server@2.1.1` 的 `serve-static` 自带该能力。曲库与封面统一挂 `/media/*` → `MUSIC_ROOT`（默认 `C:\Users\kxh\Music\musopen-flac`），前端拼接 `path`/`cover`。
+- **音频交付**：FLAC 直出。`/media/*` 用自写 Range 处理器：每次响应封顶 512 KB（开放式 `bytes=N-` 也只回一片），带 `audio/flac`、`ETag`、`Last-Modified`，206 + `Content-Range`，越界 416。预加载用浏览器原生 read-ahead，不自建预取（实测 Chrome 3 秒内缓冲约 25 秒音频）。曲库挂载到 `MUSIC_ROOT`。
 - **许可标注**：页面固定展示「来源 Internet Archive / Musopen，CC PD Mark 1.0」及条目链接。
 - **界面风格**（2026-11-01，[05](05-界面视觉方向.md)）：单屏只有「当前曲目 + 最近听过」，无曲目列表，传输条位于曲目信息下方；Hallmark 的 Bloom 主题——暖纸 `oklch(97% 0.010 72)`、赭石 `oklch(53% 0.145 36)`、Ranade（400/500/700，自托管）、纸张网格只出现在波形块并向右淡出；签名是「录音自己的波形 + 走过的赭石进度线」，波形由 IA 封面 PNG 的 alpha 反相成剪影后 `mask-image` 着色；控制件 44px，强调色只落在播放帽、当前行、进度线与悬停动作。
 

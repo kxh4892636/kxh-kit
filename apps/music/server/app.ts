@@ -4,6 +4,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { apiFail, apiOk } from "../shared/api.ts";
+import { serveMedia } from "./media.ts";
 import type { LibrarySnapshot } from "./tracks.ts";
 
 export interface AppOptions {
@@ -43,7 +44,7 @@ export const createApp = (options: AppOptions): Hono => {
     return c.json(apiOk(snapshot.library), 200, headers);
   });
 
-  app.use("/media/*", serveStatic({ root: musicRoot, rewriteRequestPath: stripPrefix("/media") }));
+  app.get("/media/*", (c) => serveMedia(c, musicRoot, c.req.path.replace(/^\/media/, "")));
   app.use("/waves/*", serveStatic({ root: wavesRoot, rewriteRequestPath: stripPrefix("/waves") }));
   app.use("/*", serveStatic({ root: clientDir }));
 

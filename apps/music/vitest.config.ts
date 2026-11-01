@@ -16,6 +16,7 @@ export default defineConfig({
         "client/app/store/**/*.ts",
         "client/app/lib/**/*.ts",
         "client/app/api/**/*.ts",
+        "client/app/playback/prefetch.ts",
         "server/**/*.ts",
         "shared/**/*.ts",
       ],

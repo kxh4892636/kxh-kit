@@ -26,6 +26,8 @@ pnpm --filter @kxh4892636/music dev      # 前 5273、后端 5210
 
 `dev` 起两个进程：`node --watch --experimental-strip-types server/main.ts` 与 `vp dev`；Vite 把 `/api`、`/media`、`/waves` 代理到 5210。
 
+音频由 `server/media.ts` 按 512 KB 分片返回（开放式 `Range: bytes=N-` 也只回一片，带 `audio/flac` 与 `ETag`）；预加载交给浏览器自己的 read-ahead，前端不额外预取。
+
 ## 构建与运行
 
 ```powershell

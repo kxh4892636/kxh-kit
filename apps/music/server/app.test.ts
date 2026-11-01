@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app.ts";
+import { CHUNK_BYTES } from "./media.ts";
 import { loadLibrary } from "./tracks.ts";
 
 const track = {
@@ -14,7 +15,7 @@ const track = {
   title: "Aria",
   artist: "Kimiko Ishizaka",
   format: "flac",
-  bytes: 2048,
+  bytes: 4196352,
   seconds: 292.4,
   sampleRate: 44100,
   bits: 24,
@@ -26,6 +27,8 @@ const track = {
   license: "CC PD Mark 1.0",
 };
 
+const FILE_BYTES = CHUNK_BYTES + 2048;
+
 const buildApp = () => {
   const root = mkdtempSync(join(tmpdir(), "music-app-"));
   const music = join(root, "music");
@@ -34,7 +37,7 @@ const buildApp = () => {
   mkdirSync(join(music, "Bach"), { recursive: true });
   mkdirSync(waves, { recursive: true });
   mkdirSync(client, { recursive: true });
-  writeFileSync(join(music, "Bach", "aria.flac"), Buffer.alloc(4096, 1));
+  writeFileSync(join(music, "Bach", "aria.flac"), Buffer.alloc(FILE_BYTES, 1));
   writeFileSync(join(waves, "t1.png"), Buffer.from([1, 2, 3]));
   writeFileSync(join(client, "index.html"), "<!doctype html><title>听</title>", "utf8");
 
@@ -79,13 +82,51 @@ describe("createApp", () => {
     expect(second.status).toBe(304);
   });
 
-  it("streams audio with a range request", async () => {
+  it("serves a bounded range with the right type", async () => {
     const response = await buildApp().request("/media/Bach/aria.flac", {
       headers: { range: "bytes=0-1023" },
     });
     expect(response.status).toBe(206);
-    expect(response.headers.get("content-range")).toBe("bytes 0-1023/4096");
+    expect(response.headers.get("content-range")).toBe(`bytes 0-1023/${FILE_BYTES}`);
     expect(response.headers.get("accept-ranges")).toBe("bytes");
+    expect(response.headers.get("content-type")).toBe("audio/flac");
+  });
+
+  it("answers an open-ended range with one capped chunk", async () => {
+    const response = await buildApp().request("/media/Bach/aria.flac", {
+      headers: { range: "bytes=0-" },
+    });
+    expect(response.status).toBe(206);
+    expect(response.headers.get("content-range")).toBe(`bytes 0-${CHUNK_BYTES - 1}/${FILE_BYTES}`);
+    const body = await response.arrayBuffer();
+    expect(body.byteLength).toBe(CHUNK_BYTES);
+  });
+
+  it("supports suffix ranges and whole-file requests", async () => {
+    const suffix = await buildApp().request("/media/Bach/aria.flac", {
+      headers: { range: "bytes=-1024" },
+    });
+    expect(suffix.status).toBe(206);
+    expect(suffix.headers.get("content-range")).toBe(
+      `bytes ${FILE_BYTES - 1024}-${FILE_BYTES - 1}/${FILE_BYTES}`,
+    );
+
+    const whole = await buildApp().request("/media/Bach/aria.flac");
+    expect(whole.status).toBe(200);
+    expect(whole.headers.get("accept-ranges")).toBe("bytes");
+  });
+
+  it("rejects a range past the end", async () => {
+    const response = await buildApp().request("/media/Bach/aria.flac", {
+      headers: { range: `bytes=${FILE_BYTES + 10}-` },
+    });
+    expect(response.status).toBe(416);
+    expect(response.headers.get("content-range")).toBe(`bytes */${FILE_BYTES}`);
+  });
+
+  it("reports a missing file", async () => {
+    const response = await buildApp().request("/media/Bach/nope.flac");
+    expect(response.status).toBe(404);
   });
 
   it("serves waveform masks", async () => {
