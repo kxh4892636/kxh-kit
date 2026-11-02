@@ -93,9 +93,11 @@ status: completed
 
 ## 当前进度
 
-2026-11-01 23:05：已部署到 `123.57.92.26/music/`（nginx 反代、systemd 托管、ufw + fail2ban、媒体 512 KB 分片），验收见 [06](06-部署到服务器.md)。以下为历史记录。2026-11-01 21:05：全部 notes 完成。04 已交付 `apps/music`：React 19 + TanStack Router/Query + zustand + shadcn/ui（Button）+ Hono（`/api/tracks` 带 ETag、`/media/*` Range/206、SPA 回落），历史与洗牌袋在前端（localStorage，13 条）。`vp check` 全绿、37 个单测通过（语句 92.53% / 分支 86.66%）、`pnpm build` 双产物、接口冒烟与 Playwright e2e 全绿。以下为历史记录。2026-11-01 20:12：01 曲库、02 选型、03 索引、05 界面视觉方向均已 `completed`；05 经独立评审（结论 fix）逐条修复后复验通过。05 交付了 Hallmark Bloom 样张（`docs/music/design/ui-comp/`，sloplint 静态与 render 两档 0 FAIL / 0 REFLEX / 0 WARN，1440 与 390 截图在 `docs/music/design/shots/`）。04 随机播放站点已实现并验收：`apps/music`（React + Hono + Range/206 + localStorage 历史），`vp check`、37 个单测（覆盖率 92.5%/86.7%）、`pnpm build`、接口冒烟与 Playwright e2e 全绿；截图在 `docs/music/design/shots/app-*.png`。
+2026-11-01 23:05：已部署到 `123.57.92.26/music/`（nginx 反代、systemd 托管、ufw + fail2ban、媒体 512 KB 分片），验收见 [06](06-部署到服务器.md)。以下为历史记录。2026-11-01 21:05：全部 notes 完成。04 已交付 `apps/music`：React 19 + TanStack Router/Query + zustand + shadcn/ui（Button）+ Hono（`/api/tracks` 带 ETag、`/media/*` Range/206、SPA 回落），历史与洗牌袋在前端（localStorage，13 条）。`vp check` 全绿、37 个单测通过（语句 92.53% / 分支 86.66%）、`pnpm build` 双产物、接口冒烟与 Playwright e2e 全绿。以下为历史记录。2026-11-01 20:12：01 曲库、02 选型、03 索引、05 界面视觉方向均已 `completed`；05 经独立评审（结论 fix）逐条修复后复验通过。05 交付了 Hallmark Bloom 视觉方向（sloplint 静态与 render 两档 0 FAIL / 0 REFLEX / 0 WARN，截图在 `docs/music/design/shots/`；原型目录在实现完成后删除）。04 随机播放站点已实现并验收：`apps/music`（React + Hono + Range/206 + localStorage 历史），`vp check`、37 个单测（覆盖率 92.5%/86.7%）、`pnpm build`、接口冒烟与 Playwright e2e 全绿；截图在 `docs/music/design/shots/app-*.png`。
 
 ## 恢复入口
+
+本 Plan 已完成并归档到 `reference`：所有 notes 为 `completed`，产品在 `apps/music` 运行于 `123.57.92.26/music/`。
 
 1. 读 [story.md](story.md) 与本 spec 的「实施决策」，再读 [01](01-曲库落地与校验.md) 的探针结论与检查点。
 2. 核对现场：`C:\Users\kxh\Music\musopen-flac` 应为 580 个文件 / 9,607,881,823 字节；`.temp/musopen/tracks.json` 应为 145 曲 / 37 作品；`apps/music` 尚未创建。
