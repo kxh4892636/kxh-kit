@@ -2,7 +2,7 @@
 
 Kysely 是 TypeScript 的 SQL 查询构建器: 类型来自 `Database` 接口，SQL 由链式调用拼出，`better-sqlite3` 负责执行。
 
-本目录只写「怎么用」: 常用流程 + 最小代码。数据访问的分层、事务边界、连接池与迁移上线规矩在 [000-服务端知识](../000-服务端知识/050-数据访问/010-Repository与事务.md)。
+本目录只写「术」: API、默认行为、SQLite 方言差异。分层、事务边界、迁移上线规矩去 [000-服务端知识](../000-服务端知识/050-数据访问/010-Repository与事务.md)。
 
 ## 按顺序读
 
@@ -11,7 +11,7 @@ Kysely 是 TypeScript 的 SQL 查询构建器: 类型来自 `Database` 接口，
 3. [003-建表与索引](./003-建表与索引.md): `createTable`、列约束、索引;
 4. [004-增删改查](./004-增删改查.md): 一屏跑通 CRUD;
 5. [005-查询与过滤](./005-查询与过滤.md): 选列/别名、操作符、`whereRef`、排序分页;
-6. [006-动态条件与原生SQL](./006-动态条件与原生SQL.md): `if`/`$if`、`sql` 片段、`compile()`;
+6. [006-动态条件与原生SQL](./006-动态条件与原生SQL.md): `$if`、`sql` 片段、`compile()`;
 7. [007-连接与聚合](./007-连接与聚合.md): join、`exists`、CTE、`group by`;
 8. [008-嵌套关联结果](./008-嵌套关联结果.md): `jsonArrayFrom`、`jsonObjectFrom`;
 9. [009-写入](./009-写入.md): insert/update/delete、`returning`、批量;

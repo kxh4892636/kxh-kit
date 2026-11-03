@@ -7,7 +7,7 @@ anki: true
 
 ## 从请求里取路径、查询和 Header 用什么方法？
 
-- 三个入口: `c.Param` 取路由参数、`c.GetQuery` 取查询串、`c.GetHeader` 取 Header;
+- 三个入口: `c.Param`、`c.GetQuery`、`c.GetHeader`;
 
 ```go
 func getArticle(ctx context.Context, c *app.RequestContext) {
@@ -21,13 +21,13 @@ func getArticle(ctx context.Context, c *app.RequestContext) {
 }
 ```
 
-- `c.Query` 只返回值，要区分缺失与空串时用 `c.GetQuery`;
-- `c.GetHeader` 返回 `[]byte`，要字符串就显式转换；Header 名大小写不承载业务差异;
-- `c.Request` 是原始请求；一般用 RequestContext 的方法就够，不必直接拆协议对象;
+- `c.Query` 只返回值；要区分缺失与空串用 `c.GetQuery`;
+- `c.GetHeader` 返回 `[]byte`，需要字符串就显式转换;
+- `c.Request` 是原始协议对象，一般用 RequestContext 的方法就够。
 
 ## 中间件怎么把身份传给 Handler？
 
-- 用 `c.Set`/`c.Get`: 认证中间件放规范化后的身份，Handler 读取时校验存在性与类型;
+- `c.Set`/`c.Get`: 认证中间件放规范化后的身份，Handler 读时校验存在性与类型;
 
 ```go
 c.Set("user_id", int64(42))
@@ -40,14 +40,10 @@ if !exists || !ok {
 }
 ```
 
-- 中间件写入的请求 ID 用 `c.GetString("request_id")` 读;
-- 不把密码、完整 Token 或大对象放进上下文;
+- 中间件写入的请求 ID 用 `c.GetString("request_id")` 读。
 
 ## 请求结束后 RequestContext 还能用吗？
 
 - 不能: 它来自 Engine 的 `sync.Pool`，请求结束会被 `Reset`;
-
-- 后台任务不能直接持有 `c`；`c.Copy()` 返回可脱离请求作用域的副本，适合传给 goroutine;
-- `c.Exile()` 把当前上下文标记为不回收，无返回值，是实验特性;
-- 一般只复制业务需要的数据，不要把整个 Context 塞进异步任务;
-- Handler 的职责边界见 [分层与依赖方向](../000-服务端知识/010-基础模型/020-依赖方向.md);
+- 后台任务用 `c.Copy()` 拿可脱离请求作用域的副本；`c.Exile()` 标记不回收，是实验特性;
+- 只复制业务需要的数据，不要把整个 Context 塞进异步任务。

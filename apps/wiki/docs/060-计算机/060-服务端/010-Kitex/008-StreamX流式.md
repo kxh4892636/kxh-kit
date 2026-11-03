@@ -5,14 +5,12 @@ anki: true
 
 # StreamX 流式
 
-## 什么时候必须用流式？
+## 什么条件下才能用流式？
 
-- 定义: 一次调用内多次收发;
-- 不需要: 创建、查询、更新、删除这类一次请求一次响应的接口;
-- 需要: 上传多段数据、持续返回结果或双向会话;
-- 选型: 先明确哪一方要多次发送; Thrift 可选 TTHeader Streaming 或 gRPC Streaming，Protobuf 用 gRPC Streaming;
-- 生成: Kitex tool **v0.13.0+**，流式 IDL 加 `-streamx`;
-- 选型原理: 持续通信与背压见 [流式与长连接](../000-服务端知识/070-通信/020-选型与边界.md);
+- 生成门槛: Kitex tool **v0.13.0+**，流式 IDL 加 `-streamx`;
+- 协议门槛: Thrift 选 TTHeader Streaming 或 gRPC Streaming；Protobuf 只能用 gRPC Streaming;
+- 需要才用: 一段数据分多次发送、结果持续返回或双向会话；一次请求一次响应的接口不用流;
+- 选型边界见 [流式选型](../000-服务端知识/070-通信/020-选型与边界.md)。
 
 ## 三种流各自怎么结束？
 
@@ -43,12 +41,11 @@ func upload(ctx context.Context, cli fileservice.Client, chunks [][]byte) (*api.
 }
 ```
 
-- 服务端: 在 `Recv` 收到 `io.EOF` 后用 `SendAndClose` 返回最终结果;
-- 陷阱: 不发结束信号，服务端可能一直等下一段数据;
+- 服务端: `Recv` 收到 `io.EOF` 后用 `SendAndClose` 返回最终结果。
 
 ## 流的超时与 goroutine 怎么收？
 
-- 预算: `client.WithStreamRecvTimeout`（v0.16.3 起标记 Deprecated，改用 `WithStreamRecvTimeoutConfig`）或单次 `streamcall.WithRecvTimeout`;
-- 双向会话: 用有限队列与明确取消路径，退出时回收 goroutine、timer 与连接;
-- 重试: 常规 RPC 重试不适用于 streaming，见 [004](./004-客户端调用.md);
-- 排障: 流中断先看 `StreamEventHandler` 的 start、Send、Recv、header、finish，不先调底层参数;
+- 超时: `WithStreamRecvTimeoutConfig`（v0.16.3 起；旧 `WithStreamRecvTimeout` 已标记 Deprecated）或单次 `streamcall.WithRecvTimeout`;
+- 常规 RPC 重试不适用于 streaming，见 [004](./004-客户端调用.md);
+- 双向会话用有限队列与明确取消路径，退出时回收 goroutine、timer 与连接;
+- 排障先看 `StreamEventHandler` 的 start、Send、Recv、header、finish，不先调底层参数。

@@ -7,15 +7,16 @@ anki: true
 
 ## 一个选项该写在哪一层？
 
-- 判断: 看它属于 Server 生命周期、Client 生命周期，还是单次调用; 优先级是单次 Call Option 通常覆盖同类 Client Option; 稳定默认值放构造期，请求特例才放 Call Option; 分层与启动顺序见 [配置与启动顺序](../000-服务端知识/010-基础模型/030-配置与启动顺序.md);
+| 类型             | 注入位置     | 作用域          | 典型用途                     |
+| ---------------- | ------------ | --------------- | ---------------------------- |
+| `server.Option`  | `NewServer`  | Server 生命周期 | 地址、Registry、限流、中间件 |
+| `client.Option`  | `NewClient`  | Client 生命周期 | Resolver、超时、重试、协议   |
+| `callopt.Option` | RPC 方法尾参 | 单次调用        | 临时超时、目标地址、标签     |
 
-| 类型             | 注入位置        | 作用域          | 典型用途                     |
-| ---------------- | --------------- | --------------- | ---------------------------- |
-| `server.Option`  | `NewServer`     | Server 生命周期 | 地址、Registry、限流、中间件 |
-| `client.Option`  | `NewClient`     | Client 生命周期 | Resolver、超时、重试、协议   |
-| `callopt.Option` | RPC method 尾参 | 单次调用        | 临时超时、目标地址、标签     |
+- 优先级: 单次 Call Option 覆盖同类 Client Option;
+- 稳定默认值放构造期，请求特例才放尾参。
 
-## Suite 怎么复用组织级配置？
+## Suite 怎么打包组织级默认值？
 
 ```go
 type orgClientSuite struct{}
@@ -30,9 +31,10 @@ func (orgClientSuite) Options() []client.Option {
 func newOrgClient() (userservice.Client, error) {
 	return userservice.NewClient("user-service",
 		client.WithSuite(orgClientSuite{}),     // 组织级默认
-		client.WithHostPorts("127.0.0.1:8888"), // 调用方显式覆盖
+		client.WithHostPorts("127.0.0.1:8888"), // 调用方覆盖
 	)
 }
 ```
 
-- 作用与风险: 把一组组织级选项打包复用，多服务共享超时、重试、中间件、观测规范; 代价是隐藏默认值与顺序，必须提供覆盖方式和版本策略，否则排查时看不出实际生效值;
+- 实现 `Options() []client.Option` 即是一个 Client Suite；Server 侧同型，返回 `[]server.Option`;
+- 代价: 默认值被藏进 Suite，排查时看不出实际生效值；必须留覆盖方式并固定 Suite 版本。

@@ -15,7 +15,7 @@ console.log(q.sql, q.parameters);
 
 1. `.compile()` 看真实 SQL 与参数;
 2. 把同一条 SQL 丢进 `sqlite3` 直接跑;
-3. 确认库文件路径、迁移是否执行（`db.introspection.getTables()`）;
+3. 确认库文件路径、迁移是否执行（`db.introspection.getTables()`）。
 
 ## 运行时错误对照表
 
@@ -36,7 +36,7 @@ console.log(q.sql, q.parameters);
 - 结果 `X | null` 但业务不为空: `$narrowType<{ 列: NotNull }>`;
 - 子查询当标量类型不符: `.$asScalar()`，确定非空再 `.$notNull()`;
 - 确实没匹配到行: 用 `executeTakeFirstOrThrow()` 让「查不到」直接抛错;
-- 改了数据却查不出来: 读写不是同一个实例，或显式事务忘了 `commit()`;
+- 改了数据却查不出来: 读写不是同一个实例，或显式事务忘了 `commit()`。
 
 ## SQLite 有哪些必须记住的差异？
 

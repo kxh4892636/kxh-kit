@@ -7,13 +7,11 @@ anki: true
 
 ## server.Default 和 server.New 差在哪？
 
-- 差别一条: Default 多装 `recovery.Recovery()`，New 不装，漏装时 panic 会直接断连;
+- 只差一条: Default 多装 `recovery.Recovery()`，New 一个默认中间件都不装;
 
 ```go
-// Default = New + Recovery 中间件。
-h := server.Default(server.WithHostPorts(":8888"))
+h := server.Default(server.WithHostPorts(":8888")) // Default = New + Recovery
 
-// New 不带任何默认中间件，Recovery 必须自己装。
 h = server.New(
 	server.WithHostPorts(":8888"),
 	server.WithReadTimeout(3*time.Second),
@@ -22,44 +20,45 @@ h = server.New(
 	server.WithMaxRequestBodySize(1<<20),
 	server.WithExitWaitTime(10*time.Second),
 )
-h.Use(recovery.Recovery())
+h.Use(recovery.Recovery()) // New 必须自己装
 ```
 
-- Option 只在构造时生效：地址、超时、body 上限和路由都要在启动前定完;
-- 默认值：监听 `:8888`、read timeout 3m、body 上限 4 MiB、exit wait 5s;
+- Option 只在构造时生效: 地址、超时、body 上限、退出等待都要在 `Spin` 前定完。
 
-## 读、写、空闲三个超时各管什么？
+## 默认值是多少？
 
-- 三个都是连接级超时: read 管收请求、write 管写响应、idle 管空闲，业务超时在 Handler 里 `context.WithTimeout` 派生，预算分层见 000「超时预算」;
+| 项           | 默认值                                  |
+| ------------ | --------------------------------------- |
+| 监听         | `:8888`                                 |
+| read timeout | 3m                                      |
+| body 上限    | 4 MiB                                   |
+| exit wait    | 5s                                      |
+| HTTP/2、H2C  | 关（`WithALPN` / `WithH2C` 默认 false） |
 
-- read timeout: 读完整个请求的上限，防慢速请求占住连接;
-- write timeout: 写响应的上限，流式接口不要套短值;
-- idle timeout: keep-alive 空闲连接的上限，不是业务超时;
+## 三个连接级超时分别对应哪个 Option？
+
+- `WithReadTimeout` 管收完请求、`WithWriteTimeout` 管写响应、`WithIdleTimeout` 管 keep-alive 空闲;
+- 业务超时在 Handler 里 `context.WithTimeout` 派生，四类超时的分工见 [超时类型与传递](../000-服务端知识/040-可靠性/020-超时类型与传递.md)。
 
 ## HTTP/2 与 H2C 怎么开才生效？
 
-- 两步: 加 `WithALPN`/`WithH2C`（默认 false，只改请求头不会升级协议），再用 `AddProtocol("h2", ...)` 注册协议工厂;
+- 两步: 加 `WithALPN`/`WithH2C`，再 `AddProtocol("h2", ...)` 注册协议工厂；只改请求头不会升级协议;
 
 ```go
-// TLS + ALPN：与客户端、网关协商 HTTP/2。
 h := server.Default(
 	server.WithTLS(&tls.Config{Certificates: []tls.Certificate{cert}}),
 	server.WithALPN(true),
 )
 h.AddProtocol("h2", factory.NewServerFactory()) // hertz-contrib/http2/factory
 
-// 明文 HTTP/2：只在受控网络里开。
-h = server.Default(server.WithH2C(true))
+h = server.Default(server.WithH2C(true)) // 明文 HTTP/2，只在受控网络
 h.AddProtocol("h2", factory.NewServerFactory())
 ```
 
-- 没注册协议工厂时，H2C 连接会回退 HTTP/1.1;
-- 公网走 TLS + ALPN，客户端、网关、Hertz 三段都要支持；H2C 不提供加密与认证;
-- 验收是在真实连接上看协议版本，再验证请求、错误与 HTTP/1.1 回退；协议判断见 000（070-通信）;
+- 没注册协议工厂时，H2C 连接回退 HTTP/1.1;
+- 验收在真实连接上看协议版本，再验请求、错误与回退; 代理与 TLS 终结的分层见 [反向代理与网关](../000-服务端知识/070-通信/030-反向代理与网关.md)。
 
 ## 服务从启动到退出按什么顺序走？
 
-- 启动: 读配置 → 初始化依赖 → 注册中间件与路由 → `Spin`;
-
-- 依赖就绪后才打开 readiness，未就绪不接流量；见 000「退出顺序」;
-- 退出时序、`OnShutdown` 与 `SetCustomSignalWaiter` 的写法见 [014-运维接入](./016-运维接入.md);
+- 启动: 读配置 → 初始化依赖 → 注册中间件与路由 → `Spin`；依赖就绪后才打开 readiness;
+- 退出: `OnShutdown`、`SetCustomSignalWaiter` 与 `WithExitWaitTime` 的写法见 [016-运维接入](./016-运维接入.md)。

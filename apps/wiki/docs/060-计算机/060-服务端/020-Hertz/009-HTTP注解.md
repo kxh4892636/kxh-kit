@@ -7,13 +7,9 @@ anki: true
 
 ## IDL 里怎么把 HTTP 方法和路径声明出来？
 
-- 方法级注解: `api.get/post/put/delete` 定方法 + 路径，参数结构体上的注解定来源;
+- 方法级注解 `api.get/post/put/delete` 定方法与路径，参数结构体上的注解定参数来源;
 
 ```thrift
-struct Article {
-  1: i64 id
-}
-
 struct GetArticleRequest {
   1: required i64 id (api.path="id")
 }
@@ -34,8 +30,6 @@ service ArticleService {
 
 ## api.* 注解各绑到请求的哪一部分？
 
-- 一个注解对一个来源: 路径、查询、Header、body、form、raw_body 各有入口;
-
 | 注解                      | 绑到什么        | 典型用途               |
 | ------------------------- | --------------- | ---------------------- |
 | `api.get/post/put/delete` | HTTP 方法与路径 | 方法级，一个方法一个   |
@@ -46,4 +40,5 @@ service ArticleService {
 | `api.form`                | 表单字段        | 上传元数据             |
 | `api.raw_body`            | 原始请求体      | 自行解析               |
 
-- 没有 `api.file` 注解；文件上传用 RequestContext 的文件 API，不要臆造注解;
+- 没有 `api.file` 注解: 文件上传用 RequestContext 的文件 API，不要臆造注解;
+- 注解写错不会报错，只会生成错的路由或绑不到的字段; 生成后用 `hz` 的路由表与 `ut.PerformRequest` 各验一次。
