@@ -1,5 +1,5 @@
 ---
-status: in_progress
+status: completed
 ---
 
 # 古典音乐曲库与随机播放站点
@@ -93,7 +93,7 @@ status: in_progress
 
 ## 当前进度
 
-2026-11-03 23:05：波形右缘渐隐改为只在双列出现（单列 `mask-image: none`），1440/1024 保留、900/390 移除，截图见 `docs/music/design/shots/wave-*.png`。以下为本地修复记录。2026-11-03 22:40：「最近听过」修复在本地完成——列高固定 32rem（窄屏 24rem）、内部滚动且隐藏滚动条、按日期分组、行内只留时分；55 个单测通过，本地截图见 `docs/music/design/shots/history-*.png`。等用户确认后再部署。以下为历史记录。2026-11-01 23:05：已部署到 `123.57.92.26/music/`（nginx 反代、systemd 托管、ufw + fail2ban、媒体 512 KB 分片），验收见 [06](06-部署到服务器.md)。以下为历史记录。2026-11-01 21:05：全部 notes 完成。04 已交付 `apps/music`：React 19 + TanStack Router/Query + zustand + shadcn/ui（Button）+ Hono（`/api/tracks` 带 ETag、`/media/*` Range/206、SPA 回落），历史与洗牌袋在前端（localStorage，13 条）。`vp check` 全绿、37 个单测通过（语句 92.53% / 分支 86.66%）、`pnpm build` 双产物、接口冒烟与 Playwright e2e 全绿。以下为历史记录。2026-11-01 20:12：01 曲库、02 选型、03 索引、05 界面视觉方向均已 `completed`；05 经独立评审（结论 fix）逐条修复后复验通过。05 交付了 Hallmark Bloom 视觉方向（sloplint 静态与 render 两档 0 FAIL / 0 REFLEX / 0 WARN，截图在 `docs/music/design/shots/`；原型目录在实现完成后删除）。04 随机播放站点已实现并验收：`apps/music`（React + Hono + Range/206 + localStorage 历史），`vp check`、37 个单测（覆盖率 92.5%/86.7%）、`pnpm build`、接口冒烟与 Playwright e2e 全绿；截图在 `docs/music/design/shots/app-*.png`。
+2026-11-03 23:05：波形右缘渐隐改为只在双列出现（单列 `mask-image: none`），1440/1024 保留、900/390 移除，截图见 `docs/music/design/shots/wave-*.png`。以下为本地修复记录。2026-11-03 23:12：07（历史固定高度 + 日期分组）与 08（波形渐隐仅双列）已部署上线并线上复验通过，控制台无错误。以下为本地修复记录。2026-11-03 22:40：「最近听过」修复在本地完成——列高固定 32rem（窄屏 24rem）、内部滚动且隐藏滚动条、按日期分组、行内只留时分；55 个单测通过，本地截图见 `docs/music/design/shots/history-*.png`。等用户确认后再部署。以下为历史记录。2026-11-01 23:05：已部署到 `123.57.92.26/music/`（nginx 反代、systemd 托管、ufw + fail2ban、媒体 512 KB 分片），验收见 [06](06-部署到服务器.md)。以下为历史记录。2026-11-01 21:05：全部 notes 完成。04 已交付 `apps/music`：React 19 + TanStack Router/Query + zustand + shadcn/ui（Button）+ Hono（`/api/tracks` 带 ETag、`/media/*` Range/206、SPA 回落），历史与洗牌袋在前端（localStorage，13 条）。`vp check` 全绿、37 个单测通过（语句 92.53% / 分支 86.66%）、`pnpm build` 双产物、接口冒烟与 Playwright e2e 全绿。以下为历史记录。2026-11-01 20:12：01 曲库、02 选型、03 索引、05 界面视觉方向均已 `completed`；05 经独立评审（结论 fix）逐条修复后复验通过。05 交付了 Hallmark Bloom 视觉方向（sloplint 静态与 render 两档 0 FAIL / 0 REFLEX / 0 WARN，截图在 `docs/music/design/shots/`；原型目录在实现完成后删除）。04 随机播放站点已实现并验收：`apps/music`（React + Hono + Range/206 + localStorage 历史），`vp check`、37 个单测（覆盖率 92.5%/86.7%）、`pnpm build`、接口冒烟与 Playwright e2e 全绿；截图在 `docs/music/design/shots/app-*.png`。
 
 ## 恢复入口
 
@@ -106,12 +106,12 @@ status: in_progress
 
 ## Notes
 
-| #   | Notes                                                      | 状态        | 阻塞于 | 下一步                   |
-| --- | ---------------------------------------------------------- | ----------- | ------ | ------------------------ |
-| 01  | [曲库落地与校验](01-曲库落地与校验.md)                     | completed   | —      | —                        |
-| 02  | [站点形态与技术选型](02-站点形态与技术选型.md)             | completed   | —      | —                        |
-| 03  | [曲目索引生成](03-曲目索引生成.md)                         | completed   | 01     | —                        |
-| 04  | [随机播放站点实现](04-随机播放站点实现.md)                 | completed   | 03     | —                        |
-| 06  | [部署到服务器](06-部署到服务器.md)                         | completed   | 04     | —                        |
-| 07  | [历史列表高度与日期分组](07-历史列表高度与日期分组.md)     | in_progress | 04     | 用户确认后部署到服务器   |
-| 08  | [波形右缘渐隐的响应式规则](08-波形右缘渐隐的响应式规则.md) | in_progress | 04     | 用户确认后随 07 一起部署 |
+| #   | Notes                                                      | 状态      | 阻塞于 | 下一步 |
+| --- | ---------------------------------------------------------- | --------- | ------ | ------ |
+| 01  | [曲库落地与校验](01-曲库落地与校验.md)                     | completed | —      | —      |
+| 02  | [站点形态与技术选型](02-站点形态与技术选型.md)             | completed | —      | —      |
+| 03  | [曲目索引生成](03-曲目索引生成.md)                         | completed | 01     | —      |
+| 04  | [随机播放站点实现](04-随机播放站点实现.md)                 | completed | 03     | —      |
+| 06  | [部署到服务器](06-部署到服务器.md)                         | completed | 04     | —      |
+| 07  | [历史列表高度与日期分组](07-历史列表高度与日期分组.md)     | completed | 04     | —      |
+| 08  | [波形右缘渐隐的响应式规则](08-波形右缘渐隐的响应式规则.md) | completed | 04     | —      |
