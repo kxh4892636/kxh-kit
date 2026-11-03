@@ -455,6 +455,12 @@ body::after {
   .history {
     block-size: 24rem;
   }
+
+  /* The right-edge fade only works against the second column; on a single
+     column the waveform should run to the edge. */
+  .wave {
+    mask-image: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
