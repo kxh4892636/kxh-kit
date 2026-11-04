@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { createNestedSkillTool } from "./nested-skill.js";
+import { createOfficeSkillsTool } from "./office-skills.js";
 import { createUndoTurnTool } from "./undo-turn.js";
 
 afterEach(() => {
@@ -68,5 +69,52 @@ describe("undo-turn tool", () => {
     const dispose = tool.apply({} as never);
     expect(dispose).toBeTypeOf("function");
     dispose();
+  });
+});
+
+describe("office-skills tool", () => {
+  const skillContext = () => {
+    const skills = [
+      {
+        name: "office-docx",
+        description: "word documents",
+        invocation: { modelInvocable: true, userInvocable: true },
+        source: "bundled",
+        provider: "dsh-office",
+      },
+      {
+        name: "code-spec",
+        description: "coding rules",
+        invocation: { modelInvocable: true, userInvocable: true },
+        source: "project-agents",
+        provider: "nested-agents",
+      },
+    ];
+    const service = {
+      list: async () => [...skills],
+      snapshot: async () => ({ skills: [...skills], complete: true }),
+      get: async (name: string) => {
+        const match = skills.find((skill) => skill.name === name);
+        return match === undefined ? undefined : { ...match, content: `${name} body` };
+      },
+    };
+    const ctx = {
+      get: (key: string) => (key === "skills" ? service : undefined),
+      logger: { warn: vi.fn() },
+    };
+    return { ctx, service };
+  };
+
+  it("masks office skills only while the tool is applied", async () => {
+    const tool = createOfficeSkillsTool();
+    expect(tool).toMatchObject({ id: "office-skills", defaultEnabled: false });
+    const { ctx, service } = skillContext();
+    const dispose = tool.apply(ctx as never);
+    expect((await service.snapshot()).skills.map((skill) => skill.name)).toEqual(["code-spec"]);
+    expect(await service.get("office-docx")).toBeUndefined();
+    expect((await service.get("code-spec"))?.content).toBe("code-spec body");
+    dispose();
+    expect((await service.snapshot()).skills).toHaveLength(2);
+    expect(await service.get("office-docx")).toBeDefined();
   });
 });

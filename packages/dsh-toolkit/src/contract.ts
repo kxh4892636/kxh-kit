@@ -57,6 +57,7 @@ export const TOOLKIT_UNDO_PATH = "/api/toolkit/undo-turn";
 export const TOOL_IDS = {
   nestedSkill: "nested-skill",
   undoTurn: "undo-turn",
+  officeSkills: "office-skills",
 } as const;
 
 /** 侧边栏入口与主面板共用的 key。 */

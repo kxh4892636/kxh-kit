@@ -5,10 +5,11 @@
 
 当前工具：
 
-| 工具 id        | 名称            | 默认 | 作用                                                         |
-| -------------- | --------------- | ---- | ------------------------------------------------------------ |
-| `nested-skill` | 嵌套 skill 发现 | 开   | 在 `.agents` 树内任意深度发现 `SKILL.md`（内建一层形态之外） |
-| `undo-turn`    | 撤回            | 开   | 在会话工具栏、模型选择左侧加「撤回」按钮，撤销最后一轮会话   |
+| 工具 id         | 名称                      | 默认 | 作用                                                           |
+| --------------- | ------------------------- | ---- | -------------------------------------------------------------- |
+| `nested-skill`  | 嵌套 skill 发现           | 开   | 在 `.agents` 树内任意深度发现 `SKILL.md`（内建一层形态之外）   |
+| `undo-turn`     | 撤回                      | 开   | 在会话工具栏、模型选择左侧加「撤回」按钮，撤销最后一轮会话     |
+| `office-skills` | 移除 dsh 自带 office 技能 | 关   | 屏蔽宿主内置的 office / office-* 技能（provider `dsh-office`） |
 
 ## 安装
 
@@ -83,6 +84,21 @@ API；存活会话优先于磁盘，且改文件后存活会话继续追加会�
 - **不回填附件**：只回填该轮 `user/message` 的文本；图片与文件附件需要重新选择。
 - **不是时间旅行**：撤销的是「最后一轮」，不是任意轮。
 
+## 工具三：移除 dsh 自带 office 技能
+
+桌面宿主在启动时用代码挂载 `@deepseek-ai/dsh-skill-office`，把 `office`、`office-docx`、
+`office-pptx`、`office-xlsx`、`office-render`、`office-recalculate`、`office-export-pdf`
+七个技能注册成 provider `dsh-office`（全局层，rank 600）。这些技能不在 profile 配置里，
+`.dsh` 的 patch 关不掉，所以本工具改在**读取面**上做屏蔽：
+
+- 包装 `ctx.skills` 的 `list` / `snapshot` / `get`，命中判据的条目既不进技能目录，也加载不到；
+- 判据：`provider === "dsh-office"`，或 `bundled` 来源的 `office` / `office-*`（provider 被改名时兜底）；
+- 用户自己的 `office-*`（`user-dsh` / `project-dsh` 来源）不受影响；
+- 不注销 provider、不删安装目录里的 `SKILL.md`、不改状态文件以外的任何东西；关闭开关即还原三个入口。
+
+宿主升级带来的 provider 改名会让「provider 判据」失效，此时 bundled + 名字判据仍然生效；
+若两个判据都不命中（例如上游换了来源标签），开关会静默无效——真机验收时看 skill 目录即可发现。
+
 ## 配置
 
 全部字段可选；写在 profile 的 cordis 配置里，面板开关写在状态文件中（见下）。
@@ -105,7 +121,7 @@ API；存活会话优先于磁盘，且改文件后存活会话继续追加会�
 ```json
 {
   "version": 1,
-  "tools": { "nested-skill": true, "undo-turn": true },
+  "tools": { "nested-skill": true, "undo-turn": true, "office-skills": false },
   "pendingDeletes": []
 }
 ```
@@ -139,11 +155,13 @@ API；存活会话优先于磁盘，且改文件后存活会话继续追加会�
 
 ## 验证
 
-1. 重启宿主后，左侧边栏出现 `toolkit` 行；点击打开面板，两个工具各有一个开关。
+1. 重启宿主后，左侧边栏出现 `toolkit` 行；点击打开面板，三个工具各有一个开关。
 2. 关闭「嵌套 skill 发现」后新会话的 skill 目录里不再有嵌套 skill；重新打开后恢复。
-3. 任意会话发一条消息、等它跑完，点「撤回」→ 确认：会话回到上一轮结束的状态，
+3. 开启「移除 dsh 自带 office 技能」后新会话的 skill 目录里不再有 `office*`；
+   `skill` 加载 `office-docx` 也拿不到内容；关闭开关后恢复。
+4. 任意会话发一条消息、等它跑完，点「撤回」→ 确认：会话回到上一轮结束的状态，
    输入框出现刚才那条原文，侧边栏不再有被撤销的那条会话。
-4. 再次点「撤回」，若会话只剩一轮则按钮置灰。
+5. 再次点「撤回」，若会话只剩一轮则按钮置灰。
 
 ## 卸载
 

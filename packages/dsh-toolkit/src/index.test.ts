@@ -74,6 +74,22 @@ const harness = (options: HarnessOptions = {}): Harness => {
     };
   }
   const warns = vi.fn();
+  const catalog = [
+    {
+      name: "office-docx",
+      description: "word documents",
+      invocation: { modelInvocable: true, userInvocable: true },
+      source: "bundled",
+      provider: "dsh-office",
+    },
+    {
+      name: "code-spec",
+      description: "coding rules",
+      invocation: { modelInvocable: true, userInvocable: true },
+      source: "project-agents",
+      provider: "nested-agents",
+    },
+  ];
   const ctx: Record<string, unknown> = {
     logger: { warn: warns, info: vi.fn() },
     get: (key: string) => {
@@ -102,8 +118,16 @@ const harness = (options: HarnessOptions = {}): Harness => {
           providerNames.splice(providerNames.indexOf(provider.name), 1);
         };
       },
+      list: async () => [...catalog],
+      snapshot: async () => ({ skills: [...catalog], complete: true }),
+      get: async (skillName: string) => {
+        const match = catalog.find((skill) => skill.name === skillName);
+        return match === undefined ? undefined : { ...match, content: `${skillName} body` };
+      },
     },
   };
+  // cordis 的服务是 `ctx.get(name)` 取到的；`ctx.skills` 只是同一实例的语法糖。
+  services["skills"] = ctx["skills"];
   return { ctx, routes, providerNames, disposers, archived, detached, warns };
 };
 
@@ -133,7 +157,11 @@ describe("toolkit plugin entry", () => {
   it("declares identity and config schema", () => {
     expect(name).toBe("toolkit");
     expect(inject).toEqual(["skills"]);
-    expect(TOOL_IDS).toEqual({ nestedSkill: "nested-skill", undoTurn: "undo-turn" });
+    expect(TOOL_IDS).toEqual({
+      nestedSkill: "nested-skill",
+      undoTurn: "undo-turn",
+      officeSkills: "office-skills",
+    });
     const parsed = Config({ agentsHome: "/tmp/agents", extraRoots: ["/x"] });
     expect(parsed.watch).toBe(true);
     expect(parsed.agentsHome).toBe("/tmp/agents");
@@ -152,7 +180,11 @@ describe("toolkit plugin entry", () => {
       new Request(`http://127.0.0.1${TOOLKIT_STATE_PATH}`),
     );
     const body = (await state?.json()) as { tools: { id: string; enabled: boolean }[] };
-    expect(body.tools.map((tool) => tool.id)).toEqual(["nested-skill", "undo-turn"]);
+    expect(body.tools.map((tool) => tool.id)).toEqual([
+      "nested-skill",
+      "undo-turn",
+      "office-skills",
+    ]);
   });
 
   it("removes the provider when the nested-skill tool is switched off", async () => {
@@ -166,6 +198,34 @@ describe("toolkit plugin entry", () => {
     );
     expect(response?.status).toBe(200);
     expect(providerNames).toEqual([]);
+  });
+
+  it("masks the built-in office skills while the office tool is on", async () => {
+    const directory = await tempDir();
+    const { ctx, routes } = harness();
+    apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
+    await vi.waitFor(() => expect(routes.size).toBe(2));
+    const skills = ctx["skills"] as {
+      snapshot(): Promise<{ skills: { name: string }[] }>;
+      get(name: string): Promise<unknown>;
+    };
+    const visible = async (): Promise<string[]> =>
+      (await skills.snapshot()).skills.map((skill) => skill.name);
+
+    expect(await visible()).toEqual(["office-docx", "code-spec"]);
+
+    const on = await routes.get(TOOLKIT_STATE_PATH)?.(
+      post(TOOLKIT_STATE_PATH, { id: "office-skills", enabled: true }),
+    );
+    expect(on?.status).toBe(200);
+    expect(await visible()).toEqual(["code-spec"]);
+    expect(await skills.get("office-docx")).toBeUndefined();
+    expect(await skills.get("code-spec")).toBeDefined();
+
+    await routes.get(TOOLKIT_STATE_PATH)?.(
+      post(TOOLKIT_STATE_PATH, { id: "office-skills", enabled: false }),
+    );
+    expect(await visible()).toEqual(["office-docx", "code-spec"]);
   });
 
   it("persists the switch so a remount starts from it", async () => {

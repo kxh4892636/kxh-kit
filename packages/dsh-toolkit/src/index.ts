@@ -5,6 +5,7 @@ import z from "@deepseek-ai/schemastery";
 import type Schema from "@deepseek-ai/schemastery";
 import type { UndoAvailability, UndoTurnResponse } from "./contract.js";
 import { createNestedSkillTool } from "./host/tools/nested-skill.js";
+import { createOfficeSkillsTool } from "./host/tools/office-skills.js";
 import { createUndoTurnTool } from "./host/tools/undo-turn.js";
 import { registerToolkitRoutes, type ToolkitRouteRegistry } from "./host/toolkit-routes.js";
 import { ToolkitRegistry } from "./host/toolkit-registry.js";
@@ -94,7 +95,11 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
   const store = new ToolkitStateStore(
     nodeToolkitStateIo(config.stateFile ?? join(home, "toolkit", "state.json")),
   );
-  const tools = [createNestedSkillTool(nestedOptions(config)), createUndoTurnTool()];
+  const tools = [
+    createNestedSkillTool(nestedOptions(config)),
+    createUndoTurnTool(),
+    createOfficeSkillsTool(),
+  ];
   const registry = new ToolkitRegistry({ ctx, tools, store, logger });
   const undoTarget = (): UndoDeps | undefined => {
     const sessions = serviceOf<HostSessionStore>(ctx, "sessions");

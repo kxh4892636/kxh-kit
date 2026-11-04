@@ -20,6 +20,7 @@ status: in_progress
    - 宿主 HTTP 路由：`GET api/toolkit/state`（工具清单 + 开关）、`POST api/toolkit/state`（`{ id, enabled }`）、`POST api/toolkit/undo-turn`（`{ sessionId }` → `{ childSessionId, prompt }`）。
    - 工具一 `nested-skill`：迁移现有 provider，默认启用。
    - 工具二 `undo-turn`：宿主执行撤销（算切点 → fork → 归档 → detach → 排队删除原会话目录）。
+   - 工具三 `office-skills`：屏蔽宿主内置 office 技能；默认关闭，开启时在 `ctx.skills` 读取面（`list` / `snapshot` / `get`）过滤，见 [06](06-屏蔽自带office技能.md)。
    - 启动时执行待删除队列（会话未存活则立即删除，存活则推迟到下次启动）。
 2. **客户端半（`src/client/*` → `dist/client.js`）**
    - root 作用域 `sidebar.panellist` 注册 `toolkit` 图标行 + `main` 注册同 key 面板；面板列出工具与开关，读写宿主路由。
@@ -54,7 +55,7 @@ status: in_progress
 
 ## 范围
 
-包改名与 manifest、宿主工具注册表/状态/路由、客户端 bundle 与 toolkit 面板、嵌套 skill 工具化、撤回工具（按钮 + 确认 + 宿主执行 + 草稿回填 + 原会话删除）、测试、README、打包安装与真机验证。
+包改名与 manifest、宿主工具注册表/状态/路由、客户端 bundle 与 toolkit 面板、嵌套 skill 工具化、撤回工具（按钮 + 确认 + 宿主执行 + 草稿回填 + 原会话删除）、office 技能屏蔽、测试、README、打包安装与真机验证。
 
 ## 非范围
 
@@ -93,6 +94,13 @@ status: in_progress
 - 门禁（0.2.3）：`vp test src` 126 passed；覆盖率 90.82 / 81.11 / 96.31 / 95.72（阈值 80）；`vp check` 0 error 0 warning；`vp pack` 双产物 + `wrap-client` 装载校验；`npm pack` 生产依赖无 `catalog:`。
 - commit：`543003fb`（重构）、`20651c01`（工具栏样式 + 领域文档）、`2f0cca12`（权限选择对齐，0.2.2）、`117e0f6d`（原生样式方案 + ui-primitives 复用，0.2.3）。
 
+（2026-11-05）
+
+- note 06（屏蔽自带 office 技能）：completed —— 新工具 `office-skills`（默认关闭）；取证确认 office 技能由
+  `dsh-desktop-host` 在代码里挂成全局 provider `dsh-office`，profile 层没有可 `disabled` 的行，因此在
+  `ctx.skills` 的 `list` / `snapshot` / `get` 上做读取面过滤；版本 `0.3.0`。
+- 门禁（0.3.0）：`vp test src` 142 passed；`vp check` 0 error 0 warning；`skill-mask.ts` / `office-skills.ts` 覆盖率 100%。
+
 ## 恢复入口
 
 1. 读 [05-打包安装与真机验证.md](05-打包安装与真机验证.md) 的「执行检查点」与 README 的「验证」四步。
@@ -104,10 +112,11 @@ status: in_progress
 
 ## Notes
 
-| #   | Notes                                                            | 状态        | 阻塞于     | 下一步                       |
-| --- | ---------------------------------------------------------------- | ----------- | ---------- | ---------------------------- |
-| 01  | [拷问与方案定案](01-拷问与方案定案.md)                           | completed   | —          | —                            |
-| 02  | [包重命名与工具注册表](02-包重命名与工具注册表.md)               | completed   | 01         | —                            |
-| 03  | [客户端 bundle 与 toolkit 面板](03-客户端bundle与toolkit面板.md) | completed   | 01         | —                            |
-| 04  | [撤回工具](04-撤回工具.md)                                       | completed   | 01, 02, 03 | —                            |
-| 05  | [打包、安装与真机验证](05-打包安装与真机验证.md)                 | in_progress | 02, 03, 04 | 重启宿主后走 README 验证四步 |
+| #   | Notes                                                            | 状态        | 阻塞于     | 下一步                           |
+| --- | ---------------------------------------------------------------- | ----------- | ---------- | -------------------------------- |
+| 01  | [拷问与方案定案](01-拷问与方案定案.md)                           | completed   | —          | —                                |
+| 02  | [包重命名与工具注册表](02-包重命名与工具注册表.md)               | completed   | 01         | —                                |
+| 03  | [客户端 bundle 与 toolkit 面板](03-客户端bundle与toolkit面板.md) | completed   | 01         | —                                |
+| 04  | [撤回工具](04-撤回工具.md)                                       | completed   | 01, 02, 03 | —                                |
+| 05  | [打包、安装与真机验证](05-打包安装与真机验证.md)                 | in_progress | 02, 03, 04 | 重启宿主后走 README 验证四步     |
+| 06  | [屏蔽自带 office 技能](06-屏蔽自带office技能.md)                 | completed   | 02         | 装 0.3.0 后走 README 验证第 3 步 |
