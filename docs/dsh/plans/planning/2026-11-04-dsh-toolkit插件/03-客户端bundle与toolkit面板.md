@@ -41,7 +41,7 @@ blocked_by: ["01"]
 - `vp pack` 的 `pack` 配置可以是数组（`vite-plus/dist/pack-bin.js`：`Array.isArray(viteConfig.pack)`），因此一次 `vp pack` 顺序构建宿主半（ESM/node）与客户端半（CJS/browser），客户端配置 `clean: false` 且 `deps.neverBundle` 列出平台模块。
 - CLI 的 `--deps.never-bundle` 在 `--no-config` 下不生效（cac 把键名变成 `deps.never-bundle`），所以放弃 CLI 方案。
 - `@deepseek-ai/dsh-client-ui-primitives` 只存在于宿主浏览器模块表：源码用 `src/client/primitives.d.ts` 声明成员，单测用 `test.alias` 指向 `src/client/test-primitives.ts`。
-- 样式用内联 `CSSProperties`（React 19 不接受字符串 style），颜色走宿主主题 token。
+- 样式方案与宿主一致：一份带 `data-plugin-css` 的插件样式表，只写 `--dsw-*` token；面板容器/行卡片复刻设置页 `section`/`rowCard` 度量（`--dsw-alias-settings-card-fill/-stroke`、`--dsw-radius-xl`、0.5px 描边），工具 id 以 `rowTag` 呈现；开关复用 `ui-primitives` 的 `Switch`；不再有内联样式模块。
 - 面板与撤回按钮共享 `toolkitClientState`（`useSyncExternalStore`）：面板写、按钮读。
 
 ## 执行检查点
@@ -55,6 +55,6 @@ note 04 的宿主侧撤回与 note 05 安装验收。
 ## 交付记录
 
 - 交付物：`src/client/*` + `dist/client.js`（`window.__ModuleLoader__.load({ id: "@kxh4892636/dsh-toolkit", factory })`）。
-- 验证：`wrap-client` 装载校验通过；面板/按钮 9 项单测通过；构建日志显示客户端产物 20.78 kB（React 外置）。
+- 验证（0.2.3）：`wrap-client` 装载校验通过；面板 5 项单测（含设置页结构/类名断言与「样式表只含 token、无字面色值」断言）+ 样式表 2 项 + 按钮 5 项；`vp test src` 全量 126 passed；客户端产物 22.1 kB（React 与 UI 基座外置）。
 - 证据：`dist/client.js` 内 `require("react")` 仍在、`react.production` 无命中；`wrap-client` 报告 `wrote dist/client.js (19181 bytes)`。
 - 遗留：GUI 里入口与面板的可见性需宿主重启后验收（note 05）。

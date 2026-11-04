@@ -89,8 +89,9 @@ status: in_progress
 - note 03（客户端 bundle 与 toolkit 面板）：completed —— `dist/client.js` 模块载体、面板、共享 store。
 - note 04（撤回工具）：completed —— 切点/fork/归档/detach/删除队列 + composer 按钮与确认弹窗。
 - note 05（打包安装与真机验证）：in_progress —— tgz 已装进 desktop profile，旧包已移除；真实 cordis 冒烟通过；**GUI 验收待宿主重启**。
-- 门禁：`vp test src` 123 passed；覆盖率 90.92 / 80.88 / 96.32 / 95.83（阈值 80）；`vp check` 0 error 0 warning；`vp pack` 双产物；`npm pack` 生产依赖无 `catalog:`。
-- commit：`543003fb feat(dsh): dsh-nested-skill 重构为 dsh-toolkit 工具集`。
+- 样式：面板与撤回控件改为宿主同一套 CSS 方案——插件注入一份只写 `--dsw-*` token 的样式表，面板复刻设置页 section/rowCard 度量，开关复用 `ui-primitives` 的 `Switch`，弹窗复用 `Modal` + `Button`（note 03/04）。
+- 门禁（0.2.3）：`vp test src` 126 passed；覆盖率 90.82 / 81.11 / 96.31 / 95.72（阈值 80）；`vp check` 0 error 0 warning；`vp pack` 双产物 + `wrap-client` 装载校验；`npm pack` 生产依赖无 `catalog:`。
+- commit：`543003fb`（重构）、`20651c01`（工具栏样式 + 领域文档）、`2f0cca12`（权限选择对齐，0.2.2）、`117e0f6d`（原生样式方案 + ui-primitives 复用，0.2.3）。
 
 ## 恢复入口
 
