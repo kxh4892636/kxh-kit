@@ -11,7 +11,7 @@ export const createNestedSkillTool = (options: NestedSkillOptions): ToolkitTool 
   id: TOOL_IDS.nestedSkill,
   title: "嵌套 skill 发现",
   description: "在 .agents 树内任意深度发现 SKILL.md，而不限于内建的一层形态。",
-  defaultEnabled: true,
+  defaultEnabled: false,
   apply: (ctx: Context): (() => void) => {
     let provider: NestedSkillProvider | undefined;
     const disposeProvider = ctx.skills.registerProvider((control) => {

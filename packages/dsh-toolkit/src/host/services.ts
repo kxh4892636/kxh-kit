@@ -27,16 +27,26 @@ export interface HostSessionController {
   fork(request: { sessionId: string; atSeq: number }): Promise<{ sessionId: string }>;
 }
 
-/** 工作区记录：`detachSession` 从记账里摘掉一个会话 id（`dsh-workspace/lib/index.js:148-151`）。 */
+/**
+ * 工作区记录：会话记账顺序与「插到某个会话之前」
+ * （`dsh-workspace/lib/index.js:111-159`：`attachSession` 前插、`insertSessionBefore` 精确落位）。
+ */
 export interface HostWorkspaceRecord {
   readonly sessionIds: readonly string[];
+  insertSessionBefore(sessionId: string, beforeSessionId?: string): Promise<void>;
   detachSession(sessionId: string): Promise<void>;
 }
 
-/** 工作区注册表：归档即移出所有分组视图，`stopActivity` 同时停掉在跑的工作。 */
+/**
+ * 工作区注册表：归档即移出所有分组视图（`stopActivity` 同时停掉在跑的工作），
+ * 置顶集合是注册表全局的、按 pin 顺序排列（`dsh-workspace/lib/index.js:564-606`）。
+ */
 export interface HostWorkspaceRegistry {
   list(): readonly HostWorkspaceRecord[];
+  readonly pinnedSessionIds: readonly string[];
   archiveSession(sessionId: string, options?: { stopActivity?: boolean }): Promise<void>;
+  pinSession(sessionId: string): Promise<void>;
+  unpinSession(sessionId: string): Promise<void>;
 }
 
 /** 从任意 cordis 服务表里按名字取服务；取不到时返回 undefined。 */

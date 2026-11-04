@@ -43,8 +43,9 @@ const log = (): HostSessionEvent[] => [
 interface SetupOptions {
   readonly live?: boolean;
   readonly archiveFails?: boolean;
-  readonly detachFails?: boolean;
+  readonly placeFails?: boolean;
   readonly retainLogs?: boolean;
+  readonly pinned?: readonly string[];
 }
 
 const setup = async (options: SetupOptions = {}) => {
@@ -60,20 +61,44 @@ const setup = async (options: SetupOptions = {}) => {
   };
   const fork = vi.fn(async () => ({ sessionId: "session-child" }));
   const controller: HostSessionController = { fork };
-  const detachSession = options.detachFails
+  const inserted: { sessionId: string; before: string | undefined }[] = [];
+  const insertSessionBefore = options.placeFails
     ? vi.fn(async () => {
-        throw new Error("detach failed");
+        throw new Error("insert failed");
       })
-    : vi.fn(async () => {});
-  const record: HostWorkspaceRecord = { sessionIds: ["session-source"], detachSession };
+    : vi.fn(async (sessionId: string, before: string | undefined) => {
+        inserted.push({ sessionId, before });
+      });
+  const record: HostWorkspaceRecord = {
+    sessionIds: ["session-source", "session-after"],
+    insertSessionBefore,
+    detachSession: vi.fn(async () => {}),
+  };
+  const pinned = [...(options.pinned ?? [])];
   const archiveSession = options.archiveFails
     ? vi.fn(async () => {
         throw new Error("archive failed");
       })
-    : vi.fn(async () => {});
+    : vi.fn(async (sessionId: string) => {
+        // 与宿主一致：归档会顺手把该会话从置顶集合里摘掉。
+        const index = pinned.indexOf(sessionId);
+        if (index >= 0) pinned.splice(index, 1);
+      });
+  const pinSession = vi.fn(async (sessionId: string) => {
+    if (!pinned.includes(sessionId)) pinned.unshift(sessionId);
+  });
+  const unpinSession = vi.fn(async (sessionId: string) => {
+    const index = pinned.indexOf(sessionId);
+    if (index >= 0) pinned.splice(index, 1);
+  });
   const workspaces: HostWorkspaceRegistry = {
     list: () => [record],
+    get pinnedSessionIds() {
+      return [...pinned];
+    },
     archiveSession,
+    pinSession,
+    unpinSession,
   };
   const store = new ToolkitStateStore(memoryStateIo());
   await store.load();
@@ -97,7 +122,19 @@ const setup = async (options: SetupOptions = {}) => {
     logger: { warn },
     logIo,
   };
-  return { deps, fork, archiveSession, detachSession, store, removed, warn };
+  return {
+    deps,
+    fork,
+    archiveSession,
+    insertSessionBefore,
+    inserted,
+    pinSession,
+    unpinSession,
+    pinned,
+    store,
+    removed,
+    warn,
+  };
 };
 
 describe("inspectUndo", () => {
@@ -128,15 +165,34 @@ describe("inspectUndo", () => {
 });
 
 describe("undoTurn", () => {
-  it("forks at the previous turn end, archives, detaches and queues the delete", async () => {
-    const { deps, fork, archiveSession, detachSession, store } = await setup();
+  it("forks at the previous turn end, archives, keeps the slot and queues the delete", async () => {
+    const { deps, fork, archiveSession, insertSessionBefore, store } = await setup();
     const result = await undoTurn(deps, "session-source");
     expect(result).toEqual({ childSessionId: "session-child", prompt: "二" });
     expect(fork).toHaveBeenCalledWith({ sessionId: "session-source", atSeq: 2 });
     expect(archiveSession).toHaveBeenCalledWith("session-source", { stopActivity: true });
-    expect(detachSession).toHaveBeenCalledWith("session-source");
+    // 记账位置：插到原会话原来的后继之前（而不是被 fork 默认前插）。
+    expect(insertSessionBefore).toHaveBeenCalledWith("session-child", "session-after");
     // 第一次查询仍返回存活会话，因此删除推迟到下次启动。
     expect(store.snapshot().pendingDeletes).toEqual(["session-source"]);
+  });
+
+  it("takes over the pin slot of the source session", async () => {
+    const { deps, pinned, pinSession, unpinSession } = await setup({
+      pinned: ["session-other", "session-source", "session-third"],
+    });
+    await undoTurn(deps, "session-source");
+    expect(unpinSession).toHaveBeenCalled();
+    // 子会话顶替原会话在置顶集合里的序号。
+    expect(pinned).toEqual(["session-other", "session-child", "session-third"]);
+    expect(pinSession).toHaveBeenCalledWith("session-child");
+  });
+
+  it("leaves pinning alone when the source was not pinned", async () => {
+    const { deps, pinned, pinSession } = await setup({ pinned: ["session-other"] });
+    await undoTurn(deps, "session-source");
+    expect(pinSession).not.toHaveBeenCalled();
+    expect(pinned).toEqual(["session-other"]);
   });
 
   it("deletes the log directory when the session is already gone", async () => {
@@ -153,20 +209,22 @@ describe("undoTurn", () => {
   });
 
   it("does not queue a delete when archiving fails", async () => {
-    const { deps, store, detachSession, archiveSession } = await setup({ archiveFails: true });
+    const { deps, store, insertSessionBefore, archiveSession } = await setup({
+      archiveFails: true,
+    });
     const result = await undoTurn(deps, "session-source");
     expect(result.childSessionId).toBe("session-child");
     expect(archiveSession).toHaveBeenCalled();
-    expect(detachSession).not.toHaveBeenCalled();
+    expect(insertSessionBefore).not.toHaveBeenCalled();
     expect(store.snapshot().pendingDeletes).toEqual([]);
   });
 
-  it("tolerates a detach failure", async () => {
-    const { deps, warn } = await setup({ detachFails: true });
+  it("tolerates a placement failure", async () => {
+    const { deps, warn } = await setup({ placeFails: true });
     await expect(undoTurn(deps, "session-source")).resolves.toMatchObject({
       childSessionId: "session-child",
     });
-    expect(warn).toHaveBeenCalledWith(expect.stringContaining('detach of "session-source" failed'));
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('placing "session-child" failed'));
   });
 
   it("works without a workspace registry", async () => {

@@ -36,7 +36,8 @@ describe("nested-skill tool", () => {
 
   it("declares the catalog entry and registers a provider on apply", () => {
     const tool = createNestedSkillTool({ watch: false });
-    expect(tool).toMatchObject({ id: "nested-skill", defaultEnabled: true });
+    // 所有工具默认关闭（用户要求）：需要用户在 toolkit 面板里显式打开。
+    expect(tool).toMatchObject({ id: "nested-skill", defaultEnabled: false });
     const { ctx, providerNames, observers } = toolContext();
     const dispose = tool.apply(ctx as never);
     expect(providerNames).toEqual(["nested-agents"]);
@@ -65,7 +66,7 @@ describe("nested-skill tool", () => {
 describe("undo-turn tool", () => {
   it("declares the catalog entry without host state", () => {
     const tool = createUndoTurnTool();
-    expect(tool).toMatchObject({ id: "undo-turn", defaultEnabled: true });
+    expect(tool).toMatchObject({ id: "undo-turn", defaultEnabled: false });
     const dispose = tool.apply({} as never);
     expect(dispose).toBeTypeOf("function");
     dispose();

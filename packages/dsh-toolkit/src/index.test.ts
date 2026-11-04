@@ -18,16 +18,18 @@ interface Harness {
   readonly providerNames: string[];
   readonly disposers: (() => void)[];
   readonly archived: string[];
-  readonly detached: string[];
+  readonly pinned: string[];
+  readonly inserted: { sessionId: string; before: string | undefined }[];
   readonly warns: ReturnType<typeof vi.fn>;
 }
 
-const harness = (options: HarnessOptions = {}): Harness => {
+const makeHarness = (options: HarnessOptions = {}): Harness => {
   const routes = new Map<string, (request: Request) => Promise<Response>>();
   const providerNames: string[] = [];
   const disposers: (() => void)[] = [];
   const archived: string[] = [];
-  const detached: string[] = [];
+  const pinned: string[] = [];
+  const inserted: { sessionId: string; before: string | undefined }[] = [];
   const services: Record<string, unknown> = {
     connection:
       options.connection === false
@@ -62,34 +64,31 @@ const harness = (options: HarnessOptions = {}): Harness => {
     services["workspaceRegistry"] = {
       list: () => [
         {
-          sessionIds: ["session-source"],
-          detachSession: async (sessionId: string) => {
-            detached.push(sessionId);
+          sessionIds: ["session-source", "session-after"],
+          insertSessionBefore: async (sessionId: string, before: string | undefined) => {
+            inserted.push({ sessionId, before });
           },
+          detachSession: async () => {},
         },
       ],
+      get pinnedSessionIds() {
+        return [...pinned];
+      },
       archiveSession: async (sessionId: string) => {
         archived.push(sessionId);
+        const index = pinned.indexOf(sessionId);
+        if (index >= 0) pinned.splice(index, 1);
+      },
+      pinSession: async (sessionId: string) => {
+        if (!pinned.includes(sessionId)) pinned.unshift(sessionId);
+      },
+      unpinSession: async (sessionId: string) => {
+        const index = pinned.indexOf(sessionId);
+        if (index >= 0) pinned.splice(index, 1);
       },
     };
   }
   const warns = vi.fn();
-  const catalog = [
-    {
-      name: "office-docx",
-      description: "word documents",
-      invocation: { modelInvocable: true, userInvocable: true },
-      source: "bundled",
-      provider: "dsh-office",
-    },
-    {
-      name: "code-spec",
-      description: "coding rules",
-      invocation: { modelInvocable: true, userInvocable: true },
-      source: "project-agents",
-      provider: "nested-agents",
-    },
-  ];
   const ctx: Record<string, unknown> = {
     logger: { warn: warns, info: vi.fn() },
     get: (key: string) => {
@@ -118,17 +117,9 @@ const harness = (options: HarnessOptions = {}): Harness => {
           providerNames.splice(providerNames.indexOf(provider.name), 1);
         };
       },
-      list: async () => [...catalog],
-      snapshot: async () => ({ skills: [...catalog], complete: true }),
-      get: async (skillName: string) => {
-        const match = catalog.find((skill) => skill.name === skillName);
-        return match === undefined ? undefined : { ...match, content: `${skillName} body` };
-      },
     },
   };
-  // cordis 的服务是 `ctx.get(name)` 取到的；`ctx.skills` 只是同一实例的语法糖。
-  services["skills"] = ctx["skills"];
-  return { ctx, routes, providerNames, disposers, archived, detached, warns };
+  return { ctx, routes, providerNames, disposers, archived, pinned, inserted, warns };
 };
 
 const workspaces: string[] = [];
@@ -145,6 +136,14 @@ const post = (path: string, body: unknown): Request => {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
+};
+
+/** 工具默认全部关闭：测试里先显式打开再用。 */
+const enable = async (
+  routes: Map<string, (request: Request) => Promise<Response>>,
+  id: string,
+): Promise<void> => {
+  await routes.get(TOOLKIT_STATE_PATH)?.(post(TOOLKIT_STATE_PATH, { id, enabled: true }));
 };
 
 afterEach(async () => {
@@ -168,29 +167,38 @@ describe("toolkit plugin entry", () => {
     expect(parsed.extraRoots).toEqual(["/x"]);
   });
 
-  it("mounts the nested-skill provider and both host routes", async () => {
+  it("starts with every tool switched off", async () => {
     const directory = await tempDir();
-    const { ctx, routes, providerNames } = harness();
+    const { ctx, routes, providerNames } = makeHarness();
     apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
-
-    await vi.waitFor(() => expect(providerNames).toEqual(["nested-agents"]));
-    expect([...routes.keys()].sort()).toEqual([TOOLKIT_STATE_PATH, TOOLKIT_UNDO_PATH].sort());
-
+    await vi.waitFor(() => expect(routes.size).toBe(2));
+    expect(providerNames).toEqual([]);
     const state = await routes.get(TOOLKIT_STATE_PATH)?.(
       new Request(`http://127.0.0.1${TOOLKIT_STATE_PATH}`),
     );
     const body = (await state?.json()) as { tools: { id: string; enabled: boolean }[] };
-    expect(body.tools.map((tool) => tool.id)).toEqual([
-      "nested-skill",
-      "undo-turn",
-      "office-skills",
+    expect(body.tools.map((tool) => `${tool.id}:${tool.enabled}`)).toEqual([
+      "nested-skill:false",
+      "undo-turn:false",
+      "office-skills:false",
     ]);
+  });
+
+  it("mounts the nested-skill provider once the tool is enabled", async () => {
+    const directory = await tempDir();
+    const { ctx, routes, providerNames } = makeHarness();
+    apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
+    await vi.waitFor(() => expect(routes.size).toBe(2));
+    await enable(routes, "nested-skill");
+    await vi.waitFor(() => expect(providerNames).toEqual(["nested-agents"]));
   });
 
   it("removes the provider when the nested-skill tool is switched off", async () => {
     const directory = await tempDir();
-    const { ctx, routes, providerNames } = harness();
+    const { ctx, routes, providerNames } = makeHarness();
     apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
+    await vi.waitFor(() => expect(routes.size).toBe(2));
+    await enable(routes, "nested-skill");
     await vi.waitFor(() => expect(providerNames).toEqual(["nested-agents"]));
 
     const response = await routes.get(TOOLKIT_STATE_PATH)?.(
@@ -200,110 +208,81 @@ describe("toolkit plugin entry", () => {
     expect(providerNames).toEqual([]);
   });
 
-  it("masks the built-in office skills while the office tool is on", async () => {
-    const directory = await tempDir();
-    const { ctx, routes } = harness();
-    apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
-    await vi.waitFor(() => expect(routes.size).toBe(2));
-    const skills = ctx["skills"] as {
-      snapshot(): Promise<{ skills: { name: string }[] }>;
-      get(name: string): Promise<unknown>;
-    };
-    const visible = async (): Promise<string[]> =>
-      (await skills.snapshot()).skills.map((skill) => skill.name);
-
-    expect(await visible()).toEqual(["office-docx", "code-spec"]);
-
-    const on = await routes.get(TOOLKIT_STATE_PATH)?.(
-      post(TOOLKIT_STATE_PATH, { id: "office-skills", enabled: true }),
-    );
-    expect(on?.status).toBe(200);
-    expect(await visible()).toEqual(["code-spec"]);
-    expect(await skills.get("office-docx")).toBeUndefined();
-    expect(await skills.get("code-spec")).toBeDefined();
-
-    await routes.get(TOOLKIT_STATE_PATH)?.(
-      post(TOOLKIT_STATE_PATH, { id: "office-skills", enabled: false }),
-    );
-    expect(await visible()).toEqual(["office-docx", "code-spec"]);
-  });
-
   it("persists the switch so a remount starts from it", async () => {
     const directory = await tempDir();
     const stateFile = join(directory, "state.json");
-    const first = harness();
+    const first = makeHarness();
     apply(first.ctx as never, { stateFile, sessionsRoot: directory });
+    await vi.waitFor(() => expect(first.routes.size).toBe(2));
+    await enable(first.routes, "nested-skill");
     await vi.waitFor(() => expect(first.providerNames).toHaveLength(1));
-    await first.routes.get(TOOLKIT_STATE_PATH)?.(
-      post(TOOLKIT_STATE_PATH, { id: "nested-skill", enabled: false }),
-    );
 
-    const second = harness();
+    const second = makeHarness();
     apply(second.ctx as never, { stateFile, sessionsRoot: directory });
-    await vi.waitFor(() => expect(second.routes.size).toBe(2));
-    await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(second.providerNames).toEqual([]);
+    await vi.waitFor(() => expect(second.providerNames).toEqual(["nested-agents"]));
   });
 
   it("reports undo as unsupported when the host has no session control", async () => {
     const directory = await tempDir();
-    const { ctx, routes } = harness();
+    const { ctx, routes } = makeHarness();
     apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
     await vi.waitFor(() => expect(routes.size).toBe(2));
+    await enable(routes, "undo-turn");
     const response = await routes.get(TOOLKIT_UNDO_PATH)?.(
       new Request(`http://127.0.0.1${TOOLKIT_UNDO_PATH}?sessionId=session-1`),
     );
     expect(await response?.json()).toEqual({ available: false, reason: "unsupported-host" });
   });
 
-  it("runs undo through the composed host services", async () => {
+  it("runs undo through the composed host services and keeps the source placement", async () => {
     const directory = await tempDir();
-    const { ctx, routes, archived, detached } = harness({ sessionControl: true });
+    const { ctx, routes, archived, pinned, inserted } = makeHarness({ sessionControl: true });
     apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
     await vi.waitFor(() => expect(routes.size).toBe(2));
-
-    const probe = await routes.get(TOOLKIT_UNDO_PATH)?.(
-      new Request(`http://127.0.0.1${TOOLKIT_UNDO_PATH}?sessionId=session-source`),
-    );
-    expect(await probe?.json()).toEqual({ available: true, prompt: "two" });
+    await enable(routes, "undo-turn");
+    pinned.push("session-source", "session-other");
 
     const undone = await routes.get(TOOLKIT_UNDO_PATH)?.(
       post(TOOLKIT_UNDO_PATH, { sessionId: "session-source" }),
     );
     expect(await undone?.json()).toEqual({ childSessionId: "session-child", prompt: "two" });
     expect(archived).toEqual(["session-source"]);
-    expect(detached).toEqual(["session-source"]);
+    // 记账位置：插到原会话的后继之前；置顶位：顶替原会话在置顶集合里的序号。
+    expect(inserted).toEqual([{ sessionId: "session-child", before: "session-after" }]);
+    expect(pinned).toEqual(["session-child", "session-other"]);
   });
 
   it("skips routes when the host exposes no connection registry", async () => {
     const directory = await tempDir();
-    const { ctx, routes, providerNames } = harness({ connection: false });
+    const { ctx, routes, providerNames } = makeHarness({ connection: false });
     apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
-    await vi.waitFor(() => expect(providerNames).toEqual(["nested-agents"]));
+    await new Promise((resolve) => setTimeout(resolve, 20));
     expect(routes.size).toBe(0);
+    expect(providerNames).toEqual([]);
   });
 
   it("keeps running when the state file cannot be read", async () => {
-    const { ctx, providerNames, warns } = harness();
+    const { ctx, warns } = makeHarness();
     apply(ctx as never, {
       stateFile: join(tmpdir(), "dsh-toolkit-unwritable\u0000", "state.json"),
       sessionsRoot: join(tmpdir(), "dsh-toolkit-unwritable"),
     });
     await vi.waitFor(() => expect(warns).toHaveBeenCalled());
-    expect(providerNames).toEqual([]);
   });
 
   it("unwinds the provider on plugin dispose", async () => {
     const directory = await tempDir();
-    const { ctx, providerNames, disposers } = harness();
+    const { ctx, routes, providerNames, disposers } = makeHarness();
     apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
+    await vi.waitFor(() => expect(routes.size).toBe(2));
+    await enable(routes, "nested-skill");
     await vi.waitFor(() => expect(providerNames).toEqual(["nested-agents"]));
     for (const dispose of disposers) dispose();
     await vi.waitFor(() => expect(providerNames).toEqual([]));
   });
 
   it("treats an unreadable service table as unsupported", () => {
-    const { ctx } = harness({ getThrows: true });
+    const { ctx } = makeHarness({ getThrows: true });
     expect(serviceOf(ctx as { get(key: string): unknown }, "connection")).toBeUndefined();
     expect(() =>
       apply(ctx as never, { stateFile: join(tmpdir(), "x", "state.json"), sessionsRoot: tmpdir() }),

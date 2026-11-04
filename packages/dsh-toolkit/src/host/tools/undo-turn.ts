@@ -9,6 +9,6 @@ export const createUndoTurnTool = (): ToolkitTool => ({
   id: TOOL_IDS.undoTurn,
   title: "撤回",
   description: "在会话工具栏加一个「撤回」按钮：确认后回到上一轮结束的状态并取回本轮输入。",
-  defaultEnabled: true,
+  defaultEnabled: false,
   apply: () => () => {},
 });
