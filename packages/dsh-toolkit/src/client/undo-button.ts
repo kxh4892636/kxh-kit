@@ -24,7 +24,6 @@ const UndoIcon: FC = () => {
   return createElement(
     "svg",
     {
-      className: "dshtk-undo-icon",
       viewBox: "0 0 16 16",
       fill: "none",
       stroke: "currentColor",
@@ -85,14 +84,14 @@ export const UndoButton: FC<UndoButtonProps> = (props) => {
         title: available ? "撤回上一轮" : hintOf(availability),
         "aria-label": "撤回上一轮",
         disabled: !available || busy,
-        className: "dshtk-undo",
+        className: "dshtk-undo-trigger",
         onClick: () => {
           setError(undefined);
           setOpen(true);
         },
       },
-      createElement(UndoIcon),
-      "撤回",
+      createElement("span", { className: "dshtk-undo-trigger-icon" }, createElement(UndoIcon)),
+      createElement("span", { className: "dshtk-undo-trigger-label" }, "撤回"),
     ),
     createElement(ConfirmModal, {
       open,

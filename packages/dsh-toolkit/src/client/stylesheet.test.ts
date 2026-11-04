@@ -10,7 +10,7 @@ describe("ensureToolkitStyles", () => {
       'style[data-plugin-css="@kxh4892636/dsh-toolkit/toolkit.css"]',
     );
     expect(tags).toHaveLength(1);
-    expect(tags[0]?.textContent).toContain(".dshtk-undo");
+    expect(tags[0]?.textContent).toContain(".dshtk-undo-trigger");
     expect(tags[0]?.textContent).toContain("hover:not(:disabled)");
     expect(tags[0]?.getAttribute("data-plugin")).toBe("@kxh4892636/dsh-toolkit");
   });
