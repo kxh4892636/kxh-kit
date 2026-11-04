@@ -10,6 +10,8 @@ describe("ToolkitPanelIcon", () => {
     expect(html).toContain("<svg");
     expect(html).toContain('width="18"');
     expect(html).toContain('stroke="currentColor"');
+    // 宿主图标统一 1px 描边，避免在侧边栏里显得过粗。
+    expect(html).toContain('stroke-width="1"');
   });
 
   it("falls back to the 16px default", () => {

@@ -186,17 +186,41 @@ const css = `
   font-size: 12px;
   line-height: 18px;
 }
-.dshtk-dialog-actions {
-  justify-content: flex-end;
+/* 弹窗动作用宿主 Button；平台模块表缺 Button 时按它的度量兜底（36px / radius-md / 14px 内边距）。 */
+.dshtk-button {
+  box-sizing: border-box;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  display: flex;
+  justify-content: center;
+  gap: 4px;
+  height: 36px;
+  padding: 0 14px;
+  border: none;
+  border-radius: var(--dsw-radius-md);
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  cursor: pointer;
 }
-.dshtk-modal-action {
-  min-width: 72px;
+.dshtk-button:disabled {
+  cursor: not-allowed;
+  opacity: .4;
 }
-.dshtk-confirm-action {
-  min-width: 136px;
+.dshtk-button-primary {
+  background: var(--dsw-alias-button-primary-fill);
+  color: var(--dsw-alias-label-primary-foreground);
+}
+.dshtk-button-primary:hover:not(:disabled) {
+  background: var(--dsw-alias-button-primary-hover);
+}
+.dshtk-button-outline {
+  border: .5px solid var(--dsw-alias-border-l3);
+  background: transparent;
+}
+.dshtk-button-outline:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
 }
 `;
 

@@ -26,10 +26,9 @@ describe("ConfirmModal", () => {
     expect(within(dialog).getByText(baseProps.message)).toBeDefined();
     const preview = container.querySelector("pre.dshtk-dialog-preview");
     expect(preview?.textContent).toBe("commit");
-    const cancel = within(dialog).getByText("取消");
-    const confirm = within(dialog).getByText("撤回");
-    expect(cancel.className).toBe("dshtk-modal-action");
-    expect(confirm.className).toBe("dshtk-confirm-action");
+    // 动作交给宿主 Button（outline 取消 + primary 确认），宽度随内容。
+    expect(within(dialog).getByText("取消").tagName).toBe("BUTTON");
+    expect(within(dialog).getByText("撤回").tagName).toBe("BUTTON");
   });
 
   it("wires the two actions", () => {

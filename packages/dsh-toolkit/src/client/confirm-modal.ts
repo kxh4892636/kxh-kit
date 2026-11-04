@@ -1,4 +1,4 @@
-import { createElement, type FC, type ReactNode } from "react";
+import { createElement, Fragment, type FC, type ReactNode } from "react";
 import { Button, Modal } from "@deepseek-ai/dsh-client-ui-primitives";
 import { ensureToolkitStyles } from "./stylesheet.js";
 
@@ -61,38 +61,41 @@ const renderBody = (props: ConfirmModalProps): ReactNode => {
   return createElement("div", { className: "dshtk-dialog-stack" }, ...children);
 };
 
+/** 弹窗底部动作：与宿主其余对话框一致（`outline` 取消 + `primary` 确认，md 尺寸，宽度随内容）。 */
 const renderFooter = (props: ConfirmModalProps): ReactNode => {
   return createElement(
-    "div",
-    { className: "dshtk-dialog-actions" },
-    renderButton(props.cancelLabel, "outline", "dshtk-modal-action", props.busy, props.onCancel),
-    renderButton(
-      props.confirmLabel,
-      "primary",
-      "dshtk-confirm-action",
-      props.busy,
-      props.onConfirm,
-    ),
+    Fragment,
+    null,
+    renderButton(props.cancelLabel, "outline", props.busy, props.onCancel),
+    renderButton(props.confirmLabel, "primary", props.busy, props.onConfirm),
   );
 };
 
 const renderButton = (
   label: string,
   variant: "outline" | "primary",
-  className: string,
   disabled: boolean | undefined,
   onClick: () => void,
 ): ReactNode => {
   if (typeof Button === "function") {
     return createElement(Button, {
       variant,
-      className,
       ...(disabled === undefined ? {} : { disabled }),
       onClick,
       children: label,
     });
   }
-  return createElement("button", { type: "button", disabled, onClick }, label);
+  // 平台模块表缺 Button 时仍按宿主 Button 的度量画（36px 高、radius-md、14/22、14px 内边距）。
+  return createElement(
+    "button",
+    {
+      type: "button",
+      className: `dshtk-button dshtk-button-${variant}`,
+      disabled,
+      onClick,
+    },
+    label,
+  );
 };
 
 const renderFallback = (
