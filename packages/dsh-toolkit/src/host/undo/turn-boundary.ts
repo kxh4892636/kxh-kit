@@ -31,15 +31,36 @@ export const findUndoTarget = (events: readonly UndoSessionEvent[]): UndoTarget 
   const lastIndex = lastTurnStartIndex(events);
   const start = lastIndex < 0 ? undefined : events[lastIndex];
   if (start === undefined) return undefined;
-  const cutSeq = start.seq - 1;
+  const cutSeq = boundaryBefore(events, start.seq);
   if (cutSeq < 0) return undefined;
-  if (events[cutSeq]?.seq !== cutSeq) return undefined;
   return {
     turn: countTurns(events, lastIndex),
     turnStartSeq: start.seq,
     cutSeq,
     prompt: promptOfTurn(events, start.seq),
   };
+};
+
+/**
+ * 切点：`turn/start` 之前最近的「真事件」。
+ *
+ * 排队输入会先写入 `agent/inbox/spliced`（把提示词插进 inbox），`turn/start` 才随后出现；
+ * 若直接取 `start - 1`，fork 出来的子会话会**继承那条尚在排队的用户输入**，打开后表现为
+ * 又把这条消息发了一遍。因此切点向前跳过 inbox 记账事件，落在上一轮的最后一个真实事件上。
+ * @param events - 事件序列。
+ * @param startSeq - 目标轮 `turn/start` 的 seq。
+ * @returns 切点 seq；没有可回退的真事件时为 -1。
+ */
+const boundaryBefore = (events: readonly UndoSessionEvent[], startSeq: number): number => {
+  let cutSeq = startSeq - 1;
+  while (cutSeq >= 0 && isInboxBookkeeping(events[cutSeq])) cutSeq -= 1;
+  if (cutSeq < 0) return -1;
+  return events[cutSeq]?.seq === cutSeq ? cutSeq : -1;
+};
+
+/** inbox 记账事件（排队提示词的插入/领取/撤销）不属于任何一轮的可回退状态。 */
+const isInboxBookkeeping = (event: UndoSessionEvent | undefined): boolean => {
+  return event !== undefined && event.type.startsWith("agent/inbox/");
 };
 
 const lastTurnStartIndex = (events: readonly UndoSessionEvent[]): number => {

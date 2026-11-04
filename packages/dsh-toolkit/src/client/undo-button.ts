@@ -17,6 +17,15 @@ import { ensureToolkitStyles } from "./stylesheet.js";
 export interface UndoButtonProps {
   readonly sessionId: string;
   readonly ctx: ClientContext;
+  /** 会话快照选择器（`conversation.input.right` 的标准 props），用于感知轮次起止。 */
+  readonly useSession?: <S>(selector: (snapshot: SessionSnapshotLike) => S) => S;
+}
+
+/** 只声明要读的会话快照字段（宿主 `SessionSnapshot`）。 */
+export interface SessionSnapshotLike {
+  readonly running?: boolean;
+  readonly blank?: boolean;
+  readonly pendingSubmissions?: readonly unknown[];
 }
 
 /** 「撤回」的图标：向左回转的箭头，尺寸与工具栏其它控件一致（14px）。 */
@@ -47,19 +56,49 @@ export const UndoButton: FC<UndoButtonProps> = (props) => {
     () => toolkitClientState.getSnapshot(),
   );
   const enabled = tools.tools.find((tool) => tool.id === "undo-turn")?.enabled ?? true;
+  // 轮次起止（running 翻转）本身就是「可撤销目标」变化的信号：只在挂载时探测会让
+  // 会话从第 1 轮涨到第 2 轮后仍显示为禁用，必须切换会话才刷新。
+  const running = props.useSession?.((snapshot) => snapshot.running === true) ?? false;
+  const queued =
+    props.useSession?.((snapshot) => (snapshot.pendingSubmissions?.length ?? 0) > 0) ?? false;
   const [availability, setAvailability] = useState<UndoAvailability | undefined>(undefined);
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) {
+      setAvailability(undefined);
+      return;
+    }
     const controller = new AbortController();
-    fetchUndoAvailability(props.sessionId, controller.signal)
-      .then((next) => setAvailability(next))
-      .catch(() => setAvailability(undefined));
-    return () => controller.abort();
-  }, [enabled, props.sessionId]);
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let attempts = 0;
+    setAvailability(undefined);
+    // 第一次探测可能早于宿主打开该会话（或历史尚未装载），此时会拿到 session-not-live；
+    // 因此不可用时短暂重试，而不是把「禁用」写死在挂载那一刻。
+    const probe = (): void => {
+      fetchUndoAvailability(props.sessionId, controller.signal)
+        .then((next) => {
+          if (controller.signal.aborted) return;
+          setAvailability(next);
+          if (next.available === false && attempts < 30) {
+            attempts += 1;
+            timer = setTimeout(probe, 1000);
+          }
+        })
+        .catch(() => {
+          if (controller.signal.aborted || attempts >= 30) return;
+          attempts += 1;
+          timer = setTimeout(probe, 1000);
+        });
+    };
+    probe();
+    return () => {
+      controller.abort();
+      if (timer !== undefined) clearTimeout(timer);
+    };
+  }, [enabled, props.sessionId, running, queued]);
 
   const confirm = useCallback((): void => {
     setBusy(true);

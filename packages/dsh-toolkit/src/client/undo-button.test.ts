@@ -112,6 +112,48 @@ describe("UndoButton", () => {
     });
   });
 
+  it("re-probes when the session starts or finishes a turn", async () => {
+    const { ctx } = harness();
+    let snapshot = { running: false, pendingSubmissions: [] as unknown[] };
+    const useSession = <S>(selector: (value: typeof snapshot) => S): S => selector(snapshot);
+    let available = false;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        json(
+          available
+            ? { available: true, prompt: "第二轮" }
+            : { available: false, reason: "no-previous-turn" },
+        ),
+      ),
+    );
+    const view = render(createElement(UndoButton, { sessionId: "session-1", ctx, useSession }));
+    const button = await screen.findByRole("button", { name: "撤回上一轮" });
+    await waitFor(() => expect(button).toHaveProperty("disabled", true));
+
+    // 新一轮开始（running 翻转）后必须重新探测，无需切换会话。
+    available = true;
+    snapshot = { running: true, pendingSubmissions: [] };
+    view.rerender(createElement(UndoButton, { sessionId: "session-1", ctx, useSession }));
+    await waitFor(() => expect(button).toHaveProperty("disabled", false));
+    expect(button.getAttribute("title")).toBe("撤回上一轮");
+  });
+
+  it("retries while the host has not opened the session yet", async () => {
+    const { ctx } = harness();
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(json({ available: false, reason: "session-not-live" }))
+      .mockResolvedValue(json({ available: true, prompt: "late" }));
+    vi.stubGlobal("fetch", fetchMock);
+    render(createElement(UndoButton, { sessionId: "session-late", ctx }));
+    const button = await screen.findByRole("button", { name: "撤回上一轮" });
+    await waitFor(() => expect(button).toHaveProperty("disabled", true));
+    // 一秒后自动重试并转为可用，用户无需切换会话。
+    await waitFor(() => expect(button).toHaveProperty("disabled", false), { timeout: 2500 });
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(1);
+  });
+
   it("shows the host error and re-enables the dialog", async () => {
     const { ctx } = harness();
     vi.stubGlobal(

@@ -24,6 +24,7 @@ declare module "@deepseek-ai/dsh-client-ui-primitives" {
     disabled?: boolean;
     onClick?: () => void;
     type?: "button" | "submit";
+    className?: string;
     children?: import("react").ReactNode;
   }>;
 

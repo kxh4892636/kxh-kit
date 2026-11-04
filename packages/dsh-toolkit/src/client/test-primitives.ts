@@ -9,6 +9,9 @@ interface ModalProps {
   readonly onClose: () => void;
   readonly title?: string;
   readonly closeLabel?: string;
+  readonly description?: string;
+  readonly className?: string;
+  readonly contentClassName?: string;
   readonly children?: unknown;
   readonly footer?: unknown;
 }
@@ -19,6 +22,7 @@ export const Modal = (props: ModalProps): unknown => {
     "div",
     { role: "dialog", "aria-label": props.title },
     createElement("div", null, props.title),
+    props.description === undefined ? null : createElement("p", null, props.description),
     props.children as never,
     props.footer as never,
   );
@@ -26,6 +30,7 @@ export const Modal = (props: ModalProps): unknown => {
 
 interface ButtonProps {
   readonly variant?: string;
+  readonly className?: string;
   readonly disabled?: boolean;
   readonly onClick?: () => void;
   readonly children?: unknown;
@@ -34,7 +39,12 @@ interface ButtonProps {
 export const Button = (props: ButtonProps): unknown => {
   return createElement(
     "button",
-    { type: "button", disabled: props.disabled, onClick: props.onClick },
+    {
+      type: "button",
+      className: props.className,
+      disabled: props.disabled,
+      onClick: props.onClick,
+    },
     props.children as never,
   );
 };

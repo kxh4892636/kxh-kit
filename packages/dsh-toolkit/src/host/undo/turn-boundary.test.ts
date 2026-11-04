@@ -104,4 +104,31 @@ describe("findUndoTarget", () => {
     ];
     expect(findUndoTarget(log)).toBeUndefined();
   });
+
+  it("skips queued-input bookkeeping so a fork does not inherit the undone prompt", () => {
+    // 真机日志形态：提示词先进 inbox（agent/inbox/spliced），随后才是 turn/start。
+    const log = events([
+      ["turn/start", { turn: 1 }],
+      ["user/message", userMessage("one")],
+      ["turn/end", { turn: 1 }],
+      ["agent/inbox/spliced", { target: "next-turn", inserted: [{ content: [] }] }],
+      ["turn/start", { turn: 2 }],
+      ["agent/inbox/spliced", { target: "next-turn", removedCount: 1, inserted: [] }],
+      ["user/message", userMessage("two")],
+    ]);
+    const target = findUndoTarget(log);
+    expect(target?.cutSeq).toBe(2);
+    expect(target?.prompt).toBe("two");
+  });
+
+  it("drops every trailing inbox event before the target turn", () => {
+    const log = events([
+      ["turn/start", { turn: 1 }],
+      ["turn/end", { turn: 1 }],
+      ["agent/inbox/spliced", {}],
+      ["agent/inbox/spliced", {}],
+      ["turn/start", { turn: 2 }],
+    ]);
+    expect(findUndoTarget(log)?.cutSeq).toBe(1);
+  });
 });

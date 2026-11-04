@@ -149,17 +149,22 @@ const css = `
   overflow: hidden;
 }
 
-/* ── 撤回确认弹窗的正文层级（外壳由宿主 Modal + Button 提供）────────────── */
-.dshtk-dialog-body {
-  flex-direction: column;
-  gap: 12px;
-  display: flex;
+/* ── 撤回确认弹窗：复刻宿主 RiskConfirmation 的宽度/滚动/按钮度量 ────────── */
+.dshtk-confirmation {
+  width: min(440px, 100%);
+  max-height: min(calc(100dvh - 48px), 100%);
+  overflow: hidden;
 }
-.dshtk-dialog-message {
-  margin: 0;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 14px;
-  line-height: 22px;
+.dshtk-confirmation-content {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.dshtk-dialog-stack {
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  display: flex;
 }
 .dshtk-dialog-preview {
   border-radius: var(--dsw-radius-md);
@@ -171,6 +176,7 @@ const css = `
   overflow: auto;
   margin: 0;
   padding: 8px 10px;
+  font-family: inherit;
   font-size: 12px;
   line-height: 18px;
 }
@@ -179,6 +185,18 @@ const css = `
   margin: 0;
   font-size: 12px;
   line-height: 18px;
+}
+.dshtk-dialog-actions {
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  display: flex;
+}
+.dshtk-modal-action {
+  min-width: 72px;
+}
+.dshtk-confirm-action {
+  min-width: 136px;
 }
 `;
 
