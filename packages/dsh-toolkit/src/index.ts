@@ -1,0 +1,176 @@
+import { join } from "node:path";
+import type { Context } from "@deepseek-ai/cordis";
+import { resolveDshHome } from "@deepseek-ai/dsh-home-paths";
+import z from "@deepseek-ai/schemastery";
+import type Schema from "@deepseek-ai/schemastery";
+import type { UndoAvailability, UndoTurnResponse } from "./contract.js";
+import { createNestedSkillTool } from "./host/tools/nested-skill.js";
+import { createUndoTurnTool } from "./host/tools/undo-turn.js";
+import { registerToolkitRoutes, type ToolkitRouteRegistry } from "./host/toolkit-routes.js";
+import { ToolkitRegistry } from "./host/toolkit-registry.js";
+import { nodeToolkitStateIo, ToolkitStateStore } from "./host/toolkit-state.js";
+import { runPendingPurge } from "./host/undo/purge.js";
+import {
+  UndoUnavailableError,
+  inspectUndo,
+  undoTurn,
+  type UndoDeps,
+} from "./host/undo/undo-turn.js";
+import {
+  hasMethod,
+  serviceOf,
+  type HostSessionController,
+  type HostSessionStore,
+  type HostWorkspaceRegistry,
+} from "./host/services.js";
+import { DEFAULT_EXCLUDED_DIRS, type NestedSkillOptions } from "./nested-skill/provider.js";
+
+export { NESTED_SKILL_RANKS, nestedRank, PROVIDER_NAME } from "./nested-skill/provider.js";
+export type { NestedSkillSource } from "./nested-skill/provider.js";
+export { TOOL_IDS } from "./contract.js";
+
+/** 插件配置：嵌套 skill 工具的选项 + 工具目录状态与会话日志根的位置覆盖。 */
+export type Config = NestedSkillOptions & {
+  /** 工具状态文件；缺省 `$DSH_HOME/toolkit/state.json`。 */
+  stateFile?: string;
+  /** 会话日志根；缺省 `$DSH_HOME/sessions`。 */
+  sessionsRoot?: string;
+};
+
+export const Config: Schema<Config> = z.object({
+  watch: z.boolean().default(true),
+  watchUsePolling: z.boolean().default(false),
+  watchPollIntervalMs: z.number().default(100),
+  watchStabilityThresholdMs: z.number().default(200),
+  includeUserRoots: z.boolean().default(true),
+  agentsHome: z.string(),
+  excludedDirs: z.array(z.string()).default(DEFAULT_EXCLUDED_DIRS),
+  extraRoots: z.array(z.string()).default([]),
+  stateFile: z.string(),
+  sessionsRoot: z.string(),
+});
+
+export const name = "toolkit";
+export const inject = ["skills"];
+
+/**
+ * 挂载工具集：注册路由、按持久状态启停工具，并清理上次运行遗留的待删除会话。
+ * @param ctx - 插件所在 cordis 上下文。
+ * @param config - 插件配置；全部字段可选。
+ */
+export const apply = (ctx: Context, config: Config = {}): void => {
+  const runtime = createRuntime(ctx, config);
+  ctx.effect(() => () => void runtime.dispose(), "toolkit: runtime");
+  ctx.inject(["connection"], (child: Context) => {
+    const connection = serviceOf<ToolkitRouteRegistry>(child, "connection");
+    if (!hasRouteRegistry(connection)) return;
+    const disposeRoutes = registerToolkitRoutes({
+      registry: runtime.registry,
+      connection,
+      logger: ctx.logger,
+      undo: {
+        inspect: (sessionId: string) => runtime.inspect(sessionId),
+        run: (sessionId: string) => runtime.undo(sessionId),
+      },
+    });
+    child.effect(() => disposeRoutes, "toolkit: routes");
+  });
+  void runtime.start();
+};
+
+/** 运行期：状态存储、工具注册表与宿主服务的懒查找。 */
+interface ToolkitRuntime {
+  readonly registry: ToolkitRegistry;
+  start(): Promise<void>;
+  dispose(): Promise<void>;
+  inspect(sessionId: string): UndoAvailability;
+  undo(sessionId: string): Promise<UndoTurnResponse>;
+}
+
+const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
+  const logger = ctx.logger;
+  const home = resolveDshHome();
+  const sessionsRoot = config.sessionsRoot ?? join(home, "sessions");
+  const store = new ToolkitStateStore(
+    nodeToolkitStateIo(config.stateFile ?? join(home, "toolkit", "state.json")),
+  );
+  const tools = [createNestedSkillTool(nestedOptions(config)), createUndoTurnTool()];
+  const registry = new ToolkitRegistry({ ctx, tools, store, logger });
+  const undoTarget = (): UndoDeps | undefined => {
+    const sessions = serviceOf<HostSessionStore>(ctx, "sessions");
+    const controller = serviceOf<HostSessionController>(ctx, "sessionController");
+    if (!hasMethod<HostSessionStore>(sessions, "get")) return undefined;
+    if (!hasMethod<HostSessionController>(controller, "fork")) return undefined;
+    return {
+      sessions,
+      controller,
+      workspaces: workspaceRegistry(ctx),
+      store,
+      sessionsRoot,
+      logger,
+    };
+  };
+  return {
+    registry,
+    async start() {
+      try {
+        await registry.initialize();
+        await runPendingPurge(store, sessionsRoot, logger);
+      } catch (error) {
+        logger.warn(`toolkit: start failed: ${describe(error)}`);
+      }
+    },
+    async dispose() {
+      await registry.dispose();
+    },
+    inspect(sessionId) {
+      const deps = undoTarget();
+      if (deps === undefined) return { available: false, reason: "unsupported-host" };
+      return inspectUndo(deps, sessionId);
+    },
+    async undo(sessionId) {
+      const deps = undoTarget();
+      if (deps === undefined) {
+        throw new UndoUnavailableError("unsupported-host", "this host exposes no session control");
+      }
+      return undoTurn(deps, sessionId);
+    },
+  };
+};
+
+const workspaceRegistry = (ctx: Context): HostWorkspaceRegistry | undefined => {
+  const service = serviceOf<HostWorkspaceRegistry>(ctx, "workspaceRegistry");
+  if (!hasMethod<HostWorkspaceRegistry>(service, "list")) return undefined;
+  if (!hasMethod<HostWorkspaceRegistry>(service, "archiveSession")) return undefined;
+  return service;
+};
+
+/** `ctx.connection.fetch` 是对象而不是函数，因此单独判断其 `register` 成员。 */
+const hasRouteRegistry = (service: unknown): service is ToolkitRouteRegistry => {
+  if (typeof service !== "object" || service === null) return false;
+  const fetch = (service as { fetch?: unknown }).fetch;
+  if (typeof fetch !== "object" || fetch === null) return false;
+  return typeof (fetch as { register?: unknown }).register === "function";
+};
+
+/** 只把嵌套 skill 工具认识的字段传下去，避免工具集选项被当成 provider 选项。 */
+const nestedOptions = (config: Config): NestedSkillOptions => {
+  const options: NestedSkillOptions = {};
+  if (config.watch !== undefined) options.watch = config.watch;
+  if (config.watchUsePolling !== undefined) options.watchUsePolling = config.watchUsePolling;
+  if (config.watchPollIntervalMs !== undefined) {
+    options.watchPollIntervalMs = config.watchPollIntervalMs;
+  }
+  if (config.watchStabilityThresholdMs !== undefined) {
+    options.watchStabilityThresholdMs = config.watchStabilityThresholdMs;
+  }
+  if (config.includeUserRoots !== undefined) options.includeUserRoots = config.includeUserRoots;
+  if (config.agentsHome !== undefined) options.agentsHome = config.agentsHome;
+  if (config.excludedDirs !== undefined) options.excludedDirs = config.excludedDirs;
+  if (config.extraRoots !== undefined) options.extraRoots = config.extraRoots;
+  return options;
+};
+
+const describe = (error: unknown): string => {
+  return error instanceof Error ? error.message : String(error);
+};

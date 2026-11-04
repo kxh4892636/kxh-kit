@@ -1,0 +1,6 @@
+# dsh-toolkit bundle patch: mounts the tool registry over the profile root.
+# The plugin owns one cordis entry; each tool is switched inside the plugin
+# (toolkit panel) instead of through loader entries.
+- insert:
+    - id: toolkit
+      name: "@kxh4892636/dsh-toolkit"
