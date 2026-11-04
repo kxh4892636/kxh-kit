@@ -3,6 +3,8 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { ClientContext } from "./contract.js";
+import { rememberDraft, resetDrafts } from "./draft-restore.js";
+import { applyPendingDraft } from "./undo-button.js";
 import { toolkitClientState } from "./state.js";
 import { UndoButton } from "./undo-button.js";
 
@@ -44,17 +46,18 @@ afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
   toolkitClientState.reset();
+  resetDrafts();
 });
 
 describe("UndoButton", () => {
   it("asks for confirmation before running the undo", async () => {
-    const { ctx, openSession, requestDraftInitialization } = harness();
+    const { ctx, openSession } = harness();
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(json({ available: true, prompt: "上一轮的输入" }))
       .mockResolvedValueOnce(json({ childSessionId: "session-child", prompt: "上一轮的输入" }));
     vi.stubGlobal("fetch", fetchMock);
-    render(createElement(UndoButton, { sessionId: "session-source", ctx }));
+    const view = render(createElement(UndoButton, { sessionId: "session-source", ctx }));
 
     const button = await screen.findByRole("button", { name: "撤回上一轮" });
     await waitFor(() => expect(button).toHaveProperty("disabled", false));
@@ -65,14 +68,40 @@ describe("UndoButton", () => {
 
     fireEvent.click(within(screen.getByRole("dialog")).getByText("撤回"));
     await waitFor(() => expect(openSession).toHaveBeenCalledWith("session-child"));
-    await waitFor(() =>
-      expect(requestDraftInitialization).toHaveBeenCalledWith(expect.anything(), {
-        prompt: "上一轮的输入",
-        whenDraftExists: "replace",
+
+    // 草稿由新会话自己的按钮写入：模拟导航后以子会话 id 重挂载。
+    const setDraft = vi.fn();
+    const persistDraft = vi.fn();
+    view.rerender(
+      createElement(UndoButton, {
+        sessionId: "session-child",
+        ctx,
+        inputActions: { setDraft, persistDraft },
       }),
     );
+    await waitFor(() => expect(setDraft).toHaveBeenCalledWith("上一轮的输入"));
+    expect(persistDraft).toHaveBeenCalled();
+    resetDrafts();
   });
 
+  it("falls back to the conversation service when the component path did not run", () => {
+    const { ctx, requestDraftInitialization } = harness();
+    rememberDraft("session-child", "兜底文本");
+    expect(applyPendingDraft(ctx, "session-child")).toBe(true);
+    expect(requestDraftInitialization).toHaveBeenCalledWith(expect.anything(), {
+      prompt: "兜底文本",
+      whenDraftExists: "replace",
+    });
+    // 取走即消费：第二次不再写。
+    expect(applyPendingDraft(ctx, "session-child")).toBe(false);
+  });
+
+  it("reports no fallback when the binding is not ready", () => {
+    const { ctx } = harness(false);
+    rememberDraft("session-child", "兜底文本");
+    expect(applyPendingDraft(ctx, "session-child")).toBe(false);
+    resetDrafts();
+  });
   it("does nothing when the confirmation is cancelled", async () => {
     const { ctx, openSession } = harness();
     const fetchMock = vi.fn(async () => json({ available: true, prompt: "x" }));

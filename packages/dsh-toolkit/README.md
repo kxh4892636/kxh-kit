@@ -63,6 +63,7 @@ profile 的 `dsh.profile.bundles` 会多出本包及其 `cordis.patch.yml` 挂�
 - 控件样式与 composer 的「权限选择」逐条一致（同样的字体/字号/颜色/hover），文字左侧带 14px 回转箭头，与模型选择器之间的 gap 收到 6px。
 - 确认弹窗外壳用宿主 `Modal`、动作用宿主 `Button`。
 - 点击弹出确认框（宿主原生确认对话框布局：标题/说明 + 原文预览 + 取消/确认），取消不改动任何状态。
+- 回填时序：`openSession` 只是同步换掉主视图引用，composer 随后才挂载；因此原文先登记为「待回填」，由新会话自己的撤回按钮（与 composer 同时挂载）用 `inputActions.setDraft` 写进输入框并 `persistDraft()`；1.5s 后若仍未被消费，再走 `conversation.input.requestDraftInitialization` 兜底。
 - 可用性随会话轮次变化自动刷新，宿主尚未打开会话时会短暂重试，无需切换会话。
 - 确认后：停掉正在执行的一轮 → 会话回到**上一轮结束**的状态 → 本轮的用户原文回到输入框
   → 原会话被删除（先从所有分组视图隐藏，再删除持久化日志；会话仍存活时推迟到下次启动）。

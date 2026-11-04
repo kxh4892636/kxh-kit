@@ -10,6 +10,7 @@ import type { UndoAvailability, UndoTurnResponse } from "../contract.js";
 import { clientService, hasMethod, type ClientContext } from "./contract.js";
 import { ConfirmModal } from "./confirm-modal.js";
 import { fetchUndoAvailability, HostApiError, runUndoTurn } from "./host-api.js";
+import { dropDraft, peekDraft, rememberDraft, takeDraft } from "./draft-restore.js";
 import { toolkitClientState } from "./state.js";
 import { ensureToolkitStyles } from "./stylesheet.js";
 
@@ -19,6 +20,14 @@ export interface UndoButtonProps {
   readonly ctx: ClientContext;
   /** 会话快照选择器（`conversation.input.right` 的标准 props），用于感知轮次起止。 */
   readonly useSession?: <S>(selector: (snapshot: SessionSnapshotLike) => S) => S;
+  /** composer 的标准动作面；撤回后用它把原文写进新会话的输入框。 */
+  readonly inputActions?: InputActionsLike;
+}
+
+/** composer 动作面里本插件用到的两个写草稿入口（宿主 `InputActions`）。 */
+export interface InputActionsLike {
+  readonly setDraft?: (text: string) => void;
+  readonly persistDraft?: () => void;
 }
 
 /** 只声明要读的会话快照字段（宿主 `SessionSnapshot`）。 */
@@ -100,6 +109,8 @@ export const UndoButton: FC<UndoButtonProps> = (props) => {
     };
   }, [enabled, props.sessionId, running, queued]);
 
+  usePendingDraft(props.inputActions, props.sessionId);
+
   const confirm = useCallback((): void => {
     setBusy(true);
     setError(undefined);
@@ -152,8 +163,17 @@ export const UndoButton: FC<UndoButtonProps> = (props) => {
   );
 };
 
-/** 打开撤销得到的新会话，并把被撤销那一轮的用户原文放回输入框。 */
+/**
+ * 打开撤销得到的新会话，并把被撤销那一轮的用户原文放回输入框。
+ *
+ * 关键点：`openSession` 只是同步地换掉主视图引用，composer 在此之后才挂载；
+ * 这时按 binding 去写草稿常常打在**还没挂载**的 shell 上而被随后的挂载覆盖。
+ * 因此草稿先登记为「待回填」，由新会话自己的撤回按钮（与 composer 同时挂载）用
+ * `inputActions.setDraft` 落地；这里只保一条 1.5s 后的服务面兜底。
+ */
 const openUndone = async (ctx: ClientContext, result: UndoTurnResponse): Promise<void> => {
+  if (result.prompt === "") return;
+  rememberDraft(result.childSessionId, result.prompt);
   const workspace = clientService<{ openSession(id: string): Promise<unknown> }>(
     ctx,
     "uiWorkspace",
@@ -161,37 +181,78 @@ const openUndone = async (ctx: ClientContext, result: UndoTurnResponse): Promise
   if (workspace !== undefined && typeof workspace.openSession === "function") {
     await workspace.openSession(result.childSessionId).catch(() => {});
   }
-  if (result.prompt === "") return;
+  scheduleFallback(ctx, result);
+};
+
+/** 兜底：组件路径没来得及消费时，等服务面 binding 稳定后再写一次。 */
+const scheduleFallback = (ctx: ClientContext, result: UndoTurnResponse): void => {
+  setTimeout(() => {
+    applyPendingDraft(ctx, result.childSessionId);
+  }, FALLBACK_DELAY_MS);
+};
+
+/**
+ * 兜底写入：直接经 `conversation.input.requestDraftInitialization` 落到当前 binding 上。
+ * @param ctx - 客户端根上下文。
+ * @param sessionId - 待回填的会话。
+ * @returns 是否真的写入（没有待回填草稿、服务缺失或 binding 尚未建立时为 false）。
+ */
+export const applyPendingDraft = (ctx: ClientContext, sessionId: string): boolean => {
+  const prompt = peekDraft(sessionId);
+  if (prompt === undefined) return false;
   const sessions = clientService<{ binding(id: string): unknown }>(ctx, "sessions");
   const conversation = clientService<{
     input?: { requestDraftInitialization?: (binding: unknown, options: object) => string };
   }>(ctx, "conversation");
   const initialize = conversation?.input?.requestDraftInitialization;
-  if (!hasMethod<{ binding(id: string): unknown }>(sessions, "binding")) return;
-  if (typeof initialize !== "function") return;
-  const binding = await waitForBinding(sessions, result.childSessionId);
-  if (binding === undefined) return;
-  initialize.call(conversation?.input, binding, {
-    prompt: result.prompt,
-    whenDraftExists: "replace",
-  });
+  if (!hasMethod<{ binding(id: string): unknown }>(sessions, "binding")) return false;
+  if (typeof initialize !== "function") return false;
+  try {
+    const binding = sessions.binding(sessionId);
+    if (binding === undefined) return false;
+    initialize.call(conversation?.input, binding, { prompt, whenDraftExists: "replace" });
+    dropDraft(sessionId);
+    return true;
+  } catch {
+    // binding 仍在切换：留给下一次会话重挂载再试。
+    return false;
+  }
 };
 
-/** 打开会话是异步的：短暂轮询等待 binding 出现。 */
-const waitForBinding = async (
-  sessions: { binding(id: string): unknown },
+/** 兜底延迟：足够等到 composer 挂载，又不至于让用户等不到输入框。 */
+const FALLBACK_DELAY_MS = 1500;
+
+/**
+ * 由新会话的撤回按钮取走待回填草稿并写进输入框。
+ * @param inputActions - composer 的标准动作面（`setDraft` 是宿主公开的写草稿入口）。
+ * @param sessionId - 当前会话。
+ */
+const usePendingDraft = (
+  inputActions: UndoButtonProps["inputActions"],
   sessionId: string,
-): Promise<unknown> => {
-  for (let attempt = 0; attempt < 20; attempt += 1) {
-    try {
-      const binding = sessions.binding(sessionId);
-      if (binding !== undefined) return binding;
-    } catch {
-      // binding 尚未建立：继续等待。
-    }
-    await new Promise((resolve) => setTimeout(resolve, 50));
-  }
-  return undefined;
+): void => {
+  useEffect(() => {
+    let attempts = 0;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const apply = (): void => {
+      const prompt = peekDraft(sessionId);
+      if (prompt === undefined) return;
+      const setDraft = inputActions?.setDraft;
+      if (typeof setDraft !== "function") {
+        if (attempts >= 20) return;
+        attempts += 1;
+        timer = setTimeout(apply, 100);
+        return;
+      }
+      takeDraft(sessionId);
+      setDraft(prompt);
+      inputActions?.persistDraft?.();
+    };
+    apply();
+    return () => {
+      if (timer !== undefined) clearTimeout(timer);
+    };
+  }, [inputActions, sessionId]);
 };
 
 const hintOf = (availability: UndoAvailability | undefined): string => {
