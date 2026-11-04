@@ -1,14 +1,6 @@
-import { createElement, type CSSProperties, type FC, type ReactNode } from "react";
+import { createElement, type FC, type ReactNode } from "react";
 import { Button, Modal } from "@deepseek-ai/dsh-client-ui-primitives";
-import {
-  bodyTextStyle,
-  errorTextStyle,
-  fallbackButtonStyle,
-  footerStyle,
-  previewStyle,
-  stackStyle,
-  titleTextStyle,
-} from "./styles.js";
+import { ensureToolkitStyles } from "./stylesheet.js";
 
 /** 确认弹窗的属性：全部由撤回按钮控制，弹窗自身无状态。 */
 export interface ConfirmModalProps {
@@ -25,21 +17,13 @@ export interface ConfirmModalProps {
   readonly onCancel: () => void;
 }
 
-const fallbackStyle: CSSProperties = {
-  marginTop: 8,
-  padding: 12,
-  borderRadius: 10,
-  display: "flex",
-  flexDirection: "column",
-  gap: 8,
-  border: "1px solid color-mix(in srgb, var(--dsw-alias-label-secondary) 30%, transparent)",
-};
-
 /**
- * 二次确认弹窗：优先使用宿主 `Modal`（自带 portal、焦点与背景处理），
- * 平台模块表缺该成员时退化为内联的确认块，不阻塞流程。
+ * 二次确认弹窗：外壳用宿主 `Modal`（自带 portal、焦点与背景处理）、动作用宿主 `Button`，
+ * 正文层级用本插件样式表里的 `dshtk-dialog-*` 类（见 stylesheet.ts）。
+ * 平台模块表缺 `Modal` 时退化为内联确认块，不阻塞流程。
  */
 export const ConfirmModal: FC<ConfirmModalProps> = (props) => {
+  ensureToolkitStyles();
   const footer = renderFooter(props);
   const body = renderBody(props);
   if (typeof Modal !== "function") return renderFallback(props, body, footer);
@@ -59,43 +43,41 @@ export const ConfirmModal: FC<ConfirmModalProps> = (props) => {
 const renderBody = (props: ConfirmModalProps): ReactNode => {
   return createElement(
     "div",
-    { style: stackStyle },
-    createElement("div", { style: bodyTextStyle }, props.message),
+    { className: "dshtk-dialog-body" },
+    createElement("p", { className: "dshtk-dialog-message" }, props.message),
     props.preview === undefined || props.preview === ""
       ? null
-      : createElement("div", { style: previewStyle }, props.preview),
-    props.error === undefined ? null : createElement("div", { style: errorTextStyle }, props.error),
+      : createElement("pre", { className: "dshtk-dialog-preview" }, props.preview),
+    props.error === undefined
+      ? null
+      : createElement("p", { className: "dshtk-dialog-error" }, props.error),
   );
 };
 
 const renderFooter = (props: ConfirmModalProps): ReactNode => {
   return createElement(
     "div",
-    { style: footerStyle },
-    renderButton(props.cancelLabel, false, props.busy, props.onCancel),
-    renderButton(props.confirmLabel, true, props.busy, props.onConfirm),
+    { className: "dshtk-row-actions" },
+    renderButton(props.cancelLabel, "outline", props.busy, props.onCancel),
+    renderButton(props.confirmLabel, "primary", props.busy, props.onConfirm),
   );
 };
 
 const renderButton = (
   label: string,
-  primary: boolean,
+  variant: "outline" | "primary",
   disabled: boolean | undefined,
   onClick: () => void,
 ): ReactNode => {
   if (typeof Button === "function") {
     return createElement(Button, {
-      variant: primary ? "primary" : "outline",
+      variant,
       ...(disabled === undefined ? {} : { disabled }),
       onClick,
       children: label,
     });
   }
-  return createElement(
-    "button",
-    { type: "button", disabled, onClick, style: fallbackButtonStyle(primary) },
-    label,
-  );
+  return createElement("button", { type: "button", disabled, onClick }, label);
 };
 
 const renderFallback = (
@@ -106,8 +88,8 @@ const renderFallback = (
   if (!props.open) return null;
   return createElement(
     "div",
-    { role: "dialog", "aria-modal": "false", style: fallbackStyle },
-    createElement("div", { style: titleTextStyle }, props.title),
+    { role: "dialog", "aria-modal": "false", className: "dshtk-dialog-body" },
+    createElement("span", { className: "dshtk-row-name" }, props.title),
     body,
     footer,
   );

@@ -39,6 +39,25 @@ describe("ToolkitPanel", () => {
     expect(toolkitClientState.isEnabled("nested-skill")).toBe(true);
   });
 
+  it("renders the host settings-section structure with the tool id as a tag", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => json(catalog(true))),
+    );
+    const { container } = render(createElement(ToolkitPanel));
+    await screen.findByText("嵌套 skill 发现");
+    expect(container.querySelector(".dshtk-panel .dshtk-section")).not.toBeNull();
+    expect(container.querySelector("h1.dshtk-title")?.textContent).toBe("toolkit");
+    expect(container.querySelectorAll("li.dshtk-row-card")).toHaveLength(2);
+    expect(container.querySelector("code.dshtk-row-tag")?.textContent).toBe("nested-skill");
+    expect(container.querySelector(".dshtk-row-actions button[role='switch']")).not.toBeNull();
+    const stylesheet = document.querySelector(
+      'style[data-plugin-css="@kxh4892636/dsh-toolkit/toolkit.css"]',
+    );
+    expect(stylesheet?.textContent).toContain(".dshtk-row-card");
+    expect(stylesheet?.textContent).toContain("--dsw-alias-settings-card-fill");
+  });
+
   it("toggles a tool through the host route", async () => {
     const fetchMock = vi
       .fn()

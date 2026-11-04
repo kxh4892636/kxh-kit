@@ -17,12 +17,23 @@ declare module "@deepseek-ai/dsh-client-ui-primitives" {
     contentClassName?: string;
   }>;
 
-  /** 主题化的按钮；`variant` 决定主次。 */
+  /** 主题化的按钮；`variant` 决定主次，`size` 决定高度。 */
   export const Button: import("react").ComponentType<{
-    variant?: "primary" | "outline" | "ghost" | "danger";
+    variant?: "ghost" | "outline" | "primary" | "danger";
+    size?: "sm" | "md";
     disabled?: boolean;
     onClick?: () => void;
     type?: "button" | "submit";
     children?: import("react").ReactNode;
+  }>;
+
+  /** 原生开关：`role="switch"`，滑块读 `--dsw-alias-switch-thumb`。 */
+  export const Switch: import("react").ComponentType<{
+    checked: boolean;
+    onChange: (checked: boolean) => void;
+    label: string;
+    disabled?: boolean;
+    title?: string;
+    className?: string;
   }>;
 }

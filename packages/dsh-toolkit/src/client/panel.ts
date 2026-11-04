@@ -1,23 +1,16 @@
 import { createElement, useCallback, useEffect, useState, type FC } from "react";
+import { Switch } from "@deepseek-ai/dsh-client-ui-primitives";
 import type { ToolkitToolInfo } from "../contract.js";
 import { fetchToolkitState, HostApiError, setToolEnabled } from "./host-api.js";
 import { toolkitClientState } from "./state.js";
-import {
-  bodyTextStyle,
-  errorTextStyle,
-  knobStyle,
-  pageStyle,
-  rowLayoutStyle,
-  stackStyle,
-  titleTextStyle,
-  toggleStyle,
-} from "./styles.js";
-
-const panelTitleStyle = { fontSize: 16, fontWeight: 600 } as const;
+import { ensureToolkitStyles } from "./stylesheet.js";
 
 /**
  * 侧边栏 `toolkit` 主面板：列出每个工具与独立开关。
- * 组件不接收 owner props；开关状态通过宿主路由读写，同时发布到客户端 store 供撤回按钮复用。
+ *
+ * 结构与样式都按宿主设置页的 section/rowCard 来（见 stylesheet.ts），开关直接用
+ * 宿主 `ui-primitives` 的 `Switch`，因此观感与「设置 → 通用」里的开关一致。
+ * 组件不接收 owner props；开关状态同时发布到客户端 store 供撤回按钮复用。
  */
 export const ToolkitPanel: FC = () => {
   const [tools, setTools] = useState<readonly ToolkitToolInfo[]>([]);
@@ -48,9 +41,9 @@ export const ToolkitPanel: FC = () => {
   }, [apply]);
 
   const toggle = useCallback(
-    (tool: ToolkitToolInfo): void => {
+    (tool: ToolkitToolInfo, enabled: boolean): void => {
       setPending(tool.id);
-      setToolEnabled(tool.id, !tool.enabled)
+      setToolEnabled(tool.id, enabled)
         .then((next) => {
           apply(next);
           setError(undefined);
@@ -61,55 +54,68 @@ export const ToolkitPanel: FC = () => {
     [apply],
   );
 
-  const rows = tools.map((tool) =>
-    renderRow(tool, pending === tool.id, () => {
-      toggle(tool);
-    }),
-  );
-
+  ensureToolkitStyles();
   return createElement(
     "div",
-    { style: pageStyle },
+    { className: "dshtk-panel" },
     createElement(
       "div",
-      { style: stackStyle },
-      createElement("div", { style: panelTitleStyle }, "toolkit"),
+      { className: "dshtk-section" },
+      createElement("h1", { className: "dshtk-title" }, "toolkit"),
       createElement(
-        "div",
-        { style: bodyTextStyle },
+        "p",
+        { className: "dshtk-intro" },
         "工作区自研的工具集合。每个工具可以单独开关，开关状态保存在宿主侧，刷新与重启后保持。",
       ),
-      error === undefined ? null : createElement("div", { style: errorTextStyle }, error),
+      error === undefined ? null : createElement("p", { className: "dshtk-notice" }, error),
       loading
-        ? createElement("div", { style: bodyTextStyle }, "正在读取工具状态…")
-        : createElement("div", { style: stackStyle }, ...rows),
+        ? createElement("p", { className: "dshtk-row-hint" }, "正在读取工具状态…")
+        : createElement(
+            "ul",
+            { className: "dshtk-rows" },
+            ...tools.map((tool) =>
+              renderRow(tool, pending === tool.id, (enabled) => toggle(tool, enabled)),
+            ),
+          ),
     ),
   );
 };
 
-const renderRow = (tool: ToolkitToolInfo, busy: boolean, onToggle: () => void) => {
+const renderRow = (tool: ToolkitToolInfo, busy: boolean, onChange: (enabled: boolean) => void) => {
   return createElement(
-    "div",
-    { key: tool.id, style: rowLayoutStyle },
+    "li",
+    { key: tool.id, className: "dshtk-row-card" },
     createElement(
       "div",
-      { style: stackStyle },
-      createElement("div", { style: titleTextStyle }, tool.title),
-      createElement("div", { style: bodyTextStyle }, tool.description),
+      { className: "dshtk-row-head" },
+      createElement(
+        "span",
+        { className: "dshtk-row-identity" },
+        createElement("span", { className: "dshtk-row-name" }, tool.title),
+        createElement("code", { className: "dshtk-row-tag" }, tool.id),
+      ),
+      createElement(
+        "span",
+        { className: "dshtk-row-actions" },
+        typeof Switch === "function"
+          ? createElement(Switch, {
+              checked: tool.enabled,
+              label: tool.title,
+              disabled: busy,
+              onChange,
+            })
+          : createElement("input", {
+              type: "checkbox",
+              role: "switch",
+              "aria-checked": tool.enabled,
+              "aria-label": tool.title,
+              checked: tool.enabled,
+              disabled: busy,
+              onChange: (event: { target: { checked: boolean } }) => onChange(event.target.checked),
+            }),
+      ),
     ),
-    createElement(
-      "button",
-      {
-        type: "button",
-        role: "switch",
-        "aria-checked": tool.enabled,
-        "aria-label": tool.title,
-        disabled: busy,
-        style: toggleStyle(tool.enabled, busy),
-        onClick: onToggle,
-      },
-      createElement("span", { style: knobStyle(tool.enabled) }),
-    ),
+    createElement("p", { className: "dshtk-row-hint" }, tool.description),
   );
 };
 

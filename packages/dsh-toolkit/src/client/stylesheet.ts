@@ -1,16 +1,110 @@
 /**
- * 「撤回」控件的样式：与宿主的「权限选择」（`@deepseek-ai/dsh-client-ui-permission-presets`
- * 的 `PermissionSelect.module.css` `.trigger`）逐条对齐——同样 28px 高、13px/500、
- * `--dsw-alias-label-secondary` 文字色、`--dsw-radius-sm` 圆角、`0 4px 0 8px` 内边距、
- * 4px 图文间距、hover 只换 `--dsw-alias-interactive-bg-hover` 背景、disabled 用
- * `--dsw-alias-label-dimmed`，图标 14×14，且不声明字体族（随 composer 继承）。
+ * toolkit 的样式表：与 DSH 原生样式同一套做法——每个插件注入一张按 `data-plugin-css`
+ * 标记的全局样式表，只写 token（`--dsw-*`），不出现任何字面色值。
  *
- * 注入方式与宿主包一致（带 `data-plugin-css` 的 `<style>`，只注入一次）。
+ * - 面板：复刻宿主设置页的 section/card/row 度量（`ui-settings-models` 的
+ *   `.section/.title/.intro/.rows/.rowCard/.rowHead/.rowName/.rowTag/.rowActions`）：
+ *   卡片用 `--dsw-alias-settings-card-fill/-stroke` + `--dsw-radius-xl` + 0.5px 描边。
+ * - 开关：直接复用宿主 `@deepseek-ai/dsh-client-ui-primitives` 的 `Switch`（它自己读
+ *   `--dsw-alias-switch-thumb`），不用自绘控件。
+ * - 撤回触发器：复刻权限选择（`ui-permission-presets` 的 `.trigger`）的度量与交互态。
+ * - 弹窗：复用宿主 `Modal` + `Button`，这里只补正文/预览/错误的文本层级。
  */
 
 const STYLE_ID = "@kxh4892636/dsh-toolkit/toolkit.css";
 
 const css = `
+/* ── 面板：设置页的 section / rowCard 度量 ─────────────────────────────── */
+.dshtk-panel {
+  box-sizing: border-box;
+  height: 100%;
+  overflow-y: auto;
+  padding: 24px;
+  color: var(--dsw-alias-label-primary);
+}
+.dshtk-section {
+  max-width: 720px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.dshtk-title {
+  margin: 0;
+  color: var(--dsw-alias-label-primary);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+}
+.dshtk-intro {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 14px;
+  line-height: 22px;
+}
+.dshtk-notice {
+  margin: 0;
+  color: var(--dsw-alias-state-warn-label);
+  font-size: 12px;
+  line-height: 18px;
+}
+.dshtk-rows {
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+}
+.dshtk-row-card {
+  border: .5px solid var(--dsw-alias-settings-card-stroke);
+  background: var(--dsw-alias-settings-card-fill);
+  border-radius: var(--dsw-radius-xl);
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 14px;
+  display: flex;
+}
+.dshtk-row-head {
+  align-items: center;
+  gap: 10px;
+  display: flex;
+}
+.dshtk-row-identity {
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  display: inline-flex;
+}
+.dshtk-row-name {
+  color: var(--dsw-alias-label-primary);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 22px;
+}
+.dshtk-row-tag {
+  border: .5px solid var(--dsw-alias-border-l3);
+  border-radius: var(--dsw-radius-xs);
+  color: var(--dsw-alias-label-secondary);
+  flex: none;
+  padding: 1px 6px;
+  font-family: var(--ds-font-family-code);
+  font-size: 11px;
+  line-height: 16px;
+}
+.dshtk-row-actions {
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  display: inline-flex;
+}
+.dshtk-row-hint {
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+/* ── 撤回触发器：与权限选择 .trigger 同度量 ────────────────────────────── */
 .dshtk-undo-trigger {
   border-radius: var(--dsw-radius-sm);
   min-width: 0;
@@ -53,6 +147,38 @@ const css = `
   white-space: nowrap;
   min-width: 0;
   overflow: hidden;
+}
+
+/* ── 撤回确认弹窗的正文层级（外壳由宿主 Modal + Button 提供）────────────── */
+.dshtk-dialog-body {
+  flex-direction: column;
+  gap: 12px;
+  display: flex;
+}
+.dshtk-dialog-message {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 14px;
+  line-height: 22px;
+}
+.dshtk-dialog-preview {
+  border-radius: var(--dsw-radius-md);
+  background: var(--dsw-alias-bg-layer-3);
+  color: var(--dsw-alias-label-primary);
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 160px;
+  overflow: auto;
+  margin: 0;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 18px;
+}
+.dshtk-dialog-error {
+  color: var(--dsw-alias-state-warn-label);
+  margin: 0;
+  font-size: 12px;
+  line-height: 18px;
 }
 `;
 

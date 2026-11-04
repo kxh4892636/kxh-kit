@@ -22,6 +22,18 @@
 profile 的 `dsh.profile.bundles` 会多出本包及其 `cordis.patch.yml` 挂载。宿主启动时组合 bundle，
 因此**重启宿主**（或新建会话）后生效。
 
+## 样式方案
+
+与宿主同一套做法：插件注入一张带 `data-plugin-css` 标记的全局样式表，**只写 `--dsw-*` token、不出现字面色值**；能复用原生组件的地方直接复用，不重画控件。
+
+| 位置             | 复用的原生样式 / 组件                                                                                                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 面板容器与行卡片 | 复刻设置页 `section / rows / rowCard / rowHead / rowName / rowTag / rowActions` 的度量：`--dsw-alias-settings-card-fill/-stroke`、`--dsw-radius-xl`、`0.5px` 描边、`12px 14px` 内边距 |
+| 工具开关         | 宿主 `@deepseek-ai/dsh-client-ui-primitives` 的 `Switch`（滑块自带 `--dsw-alias-switch-thumb`）                                                                                       |
+| 撤回触发器       | 复刻 `ui-permission-presets` 的 `.trigger` 度量与 `:hover`/`:disabled`/`focus-visible` 状态                                                                                           |
+| 撤回确认弹窗     | 宿主 `Modal` + `Button`，正文层级用本插件 token 类                                                                                                                                    |
+| 图标             | `currentColor` 描边 SVG，尺寸由 class 决定（与宿主 `.triggerIcon svg` 同规则）                                                                                                        |
+
 ## 工具一：嵌套 skill 发现
 
 把任意深度的 `SKILL.md` 注册成宿主 skill provider，典型布局：
@@ -48,6 +60,7 @@ profile 的 `dsh.profile.bundles` 会多出本包及其 `cordis.patch.yml` 挂�
 
 - 会话只有一轮（没有可回到的上一轮）时按钮置灰。
 - 控件样式与 composer 的「权限选择」逐条一致（同样的字体/字号/颜色/hover），文字左侧带 14px 回转箭头，与模型选择器之间的 gap 收到 6px。
+- 确认弹窗外壳用宿主 `Modal`、动作用宿主 `Button`。
 - 点击弹出确认框，显示将被撤销那一轮的用户原文；取消不改动任何状态。
 - 确认后：停掉正在执行的一轮 → 会话回到**上一轮结束**的状态 → 本轮的用户原文回到输入框
   → 原会话被删除（先从所有分组视图隐藏、再做记账摘除与持久化删除）。

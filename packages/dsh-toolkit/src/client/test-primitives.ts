@@ -38,3 +38,28 @@ export const Button = (props: ButtonProps): unknown => {
     props.children as never,
   );
 };
+
+interface SwitchProps {
+  readonly checked: boolean;
+  readonly onChange: (checked: boolean) => void;
+  readonly label: string;
+  readonly disabled?: boolean;
+  readonly title?: string;
+}
+
+/** 替身开关：与宿主 `Switch` 一样输出 role="switch" 的按钮。 */
+export const Switch = (props: SwitchProps): unknown => {
+  return createElement(
+    "button",
+    {
+      type: "button",
+      role: "switch",
+      "aria-checked": props.checked,
+      "aria-label": props.label,
+      title: props.title,
+      disabled: props.disabled,
+      onClick: () => props.onChange(!props.checked),
+    },
+    createElement("span", null),
+  );
+};
