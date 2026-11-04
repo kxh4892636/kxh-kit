@@ -58,6 +58,8 @@ describe("UndoButton", () => {
 
     const button = await screen.findByRole("button", { name: "撤回上一轮" });
     await waitFor(() => expect(button).toHaveProperty("disabled", false));
+    expect(button.className).toBe("dshtk-undo");
+    expect(button.querySelector("svg.dshtk-undo-icon")).not.toBeNull();
     fireEvent.click(button);
     expect(screen.queryByRole("button", { name: "撤回" })).toBeDefined();
 

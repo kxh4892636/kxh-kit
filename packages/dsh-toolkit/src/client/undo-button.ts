@@ -11,13 +11,32 @@ import { clientService, hasMethod, type ClientContext } from "./contract.js";
 import { ConfirmModal } from "./confirm-modal.js";
 import { fetchUndoAvailability, HostApiError, runUndoTurn } from "./host-api.js";
 import { toolkitClientState } from "./state.js";
-import { undoButtonStyle } from "./styles.js";
+import { ensureToolkitStyles } from "./stylesheet.js";
 
 /** 撤回按钮的 props：slot 标准 props + 注册时注入的客户端上下文。 */
 export interface UndoButtonProps {
   readonly sessionId: string;
   readonly ctx: ClientContext;
 }
+
+/** 「撤回」的图标：向左回转的箭头，尺寸与工具栏其它控件一致（14px）。 */
+const UndoIcon: FC = () => {
+  return createElement(
+    "svg",
+    {
+      className: "dshtk-undo-icon",
+      viewBox: "0 0 16 16",
+      fill: "none",
+      stroke: "currentColor",
+      "stroke-width": 1.5,
+      "stroke-linecap": "round",
+      "stroke-linejoin": "round",
+      "aria-hidden": "true",
+    },
+    createElement("path", { d: "M6.25 4.25 3 7.5l3.25 3.25" }),
+    createElement("path", { d: "M3 7.5h6.25a3.25 3.25 0 0 1 0 6.5H7.5" }),
+  );
+};
 
 /**
  * composer 工具栏的「撤回」按钮：位于模型选择左侧（`conversation.input.right`）。
@@ -54,6 +73,7 @@ export const UndoButton: FC<UndoButtonProps> = (props) => {
   }, [props.ctx, props.sessionId]);
 
   if (!enabled) return null;
+  ensureToolkitStyles();
   const available = availability?.available === true;
   return createElement(
     "div",
@@ -65,12 +85,13 @@ export const UndoButton: FC<UndoButtonProps> = (props) => {
         title: available ? "撤回上一轮" : hintOf(availability),
         "aria-label": "撤回上一轮",
         disabled: !available || busy,
-        style: undoButtonStyle(available),
+        className: "dshtk-undo",
         onClick: () => {
           setError(undefined);
           setOpen(true);
         },
       },
+      createElement(UndoIcon),
       "撤回",
     ),
     createElement(ConfirmModal, {

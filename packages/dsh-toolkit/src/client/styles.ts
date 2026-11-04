@@ -90,24 +90,6 @@ export const knobStyle = (enabled: boolean): CSSProperties => ({
   transition: "left .15s ease",
 });
 
-/** 工具栏按钮：与 composer 里的其他控件同高。 */
-export const undoButtonStyle = (enabled: boolean): CSSProperties => ({
-  display: "inline-flex",
-  alignItems: "center",
-  justifyContent: "center",
-  gap: 4,
-  height: 28,
-  padding: "0 8px",
-  border: "none",
-  borderRadius: 8,
-  background: "transparent",
-  fontSize: 12,
-  lineHeight: 1,
-  color: "var(--dsw-alias-label-primary)",
-  cursor: enabled ? "pointer" : "not-allowed",
-  opacity: enabled ? 1 : 0.45,
-});
-
 /** 弹窗底部的主次按钮（宿主 ui-primitives 缺席时的退化样式）。 */
 export const fallbackButtonStyle = (primary: boolean): CSSProperties => ({
   padding: "5px 12px",
