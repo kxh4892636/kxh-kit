@@ -16,16 +16,16 @@ status: in_progress
 
 1. **宿主半（`src/index.ts`，cordis 插件）**
    - 工具注册表 `ToolkitTool { id, title, description, defaultEnabled, apply(ctx): Disposer }`；插件启用时按持久状态逐个 apply，状态变化时 dispose/apply。
-   - 状态文件 `$DSH_HOME/toolkit/state.json`：`{ version: 1, tools: { [id]: boolean } }`；读失败或字段缺失按 `defaultEnabled` 回落；写入走临时文件 + rename。
-   - 宿主 HTTP 路由：`GET api/toolkit/state`（工具清单 + 开关）、`POST api/toolkit/state`（`{ id, enabled }`）、`POST api/toolkit/undo-turn`（`{ sessionId }` → `{ childSessionId, prompt }`）。
-   - 工具一 `nested-skill`：迁移现有 provider，默认启用。
-   - 工具二 `undo-turn`：宿主执行撤销（算切点 → fork → 归档 → detach → 排队删除原会话目录）。
+   - 状态文件 `$DSH_HOME/toolkit/state.json`：`{ version: 1, tools, pendingDeletes, pendingUnarchives }`；读失败或字段缺失按 `defaultEnabled` 回落；写入走临时文件 + rename。
+   - 宿主 HTTP 路由：`GET api/toolkit/state`（工具清单 + 开关）、`POST api/toolkit/state`（`{ id, enabled }`）、`GET/POST api/toolkit/undo-turn`（可用性探测 / `{ sessionId }` → `{ childSessionId, prompt }`）。
+   - 工具一 `nested-skill`：迁移现有 provider，**默认关闭**（三个工具都默认关闭，见 [07](07-撤回语义收敛与彻底删除.md)）。
+   - 工具二 `undo-turn`：宿主执行撤销（算切点 → fork → 归档 → 接管置顶与记账序 → 摘记账 → 删日志 → 撤销归档）。
    - 工具三 `office-skills`：屏蔽宿主内置 office 技能；默认关闭，开启时在 `ctx.skills` 读取面（`list` / `snapshot` / `get`）过滤，见 [06](06-屏蔽自带office技能.md)。
-   - 启动时执行待删除队列（会话未存活则立即删除，存活则推迟到下次启动）。
+   - 启动时执行两条队列（`pendingDeletes` 删日志、`pendingUnarchives` 摘归档 id），并清扫「归档集合里既无日志、也不存活」的历史占位。
 2. **客户端半（`src/client/*` → `dist/client.js`）**
    - root 作用域 `sidebar.panellist` 注册 `toolkit` 图标行 + `main` 注册同 key 面板；面板列出工具与开关，读写宿主路由。
-   - session 作用域 `conversation.input.right` 注册「撤回」按钮（紧贴模型选择左侧）；点击用 `@deepseek-ai/dsh-client-ui-primitives` 的 `Modal` 确认，确认后调宿主路由、`uiWorkspace.openSession(child)`、`conversation.input.requestDraftInitialization` 回填原文。
-3. **打包**：`vp pack` 出 `dist/main.mjs`；`vp pack --config vite.client.config.ts` 出 CJS 客户端 bundle，再由 `scripts/wrap-client.mjs` 包成 `window.__ModuleLoader__.load({ id, factory })` 写 `dist/client.js`。
+   - session 作用域 `conversation.input.right` 注册「撤回」按钮（紧贴模型选择左侧，与「权限选择」同度量）；点击用 `ui-primitives` 的 `Modal` + `Button` 确认，确认后调宿主路由、`uiWorkspace.openSession(child)`，再由**新会话自己的按钮**用 `inputActions.setDraft` 回填原文（`requestDraftInitialization` 兜底）。
+3. **打包**：`vp pack` 的两份 pack 配置分别产出宿主 ESM（`dist/index.mjs`）与客户端 CJS，再由 `scripts/wrap-client.mjs` 包成 `window.__ModuleLoader__.load({ id, factory })` 写 `dist/client.js`（外部依赖只有 `react`/`react-dom`/`ui-primitives`）。
 
 ## 已排除的备选
 
@@ -41,8 +41,10 @@ status: in_progress
 - **包与目录**：`packages/dsh-nested-skill` → `packages/dsh-toolkit`；包名 `@kxh4892636/dsh-toolkit`；版本 `0.2.0`；旧包删除（registry 404，从未发布）。
 - **入口命名**：`toolkit`（非字面 `{toolkit}`）。
 - **状态与开关**：宿主持久化 + HTTP 路由；未知 id 忽略，缺失 id 用默认值。
-- **撤回语义**：目标轮 = 运行中的本轮，否则最近一轮；切点 `cut = 目标轮 turn/start 的 seq - 1`；`cut < 0`（目标是首轮）→ 按钮置灰。执行顺序：算切点与原文 → `sessionController.fork({ sessionId, atSeq: cut })`（不增标题）→ 归档原会话（`stopActivity: true`）→ `WorkspaceRecord.detachSession` → 排队删除 `~/.dsh/sessions/<slug>/<sessionId>/`（存活时推迟到下次启动）→ 客户端打开子会话并回填草稿。
-- **回填**：只回填该轮 `user/message` 的文本拼接；图片/文件附件不回填。
+- **撤回语义**：目标轮 = 运行中的本轮，否则最近一轮；切点 = 目标轮 `turn/start` 之前最近的**非 inbox 记账**事件（排队提示词会先写 `agent/inbox/spliced`，跳过它才不会被 fork 带进子会话）；没有可回退事件（目标是首轮）→ 按钮置灰。执行顺序：算切点与原文 → `sessionController.fork({ sessionId, atSeq: cut })`（不增标题）→ 归档原会话（`stopActivity: true`）→ `insertSessionBefore(child, 原后继)` 接管记账序 → 置顶集合里顶替原会话的序号 → `detachSession(原)` → 删日志 `~/.dsh/sessions/<slug>/<sessionId>/` → `unarchiveSession(原)`。会话仍存活时，删日志与撤销归档都排队到下次启动（`pendingDeletes` / `pendingUnarchives`）；启动清扫无会话的归档 id。
+- **回填**：只回填该轮 `user/message` 的文本拼接（跳过 `runtime-context` 等注入消息）；图片/文件附件不回填。回填走「新会话自己的按钮 + `inputActions.setDraft` + `persistDraft`」，1.5s 未消费则服务面兜底。
+- **默认状态**：三个工具都 `defaultEnabled: false`。
+- **样式**：一份带 `data-plugin-css` 的 token 样式表 + 宿主 `ui-primitives`（`Switch`/`Modal`/`Button`），图标 `stroke-width: 1`。
 - **副作用**：不回滚已执行命令与已写文件。
 
 ## 工作环境
@@ -99,16 +101,24 @@ status: in_progress
 - note 06（屏蔽自带 office 技能）：completed —— 新工具 `office-skills`（默认关闭）；取证确认 office 技能由
   `dsh-desktop-host` 在代码里挂成全局 provider `dsh-office`，profile 层没有可 `disabled` 的行，因此在
   `ctx.skills` 的 `list` / `snapshot` / `get` 上做读取面过滤；版本 `0.3.0`。
-- 门禁（0.3.0）：`vp test src` 142 passed；`vp check` 0 error 0 warning；`skill-mask.ts` / `office-skills.ts` 覆盖率 100%。
+- note 07（撤回语义收敛与彻底删除）：completed —— 三个工具默认关闭；撤回控件/弹窗/图标对齐宿主原生；
+  原文回填改由新会话自己的按钮 `inputActions.setDraft` 落地；原会话彻底删除（归档 → 摘记账 → 删日志 →
+  撤销归档）并接管置顶位；启动清扫无会话的归档 id；版本 `0.3.1` → `0.3.2` → `0.3.4`。
+- 门禁（0.3.4）：`vp test src` 152 passed；覆盖率 90.81 / 81.76 / 96.14 / 95.37（阈值 80）；
+  `vp check` 0 error 0 warning；`vp pack` 双产物 + `wrap-client` 装载校验；`npm pack` 生产依赖无 `catalog:`。
+- commit：`0a93faab`（重构，0.2.0）、`39613070`（工具栏度量，0.2.1）、`a837147b`（权限选择对齐，0.2.2）、
+  `b25c1fa2`（原生样式方案，0.2.3）、`5f11e2e0`（弹窗/可用性/排队切点，0.2.5）、`01e5f6ab`（1px 图标 +
+  原生按钮，0.2.6）、`f9ae21f5`（office-skills，0.3.0）、`1cecd8b8`（默认关闭 + 置顶/位置接管，0.3.1）、
+  `1ccd6680`（草稿回填，0.3.2）、`e779d37d`（彻底删除 + 归档清扫，0.3.4）。
 
 ## 恢复入口
 
-1. 读 [05-打包安装与真机验证.md](05-打包安装与真机验证.md) 的「执行检查点」与 README 的「验证」四步。
-2. 核对现场：`git status`；`~/.dsh/profiles/desktop/package.json` 的 `dsh.profile.bundles`；
-   `GET http://127.0.0.1:58683/plugins/@kxh4892636/dsh-toolkit/client.js`（重启后应为 200/401 而不是 404）。
-3. 下一步：重启 DSH → 侧边栏出现 `toolkit` → 打开面板验证两个开关 → 发一条消息后点「撤回」验证回填与删除；
-   结果写回 note 05，然后把 Plan 迁入 `reference`。
-4. 停止条件：GUI 四项验收通过即收尾；任何一项失败按 note 04 的「决策与证据」定位（切点、归档、回填三条链路）。
+1. 读 [07-撤回语义收敛与彻底删除.md](07-撤回语义收敛与彻底删除.md) 的「决策与证据」与 [05-打包安装与真机验证.md](05-打包安装与真机验证.md) 的「执行检查点」。
+2. 核对现场：`git status`；`~/.dsh/profiles/desktop/package.json` 的 `dsh.profile.bundles` 与 `dependencies`；
+   `~/.dsh/toolkit/state.json` 的 `pendingDeletes` / `pendingUnarchives`（清空即无残留）。
+3. 下一步：重启 DSH → 面板里打开 `undo-turn` → 发一条消息后点「撤回」：原文进输入框、原会话从「已归档」筛选消失、
+   新会话接管置顶位；结果写回 note 05，通过后把 Plan 迁入 `reference`。
+4. 停止条件：GUI 四项验收通过即收尾；任何一项失败按 note 07 的「决策与证据」定位（切点、回填、删除三条链路）。
 
 ## Notes
 
@@ -120,3 +130,4 @@ status: in_progress
 | 04  | [撤回工具](04-撤回工具.md)                                       | completed   | 01, 02, 03 | —                                |
 | 05  | [打包、安装与真机验证](05-打包安装与真机验证.md)                 | in_progress | 02, 03, 04 | 重启宿主后走 README 验证四步     |
 | 06  | [屏蔽自带 office 技能](06-屏蔽自带office技能.md)                 | completed   | 02         | 装 0.3.0 后走 README 验证第 3 步 |
+| 07  | [撤回语义收敛与彻底删除](07-撤回语义收敛与彻底删除.md)           | completed   | 04         | GUI 复验后收尾                   |

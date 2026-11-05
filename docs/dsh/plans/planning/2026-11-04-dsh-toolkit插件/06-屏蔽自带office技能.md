@@ -48,6 +48,12 @@ blocked_by: ["02"]
   但不会误伤用户来源的同名 skill。
 - **还原安全**：disposer 只在方法仍等于本次安装的包装器时还原（原先的自有属性写回原函数，原型方法则删掉自有属性）。
 
+## 上下文
+
+- [spec.md](spec.md)「方案」第 1 条的工具清单、[02-包重命名与工具注册表.md](02-包重命名与工具注册表.md)
+- 宿主取证：`dsh-desktop-host/lib/index.js:331-335`（office 插件挂载）、`dsh-skill-office/lib/index.js:58-101`（provider 注册）
+- 实现：`packages/dsh-toolkit/src/host/skill-mask.ts`、`src/host/tools/office-skills.ts`
+
 ## 执行检查点
 
 - 2026-11-05：实现 `skill-mask.ts` / `office-skills.ts` 并接入注册表；单测 7 个（判据 2、屏蔽 4、降级 1）。
@@ -62,4 +68,5 @@ blocked_by: ["02"]
 
 - 交付物：`packages/dsh-toolkit` 的 `office-skills` 工具。
 - 验证：`vp test src` 142 passed；`vp check` 0/0；覆盖率 `skill-mask.ts`、`office-skills.ts` 均 100%。
+- 证据：`src/host/skill-mask.test.ts` 断言屏蔽后 `snapshot()`/`list()` 不含 office 技能且 `get("office-docx")` 为 `undefined`、关闭后恢复、用户来源同名不被误伤；`src/index.test.ts` 覆盖开关落盘。
 - 遗留：GUI 重启验收（需用户重启宿主）。
