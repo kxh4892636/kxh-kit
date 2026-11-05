@@ -1,9 +1,18 @@
 ---
-id: 5429f9ad-641e-45fc-b33e-28e72f21a516
+id: 843cda8b-9451-4d94-8170-ac2bf6c981fd
 anki: true
 ---
 
-# HTTP 注解
+# hz 与 IDL
+
+## hz 的作用是什么？版本不一致会怎样？
+
+- `hz` 决定模型、路由、Handler 骨架与目录布局，版本不同生成物不同;
+
+```bash
+go install github.com/cloudwego/hertz/cmd/hz@v0.9.7
+hz --version
+```
 
 ## IDL 里怎么把 HTTP 方法和路径声明出来？
 
@@ -42,3 +51,41 @@ service ArticleService {
 
 - 没有 `api.file` 注解: 文件上传用 RequestContext 的文件 API，不要臆造注解;
 - 注解写错不会报错，只会生成错的路由或绑不到的字段; 生成后用 `hz` 的路由表与 `ut.PerformRequest` 各验一次。
+
+## hz 生成的目录里哪些能改、哪些不能？如何只定义路由?
+
+- 能改: `biz/handler` 的实现与根 `main.go`；`biz/model`、`biz/router`、`router_gen.go` 是生成物，只看 diff，不写业务;
+
+```text
+article-api/
+├─ idl/article.thrift
+├─ biz/handler/article/   # Handler 骨架与实现的交界
+├─ biz/model/article/     # IDL 生成的请求/响应模型
+├─ biz/router/article/    # 生成的路由注册
+├─ router_gen.go          # 汇总生成路由
+├─ router.go              # 用户自定义路由
+└─ main.go                # Engine 组装与进程入口
+```
+
+- 入口可以搬到 `cmd/`，但要自己在 `main` 里调用生成的注册函数:
+
+```go
+func main() {
+	h := server.Default()
+	register(h) // router_gen.go 生成的注册入口
+	h.Spin()
+}
+```
+
+- `hz update` 不记住 `new` 时传的 `model_dir`/`handler_dir`，每次带相同参数，否则目录会重排;
+- 自定义路由写 `router.go`，不要塞进 `router_gen.go`，否则下次生成会被覆盖。
+
+## IDL 改完契约怎么更新？
+
+- 一条命令重生成，随后看生成 diff、再跑测试;
+
+```bash
+hz update -idl idl/article.thrift
+git diff -- biz router.go
+go test ./...
+```

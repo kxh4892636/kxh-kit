@@ -7,7 +7,7 @@ anki: true
 
 ## server.Default 和 server.New 差在哪？
 
-- 只差一条: Default 多装 `recovery.Recovery()`，New 一个默认中间件都不装;
+- Default 多装 `recovery.Recovery()`，New 一个默认中间件都不装;
 
 ```go
 h := server.Default(server.WithHostPorts(":8888")) // Default = New + Recovery
@@ -25,20 +25,10 @@ h.Use(recovery.Recovery()) // New 必须自己装
 
 - Option 只在构造时生效: 地址、超时、body 上限、退出等待都要在 `Spin` 前定完。
 
-## 默认值是多少？
-
-| 项           | 默认值                                  |
-| ------------ | --------------------------------------- |
-| 监听         | `:8888`                                 |
-| read timeout | 3m                                      |
-| body 上限    | 4 MiB                                   |
-| exit wait    | 5s                                      |
-| HTTP/2、H2C  | 关（`WithALPN` / `WithH2C` 默认 false） |
-
-## 三个连接级超时分别对应哪个 Option？
+## 不同类型的超时如何配置？
 
 - `WithReadTimeout` 管收完请求、`WithWriteTimeout` 管写响应、`WithIdleTimeout` 管 keep-alive 空闲;
-- 业务超时在 Handler 里 `context.WithTimeout` 派生，四类超时的分工见 [超时类型与传递](../000-服务端知识/040-可靠性/020-超时类型与传递.md)。
+- 业务超时在 Handler 里 `context.WithTimeout` 派生;
 
 ## HTTP/2 与 H2C 怎么开才生效？
 
@@ -56,9 +46,30 @@ h.AddProtocol("h2", factory.NewServerFactory())
 ```
 
 - 没注册协议工厂时，H2C 连接回退 HTTP/1.1;
-- 验收在真实连接上看协议版本，再验请求、错误与回退; 代理与 TLS 终结的分层见 [反向代理与网关](../000-服务端知识/070-通信/030-反向代理与网关.md)。
 
-## 服务从启动到退出按什么顺序走？
+## 服务从启动到退出按什么顺序走？如何配置优雅退出?
 
 - 启动: 读配置 → 初始化依赖 → 注册中间件与路由 → `Spin`；依赖就绪后才打开 readiness;
-- 退出: `OnShutdown`、`SetCustomSignalWaiter` 与 `WithExitWaitTime` 的写法见 [016-运维接入](./016-运维接入.md)。
+- `WithExitWaitTime` 配置优雅退出时间; DB 在 `Spin` 返回后关;
+- `OnShutdown` 早于在途 Handler 结束, 仅发送停止通知;
+- `SetCustomSignalWaiter` 执行摘流操作;
+
+```go
+h := server.Default(server.WithExitWaitTime(10 * time.Second))
+h.Engine.OnShutdown = append(h.Engine.OnShutdown, func(ctx context.Context) {
+	// 并发触发，且早于在途 Handler 结束：这里只发停止通知。
+})
+h.SetCustomSignalWaiter(func(errs chan error) error {
+	signals := make(chan os.Signal, 1)
+	signal.Notify(signals, os.Interrupt, syscall.SIGTERM)
+	select {
+	case err := <-errs:
+		return err
+	case <-signals:
+		ready.Store(false)      // 先让 readiness 失败，摘流
+		time.Sleep(time.Second) // 示例：等摘流传播
+		return nil
+	}
+})
+h.Spin()
+```

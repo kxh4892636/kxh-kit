@@ -35,8 +35,8 @@ if err := cli.Do(ctx, req, resp); err != nil {
 ## 超时和失败该在哪一层处理？
 
 - 只把 `ctx` 传给 `Do` 不等于配好超时: 用 `req.SetOptions(config.WithRequestTimeout(...))`，或 `DoTimeout`/`DoDeadline`；三者写同一份配置，不要互相覆盖;
-- 框架没有重试策略，`retryable` 自己判方法与状态，写法见 [012-反向代理与重试](./012-反向代理与重试.md);
-- 什么能重试见 [重试与幂等](../000-服务端知识/040-可靠性/030-重试与幂等.md)。
+- 框架没有重试策略，`retryable` 自己判方法与状态;
+- 什么能重试、总预算怎么扣见 [重试与幂等](../000-服务端知识/040-可靠性/030-重试与幂等.md)。
 
 ## Hertz Client 和 Kitex 什么时候各用哪个？
 
