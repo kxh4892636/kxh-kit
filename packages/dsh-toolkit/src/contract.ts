@@ -53,6 +53,14 @@ export const TOOLKIT_STATE_PATH = "/api/toolkit/state";
 /** 撤回工具路由：GET 探测可用性，POST 执行。 */
 export const TOOLKIT_UNDO_PATH = "/api/toolkit/undo-turn";
 
+/** 已撤回（应隐藏）的会话 id：客户端启动时据此把残留行摘掉。 */
+export const TOOLKIT_HIDDEN_PATH = "/api/toolkit/hidden";
+
+/** `GET /api/toolkit/hidden` 的响应体。 */
+export interface ToolkitHiddenResponse {
+  readonly ids: readonly string[];
+}
+
 /** 工具 id；状态文件与面板都以此为键。 */
 export const TOOL_IDS = {
   nestedSkill: "nested-skill",

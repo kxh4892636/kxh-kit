@@ -1,9 +1,16 @@
 import { PANEL_ID, PANEL_LABEL } from "../contract.js";
-import type { ClientContext } from "./contract.js";
-import { fetchToolkitState } from "./host-api.js";
+import { clientService, type ClientContext } from "./contract.js";
+import { fetchHiddenSessions, fetchToolkitState } from "./host-api.js";
 import { ToolkitPanel } from "./panel.js";
 import { ToolkitPanelIcon } from "./panel-icon.js";
 import { toolkitClientState } from "./state.js";
+import {
+  guardTombstones,
+  hideSessionRow,
+  rememberTombstone,
+  tombstones,
+  type SessionCatalogLike,
+} from "./tombstones.js";
 import { UndoButton } from "./undo-button.js";
 
 /** 客户端半只硬依赖 slot 服务；其余服务（uiWorkspace/conversation/sessions）按需懒取。 */
@@ -44,4 +51,32 @@ export const apply = (ctx: ClientContext): void => {
     .catch(() => {
       // 宿主路由不可达时保持默认启用：面板会显示具体错误。
     });
+  void fetchHiddenSessions().then((ids) => {
+    for (const sessionId of ids) rememberTombstone(sessionId);
+    applyHiddenRows(ctx);
+  });
 };
+
+/**
+ * 把「已撤回」的会话行从目录里摘掉。
+ *
+ * 宿主 `session/list` 会合并存活会话，删掉日志也仍会被列出（只有重启宿主才消失），
+ * 因此这里用宿主「会话已销毁」时走的同一条路径移除行；服务尚未就绪时按 300ms 重试。
+ * @param ctx - 客户端根上下文。
+ * @param attempt - 已重试次数。
+ */
+const applyHiddenRows = (ctx: ClientContext, attempt = 0): void => {
+  const catalog = clientService<SessionCatalogLike>(ctx, "sessions");
+  const ids = tombstones();
+  if (ids.length === 0) return;
+  let hidden = 0;
+  for (const sessionId of ids) if (hideSessionRow(catalog, sessionId)) hidden += 1;
+  guardTombstones(catalog);
+  if (hidden < ids.length && attempt < HIDDEN_RETRIES) {
+    setTimeout(() => applyHiddenRows(ctx, attempt + 1), HIDDEN_RETRY_MS);
+  }
+};
+
+/** 服务未就绪时的重试节奏：20 × 300ms 覆盖首屏加载。 */
+const HIDDEN_RETRIES = 20;
+const HIDDEN_RETRY_MS = 300;

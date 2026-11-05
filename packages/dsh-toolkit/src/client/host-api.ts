@@ -1,4 +1,5 @@
 import {
+  TOOLKIT_HIDDEN_PATH,
   TOOLKIT_STATE_PATH,
   TOOLKIT_UNDO_PATH,
   type ToolkitErrorBody,
@@ -41,6 +42,20 @@ export const fetchToolkitState = async (
   const tools = parseState(body);
   if (tools === undefined) throw new HostApiError("invalid-response", "unexpected state payload");
   return tools;
+};
+
+/** 读取「已撤回、需要隐藏」的会话 id（宿主会合并存活会话，日志删了也仍被列出）。 */
+export const fetchHiddenSessions = async (signal?: AbortSignal): Promise<readonly string[]> => {
+  try {
+    const response = await send(relative(TOOLKIT_HIDDEN_PATH), optionalSignal(signal));
+    const body = (await readJson(response)) as unknown;
+    const ids = (body as { ids?: unknown } | null)?.ids;
+    if (!Array.isArray(ids)) return [];
+    return ids.filter((entry): entry is string => typeof entry === "string");
+  } catch {
+    // 宿主未升级或路由不可达：当作没有隐藏项。
+    return [];
+  }
 };
 
 /** 写入一个工具的开关，返回新目录。 */

@@ -74,6 +74,7 @@ export const apply = (ctx: Context, config: Config = {}): void => {
         inspect: (sessionId: string) => runtime.inspect(sessionId),
         run: (sessionId: string) => runtime.undo(sessionId),
       },
+      hiddenSessions: () => runtime.hiddenSessions(),
     });
     child.effect(() => disposeRoutes, "toolkit: routes");
   });
@@ -87,6 +88,8 @@ export const apply = (ctx: Context, config: Config = {}): void => {
 interface ToolkitRuntime {
   readonly registry: ToolkitRegistry;
   start(): Promise<void>;
+  /** 已撤回、应在客户端隐藏的会话 id。 */
+  hiddenSessions(): readonly string[];
   /** 工作区注册表就绪后，把日志已删的会话从归档集合里摘掉。 */
   cleanupArchive(ctx: Context): Promise<void>;
   dispose(): Promise<void>;
@@ -107,6 +110,12 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
     createOfficeSkillsTool(),
   ];
   const registry = new ToolkitRegistry({ ctx, tools, store, logger });
+  /** 广播「会话已移除」：`api-session/removed` 是宿主销毁会话时客户端依赖的那条事件。 */
+  const registerRemoval = (sessionId: string): void => {
+    const emit = (ctx as { emit?: (event: string, ...args: unknown[]) => void }).emit;
+    if (typeof emit !== "function") return;
+    emit.call(ctx, "api-session/removed", sessionId);
+  };
   const undoTarget = (): UndoDeps | undefined => {
     const sessions = serviceOf<HostSessionStore>(ctx, "sessions");
     const controller = serviceOf<HostSessionController>(ctx, "sessionController");
@@ -119,6 +128,17 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
       store,
       sessionsRoot,
       logger,
+      announceRemoved: (sessionId: string) => {
+        void store.addHiddenSession(sessionId).catch((error: unknown) => {
+          logger.warn(`toolkit: recording hidden session failed: ${describe(error)}`);
+        });
+        try {
+          // 宿主「会话已销毁」用的同一条广播：客户端据此把那一行摘掉。
+          registerRemoval?.(sessionId);
+        } catch (error) {
+          logger.warn(`toolkit: announcing removal failed: ${describe(error)}`);
+        }
+      },
     };
   };
   return {
@@ -141,6 +161,9 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
       } catch (error) {
         logger.warn(`toolkit: start failed: ${describe(error)}`);
       }
+    },
+    hiddenSessions() {
+      return store.snapshot().hiddenSessionIds;
     },
     async cleanupArchive(child: Context) {
       const workspaces = workspaceRegistry(child);

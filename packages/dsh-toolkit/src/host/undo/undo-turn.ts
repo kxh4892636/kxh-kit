@@ -34,6 +34,8 @@ export interface UndoDeps {
   readonly logIo?: SessionLogIo;
   /** 覆盖「等归档收尾」的等待（测试注入空实现以避免真实计时）。 */
   readonly settle?: () => Promise<void>;
+  /** 原会话已彻底删除后通知客户端把列表行摘掉（宿主会合并存活会话）。 */
+  readonly announceRemoved?: (sessionId: string) => void;
 }
 
 /** 撤销前从原会话抄下来的「列表身份」：置顶位与记账顺序。 */
@@ -173,6 +175,7 @@ const retireSource = async (deps: UndoDeps, sessionId: string): Promise<void> =>
   const result = await deleteSessionLogs(deps.sessionsRoot, [sessionId], deps.logIo);
   if (result.retained.length > 0) return;
   await unarchive(deps, sessionId);
+  deps.announceRemoved?.(sessionId);
 };
 
 /** 归档停活之后留给收尾写入的窗口。 */

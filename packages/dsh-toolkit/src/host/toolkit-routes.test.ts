@@ -58,6 +58,7 @@ const setup = async () => {
     registry,
     connection,
     undo,
+    hiddenSessions: () => ["session-gone"],
     logger: { warn: vi.fn() },
   });
   const call = (path: string, request: Request): Promise<Response> => {
@@ -193,10 +194,16 @@ describe("toolkit routes", () => {
     expect(await unsupported.json()).toMatchObject({ error: "unsupported-host" });
   });
 
-  it("unregisters both routes on dispose", async () => {
+  it("unregisters all routes on dispose", async () => {
     const { dispose, routes } = await setup();
-    expect(routes.size).toBe(2);
+    expect(routes.size).toBe(3);
     dispose();
     expect(routes.size).toBe(0);
+  });
+  it("lists the sessions that must stay hidden on the client", async () => {
+    const { call } = await setup();
+    const response = await call("/api/toolkit/hidden", new Request("http://x/api/toolkit/hidden"));
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ids: ["session-gone"] });
   });
 });

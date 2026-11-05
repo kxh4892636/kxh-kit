@@ -114,6 +114,8 @@ export const runPendingPurge = async (
     await store.setPendingDeletes(result.retained);
   }
   for (const id of result.deleted) {
+    // 藏住这一行：宿主 session/list 会合并存活会话，日志删掉后它仍可能被列出。
+    await store.addHiddenSession(id);
     if (unarchive === undefined) {
       await store.addPendingUnarchive(id);
       continue;

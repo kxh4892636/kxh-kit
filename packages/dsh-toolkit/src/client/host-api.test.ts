@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import {
+  fetchHiddenSessions,
   fetchToolkitState,
   fetchUndoAvailability,
   HostApiError,
@@ -100,5 +101,19 @@ describe("host api", () => {
       vi.fn(async () => json({ prompt: "x" })),
     );
     await expect(runUndoTurn("s1")).rejects.toMatchObject({ code: "invalid-response" });
+  });
+  it("reads the hidden session ids", async () => {
+    const fetchMock = vi.fn(async (_input: string) => json({ ids: ["session-a", "session-b"] }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(fetchHiddenSessions()).resolves.toEqual(["session-a", "session-b"]);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("api/toolkit/hidden");
+  });
+
+  it("treats an unreachable hidden route as empty", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => json({ error: "not-found", message: "nope" }, 404)),
+    );
+    await expect(fetchHiddenSessions()).resolves.toEqual([]);
   });
 });

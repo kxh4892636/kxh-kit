@@ -49,6 +49,7 @@ describe("serializeToolkitState", () => {
       tools: { "nested-skill": false },
       pendingDeletes: ["session-x"],
       pendingUnarchives: ["session-y"],
+      hiddenSessionIds: ["session-z"],
     };
     expect(parseToolkitState(serializeToolkitState(doc))).toEqual(doc);
   });

@@ -1,7 +1,9 @@
 import {
+  TOOLKIT_HIDDEN_PATH,
   TOOLKIT_STATE_PATH,
   TOOLKIT_UNDO_PATH,
   type ToolkitErrorBody,
+  type ToolkitHiddenResponse,
   type ToolkitStateRequest,
   type ToolkitStateResponse,
   type UndoAvailability,
@@ -19,6 +21,8 @@ export interface ToolkitRoutesOptions {
     readonly run: (sessionId: string) => Promise<UndoTurnResponse>;
   };
   readonly connection: ToolkitRouteRegistry;
+  /** 已撤回、应在客户端隐藏的会话 id。 */
+  readonly hiddenSessions?: () => readonly string[];
   readonly logger: { warn(message: string): void };
 }
 
@@ -52,9 +56,19 @@ export const registerToolkitRoutes = (options: ToolkitRoutesOptions): (() => voi
     requestBody: "buffered",
     fetch: (request) => handleUndo(options, request),
   });
+  const hidden = options.connection.fetch.register({
+    path: TOOLKIT_HIDDEN_PATH,
+    methods: ["GET"],
+    requestBody: "buffered",
+    fetch: () =>
+      Promise.resolve(
+        json<ToolkitHiddenResponse>({ ids: [...(options.hiddenSessions?.() ?? [])] }),
+      ),
+  });
   return () => {
     state();
     undo();
+    hidden();
   };
 };
 
