@@ -117,6 +117,7 @@ const setup = async (options: SetupOptions = {}) => {
     async removeDir(path) {
       if (options.retainLogs === true) throw new Error("locked");
       removed.push(path);
+      return "removed" as const;
     },
   };
   const warn = vi.fn();

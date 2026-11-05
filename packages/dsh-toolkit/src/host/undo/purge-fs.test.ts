@@ -30,9 +30,20 @@ describe("nodeSessionLogIo", () => {
     const session = join(root, "workspace-a", "session-1");
     await mkdir(session, { recursive: true });
     await writeFile(join(session, "session.v4.jsonl.zstd"), "x", "utf8");
-    await nodeSessionLogIo.removeDir(session);
+    await expect(nodeSessionLogIo.removeDir(session)).resolves.toBe("removed");
     await expect(readdir(join(root, "workspace-a"))).resolves.toEqual([]);
-    await expect(nodeSessionLogIo.removeDir(session)).resolves.toBeUndefined();
+    await expect(nodeSessionLogIo.removeDir(session)).resolves.toBe("absent");
+  });
+
+  it("deletes a real session directory under a dash-prefixed slug", async () => {
+    const root = await tempRoot();
+    const slug = "--C-Users-kxh-kxh-awesome-projects-kxh-kit--";
+    const session = join(root, slug, "session-abc");
+    await mkdir(session, { recursive: true });
+    await writeFile(join(session, "session.v4.jsonl.zstd"), "x", "utf8");
+    const result = await deleteSessionLogs(root, ["session-abc"]);
+    expect(result).toEqual({ deleted: ["session-abc"], retained: [] });
+    await expect(readdir(join(root, slug))).resolves.toEqual([]);
   });
 
   it("deletes a real session directory through deleteSessionLogs", async () => {

@@ -2,13 +2,20 @@ import { readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { isSessionId, type ToolkitStateStore } from "../toolkit-state.js";
 
+/** 一次 `removeDir` 的结果：真删掉了，还是本来就不存在（幂等删除）。 */
+export type RemoveOutcome = "removed" | "absent";
+
 /** 会话日志根下的最小 I/O 边界：列出一层子目录名、递归删除一个目录。 */
 export interface SessionLogIo {
   listDirs(path: string): Promise<string[]>;
-  removeDir(path: string): Promise<void>;
+  removeDir(path: string): Promise<RemoveOutcome>;
 }
 
-/** node fs 实现；列目录失败按「没有内容」处理，删除失败应抛出。 */
+/**
+ * node fs 实现；列目录失败按「没有内容」处理，`removeDir` 区分「删掉了」与「本来就没有」。
+ * 这个区分很重要：工作区 slug 目录名（以 `--` 开头）曾被子会话 id 的严格规则误判，
+ * 删除退化成空操作却报告成功，正是「撤回后会话还在」的根因。
+ */
 export const nodeSessionLogIo: SessionLogIo = {
   async listDirs(path) {
     try {
@@ -20,7 +27,13 @@ export const nodeSessionLogIo: SessionLogIo = {
     }
   },
   async removeDir(path) {
-    await rm(path, { recursive: true, force: true });
+    try {
+      await rm(path, { recursive: true, force: false });
+      return "removed";
+    } catch (error) {
+      if (isMissing(error)) return "absent";
+      throw error;
+    }
   },
 };
 
@@ -31,8 +44,18 @@ export interface PurgeResult {
 }
 
 /**
+ * 工作区 slug 目录名：由项目路径派生（如 `--C-Users-kxh-projects-x--`），允许以 `-`/`.` 开头，
+ * 但不能是 `.`/`..`，也不能含路径分隔符。
+ * @param value - 目录名。
+ * @returns 是否可安全拼进路径。
+ */
+export const isSafeDirName = (value: string): boolean => {
+  return value !== "." && value !== ".." && /^[A-Za-z0-9._-]+$/u.test(value);
+};
+
+/**
  * 删除会话的持久化目录：`<root>/<workspace-slug>/<sessionId>`。
- * 会话 id 先按目录名规则校验，避免把状态文件里的值当成路径片段。
+ * 会话 id 用严格规则，slug 目录名用「路径安全」规则（slug 以 `--` 开头是正常形态）。
  * @param root - 会话日志根（`$DSH_HOME/sessions`）。
  * @param ids - 待删除的会话 id。
  * @param io - 目录操作边界。
@@ -45,7 +68,7 @@ export const deleteSessionLogs = async (
 ): Promise<PurgeResult> => {
   const deleted: string[] = [];
   const retained: string[] = [];
-  const slugs = await io.listDirs(root);
+  const slugs = (await io.listDirs(root)).filter(isSafeDirName);
   for (const id of ids) {
     if (!isSessionId(id)) {
       retained.push(id);
@@ -53,10 +76,7 @@ export const deleteSessionLogs = async (
     }
     try {
       // 会话目录挂在某个 workspace slug 之下；逐个 slug 尝试，缺失即空操作。
-      for (const slug of slugs) {
-        if (!isSessionId(slug)) continue;
-        await io.removeDir(join(root, slug, id));
-      }
+      for (const slug of slugs) await io.removeDir(join(root, slug, id));
       deleted.push(id);
     } catch {
       retained.push(id);

@@ -3,6 +3,7 @@ import {
   deleteSessionLogs,
   runPendingPurge,
   runPendingUnarchive,
+  type RemoveOutcome,
   type SessionLogIo,
 } from "./purge.js";
 import { ToolkitStateStore, type ToolkitStateIo } from "../toolkit-state.js";
@@ -36,11 +37,16 @@ const memoryLogIo = (initial: readonly string[]): SessionLogIo & { readonly path
       }
       return [...names];
     },
-    async removeDir(path) {
+    async removeDir(path): Promise<RemoveOutcome> {
       const target = normalize(path);
+      let removed: RemoveOutcome = "absent";
       for (const candidate of Array.from(paths)) {
-        if (candidate === target || candidate.startsWith(`${target}/`)) paths.delete(candidate);
+        if (candidate === target || candidate.startsWith(`${target}/`)) {
+          paths.delete(candidate);
+          removed = "removed";
+        }
       }
+      return removed;
     },
     get paths() {
       return Array.from(paths);
@@ -58,6 +64,25 @@ describe("deleteSessionLogs", () => {
     const result = await deleteSessionLogs("/sessions", ["session-1"], io);
     expect(result).toEqual({ deleted: ["session-1"], retained: [] });
     expect(io.paths).toEqual(["/sessions/workspace-a/session-2/session.v4.jsonl.zstd"]);
+  });
+
+  it("walks workspace slugs that start with dashes (real host layout)", async () => {
+    // 宿主把项目路径编码成 `--C-Users-...--` 形式的 slug 目录；用会话 id 的严格规则过滤会把
+    // 它们全部跳过，删除退化成空操作——这正是「撤回后原会话还在」的根因。
+    const io = memoryLogIo([
+      "/sessions/--C-Users-kxh-projects-x--/session-1/session.v4.jsonl.zstd",
+      "/sessions/--C-Users-kxh-projects-y--/session-1/session.v4.jsonl.zstd",
+    ]);
+    const result = await deleteSessionLogs("/sessions", ["session-1"], io);
+    expect(result).toEqual({ deleted: ["session-1"], retained: [] });
+    expect(io.paths).toEqual([]);
+  });
+
+  it("skips traversal-shaped slug names", async () => {
+    const io = memoryLogIo(["/sessions/../session-1/session.v4.jsonl.zstd"]);
+    await deleteSessionLogs("/sessions", ["session-1"], io);
+    // `..` 被拒绝，因此那条路径不会被删。
+    expect(io.paths).toHaveLength(1);
   });
 
   it("rejects ids that are not directory-safe and retains them", async () => {
@@ -154,7 +179,9 @@ describe("runPendingPurge", () => {
       async listDirs() {
         throw new Error("root unreadable");
       },
-      async removeDir() {},
+      async removeDir() {
+        return "removed" as const;
+      },
     };
     const result = await runPendingPurge(store, "/sessions", { warn }, io);
     expect(result.retained).toEqual(["session-1"]);
