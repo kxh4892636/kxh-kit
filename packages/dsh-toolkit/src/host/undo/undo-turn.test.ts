@@ -127,6 +127,7 @@ const setup = async (options: SetupOptions = {}) => {
     store,
     sessionsRoot: "/sessions",
     logger: { warn },
+    settle: async () => {},
     logIo,
   };
   return {
@@ -214,16 +215,19 @@ describe("undoTurn", () => {
     expect(removed).toEqual([join("/sessions", "workspace-a", "session-source")]);
     expect(unarchiveSession).toHaveBeenCalledWith("session-source");
     expect(unarchived).toEqual(["session-source"]);
-    expect(store.snapshot().pendingDeletes).toEqual([]);
+    // 启动复核清单会留一条 id，启动时再删一次（幂等）并清空。
+    expect(store.snapshot().pendingDeletes).toEqual(["session-source"]);
     expect(store.snapshot().pendingUnarchives).toEqual([]);
   });
 
-  it("会话仍存活时：摘记账、日志与撤销归档都排队到下次启动", async () => {
-    const { deps, store, detachSession, unarchiveSession } = await setup();
+  it("存活会话也当场删日志并撤销归档（只留一条启动复核）", async () => {
+    const { deps, store, detachSession, unarchiveSession, removed } = await setup();
     await undoTurn(deps, "session-source");
     expect(detachSession).toHaveBeenCalledWith("session-source");
+    expect(removed).toEqual([join("/sessions", "workspace-a", "session-source")]);
+    expect(unarchiveSession).toHaveBeenCalledWith("session-source");
+    // 启动复核：即使当场删成功也排一条，防止存活实例把日志写回来。
     expect(store.snapshot().pendingDeletes).toEqual(["session-source"]);
-    expect(unarchiveSession).not.toHaveBeenCalled();
   });
 
   it("keeps the deletion queued when the log directory is locked", async () => {

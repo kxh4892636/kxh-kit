@@ -181,10 +181,35 @@ const openUndone = async (ctx: ClientContext, result: UndoTurnResponse): Promise
   if (workspace !== undefined && typeof workspace.openSession === "function") {
     await workspace.openSession(result.childSessionId).catch(() => {});
   }
+  scheduleCatalogRefresh(ctx);
   scheduleFallback(ctx, result);
 };
 
-/** 兜底：组件路径没来得及消费时，等服务面 binding 稳定后再写一次。 */
+/**
+ * 宿主删掉原会话的日志后不会主动推送列表变更，浏览器里那条行会留到下次刷新手动刷新。
+ * 这里在删除落地后主动让会话目录重读一次，行才会立刻消失。
+ * @param ctx - 客户端根上下文。
+ */
+const scheduleCatalogRefresh = (ctx: ClientContext): void => {
+  const refresh = clientService<{ refresh?: () => unknown }>(ctx, "sessions")?.refresh;
+  if (typeof refresh !== "function") return;
+  for (const delay of CATALOG_REFRESH_DELAYS_MS) {
+    setTimeout(() => {
+      try {
+        refresh.call(clientService(ctx, "sessions"));
+      } catch {
+        // 连接中断等情况下刷新失败不影响撤回结果。
+      }
+    }, delay);
+  }
+};
+
+/** 两次刷新：宿主删除窗口 150ms + 落盘，取 600ms 与 1800ms 覆盖慢盘。 */
+const CATALOG_REFRESH_DELAYS_MS = [600, 1800];
+
+/**
+ * 兜底：组件路径没来得及消费时，等服务面 binding 稳定后再写一次。
+ */
 const scheduleFallback = (ctx: ClientContext, result: UndoTurnResponse): void => {
   setTimeout(() => {
     applyPendingDraft(ctx, result.childSessionId);

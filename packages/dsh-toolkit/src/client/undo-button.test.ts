@@ -20,6 +20,7 @@ interface Harness {
   readonly openSession: ReturnType<typeof vi.fn>;
   readonly requestDraftInitialization: ReturnType<typeof vi.fn>;
   readonly binding: ReturnType<typeof vi.fn>;
+  readonly refresh: ReturnType<typeof vi.fn>;
 }
 
 const harness = (bindingAvailable = true): Harness => {
@@ -29,9 +30,10 @@ const harness = (bindingAvailable = true): Harness => {
     if (!bindingAvailable) throw new Error("inactive session");
     return { sessionId: "session-child" };
   });
+  const refresh = vi.fn();
   const services: Record<string, unknown> = {
     uiWorkspace: { openSession },
-    sessions: { binding },
+    sessions: { binding, refresh },
     conversation: { input: { requestDraftInitialization } },
   };
   const ctx: ClientContext = {
@@ -39,7 +41,7 @@ const harness = (bindingAvailable = true): Harness => {
     get: (key: string) => services[key],
     effect: () => () => {},
   };
-  return { ctx, openSession, requestDraftInitialization, binding };
+  return { ctx, openSession, requestDraftInitialization, binding, refresh };
 };
 
 afterEach(() => {
@@ -102,6 +104,25 @@ describe("UndoButton", () => {
     expect(applyPendingDraft(ctx, "session-child")).toBe(false);
     resetDrafts();
   });
+  it("asks the session catalog to refresh so the removed row disappears", async () => {
+    const { ctx, refresh } = harness();
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(json({ available: true, prompt: "x" }))
+        .mockResolvedValueOnce(json({ childSessionId: "session-child", prompt: "x" })),
+    );
+    render(createElement(UndoButton, { sessionId: "session-source", ctx }));
+    const button = await screen.findByRole("button", { name: "撤回上一轮" });
+    await waitFor(() => expect(button).toHaveProperty("disabled", false));
+    fireEvent.click(button);
+    fireEvent.click(within(screen.getByRole("dialog")).getByText("撤回"));
+    // 宿主删掉原会话日志后不会主动推送列表变更，客户端要主动重读一次目录。
+    await waitFor(() => expect(refresh).toHaveBeenCalled(), { timeout: 2500 });
+    resetDrafts();
+  });
+
   it("does nothing when the confirmation is cancelled", async () => {
     const { ctx, openSession } = harness();
     const fetchMock = vi.fn(async () => json({ available: true, prompt: "x" }));

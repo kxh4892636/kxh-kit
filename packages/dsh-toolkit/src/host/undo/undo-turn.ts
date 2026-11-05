@@ -32,6 +32,8 @@ export interface UndoDeps {
   readonly sessionsRoot: string;
   readonly logger: { warn(message: string): void };
   readonly logIo?: SessionLogIo;
+  /** 覆盖「等归档收尾」的等待（测试注入空实现以避免真实计时）。 */
+  readonly settle?: () => Promise<void>;
 }
 
 /** 撤销前从原会话抄下来的「列表身份」：置顶位与记账顺序。 */
@@ -156,26 +158,31 @@ const archive = async (deps: UndoDeps, sessionId: string): Promise<boolean> => {
 };
 
 /**
- * 彻底回收原会话：摘掉工作区记账（不再当位置锚点保留）、删除持久化日志、
- * 最后把它从归档集合里去掉，不留任何占位。
+ * 彻底回收原会话：摘掉工作区记账、删除持久化日志、再从归档集合里去掉 id，不留任何占位。
  *
- * 日志删除前必须先摘记账：日志还在时若把 id 从归档集合移除，它会作为 Ungrouped 复活。
- * 会话仍存活在内存里时日志要推迟到下次启动删除（存活实例会向已删路径续写出 seq gap），
- * 相应地，归档 id 也留到那次清理完再撤。
+ * 删除顺序是有讲究的：
+ * 1. 先摘记账 —— 日志还在时若把 id 从归档集合移除，它会作为 Ungrouped 复活；
+ * 2. 无论这次删没删成功都排进启动清单 —— 存活实例可能把日志写回来，启动时再清一次；
+ * 3. 等一小会儿让归档停活的收尾写入落盘，再删日志，避免「删完又被追加」；
+ * 4. 日志删干净才撤销归档 —— 删不掉就保持归档（隐藏），留给启动清理。
  */
 const retireSource = async (deps: UndoDeps, sessionId: string): Promise<void> => {
   detachFromWorkspace(deps, sessionId);
-  if (deps.sessions.get(sessionId) !== undefined) {
-    await deps.store.addPendingDelete(sessionId);
-    return;
-  }
+  await deps.store.addPendingDelete(sessionId);
+  await (deps.settle ?? defaultSettle)();
   const result = await deleteSessionLogs(deps.sessionsRoot, [sessionId], deps.logIo);
-  if (result.retained.length > 0) {
-    await deps.store.addPendingDelete(sessionId);
-    return;
-  }
+  if (result.retained.length > 0) return;
   await unarchive(deps, sessionId);
 };
+
+/** 归档停活之后留给收尾写入的窗口。 */
+const defaultSettle = (): Promise<void> => {
+  return new Promise((resolve) => {
+    setTimeout(resolve, SETTLE_MS);
+  });
+};
+
+const SETTLE_MS = 150;
 
 /** 从归档集合里去掉一个已删干净的会话 id。 */
 const unarchive = async (deps: UndoDeps, sessionId: string): Promise<void> => {
