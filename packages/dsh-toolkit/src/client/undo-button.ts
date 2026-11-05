@@ -11,6 +11,12 @@ import { clientService, hasMethod, type ClientContext } from "./contract.js";
 import { ConfirmModal } from "./confirm-modal.js";
 import { fetchUndoAvailability, HostApiError, runUndoTurn } from "./host-api.js";
 import { dropDraft, peekDraft, rememberDraft, takeDraft } from "./draft-restore.js";
+import {
+  guardTombstones,
+  hideSessionRow,
+  rememberTombstone,
+  type SessionCatalogLike,
+} from "./tombstones.js";
 import { toolkitClientState } from "./state.js";
 import { ensureToolkitStyles } from "./stylesheet.js";
 
@@ -115,7 +121,7 @@ export const UndoButton: FC<UndoButtonProps> = (props) => {
     setBusy(true);
     setError(undefined);
     runUndoTurn(props.sessionId)
-      .then((result) => openUndone(props.ctx, result))
+      .then((result) => openUndone(props.ctx, result, props.sessionId))
       .then(() => setOpen(false))
       .catch((reason: unknown) => setError(describe(reason)))
       .finally(() => setBusy(false));
@@ -171,7 +177,11 @@ export const UndoButton: FC<UndoButtonProps> = (props) => {
  * 因此草稿先登记为「待回填」，由新会话自己的撤回按钮（与 composer 同时挂载）用
  * `inputActions.setDraft` 落地；这里只保一条 1.5s 后的服务面兜底。
  */
-const openUndone = async (ctx: ClientContext, result: UndoTurnResponse): Promise<void> => {
+const openUndone = async (
+  ctx: ClientContext,
+  result: UndoTurnResponse,
+  sourceId: string,
+): Promise<void> => {
   if (result.prompt === "") return;
   rememberDraft(result.childSessionId, result.prompt);
   const workspace = clientService<{ openSession(id: string): Promise<unknown> }>(
@@ -181,6 +191,7 @@ const openUndone = async (ctx: ClientContext, result: UndoTurnResponse): Promise
   if (workspace !== undefined && typeof workspace.openSession === "function") {
     await workspace.openSession(result.childSessionId).catch(() => {});
   }
+  hideUndoneRow(ctx, sourceId);
   scheduleCatalogRefresh(ctx);
   scheduleFallback(ctx, result);
 };
@@ -206,6 +217,22 @@ const scheduleCatalogRefresh = (ctx: ClientContext): void => {
 
 /** 两次刷新：宿主删除窗口 150ms + 落盘，取 600ms 与 1800ms 覆盖慢盘。 */
 const CATALOG_REFRESH_DELAYS_MS = [600, 1800];
+
+/**
+ * 把被撤回的原会话那一行从会话目录里摘掉。
+ *
+ * 宿主 `session/list` 会合并存活会话，所以删掉日志后那一行仍会被列出来（重启才消失）。
+ * 这里走宿主「会话已销毁」时用的同一条路径（`sessions.handleSessionRemoved`）移除该行，
+ * 并挂一个持续守卫：目录每次刷新若又把它列回来，就再移除一次。
+ * @param ctx - 客户端根上下文。
+ * @param sessionId - 被撤回的原会话。
+ */
+const hideUndoneRow = (ctx: ClientContext, sessionId: string): void => {
+  rememberTombstone(sessionId);
+  const catalog = clientService<SessionCatalogLike>(ctx, "sessions");
+  hideSessionRow(catalog, sessionId);
+  guardTombstones(catalog);
+};
 
 /**
  * 兜底：组件路径没来得及消费时，等服务面 binding 稳定后再写一次。

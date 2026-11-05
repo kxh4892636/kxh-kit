@@ -1,6 +1,6 @@
 {
   "name": "@kxh4892636/dsh-toolkit",
-  "version": "0.3.6",
+  "version": "0.3.7",
   "description": "DSH plugin: a toolkit of independently switchable tools — nested skill discovery and one-click turn undo.",
   "license": "MIT",
   "files": [

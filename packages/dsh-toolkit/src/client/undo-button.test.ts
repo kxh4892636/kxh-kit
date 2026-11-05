@@ -6,6 +6,7 @@ import type { ClientContext } from "./contract.js";
 import { rememberDraft, resetDrafts } from "./draft-restore.js";
 import { applyPendingDraft } from "./undo-button.js";
 import { toolkitClientState } from "./state.js";
+import { clearTombstones } from "./tombstones.js";
 import { UndoButton } from "./undo-button.js";
 
 const json = (body: unknown, status = 200): Response => {
@@ -21,6 +22,7 @@ interface Harness {
   readonly requestDraftInitialization: ReturnType<typeof vi.fn>;
   readonly binding: ReturnType<typeof vi.fn>;
   readonly refresh: ReturnType<typeof vi.fn>;
+  readonly handleSessionRemoved: ReturnType<typeof vi.fn>;
 }
 
 const harness = (bindingAvailable = true): Harness => {
@@ -31,9 +33,10 @@ const harness = (bindingAvailable = true): Harness => {
     return { sessionId: "session-child" };
   });
   const refresh = vi.fn();
+  const handleSessionRemoved = vi.fn();
   const services: Record<string, unknown> = {
     uiWorkspace: { openSession },
-    sessions: { binding, refresh },
+    sessions: { binding, refresh, handleSessionRemoved },
     conversation: { input: { requestDraftInitialization } },
   };
   const ctx: ClientContext = {
@@ -41,7 +44,7 @@ const harness = (bindingAvailable = true): Harness => {
     get: (key: string) => services[key],
     effect: () => () => {},
   };
-  return { ctx, openSession, requestDraftInitialization, binding, refresh };
+  return { ctx, openSession, requestDraftInitialization, binding, refresh, handleSessionRemoved };
 };
 
 afterEach(() => {
@@ -104,6 +107,26 @@ describe("UndoButton", () => {
     expect(applyPendingDraft(ctx, "session-child")).toBe(false);
     resetDrafts();
   });
+  it("hides the undone row through the session catalog", async () => {
+    const { ctx, handleSessionRemoved } = harness();
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockResolvedValueOnce(json({ available: true, prompt: "x" }))
+        .mockResolvedValueOnce(json({ childSessionId: "session-child", prompt: "x" })),
+    );
+    render(createElement(UndoButton, { sessionId: "session-source", ctx }));
+    const button = await screen.findByRole("button", { name: "撤回上一轮" });
+    await waitFor(() => expect(button).toHaveProperty("disabled", false));
+    fireEvent.click(button);
+    fireEvent.click(within(screen.getByRole("dialog")).getByText("撤回"));
+    // 宿主会把存活会话继续列出来，客户端按「已销毁」的同一路径把它摘掉。
+    await waitFor(() => expect(handleSessionRemoved).toHaveBeenCalledWith("session-source"));
+    resetDrafts();
+    clearTombstones();
+  });
+
   it("asks the session catalog to refresh so the removed row disappears", async () => {
     const { ctx, refresh } = harness();
     vi.stubGlobal(
