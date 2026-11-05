@@ -37,3 +37,31 @@ test("播放、下一首与历史", async ({ page }) => {
   await expect(page.locator(".history__item")).toHaveCount(2);
   await expect(audio).toHaveCount(1);
 });
+
+test("播放结束后停在下一首的开头，不自动播放", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "播放" }).click();
+  await expect(page.getByRole("button", { name: "暂停" })).toBeVisible();
+
+  const first = await page.locator("#work").textContent();
+  await page.evaluate(() => {
+    const audio = document.querySelector("audio");
+    if (!audio || !Number.isFinite(audio.duration)) return;
+    audio.currentTime = Math.max(0, audio.duration - 0.6);
+  });
+
+  await expect.poll(() => page.locator("#work").textContent()).not.toBe(first);
+  await expect(page.getByRole("button", { name: "播放" })).toBeVisible();
+
+  const state = await page.evaluate(() => {
+    const audio = document.querySelector("audio");
+    return {
+      paused: audio?.paused ?? null,
+      at: audio?.currentTime ?? -1,
+      duration: audio?.duration ?? 0,
+    };
+  });
+  expect(state.paused).toBe(true);
+  expect(state.at).toBeLessThan(1);
+  expect(state.duration).toBeGreaterThan(1);
+});

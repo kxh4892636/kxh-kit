@@ -96,7 +96,9 @@ export const usePlayback = (
           setFailed(true);
         },
         onEnded: () => {
-          shouldPlayRef.current = true;
+          // A finished track hands over to the next one and stops there: the
+          // listener presses play when they want to keep going.
+          setPlaying(false);
           advance(ids);
         },
       }),
