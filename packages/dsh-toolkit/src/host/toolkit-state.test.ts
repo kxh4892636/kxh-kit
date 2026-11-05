@@ -44,7 +44,12 @@ describe("parseToolkitState", () => {
 
 describe("serializeToolkitState", () => {
   it("round-trips through the parser", () => {
-    const doc = { version: 1, tools: { "nested-skill": false }, pendingDeletes: ["session-x"] };
+    const doc = {
+      version: 1,
+      tools: { "nested-skill": false },
+      pendingDeletes: ["session-x"],
+      pendingUnarchives: ["session-y"],
+    };
     expect(parseToolkitState(serializeToolkitState(doc))).toEqual(doc);
   });
 });

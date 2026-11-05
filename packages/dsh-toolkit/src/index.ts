@@ -10,7 +10,7 @@ import { createUndoTurnTool } from "./host/tools/undo-turn.js";
 import { registerToolkitRoutes, type ToolkitRouteRegistry } from "./host/toolkit-routes.js";
 import { ToolkitRegistry } from "./host/toolkit-registry.js";
 import { nodeToolkitStateIo, ToolkitStateStore } from "./host/toolkit-state.js";
-import { runPendingPurge } from "./host/undo/purge.js";
+import { runPendingPurge, runPendingUnarchive } from "./host/undo/purge.js";
 import {
   UndoUnavailableError,
   inspectUndo,
@@ -21,6 +21,7 @@ import {
   hasMethod,
   serviceOf,
   type HostSessionController,
+  type HostSessionPersistence,
   type HostSessionStore,
   type HostWorkspaceRegistry,
 } from "./host/services.js";
@@ -76,6 +77,9 @@ export const apply = (ctx: Context, config: Config = {}): void => {
     });
     child.effect(() => disposeRoutes, "toolkit: routes");
   });
+  ctx.inject(["workspaceRegistry"], (child: Context) => {
+    void runtime.cleanupArchive(child);
+  });
   void runtime.start();
 };
 
@@ -83,6 +87,8 @@ export const apply = (ctx: Context, config: Config = {}): void => {
 interface ToolkitRuntime {
   readonly registry: ToolkitRegistry;
   start(): Promise<void>;
+  /** 工作区注册表就绪后，把日志已删的会话从归档集合里摘掉。 */
+  cleanupArchive(ctx: Context): Promise<void>;
   dispose(): Promise<void>;
   inspect(sessionId: string): UndoAvailability;
   undo(sessionId: string): Promise<UndoTurnResponse>;
@@ -120,9 +126,36 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
     async start() {
       try {
         await registry.initialize();
-        await runPendingPurge(store, sessionsRoot, logger);
+        const workspaces = workspaceRegistry(ctx);
+        await runPendingPurge(
+          store,
+          sessionsRoot,
+          logger,
+          undefined,
+          workspaces === undefined
+            ? undefined
+            : async (sessionId: string) => {
+                await workspaces.unarchiveSession(sessionId);
+              },
+        );
       } catch (error) {
         logger.warn(`toolkit: start failed: ${describe(error)}`);
+      }
+    },
+    async cleanupArchive(child: Context) {
+      const workspaces = workspaceRegistry(child);
+      if (workspaces === undefined) return;
+      try {
+        await runPendingUnarchive(
+          store,
+          async (sessionId: string) => {
+            await workspaces.unarchiveSession(sessionId);
+          },
+          logger,
+        );
+        await sweepOrphanArchives(child, workspaces, logger);
+      } catch (error) {
+        logger.warn(`toolkit: archive cleanup failed: ${describe(error)}`);
       }
     },
     async dispose() {
@@ -141,6 +174,34 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
       return undoTurn(deps, sessionId);
     },
   };
+};
+
+/**
+ * 清掉「归档集合里、但会话已经不存在」的 id：日志删掉之后留下的最后一点痕迹。
+ * 活着的会话与会话日志仍在的会话都保留（它们的归档是有意义的）。
+ */
+const sweepOrphanArchives = async (
+  ctx: Context,
+  workspaces: HostWorkspaceRegistry,
+  logger: { warn(message: string): void },
+): Promise<void> => {
+  const archived = workspaces.archivedSessionIds;
+  if (archived.length === 0) return;
+  const persistence = serviceOf<HostSessionPersistence>(ctx, "sessionPersistence");
+  const sessions = serviceOf<HostSessionStore>(ctx, "sessions");
+  const stored =
+    hasMethod<HostSessionPersistence>(persistence, "list") === true
+      ? new Set((await persistence.list()).map((snapshot) => snapshot.header.id))
+      : undefined;
+  for (const sessionId of archived) {
+    if (sessions !== undefined && sessions.get(sessionId) !== undefined) continue;
+    if (stored !== undefined && stored.has(sessionId)) continue;
+    try {
+      await workspaces.unarchiveSession(sessionId);
+    } catch (error) {
+      logger.warn(`toolkit: dropping orphan archive "${sessionId}" failed: ${describe(error)}`);
+    }
+  }
 };
 
 const workspaceRegistry = (ctx: Context): HostWorkspaceRegistry | undefined => {

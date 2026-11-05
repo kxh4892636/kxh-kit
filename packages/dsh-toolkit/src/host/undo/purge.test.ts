@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import { deleteSessionLogs, runPendingPurge, type SessionLogIo } from "./purge.js";
+import {
+  deleteSessionLogs,
+  runPendingPurge,
+  runPendingUnarchive,
+  type SessionLogIo,
+} from "./purge.js";
 import { ToolkitStateStore, type ToolkitStateIo } from "../toolkit-state.js";
 
 const memoryStateIo = (): ToolkitStateIo => {
@@ -88,7 +93,7 @@ describe("runPendingPurge", () => {
     });
   });
 
-  it("clears the queue after a successful delete", async () => {
+  it("clears the queue after a successful delete and queues the archive cleanup", async () => {
     const store = new ToolkitStateStore(memoryStateIo());
     await store.load();
     await store.addPendingDelete("session-1");
@@ -96,6 +101,30 @@ describe("runPendingPurge", () => {
     const result = await runPendingPurge(store, "/sessions", { warn: vi.fn() }, io);
     expect(result.deleted).toEqual(["session-1"]);
     expect(store.snapshot().pendingDeletes).toEqual([]);
+    expect(store.snapshot().pendingUnarchives).toEqual(["session-1"]);
+  });
+
+  it("归档集合可用时直接把 id 摘掉，不排队", async () => {
+    const store = new ToolkitStateStore(memoryStateIo());
+    await store.load();
+    await store.addPendingDelete("session-1");
+    const io = memoryLogIo(["/sessions/workspace-a/session-1/session.v4.jsonl.zstd"]);
+    const unarchive = vi.fn(async () => {});
+    await runPendingPurge(store, "/sessions", { warn: vi.fn() }, io, unarchive);
+    expect(unarchive).toHaveBeenCalledWith("session-1");
+    expect(store.snapshot().pendingUnarchives).toEqual([]);
+  });
+
+  it("撤销归档失败时排进待撤销清单", async () => {
+    const store = new ToolkitStateStore(memoryStateIo());
+    await store.load();
+    await store.addPendingDelete("session-1");
+    const io = memoryLogIo(["/sessions/workspace-a/session-1/session.v4.jsonl.zstd"]);
+    const unarchive = vi.fn(async () => {
+      throw new Error("registry busy");
+    });
+    await runPendingPurge(store, "/sessions", { warn: vi.fn() }, io, unarchive);
+    expect(store.snapshot().pendingUnarchives).toEqual(["session-1"]);
   });
 
   it("keeps failed ids queued and reports them", async () => {
@@ -130,6 +159,30 @@ describe("runPendingPurge", () => {
     const result = await runPendingPurge(store, "/sessions", { warn }, io);
     expect(result.retained).toEqual(["session-1"]);
     expect(store.snapshot().pendingDeletes).toEqual(["session-1"]);
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it("把待撤销归档清单跑完并清空", async () => {
+    const store = new ToolkitStateStore(memoryStateIo());
+    await store.load();
+    await store.addPendingUnarchive("session-1");
+    const unarchive = vi.fn(async () => {});
+    await expect(runPendingUnarchive(store, unarchive, { warn: vi.fn() })).resolves.toEqual([
+      "session-1",
+    ]);
+    expect(store.snapshot().pendingUnarchives).toEqual([]);
+  });
+
+  it("撤销归档失败的 id 留到下次启动", async () => {
+    const store = new ToolkitStateStore(memoryStateIo());
+    await store.load();
+    await store.addPendingUnarchive("session-1");
+    const unarchive = vi.fn(async () => {
+      throw new Error("busy");
+    });
+    const warn = vi.fn();
+    await runPendingUnarchive(store, unarchive, { warn });
+    expect(store.snapshot().pendingUnarchives).toEqual(["session-1"]);
     expect(warn).toHaveBeenCalled();
   });
 });

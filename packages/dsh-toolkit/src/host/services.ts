@@ -43,10 +43,18 @@ export interface HostWorkspaceRecord {
  */
 export interface HostWorkspaceRegistry {
   list(): readonly HostWorkspaceRecord[];
+  /** 注册表全局的归档集合（`dsh-workspace/lib/index.js:500-541`）。 */
+  readonly archivedSessionIds: readonly string[];
   readonly pinnedSessionIds: readonly string[];
   archiveSession(sessionId: string, options?: { stopActivity?: boolean }): Promise<void>;
+  unarchiveSession(sessionId: string): Promise<void>;
   pinSession(sessionId: string): Promise<void>;
   unpinSession(sessionId: string): Promise<void>;
+}
+
+/** 会话持久化：只用 `list()` 判断某个 id 是否还有日志（`dsh-session-persistence`）。 */
+export interface HostSessionPersistence {
+  list(): Promise<readonly { readonly header: { readonly id: string } }[]>;
 }
 
 /** 从任意 cordis 服务表里按名字取服务；取不到时返回 undefined。 */

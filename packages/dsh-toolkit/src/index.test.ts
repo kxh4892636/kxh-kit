@@ -10,6 +10,12 @@ interface HarnessOptions {
   readonly connection?: boolean;
   readonly sessionControl?: boolean;
   readonly getThrows?: boolean;
+  /** 归档集合里已有这些 id；`stored` 是有日志的，`live` 是仍存活的。 */
+  readonly archiveSweep?: {
+    readonly archived: readonly string[];
+    readonly stored: readonly string[];
+    readonly live: readonly string[];
+  };
 }
 
 interface Harness {
@@ -18,6 +24,7 @@ interface Harness {
   readonly providerNames: string[];
   readonly disposers: (() => void)[];
   readonly archived: string[];
+  readonly unarchived: string[];
   readonly pinned: string[];
   readonly inserted: { sessionId: string; before: string | undefined }[];
   readonly warns: ReturnType<typeof vi.fn>;
@@ -28,6 +35,7 @@ const makeHarness = (options: HarnessOptions = {}): Harness => {
   const providerNames: string[] = [];
   const disposers: (() => void)[] = [];
   const archived: string[] = [];
+  const unarchived: string[] = [];
   const pinned: string[] = [];
   const inserted: { sessionId: string; before: string | undefined }[] = [];
   const services: Record<string, unknown> = {
@@ -46,7 +54,7 @@ const makeHarness = (options: HarnessOptions = {}): Harness => {
             },
           },
   };
-  if (options.sessionControl === true) {
+  if (options.sessionControl === true || options.archiveSweep !== undefined) {
     services["sessions"] = {
       get: () => ({
         snapshotEvents: () => [
@@ -71,8 +79,12 @@ const makeHarness = (options: HarnessOptions = {}): Harness => {
           detachSession: async () => {},
         },
       ],
+      archivedSessionIds: [...(options.archiveSweep?.archived ?? [])],
       get pinnedSessionIds() {
         return [...pinned];
+      },
+      unarchiveSession: async (sessionId: string) => {
+        unarchived.push(sessionId);
       },
       archiveSession: async (sessionId: string) => {
         archived.push(sessionId);
@@ -86,6 +98,15 @@ const makeHarness = (options: HarnessOptions = {}): Harness => {
         const index = pinned.indexOf(sessionId);
         if (index >= 0) pinned.splice(index, 1);
       },
+    };
+  }
+  if (options.archiveSweep !== undefined) {
+    services["sessions"] = {
+      get: (id: string) => (options.archiveSweep?.live.includes(id) === true ? {} : undefined),
+    };
+    services["sessionPersistence"] = {
+      list: async () =>
+        (options.archiveSweep?.stored ?? []).map((id: string) => ({ header: { id } })),
     };
   }
   const warns = vi.fn();
@@ -119,7 +140,7 @@ const makeHarness = (options: HarnessOptions = {}): Harness => {
       },
     },
   };
-  return { ctx, routes, providerNames, disposers, archived, pinned, inserted, warns };
+  return { ctx, routes, providerNames, disposers, archived, pinned, inserted, unarchived, warns };
 };
 
 const workspaces: string[] = [];
@@ -250,6 +271,17 @@ describe("toolkit plugin entry", () => {
     // 记账位置：插到原会话的后继之前；置顶位：顶替原会话在置顶集合里的序号。
     expect(inserted).toEqual([{ sessionId: "session-child", before: "session-after" }]);
     expect(pinned).toEqual(["session-child", "session-other"]);
+  });
+
+  it("drops archived ids whose session no longer exists", async () => {
+    const directory = await tempDir();
+    const { ctx, routes, unarchived } = makeHarness({
+      archiveSweep: { archived: ["ghost", "kept", "live"], stored: ["kept"], live: ["live"] },
+    });
+    apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
+    await vi.waitFor(() => expect(routes.size).toBe(2));
+    // 只有既不在持久化、也不存活的 id 会被从归档集合里摘掉。
+    await vi.waitFor(() => expect(unarchived).toEqual(["ghost"]));
   });
 
   it("skips routes when the host exposes no connection registry", async () => {

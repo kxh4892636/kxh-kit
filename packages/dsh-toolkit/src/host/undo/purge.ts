@@ -66,17 +66,20 @@ export const deleteSessionLogs = async (
 };
 
 /**
- * 启动时清理待删除清单：删除成功的从清单里去掉，失败的保留。
- * @param store - 状态存储，待删除清单在这里持久化。
+ * 启动时清理待删除清单：删除成功的从清单里去掉，失败的保留；
+ * 删除成功但还没从归档集合摘掉的 id 进入待撤销归档清单。
+ * @param store - 状态存储，两份清单都在这里持久化。
  * @param root - 会话日志根。
  * @param logger - 只记录失败的 warn。
  * @param io - 目录操作边界。
+ * @param unarchive - 可选的「从归档集合摘掉」回调；缺席时全部留在待撤销队列。
  */
 export const runPendingPurge = async (
   store: ToolkitStateStore,
   root: string,
   logger: { warn(message: string): void },
   io: SessionLogIo = nodeSessionLogIo,
+  unarchive?: (sessionId: string) => Promise<void>,
 ): Promise<PurgeResult> => {
   const pending = store.snapshot().pendingDeletes;
   if (pending.length === 0) return { deleted: [], retained: [] };
@@ -90,10 +93,51 @@ export const runPendingPurge = async (
   if (result.retained.length !== pending.length) {
     await store.setPendingDeletes(result.retained);
   }
+  for (const id of result.deleted) {
+    if (unarchive === undefined) {
+      await store.addPendingUnarchive(id);
+      continue;
+    }
+    try {
+      await unarchive(id);
+    } catch (error) {
+      logger.warn(`toolkit: unarchive of "${id}" failed: ${describe(error)}`);
+      await store.addPendingUnarchive(id);
+    }
+  }
   if (result.retained.length > 0) {
     logger.warn(`toolkit: ${result.retained.length} session log(s) kept for the next start`);
   }
   return result;
+};
+
+/**
+ * 处理待撤销归档清单：把已删干净的会话 id 从归档集合里去掉，失败项留到下次启动。
+ * @param store - 状态存储。
+ * @param unarchive - 注册表上的 `unarchiveSession`。
+ * @param logger - 只记录失败的 warn。
+ * @returns 成功摘掉的 id。
+ */
+export const runPendingUnarchive = async (
+  store: ToolkitStateStore,
+  unarchive: (sessionId: string) => Promise<void>,
+  logger: { warn(message: string): void },
+): Promise<readonly string[]> => {
+  const pending = store.snapshot().pendingUnarchives;
+  if (pending.length === 0) return [];
+  const retained: string[] = [];
+  const done: string[] = [];
+  for (const id of pending) {
+    try {
+      await unarchive(id);
+      done.push(id);
+    } catch (error) {
+      logger.warn(`toolkit: unarchive of "${id}" failed: ${describe(error)}`);
+      retained.push(id);
+    }
+  }
+  if (done.length > 0) await store.setPendingUnarchives(retained);
+  return done;
 };
 
 const isMissing = (error: unknown): boolean => {

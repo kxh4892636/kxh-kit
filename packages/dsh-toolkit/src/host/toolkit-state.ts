@@ -9,6 +9,8 @@ export interface ToolkitStateDoc {
   version: number;
   tools: Record<string, boolean>;
   pendingDeletes: string[];
+  /** 日志已删、还等着从归档集合里去掉的会话 id（不留任何占位）。 */
+  pendingUnarchives: string[];
 }
 
 /** 状态文件的最小 I/O 边界；测试注入内存实现，生产用 node fs。 */
@@ -22,6 +24,7 @@ export const emptyToolkitState = (): ToolkitStateDoc => ({
   version: TOOLKIT_STATE_VERSION,
   tools: {},
   pendingDeletes: [],
+  pendingUnarchives: [],
 });
 
 /** node fs 实现：写入先落临时文件再 rename，避免半截文件。 */
@@ -58,11 +61,12 @@ export const parseToolkitState = (text: string | undefined): ToolkitStateDoc => 
     return emptyToolkitState();
   }
   if (typeof raw !== "object" || raw === null) return emptyToolkitState();
-  const record = raw as { tools?: unknown; pendingDeletes?: unknown };
+  const record = raw as { tools?: unknown; pendingDeletes?: unknown; pendingUnarchives?: unknown };
   return {
     version: TOOLKIT_STATE_VERSION,
     tools: parseTools(record.tools),
-    pendingDeletes: parsePendingDeletes(record.pendingDeletes),
+    pendingDeletes: parsePendingIds(record.pendingDeletes),
+    pendingUnarchives: parsePendingIds(record.pendingUnarchives),
   };
 };
 
@@ -73,6 +77,7 @@ export const serializeToolkitState = (doc: ToolkitStateDoc): string => {
       version: TOOLKIT_STATE_VERSION,
       tools: doc.tools,
       pendingDeletes: doc.pendingDeletes,
+      pendingUnarchives: doc.pendingUnarchives,
     },
     null,
     2,
@@ -88,7 +93,7 @@ const parseTools = (value: unknown): Record<string, boolean> => {
   return tools;
 };
 
-const parsePendingDeletes = (value: unknown): string[] => {
+const parsePendingIds = (value: unknown): string[] => {
   if (!Array.isArray(value)) return [];
   return value.filter((entry): entry is string => typeof entry === "string" && isSessionId(entry));
 };
@@ -126,6 +131,7 @@ export class ToolkitStateStore {
       version: this.doc.version,
       tools: { ...this.doc.tools },
       pendingDeletes: [...this.doc.pendingDeletes],
+      pendingUnarchives: [...this.doc.pendingUnarchives],
     };
   }
 
@@ -143,6 +149,28 @@ export class ToolkitStateStore {
     await this.enqueue(async () => {
       if (this.doc.pendingDeletes.includes(sessionId)) return;
       this.doc = { ...this.doc, pendingDeletes: [...this.doc.pendingDeletes, sessionId] };
+      await this.io.write(serializeToolkitState(this.doc));
+    });
+    return this.snapshot();
+  }
+
+  /** 追加待撤销归档的会话 id（去重）并落盘。 */
+  async addPendingUnarchive(sessionId: string): Promise<ToolkitStateDoc> {
+    await this.enqueue(async () => {
+      if (this.doc.pendingUnarchives.includes(sessionId)) return;
+      this.doc = {
+        ...this.doc,
+        pendingUnarchives: [...this.doc.pendingUnarchives, sessionId],
+      };
+      await this.io.write(serializeToolkitState(this.doc));
+    });
+    return this.snapshot();
+  }
+
+  /** 用处理后的结果替换待撤销归档清单并落盘。 */
+  async setPendingUnarchives(ids: readonly string[]): Promise<ToolkitStateDoc> {
+    await this.enqueue(async () => {
+      this.doc = { ...this.doc, pendingUnarchives: [...ids] };
       await this.io.write(serializeToolkitState(this.doc));
     });
     return this.snapshot();

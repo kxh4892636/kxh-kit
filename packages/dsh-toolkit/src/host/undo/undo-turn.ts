@@ -155,14 +155,51 @@ const archive = async (deps: UndoDeps, sessionId: string): Promise<boolean> => {
   }
 };
 
-/** 删除原会话的持久化日志；会话仍存活时推迟到下次启动，避免存活实例续写出 seq gap。 */
+/**
+ * 彻底回收原会话：摘掉工作区记账（不再当位置锚点保留）、删除持久化日志、
+ * 最后把它从归档集合里去掉，不留任何占位。
+ *
+ * 日志删除前必须先摘记账：日志还在时若把 id 从归档集合移除，它会作为 Ungrouped 复活。
+ * 会话仍存活在内存里时日志要推迟到下次启动删除（存活实例会向已删路径续写出 seq gap），
+ * 相应地，归档 id 也留到那次清理完再撤。
+ */
 const retireSource = async (deps: UndoDeps, sessionId: string): Promise<void> => {
+  detachFromWorkspace(deps, sessionId);
   if (deps.sessions.get(sessionId) !== undefined) {
     await deps.store.addPendingDelete(sessionId);
     return;
   }
   const result = await deleteSessionLogs(deps.sessionsRoot, [sessionId], deps.logIo);
-  if (result.retained.length > 0) await deps.store.addPendingDelete(sessionId);
+  if (result.retained.length > 0) {
+    await deps.store.addPendingDelete(sessionId);
+    return;
+  }
+  await unarchive(deps, sessionId);
+};
+
+/** 从归档集合里去掉一个已删干净的会话 id。 */
+const unarchive = async (deps: UndoDeps, sessionId: string): Promise<void> => {
+  if (deps.workspaces === undefined) {
+    await deps.store.addPendingUnarchive(sessionId);
+    return;
+  }
+  try {
+    await deps.workspaces.unarchiveSession(sessionId);
+  } catch (error) {
+    deps.logger.warn(`toolkit: unarchive of "${sessionId}" failed: ${describe(error)}`);
+    await deps.store.addPendingUnarchive(sessionId);
+  }
+};
+
+/** 摘掉工作区记账：会话不再属于任何工作区分组。 */
+const detachFromWorkspace = (deps: UndoDeps, sessionId: string): void => {
+  if (deps.workspaces === undefined) return;
+  for (const record of deps.workspaces.list()) {
+    if (!record.sessionIds.includes(sessionId)) continue;
+    void record.detachSession(sessionId).catch((error: unknown) => {
+      deps.logger.warn(`toolkit: detach of "${sessionId}" failed: ${describe(error)}`);
+    });
+  }
 };
 
 const describe = (error: unknown): string => {

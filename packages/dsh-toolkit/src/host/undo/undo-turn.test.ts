@@ -69,10 +69,11 @@ const setup = async (options: SetupOptions = {}) => {
     : vi.fn(async (sessionId: string, before: string | undefined) => {
         inserted.push({ sessionId, before });
       });
+  const detachSession = vi.fn(async () => {});
   const record: HostWorkspaceRecord = {
     sessionIds: ["session-source", "session-after"],
     insertSessionBefore,
-    detachSession: vi.fn(async () => {}),
+    detachSession,
   };
   const pinned = [...(options.pinned ?? [])];
   const archiveSession = options.archiveFails
@@ -91,14 +92,20 @@ const setup = async (options: SetupOptions = {}) => {
     const index = pinned.indexOf(sessionId);
     if (index >= 0) pinned.splice(index, 1);
   });
+  const unarchived: string[] = [];
+  const unarchiveSession = vi.fn(async (sessionId: string) => {
+    unarchived.push(sessionId);
+  });
   const workspaces: HostWorkspaceRegistry = {
     list: () => [record],
+    archivedSessionIds: [],
     get pinnedSessionIds() {
       return [...pinned];
     },
     archiveSession,
     pinSession,
     unpinSession,
+    unarchiveSession,
   };
   const store = new ToolkitStateStore(memoryStateIo());
   await store.load();
@@ -124,12 +131,15 @@ const setup = async (options: SetupOptions = {}) => {
   };
   return {
     deps,
+    detachSession,
     fork,
     archiveSession,
     insertSessionBefore,
     inserted,
     pinSession,
     unpinSession,
+    unarchiveSession,
+    unarchived,
     pinned,
     store,
     removed,
@@ -195,11 +205,25 @@ describe("undoTurn", () => {
     expect(pinned).toEqual(["session-other"]);
   });
 
-  it("deletes the log directory when the session is already gone", async () => {
-    const { deps, removed, store } = await setup({ live: false });
+  it("完全删除：摘记账、删日志、撤销归档，不留占位", async () => {
+    const { deps, removed, store, detachSession, unarchiveSession, unarchived } = await setup({
+      live: false,
+    });
     await undoTurn(deps, "session-source");
+    expect(detachSession).toHaveBeenCalledWith("session-source");
     expect(removed).toEqual([join("/sessions", "workspace-a", "session-source")]);
+    expect(unarchiveSession).toHaveBeenCalledWith("session-source");
+    expect(unarchived).toEqual(["session-source"]);
     expect(store.snapshot().pendingDeletes).toEqual([]);
+    expect(store.snapshot().pendingUnarchives).toEqual([]);
+  });
+
+  it("会话仍存活时：摘记账、日志与撤销归档都排队到下次启动", async () => {
+    const { deps, store, detachSession, unarchiveSession } = await setup();
+    await undoTurn(deps, "session-source");
+    expect(detachSession).toHaveBeenCalledWith("session-source");
+    expect(store.snapshot().pendingDeletes).toEqual(["session-source"]);
+    expect(unarchiveSession).not.toHaveBeenCalled();
   });
 
   it("keeps the deletion queued when the log directory is locked", async () => {
