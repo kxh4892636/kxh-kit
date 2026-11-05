@@ -55,22 +55,9 @@ function ProblematicWidget({ model }) {
 
 - 排除记录: 为暂时跳过的函数记录具体问题与恢复条件，避免诊断完成后仍长期丢失优化范围;
 
-## 如何逐步采用而不是一次改动整个应用？
-
-- 目录增量: 在构建配置中先限制编译范围，验证一部分组件后逐步扩大;
-- 函数增量: 用 compilationMode='annotation' 配合函数体中的 'use memo' 明确加入，'use no memo' 临时排除问题函数;
-- 运行时开关: gating 保留编译与原版本，通过稳定开关灰度选择;
-
-## target 如何匹配 React 运行时？
-
-- 配置类型: target 使用主版本字符串，如 '19'，不是数字或含补丁号的完整版本;
-- 运行时需求: React 19 具备相应运行时能力，面向 React 17/18 时需额外 react-compiler-runtime 并保证发布依赖可用;
-- 库兼容: 编译库时按最低承诺版本选择并测试，不能以开发环境版本代替用户环境;
-
 ## 如何通过运行时开关灰度使用编译结果？
 
-- Gating: 指定 source 模块与 importSpecifierName，编译产物导入返回布尔值的开关函数以选择版本;
-- 开销: 同时保留原始与编译实现会增加 bundle，开关函数应稳定、无副作用，并在各目标环境都可导入;
+- Gating: 指定 source 模块与 importSpecifierName，同时编译原始与编译版本, 通过 importSpecifierName 进行开关控制;
 
 ```js
 const compilerOptions = {
