@@ -97,7 +97,7 @@ status: completed
 
 ## 恢复入口
 
-本 Plan 已完成并归档到 `reference`：8 个 notes 全为 `completed`，产品在 `apps/music` 运行于 `123.57.92.26/music/`，2026-11-03 已上线历史列表修复（07）与波形渐隐响应式规则（08）。
+本 Plan 已完成并归档到 `reference`：9 个 notes 全为 `completed`，产品在 `apps/music` 运行于 `123.57.92.26/music/`。2026-11-03 上线历史列表修复（07）与波形渐隐响应式规则（08）；2026-11-05 上线「播完切下一首并暂停」（09）。
 
 1. 读 [story.md](story.md) 与本 spec 的「实施决策」，再读 [01](01-曲库落地与校验.md) 的探针结论与检查点。
 2. 核对现场：`C:\Users\kxh\Music\musopen-flac` 应为 580 个文件 / 9,607,881,823 字节；`.temp/musopen/tracks.json` 应为 145 曲 / 37 作品；`apps/music` 尚未创建。
