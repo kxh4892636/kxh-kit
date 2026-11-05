@@ -3,7 +3,7 @@ id: 4fd8230e-1d75-4bd7-b445-bcc03fbdcba5
 anki: true
 ---
 
-# 作用域与 Suite
+# Option 作用域与 Suite
 
 ## 一个选项该写在哪一层？
 
