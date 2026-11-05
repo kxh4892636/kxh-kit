@@ -44,6 +44,6 @@
 
 - 适用条件与现象：想让某个会话回到上一轮结束的状态，并要求「同一个 session id 变短」（原地撤销）。
 - 原因：会话日志是仅追加的事件源记录，删除/截断事件与会话的 API 都不存在（`sessionController` 只有 `cancel/create/fork/list/prompt/rename/search/selectModel/updateQueue/...`）；存活会话优先于磁盘（`dsh-session-query`："A known live target never consults persistence"）；改文件后存活会话继续按旧游标追加，读取端会因 seq gap 判定损坏（`dsh-session-format-v1-to-v2`）；zstd 帧内切不会整轮丢弃；`workspace` 把「会话删除」列为尚未提供的能力。
-- 解决方法：用 `session/fork` 复制 `atSeq` 闭区间前缀得到等价历史，再归档原会话（`workspaceRegistry.archiveSession(id, { stopActivity: true })`），需要「删除」时用 `WorkspaceRecord.detachSession` 摘除记账、删除 `$DSH_HOME/sessions/<slug>/<sessionId>/`、最后 `unarchiveSession` 去掉归档占位；会话仍存活时日志删除与撤销归档都排队到下次启动（`state.json` 的 `pendingDeletes` / `pendingUnarchives`），启动时还会清扫「归档集合里既无日志、也不存活」的历史 id。细节见 [07-撤回语义收敛与彻底删除](plans/planning/2026-11-04-dsh-toolkit插件/07-撤回语义收敛与彻底删除.md)。
+- 解决方法：用 `session/fork` 复制 `atSeq` 闭区间前缀得到等价历史，再归档原会话（`workspaceRegistry.archiveSession(id, { stopActivity: true })`），需要「删除」时用 `WorkspaceRecord.detachSession` 摘除记账、删除 `$DSH_HOME/sessions/<slug>/<sessionId>/`、最后 `unarchiveSession` 去掉归档占位；会话仍存活时日志删除与撤销归档都排队到下次启动（`state.json` 的 `pendingDeletes` / `pendingUnarchives`），启动时还会清扫「归档集合里既无日志、也不存活」的历史 id。细节见 [07-撤回语义收敛与彻底删除](plans/reference/2026-11-04-dsh-toolkit插件/07-撤回语义收敛与彻底删除.md)。
 - 验证：`packages/dsh-toolkit` 的 `undoTurn` 单测覆盖 fork 切点、归档、detach、立即删除与推迟删除两条路径、撤销归档；`purge` 单测覆盖队列的两阶段处理与孤儿归档清扫。
-- 来源：[01-拷问与方案定案](plans/planning/2026-11-04-dsh-toolkit插件/01-拷问与方案定案.md)、`packages/dsh-toolkit/README.md`「为什么是「新会话 + 删除原会话」而不是原地截断」。
+- 来源：[01-拷问与方案定案](plans/reference/2026-11-04-dsh-toolkit插件/01-拷问与方案定案.md)、`packages/dsh-toolkit/README.md`「为什么是「新会话 + 删除原会话」而不是原地截断」。

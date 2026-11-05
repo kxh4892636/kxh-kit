@@ -81,7 +81,7 @@ status: in_progress
 
 - story：[story.md](story.md)
 - 取证：[01-拷问与方案定案.md](01-拷问与方案定案.md)
-- 历史 Plan：[2026-10-27 装进 desktop 宿主](../reference/2026-10-27-dsh插件装进desktop宿主/spec.md)、[2026-08-31 嵌套skill发现插件](../reference/2026-08-31-dsh嵌套skill发现插件/spec.md)
+- 历史 Plan：[2026-10-27 装进 desktop 宿主](../2026-10-27-dsh插件装进desktop宿主/spec.md)、[2026-08-31 嵌套skill发现插件](../2026-08-31-dsh嵌套skill发现插件/spec.md)
 
 ## 当前进度
 
@@ -110,6 +110,10 @@ status: in_progress
   `b25c1fa2`（原生样式方案，0.2.3）、`5f11e2e0`（弹窗/可用性/排队切点，0.2.5）、`01e5f6ab`（1px 图标 +
   原生按钮，0.2.6）、`f9ae21f5`（office-skills，0.3.0）、`1cecd8b8`（默认关闭 + 置顶/位置接管，0.3.1）、
   `1ccd6680`（草稿回填，0.3.2）、`e779d37d`（彻底删除 + 归档清扫，0.3.4）。
+
+### 归档说明（2026-11-05）
+
+经用户要求，本 Plan 迁入 `reference`。代码侧门禁与真机安装全部通过；**GUI 复验（note 05 的四项）未由 agent 执行**，由用户自行验证，因此 note 05 保持 `in_progress`，本 spec 的 `status` 随之为 `in_progress`。若后续复验发现问题，把 Plan 迁回 `planning` 修订即可；结论以 [07](07-撤回语义收敛与彻底删除.md) 的「决策与证据」为准。
 
 ## 恢复入口
 

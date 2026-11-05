@@ -74,5 +74,5 @@
 
 - 现有插件：[packages/dsh-nested-skill](../../../../packages/dsh-nested-skill/README.md)
 - 领域约定：[dsh/CONTEXT.md](../../../CONTEXT.md)、[dsh/QUESTIONS.md](../../../QUESTIONS.md)
-- 历史 Plan：[2026-10-27 装进 desktop 宿主](../reference/2026-10-27-dsh插件装进desktop宿主/spec.md)
+- 历史 Plan：[2026-10-27 装进 desktop 宿主](../2026-10-27-dsh插件装进desktop宿主/spec.md)
 - 宿主实装：`C:\Users\kxh\AppData\Local\Programs\DeepSeek Harness\resources\app\dsh\node_modules\@deepseek-ai`（0.2.1-rc.5）
