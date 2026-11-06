@@ -27,6 +27,8 @@ interface RotationSession {
 interface TokenMeterLike {
   contextPressure(session: RotationSession): {
     readonly pressureTokens?: number;
+    /** 下一次请求的预计 prompt；与界面占用率同口径。 */
+    readonly projectedTokens?: number;
     readonly contextWindow?: number;
   };
 }
@@ -162,10 +164,13 @@ export const attachRotation = (options: RotationOptions): (() => void) => {
     if (header.origin === "subagent" || (header.delegationDepth ?? 0) > 0) return;
     if (header.agentPreset !== undefined && header.agentPreset !== presetId) return;
     const pressure = meter.contextPressure(session);
-    const used = pressure.pressureTokens;
+    const used = pressure.projectedTokens ?? pressure.pressureTokens;
     const window = pressure.contextWindow;
     if (used === undefined || window === undefined || window <= 0) return;
     if (used < window * settings().rotateAt) return;
+    // 只有真正达到阈值才认领会话；首次低压力不能把会话永久标记为已轮转。
+    if (rotated.has(session.id)) return;
+    rotated.add(session.id);
     const cwd =
       header.cwd ??
       (workingDirectory === undefined ? undefined : workingDirectory.get(session)) ??
@@ -193,7 +198,6 @@ export const attachRotation = (options: RotationOptions): (() => void) => {
     if (rawEvent.type !== "turn/end") return;
     if (rawEvent.data?.reason?.kind !== "completed") return;
     if (rotated.has(rawSession.id)) return;
-    rotated.add(rawSession.id);
     void rotate(rawSession).catch((error: unknown) => {
       options.services.logger.warn(`nano-flow: rotation failed: ${describe(error)}`);
     });

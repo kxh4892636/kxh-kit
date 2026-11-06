@@ -1,7 +1,6 @@
 {
   "version": 1,
   "index": [
-    "05",
     "07",
     "02"
   ],
@@ -110,6 +109,21 @@
       "evidence": [],
       "updated_at": "2026-11-06T18:26:13.162Z",
       "content": "# notes.json 访问收口（策略级）\n\n## 目标\n\n- 非 `nano_flow_*` 工具不能读写 Plan 下的 `notes.json`：fs 工具按已解析 target 拒绝，其它工具按参数里的显式引用拒绝。\n- 保留 shell / jobs / subagent / fs-search；README 与 QUESTIONS 写明它们仍可绕过，这是策略而非安全边界。\n\n## 实现\n\n1. `src/host/notes-guard.ts`\n   - `notesToolGuard(exec)`：`exec.name` 以 `nano_flow_` 开头放行；从 args 取 `path` / `file` / `pattern` / `glob` / `command` / `script` / `prompt`，命中 `notes.json` 时返回拒绝原因。不扫 `content`，避免写文档时误伤。\n   - `installFsNotesGuard(fs)`：包装 `readText` / `streamText` / `readBytes` / `writeText` / `editText`；target 的 `targetKey` 或 `path` basename 为 `notes.json` 且路径含 `plans` 段时拒绝；返回还原 disposer。\n2. 根插件挂载：`ctx.inject([\"tools\"])` 注册 guard；`ctx.inject([\"fs\"])` 安装包装；都走 `ctx.effect` 清理。\n3. `README.md` 与 `QUESTIONS.md` 记录边界（shell/子进程/第三方插件可绕过）。\n4. 测试：guard（read/pwsh 命中、write content 不误伤、nano_flow 放行）；fs 包装（读/写/流/字节/编辑被拒、其它文件放行、disposer 还原）。\n\n## 验收\n\n- 在 Nano Flow 会话里 `read` 读 Plan 的 `notes.json` 被拒；读其它文件正常；`nano_flow_read` / `nano_flow_write` 正常；`pwsh` 字面命令被拒（策略）。\n- 测试、构建、安装通过；README/QUESTIONS 写明不是安全边界。\n\n## 不做\n\n- 不移除 shell / jobs / subagent / fs-search。\n- 不做 OS ACL、独立写入身份或加密存储。\n"
+    },
+    {
+      "id": "08",
+      "title": "轮转只在首次 turn/end 检查",
+      "description": "轮转阈值未触发：0.618 是 61.8%，且 rotated 标记在压力检查前就写入了。",
+      "status": "completed",
+      "blocked_by": [],
+      "evidence": [
+        "`src/nano-flow/rotate.ts`：`rotated.add` 移到压力检查通过后；`used` 改为 `projectedTokens ?? pressureTokens`",
+        "`src/nano-flow/rotate.test.ts` 3 项通过：首次低压力不轮转、跨阈值只轮转一次、projected 优先、非 completed/subagent/其它 preset 不轮转",
+        "全套 222 测试通过；`vp check` 通过；`build` 成功",
+        "待重启宿主后验证 67% 的当前会话在下一次 completed turn 轮转"
+      ],
+      "updated_at": "2026-11-06T18:39:50.958Z",
+      "content": "# 轮转阈值未触发\n\n## 结论\n\n- **0.618 是 61.8%，不是 61%**；界面百分比是 `Math.round(used / window * 100)`，显示 61% 时实际是 60.5%–61.49%，低于阈值，不轮转是正确行为。\n- **真正的 bug**：`rotate.ts` 的 `session/event` 回调在检查压力之前就 `rotated.add(session.id)`。会话在第一次 `turn/end`（completed）时被标记为“已轮转”，哪怕当时压力很低；之后即使超过阈值也不会再检查。\n- **指标不一致**：界面的占用率用 `projectedTokens ?? pressureTokens`，而轮转只用 `pressureTokens`。界面百分比可能先到 61.8%，而轮转看到的值还没到。\n- **只在 completed 轮次检查**：`turn/end` 的 `reason.kind` 不是 `completed`（aborted/error 等）时直接 return。\n- **live header 的 agentPreset**：与 ready 面板同源、不可靠；当前只在“已定义且不等于 nano-flow”时跳过，undefined 会放行，因此不是本次的主要卡点。\n\n## 修复(2026-11-07)\n\n1. `rotated.add` 从事件回调移到 `rotate()` 的压力检查通过之后、`controller.create` 之前；事件回调只做 `rotated.has` 快速跳过。首次低压力不再永久认领会话。\n2. `used` 改为 `projectedTokens ?? pressureTokens`，与界面口径一致。\n3. 保持 completed-only；aborted/error 仍不触发。\n4. header preset 判断保持“已定义且不是 nano-flow 才跳过”，undefined 放行。\n\n## 执行检查点(2026-11-07)\n\n- `src/nano-flow/rotate.ts`：`TokenMeterLike` 增 `projectedTokens`；`rotated.add` 后移；`used` 优先 projected。\n- `src/nano-flow/rotate.test.ts`：3 项——低压力多次不轮转、跨阈值只轮转一次；projected 优先；非 completed / subagent / 其它 preset 不轮转。\n- 验证: 222 测试通过; `vp check` 通过; build 成功。\n- 安装后需重启宿主；重启后当前会话在 67% 的情况下，下一次 completed turn 应创建新会话并删除旧会话。\n\n## 验收\n\n- 在压力低于阈值时多次 completed turn 不轮转；跨过阈值后的下一次 completed turn 创建新会话并删除旧会话。\n- 界面显示 61% 时（< 61.8%）不轮转；显示 62% 且超过阈值时轮转。\n- 测试、构建、安装通过。\n"
     }
   ]
 }
