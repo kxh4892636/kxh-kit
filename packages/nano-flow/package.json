@@ -32,7 +32,7 @@
     "test:coverage": "vp test --run --coverage",
     "test:distribution": "vp run build && vp test test/distribution.spec.ts",
     "check": "vp check",
-    "prepublishOnly": "vp run build"
+    "prepack": "vp run --no-cache build"
   },
   "dependencies": {
     "async-mutex": "^0.5.0",

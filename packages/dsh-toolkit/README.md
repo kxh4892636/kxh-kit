@@ -253,6 +253,13 @@ pnpm --filter @kxh4892636/dsh-toolkit check
 pnpm --filter @kxh4892636/dsh-toolkit build
 ```
 
+打包用 `pnpm pack`：`prepack` 是 `vp run --no-cache build`，先跑一次完整 `build`，所以
+tarball 一定带 `dist/nano-flow/`。`pnpm pack` 的生命周期只有 `prepack` / `prepare` /
+`postpack`，**不执行 `prepublishOnly`**——把构建挂在那里的写法会让本地打包静默带上陈旧
+`dist`（缺 nano-flow 资产，装进去运行时 `locateAssetsRoot()` 直接抛错）。要禁用 `vp run`
+的缓存，flag 必须写在脚本名之前（`vp run --no-cache build`），写在后面会被转发给被调脚本。
+该契约由 `src/packaging.test.ts` 守住。
+
 `build` 分两步：`vp pack` 出宿主半 `dist/index.mjs` 与客户端半的 CJS 中间产物，
 `scripts/wrap-client.mjs` 把后者包成宿主模块载体的形态（`window.__ModuleLoader__.load`）、
 校验它只 require 平台模块表里的裸说明符，并真正执行一次确认导出了 `inject` / `apply`。
