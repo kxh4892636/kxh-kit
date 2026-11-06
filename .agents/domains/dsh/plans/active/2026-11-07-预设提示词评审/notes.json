@@ -2,7 +2,7 @@
   "version": 1,
   "index": [
     "05",
-    "04",
+    "07",
     "02"
   ],
   "notes": [
@@ -76,11 +76,40 @@
       "id": "05",
       "title": "输入框上方的 ready 面板",
       "description": "在输入框上方加可折叠的 Nano Flow ready 列表面板，含宿主路由与客户端 dock。",
-      "status": "in_progress",
+      "status": "completed",
       "blocked_by": [],
+      "evidence": [
+        "用户截图确认面板出现在输入框上方；初始诊断行为 `Nano Flow · 不可用（not-nano-flow）`，定位到宿主 live session header 的 agentPreset 不可靠",
+        "修复：宿主 ready 去掉 agentPreset 拦截，工作区取 header.cwd 或 workspaceRegistry.path；客户端按 projectionValues.agentPreset 判断",
+        "219 测试通过；vp check 通过；build 成功",
+        "最终版移除诊断行，用户确认面板正常显示"
+      ],
+      "updated_at": "2026-11-06T18:36:29.338Z",
+      "content": "# ready 面板: 输入框上方的可折叠列表\n\n## 目标\n\n- 在会话输入框上方(`conversation.input.dock`)显示当前 Nano Flow Plan 的未完成 notes, 按依赖组展示, 支持展开/折叠。\n- 仅在 Nano Flow 会话显示; 没有 active Plan 时隐藏。\n\n## 设计\n\n- 宿主路由 `GET /api/toolkit/nano-flow-ready?sessionId=`: 定位工作区, 读 active Plan 的 `notes.json`, 用 `todoGroups` 分组; 返回 plan、counts、groups。\n- 客户端在 `conversation.input.dock` 注册 `ReadyPanel`: 3s 轮询 + 窗口 focus 刷新; 默认折叠; header 显示未完成/进行中/阻塞/已完成计数与 chevron; body 显示分组与 note 状态。\n- 展示与否由客户端按会话 projection 的 `agentPreset` 判断; 宿主只读 Plan。\n- 复用 toolkit 样式表与 `--dsw-*` tokens; 面板宽度对齐 composer。\n\n## 执行检查点(2026-11-07)\n\n- 宿主: `src/host/nano-flow-ready.ts` 的 `readNanoFlowReady`(active Plan、todoGroups、counts); 路由 `TOOLKIT_NANO_FLOW_READY_PATH`。\n- 客户端: `src/client/ready-panel.ts`, 注册在 `conversation.input.dock`(order 10), 默认折叠、3s 轮询、focus 刷新; 样式在 `stylesheet.ts`。\n- 首次真机: 面板挂载与请求正常, 但返回 `not-nano-flow`。根因是宿主 live session header 的 `agentPreset` 不可靠。\n- 修复: 宿主去掉 `agentPreset` 拦截, 工作区先取 `header.cwd`, 取不到再从 `workspaceRegistry` 按 `sessionIds` 找 `path`; 客户端按 `useSession` 的 `projectionValues.agentPreset` 判断是否显示。\n- 用户已确认面板出现在输入框上方; 诊断行已移除。\n- 验证: 219 测试通过; `vp check` 通过; `build` 成功。\n\n## 验收\n\n- 新会话输入框上方出现面板; 折叠/展开可用; 内容与 `nano_flow_read` 的 `ready` 一致; 非 Nano Flow 会话不显示。\n- 宿主/客户端测试通过; 构建、真机确认。\n\n## 不做\n\n- 面板只读, 不编辑 note。\n- 多个 active Plan 时隐藏, 不做选择器。\n"
+    },
+    {
+      "id": "06",
+      "title": "notes.json 的访问收口",
+      "description": "评估插件层强制 notes.json 只经 nano_flow_* 读写的可行性、旁路与保证级别。",
+      "status": "completed",
+      "blocked_by": [],
+      "evidence": [
+        "2026-11-07 用户选择 A（策略级）：tools.guard + 包装 ctx.fs，保留 shell 等旁路并写明不是安全边界"
+      ],
+      "updated_at": "2026-11-06T18:25:41.242Z",
+      "content": "# notes.json 的访问收口\n\n## 结论\n\n- **工具层可以做强策略收口，但不能在插件层保证“任何方式”**：DSH 的 fs 工具、搜索、shell、jobs、subagent 与第三方插件并不是同一条文件访问通道。\n- 可稳定挡住：`read` / `write` / `edit` / `read_image` 对 Plan 下 `notes.json` 的访问（包装 `ctx.fs`，按已解析 target 判断）；`nano_flow_*` 走 `node:fs`，不受包装影响。\n- 只能弱挡：`grep` / `glob` / `pwsh` / `bash` / `jobs` / `subagent` 里对 `notes.json` 的**字面引用**（`tools.guard` 的 name+args 字符串匹配）；编码路径、泛搜（如搜所有 json）、`Get-ChildItem -Recurse`、子进程都能绕过。\n- 真正的“任何方式”需要 OS ACL、独立写入身份、或把 notes 移出明文文件（加密/宿主存储）；这些要么与同一用户的 nano_flow 写入冲突，要么要另设特权写入通道，成本高。\n\n## 现有事实\n\n- `src/nano-flow/store.ts` 用 `node:fs/promises` 读写 `notes.json`，不经过 `ctx.fs`；包一层 fs 不会影响 `nano_flow_*`。\n- `tool-fs` 的读写走 `ctx.fs`；`fs-sandbox` 只在写时按 mode/workspace 围栏，读全部放行，没有 per-file deny。\n- `tool-fs-search` 注入 `tools` / `systemPrompt` / `subprocess`，spawn ripgrep，**不走 `ctx.fs`**。\n- `tools.guard(guard)` 存在（app.asar 与 dsh-tools 均含 `tools.guard()`），guard 看 `name` + 解析后的 args，返回原因即拒绝；全局 guard 对所有 agent（含 subagent）生效。\n- 预设还挂了 `pwsh`/`bash`、`jobs`、`subagent`、`web`；shell 与子进程不受 `ctx.fs` 约束。\n- 现有 `skill-mask.ts` 已有“就地包装服务方法”的先例（包装 `ctx.skills` 的 list/snapshot/get）。\n\n## 方案\n\n- **A 策略级（推荐）**：根插件注册全局 `tools.guard` + 包装 `ctx.fs` 的读/写/编辑方法；允许 `nano_flow_*`，拒绝其余工具对 Plan 下 `notes.json` 的显式访问。保留 shell 等能力，绕过仍可能，但能挡住 agent 的常规直读/直写。\n- **B 工具层强制**：在 A 之上从 Nano Flow 预设移除 `pwsh`/`bash`/`jobs`/`subagent`/`fs-search`，只留 `nano_flow_*` 与受控 fs/read。接近工具层强制，但无法构建、测试、委派，Nano Flow 基本不可用。\n- **C 真边界**：OS ACL + 独立写入身份、或加密/宿主存储 + 特权写入。能挡进程，成本最高，且要改存储形态与恢复路径。\n\n## 第 1 轮\n\n### Q1 - 保证级别\n\n- 问题：要“插件层策略”还是“任何方式都挡住”？前者保留 shell，后者要移除旁路或上 OS 级隔离。\n- 前置问题：无。\n- 下游边界：决定是否保留 shell/jobs/subagent/fs-search；决定实现范围与验收方式。\n- 推荐答案及理由：A。能挡住 `read`/`write`/`edit`/`read_image` 与显式引用，成本低、不影响编码；把“不是安全边界”写进文档。\n- 修改意见：用户选择 A。\n- 处理结论：已确认 A（2026-11-07）。\n\n### 补充说明\n\n保护范围默认仅 `.agents/domains/*/plans/*/notes.json`，不波及工作区其它同名文件。\n\n## 定案（2026-11-07）\n\n用户选 **A 策略级**：\n\n- 全局 `tools.guard`：允许 `nano_flow_*`；其余工具对 Plan 下 `notes.json` 的显式引用拒绝。\n- 包装 `ctx.fs` 的 `readText` / `readBytes` / `writeText` / `editText`，按已解析 target 拒绝 `notes.json`。\n- 保留 shell / jobs / subagent / fs-search；文档写明它们仍可绕过，不是安全边界。\n- 保护范围：`.agents/domains/*/plans/*/notes.json`；不波及其它同名文件。\n\n下一步：note 07 实施与验证。\n"
+    },
+    {
+      "id": "07",
+      "title": "notes.json 访问收口实施",
+      "description": "用 tools.guard 与 ctx.fs 包装，拒绝非 nano_flow_* 工具对 Plan notes.json 的显式读写。",
+      "status": "pending",
+      "blocked_by": [
+        "06"
+      ],
       "evidence": [],
-      "updated_at": "2026-11-06T18:21:42.831Z",
-      "content": "# ready 面板: 输入框上方的可折叠列表\n\n## 目标\n\n- 在会话输入框上方(`conversation.input.dock`)显示当前 Nano Flow Plan 的未完成 notes, 按依赖组展示, 支持展开/折叠。\n- 仅在 Nano Flow 会话显示; 没有 active Plan 时隐藏。\n\n## 设计\n\n- 宿主路由 `GET /api/toolkit/nano-flow-ready?sessionId=`: 用会话 header 的 `cwd` + `agentPreset` 定位; 读 active Plan 的 `notes.json`; 用 `todoGroups` 分组; 返回 plan、counts、groups。\n- 客户端在 `conversation.input.dock` 注册 `ReadyPanel`: 3s 轮询 + 窗口 focus 刷新; 默认折叠; header 显示未完成/进行中/阻塞/已完成计数与 chevron; body 显示分组与 note 状态。\n- 复用 toolkit 样式表与 `--dsw-*` tokens; 面板宽度对齐 composer。\n\n## 执行检查点(2026-11-07)\n\n- 宿主: 新增 `src/host/nano-flow-ready.ts` 的 `readNanoFlowReady`(active Plan、todoGroups、counts); 新增路由 `TOOLKIT_NANO_FLOW_READY_PATH`; 根插件 `ready(sessionId)` 用 `sessions.get` 的 header 定位工作区并校验 `agentPreset === \"nano-flow\"`。\n- 客户端: 新增 `src/client/ready-panel.ts`, 注册在 `conversation.input.dock`(order 10), 默认折叠、3s 轮询、focus 刷新; 样式追加到 `stylesheet.ts`。\n- 测试: reader 3 项、route 2 项、client 2 项; 全套 218 测试通过; `vp check` 通过; `build` 成功。\n- 已安装: 打包后 `remove` + `add` 到 desktop profile; 安装目录的 `dist/index.mjs` 与 `dist/client.js` 均与仓库 dist 同哈希; 客户端 bundle 含 `nano-flow-ready`, 宿主含 `/api/toolkit/nano-flow-ready`。\n- 待真机: 重启宿主后确认面板出现、折叠/展开、内容与 `ready` 一致; 通过后 complete。\n\n## 验收\n\n- 新会话输入框上方出现面板; 折叠/展开可用; 内容与 `nano_flow_read` 的 `ready` 一致; 非 Nano Flow 会话不显示。\n- 宿主/客户端测试通过; 构建、安装、真机确认。\n\n## 不做\n\n- 面板只读, 不编辑 note。\n- 多个 active Plan 时隐藏, 不做选择器。\n"
+      "updated_at": "2026-11-06T18:26:13.162Z",
+      "content": "# notes.json 访问收口（策略级）\n\n## 目标\n\n- 非 `nano_flow_*` 工具不能读写 Plan 下的 `notes.json`：fs 工具按已解析 target 拒绝，其它工具按参数里的显式引用拒绝。\n- 保留 shell / jobs / subagent / fs-search；README 与 QUESTIONS 写明它们仍可绕过，这是策略而非安全边界。\n\n## 实现\n\n1. `src/host/notes-guard.ts`\n   - `notesToolGuard(exec)`：`exec.name` 以 `nano_flow_` 开头放行；从 args 取 `path` / `file` / `pattern` / `glob` / `command` / `script` / `prompt`，命中 `notes.json` 时返回拒绝原因。不扫 `content`，避免写文档时误伤。\n   - `installFsNotesGuard(fs)`：包装 `readText` / `streamText` / `readBytes` / `writeText` / `editText`；target 的 `targetKey` 或 `path` basename 为 `notes.json` 且路径含 `plans` 段时拒绝；返回还原 disposer。\n2. 根插件挂载：`ctx.inject([\"tools\"])` 注册 guard；`ctx.inject([\"fs\"])` 安装包装；都走 `ctx.effect` 清理。\n3. `README.md` 与 `QUESTIONS.md` 记录边界（shell/子进程/第三方插件可绕过）。\n4. 测试：guard（read/pwsh 命中、write content 不误伤、nano_flow 放行）；fs 包装（读/写/流/字节/编辑被拒、其它文件放行、disposer 还原）。\n\n## 验收\n\n- 在 Nano Flow 会话里 `read` 读 Plan 的 `notes.json` 被拒；读其它文件正常；`nano_flow_read` / `nano_flow_write` 正常；`pwsh` 字面命令被拒（策略）。\n- 测试、构建、安装通过；README/QUESTIONS 写明不是安全边界。\n\n## 不做\n\n- 不移除 shell / jobs / subagent / fs-search。\n- 不做 OS ACL、独立写入身份或加密存储。\n"
     }
   ]
 }

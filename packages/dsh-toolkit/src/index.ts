@@ -12,7 +12,7 @@ import type { NanoFlowSettings } from "./contract.js";
 import { createNanoFlowTool } from "./host/tools/nano-flow.js";
 import { applyNanoFlow } from "./nano-flow/plugin.js";
 import { DEFAULT_DOMAIN_ROOT } from "./nano-flow/config.js";
-import { NANO_FLOW_PRESET_ID, nanoFlowEntryUrl } from "./nano-flow/preset.js";
+import { nanoFlowEntryUrl } from "./nano-flow/preset.js";
 import { createNestedSkillTool } from "./host/tools/nested-skill.js";
 import { createOfficeSkillsTool } from "./host/tools/office-skills.js";
 import { createUndoTurnTool } from "./host/tools/undo-turn.js";
@@ -183,6 +183,10 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
       },
     };
   };
+  const workspacePathOf = (sessionId: string): string | undefined => {
+    const workspaces = workspaceRegistry(ctx);
+    return workspaces?.list().find((record) => record.sessionIds.includes(sessionId))?.path;
+  };
   const nanoFlow: ToolkitNanoFlowFacade = {
     settings: () => settings.current(),
     updateSettings: (patch: unknown) => settings.update(patch),
@@ -275,10 +279,9 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
       const sessions = serviceOf<HostSessionStore>(ctx, "sessions");
       const session = sessions?.get(sessionId);
       if (session === undefined) return { available: false, reason: "session-not-live" };
-      if (session.header?.agentPreset !== NANO_FLOW_PRESET_ID) {
-        return { available: false, reason: "not-nano-flow" };
-      }
-      const workspace = config.workspace ?? session.header.cwd;
+      // 会话 header 的 agentPreset 在部分宿主版本/恢复会话里不可靠；是否展示由客户端按
+      // 当前会话 projection 的 agentPreset 决定，这里只负责解析工作区并读 Plan。
+      const workspace = config.workspace ?? session.header?.cwd ?? workspacePathOf(sessionId);
       if (workspace === undefined || workspace === "") {
         return { available: false, reason: "no-workspace" };
       }

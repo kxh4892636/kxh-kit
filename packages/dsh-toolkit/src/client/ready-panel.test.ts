@@ -2,7 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { createElement } from "react";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
-import { ReadyPanel } from "./ready-panel.js";
+import { ReadyPanel, type ReadyPanelProps } from "./ready-panel.js";
 
 const json = (body: unknown): Response =>
   new Response(JSON.stringify(body), {
@@ -61,5 +61,15 @@ describe("ReadyPanel", () => {
     const { container } = render(createElement(ReadyPanel, { sessionId: "s1" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalled());
     expect(container.querySelector("[data-testid='nano-flow-ready']")).toBeNull();
+  });
+
+  it("renders nothing outside the nano-flow preset", () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const useSession: NonNullable<ReadyPanelProps["useSession"]> = (selector) =>
+      selector({ projectionValues: { agentPreset: "standard" } });
+    const { container } = render(createElement(ReadyPanel, { sessionId: "s1", useSession }));
+    expect(container.querySelector("[data-testid='nano-flow-ready']")).toBeNull();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

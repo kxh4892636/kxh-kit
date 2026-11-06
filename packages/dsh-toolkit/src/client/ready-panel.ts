@@ -8,10 +8,15 @@ ensureToolkitStyles();
 /** 面板轮询间隔；宿主也有 focus 刷新。 */
 const REFRESH_MS = 3000;
 
-/** `conversation.input.dock` 送来的字段；只读会话 id。 */
+/** `conversation.input.dock` 送来的字段；只读会话 id 与当前会话快照。 */
+export interface SessionSnapshotLike {
+  readonly projectionValues?: { readonly agentPreset?: string | null };
+}
+
 export interface ReadyPanelProps {
   readonly sessionId?: string;
   readonly session?: { readonly sessionId?: string };
+  readonly useSession?: <S>(selector: (snapshot: SessionSnapshotLike) => S) => S;
 }
 
 const LeadIcon: FC = () => {
@@ -113,11 +118,13 @@ const StatusGlyph: FC<{ status: NanoFlowNoteStatus }> = ({ status }) => {
  */
 export const ReadyPanel: FC<ReadyPanelProps> = (props) => {
   const sessionId = props.sessionId ?? props.session?.sessionId;
+  const preset = props.useSession?.((snapshot) => snapshot.projectionValues?.agentPreset);
+  const isNanoFlow = preset === undefined || preset === "nano-flow";
   const [state, setState] = useState<NanoFlowReadyResponse | undefined>(undefined);
   const [collapsed, setCollapsed] = useState(true);
 
   useEffect(() => {
-    if (sessionId === undefined) {
+    if (!isNanoFlow || sessionId === undefined) {
       setState(undefined);
       return;
     }
@@ -143,8 +150,9 @@ export const ReadyPanel: FC<ReadyPanelProps> = (props) => {
       if (timer !== undefined) clearInterval(timer);
       if (typeof window !== "undefined") window.removeEventListener("focus", onFocus);
     };
-  }, [sessionId]);
+  }, [sessionId, isNanoFlow]);
 
+  if (!isNanoFlow || sessionId === undefined) return null;
   if (state === undefined || state.available !== true) return null;
   const groups = state.groups;
   const counts = state.counts;

@@ -38,6 +38,8 @@ export interface HostSessionController {
  */
 export interface HostWorkspaceRecord {
   readonly sessionIds: readonly string[];
+  /** 工作区根目录（`Workspace.path`）。 */
+  readonly path?: string;
   insertSessionBefore(sessionId: string, beforeSessionId?: string): Promise<void>;
   detachSession(sessionId: string): Promise<void>;
 }
