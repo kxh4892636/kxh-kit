@@ -173,7 +173,7 @@ describe("assets", () => {
     }
   });
 
-  it("动态发现全部 skill，并保留用户可调用标记", async () => {
+  it("动态发现全部 skill，ask / do 可被模型调用", async () => {
     const provider = createAssetSkillProvider(assetsSkillsRoot(locateAssetsRoot()));
     const candidates = (await provider.list({})) as readonly SkillCandidate[];
     expect(candidates.map((candidate) => candidate.name).sort()).toEqual([
@@ -185,7 +185,9 @@ describe("assets", () => {
       "to-skill",
     ]);
     const ask = candidates.find((candidate) => candidate.name === "ask");
-    expect(ask?.invocation).toEqual({ modelInvocable: false, userInvocable: true });
+    expect(ask?.invocation).toEqual({ modelInvocable: true, userInvocable: true });
+    const doSkill = candidates.find((candidate) => candidate.name === "do");
+    expect(doSkill?.invocation).toEqual({ modelInvocable: true, userInvocable: true });
     const definition = ask === undefined ? undefined : await provider.get(ask, {});
     expect(definition?.content).toContain("ask 循环");
   });
