@@ -23,6 +23,7 @@
 - note 06 完成（决策 A）：`notes.json` 访问收口采用 `tools.guard` + 包装 `ctx.fs`，保留 shell 等旁路并写明不是安全边界。
 - note 08 实施完成（待真机验证）：轮转时机改为用户发送 queue 消息时，包装 `sessionController.prompt`；达到阈值后新会话拿到「种子 + 本次用户内容」，旧会话删除；`used` 用 `projectedTokens ?? pressureTokens`；224 测试与构建通过；已安装，待重启后下一次 queue 消息验证。
 - note 07 实施完成（待真机验证）：`src/host/notes-guard.ts` 两道闸门——`tools.guard` 拦参数里的显式路径（`file_path`/`path`/`target`，以及 `command`/`script` 里的字面路径），`ctx.fs` 包装按已解析 target 拦六个内容读写方法；入口在根插件 `ctx.inject(["tools","fs"])`；237 测试、`vp check`、构建通过；README 与 `docs/dsh/QUESTIONS.md` 已记录「策略不是安全边界」。
+- note 08 回归修复（2026-11-07 03:1x）：a6f6b7cc 在预设行里读 `ctx.agent`，触发 cordis 的 inject 守卫（`cannot get property "agent" without inject`），整条预设行失效——固定提示词、`nano_flow_*`、随包 skill 与轮转一起消失，重启后那次 queue 消息因此没轮转。轮转已搬到宿主半（根插件包装 `sessionController.prompt`，按日志最后一条 `agent-preset/selected` 判定会话）；新增 `nano-flow-mount.json` 挂载诊断；用临时 profile 本地复现并验证（stages: entry/apply/ready/rotation），241 测试通过；已重装，待重启验证。
 - 已打包并安装到 desktop profile：安装目录的 `dist/index.mjs` 与 `dist/nano-flow/prompt.md` 均与仓库 dist 同哈希；重启宿主后新会话生效。
 - 未完成：note 02（迁移 dsh 域文档与旧 Plan）、note 07 与 note 08 的真机验证。
 - 域根：dsh 已切到 `.agents/domains`，其 `CONTEXT.md` 与 `QUESTIONS.md` 目前是指向 `docs/dsh` 的迁移指针；旧 Plan 与 ADR 仍在原位，迁移见 note 02。
@@ -37,4 +38,4 @@
 ## 开放问题
 
 - `docs/dsh` 的旧 Plan 保留为 Markdown 历史，还是迁到新布局（需处理相对链接）？2026-11-07 用户决定先不动：note 02 保持 pending，等 note 07 / 08 的真机验证做完再定策略。
-- 本会话（2026-11-07 02:48 的「继续」）的系统提示里**没有**注入固定提示词 `prompt.md`，工具目录里也**没有** `nano_flow_*`，但 persona 前缀是 Nano Flow 的——与 note 03 验过的「提示词、工具、skill 三样齐」不符。两个候选：会话创建于旧构建、或预设行的 `ctx.inject(["tools","systemPrompt"])` 没触发。重启后新建 Nano Flow 会话即可分辨；若为空，note 07 的收口会让 Plan 无法再用 `read`/`write` 直接维护，必须先把预设半修好。
+- 2026-11-07 02:48 观察到的「本会话没有固定提示词与 `nano_flow_*`」已定位：不是会话创建时机，而是 a6f6b7cc 读 `ctx.agent` 触发注入守卫，预设行静默失效；修复见 note 08 的回归小节。

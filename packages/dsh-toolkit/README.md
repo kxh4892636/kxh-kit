@@ -150,11 +150,17 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
   `$DSH_HOME/toolkit/nano-flow.json`):story/spec/note/摘要/索引,CONTEXT/QUESTIONS/ADR
   上限,ADR 数量(默认 55 个)与会话轮转阈值;体积字段在面板里以 **KB** 输入(1 KB = 1024 字节,存储仍是字节),
   提示词本身不设上限.默认值见 `contract.ts`.
-- 预设不挂载压缩插件.用户每发一条**排队**消息(queue)时读一次 `tokenMeter` 的上下文压力
-  (口径 `projectedTokens ?? pressureTokens`,与界面占用率一致):达到 `rotateAt × contextWindow`
-  时创建新会话(同一 cwd 与预设),把"上一会话已轮转,继续当前 Plan"的种子与这条消息一起发给
-  它,新 prompt 被接受后**物理删除**旧会话(不是归档).新会话创建或发送失败时回落到旧会话,
+- 预设不挂载压缩插件.轮转挂在**宿主半**:用户每发一条**排队**消息(queue)时,先按会话 id 找到
+  存活会话,再用日志里最后一条 `agent-preset/selected` 判断它是否跑 Nano Flow(live header 的
+  `agentPreset` 在恢复会话时不可靠),然后读 `tokenMeter.contextPressure` 的
+  `projectedTokens ?? pressureTokens`(本宿主只报 `pressureTokens`,即上一轮 provider 上报的
+  prompt 大小,所以触发点略晚于界面按投影算出的百分比).达到 `rotateAt × contextWindow` 时创建
+  新会话(同一 cwd 与预设),把"上一会话已轮转,继续当前 Plan"的种子与这条消息一起发给它,
+  新 prompt 被接受后**物理删除**旧会话(不是归档).新会话创建或发送失败时回落到旧会话,
   消息不丢.阈值可在面板里调.
+- 轮转不写在预设行里:预设行读不到 `ctx.agent`(cordis 对服务属性做 inject 守卫),而根插件又
+  不能声明 `agent` 依赖(根上下文里没有 agent).`nano-flow-mount.json` 的 `stages` 记录每一步,
+  挂载/轮转是否生效看这个文件即可.
 - `nano-flow/scripts/check-domain.mjs` 是唯一校验实现,`nano_flow_check` 用
   `process.execPath` 调用它并把当前设置作为 `--limits` 传入;工具自身只做"不写坏"的写入校验.
 - 四个原样 skill 的哈希记在 `src/nano-flow/assets.lock.json`(随构建复制到 `dist/nano-flow/`),
@@ -190,6 +196,8 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
    客户端列表里换成一个新会话,模型带着这条消息在新会话里重新 `resume` 当前 Plan.
 7. 在 Nano Flow 会话里 `read` Plan 的 `notes.json`:被拒且提示只用 `nano_flow_*`;读其它文件
    正常,`nano_flow_read` / `nano_flow_write` 正常工作.
+8. 挂载诊断:`$DSH_HOME/toolkit/nano-flow-mount.json` 的 `stages` 应同时有 `entry`
+   (`via: preset`)、`apply`、`ready` 与 `rotation`;缺哪个就说明哪一步没生效.
 
 ## 配置
 

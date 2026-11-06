@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import { DEFAULT_NANO_FLOW_SETTINGS } from "../contract.js";
-import { attachRotation, type PromptRequestLike, type RotationSession } from "./rotate.js";
+import {
+  attachRotation,
+  selectedPreset,
+  type PromptRequestLike,
+  type RotationSession,
+} from "./rotate.js";
 import type { HostServices } from "./services.js";
 
 type Pressure = {
@@ -12,8 +17,23 @@ type Pressure = {
 
 const signal = new AbortController().signal;
 
+/** 会话形状：预设以日志里最后一条 `agent-preset/selected` 为准。 */
+const sessionOf = (
+  id: string,
+  preset = "nano-flow",
+  header: RotationSession["header"] = {},
+): RotationSession => ({
+  id,
+  header: { cwd: "C:\\work", ...header },
+  snapshotEvents: () => [{ type: "agent-preset/selected", data: { agentPreset: preset } }],
+});
+
 const makeHarness = () => {
   let pressure: Pressure = { pressureTokens: 10, contextWindow: 1000 };
+  const sessions = new Map<string, RotationSession>([
+    ["session-1", sessionOf("session-1")],
+    ["session-other", sessionOf("session-other", "standard")],
+  ]);
   const create = vi.fn(async () => ({ sessionId: "session-new" }));
   const originalPrompt = vi.fn(async (_request: PromptRequestLike, _signal?: AbortSignal) => ({
     accepted: true,
@@ -29,13 +49,12 @@ const makeHarness = () => {
     },
     logger: { warn: vi.fn() },
   } as unknown as HostServices;
-  const session: RotationSession = { id: "session-1", header: { cwd: "C:\\work" } };
   const dispose = attachRotation({
     services,
     config: { presetId: "nano-flow" },
     domainRoot: ".agents/domains",
     settings: () => ({ ...DEFAULT_NANO_FLOW_SETTINGS, rotateAt: 0.618 }),
-    session,
+    sessionOf: (id) => sessions.get(id),
   });
   const request = (overrides: Partial<PromptRequestLike> = {}): PromptRequestLike => ({
     requestId: "request-1",
@@ -52,9 +71,29 @@ const makeHarness = () => {
     originalPrompt,
     dispose,
     send,
+    sessions,
     setPressure: (next: Pressure) => (pressure = next),
   };
 };
+
+describe("selectedPreset", () => {
+  it("以日志里最后一条预设选择为准，而不是 live header", () => {
+    const session: RotationSession = {
+      id: "session-1",
+      header: { agentPreset: "standard" },
+      snapshotEvents: () => [
+        { type: "agent-preset/selected", data: { agentPreset: "nano-flow" } },
+        { type: "turn/start" },
+      ],
+    };
+    expect(selectedPreset(session)).toBe("nano-flow");
+  });
+
+  it("没有事件时退回 header，两者都没有时 undefined", () => {
+    expect(selectedPreset({ id: "a", header: { agentPreset: "nano-flow" } })).toBe("nano-flow");
+    expect(selectedPreset({ id: "a" })).toBeUndefined();
+  });
+});
 
 describe("attachRotation", () => {
   it("delegates to the old session while below the threshold", async () => {
@@ -81,17 +120,26 @@ describe("attachRotation", () => {
     );
   });
 
-  it("only redirects once, and only for this session's queue prompts", async () => {
+  it("only redirects once, and only for Nano Flow queue prompts", async () => {
     const harness = makeHarness();
     harness.setPressure({ pressureTokens: 700, contextWindow: 1000 });
     await harness.send({ sessionId: "session-other" });
+    await harness.send({ sessionId: "session-unknown" });
     await harness.send({ mode: "steer" });
     expect(harness.create).not.toHaveBeenCalled();
 
     await harness.send();
     await harness.send();
     expect(harness.create).toHaveBeenCalledTimes(1);
-    expect(harness.originalPrompt).toHaveBeenCalledTimes(4);
+    expect(harness.originalPrompt).toHaveBeenCalledTimes(5);
+  });
+
+  it("leaves subagent sessions alone", async () => {
+    const harness = makeHarness();
+    harness.sessions.set("session-1", sessionOf("session-1", "nano-flow", { origin: "subagent" }));
+    harness.setPressure({ pressureTokens: 700, contextWindow: 1000 });
+    await harness.send();
+    expect(harness.create).not.toHaveBeenCalled();
   });
 
   it("falls back to the old session when the redirected prompt fails", async () => {

@@ -55,3 +55,11 @@
 - 解决方法：读写 Plan 状态一律走 `nano_flow_read` / `nano_flow_write`；这层是策略而不是安全边界，`pwsh` / `bash` 子进程、`jobs`、ripgrep 泛搜与编码路径仍可绕过。
 - 验证：`notes-guard.test`（12 项）覆盖路径判定、工具闸门与 fs 包装；`index.test` 覆盖入口安装与卸载；真机在装包后的 Nano Flow 会话里复验「读 notes.json 被拒、读其它文件正常」。
 - 来源：[2026-11-07-预设提示词评审](../../.agents/domains/dsh/plans/active/2026-11-07-预设提示词评审/spec.md) 的 note 06 / 07。
+
+## 为什么 Nano Flow 预设里 persona 在、固定提示词和 `nano_flow_*` 却缺失？
+
+- 适用条件与现象：新会话选中 Nano Flow 后，系统提示只有 persona 前缀「本会话运行 Nano Flow…」，没有固定提示词正文，工具目录里没有 `nano_flow_read` / `nano_flow_write` / `nano_flow_check`，随包 skill 也不出现；预设选择器正常、无报错，预设注册表也不报 broken。
+- 原因：预设行的 `ctx.inject(["tools","systemPrompt"], …)` 回调里直接读了 `ctx.agent`（`a6f6b7cc` 为轮转引入）。cordis 对未在 `inject` 声明的服务属性有守卫，读取抛 `cannot get property "agent" without inject`；异常发生在注册提示词/工具/skill 之前，子 fiber 失败只写宿主日志。预设注册表只审计行自身的 inject（本行是 `skills`），不审计行内 `ctx.plugin` 子 fiber，所以整条预设仍显示可用。
+- 解决方法：预设半不再读 `ctx.agent`；会话轮转移到根插件，按会话日志最后一条 `agent-preset/selected` 判定会话是否运行本预设，再包装 `sessionController.prompt`。改后必须重打包、重装并**重启宿主**——预设的 standing mount 在启动时建立，换文件不会刷新已在内存里的挂载。
+- 验证：`$DSH_HOME/toolkit/nano-flow-mount.json` 依次出现 `entry` / `apply` / `ready` / `rotation`，`ready.promptBytes = 13041` 且 `tools` / `systemPrompt` / `skills` 为 true；`pnpm --filter @kxh4892636/dsh-toolkit check` 与 241 项测试通过。
+- 来源：[2026-11-07-预设提示词评审](../../.agents/domains/dsh/plans/active/2026-11-07-预设提示词评审/spec.md)、[plugin.ts](../../packages/dsh-toolkit/src/nano-flow/plugin.ts)、[rotate.ts](../../packages/dsh-toolkit/src/nano-flow/rotate.ts)。

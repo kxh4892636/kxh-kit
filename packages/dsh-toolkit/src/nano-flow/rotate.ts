@@ -6,7 +6,7 @@ import { deleteSessionLogs } from "../host/undo/purge.js";
 import { activePlans, listPlans, planRefOf } from "./plan.js";
 import type { HostServices } from "./services.js";
 
-/** 会话的最小形状：id、header 与工作目录。 */
+/** 会话的最小形状：id、header 与日志快照。 */
 export interface RotationSession {
   readonly id: string;
   readonly header?: {
@@ -15,6 +15,8 @@ export interface RotationSession {
     readonly delegationDepth?: number;
     readonly agentPreset?: string;
   };
+  /** 会话日志快照；用来读最后一条预设选择事件（live header 的 `agentPreset` 不可靠）。 */
+  snapshotEvents?(): readonly { readonly type: string; readonly data?: unknown }[];
 }
 
 /** tokenMeter 的上下文压力读取。 */
@@ -68,9 +70,35 @@ export interface RotationOptions {
   readonly config: { readonly presetId?: string; readonly workspace?: string };
   readonly domainRoot: string;
   readonly settings: () => NanoFlowSettings;
-  /** 本插件实例所属的会话；由预设行在 agent 作用域内注入。 */
-  readonly session?: RotationSession | undefined;
+  /** 会话 id → 存活会话；取不到时轮转不介入（宿主没有会话存储）。 */
+  readonly sessionOf?: (id: string) => RotationSession | undefined;
+  /** 会话是否运行本预设；缺省用 {@link selectedPreset} 读日志。 */
+  readonly isNanoFlow?: (session: RotationSession) => boolean;
 }
+
+/**
+ * 会话当前运行的预设：以日志里最后一条 `agent-preset/selected` 为准。
+ *
+ * 存活会话 header 的 `agentPreset` 在恢复会话时并不可靠（回到默认值），
+ * 因此优先扫事件，扫不到才退回 header。
+ * @param session - 目标会话。
+ * @returns 预设 id；两个来源都没有时 undefined。
+ */
+export const selectedPreset = (session: RotationSession): string | undefined => {
+  let events: readonly { readonly type: string; readonly data?: unknown }[] = [];
+  try {
+    events = session.snapshotEvents?.() ?? [];
+  } catch {
+    events = [];
+  }
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (event?.type !== "agent-preset/selected") continue;
+    const preset = (event.data as { agentPreset?: unknown } | undefined)?.agentPreset;
+    if (typeof preset === "string" && preset !== "") return preset;
+  }
+  return session.header?.agentPreset;
+};
 
 const ROTATE_DELAY_MS = 150;
 
@@ -83,8 +111,13 @@ const describe = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
 const service = <T>(services: HostServices, name: string): T | undefined => {
-  const value = services.get(name);
-  return typeof value === "object" && value !== null ? (value as T) : undefined;
+  try {
+    const value = services.get(name);
+    return typeof value === "object" && value !== null ? (value as T) : undefined;
+  } catch {
+    // 读数失败（宿主不暴露该服务）时按缺失处理，轮转直接不介入。
+    return undefined;
+  }
 };
 
 const buildSeed = async (workspace: string, domainRoot: string): Promise<string> => {
@@ -112,13 +145,15 @@ const buildSeed = async (workspace: string, domainRoot: string): Promise<string>
  *
  * 新会话先拿到「上一会话已轮转 + 继续当前 Plan」的种子，再带上用户这次的消息；
  * 旧会话在新 prompt 被接受后彻底删除。新 prompt 失败时回落到旧会话，消息不丢。
- * 只在 `mode === "queue"` 的新轮次检查；steer 与其它会话直接放行。
- * @param options - 宿主能力、领域根、设置与本实例所属会话。
+ * 只在 `mode === "queue"`、且该会话确实运行本预设时检查；steer 与其它会话直接放行。
+ *
+ * 挂在宿主层（根插件）而不是预设行：预设行看不到 `ctx.agent`（cordis 的 inject 守卫），
+ * 所以「这个会话是不是 Nano Flow」由会话日志里最后一条 `agent-preset/selected` 判定。
+ * @param options - 宿主能力、领域根、设置与会话解析。
  * @returns 还原 prompt 包装的 disposer。
  */
 export const attachRotation = (options: RotationOptions): (() => void) => {
-  const { services, config, domainRoot, settings, session } = options;
-  if (session === undefined) return () => {};
+  const { services, config, domainRoot, settings } = options;
   const meter = service<TokenMeterLike>(services, "tokenMeter");
   const controller = service<SessionControllerLike>(services, "sessionController");
   const workspaces = service<WorkspaceRegistryLike>(services, "workspaceRegistry");
@@ -127,9 +162,10 @@ export const attachRotation = (options: RotationOptions): (() => void) => {
   if (typeof controller.create !== "function" || typeof controller.prompt !== "function") {
     return () => {};
   }
-  const header = session.header ?? {};
-  if (header.origin === "subagent" || (header.delegationDepth ?? 0) > 0) return () => {};
   const presetId = config.presetId ?? "nano-flow";
+  const sessionOf = options.sessionOf ?? ((): undefined => undefined);
+  const isNanoFlow =
+    options.isNanoFlow ?? ((session: RotationSession) => selectedPreset(session) === presetId);
   const facade = (): ToolkitNanoFlowFacade | undefined =>
     service<ToolkitNanoFlowFacade>(services, NANO_FLOW_SERVICE);
 
@@ -167,10 +203,12 @@ export const attachRotation = (options: RotationOptions): (() => void) => {
   const original = controller.prompt.bind(controller);
   const target = controller as unknown as { prompt: SessionControllerLike["prompt"] };
   const previous = target.prompt;
-  let rotating = false;
-  let rotated = false;
+  /** 同一会话的并发/重复 prompt 只轮转一次；旧会话会被删掉，所以按 id 记账。 */
+  const rotating = new Set<string>();
+  const rotated = new Set<string>();
 
   const redirect = async (
+    session: RotationSession,
     request: PromptRequestLike,
     signal: AbortSignal,
   ): Promise<{ accepted: boolean }> => {
@@ -181,10 +219,11 @@ export const attachRotation = (options: RotationOptions): (() => void) => {
       return original(request, signal);
     }
     if (used < window * settings().rotateAt) return original(request, signal);
-    if (rotating || rotated) return original(request, signal);
+    if (rotating.has(session.id) || rotated.has(session.id)) return original(request, signal);
 
-    rotating = true;
+    rotating.add(session.id);
     try {
+      const header = session.header ?? {};
       const cwd = header.cwd ?? workingDirectory?.get(session) ?? config.workspace;
       const created = await controller.create({
         ...(cwd === undefined ? {} : { cwd }),
@@ -200,22 +239,27 @@ export const attachRotation = (options: RotationOptions): (() => void) => {
         },
         signal,
       );
-      rotated = true;
+      rotated.add(session.id);
       await retire(session.id);
       return result;
     } catch (error) {
       options.services.logger.warn(`nano-flow: rotation failed: ${describe(error)}`);
       return original(request, signal);
     } finally {
-      rotating = false;
+      rotating.delete(session.id);
     }
   };
 
   const wrapped: SessionControllerLike["prompt"] = async (request, signal) => {
-    if (request.sessionId !== session.id || request.mode !== "queue") {
+    if (request.mode !== "queue") return original(request, signal);
+    const session = sessionOf(request.sessionId);
+    if (session === undefined) return original(request, signal);
+    const header = session.header ?? {};
+    if (header.origin === "subagent" || (header.delegationDepth ?? 0) > 0) {
       return original(request, signal);
     }
-    return redirect(request, signal);
+    if (!isNanoFlow(session)) return original(request, signal);
+    return redirect(session, request, signal);
   };
   target.prompt = wrapped;
   return () => {

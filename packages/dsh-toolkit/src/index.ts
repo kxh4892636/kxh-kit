@@ -13,7 +13,10 @@ import { installNotesGuard } from "./host/notes-guard.js";
 import { createNanoFlowTool } from "./host/tools/nano-flow.js";
 import { applyNanoFlow } from "./nano-flow/plugin.js";
 import { DEFAULT_DOMAIN_ROOT } from "./nano-flow/config.js";
-import { nanoFlowEntryUrl } from "./nano-flow/preset.js";
+import { recordMount, restoreMountReport } from "./nano-flow/mount-report.js";
+import { NANO_FLOW_PRESET_ID, nanoFlowEntryUrl } from "./nano-flow/preset.js";
+import { attachRotation, type RotationSession } from "./nano-flow/rotate.js";
+import { hostServices } from "./nano-flow/services.js";
 import { createNestedSkillTool } from "./host/tools/nested-skill.js";
 import { createOfficeSkillsTool } from "./host/tools/office-skills.js";
 import { createUndoTurnTool } from "./host/tools/undo-turn.js";
@@ -83,12 +86,17 @@ export const inject = ["skills"];
  * @param config - 插件配置；全部字段可选。
  */
 export const apply = (ctx: Context, config: Config = {}): void => {
+  recordMount("entry", {
+    nanoFlowOnly: config.nanoFlowOnly === true,
+    via: config.nanoFlowOnly === true ? "preset" : "root",
+  });
   if (config.nanoFlowOnly === true) {
     applyNanoFlow(ctx, config);
     return;
   }
   const runtime = createRuntime(ctx, config);
   ctx.effect(() => () => void runtime.dispose(), "toolkit: runtime");
+  restoreMountReport();
   ctx.inject(["connection"], (child: Context) => {
     const connection = serviceOf<ToolkitRouteRegistry>(child, "connection");
     if (!hasRouteRegistry(connection)) return;
@@ -113,6 +121,30 @@ export const apply = (ctx: Context, config: Config = {}): void => {
   // target 拒绝。这是策略而非安全边界（shell/子进程仍可绕过），边界写在 README 与 QUESTIONS。
   ctx.inject(["tools", "fs"], (child: Context) => {
     child.effect(() => installNotesGuard(child, ctx.logger), "toolkit: notes guard");
+  });
+  // 会话轮转挂在宿主层：预设行看不到 `ctx.agent`（cordis 的 inject 守卫），只能由这里按
+  // 会话日志里的预设选择判定，再包装 `sessionController.prompt`。
+  ctx.inject(["sessionController"], (child: Context) => {
+    child.effect(() => {
+      const dispose = attachRotation({
+        services: hostServices(child),
+        config: { presetId: NANO_FLOW_PRESET_ID },
+        domainRoot: config.domainRoot ?? DEFAULT_DOMAIN_ROOT,
+        settings: () => runtime.nanoFlow.get(),
+        sessionOf: (sessionId: string) => {
+          const sessions = serviceOf<HostSessionStore>(child, "sessions");
+          const session = sessions?.get(sessionId);
+          return session as unknown as RotationSession | undefined;
+        },
+      });
+      recordMount("rotation", {
+        tokenMeter: serviceOf<object>(child, "tokenMeter") !== undefined,
+        sessions: serviceOf<object>(child, "sessions") !== undefined,
+        workspaceRegistry: serviceOf<object>(child, "workspaceRegistry") !== undefined,
+        workingDirectory: serviceOf<object>(child, "workingDirectory") !== undefined,
+      });
+      return dispose;
+    }, "toolkit: nano-flow rotation");
   });
   ctx.inject(["workspaceRegistry"], (child: Context) => {
     void runtime.cleanupArchive(child);

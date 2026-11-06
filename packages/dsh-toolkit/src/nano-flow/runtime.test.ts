@@ -18,7 +18,10 @@ import { createReadTool } from "./tools/read.js";
 import { createToolRuntime } from "./tools/shared.js";
 import { createWriteTool } from "./tools/write.js";
 import { applyNanoFlow, PROMPT_SECTION } from "./plugin.js";
+import { disableMountReport } from "./mount-report.js";
 import type { Context } from "@deepseek-ai/cordis";
+
+disableMountReport();
 
 const temporaryDirectories: string[] = [];
 
@@ -126,6 +129,29 @@ describe("plugin entry", () => {
     expect(toolNames).toEqual(["nano_flow_read", "nano_flow_write", "nano_flow_check"]);
     expect(sectionNames).toEqual([PROMPT_SECTION]);
     expect(providers).toEqual(["nano-flow-assets"]);
+  });
+
+  it("不读 ctx.agent 这类需要 inject 的服务属性", () => {
+    // cordis 对服务属性做 inject 守卫：预设行不能声明 `agent` 依赖，直接读会抛
+    // `cannot get property "agent" without inject`，整条预设行随之静默失败。
+    const ctx = {
+      tools: { register: () => () => {} },
+      systemPrompt: { section: () => () => {} },
+      skills: { registerProvider: () => () => {} },
+      logger: { warn: () => {} },
+      get: (): unknown => undefined,
+      on: () => () => {},
+      effect: () => {},
+      inject: (_deps: string[], callback: (child: unknown) => void) => {
+        callback(ctx);
+      },
+    } as unknown as Context;
+    Object.defineProperty(ctx, "agent", {
+      get: () => {
+        throw new Error('cannot get property "agent" without inject');
+      },
+    });
+    expect(() => applyNanoFlow(ctx, { workspace: "/tmp" })).not.toThrow();
   });
 });
 
