@@ -78,6 +78,19 @@ describe("parseDocument", () => {
     expect(() => parseDocument(raw(notes), limits)).toThrow(/尚未 completed/);
   });
 
+  it("blocked 的直接依赖必须已完成", () => {
+    const notes = [
+      note({ id: "01" }),
+      note({
+        id: "02",
+        status: "blocked",
+        blocked_by: ["01"],
+        blocked_reason: "等外部确认",
+      }),
+    ];
+    expect(() => parseDocument(raw(notes), limits)).toThrow(/尚未 completed/);
+  });
+
   it("blocked 必须写原因", () => {
     expect(() => parseDocument(raw([note({ status: "blocked" })]), limits)).toThrow(
       /必须写 blocked_reason/,

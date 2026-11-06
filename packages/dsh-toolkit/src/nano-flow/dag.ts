@@ -141,7 +141,7 @@ export const parseDocument = (raw: unknown, limits: NanoFlowSettings): PlanDocum
         continue;
       }
       const target = byId.get(dependency);
-      const requiresCompleted = note.status === "in_progress" || note.status === "completed";
+      const requiresCompleted = note.status !== "pending";
       if (requiresCompleted && target?.status !== "completed") {
         problems.push(`${note.status} 的 note ${note.id} 的直接依赖 ${dependency} 尚未 completed`);
       }

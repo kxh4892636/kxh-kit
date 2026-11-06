@@ -187,7 +187,7 @@ describe("assets", () => {
     const ask = candidates.find((candidate) => candidate.name === "ask");
     expect(ask?.invocation).toEqual({ modelInvocable: false, userInvocable: true });
     const definition = ask === undefined ? undefined : await provider.get(ask, {});
-    expect(definition?.content).toContain("拷问循环");
+    expect(definition?.content).toContain("ask 循环");
   });
 });
 
