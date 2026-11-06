@@ -94,7 +94,7 @@ const buildSeed = async (workspace: string, domainRoot: string): Promise<string>
   }
   const head =
     planReference === undefined
-      ? "继续执行当前 Plan：先按 CONTEXT-MAP 定位本会话的业务域，工作区里有多个进行中的 Plan 时先问用户是哪个"
+      ? "继续执行当前 Plan：先按 CONTEXT-MAP 定位本会话的业务域，工作区里有多个 active 的 Plan 时先问用户是哪个"
       : `继续执行当前 Plan：${planReference}`;
   return [
     "（上一会话因上下文达到阈值已轮转；Plan 在磁盘上，状态不丢。）",

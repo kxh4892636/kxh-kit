@@ -213,7 +213,7 @@ export const createReadTool = (runtime: ToolRuntime): ToolDefinitionLike => ({
       },
       plan: {
         type: "string",
-        description: "<domain>/<lifecycle>/<name>；工作区只有一个进行中的 Plan 时可省略",
+        description: "<domain>/<lifecycle>/<name>；工作区只有一个 active 的 Plan 时可省略",
       },
       note: { type: "string", description: "note id（get / graph）" },
       ids: {

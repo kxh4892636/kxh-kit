@@ -7,8 +7,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const DEFAULT_DOMAINS = ".agents/domains";
-export const PLAN_LIFECYCLES = Object.freeze(["planning", "implementing", "reference", "archived"]);
-export const CHECKED_LIFECYCLES = Object.freeze(["planning", "implementing"]);
+export const PLAN_LIFECYCLES = Object.freeze(["active", "reference", "archived"]);
+// reference 与 archived 是冻结内容，模板差异不再校验，避免历史缺项淹没本次新增问题。
+export const CHECKED_LIFECYCLES = Object.freeze(["active"]);
 export const NOTE_STATUSES = Object.freeze(["pending", "in_progress", "blocked", "completed"]);
 
 export const LIMIT_KEYS = Object.freeze([

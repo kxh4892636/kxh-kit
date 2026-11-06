@@ -122,9 +122,9 @@ const initPlan = async (
 ): Promise<string> => {
   const domain = requiredString(args, "domain");
   const name = requiredString(args, "name");
-  const lifecycle = optionalString(args, "lifecycle") ?? "planning";
+  const lifecycle = optionalString(args, "lifecycle") ?? "active";
   if (!isPlanLifecycle(lifecycle)) {
-    throw new Error(`lifecycle 必须是 planning | implementing | reference | archived`);
+    throw new Error(`lifecycle 必须是 active | reference | archived`);
   }
   const match = PLAN_NAME.exec(name);
   if (match === null || !isValidDate(match[1] ?? "") || !HAN.test(match[2] ?? "")) {
@@ -155,7 +155,7 @@ const movePlan = async (
   const plan = await resolvePlan(workspace, runtime.domainRoot, optionalString(args, "plan"));
   const lifecycle = requiredString(args, "lifecycle");
   if (!isPlanLifecycle(lifecycle)) {
-    throw new Error(`lifecycle 必须是 planning | implementing | reference | archived`);
+    throw new Error(`lifecycle 必须是 active | reference | archived`);
   }
   if (lifecycle === plan.lifecycle) return `Plan 已在 ${lifecycle}: ${planRefOf(plan)}`;
   const target = join(
@@ -394,13 +394,13 @@ export const createWriteTool = (runtime: ToolRuntime): ToolDefinitionLike => ({
       },
       plan: {
         type: "string",
-        description: "<domain>/<lifecycle>/<name>；工作区只有一个进行中的 Plan 时可省略",
+        description: "<domain>/<lifecycle>/<name>；工作区只有一个 active 的 Plan 时可省略",
       },
       domain: { type: "string", description: "init 的领域名（kebab-case）" },
       name: { type: "string", description: "init 的 Plan 目录名 YYYY-MM-DD-中文工作名" },
       lifecycle: {
         type: "string",
-        enum: ["planning", "implementing", "reference", "archived"],
+        enum: ["active", "reference", "archived"],
         description: "init / move 的目标生命周期",
       },
       note: {

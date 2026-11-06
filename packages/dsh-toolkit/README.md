@@ -164,7 +164,7 @@ API；存活会话优先于磁盘，且改文件后存活会话继续追加会�
 2. 选中该预设：系统提示里出现 Nano Flow 规则，工具目录出现 `nano_flow_*`，skill 目录出现
    `ask` / `do` / `to-skill` / `code-spec` / `learning` / `kaizen`。
 3. 换一个预设：上述提示词、工具与 skill 全部消失。
-4. 在空工作区让模型建 Plan：首轮出现 `plans/planning/<日期>-<名称>/`、`CONTEXT-MAP.md`
+4. 在空工作区让模型建 Plan：首轮出现 `plans/active/<日期>-<名称>/`、`CONTEXT-MAP.md`
    与领域文档骨架；`nano_flow_check op=workspace` 通过。
 5. 打开 toolkit 面板的「Nano Flow 上限」，改一个值并保存；重启后值保持，
    `nano_flow_check op=limits` 回显新值。

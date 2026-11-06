@@ -3,7 +3,7 @@ import { readdir } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 
 /** Plan 生命周期目录，顺序即创建时的推荐顺序。 */
-export const PLAN_LIFECYCLES = ["planning", "implementing", "reference", "archived"] as const;
+export const PLAN_LIFECYCLES = ["active", "reference", "archived"] as const;
 
 /** 生命周期类型。 */
 export type PlanLifecycle = (typeof PLAN_LIFECYCLES)[number];
@@ -67,9 +67,9 @@ export const listPlans = async (
   return plans;
 };
 
-/** 只保留仍在推进的 Plan（planning / implementing）。 */
+/** 只保留仍在推进的 Plan（active）。 */
 export const activePlans = (plans: readonly PlanRef[]): readonly PlanRef[] => {
-  return plans.filter((plan) => plan.lifecycle === "planning" || plan.lifecycle === "implementing");
+  return plans.filter((plan) => plan.lifecycle === "active");
 };
 
 const fromDirectory = (
@@ -94,7 +94,7 @@ const fromDirectory = (
  * 解析一个 Plan 引用。
  *
  * 支持三种写法：`<domain>/<lifecycle>/<name>`、工作区内的目录路径、绝对路径。
- * 省略引用时要求工作区里恰好只有一个 planning/implementing 的 Plan。
+ * 省略引用时要求工作区里恰好只有一个 active 的 Plan。
  * @param workspace - 工作区根。
  * @param domainsPath - 领域根。
  * @param ref - Plan 引用。
@@ -139,10 +139,10 @@ export const resolvePlan = async (
   const only = candidates[0];
   if (candidates.length === 1 && only !== undefined) return only;
   if (candidates.length === 0) {
-    throw new Error("工作区里没有进行中的 Plan；先用 nano_flow_write 的 init 建一个");
+    throw new Error("工作区里没有 active 的 Plan；先用 nano_flow_write 的 init 建一个");
   }
   throw new Error(
-    `工作区里有 ${candidates.length} 个进行中的 Plan，请用 plan 参数指定：${candidates
+    `工作区里有 ${candidates.length} 个 active 的 Plan，请用 plan 参数指定：${candidates
       .map(planRefOf)
       .join("、")}`,
   );

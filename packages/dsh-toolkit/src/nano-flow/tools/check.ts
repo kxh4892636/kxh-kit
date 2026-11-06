@@ -69,7 +69,7 @@ const executeCheck = async (
 export const createCheckTool = (runtime: ToolRuntime): ToolDefinitionLike => ({
   name: "nano_flow_check",
   description:
-    "校验 Nano Flow 的结构：plan 校验单个 Plan（布局、story/spec 字节、notes DAG、索引）；workspace 额外校验领域文档与全部进行中的 Plan；limits 回显当前生效的上限数字。",
+    "校验 Nano Flow 的结构：plan 校验单个 Plan（布局、story/spec 字节、notes DAG、索引）；workspace 额外校验领域文档与全部 active 的 Plan；limits 回显当前生效的上限数字。",
   parameters: {
     type: "object",
     additionalProperties: false,
@@ -81,7 +81,7 @@ export const createCheckTool = (runtime: ToolRuntime): ToolDefinitionLike => ({
       },
       plan: {
         type: "string",
-        description: "<domain>/<lifecycle>/<name>；工作区只有一个进行中的 Plan 时可省略",
+        description: "<domain>/<lifecycle>/<name>；工作区只有一个 active 的 Plan 时可省略",
       },
     },
     required: ["op"],

@@ -198,7 +198,7 @@ describe("tools", () => {
       { op: "init", domain: "demo", name: "2026-11-06-示例工作" },
       exec(),
     );
-    expect(String(initialized)).toContain("demo/planning/2026-11-06-示例工作");
+    expect(String(initialized)).toContain("demo/active/2026-11-06-示例工作");
 
     const created = await tools.write.execute(
       {
@@ -231,6 +231,45 @@ describe("tools", () => {
     expect(String(workspaceCheck)).toContain("工作区校验通过");
   });
 
+  it("move 在 active / reference / archived 之间迁移", async () => {
+    const workspace = await makeWorkspace();
+    const tools = createTools(workspace);
+    await tools.write.execute({ op: "init", domain: "demo", name: "2026-11-07-生命周期" }, exec());
+    await tools.write.execute(
+      { op: "create", title: "示例 note", description: "摘要", content: "正文" },
+      exec(),
+    );
+    await tools.write.execute({ op: "complete", note: "01", evidence: ["校验通过"] }, exec());
+
+    // 旧生命周期名不再是合法目标
+    await expect(
+      tools.write.execute({ op: "move", lifecycle: "implementing" }, exec()),
+    ).rejects.toThrow(/active \| reference \| archived/);
+
+    const moved = await tools.write.execute({ op: "move", lifecycle: "reference" }, exec());
+    expect(String(moved)).toContain("demo/reference/2026-11-07-生命周期");
+    const referenceNotes = await tools.read.execute(
+      { op: "notes", plan: "demo/reference/2026-11-07-生命周期" },
+      exec(),
+    );
+    expect(String(referenceNotes)).toContain("[completed] 示例 note");
+
+    await tools.write.execute(
+      { op: "move", plan: "demo/reference/2026-11-07-生命周期", lifecycle: "archived" },
+      exec(),
+    );
+    const archivedNotes = await tools.read.execute(
+      { op: "notes", plan: "demo/archived/2026-11-07-生命周期" },
+      exec(),
+    );
+    expect(String(archivedNotes)).toContain("[completed] 示例 note");
+
+    // active 下已经没有 Plan：省略 plan 时不再解析到它
+    await expect(tools.write.execute({ op: "move", lifecycle: "active" }, exec())).rejects.toThrow(
+      /没有 active 的 Plan/,
+    );
+  });
+
   it("init 会补齐领域文档与索引", async () => {
     const workspace = await makeDirectory("nano-flow-empty-");
     const tools = createTools(workspace);
@@ -248,10 +287,7 @@ describe("tools", () => {
       exec(),
     );
     // story 用文件工具写到超过上限：脚本能发现，工具自己发现不了，正好验证门禁
-    const planDirectory = join(
-      workspace,
-      ".agents/domains/demo/plans/planning/2026-11-06-示例工作",
-    );
+    const planDirectory = join(workspace, ".agents/domains/demo/plans/active/2026-11-06-示例工作");
     await writeFile(join(planDirectory, "story.md"), `# 超长故事\n${"中".repeat(12000)}`, "utf8");
     await expect(
       tools.write.execute({ op: "complete", note: "01", evidence: ["完成"] }, exec()),
@@ -260,7 +296,7 @@ describe("tools", () => {
 
   it("check 脚本对环与超限报错", async () => {
     const workspace = await makeWorkspace();
-    const planDirectory = join(workspace, ".agents/domains/demo/plans/planning/2026-11-06-坏例子");
+    const planDirectory = join(workspace, ".agents/domains/demo/plans/active/2026-11-06-坏例子");
     await mkdir(planDirectory, { recursive: true });
     await writeFile(join(planDirectory, "story.md"), "# 坏例子\n", "utf8");
     await writeFile(join(planDirectory, "spec.md"), "# 坏例子\n", "utf8");
@@ -303,7 +339,7 @@ describe("tools", () => {
       workspace,
       domainsPath: ".agents/domains",
       limits: DEFAULT_NANO_FLOW_SETTINGS,
-      planRef: "demo/planning/2026-11-06-坏例子",
+      planRef: "demo/active/2026-11-06-坏例子",
     });
     expect(result.ok).toBe(false);
     expect(result.errors.some((error) => error.message.includes("环"))).toBe(true);
