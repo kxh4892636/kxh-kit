@@ -18,7 +18,7 @@ description: 创建、恢复或推进工作时使用；根据用户输入和工�
 
 ```text
 CONTEXT-MAP.md
-docs/{domain-name}/
+.agents/domains/{domain-name}/
 ├── CONTEXT.md
 ├── QUESTIONS.md
 ├── adr/

@@ -30,7 +30,7 @@ test("CLI wrapper reports success and validation errors", () => {
     );
     assert.deepEqual(stdout, ["领域文档校验通过。"]);
 
-    fs.rmSync(path.join(rootDir, "docs"), { recursive: true });
+    fs.rmSync(path.join(rootDir, ".agents/domains"), { recursive: true });
     assert.equal(
       runDomainCheck({ rootDirectory: rootDir, stderr: (message) => stderr.push(message) }),
       1,
@@ -44,36 +44,43 @@ test("CLI wrapper reports success and validation errors", () => {
 
 test.each([
   [
-    "缺少 docs",
-    (rootDir) => fs.rmSync(path.join(rootDir, "docs"), { recursive: true }),
+    "缺少 .agents/domains",
+    (rootDir) => fs.rmSync(path.join(rootDir, ".agents/domains"), { recursive: true }),
     "目录不存在",
   ],
   ["缺少 context map", (rootDir) => fs.rmSync(path.join(rootDir, "CONTEXT-MAP.md")), "文件不存在"],
   [
     "非法 domain-name",
     (rootDir) =>
-      fs.renameSync(path.join(rootDir, "docs/ordering"), path.join(rootDir, "docs/Bad_Name")),
+      fs.renameSync(
+        path.join(rootDir, ".agents/domains/ordering"),
+        path.join(rootDir, ".agents/domains/Bad_Name"),
+      ),
     "domain-name 必须是 kebab-case",
   ],
   [
     "缺少 CONTEXT.md",
-    (rootDir) => fs.rmSync(path.join(rootDir, "docs/ordering/CONTEXT.md")),
+    (rootDir) => fs.rmSync(path.join(rootDir, ".agents/domains/ordering/CONTEXT.md")),
     "业务域缺少 CONTEXT.md",
   ],
   [
     "CONTEXT.md 不含中文",
-    (rootDir) => fs.writeFileSync(path.join(rootDir, "docs/ordering/CONTEXT.md"), "English only\n"),
+    (rootDir) =>
+      fs.writeFileSync(path.join(rootDir, ".agents/domains/ordering/CONTEXT.md"), "English only\n"),
     "正文必须包含中文",
   ],
   [
     "空 CONTEXT.md",
-    (rootDir) => fs.writeFileSync(path.join(rootDir, "docs/ordering/CONTEXT.md"), ""),
+    (rootDir) => fs.writeFileSync(path.join(rootDir, ".agents/domains/ordering/CONTEXT.md"), ""),
     "正文必须包含中文",
   ],
   [
     "CONTEXT.md 超过行数",
     (rootDir) =>
-      fs.writeFileSync(path.join(rootDir, "docs/ordering/CONTEXT.md"), `${"中文\n".repeat(611)}`),
+      fs.writeFileSync(
+        path.join(rootDir, ".agents/domains/ordering/CONTEXT.md"),
+        `${"中文\n".repeat(611)}`,
+      ),
     "CONTEXT.md 共 611 行，超过 610",
   ],
   [
@@ -86,14 +93,14 @@ test.each([
     (rootDir) =>
       fs.appendFileSync(
         path.join(rootDir, "CONTEXT-MAP.md"),
-        "- [ghost](./docs/ghost/CONTEXT.md)\n",
+        "- [ghost](./.agents/domains/ghost/CONTEXT.md)\n",
       ),
     "索引指向不存在的业务域 ghost",
   ],
   [
     "CONTEXT.md 无法读取",
     (rootDir) => {
-      const contextPath = path.join(rootDir, "docs/ordering/CONTEXT.md");
+      const contextPath = path.join(rootDir, ".agents/domains/ordering/CONTEXT.md");
       fs.rmSync(contextPath);
       fs.mkdirSync(contextPath);
     },
@@ -102,7 +109,7 @@ test.each([
   [
     "plans 无法枚举",
     (rootDir) => {
-      const plansPath = path.join(rootDir, "docs/ordering/plans");
+      const plansPath = path.join(rootDir, ".agents/domains/ordering/plans");
       fs.rmSync(plansPath, { recursive: true });
       fs.writeFileSync(plansPath, "不是目录");
     },
@@ -115,7 +122,7 @@ test.each([
 test("校验 ADR 数量、连续中文文件名、中文正文和行数", () => {
   const rootDir = createValidWorkspace();
   try {
-    const adrRoot = path.join(rootDir, "docs/ordering/adr");
+    const adrRoot = path.join(rootDir, ".agents/domains/ordering/adr");
     fs.rmSync(adrRoot, { recursive: true });
     fs.mkdirSync(adrRoot);
     for (let index = 1; index <= 90; index += 1) {
@@ -136,8 +143,11 @@ test("校验 ADR 数量、连续中文文件名、中文正文和行数", () => 
 test("接受 CONTEXT 和 ADR 的精确数量与行数上限", () => {
   const rootDir = createValidWorkspace();
   try {
-    fs.writeFileSync(path.join(rootDir, "docs/ordering/CONTEXT.md"), "中文\n".repeat(610));
-    const adrRoot = path.join(rootDir, "docs/ordering/adr");
+    fs.writeFileSync(
+      path.join(rootDir, ".agents/domains/ordering/CONTEXT.md"),
+      "中文\n".repeat(610),
+    );
+    const adrRoot = path.join(rootDir, ".agents/domains/ordering/adr");
     fs.rmSync(adrRoot, { recursive: true });
     fs.mkdirSync(adrRoot);
     for (let index = 1; index <= 89; index += 1) {
@@ -153,14 +163,18 @@ test("接受 CONTEXT 和 ADR 的精确数量与行数上限", () => {
 test("忽略占用结构名称的普通文件与伪装成 Markdown 的目录", () => {
   const rootDir = createValidWorkspace();
   try {
-    fs.writeFileSync(path.join(rootDir, "docs/not-a-domain"), "ignored", "utf8");
-    fs.writeFileSync(path.join(rootDir, "docs/ordering/plans/not-a-lifecycle"), "ignored", "utf8");
+    fs.writeFileSync(path.join(rootDir, ".agents/domains/not-a-domain"), "ignored", "utf8");
     fs.writeFileSync(
-      path.join(rootDir, "docs/ordering/plans/implementing/not-a-plan"),
+      path.join(rootDir, ".agents/domains/ordering/plans/not-a-lifecycle"),
       "ignored",
       "utf8",
     );
-    fs.mkdirSync(path.join(rootDir, "docs/ordering/adr/9999-伪装.md"));
+    fs.writeFileSync(
+      path.join(rootDir, ".agents/domains/ordering/plans/implementing/not-a-plan"),
+      "ignored",
+      "utf8",
+    );
+    fs.mkdirSync(path.join(rootDir, ".agents/domains/ordering/adr/9999-伪装.md"));
     assert.deepEqual(checkDomain(rootDir), []);
   } finally {
     fs.rmSync(rootDir, { recursive: true, force: true });
@@ -171,9 +185,9 @@ test("domain-name 的 kebab-case 校验锚定整个名称", () => {
   const rootDir = createValidWorkspace();
   try {
     for (const name of ["-leading", "trailing-", "double--dash", "valid-name_"]) {
-      writeFile(rootDir, `docs/${name}/CONTEXT.md`, "中文。\n");
+      writeFile(rootDir, `.agents/domains/${name}/CONTEXT.md`, "中文。\n");
     }
-    writeFile(rootDir, "docs/valid-name/CONTEXT.md", "中文。\n");
+    writeFile(rootDir, ".agents/domains/valid-name/CONTEXT.md", "中文。\n");
     const errors = checkDomain(rootDir);
     assert.equal(
       errors.filter((error) => error.includes("domain-name 必须是 kebab-case")).length,
@@ -187,8 +201,8 @@ test("domain-name 的 kebab-case 校验锚定整个名称", () => {
 test("允许业务域省略 adr 和 plans", () => {
   const rootDir = createValidWorkspace();
   try {
-    fs.rmSync(path.join(rootDir, "docs/ordering/adr"), { recursive: true });
-    fs.rmSync(path.join(rootDir, "docs/ordering/plans"), { recursive: true });
+    fs.rmSync(path.join(rootDir, ".agents/domains/ordering/adr"), { recursive: true });
+    fs.rmSync(path.join(rootDir, ".agents/domains/ordering/plans"), { recursive: true });
     assert.deepEqual(checkDomain(rootDir), []);
   } finally {
     fs.rmSync(rootDir, { recursive: true, force: true });
@@ -204,7 +218,7 @@ test("CLI wrapper uses default process and console dependencies", () => {
   try {
     assert.equal(runDomainCheck({}), 0);
     assert.equal(stdout.mock.calls[0][0], "领域文档校验通过。");
-    fs.rmSync(path.join(rootDir, "docs"), { recursive: true });
+    fs.rmSync(path.join(rootDir, ".agents/domains"), { recursive: true });
     assert.equal(runDomainCheck({}), 1);
     assert.ok(stderr.mock.calls[0][0].includes("领域文档校验失败"));
   } finally {
@@ -238,14 +252,17 @@ test.each(["CONTEXT.md", "QUESTIONS.md"])("%s 使用相同的必备、中文和�
     ["中文\r\n".repeat(611), `${name} 共 611 行，超过 610`],
   ]) {
     assertWorkspaceError((rootDir) => {
-      const target = path.join(rootDir, "docs/ordering", name);
+      const target = path.join(rootDir, ".agents/domains/ordering", name);
       if (content === null) fs.rmSync(target);
       else fs.writeFileSync(target, content);
     }, expected);
   }
   const rootDir = createValidWorkspace();
   try {
-    fs.writeFileSync(path.join(rootDir, "docs/ordering", name), "中文\n".repeat(610).trimEnd());
+    fs.writeFileSync(
+      path.join(rootDir, ".agents/domains/ordering", name),
+      "中文\n".repeat(610).trimEnd(),
+    );
     assert.deepEqual(checkDomain(rootDir), []);
   } finally {
     fs.rmSync(rootDir, { recursive: true, force: true });

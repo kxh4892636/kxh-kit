@@ -17,8 +17,8 @@ CONTEXT-MAP 模板：
 
 ## Contexts
 
-- [订单](./docs/ordering/CONTEXT.md) - 接收并跟踪订单。
-- [账单](./docs/billing/CONTEXT.md) - 生成账单并处理付款。
+- [订单](./.agents/domains/ordering/CONTEXT.md) - 接收并跟踪订单。
+- [账单](./.agents/domains/billing/CONTEXT.md) - 生成账单并处理付款。
 
 ## Relationships
 

@@ -18,14 +18,14 @@ const writeContextMap = (rootDir) => {
   writeFile(
     rootDir,
     "CONTEXT-MAP.md",
-    "# Context Map\n\n## Contexts\n\n- [ordering](./docs/ordering/CONTEXT.md) - 订单域。\n",
+    "# Context Map\n\n## Contexts\n\n- [ordering](./.agents/domains/ordering/CONTEXT.md) - 订单域。\n",
   );
 };
 
 const writeContext = (rootDir) => {
   writeFile(
     rootDir,
-    "docs/ordering/CONTEXT.md",
+    ".agents/domains/ordering/CONTEXT.md",
     "# Ordering\n\n## Language\n\n**订单**：客户请求。\n",
   );
 };
@@ -33,7 +33,7 @@ const writeContext = (rootDir) => {
 const writeAdr = (rootDir) => {
   writeFile(
     rootDir,
-    "docs/ordering/adr/0001-采用事件溯源.md",
+    ".agents/domains/ordering/adr/0001-采用事件溯源.md",
     "# 采用事件溯源\n\n订单需要保留完整历史，因此采用事件溯源。\n",
   );
 };
@@ -41,7 +41,7 @@ const writeAdr = (rootDir) => {
 const writeActivePlanSpec = (rootDir) => {
   writeFile(
     rootDir,
-    "docs/ordering/plans/implementing/2026-08-22-支持订单取消/spec.md",
+    ".agents/domains/ordering/plans/implementing/2026-08-22-支持订单取消/spec.md",
     `---
 status: pending
 ---
@@ -108,7 +108,7 @@ status: pending
 const writeActivePlanNote = (rootDir) => {
   writeFile(
     rootDir,
-    "docs/ordering/plans/implementing/2026-08-22-支持订单取消/01-取消订单.md",
+    ".agents/domains/ordering/plans/implementing/2026-08-22-支持订单取消/01-取消订单.md",
     `---
 status: pending
 blocked_by: []
@@ -155,10 +155,14 @@ export const createValidWorkspace = () => {
   const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "domain-check-"));
   writeContextMap(rootDir);
   writeContext(rootDir);
-  writeFile(rootDir, "docs/ordering/QUESTIONS.md", "# 订单常见问题\n\n暂无已验证的重复问题。\n");
   writeFile(
     rootDir,
-    "docs/ordering/plans/implementing/2026-08-22-支持订单取消/story.md",
+    ".agents/domains/ordering/QUESTIONS.md",
+    "# 订单常见问题\n\n暂无已验证的重复问题。\n",
+  );
+  writeFile(
+    rootDir,
+    ".agents/domains/ordering/plans/implementing/2026-08-22-支持订单取消/story.md",
     "# 支持订单取消\n\n## 原始想法\n\n取消订单。\n\n## 角色\n\n客户。\n\n## 故事\n\n### US-001 取消订单\n\n作为客户，我想取消订单，以便修正错误。\n\n- [ ] 取消未发货订单。\n\n## 约束与澄清\n\n限未发货。\n\n## 迷雾\n\n无。\n\n## 上下文\n\n[方案](spec.md)。\n",
   );
   writeAdr(rootDir);
@@ -168,7 +172,7 @@ export const createValidWorkspace = () => {
 };
 
 export const implementingPlanPath = (rootDir) =>
-  path.join(rootDir, "docs/ordering/plans/implementing/2026-08-22-支持订单取消");
+  path.join(rootDir, ".agents/domains/ordering/plans/implementing/2026-08-22-支持订单取消");
 
 export const replaceFile = (targetPath, searchValue, replacement) => {
   fs.writeFileSync(

@@ -11,6 +11,8 @@ import {
   parseNoteDependencies,
 } from "./plan-document.mjs";
 
+const DOMAINS_DIR = ".agents/domains";
+
 const LIFECYCLES = new Set(["planning", "implementing", "reference", "archived"]);
 // reference 与 archived 是冻结内容，模板差异不再校验，避免历史缺项淹没本次新增问题。
 const VALIDATED_LIFECYCLES = new Set(["planning", "implementing"]);
@@ -446,20 +448,20 @@ export const checkDomain = (rootDirectory) => {
       addError(errors, rootDir, path.join(rootDir, requiredFile), "文件不存在");
     }
   }
-  const docsPath = path.join(rootDir, "docs");
-  if (!fs.existsSync(docsPath)) {
-    addError(errors, rootDir, docsPath, "目录不存在");
+  const domainsPath = path.join(rootDir, DOMAINS_DIR);
+  if (!fs.existsSync(domainsPath)) {
+    addError(errors, rootDir, domainsPath, "目录不存在");
     return errors;
   }
   const mapPath = path.join(rootDir, "CONTEXT-MAP.md");
   const mapContent = fs.existsSync(mapPath) ? readText(mapPath, errors, rootDir) : null;
-  const domainEntries = readEntries(docsPath, errors, rootDir).filter((entry) =>
+  const domainEntries = readEntries(domainsPath, errors, rootDir).filter((entry) =>
     entry.isDirectory(),
   );
   const domainNames = new Set(domainEntries.map((entry) => entry.name));
 
   for (const domainEntry of domainEntries) {
-    const domainPath = path.join(docsPath, domainEntry.name);
+    const domainPath = path.join(domainsPath, domainEntry.name);
     if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(domainEntry.name)) {
       addError(errors, rootDir, domainPath, "domain-name 必须是 kebab-case");
     }
@@ -478,7 +480,10 @@ export const checkDomain = (rootDirectory) => {
         }
       }
     }
-    if (mapContent !== null && !mapContent.includes(`(./docs/${domainEntry.name}/CONTEXT.md)`)) {
+    if (
+      mapContent !== null &&
+      !mapContent.includes(`(./${DOMAINS_DIR}/${domainEntry.name}/CONTEXT.md)`)
+    ) {
       addError(errors, rootDir, mapPath, `缺少业务域 ${domainEntry.name} 的索引`);
     }
     checkAdrs(domainPath, errors, rootDir);
@@ -486,9 +491,14 @@ export const checkDomain = (rootDirectory) => {
   }
 
   if (mapContent !== null) {
-    for (const match of mapContent.matchAll(/\(\.\/docs\/([^/]+)\/CONTEXT\.md\)/g)) {
-      if (!domainNames.has(match[1])) {
-        addError(errors, rootDir, mapPath, `索引指向不存在的业务域 ${match[1]}`);
+    const linkPrefix = `./${DOMAINS_DIR}/`;
+    const linkSuffix = "/CONTEXT.md";
+    for (const match of mapContent.matchAll(/\]\(([^)\s]+)\)/g)) {
+      const target = match[1];
+      if (!target.startsWith(linkPrefix) || !target.endsWith(linkSuffix)) continue;
+      const domainName = target.slice(linkPrefix.length, -linkSuffix.length);
+      if (!domainNames.has(domainName)) {
+        addError(errors, rootDir, mapPath, `索引指向不存在的业务域 ${domainName}`);
       }
     }
   }
