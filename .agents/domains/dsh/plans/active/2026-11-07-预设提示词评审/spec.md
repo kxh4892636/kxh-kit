@@ -23,17 +23,20 @@
 - note 06 完成（决策 A）：`notes.json` 访问收口采用 `tools.guard` + 包装 `ctx.fs`，保留 shell 等旁路并写明不是安全边界。
 - note 08 实施完成（待真机验证）：轮转时机改为用户发送 queue 消息时，包装 `sessionController.prompt`；达到阈值后新会话拿到「种子 + 本次用户内容」，旧会话删除；`used` 用 `projectedTokens ?? pressureTokens`；224 测试与构建通过；已安装，待重启后下一次 queue 消息验证。
 - note 07 实施完成（待真机验证）：`src/host/notes-guard.ts` 两道闸门——`tools.guard` 拦参数里的显式路径（`file_path`/`path`/`target`，以及 `command`/`script` 里的字面路径），`ctx.fs` 包装按已解析 target 拦六个内容读写方法；入口在根插件 `ctx.inject(["tools","fs"])`；237 测试、`vp check`、构建通过；README 与 `docs/dsh/QUESTIONS.md` 已记录「策略不是安全边界」。
-- note 08 回归修复（2026-11-07 03:1x）：a6f6b7cc 在预设行里读 `ctx.agent`，触发 cordis 的 inject 守卫（`cannot get property "agent" without inject`），整条预设行失效——固定提示词、`nano_flow_*`、随包 skill 与轮转一起消失，重启后那次 queue 消息因此没轮转。轮转已搬到宿主半（根插件包装 `sessionController.prompt`，按日志最后一条 `agent-preset/selected` 判定会话）；新增 `nano-flow-mount.json` 挂载诊断；用临时 profile 本地复现并验证（stages: entry/apply/ready/rotation），241 测试通过；已重装，待重启验证。
-- 已打包并安装到 desktop profile：安装目录的 `dist/index.mjs` 与 `dist/nano-flow/prompt.md` 均与仓库 dist 同哈希；重启宿主后新会话生效。
-- 未完成：note 02（迁移 dsh 域文档与旧 Plan）、note 07 与 note 08 的真机验证。
+- note 08 回归修复（2026-11-07 03:1x）：a6f6b7cc 在预设行里读 `ctx.agent`，触发 cordis 的 inject 守卫（`cannot get property "agent" without inject`），整条预设行失效——固定提示词、`nano_flow_*`、随包 skill 与轮转一起消失，重启后那次 queue 消息因此没轮转。轮转已搬到宿主半（根插件包装 `sessionController.prompt`，按日志最后一条 `agent-preset/selected` 判定会话）；新增 `nano-flow-mount.json` 挂载诊断；用临时 profile 本地复现并验证（stages: entry/apply/ready/rotation），241 测试通过；已重装。
+- 重启后核对（2026-11-07 03:3x）：本会话恢复 `nano_flow_*` 与固定提示词；`nano-flow-mount.json` 的 stages 四项齐全（entry via preset / apply / ready 13,041 B / rotation 的 tokenMeter、sessions、workspaceRegistry、workingDirectory 均 true）。
+- note 07 完成（真机已验证）：`read` Plan 的 `notes.json` 被拒（提示只用 `nano_flow_*`），`pwsh` 的字面路径命令同样被拒，`grep` 搜 `notes.json` 与读其它文件不受影响，`nano_flow_read` / `nano_flow_write` 正常。
+- 已打包并安装到 desktop profile：安装目录的 `dist/index.mjs` 与仓库 dist 同哈希（9A380331…60A7）；重启宿主后生效。
+- 未完成：note 02（已按用户决定暂缓）、note 08 的轮转触发验证（需要一条高上下文 queue 消息）。
 - 域根：dsh 已切到 `.agents/domains`，其 `CONTEXT.md` 与 `QUESTIONS.md` 目前是指向 `docs/dsh` 的迁移指针；旧 Plan 与 ADR 仍在原位，迁移见 note 02。
 
 ## 恢复入口
 
 1. 读本 spec、note 01 的评审清单、note 04 的 `ready` 设计与 note 05 的面板设计。
-2. 要收口 `notes.json`：按 note 07 复验真机（实现见 `src/host/notes-guard.ts`）；边界见 note 06。
+2. 要动 `notes.json` 的收口：实现与真机验收见 note 07（已完成），边界见 note 06。
 3. 要清账：按 note 02 选策略，把 `docs/dsh` 的域文档与旧 Plan 迁到新布局，处理相对链接。
 4. 迁移后跑 `nano_flow_check` 的 `workspace`。
+5. 要验轮转：note 08 仍在等一条高上下文 queue 消息；`$DSH_HOME/toolkit/nano-flow-mount.json` 的 `rotation` stage 可确认宿主侧已挂上。
 
 ## 开放问题
 
