@@ -21,7 +21,7 @@
 - note 04 完成：`dag.ts` 的 `todoGroups` 按 blocked_by 连通分量分组、组内拓扑排序；`ready` 输出未完成 notes 的组列表；`prompt.md` 新增「并行执行」小节；211 测试与构建通过。首版按依赖层分组已按用户口径纠正为「有依赖关系的 note 在同一组」。
 - note 05 完成：宿主路由 `/api/toolkit/nano-flow-ready`、`readNanoFlowReady` 读取器、客户端 `conversation.input.dock` 的 `ReadyPanel`（默认折叠、3s 轮询、focus 刷新）；用户已确认真机显示。首次诊断出宿主 live session header 的 `agentPreset` 不可靠，已改为宿主只解析工作区/Plan、客户端按 projection 的 `agentPreset` 判断。219 测试与构建通过。
 - note 06 完成（决策 A）：`notes.json` 访问收口采用 `tools.guard` + 包装 `ctx.fs`，保留 shell 等旁路并写明不是安全边界。
-- note 08 实施完成（待真机验证）：轮转的 `rotated.add` 从事件回调移到压力检查通过后；`used` 改用 `projectedTokens ?? pressureTokens`；222 测试与构建通过；已安装，待重启验证 67% 会话在下一次 completed turn 轮转。
+- note 08 实施完成（待真机验证）：轮转时机改为用户发送 queue 消息时，包装 `sessionController.prompt`；达到阈值后新会话拿到「种子 + 本次用户内容」，旧会话删除；`used` 用 `projectedTokens ?? pressureTokens`；224 测试与构建通过；已安装，待重启后下一次 queue 消息验证。
 - 已打包并安装到 desktop profile：安装目录的 `dist/index.mjs` 与 `dist/nano-flow/prompt.md` 均与仓库 dist 同哈希；重启宿主后新会话生效。
 - 未完成：note 02（迁移 dsh 域文档与旧 Plan）、note 07（`notes.json` 访问收口实施）、note 08 的真机轮转验证。
 - 域根：dsh 已切到 `.agents/domains`，其 `CONTEXT.md` 与 `QUESTIONS.md` 目前是指向 `docs/dsh` 的迁移指针；旧 Plan 与 ADR 仍在原位，迁移见 note 02。

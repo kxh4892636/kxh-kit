@@ -4,7 +4,7 @@ import { DEFAULT_NANO_FLOW_SETTINGS, type NanoFlowSettings } from "../contract.j
 import { NANO_FLOW_SERVICE, type ToolkitNanoFlowFacade } from "../host/nano-flow-facade.js";
 import { assetsSkillsRoot, locateAssetsRoot, readPromptText } from "./assets.js";
 import { DEFAULT_DOMAIN_ROOT, type Config as NanoFlowConfig } from "./config.js";
-import { attachRotation } from "./rotate.js";
+import { attachRotation, type RotationSession } from "./rotate.js";
 import { hostServices, type HostServices } from "./services.js";
 import { createAssetSkillProvider } from "./skills.js";
 import { createCheckTool } from "./tools/check.js";
@@ -55,6 +55,9 @@ export const applyNanoFlow = (ctx: Context, config: NanoFlowConfig): void => {
     const prompt = readPromptText(assetsRoot);
     const settings = createSettingsReader(services);
     const domainRoot = config.domainRoot ?? DEFAULT_DOMAIN_ROOT;
+    const ownSession =
+      (child as unknown as { agent?: { session?: RotationSession } }).agent?.session ??
+      (ctx as unknown as { agent?: { session?: RotationSession } }).agent?.session;
     const runtime = createToolRuntime({
       services,
       config,
@@ -73,7 +76,7 @@ export const applyNanoFlow = (ctx: Context, config: NanoFlowConfig): void => {
       services.tools.register(createWriteTool(runtime)),
       services.tools.register(createCheckTool(runtime)),
       ctx.skills.registerProvider(() => createAssetSkillProvider(assetsSkillsRoot(assetsRoot))),
-      attachRotation({ services, config, domainRoot, settings }),
+      attachRotation({ services, config, domainRoot, settings, session: ownSession }),
     ];
     child.effect(() => {
       return () => {
