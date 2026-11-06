@@ -115,6 +115,61 @@ export interface NanoFlowSettingsRequest {
 /** Nano Flow 设置路由（连接服务已鉴权）。 */
 export const TOOLKIT_NANO_FLOW_PATH = "/api/toolkit/nano-flow";
 
+/** Nano Flow ready 面板路由：按会话返回当前 active Plan 的未完成分组。 */
+export const TOOLKIT_NANO_FLOW_READY_PATH = "/api/toolkit/nano-flow-ready";
+
+/** note 状态；与 `notes.json` 的 status 一致。 */
+export type NanoFlowNoteStatus = "pending" | "in_progress" | "blocked" | "completed";
+
+/** ready 面板里的一条 note；不含正文。 */
+export interface NanoFlowReadyNote {
+  readonly id: string;
+  readonly title: string;
+  readonly description: string;
+  readonly status: NanoFlowNoteStatus;
+  readonly blocked_by: readonly string[];
+  readonly blocked_reason?: string;
+}
+
+/** 依赖组：有依赖关系的 note 在同一组，组内按拓扑顺序。 */
+export interface NanoFlowReadyGroup {
+  readonly notes: readonly NanoFlowReadyNote[];
+}
+
+/** ready 面板头部的计数。 */
+export interface NanoFlowReadyCounts {
+  readonly total: number;
+  readonly pending: number;
+  readonly in_progress: number;
+  readonly blocked: number;
+  readonly completed: number;
+}
+
+/** 当前 active Plan 的引用。 */
+export interface NanoFlowReadyPlan {
+  readonly domain: string;
+  readonly lifecycle: "active" | "reference" | "archived";
+  readonly name: string;
+}
+
+/** ready 面板不可用的原因。 */
+export type NanoFlowReadyReason =
+  | "not-nano-flow"
+  | "session-not-live"
+  | "no-workspace"
+  | "no-active-plan"
+  | "multiple-active-plans"
+  | "read-failed";
+
+/** `GET /api/toolkit/nano-flow-ready` 的响应体。 */
+export interface NanoFlowReadyResponse {
+  readonly available: boolean;
+  readonly reason?: NanoFlowReadyReason;
+  readonly plan?: NanoFlowReadyPlan;
+  readonly counts?: NanoFlowReadyCounts;
+  readonly groups?: readonly NanoFlowReadyGroup[];
+}
+
 /** 工具 id；状态文件与面板都以此为键。 */
 export const TOOL_IDS = {
   nestedSkill: "nested-skill",

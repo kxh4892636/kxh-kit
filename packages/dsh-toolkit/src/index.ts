@@ -4,12 +4,15 @@ import { resolveDshHome } from "@deepseek-ai/dsh-home-paths";
 import z from "@deepseek-ai/schemastery";
 import type Schema from "@deepseek-ai/schemastery";
 import type { UndoAvailability, UndoTurnResponse } from "./contract.js";
+import type { NanoFlowReadyResponse } from "./contract.js";
 import { createNanoFlowSettingsStore, nodeNanoFlowSettingsIo } from "./host/nano-flow-settings.js";
+import { readNanoFlowReady } from "./host/nano-flow-ready.js";
 import { NANO_FLOW_SERVICE, type ToolkitNanoFlowFacade } from "./host/nano-flow-facade.js";
 import type { NanoFlowSettings } from "./contract.js";
 import { createNanoFlowTool } from "./host/tools/nano-flow.js";
 import { applyNanoFlow } from "./nano-flow/plugin.js";
-import { nanoFlowEntryUrl } from "./nano-flow/preset.js";
+import { DEFAULT_DOMAIN_ROOT } from "./nano-flow/config.js";
+import { NANO_FLOW_PRESET_ID, nanoFlowEntryUrl } from "./nano-flow/preset.js";
 import { createNestedSkillTool } from "./host/tools/nested-skill.js";
 import { createOfficeSkillsTool } from "./host/tools/office-skills.js";
 import { createUndoTurnTool } from "./host/tools/undo-turn.js";
@@ -101,6 +104,7 @@ export const apply = (ctx: Context, config: Config = {}): void => {
         get: () => runtime.nanoFlow.get(),
         update: (patch: unknown) => runtime.nanoFlow.update(patch),
       },
+      nanoFlowReady: (sessionId: string) => runtime.ready(sessionId),
     });
     child.effect(() => disposeRoutes, "toolkit: routes");
   });
@@ -126,6 +130,8 @@ interface ToolkitRuntime {
   dispose(): Promise<void>;
   inspect(sessionId: string): UndoAvailability;
   undo(sessionId: string): Promise<UndoTurnResponse>;
+  /** ready 面板数据：按会话解析 Nano Flow 的 active Plan。 */
+  ready(sessionId: string): Promise<NanoFlowReadyResponse>;
 }
 
 const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
@@ -264,6 +270,23 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
         throw new UndoUnavailableError("unsupported-host", "this host exposes no session control");
       }
       return undoTurn(deps, sessionId);
+    },
+    async ready(sessionId) {
+      const sessions = serviceOf<HostSessionStore>(ctx, "sessions");
+      const session = sessions?.get(sessionId);
+      if (session === undefined) return { available: false, reason: "session-not-live" };
+      if (session.header?.agentPreset !== NANO_FLOW_PRESET_ID) {
+        return { available: false, reason: "not-nano-flow" };
+      }
+      const workspace = config.workspace ?? session.header.cwd;
+      if (workspace === undefined || workspace === "") {
+        return { available: false, reason: "no-workspace" };
+      }
+      return readNanoFlowReady({
+        workspace,
+        domainRoot: config.domainRoot ?? DEFAULT_DOMAIN_ROOT,
+        limits: settings.current(),
+      });
     },
   };
 };

@@ -277,6 +277,142 @@ const css = `
 .dshtk-button-outline:hover:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover);
 }
+/* ── ready 面板：输入框上方的可折叠列表 ─────────────────────────────── */
+.dshtk-ready {
+  box-sizing: border-box;
+  flex: none;
+  overflow: hidden;
+  margin: 0 auto;
+  width: calc(
+    100% -
+    var(--dsh-composer-side-clearance) -
+    var(--dsh-composer-side-clearance) -
+    var(--dsh-composer-dock-inset) -
+    var(--dsh-composer-dock-inset) -
+    var(--dsh-composer-dock-inset) -
+    var(--dsh-composer-dock-inset)
+  );
+  max-width: calc(
+    var(--dsh-composer-card-max-width) -
+    var(--dsh-composer-dock-inset) -
+    var(--dsh-composer-dock-inset) -
+    var(--dsh-composer-dock-inset) -
+    var(--dsh-composer-dock-inset)
+  );
+  border: .5px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  background: var(--dsw-specific-tip);
+}
+.dshtk-ready-body {
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 12px;
+  display: flex;
+}
+.dshtk-ready-header {
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+}
+.dshtk-ready-lead,
+.dshtk-ready-chevron {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--dsw-alias-label-tertiary);
+}
+.dshtk-ready-title {
+  flex: none;
+  font-size: 13px;
+  line-height: 24px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+.dshtk-ready-progress {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dshtk-ready-list {
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+}
+.dshtk-ready-group {
+  flex-direction: column;
+  gap: 6px;
+  display: flex;
+}
+.dshtk-ready-group-label {
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-caption);
+}
+.dshtk-ready-item {
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+  display: flex;
+}
+.dshtk-ready-glyph {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+.dshtk-ready-glyph-pending {
+  color: var(--dsw-alias-label-caption);
+}
+.dshtk-ready-glyph-in_progress {
+  color: var(--dsw-alias-state-business-primary);
+  animation: dshtk-ready-spin 1s linear infinite;
+}
+.dshtk-ready-glyph-blocked {
+  color: var(--dsw-alias-state-error-primary);
+}
+@keyframes dshtk-ready-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.dshtk-ready-id {
+  flex: none;
+  font-family: var(--ds-font-family-code);
+  font-size: 12px;
+  color: var(--dsw-alias-label-tertiary);
+}
+.dshtk-ready-item-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dshtk-ready-reason {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-state-warn-label);
+  font-size: 12px;
+}
 `;
 
 /** 注入一次工具箱样式；没有 DOM（如静态渲染）时静默跳过。 */

@@ -1,8 +1,14 @@
 import {
   TOOLKIT_HIDDEN_PATH,
   TOOLKIT_NANO_FLOW_PATH,
+  TOOLKIT_NANO_FLOW_READY_PATH,
   TOOLKIT_STATE_PATH,
   TOOLKIT_UNDO_PATH,
+  type NanoFlowNoteStatus,
+  type NanoFlowReadyGroup,
+  type NanoFlowReadyNote,
+  type NanoFlowReadyReason,
+  type NanoFlowReadyResponse,
   type NanoFlowSettings,
   type NanoFlowSettingsRequest,
   type NanoFlowSettingsResponse,
@@ -107,11 +113,123 @@ const parseSettings = (body: unknown): NanoFlowSettings => {
   return record as unknown as NanoFlowSettings;
 };
 
+const NOTE_STATUSES: readonly NanoFlowNoteStatus[] = [
+  "pending",
+  "in_progress",
+  "blocked",
+  "completed",
+];
+
+const isNoteStatus = (value: unknown): value is NanoFlowNoteStatus =>
+  typeof value === "string" && (NOTE_STATUSES as readonly string[]).includes(value);
+
+const isStringArray = (value: unknown): value is string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === "string");
+
+const READY_LIFECYCLES = ["active", "reference", "archived"] as const;
+
+const isReadyLifecycle = (value: unknown): value is "active" | "reference" | "archived" =>
+  typeof value === "string" && (READY_LIFECYCLES as readonly string[]).includes(value);
+
+const parseReadyNote = (value: unknown): NanoFlowReadyNote | undefined => {
+  if (typeof value !== "object" || value === null) return undefined;
+  const note = value as Partial<NanoFlowReadyNote>;
+  if (
+    typeof note.id !== "string" ||
+    typeof note.title !== "string" ||
+    typeof note.description !== "string" ||
+    !isNoteStatus(note.status) ||
+    !isStringArray(note.blocked_by)
+  ) {
+    return undefined;
+  }
+  return {
+    id: note.id,
+    title: note.title,
+    description: note.description,
+    status: note.status,
+    blocked_by: note.blocked_by,
+    ...(typeof note.blocked_reason === "string" ? { blocked_reason: note.blocked_reason } : {}),
+  };
+};
+
+const parseReadyGroup = (value: unknown): NanoFlowReadyGroup | undefined => {
+  if (typeof value !== "object" || value === null) return undefined;
+  const notes = (value as { notes?: unknown }).notes;
+  if (!Array.isArray(notes)) return undefined;
+  const parsed: NanoFlowReadyNote[] = [];
+  for (const item of notes) {
+    const note = parseReadyNote(item);
+    if (note === undefined) return undefined;
+    parsed.push(note);
+  }
+  return { notes: parsed };
+};
+
+const parseReady = (body: unknown): NanoFlowReadyResponse | undefined => {
+  if (typeof body !== "object" || body === null) return undefined;
+  const candidate = body as Partial<NanoFlowReadyResponse>;
+  if (typeof candidate.available !== "boolean") return undefined;
+  if (candidate.available !== true) {
+    return {
+      available: false,
+      ...(typeof candidate.reason === "string"
+        ? { reason: candidate.reason as NanoFlowReadyReason }
+        : {}),
+    };
+  }
+  const plan = candidate.plan;
+  const counts = candidate.counts;
+  const groups = candidate.groups;
+  if (plan === undefined || counts === undefined || groups === undefined) return undefined;
+  if (
+    typeof plan.domain !== "string" ||
+    !isReadyLifecycle(plan.lifecycle) ||
+    typeof plan.name !== "string"
+  ) {
+    return undefined;
+  }
+  for (const key of ["total", "pending", "in_progress", "blocked", "completed"] as const) {
+    if (typeof counts[key] !== "number") return undefined;
+  }
+  if (!Array.isArray(groups)) return undefined;
+  const parsedGroups: NanoFlowReadyGroup[] = [];
+  for (const item of groups) {
+    const group = parseReadyGroup(item);
+    if (group === undefined) return undefined;
+    parsedGroups.push(group);
+  }
+  return {
+    available: true,
+    plan: { domain: plan.domain, lifecycle: plan.lifecycle, name: plan.name },
+    counts,
+    groups: parsedGroups,
+  };
+};
+
 /** 读取 Nano Flow 上限设置。 */
 export const fetchNanoFlowSettings = async (signal?: AbortSignal): Promise<NanoFlowSettings> => {
   const response = await send(relative(TOOLKIT_NANO_FLOW_PATH), optionalSignal(signal));
   const body = (await readJson(response)) as unknown;
   return parseSettings(body);
+};
+
+/** 读取 Nano Flow ready 面板数据。 */
+export const fetchNanoFlowReady = async (
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<NanoFlowReadyResponse> => {
+  const query = `?sessionId=${encodeURIComponent(sessionId)}`;
+  const response = await send(
+    `${relative(TOOLKIT_NANO_FLOW_READY_PATH)}${query}`,
+    optionalSignal(signal),
+  );
+  const body = (await readJson(response)) as unknown;
+  const ready = parseReady(body);
+  if (ready === undefined) {
+    throw new HostApiError("invalid-response", "unexpected nano-flow ready payload");
+  }
+  return ready;
 };
 
 /** 保存 Nano Flow 上限设置，返回保存后的完整设置。 */

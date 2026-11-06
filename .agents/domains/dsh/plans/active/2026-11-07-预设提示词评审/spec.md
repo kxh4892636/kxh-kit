@@ -2,7 +2,7 @@
 
 ## 目标
 
-评审固定提示词的优化空间并落地定案修订；同时把 `ready` 改成按依赖关系分组的 todo 列表，补并行执行论述。
+评审固定提示词的优化空间并落地定案修订；把 `ready` 改成按依赖关系分组的 todo 列表，补并行执行论述，并在会话输入框上方提供可折叠的 ready 面板。
 
 ## 取证口径
 
@@ -12,22 +12,24 @@
 
 ## 结论摘要
 
-详见 note 01（29 条评审）与 note 04（`ready` 分组）。P0 是 Plan 初始化触发、模式优先级、story/spec 契约、域根对齐、ask 护栏位置，以及删除工具清单与空节；P1 是其余重复与模糊表述；P2 是结构与体量。
+详见 note 01（29 条评审）、note 04（`ready` 分组）与 note 05（GUI 面板）。P0 是 Plan 初始化触发、模式优先级、story/spec 契约、域根对齐、ask 护栏位置，以及删除工具清单与空节；P1 是其余重复与模糊表述；P2 是结构与体量。
 
 ## 当前进度
 
 - note 01 完成（评审 29 条）。
 - note 03 完成：`prompt.md` 按定案改写；ask / do skill、README、`runtime.test`、`assets.lock.json` 同步；9 个 markdown 改为 ASCII 标点；209 测试、构建、安装与新会话验证通过。
 - note 04 完成：`dag.ts` 的 `todoGroups` 按 blocked_by 连通分量分组、组内拓扑排序；`ready` 输出未完成 notes 的组列表；`prompt.md` 新增「并行执行」小节；211 测试与构建通过。首版按依赖层分组已按用户口径纠正为「有依赖关系的 note 在同一组」。
+- note 05 实施中：宿主路由 `/api/toolkit/nano-flow-ready`、`readNanoFlowReady` 读取器、客户端 `conversation.input.dock` 的 `ReadyPanel`（默认折叠、3s 轮询、focus 刷新）；218 测试与构建通过；待安装后真机确认。
 - 已打包并安装到 desktop profile：安装目录的 `dist/index.mjs` 与 `dist/nano-flow/prompt.md` 均与仓库 dist 同哈希；重启宿主后新会话生效。
-- 未完成：note 02（迁移 dsh 域文档与旧 Plan）。
+- 未完成：note 02（迁移 dsh 域文档与旧 Plan）、note 05 的真机确认。
 - 域根：dsh 已切到 `.agents/domains`，其 `CONTEXT.md` 与 `QUESTIONS.md` 目前是指向 `docs/dsh` 的迁移指针；旧 Plan 与 ADR 仍在原位，迁移见 note 02。
 
 ## 恢复入口
 
-1. 读本 spec、note 01 的评审清单与 note 04 的 `ready` 设计。
-2. 要清账：按 note 02 选策略，把 `docs/dsh` 的域文档与旧 Plan 迁到新布局，处理相对链接。
-3. 迁移后跑 `nano_flow_check` 的 `workspace`。
+1. 读本 spec、note 01 的评审清单、note 04 的 `ready` 设计与 note 05 的面板设计。
+2. 要验收面板：安装后在 Nano Flow 会话查看输入框上方的列表与折叠。
+3. 要清账：按 note 02 选策略，把 `docs/dsh` 的域文档与旧 Plan 迁到新布局，处理相对链接。
+4. 迁移后跑 `nano_flow_check` 的 `workspace`。
 
 ## 开放问题
 

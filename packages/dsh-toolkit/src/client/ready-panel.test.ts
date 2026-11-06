@@ -1,0 +1,65 @@
+// @vitest-environment happy-dom
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createElement } from "react";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { ReadyPanel } from "./ready-panel.js";
+
+const json = (body: unknown): Response =>
+  new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+
+const payload = {
+  available: true,
+  plan: { domain: "dsh", lifecycle: "active", name: "2026-11-07-示例工作" },
+  counts: { total: 2, pending: 1, in_progress: 0, blocked: 0, completed: 1 },
+  groups: [
+    {
+      notes: [
+        {
+          id: "01",
+          title: "基座",
+          description: "基座摘要",
+          status: "pending",
+          blocked_by: [],
+        },
+      ],
+    },
+  ],
+};
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+describe("ReadyPanel", () => {
+  it("renders counts, expands groups and collapses again", async () => {
+    const fetchMock = vi.fn(async (_input: string, _init?: RequestInit) => json(payload));
+    vi.stubGlobal("fetch", fetchMock);
+    render(createElement(ReadyPanel, { sessionId: "s1" }));
+
+    expect(await screen.findByText("Nano Flow")).toBeDefined();
+    expect(screen.getByText("1 未完成 · 1 已完成")).toBeDefined();
+    expect(screen.getByRole("button").getAttribute("aria-expanded")).toBe("false");
+    expect(screen.queryByText("基座")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button"));
+    expect(await screen.findByText("基座")).toBeDefined();
+    expect(screen.getByText("第 1 组")).toBeDefined();
+    expect(screen.getByRole("button").getAttribute("aria-expanded")).toBe("true");
+    expect(fetchMock.mock.calls[0]?.[0] ?? "").toContain("nano-flow-ready?sessionId=s1");
+
+    fireEvent.click(screen.getByRole("button"));
+    expect(screen.queryByText("基座")).toBeNull();
+  });
+
+  it("renders nothing when the host reports the panel unavailable", async () => {
+    const fetchMock = vi.fn(async () => json({ available: false, reason: "not-nano-flow" }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { container } = render(createElement(ReadyPanel, { sessionId: "s1" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    expect(container.querySelector("[data-testid='nano-flow-ready']")).toBeNull();
+  });
+});

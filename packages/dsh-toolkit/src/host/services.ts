@@ -15,6 +15,11 @@ export interface HostSessionEvent {
 /** 存活会话：`snapshotEvents()` 返回当前日志快照（`dsh-session/lib/index.js:1452`）。 */
 export interface HostSession {
   snapshotEvents(): readonly HostSessionEvent[];
+  /** 会话头：`cwd` 是工作区根，`agentPreset` 是创建时的预设 id。 */
+  readonly header?: {
+    readonly cwd?: string;
+    readonly agentPreset?: string;
+  };
 }
 
 /** SessionStore：`ctx.sessions.get(id)` 只返回存活会话（`dsh-session`）。 */
