@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { createNanoFlowTool } from "./nano-flow.js";
 import { createNestedSkillTool } from "./nested-skill.js";
 import { createOfficeSkillsTool } from "./office-skills.js";
 import { createUndoTurnTool } from "./undo-turn.js";
@@ -59,6 +60,44 @@ describe("nested-skill tool", () => {
       handler?.({ displayPath: "C:/x/.agents/a" }, undefined, { name: "edit" }),
     ).not.toThrow();
     expect(() => handler?.({ displayPath: "C:/x/.agents/a" }, undefined, undefined)).not.toThrow();
+    dispose();
+  });
+});
+
+describe("nano-flow tool", () => {
+  const presetContext = () => {
+    const registered: { id: string; plugins: { name: string }[] }[] = [];
+    const stops: (() => Promise<void>)[] = [];
+    const ctx = {
+      logger: { warn: vi.fn() },
+      inject: (_deps: string[], callback: (child: unknown) => void) => {
+        callback({
+          agentPresets: {
+            register: async (definition: { id: string; plugins: { name: string }[] }) => {
+              registered.push(definition);
+              const stop = async () => {};
+              stops.push(stop);
+              return stop;
+            },
+          },
+        });
+        return { dispose: async () => {} };
+      },
+    };
+    return { ctx, registered, stops };
+  };
+
+  it("registers the preset only while applied", async () => {
+    const tool = createNanoFlowTool({ entryUrl: "file:///tmp/nano-flow.mjs" });
+    expect(tool).toMatchObject({ id: "nano-flow", defaultEnabled: false });
+    const { ctx, registered } = presetContext();
+    const dispose = tool.apply(ctx as never);
+    await Promise.resolve();
+    expect(registered).toHaveLength(1);
+    expect(registered[0]?.id).toBe("nano-flow");
+    expect(registered[0]?.plugins.some((row) => row.name === "file:///tmp/nano-flow.mjs")).toBe(
+      true,
+    );
     dispose();
   });
 });

@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "skills": {
+    "to-skill": {
+      "SKILL.md": "05dce8a1ec5449c4b668dd0cb7b94d30df1be71eb309f02d0853eb54d9fb62da"
+    },
+    "code-spec": {
+      "SKILL.md": "ca2929b1a550185a8c8dde97b6849b98e8e59d4f90d0e76c8336c631406b8277"
+    },
+    "learning": {
+      "agents/openai.yaml": "a1499d95abd8447558c535fe5554adcc3c9b988a0a39264a6283d430effe1e94",
+      "ANKI.md": "411912e83144ba8a53b3dd539d17450cd8dde2b89c179deb1d72eefde881c373",
+      "RULE.md": "28daf34c45b130acdb471487530c15128bee626d8bb06256148089d7e80435fe",
+      "SKILL.md": "6351138b5e6ec7d99dba8c7a06bb7f5cb02beeda6a475af6aa46e0b96f2f8d09"
+    },
+    "kaizen": {
+      "agents/openai.yaml": "a1499d95abd8447558c535fe5554adcc3c9b988a0a39264a6283d430effe1e94",
+      "SKILL.md": "217a77651594ce0db26d606b11d7a26559a289b99cfc9a80da20ce898ab6686b"
+    }
+  }
+}

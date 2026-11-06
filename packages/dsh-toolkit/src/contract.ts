@@ -61,11 +61,63 @@ export interface ToolkitHiddenResponse {
   readonly ids: readonly string[];
 }
 
+/**
+ * Nano Flow 的数值上限与轮转阈值；由 toolkit 面板的设置区维护，
+ * 持久化在 `$DSH_HOME/toolkit/nano-flow.json`。
+ */
+export interface NanoFlowSettings {
+  /** story.md 单文件上限（字节）。 */
+  readonly storyMaxBytes: number;
+  /** spec.md 单文件上限（字节）。 */
+  readonly specMaxBytes: number;
+  /** 单条 note 正文上限（字节）。 */
+  readonly noteMaxBytes: number;
+  /** note 摘要字数上限。 */
+  readonly noteDescriptionMaxChars: number;
+  /** 关键索引行数上限。 */
+  readonly indexMaxRows: number;
+  /** CONTEXT.md 上限（字节）。 */
+  readonly contextMaxBytes: number;
+  /** QUESTIONS.md 上限（字节）。 */
+  readonly questionsMaxBytes: number;
+  /** 单个 ADR 上限（字节）。 */
+  readonly adrMaxBytes: number;
+  /** 上下文占用达到最大上下文的这个比例后轮转会话（0–1）。 */
+  readonly rotateAt: number;
+}
+
+/** 默认值（面板按 KB 显示）：34 / 34 / 13 KB，144 字，13 行，89 / 89 / 13 KB，轮转阈值 0.618。 */
+export const DEFAULT_NANO_FLOW_SETTINGS: NanoFlowSettings = {
+  storyMaxBytes: 34 * 1024,
+  specMaxBytes: 34 * 1024,
+  noteMaxBytes: 13 * 1024,
+  noteDescriptionMaxChars: 144,
+  indexMaxRows: 13,
+  contextMaxBytes: 89 * 1024,
+  questionsMaxBytes: 89 * 1024,
+  adrMaxBytes: 13 * 1024,
+  rotateAt: 0.618,
+};
+
+/** `GET /api/toolkit/nano-flow` 的响应体。 */
+export interface NanoFlowSettingsResponse {
+  readonly settings: NanoFlowSettings;
+}
+
+/** `POST /api/toolkit/nano-flow` 的请求体：只提交要改的字段。 */
+export interface NanoFlowSettingsRequest {
+  readonly patch: Partial<NanoFlowSettings>;
+}
+
+/** Nano Flow 设置路由（连接服务已鉴权）。 */
+export const TOOLKIT_NANO_FLOW_PATH = "/api/toolkit/nano-flow";
+
 /** 工具 id；状态文件与面板都以此为键。 */
 export const TOOL_IDS = {
   nestedSkill: "nested-skill",
   undoTurn: "undo-turn",
   officeSkills: "office-skills",
+  nanoFlow: "nano-flow",
 } as const;
 
 /** 侧边栏入口与主面板共用的 key。 */

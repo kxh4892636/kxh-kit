@@ -1,5 +1,8 @@
-import { isSkillName, type SkillInvocationPolicy } from "@deepseek-ai/dsh-skill";
+import type { SkillInvocationPolicy } from "@deepseek-ai/dsh-skill";
 import { parse as parseYaml } from "yaml";
+
+/** 宿主 `isSkillName` 的同一模式：kebab-case。 */
+const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** frontmatter 校验通过后的 skill 正文，解析规则与内建 filesystem provider 一致。 */
 export interface ParsedSkill {
@@ -23,8 +26,8 @@ export const parseSkillText = (raw: string): ParsedSkill | undefined => {
   const name = dataString(parsed.data, "name");
   const description = dataString(parsed.data, "description");
   if (name === undefined || description === undefined) return undefined;
-  // 注册名语法取宿主的公开判定，避免与本包自带正则各自漂移。
-  if (!isSkillName(name)) return undefined;
+  // 与宿主公开判定同一个 kebab-case 语法（内联以避免预设入口依赖宿主包解析）。
+  if (!SKILL_NAME.test(name)) return undefined;
   let invocation: SkillInvocationPolicy;
   try {
     invocation = parseInvocationPolicy(parsed.data);

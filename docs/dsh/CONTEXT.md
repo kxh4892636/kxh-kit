@@ -38,6 +38,32 @@ _Avoid_: 配置项、feature flag
 把宿主机内置的 office 技能从技能注册表读取面（`list` / `snapshot` / `get`）过滤掉的开关效果；不注销 provider、不改技能文件，关闭即还原。
 _Avoid_: 删除 office 技能、卸载 office 插件
 
+### Nano Flow 预设
+
+**nano-flow 预设**:
+本插件声明的 Agent 预设；选中它的会话才在预设作用域内挂载固定提示词、`nano_flow_*` 工具与随包 skill。
+_Avoid_: 流程开关、manual / auto 模式
+
+**固定提示词**:
+`nano-flow/prompt.md` 的正文，作为系统提示词的一段按字面量注入；不含变量，跨会话字节稳定。
+_Avoid_: persona、系统提示
+
+**会话域**:
+一个 nano-flow 会话只属于一个业务域：新会话先按 CONTEXT-MAP 定位，缺失则用 `init` 新建；`common` 是任何域都可读写的公共域。
+_Avoid_: 多域并行、跨域会话
+
+**notes DAG**:
+Plan 的实现记录，存在 `notes.json` 里；一条 note 对应一个可独立验收的用户结果，依赖关系构成有向无环图，只能经 `nano_flow_write` 修改。
+_Avoid_: 任务列表、todo、issue 树
+
+**生效上限**:
+toolkit 面板「Nano Flow 上限」设置区维护的唯一数字来源（story/spec/note/摘要/索引/领域文档字节与轮转阈值）；持久化在 `$DSH_HOME/toolkit/nano-flow.json`，提示词不写数字。
+_Avoid_: 魔法数字、硬编码阈值
+
+**会话轮转**:
+预设不挂压缩插件；每轮结束后上下文占用达到 `rotateAt × contextWindow` 时，创建新会话重新读取当前 Plan，并物理删除旧会话（不是归档）。
+_Avoid_: 压缩、compact、归档旧会话
+
 ### 会话撤回
 
 **撤回**:

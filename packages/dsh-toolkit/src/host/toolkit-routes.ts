@@ -1,7 +1,10 @@
 import {
   TOOLKIT_HIDDEN_PATH,
+  TOOLKIT_NANO_FLOW_PATH,
   TOOLKIT_STATE_PATH,
   TOOLKIT_UNDO_PATH,
+  type NanoFlowSettings,
+  type NanoFlowSettingsResponse,
   type ToolkitErrorBody,
   type ToolkitHiddenResponse,
   type ToolkitStateRequest,
@@ -23,6 +26,11 @@ export interface ToolkitRoutesOptions {
   readonly connection: ToolkitRouteRegistry;
   /** 已撤回、应在客户端隐藏的会话 id。 */
   readonly hiddenSessions?: () => readonly string[];
+  /** Nano Flow 上限设置；缺省时设置路由返回 501。 */
+  readonly nanoFlow?: {
+    readonly get: () => NanoFlowSettings;
+    readonly update: (patch: unknown) => Promise<NanoFlowSettings>;
+  };
   readonly logger: { warn(message: string): void };
 }
 
@@ -56,6 +64,12 @@ export const registerToolkitRoutes = (options: ToolkitRoutesOptions): (() => voi
     requestBody: "buffered",
     fetch: (request) => handleUndo(options, request),
   });
+  const nanoFlow = options.connection.fetch.register({
+    path: TOOLKIT_NANO_FLOW_PATH,
+    methods: ["GET", "POST"],
+    requestBody: "buffered",
+    fetch: (request) => handleNanoFlow(options, request),
+  });
   const hidden = options.connection.fetch.register({
     path: TOOLKIT_HIDDEN_PATH,
     methods: ["GET"],
@@ -68,8 +82,30 @@ export const registerToolkitRoutes = (options: ToolkitRoutesOptions): (() => voi
   return () => {
     state();
     undo();
+    nanoFlow();
     hidden();
   };
+};
+
+const handleNanoFlow = async (
+  options: ToolkitRoutesOptions,
+  request: Request,
+): Promise<Response> => {
+  if (options.nanoFlow === undefined) {
+    return failure(501, "unsupported-host", "nano-flow settings are not wired on this host");
+  }
+  if (request.method === "GET") {
+    return json<NanoFlowSettingsResponse>({ settings: options.nanoFlow.get() });
+  }
+  const parsed = await readJson(request);
+  if (parsed === undefined) return failure(400, "invalid-body", "request body is not JSON");
+  const patch = isRecord(parsed) ? parsed["patch"] : undefined;
+  if (patch === undefined) return failure(400, "invalid-body", 'expected {"patch": {...}}');
+  try {
+    return json<NanoFlowSettingsResponse>({ settings: await options.nanoFlow.update(patch) });
+  } catch (error) {
+    return failure(400, "invalid-settings", describe(error));
+  }
 };
 
 const handleState = async (options: ToolkitRoutesOptions, request: Request): Promise<Response> => {
@@ -134,6 +170,10 @@ const inspectUndo = (options: ToolkitRoutesOptions, request: Request): Response 
 const stateOf = (options: ToolkitRoutesOptions): ToolkitStateResponse => ({
   tools: options.registry.list(),
 });
+
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+};
 
 const json = <T>(body: T, status = 200): Response => {
   return new Response(JSON.stringify(body), {

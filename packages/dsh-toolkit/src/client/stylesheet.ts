@@ -56,6 +56,7 @@ const css = `
   display: flex;
 }
 .dshtk-row-card {
+  position: relative;
   border: .5px solid var(--dsw-alias-settings-card-stroke);
   background: var(--dsw-alias-settings-card-fill);
   border-radius: var(--dsw-radius-xl);
@@ -102,6 +103,60 @@ const css = `
   color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
   line-height: 18px;
+}
+
+/* ── 设置下拉：开关旁的小箭头 + 浮层 ─────────────────────────────────── */
+.dshtk-settings-popover {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  box-sizing: border-box;
+  padding: 12px;
+  background: var(--dsw-alias-settings-card-fill);
+  border: .5px solid var(--dsw-alias-settings-card-stroke);
+  border-radius: var(--dsw-radius-xl);
+}
+
+/* ── 设置区：数字输入与保存按钮 ───────────────────────────────────────── */
+.dshtk-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 10px;
+}
+.dshtk-field-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 16px;
+}
+.dshtk-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.dshtk-field-label {
+  color: var(--dsw-alias-label-primary);
+  font-size: 13px;
+  line-height: 20px;
+}
+/* 宽度交给面板网格；外观由宿主 Input 自己负责。
+   宿主 Input 可能是「外层容器 + 内层 input」两层结构，两层的盒模型都要压住。 */
+.dshtk-input,
+.dshtk-input input {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+.dshtk-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  padding-top: 4px;
 }
 
 /* ── 撤回触发器：与权限选择 .trigger 同度量 ────────────────────────────── */

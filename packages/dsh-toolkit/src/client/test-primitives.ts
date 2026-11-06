@@ -30,10 +30,13 @@ export const Modal = (props: ModalProps): unknown => {
 
 interface ButtonProps {
   readonly variant?: string;
+  readonly size?: string;
   readonly className?: string;
   readonly disabled?: boolean;
   readonly onClick?: () => void;
   readonly children?: unknown;
+  readonly "aria-label"?: string;
+  readonly "aria-expanded"?: boolean;
 }
 
 export const Button = (props: ButtonProps): unknown => {
@@ -44,9 +47,58 @@ export const Button = (props: ButtonProps): unknown => {
       className: props.className,
       disabled: props.disabled,
       onClick: props.onClick,
+      "aria-label": props["aria-label"],
+      "aria-expanded": props["aria-expanded"],
     },
     props.children as never,
   );
+};
+
+interface InputProps {
+  readonly type?: string;
+  readonly value?: string;
+  readonly placeholder?: string;
+  readonly className?: string;
+  readonly disabled?: boolean;
+  readonly inputMode?: string;
+  readonly "aria-label"?: string;
+  readonly onChange?: (event: { target: { value: string } }) => void;
+}
+
+export const Input = (props: InputProps): unknown => {
+  return createElement("input", {
+    type: props.type ?? "text",
+    value: props.value,
+    placeholder: props.placeholder,
+    className: props.className,
+    disabled: props.disabled,
+    inputMode: props.inputMode,
+    "aria-label": props["aria-label"],
+    onChange: (event: { target: { value: string } }) => props.onChange?.(event),
+  });
+};
+
+interface TooltipProps {
+  readonly label: string;
+  readonly side?: string;
+  readonly delayMs?: number;
+  readonly focusDelayMs?: number;
+  readonly portal?: boolean;
+  readonly openOnClick?: boolean;
+  readonly children?: unknown;
+}
+
+export const Tooltip = (props: TooltipProps): unknown => {
+  return createElement("span", { title: props.label }, props.children as never);
+};
+
+interface IconProps {
+  readonly size?: number;
+  readonly className?: string;
+}
+
+export const IconChevronDownOutlineRegular = (props: IconProps): unknown => {
+  return createElement("svg", { width: props.size ?? 14, height: props.size ?? 14 });
 };
 
 interface SwitchProps {

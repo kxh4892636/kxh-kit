@@ -5,7 +5,7 @@ import { defineConfig } from "vite-plus";
 export default defineConfig({
   pack: [
     {
-      // 宿主半：node ESM，产物 dist/index.mjs + index.d.mts。
+      // 宿主半：node ESM。单入口；预设行也挂载同一个模块，靠 config.nanoFlowOnly 分流。
       entry: ["src/index.ts"],
       exports: false,
       deps: {

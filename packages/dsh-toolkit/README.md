@@ -11,6 +11,9 @@
 | `undo-turn`     | 撤回                      | 关   | 在会话工具栏、模型选择左侧加「撤回」按钮，撤销最后一轮会话     |
 | `office-skills` | 移除 dsh 自带 office 技能 | 关   | 屏蔽宿主内置的 office / office-* 技能（provider `dsh-office`） |
 
+另有一个 **Agent 预设 `nano-flow`**（不是面板开关）：安装本插件后预设选择器里多出「Nano Flow」，
+只有选中它的会话才挂载 Nano Flow 的提示词、工具与 skill。
+
 ## 安装
 
 桌面版自带 CLI 管理 `desktop` profile；`PATH` 上的 `dsh` 属于另一套安装，不认该 profile。
@@ -104,6 +107,69 @@ API；存活会话优先于磁盘，且改文件后存活会话继续追加会�
 
 宿主升级带来的 provider 改名会让「provider 判据」失效，此时 bundled + 名字判据仍然生效；
 若两个判据都不命中（例如上游换了来源标签），开关会静默无效——真机验收时看 skill 目录即可发现。
+
+## 预设：Nano Flow
+
+`nano-flow` 是 toolkit 面板里的一个开关（默认关）：打开时根插件调用
+`ctx.agentPresets.register()` 把预设注册进 roster，关闭时注销。预设行挂载的也是本包的
+唯一入口 `dist/index.mjs`，靠 `config.nanoFlowOnly: true` 只走预设内的那一半。预设的 standing mount 在独立
+作用域里注册，所以**开关就是预设是否出现**：打开后预设选择器里才有「Nano Flow」，选中它的
+会话才有提示词、工具与 skill。
+
+开关右侧的箭头按钮（`Nano Flow 设置`）只在开关打开时出现，点开是上限与轮转阈值的下拉面板。
+
+挂载后会话里多出三样东西：
+
+| 类别       | 内容                                                                                                                                                                                                                                          |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 固定提示词 | `nano-flow/prompt.md`：ask / do 两个循环、Plan 与领域文档规则、notes 切片、长文档压缩与拆分、三个工具的分工                                                                                                                                   |
+| 工具       | `nano_flow_read`（plans / notes / get / ready / graph / index / search / resume）、`nano_flow_write`（init / create / update / link / status / complete / set_index / merge / delete / move）、`nano_flow_check`（plan / workspace / limits） |
+| skill      | `skills/` 目录动态发现：`ask`、`do`（仅用户 `/ask` `/do` 调用）与 `to-skill`、`code-spec`、`learning`、`kaizen`（原样注入）                                                                                                                   |
+
+**会话与领域**
+
+新会话先按 `CONTEXT-MAP.md` 定位业务域：有就沿用，没有就让 `init` 建（补 CONTEXT/QUESTIONS
+与 map 条目）。一个会话只属于一个业务域；任务本身跨域时以 `common` 为业务域。`common` 是
+任何域都可读写的公共域，跨域内容写在那里，其它域只引用。
+
+**Plan 结构**
+
+```text
+<域根>/<domain>/plans/<lifecycle>/<YYYY-MM-DD-中文工作名>/
+├── story.md     用户想干什么        默认 ≤ 34 KB（面板可调）
+├── spec.md      应该如何实现        默认 ≤ 34 KB（面板可调）
+└── notes.json   实现记录（DAG）      单条 content 默认 ≤ 13 KB（面板可调）
+```
+
+`notes.json` 的 `index` 取代旧的 spec `## Notes` 表；`evidence` 是完成凭据，`completed`
+只能由 `nano_flow_write` 的 `complete` 设置（内部先跑 Plan 校验）。
+
+**上限与轮转**
+
+- 所有数字在 **开关旁的下拉设置面板**维护（持久化到
+  `$DSH_HOME/toolkit/nano-flow.json`）：story/spec/note/摘要/索引、CONTEXT/QUESTIONS/ADR
+  上限与会话轮转阈值；体积字段在面板里以 **KB** 输入（1 KB = 1024 字节，存储仍是字节），
+  提示词本身不设上限。默认值见 `contract.ts`。
+- 预设不挂载压缩插件。每轮 `turn/end` 后读 `tokenMeter` 的上下文压力，达到
+  `rotateAt × contextWindow` 时：创建新会话并让它 `nano_flow_read resume` 重新读取当前
+  Plan，然后**物理删除**旧会话（不是归档）。阈值可在面板里调。
+- `nano-flow/scripts/check-domain.mjs` 是唯一校验实现，`nano_flow_check` 用
+  `process.execPath` 调用它并把当前设置作为 `--limits` 传入；工具自身只做「不写坏」的写入校验。
+- 四个原样 skill 的哈希记在 `src/nano-flow/assets.lock.json`（随构建复制到 `dist/nano-flow/`），
+  测试逐个比对，防止手滑改动。
+
+**验证**
+
+1. 重新构建并安装插件，重启宿主；新建会话时预设选择器出现「Nano Flow」。
+2. 选中该预设：系统提示里出现 Nano Flow 规则，工具目录出现 `nano_flow_*`，skill 目录出现
+   `ask` / `do` / `to-skill` / `code-spec` / `learning` / `kaizen`。
+3. 换一个预设：上述提示词、工具与 skill 全部消失。
+4. 在空工作区让模型建 Plan：首轮出现 `plans/planning/<日期>-<名称>/`、`CONTEXT-MAP.md`
+   与领域文档骨架；`nano_flow_check op=workspace` 通过。
+5. 打开 toolkit 面板的「Nano Flow 上限」，改一个值并保存；重启后值保持，
+   `nano_flow_check op=limits` 回显新值。
+6. 把轮转阈值调到很低（如 0.05），跑几轮：`.dsh/sessions` 里旧会话目录被删除，
+   客户端列表里换成一个新会话，模型在新会话里重新 `resume` 当前 Plan。
 
 ## 配置
 

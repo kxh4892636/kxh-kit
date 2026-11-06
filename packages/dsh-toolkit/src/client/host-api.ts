@@ -1,7 +1,11 @@
 import {
   TOOLKIT_HIDDEN_PATH,
+  TOOLKIT_NANO_FLOW_PATH,
   TOOLKIT_STATE_PATH,
   TOOLKIT_UNDO_PATH,
+  type NanoFlowSettings,
+  type NanoFlowSettingsRequest,
+  type NanoFlowSettingsResponse,
   type ToolkitErrorBody,
   type ToolkitStateRequest,
   type ToolkitStateResponse,
@@ -74,6 +78,54 @@ export const setToolEnabled = async (
   const tools = parseState(body);
   if (tools === undefined) throw new HostApiError("invalid-response", "unexpected state payload");
   return tools;
+};
+
+const SETTING_KEYS = [
+  "storyMaxBytes",
+  "specMaxBytes",
+  "noteMaxBytes",
+  "noteDescriptionMaxChars",
+  "indexMaxRows",
+  "contextMaxBytes",
+  "questionsMaxBytes",
+  "adrMaxBytes",
+  "rotateAt",
+] as const;
+
+const parseSettings = (body: unknown): NanoFlowSettings => {
+  const settings = (body as NanoFlowSettingsResponse | null)?.settings;
+  if (typeof settings !== "object" || settings === null) {
+    throw new HostApiError("invalid-response", "unexpected nano-flow settings payload");
+  }
+  const record = settings as unknown as Record<string, unknown>;
+  for (const key of SETTING_KEYS) {
+    if (typeof record[key] !== "number") {
+      throw new HostApiError("invalid-response", `nano-flow settings missing ${key}`);
+    }
+  }
+  return record as unknown as NanoFlowSettings;
+};
+
+/** 读取 Nano Flow 上限设置。 */
+export const fetchNanoFlowSettings = async (signal?: AbortSignal): Promise<NanoFlowSettings> => {
+  const response = await send(relative(TOOLKIT_NANO_FLOW_PATH), optionalSignal(signal));
+  const body = (await readJson(response)) as unknown;
+  return parseSettings(body);
+};
+
+/** 保存 Nano Flow 上限设置，返回保存后的完整设置。 */
+export const saveNanoFlowSettings = async (
+  patch: Partial<NanoFlowSettings>,
+  signal?: AbortSignal,
+): Promise<NanoFlowSettings> => {
+  const payload: NanoFlowSettingsRequest = { patch };
+  const response = await send(relative(TOOLKIT_NANO_FLOW_PATH), {
+    ...optionalSignal(signal),
+    method: "POST",
+    body: payload,
+  });
+  const body = (await readJson(response)) as unknown;
+  return parseSettings(body);
 };
 
 /** 探测某会话能否撤回。 */

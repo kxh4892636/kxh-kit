@@ -4,6 +4,12 @@ import { resolveDshHome } from "@deepseek-ai/dsh-home-paths";
 import z from "@deepseek-ai/schemastery";
 import type Schema from "@deepseek-ai/schemastery";
 import type { UndoAvailability, UndoTurnResponse } from "./contract.js";
+import { createNanoFlowSettingsStore, nodeNanoFlowSettingsIo } from "./host/nano-flow-settings.js";
+import { NANO_FLOW_SERVICE, type ToolkitNanoFlowFacade } from "./host/nano-flow-facade.js";
+import type { NanoFlowSettings } from "./contract.js";
+import { createNanoFlowTool } from "./host/tools/nano-flow.js";
+import { applyNanoFlow } from "./nano-flow/plugin.js";
+import { nanoFlowEntryUrl } from "./nano-flow/preset.js";
 import { createNestedSkillTool } from "./host/tools/nested-skill.js";
 import { createOfficeSkillsTool } from "./host/tools/office-skills.js";
 import { createUndoTurnTool } from "./host/tools/undo-turn.js";
@@ -37,6 +43,14 @@ export type Config = NestedSkillOptions & {
   stateFile?: string;
   /** 会话日志根；缺省 `$DSH_HOME/sessions`。 */
   sessionsRoot?: string;
+  /** Nano Flow 上限设置文件；缺省 `$DSH_HOME/toolkit/nano-flow.json`。 */
+  nanoFlowFile?: string;
+  /** Nano Flow 的工作区覆盖（预设行可传）。 */
+  workspace?: string;
+  /** Nano Flow 的领域根覆盖（预设行可传）。 */
+  domainRoot?: string;
+  /** 内部：为 true 时只挂载 Nano Flow 预设内的那一半（由预设行传入）。 */
+  nanoFlowOnly?: boolean;
 };
 
 export const Config: Schema<Config> = z.object({
@@ -50,6 +64,10 @@ export const Config: Schema<Config> = z.object({
   extraRoots: z.array(z.string()).default([]),
   stateFile: z.string(),
   sessionsRoot: z.string(),
+  nanoFlowFile: z.string(),
+  workspace: z.string(),
+  domainRoot: z.string(),
+  nanoFlowOnly: z.boolean(),
 });
 
 export const name = "toolkit";
@@ -61,6 +79,10 @@ export const inject = ["skills"];
  * @param config - 插件配置；全部字段可选。
  */
 export const apply = (ctx: Context, config: Config = {}): void => {
+  if (config.nanoFlowOnly === true) {
+    applyNanoFlow(ctx, config);
+    return;
+  }
   const runtime = createRuntime(ctx, config);
   ctx.effect(() => () => void runtime.dispose(), "toolkit: runtime");
   ctx.inject(["connection"], (child: Context) => {
@@ -75,6 +97,10 @@ export const apply = (ctx: Context, config: Config = {}): void => {
         run: (sessionId: string) => runtime.undo(sessionId),
       },
       hiddenSessions: () => runtime.hiddenSessions(),
+      nanoFlow: {
+        get: () => runtime.nanoFlow.get(),
+        update: (patch: unknown) => runtime.nanoFlow.update(patch),
+      },
     });
     child.effect(() => disposeRoutes, "toolkit: routes");
   });
@@ -90,6 +116,11 @@ interface ToolkitRuntime {
   start(): Promise<void>;
   /** 已撤回、应在客户端隐藏的会话 id。 */
   hiddenSessions(): readonly string[];
+  /** Nano Flow 上限设置（面板路由读写）。 */
+  readonly nanoFlow: {
+    get(): NanoFlowSettings;
+    update(patch: unknown): Promise<NanoFlowSettings>;
+  };
   /** 工作区注册表就绪后，把日志已删的会话从归档集合里摘掉。 */
   cleanupArchive(ctx: Context): Promise<void>;
   dispose(): Promise<void>;
@@ -104,10 +135,15 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
   const store = new ToolkitStateStore(
     nodeToolkitStateIo(config.stateFile ?? join(home, "toolkit", "state.json")),
   );
+  const settings = createNanoFlowSettingsStore(
+    nodeNanoFlowSettingsIo(config.nanoFlowFile ?? join(home, "toolkit", "nano-flow.json")),
+    logger,
+  );
   const tools = [
     createNestedSkillTool(nestedOptions(config)),
     createUndoTurnTool(),
     createOfficeSkillsTool(),
+    createNanoFlowTool({ entryUrl: nanoFlowEntryUrl(import.meta.url) }),
   ];
   const registry = new ToolkitRegistry({ ctx, tools, store, logger });
   /** 广播「会话已移除」：`api-session/removed` 是宿主销毁会话时客户端依赖的那条事件。 */
@@ -141,10 +177,43 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
       },
     };
   };
+  const nanoFlow: ToolkitNanoFlowFacade = {
+    settings: () => settings.current(),
+    updateSettings: (patch: unknown) => settings.update(patch),
+    announceRemoved: async (sessionId: string) => {
+      await store.addHiddenSession(sessionId);
+      registerRemoval(sessionId);
+    },
+    recordPendingDelete: async (sessionId: string) => {
+      await store.addPendingDelete(sessionId);
+    },
+    sessionsRoot: () => sessionsRoot,
+  };
+  ctx.effect(() => {
+    try {
+      const disposer = (
+        ctx as unknown as { provide?: (name: string, value: unknown) => unknown }
+      ).provide?.(NANO_FLOW_SERVICE, nanoFlow);
+      return typeof disposer === "function"
+        ? () => {
+            void (disposer as () => unknown)();
+          }
+        : () => {};
+    } catch (error) {
+      logger.warn(`toolkit: providing ${NANO_FLOW_SERVICE} failed: ${describe(error)}`);
+      return () => {};
+    }
+  }, "toolkit: nano-flow service");
+
   return {
     registry,
+    nanoFlow: {
+      get: () => settings.current(),
+      update: (patch: unknown) => settings.update(patch),
+    },
     async start() {
       try {
+        await settings.load();
         await registry.initialize();
         const workspaces = workspaceRegistry(ctx);
         await runPendingPurge(

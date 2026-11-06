@@ -1,11 +1,29 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import { TOOLKIT_STATE_PATH, TOOLKIT_UNDO_PATH } from "../contract.js";
+import {
+  DEFAULT_NANO_FLOW_SETTINGS,
+  TOOLKIT_NANO_FLOW_PATH,
+  TOOLKIT_STATE_PATH,
+  TOOLKIT_UNDO_PATH,
+} from "../contract.js";
+import { createNanoFlowSettingsStore, type NanoFlowSettingsIo } from "./nano-flow-settings.js";
 import { registerToolkitRoutes, type ToolkitRouteRegistry } from "./toolkit-routes.js";
 import { ToolkitRegistry } from "./toolkit-registry.js";
 import { ToolkitStateStore, type ToolkitStateIo } from "./toolkit-state.js";
 import { UndoUnavailableError } from "./undo/undo-turn.js";
 
 const memoryIo = (): ToolkitStateIo => {
+  let text: string | undefined;
+  return {
+    async read() {
+      return text;
+    },
+    async write(next) {
+      text = next;
+    },
+  };
+};
+
+const memorySettingsIo = (): NanoFlowSettingsIo => {
   let text: string | undefined;
   return {
     async read() {
@@ -50,6 +68,8 @@ const setup = async () => {
     logger: { warn: vi.fn() },
   });
   await registry.initialize();
+  const settings = createNanoFlowSettingsStore(memorySettingsIo(), { warn: vi.fn() });
+  await settings.load();
   const undo = {
     inspect: vi.fn(() => ({ available: true, prompt: "帮我改一下" })),
     run: vi.fn(async () => ({ childSessionId: "session-child", prompt: "帮我改一下" })),
@@ -59,6 +79,10 @@ const setup = async () => {
     connection,
     undo,
     hiddenSessions: () => ["session-gone"],
+    nanoFlow: {
+      get: () => settings.current(),
+      update: (patch: unknown) => settings.update(patch),
+    },
     logger: { warn: vi.fn() },
   });
   const call = (path: string, request: Request): Promise<Response> => {
@@ -66,7 +90,7 @@ const setup = async () => {
     if (handler === undefined) throw new Error(`route ${path} not registered`);
     return handler(request);
   };
-  return { call, registry, undo, dispose, routes };
+  return { call, registry, undo, settings, dispose, routes };
 };
 
 const request = (
@@ -196,10 +220,33 @@ describe("toolkit routes", () => {
 
   it("unregisters all routes on dispose", async () => {
     const { dispose, routes } = await setup();
-    expect(routes.size).toBe(3);
+    expect(routes.size).toBe(4);
     dispose();
     expect(routes.size).toBe(0);
   });
+  it("reads and saves nano-flow settings", async () => {
+    const { call } = await setup();
+    const read = await call(TOOLKIT_NANO_FLOW_PATH, request(TOOLKIT_NANO_FLOW_PATH));
+    expect(read.status).toBe(200);
+    const initial = (await read.json()) as { settings: { storyMaxBytes: number } };
+    expect(initial.settings.storyMaxBytes).toBe(DEFAULT_NANO_FLOW_SETTINGS.storyMaxBytes);
+
+    const saved = await call(
+      TOOLKIT_NANO_FLOW_PATH,
+      request(TOOLKIT_NANO_FLOW_PATH, { method: "POST", body: { patch: { noteMaxBytes: 2048 } } }),
+    );
+    expect(saved.status).toBe(200);
+    const next = (await saved.json()) as { settings: { noteMaxBytes: number } };
+    expect(next.settings.noteMaxBytes).toBe(2048);
+
+    const rejected = await call(
+      TOOLKIT_NANO_FLOW_PATH,
+      request(TOOLKIT_NANO_FLOW_PATH, { method: "POST", body: { patch: { noteMaxBytes: -1 } } }),
+    );
+    expect(rejected.status).toBe(400);
+    expect(((await rejected.json()) as { error: string }).error).toBe("invalid-settings");
+  });
+
   it("lists the sessions that must stay hidden on the client", async () => {
     const { call } = await setup();
     const response = await call("/api/toolkit/hidden", new Request("http://x/api/toolkit/hidden"));
