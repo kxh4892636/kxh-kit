@@ -47,3 +47,11 @@
 - 解决方法：用 `session/fork` 复制 `atSeq` 闭区间前缀得到等价历史，再归档原会话（`workspaceRegistry.archiveSession(id, { stopActivity: true })`），需要「删除」时用 `WorkspaceRecord.detachSession` 摘除记账、删除 `$DSH_HOME/sessions/<slug>/<sessionId>/`、最后 `unarchiveSession` 去掉归档占位；会话仍存活时日志删除与撤销归档都排队到下次启动（`state.json` 的 `pendingDeletes` / `pendingUnarchives`），启动时还会清扫「归档集合里既无日志、也不存活」的历史 id。细节见 [07-撤回语义收敛与彻底删除](plans/reference/2026-11-04-dsh-toolkit插件/07-撤回语义收敛与彻底删除.md)。
 - 验证：`packages/dsh-toolkit` 的 `undoTurn` 单测覆盖 fork 切点、归档、detach、立即删除与推迟删除两条路径、撤销归档；`purge` 单测覆盖队列的两阶段处理与孤儿归档清扫。
 - 来源：[01-拷问与方案定案](plans/reference/2026-11-04-dsh-toolkit插件/01-拷问与方案定案.md)、`packages/dsh-toolkit/README.md`「为什么是「新会话 + 删除原会话」而不是原地截断」。
+
+## 为什么 `read` 读不到 Plan 的 `notes.json`？
+
+- 适用条件与现象：在 Nano Flow 会话里让模型直接 `read`（或 `write` / `edit`，或 `pwsh` 的 `Get-Content`）Plan 的 `notes.json`，返回「notes.json 只能经 nano_flow_read / nano_flow_write 读写」。
+- 原因：toolkit 根插件给 `notes.json` 装了策略级收口——`tools.guard` 拦工具参数里的显式路径（`file_path` / `path` / `target`，以及 shell 的 `command` / `script` 里的字面路径），再就地包装 `ctx.fs` 的六个内容读写方法按**已解析 target** 拦；`nano_flow_*` 自己用 `node:fs`，不受影响。正文类参数（`content` / `old_string` / `pattern`）不扫，所以写文档提到路径、搜代码里的 `notes.json` 都照常。
+- 解决方法：读写 Plan 状态一律走 `nano_flow_read` / `nano_flow_write`；这层是策略而不是安全边界，`pwsh` / `bash` 子进程、`jobs`、ripgrep 泛搜与编码路径仍可绕过。
+- 验证：`notes-guard.test`（12 项）覆盖路径判定、工具闸门与 fs 包装；`index.test` 覆盖入口安装与卸载；真机在装包后的 Nano Flow 会话里复验「读 notes.json 被拒、读其它文件正常」。
+- 来源：[2026-11-07-预设提示词评审](../../.agents/domains/dsh/plans/active/2026-11-07-预设提示词评审/spec.md) 的 note 06 / 07。

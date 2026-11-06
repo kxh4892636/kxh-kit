@@ -22,17 +22,19 @@
 - note 05 完成：宿主路由 `/api/toolkit/nano-flow-ready`、`readNanoFlowReady` 读取器、客户端 `conversation.input.dock` 的 `ReadyPanel`（默认折叠、3s 轮询、focus 刷新）；用户已确认真机显示。首次诊断出宿主 live session header 的 `agentPreset` 不可靠，已改为宿主只解析工作区/Plan、客户端按 projection 的 `agentPreset` 判断。219 测试与构建通过。
 - note 06 完成（决策 A）：`notes.json` 访问收口采用 `tools.guard` + 包装 `ctx.fs`，保留 shell 等旁路并写明不是安全边界。
 - note 08 实施完成（待真机验证）：轮转时机改为用户发送 queue 消息时，包装 `sessionController.prompt`；达到阈值后新会话拿到「种子 + 本次用户内容」，旧会话删除；`used` 用 `projectedTokens ?? pressureTokens`；224 测试与构建通过；已安装，待重启后下一次 queue 消息验证。
+- note 07 实施完成（待真机验证）：`src/host/notes-guard.ts` 两道闸门——`tools.guard` 拦参数里的显式路径（`file_path`/`path`/`target`，以及 `command`/`script` 里的字面路径），`ctx.fs` 包装按已解析 target 拦六个内容读写方法；入口在根插件 `ctx.inject(["tools","fs"])`；237 测试、`vp check`、构建通过；README 与 `docs/dsh/QUESTIONS.md` 已记录「策略不是安全边界」。
 - 已打包并安装到 desktop profile：安装目录的 `dist/index.mjs` 与 `dist/nano-flow/prompt.md` 均与仓库 dist 同哈希；重启宿主后新会话生效。
-- 未完成：note 02（迁移 dsh 域文档与旧 Plan）、note 07（`notes.json` 访问收口实施）、note 08 的真机轮转验证。
+- 未完成：note 02（迁移 dsh 域文档与旧 Plan）、note 07 与 note 08 的真机验证。
 - 域根：dsh 已切到 `.agents/domains`，其 `CONTEXT.md` 与 `QUESTIONS.md` 目前是指向 `docs/dsh` 的迁移指针；旧 Plan 与 ADR 仍在原位，迁移见 note 02。
 
 ## 恢复入口
 
 1. 读本 spec、note 01 的评审清单、note 04 的 `ready` 设计与 note 05 的面板设计。
-2. 要收口 `notes.json`：按 note 07 实现 `tools.guard` + `ctx.fs` 包装并验证；边界见 note 06。
+2. 要收口 `notes.json`：按 note 07 复验真机（实现见 `src/host/notes-guard.ts`）；边界见 note 06。
 3. 要清账：按 note 02 选策略，把 `docs/dsh` 的域文档与旧 Plan 迁到新布局，处理相对链接。
 4. 迁移后跑 `nano_flow_check` 的 `workspace`。
 
 ## 开放问题
 
 - `docs/dsh` 的旧 Plan 保留为 Markdown 历史，还是迁到新布局（需处理相对链接）？
+- 本会话（2026-11-07 02:48 的「继续」）的系统提示里**没有**注入固定提示词 `prompt.md`，工具目录里也**没有** `nano_flow_*`，但 persona 前缀是 Nano Flow 的——与 note 03 验过的「提示词、工具、skill 三样齐」不符。两个候选：会话创建于旧构建、或预设行的 `ctx.inject(["tools","systemPrompt"])` 没触发。重启后新建 Nano Flow 会话即可分辨；若为空，note 07 的收口会让 Plan 无法再用 `read`/`write` 直接维护，必须先把预设半修好。

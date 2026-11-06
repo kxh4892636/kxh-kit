@@ -150,13 +150,31 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
   `$DSH_HOME/toolkit/nano-flow.json`):story/spec/note/摘要/索引,CONTEXT/QUESTIONS/ADR
   上限,ADR 数量(默认 55 个)与会话轮转阈值;体积字段在面板里以 **KB** 输入(1 KB = 1024 字节,存储仍是字节),
   提示词本身不设上限.默认值见 `contract.ts`.
-- 预设不挂载压缩插件.每轮 `turn/end` 后读 `tokenMeter` 的上下文压力,达到
-  `rotateAt × contextWindow` 时:创建新会话并让它 `nano_flow_read resume` 重新读取当前
-  Plan,然后**物理删除**旧会话(不是归档).阈值可在面板里调.
+- 预设不挂载压缩插件.用户每发一条**排队**消息(queue)时读一次 `tokenMeter` 的上下文压力
+  (口径 `projectedTokens ?? pressureTokens`,与界面占用率一致):达到 `rotateAt × contextWindow`
+  时创建新会话(同一 cwd 与预设),把"上一会话已轮转,继续当前 Plan"的种子与这条消息一起发给
+  它,新 prompt 被接受后**物理删除**旧会话(不是归档).新会话创建或发送失败时回落到旧会话,
+  消息不丢.阈值可在面板里调.
 - `nano-flow/scripts/check-domain.mjs` 是唯一校验实现,`nano_flow_check` 用
   `process.execPath` 调用它并把当前设置作为 `--limits` 传入;工具自身只做"不写坏"的写入校验.
 - 四个原样 skill 的哈希记在 `src/nano-flow/assets.lock.json`(随构建复制到 `dist/nano-flow/`),
   测试逐个比对,防止手滑改动.
+
+**notes.json 的访问收口(策略级)**
+
+`notes.json` 要经工具才能守住版本校验,索引维护与 `completed` 的入口约束,所以根插件装了两道闸门:
+
+- `tools.guard`:工具层的显式引用. `nano_flow_*` 放行;其余工具只要路径类参数(`file_path` /
+  `path` / `target`)指向 `plans/<lifecycle>/<name>/notes.json`,或 shell 的 `command` / `script`
+  里出现该字面路径,就拒绝. 不扫 `content` / `old_string` / `pattern`:文档里提到路径,搜代码里的
+  `notes.json` 都照常.
+- `ctx.fs` 包装:`readText` / `streamText` / `readBytes` / `readByteRange` / `writeText` /
+  `editText` 按**已解析 target** 拒绝,所以 `read` / `write` / `edit` / `read_image` 与相对路径,
+  别名都绕不过. `nano_flow_*` 自己用 `node:fs`,不受影响.
+
+**这不是安全边界**:`pwsh` / `bash` 子进程,`jobs`,ripgrep 泛搜(搜所有 json),编码过的路径与
+第三方插件都能绕过;策略的目标是挡住模型的常规直读直写,不是对抗本机进程. 保护范围只有
+`plans/<lifecycle>/<name>/notes.json`,工作区里其它同名文件不受影响.
 
 **验证**
 
@@ -168,8 +186,10 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
    与领域文档骨架;`nano_flow_check op=workspace` 通过.
 5. 打开 toolkit 面板的"Nano Flow 上限",改一个值并保存;重启后值保持,
    `nano_flow_check op=limits` 回显新值.
-6. 把轮转阈值调到很低(如 0.05),跑几轮:`.dsh/sessions` 里旧会话目录被删除,
-   客户端列表里换成一个新会话,模型在新会话里重新 `resume` 当前 Plan.
+6. 把轮转阈值调到很低(如 0.05),再发一条排队消息:`.dsh/sessions` 里旧会话目录被删除,
+   客户端列表里换成一个新会话,模型带着这条消息在新会话里重新 `resume` 当前 Plan.
+7. 在 Nano Flow 会话里 `read` Plan 的 `notes.json`:被拒且提示只用 `nano_flow_*`;读其它文件
+   正常,`nano_flow_read` / `nano_flow_write` 正常工作.
 
 ## 配置
 

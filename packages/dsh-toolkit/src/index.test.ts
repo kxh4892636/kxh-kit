@@ -4,12 +4,15 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { apply, Config, inject, name, TOOL_IDS } from "./index.js";
 import { TOOLKIT_STATE_PATH, TOOLKIT_UNDO_PATH } from "./contract.js";
+import { type ToolCallLike } from "./host/notes-guard.js";
 import { serviceOf } from "./host/services.js";
 
 interface HarnessOptions {
   readonly connection?: boolean;
   readonly sessionControl?: boolean;
   readonly getThrows?: boolean;
+  /** 提供 `tools` / `fs` 服务，用于观察 notes.json 收口的安装与卸载。 */
+  readonly notesGuard?: boolean;
   /** 归档集合里已有这些 id；`stored` 是有日志的，`live` 是仍存活的。 */
   readonly archiveSweep?: {
     readonly archived: readonly string[];
@@ -28,6 +31,7 @@ interface Harness {
   readonly pinned: string[];
   readonly inserted: { sessionId: string; before: string | undefined }[];
   readonly emitted: (readonly [string, ...unknown[]])[];
+  readonly toolGuards: ((call: Readonly<ToolCallLike>) => string | undefined)[];
   readonly warns: ReturnType<typeof vi.fn>;
 }
 
@@ -39,6 +43,7 @@ const makeHarness = (options: HarnessOptions = {}): Harness => {
   const unarchived: string[] = [];
   const pinned: string[] = [];
   const inserted: { sessionId: string; before: string | undefined }[] = [];
+  const toolGuards: ((call: Readonly<ToolCallLike>) => string | undefined)[] = [];
   const services: Record<string, unknown> = {
     connection:
       options.connection === false
@@ -55,6 +60,18 @@ const makeHarness = (options: HarnessOptions = {}): Harness => {
             },
           },
   };
+  if (options.notesGuard === true) {
+    services["tools"] = {
+      guard: (guard: (call: Readonly<ToolCallLike>) => string | undefined) => {
+        toolGuards.push(guard);
+        return () => {
+          const index = toolGuards.indexOf(guard);
+          if (index >= 0) toolGuards.splice(index, 1);
+        };
+      },
+    };
+    services["fs"] = {};
+  }
   if (options.sessionControl === true || options.archiveSweep !== undefined) {
     services["sessions"] = {
       get: () => ({
@@ -155,6 +172,7 @@ const makeHarness = (options: HarnessOptions = {}): Harness => {
     inserted,
     unarchived,
     emitted,
+    toolGuards,
     warns,
   };
 };
@@ -309,6 +327,23 @@ describe("toolkit plugin entry", () => {
     await vi.waitFor(() => expect(routes.size).toBe(5));
     // 只有既不在持久化、也不存活的 id 会被从归档集合里摘掉。
     await vi.waitFor(() => expect(unarchived).toEqual(["ghost"]));
+  });
+
+  it("installs the notes.json guard and lifts it on dispose", async () => {
+    const directory = await tempDir();
+    const { ctx, routes, toolGuards, disposers } = makeHarness({ notesGuard: true });
+    apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
+    await vi.waitFor(() => expect(routes.size).toBe(5));
+    expect(toolGuards).toHaveLength(1);
+    expect(
+      toolGuards[0]?.({
+        name: "read",
+        arguments: { file_path: "C:\\ws\\plans\\active\\x\\notes.json" },
+      }),
+    ).toContain("nano_flow_read");
+
+    for (const dispose of disposers) dispose();
+    expect(toolGuards).toEqual([]);
   });
 
   it("skips routes when the host exposes no connection registry", async () => {

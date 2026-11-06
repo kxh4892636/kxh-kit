@@ -9,6 +9,7 @@ import { createNanoFlowSettingsStore, nodeNanoFlowSettingsIo } from "./host/nano
 import { readNanoFlowReady } from "./host/nano-flow-ready.js";
 import { NANO_FLOW_SERVICE, type ToolkitNanoFlowFacade } from "./host/nano-flow-facade.js";
 import type { NanoFlowSettings } from "./contract.js";
+import { installNotesGuard } from "./host/notes-guard.js";
 import { createNanoFlowTool } from "./host/tools/nano-flow.js";
 import { applyNanoFlow } from "./nano-flow/plugin.js";
 import { DEFAULT_DOMAIN_ROOT } from "./nano-flow/config.js";
@@ -107,6 +108,11 @@ export const apply = (ctx: Context, config: Config = {}): void => {
       nanoFlowReady: (sessionId: string) => runtime.ready(sessionId),
     });
     child.effect(() => disposeRoutes, "toolkit: routes");
+  });
+  // Plan 的 notes.json 只留给 nano_flow_*：工具层按参数里的显式引用拒绝，fs 层按已解析
+  // target 拒绝。这是策略而非安全边界（shell/子进程仍可绕过），边界写在 README 与 QUESTIONS。
+  ctx.inject(["tools", "fs"], (child: Context) => {
+    child.effect(() => installNotesGuard(child, ctx.logger), "toolkit: notes guard");
   });
   ctx.inject(["workspaceRegistry"], (child: Context) => {
     void runtime.cleanupArchive(child);
