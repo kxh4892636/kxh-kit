@@ -28,7 +28,7 @@
 - note 07 完成（真机已验证）：`read` Plan 的 `notes.json` 被拒（提示只用 `nano_flow_*`），`pwsh` 的字面路径命令同样被拒，`grep` 搜 `notes.json` 与读其它文件不受影响，`nano_flow_read` / `nano_flow_write` 正常。
 - 已打包并安装到 desktop profile：安装目录的 `dist/index.mjs` 与仓库 dist 同哈希（9A380331…60A7）；重启宿主后生效。
 - note 09 完成（2026-11-07）：恢复已有 Plan 改为严格只读（不写 Plan、不执行 note），报告后用户第一条消息放行；轮转种子同步只读口径。四处口径与改动点见 note 09。
-- note 10 实施完成（2026-11-07，待真机）：`prompt.md`、`read.ts` resume 文案、`rotate.ts` 种子、`skills/do` 与 README 全部改为只读口径；241 测试、`check`、`pack` 通过；desktop profile 装 0.4.2，安装目录与仓库 dist 同哈希；已提交 16dbbb95。
+- note 10 实施完成（2026-11-07，待真机）：`prompt.md`、`read.ts` resume 文案、`rotate.ts` 种子、`skills/do` 与 README 全部改为只读口径；241 测试、`check`、`pack` 通过；desktop profile 装 0.4.2，安装目录与仓库 dist 同哈希；已提交 4f5180b0。
 - 未完成：note 02（已按用户决定暂缓）、note 08 的轮转触发验证（需要一条高上下文 queue 消息）、note 10 的重启真机确认。
 - 域根：dsh 已切到 `.agents/domains`，其 `CONTEXT.md` 与 `QUESTIONS.md` 目前是指向 `docs/dsh` 的迁移指针；旧 Plan 与 ADR 仍在原位，迁移见 note 02。
 
