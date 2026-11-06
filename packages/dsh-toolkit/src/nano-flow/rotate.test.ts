@@ -113,7 +113,7 @@ describe("attachRotation", () => {
     expect(redirected?.sessionId).toBe("session-new");
     expect(redirected?.mode).toBe("queue");
     expect(redirected?.content[0]).toMatchObject({ type: "text" });
-    expect(String(redirected?.content[0]?.["text"])).toContain("继续执行当前 Plan");
+    expect(String(redirected?.content[0]?.["text"])).toContain("只读报告");
     expect(redirected?.content[1]).toEqual({ type: "text", text: "用户消息" });
     expect(harness.originalPrompt.mock.calls.some(([item]) => item.sessionId === "session-1")).toBe(
       false,

@@ -48,6 +48,14 @@
 - 验证：`packages/dsh-toolkit` 的 `undoTurn` 单测覆盖 fork 切点、归档、detach、立即删除与推迟删除两条路径、撤销归档；`purge` 单测覆盖队列的两阶段处理与孤儿归档清扫。
 - 来源：[01-拷问与方案定案](plans/reference/2026-11-04-dsh-toolkit插件/01-拷问与方案定案.md)、`packages/dsh-toolkit/README.md`「为什么是「新会话 + 删除原会话」而不是原地截断」。
 
+## 为什么恢复已有 Plan 时只读、不自动执行？
+
+- 适用条件与现象：用户说"恢复""继续"打开一个有 Plan 的会话，模型读完恢复包就直接挑一条 note 开工，未经确认就改文件、跑构建。
+- 原因：旧固定提示词把"继续"直接映射到 do 循环，"恢复与轮转"要求"从首个未完成步骤或可推进队列继续"；`nano_flow_read` 的 resume 文案与 `rotate.ts` 的轮转种子也写着"从可推进队列继续 / 继续执行当前 Plan"，四处口径叠加，恢复即执行。
+- 解决方法：模式循环区分"恢复已有 Plan"（只读）与"接续已报告过的 Plan"（do）；恢复轮严格只读——只允许 `nano_flow_read`、读文件与取证命令，不写 Plan、不动文件、不执行 note、不跑构建测试或安装；恢复报告之后用户第一条消息即放行（新澄清需求仍走 ask）。resume 文案与轮转种子同步改成只读口径。
+- 验证：`rotate.test` 断言种子含"只读报告"；241 项测试、`vp check`、`vp pack` 通过；desktop profile 装 0.4.2，安装目录的 `dist/index.mjs` 与 `dist/nano-flow/prompt.md` 均与仓库 dist 同哈希。重启宿主后的新会话行为待真机确认。
+- 来源：[2026-11-07-预设提示词评审](../../.agents/domains/dsh/plans/active/2026-11-07-预设提示词评审/spec.md) 的 note 09 / 10。
+
 ## 为什么 `read` 读不到 Plan 的 `notes.json`？
 
 - 适用条件与现象：在 Nano Flow 会话里让模型直接 `read`（或 `write` / `edit`，或 `pwsh` 的 `Get-Content`）Plan 的 `notes.json`，返回「notes.json 只能经 nano_flow_read / nano_flow_write 读写」。

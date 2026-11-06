@@ -187,7 +187,9 @@ const executeRead = async (
         lines.push(`阻塞（${blocked.length}）:`);
         lines.push(...blocked.map((note) => `  ${formatNoteLine(note)}`));
       }
-      lines.push("下一步: 读 spec.md 与 story.md；从可推进队列选一条进入 do，需要澄清则进入 ask。");
+      lines.push(
+        "下一步: 读 spec.md 与 story.md，只读报告进度与可推进队列；恢复报告后等用户第一条消息放行再执行，需要澄清则进入 ask。",
+      );
       return lines.join("\n");
     }
     default:

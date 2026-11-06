@@ -132,6 +132,12 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
 与 map 条目).一个会话只属于一个业务域;任务本身跨域时以 `common` 为业务域.`common` 是
 任何域都可读写的公共域,跨域内容写在那里,其它域只引用.
 
+**恢复只读**
+
+用户说"恢复""继续"且会话还没加载该 Plan 时只读加载:`resume` 拿恢复包,读 story / spec,
+报告进度,可推进队列与阻塞项,本轮不写文件,不执行 note;恢复报告之后的用户消息才放行执行,
+若是新的澄清需求则进入 ask.轮转出来的新会话同样先只读恢复.
+
 **Plan 结构**
 
 ```text
@@ -155,7 +161,7 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
   `agentPreset` 在恢复会话时不可靠),然后读 `tokenMeter.contextPressure` 的
   `projectedTokens ?? pressureTokens`(本宿主只报 `pressureTokens`,即上一轮 provider 上报的
   prompt 大小,所以触发点略晚于界面按投影算出的百分比).达到 `rotateAt × contextWindow` 时创建
-  新会话(同一 cwd 与预设),把"上一会话已轮转,继续当前 Plan"的种子与这条消息一起发给它,
+  新会话(同一 cwd 与预设),把"上一会话已轮转,只读恢复当前 Plan"的种子与这条消息一起发给它,
   新 prompt 被接受后**物理删除**旧会话(不是归档).新会话创建或发送失败时回落到旧会话,
   消息不丢.阈值可在面板里调.
 - 轮转不写在预设行里:预设行读不到 `ctx.agent`(cordis 对服务属性做 inject 守卫),而根插件又
@@ -193,7 +199,7 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
 5. 打开 toolkit 面板的"Nano Flow 上限",改一个值并保存;重启后值保持,
    `nano_flow_check op=limits` 回显新值.
 6. 把轮转阈值调到很低(如 0.05),再发一条排队消息:`.dsh/sessions` 里旧会话目录被删除,
-   客户端列表里换成一个新会话,模型带着这条消息在新会话里重新 `resume` 当前 Plan.
+   客户端列表里换成一个新会话,模型在新会话里只读 `resume` 当前 Plan 并报告进度与可推进队列.
 7. 在 Nano Flow 会话里 `read` Plan 的 `notes.json`:被拒且提示只用 `nano_flow_*`;读其它文件
    正常,`nano_flow_read` / `nano_flow_write` 正常工作.
 8. 挂载诊断:`$DSH_HOME/toolkit/nano-flow-mount.json` 的 `stages` 应同时有 `entry`

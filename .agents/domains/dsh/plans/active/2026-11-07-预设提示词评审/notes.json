@@ -1,9 +1,11 @@
 {
   "version": 1,
   "index": [
-    "07",
+    "09",
+    "10",
     "08",
-    "02"
+    "02",
+    "07"
   ],
   "notes": [
     {
@@ -145,6 +147,40 @@
       ],
       "updated_at": "2026-11-06T19:21:04.241Z",
       "content": "# 轮转阈值未触发\n\n## 结论（旧实现）\n\n- **0.618 是 61.8%，不是 61%**；界面百分比是 `Math.round(used / window * 100)`，显示 61% 时实际是 60.5%–61.49%，低于阈值。\n- 旧 `rotate.ts` 在 `turn/end` 事件回调里、检查压力之前就 `rotated.add(session.id)`，会话第一次 completed turn 就被永久标记；之后即使超过阈值也不会再检查。\n- 旧实现只在 `turn/end` 且 `reason.kind === \"completed\"` 时检查；界面用 `projectedTokens ?? pressureTokens`，旧轮转只用 `pressureTokens`，口径不一致。\n\n## 修复(2026-11-07)：改为用户发送消息时判断\n\n1. 不再监听 `turn/end`；改为包装 `sessionController.prompt`：用户 `mode === \"queue\"` 的消息进入时先读上下文压力。\n2. 达到阈值时：创建新会话（同一 cwd / nano-flow preset），把「上一会话已轮转、继续当前 Plan」的种子 + 本次用户内容一起 prompt 给新会话，新 prompt 接受后彻底删除旧会话。\n3. 新 prompt 失败时回落到旧会话，原消息不丢。\n4. `used = projectedTokens ?? pressureTokens`（本宿主只报 `pressureTokens`）。\n5. steer 与其它预设的会话直接放行；判定 Nano Flow 的方式见下面的「回归与修复」（预设行的 `agent.session` 那条路已废弃）。\n\n## 执行检查点(2026-11-07)\n\n- `src/nano-flow/rotate.ts`：`attachRotation` 改为 prompt 包装；新增 `PromptRequestLike`；保留 `retire`。\n- `src/nano-flow/plugin.ts`：预设行不再装配轮转（`RotationOptions.session` 的注入方式已被「回归与修复」取代）。\n- `src/nano-flow/rotate.test.ts`：8 项——低压力放行、高压力重定向且带种子+用户内容、只重定向一次、其它预设/未知会话/steer 放行、subagent 放行、`selectedPreset` 优先读日志事件、新 prompt 失败回落、dispose 还原。\n- 验证: 241 测试通过; `vp check` 通过; build 成功。\n- 文档: README 的「上限与轮转」与验证第 6/8 条改成现行口径（宿主半判断、种子 + 本次消息、失败回落旧会话、挂载诊断）。\n- 待真机: 重启后的下一次高上下文 queue 消息应创建新会话并携带该消息；旧会话删除。\n\n\n## 回归与修复（2026-11-07 03:1x）\n\n- 真机现象：重启后用户再发消息仍不轮转；同一时刻固定提示词与 `nano_flow_*` 一起消失（会话日志三条见 evidence）。\n- 根因：a6f6b7cc 在 `plugin.ts` 里读 `ctx.agent` 取本会话。cordis 对服务属性做 inject 守卫，直接访问抛 `cannot get property \"agent\" without inject`，预设行的 apply 整条失效——提示词、工具、skill 与轮转一起没了。\n- 第二条事实：预设作用域里 `ctx.get(\"agent\")` 也是 undefined（agent 在 agent 作用域，预设行在 standing mount 作用域），所以「按预设实例所属会话过滤」这条路本身不成立。\n- 修复：轮转搬到宿主半（根插件 `ctx.inject([\"sessionController\"])`）——包装 `sessionController.prompt`，用 `request.sessionId` 解析存活会话，用日志里最后一条 `agent-preset/selected` 判定是否 Nano Flow（不依赖 live header），按会话 id 记账 `rotating` / `rotated`；`tokenMeter` / `workspaceRegistry` / `workingDirectory` 惰性解析。\n- 诊断：新增 `src/nano-flow/mount-report.ts`，把 `entry` / `apply` / `ready` / `error` / `rotation` 写进 `$DSH_HOME/toolkit/nano-flow-mount.json` 的 `stages`；挂载失败不再静默。\n- 复现手段：`dsh --profile <tmp> --from-default-profile web` 建临时 profile 并装包，用 `session/create` RPC（`agentPreset: nano-flow`）建会话，直接读诊断文件；临时 profile 用完即删。\n- 本宿主 `tokenMeter.contextPressure` 只返回 `pressureTokens` 与 `contextWindow`（无 `projectedTokens`），阈值因此按上一轮 provider 上报的 prompt 大小判断，触发点略晚于界面百分比。\n- 重启后（2026-11-07 03:3x）：本会话恢复 `nano_flow_*` 与固定提示词，挂载诊断 stages 四项齐全（entry/apply/ready/rotation）；轮转已挂到宿主，触发仍待一条高上下文 queue 消息验证。\n\n## 验收\n\n- 低于阈值：多次 queue 消息都留在原会话。\n- 超过阈值：下一次 queue 消息进入新会话（种子 + 用户消息），旧会话删除。\n- 新 prompt 失败时原会话继续收到消息。\n- 测试、构建、安装、真机轮转通过后 complete。\n"
+    },
+    {
+      "id": "09",
+      "title": "恢复已有 Plan 时只读的定案",
+      "description": "恢复已有 Plan 时严格只读、报告后放行；轮转种子同步只读口径（4 项决定已确认）。",
+      "status": "completed",
+      "blocked_by": [],
+      "evidence": [
+        "ask 第 1 轮用户确认 4 项：落点 prompt.md + 随包 skill + README；严格只读（Plan 也不写）；报告后第一条后续消息放行；轮转种子改只读",
+        "锚点取证：prompt.md:10、prompt.md:125、src/nano-flow/tools/read.ts:190、src/nano-flow/rotate.ts:136-140、src/nano-flow/skills/do/SKILL.md:8",
+        "本会话复现：resume → ready 后即进入 rotate.ts 取证准备执行"
+      ],
+      "updated_at": "2026-11-06T19:25:57.721Z",
+      "content": "# 恢复已有 Plan 时只读\n\n## 现象\n\n恢复或继续一个已有 Plan 时会自动选一条 note 执行。四处口径共同促成：\n\n- `prompt.md:10`：`接续当前 Plan 的\"继续\"\"接着做\"等指令 → do`。\n- `prompt.md:125`：`核对已完成步骤, 从首个未完成步骤或可推进队列继续`。\n- `src/nano-flow/tools/read.ts:190`：resume 输出 `从可推进队列选一条进入 do`。\n- `src/nano-flow/rotate.ts:136-140`：轮转种子 `继续执行当前 Plan … 从可推进队列继续`。\n- `src/nano-flow/skills/do/SKILL.md:8`：直接取 note。\n\n2026-11-07 本会话复现：第一轮 `resume` → `ready` 后即开始查 `rotate.ts` 准备执行，与用户观察一致。\n\n## 决定（2026-11-07，ask 第 1 轮，用户确认）\n\n- 落点：固定提示词 `prompt.md` + 随包 ask/do skill + README，重新打包安装。\n- 只读边界：恢复轮**严格只读**——不写 Plan（不经 `nano_flow_write`、不动任何文件）、不执行 note、不改状态、不改代码、不跑构建/测试/装包；只允许 `nano_flow_read`（plans / resume / notes / get / index / search / ready）、读文件与取证命令。\n- 放行：恢复报告之后，用户的第一条后续消息即放行（进入 do）；那条消息若是新的澄清需求则按 ask。\n- 轮转种子：改为「已轮转，只读恢复并报告，等用户放行」，新会话不自动执行。\n\n## 行为契约\n\n1. 触发：用户说「恢复」「继续」且本会话尚未加载该 Plan 时，走恢复步骤。\n2. 只读动作：`resume` → 读 `spec.md` / `story.md` → 必要时读关键索引的 note → 报告目标、进度、可推进队列、阻塞项、下一步候选；本轮到此结束。\n3. 本轮禁止：`nano_flow_write` 全部动作、`write` / `edit`、会改磁盘的命令、构建/测试/装包。\n4. 放行后：按 do 循环从 `ready` 选 note；恢复轮零副作用，轮转或重启后重放安全。\n\n## 改动点\n\n- `prompt.md` 模式循环第 2 条：区分「恢复」与「执行」。\n- `prompt.md` 的「恢复与轮转」：删「从首个未完成步骤或可推进队列继续」，改为只读报告 + 等放行。\n- `src/nano-flow/tools/read.ts` resume 的「下一步」文案。\n- `src/nano-flow/rotate.ts` 种子文案。\n- `skills/do/SKILL.md`：入口先确认已放行。\n- README 的恢复 / 轮转段落。\n"
+    },
+    {
+      "id": "10",
+      "title": "落地恢复只读条款",
+      "description": "按 note 09 改 prompt.md、resume 文案、轮转种子、do skill 与 README，并构建安装真机验证。",
+      "status": "in_progress",
+      "blocked_by": [
+        "09"
+      ],
+      "evidence": [
+        "prompt.md 模式循环拆出「恢复已有 Plan → 只读」、恢复小节改为严格只读 + 报告后放行；13,041 → 13,552 B",
+        "read.ts resume 文案、rotate.ts 种子（rotate.test 断言含「只读报告」）、skills/do 首条、README 恢复只读小节与验证第 6 条同步",
+        "pnpm --filter @kxh4892636/dsh-toolkit check：101 文件格式通过、85 文件无告警",
+        "pnpm --filter @kxh4892636/dsh-toolkit test：241 项全部通过",
+        "pnpm pack 产出 kxh4892636-dsh-toolkit-0.4.2.tgz；desktop profile remove 0.4.1 + add 0.4.2，依赖与 bundles 已更新",
+        "安装目录 dist/index.mjs 48796E4A…、dist/nano-flow/prompt.md 186BC485… 与仓库 dist 同哈希",
+        "待真机：重启宿主后新会话只读恢复、报告后一条消息放行"
+      ],
+      "updated_at": "2026-11-06T19:29:01.590Z",
+      "content": "# 落地恢复只读条款\n\n## 目标\n\n把 note 09 的决定落到 `prompt.md`、`read.ts` 的 resume 文案、`rotate.ts` 种子、随包 do skill 与 README，重新打包安装并真机验证。\n\n## 执行检查点(2026-11-07)\n\n- `prompt.md`: 模式循环拆成「恢复已有 Plan → 只读」与「接续已报告过的 Plan → do」；「恢复与轮转」改成严格只读 + 报告后放行；轮转线索改「只读恢复当前 Plan」。13,041 → 13,552 B。\n- `read.ts`: resume 的「下一步」改成只读报告口径。\n- `rotate.ts`: 种子改「恢复当前 Plan …只读报告进度与可推进队列，等用户放行后再执行」；`rotate.test.ts` 断言同步为含「只读报告」。\n- `skills/do/SKILL.md`: 首条改成「先确认已放行」。\n- README: 新增「恢复只读」小节；轮转种子与验证第 6 条同步；`docs/dsh/CONTEXT.md` 补词条并修正过时的「会话轮转」定义；`docs/dsh/QUESTIONS.md` 补一条 FAQ。\n- 门禁：`check` 通过（101 文件格式、85 文件无告警）；`test` 241 项通过；`pack` 产出 `kxh4892636-dsh-toolkit-0.4.2.tgz`；desktop profile `remove 0.4.1` + `add 0.4.2`，依赖与 bundles 已更新，安装目录 `dist/index.mjs` / `dist/nano-flow/prompt.md` 与仓库 dist 同哈希。\n- 提交: 16dbbb95；pre-commit 的 `vp check --fix` 未改动内容，src / dist / 安装目录三者哈希一致。\n\n## 待真机\n\n- 重启宿主后新建 Nano Flow 会话: 应只读恢复并报告进度与可推进队列, 报告后一条消息才放行; 轮转出的新会话同样先只读.\n\n## 验收\n\n- 真机恢复会话：只读报告，`git status` 干净，无 note 状态变更。\n- 报告后用户发一条消息：进入 do 并从 `ready` 选 note。\n- 轮转出来的新会话：只读恢复，不自动执行。\n- `check` / `test` / `build` 与安装验证通过。\n"
     }
   ]
 }
