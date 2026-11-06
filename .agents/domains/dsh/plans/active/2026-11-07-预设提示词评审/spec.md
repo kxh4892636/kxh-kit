@@ -36,5 +36,5 @@
 
 ## 开放问题
 
-- `docs/dsh` 的旧 Plan 保留为 Markdown 历史，还是迁到新布局（需处理相对链接）？
+- `docs/dsh` 的旧 Plan 保留为 Markdown 历史，还是迁到新布局（需处理相对链接）？2026-11-07 用户决定先不动：note 02 保持 pending，等 note 07 / 08 的真机验证做完再定策略。
 - 本会话（2026-11-07 02:48 的「继续」）的系统提示里**没有**注入固定提示词 `prompt.md`，工具目录里也**没有** `nano_flow_*`，但 persona 前缀是 Nano Flow 的——与 note 03 验过的「提示词、工具、skill 三样齐」不符。两个候选：会话创建于旧构建、或预设行的 `ctx.inject(["tools","systemPrompt"])` 没触发。重启后新建 Nano Flow 会话即可分辨；若为空，note 07 的收口会让 Plan 无法再用 `read`/`write` 直接维护，必须先把预设半修好。
