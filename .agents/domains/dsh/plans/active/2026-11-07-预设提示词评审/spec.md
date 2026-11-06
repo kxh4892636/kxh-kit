@@ -19,7 +19,8 @@
 - 评审完成（note 01 completed）。
 - note 03 实施中：`prompt.md` 已按定案改写，ask / do skill、README、`runtime.test` 与 `assets.lock.json` 同步；插件 markdown 全部改为 ASCII 标点。
 - 本地验证：209 个测试通过、`vp check` 通过、`pnpm build` 成功、dist 与 src 同哈希、`nano_flow_check workspace` 通过。
-- 未验证：打包安装、重启宿主、新会话行为。
+- 已提交 `39eefc61`，打包并安装到 desktop profile（安装目录与 dist 同哈希；ask/do 无 `agents/` 与 `disable-model-invocation`）。
+- 待验证：新会话的固定提示词行为（当前会话的 skill 目录已刷新为新的 ask / do 描述）。
 - 域根：dsh 已切到 `.agents/domains`，其 `CONTEXT.md` 与 `QUESTIONS.md` 目前是指向 `docs/dsh` 的迁移指针；旧 Plan 与 ADR 仍在原位，迁移见 note 02。
 
 ## 恢复入口
