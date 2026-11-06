@@ -235,7 +235,7 @@ describe("tools", () => {
     expect(String(workspaceCheck)).toContain("工作区校验通过");
   });
 
-  it("ready 按依赖分组输出未完成 notes", async () => {
+  it("ready 把有依赖关系的 notes 分到同一组", async () => {
     const workspace = await makeWorkspace();
     const tools = createTools(workspace);
     await tools.write.execute({ op: "init", domain: "demo", name: "2026-11-07-ready分组" }, exec());
@@ -244,27 +244,28 @@ describe("tools", () => {
       exec(),
     );
     await tools.write.execute(
-      { op: "create", title: "分支", description: "分支摘要", content: "正文" },
-      exec(),
-    );
-    await tools.write.execute(
       {
         op: "create",
-        title: "汇合",
-        description: "汇合摘要",
+        title: "后续",
+        description: "后续摘要",
         content: "正文",
-        blocked_by: ["01", "02"],
+        blocked_by: ["01"],
       },
       exec(),
     );
-    await tools.write.execute({ op: "status", note: "02", status: "in_progress" }, exec());
+    await tools.write.execute(
+      { op: "create", title: "并行", description: "并行摘要", content: "正文" },
+      exec(),
+    );
+    await tools.write.execute({ op: "status", note: "03", status: "in_progress" }, exec());
 
     const text = String(await tools.read.execute({ op: "ready" }, exec()));
     expect(text).toContain("未完成（3）");
-    expect(text).toContain("第 1 组 · 无未完成前置，可并行（2）");
-    expect(text).toContain("第 2 组 · 有未完成前置（1）");
-    expect(text.indexOf("02 [in_progress]")).toBeLessThan(text.indexOf("01 [pending]"));
-    expect(text).toContain("（依赖: 01, 02）");
+    expect(text).toContain("第 1 组（2）");
+    expect(text).toContain("第 2 组（1）");
+    expect(text.indexOf("01 [pending]")).toBeLessThan(text.indexOf("02 [pending]"));
+    expect(text).toContain("（依赖: 01）");
+    expect(text).toContain("03 [in_progress]");
   });
 
   it("move 在 active / reference / archived 之间迁移", async () => {

@@ -241,10 +241,8 @@ export const readyNotes = (notes: readonly NoteNode[]): readonly NoteNode[] => {
   );
 };
 
-/** 依赖分组：同一组内互不为前置，组间按依赖层递增。 */
+/** 依赖组：组内通过 blocked_by 边连通，按拓扑顺序排列。 */
 export interface TodoGroup {
-  /** 依赖层，从 0 开始；层内 note 的前置都在更低的层或已完成。 */
-  readonly level: number;
   readonly notes: readonly NoteNode[];
 }
 
@@ -258,72 +256,107 @@ const STATUS_ORDER: Record<NoteStatus, number> = {
 /**
  * 把未完成的 note 按依赖关系分组，供 `ready` 输出 todo 式列表。
  *
- * 组间按依赖层递增；组内排序先让可执行的在前，再按解锁的未完成下游数降序，
- * 最后按状态与 id 稳定排序。已完成的依赖不产生层级，blocked 留在原组但排最后。
+ * 有依赖关系的 note 落在同一组（弱连通分量），组内按拓扑顺序排列：前置在前，
+ * 同层可执行项按解锁的未完成下游数降序、状态、id 排序。已完成的依赖不参与连边，
+ * blocked 留在原组但排在同层可执行项之后。组间按组内最小 id 排序。
  * @param notes - 全部 note。
- * @returns 按层递增的分组；全部完成时为空数组。
+ * @returns 按组排列的 note；全部完成时为空数组。
  */
 export const todoGroups = (notes: readonly NoteNode[]): readonly TodoGroup[] => {
   const byId = new Map(notes.map((note) => [note.id, note]));
   const unfinished = notes.filter((note) => note.status !== "completed");
   if (unfinished.length === 0) return [];
 
-  const levels = new Map<string, number>();
-  const levelOf = (note: NoteNode, visiting: Set<string>): number => {
-    const cached = levels.get(note.id);
-    if (cached !== undefined) return cached;
-    if (visiting.has(note.id)) return 0;
-    visiting.add(note.id);
-    const dependencies = note.blocked_by
-      .map((id) => byId.get(id))
-      .filter((item): item is NoteNode => item !== undefined && item.status !== "completed");
-    const level =
-      dependencies.length === 0
-        ? 0
-        : 1 + Math.max(...dependencies.map((item) => levelOf(item, visiting)));
-    visiting.delete(note.id);
-    levels.set(note.id, level);
-    return level;
-  };
+  const unfinishedIds = new Set(unfinished.map((note) => note.id));
+  const upstream = new Map<string, readonly string[]>();
+  const downstream = new Map<string, string[]>();
+  for (const note of unfinished) {
+    const dependencies = note.blocked_by.filter((id) => unfinishedIds.has(id));
+    upstream.set(note.id, dependencies);
+    for (const dependency of dependencies) {
+      const dependents = downstream.get(dependency) ?? [];
+      dependents.push(note.id);
+      downstream.set(dependency, dependents);
+    }
+  }
 
   const impact = new Map<string, number>();
   for (const note of unfinished) {
     const seen = new Set<string>();
-    const queue = [note.id];
+    const queue = [...(downstream.get(note.id) ?? [])];
     while (queue.length > 0) {
       const current = queue.pop();
-      if (current === undefined) continue;
-      for (const candidate of unfinished) {
-        if (!candidate.blocked_by.includes(current) || seen.has(candidate.id)) continue;
-        seen.add(candidate.id);
-        queue.push(candidate.id);
-      }
+      if (current === undefined || seen.has(current)) continue;
+      seen.add(current);
+      queue.push(...(downstream.get(current) ?? []));
     }
     impact.set(note.id, seen.size);
   }
 
-  const groups = new Map<number, NoteNode[]>();
+  const compare = (left: NoteNode, right: NoteNode): number => {
+    const blocked = Number(left.status === "blocked") - Number(right.status === "blocked");
+    if (blocked !== 0) return blocked;
+    const byImpact = (impact.get(right.id) ?? 0) - (impact.get(left.id) ?? 0);
+    if (byImpact !== 0) return byImpact;
+    const byStatus = STATUS_ORDER[left.status] - STATUS_ORDER[right.status];
+    if (byStatus !== 0) return byStatus;
+    return left.id.localeCompare(right.id);
+  };
+
+  const visited = new Set<string>();
+  const components: NoteNode[][] = [];
   for (const note of unfinished) {
-    const level = levelOf(note, new Set());
-    const list = groups.get(level) ?? [];
-    list.push(note);
-    groups.set(level, list);
+    if (visited.has(note.id)) continue;
+    const component: NoteNode[] = [];
+    const queue = [note.id];
+    visited.add(note.id);
+    while (queue.length > 0) {
+      const current = queue.pop();
+      if (current === undefined) continue;
+      const node = byId.get(current);
+      if (node !== undefined) component.push(node);
+      for (const next of [...(upstream.get(current) ?? []), ...(downstream.get(current) ?? [])]) {
+        if (visited.has(next)) continue;
+        visited.add(next);
+        queue.push(next);
+      }
+    }
+    components.push(component);
   }
 
-  return [...groups.entries()]
-    .sort(([left], [right]) => left - right)
-    .map(([level, list]) => ({
-      level,
-      notes: [...list].sort((left, right) => {
-        const blocked = Number(left.status === "blocked") - Number(right.status === "blocked");
-        if (blocked !== 0) return blocked;
-        const byImpact = (impact.get(right.id) ?? 0) - (impact.get(left.id) ?? 0);
-        if (byImpact !== 0) return byImpact;
-        const byStatus = STATUS_ORDER[left.status] - STATUS_ORDER[right.status];
-        if (byStatus !== 0) return byStatus;
-        return left.id.localeCompare(right.id);
-      }),
-    }));
+  const ordered = components.map((component) => {
+    const indegree = new Map<string, number>();
+    for (const note of component) {
+      indegree.set(note.id, (upstream.get(note.id) ?? []).length);
+    }
+    const available = component.filter((note) => indegree.get(note.id) === 0);
+    const result: NoteNode[] = [];
+    while (available.length > 0) {
+      available.sort(compare);
+      const next = available.shift();
+      if (next === undefined) break;
+      result.push(next);
+      for (const dependentId of downstream.get(next.id) ?? []) {
+        const remaining = (indegree.get(dependentId) ?? 0) - 1;
+        indegree.set(dependentId, remaining);
+        if (remaining === 0) {
+          const dependent = byId.get(dependentId);
+          if (dependent !== undefined) available.push(dependent);
+        }
+      }
+    }
+    // 环或异常数据：把未排序的 note 按比较器补在末尾，保持列表完整。
+    if (result.length < component.length) {
+      const placed = new Set(result.map((note) => note.id));
+      result.push(...component.filter((note) => !placed.has(note.id)).sort(compare));
+    }
+    return result;
+  });
+
+  const firstIdOf = (group: readonly NoteNode[]): string =>
+    group.reduce((min, note) => (note.id < min ? note.id : min), "\uffff");
+  ordered.sort((left, right) => firstIdOf(left).localeCompare(firstIdOf(right)));
+  return ordered.map((group) => ({ notes: group }));
 };
 
 /** 一个 note 的直接与传递上下游。 */

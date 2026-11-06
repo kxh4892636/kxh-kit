@@ -2,7 +2,7 @@
 
 ## 目标
 
-评审固定提示词的优化空间并落地定案修订；同时把 `ready` 改成依赖分组的 todo 列表，补并行执行论述。
+评审固定提示词的优化空间并落地定案修订；同时把 `ready` 改成按依赖关系分组的 todo 列表，补并行执行论述。
 
 ## 取证口径
 
@@ -18,7 +18,7 @@
 
 - note 01 完成（评审 29 条）。
 - note 03 完成：`prompt.md` 按定案改写；ask / do skill、README、`runtime.test`、`assets.lock.json` 同步；9 个 markdown 改为 ASCII 标点；209 测试、构建、安装与新会话验证通过。
-- note 04 完成：`dag.ts` 新增 `todoGroups`，`ready` 输出依赖分组 todo 列表；`prompt.md` 新增「并行执行」小节；211 测试与构建通过。
+- note 04 完成：`dag.ts` 的 `todoGroups` 按 blocked_by 连通分量分组、组内拓扑排序；`ready` 输出未完成 notes 的组列表；`prompt.md` 新增「并行执行」小节；211 测试与构建通过。首版按依赖层分组已按用户口径纠正为「有依赖关系的 note 在同一组」。
 - 未完成：note 02（迁移 dsh 域文档与旧 Plan）。
 - 域根：dsh 已切到 `.agents/domains`，其 `CONTEXT.md` 与 `QUESTIONS.md` 目前是指向 `docs/dsh` 的迁移指针；旧 Plan 与 ADR 仍在原位，迁移见 note 02。
 

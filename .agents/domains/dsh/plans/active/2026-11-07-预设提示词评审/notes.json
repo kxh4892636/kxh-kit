@@ -51,7 +51,7 @@
     {
       "id": "04",
       "title": "ready 按 DAG 分组并补并行执行论述",
-      "description": "让 ready 输出依赖分组的 todo 列表，并在 prompt 写并行执行与串行写入约束。",
+      "description": "让 ready 按依赖关系分组输出未完成 notes，并在 prompt 写并行执行与串行写入约束。",
       "status": "completed",
       "blocked_by": [
         "03"
@@ -61,10 +61,15 @@
         "`pnpm --filter @kxh4892636/dsh-toolkit exec vp check --fix`: 格式、lint、类型通过（77 文件）",
         "`pnpm --filter @kxh4892636/dsh-toolkit build`: 成功，dist/nano-flow 重新生成",
         "新 `ready` 输出: 未完成（2），第 1 组（04 in_progress、02 pending），下一步提示同组可并行",
-        "`prompt.md` 新增 \"### 并行执行\"，do 第 1 步改为从第 1 组选 note；`skills/do/SKILL.md` 同步"
+        "`prompt.md` 新增 \"### 并行执行\"，do 第 1 步改为从第 1 组选 note；`skills/do/SKILL.md` 同步",
+        "分组口径纠正后: `todoGroups` 按 blocked_by 弱连通分量分组, 组内 Kahn 拓扑排序; `dag.test` 覆盖依赖链、分叉与单点组",
+        "当前 Plan 的 `ready`: 02 与 04 无依赖关系, 分为第 1 组(02)与第 2 组(04); 04 完成后只剩 02",
+        "`pnpm --filter @kxh4892636/dsh-toolkit exec vp test run src`: 25 files / 211 tests 通过",
+        "`vp check --fix` 通过; `pnpm build` 成功",
+        "`prompt.md` 的 do 第 1 步与「并行执行」改为按单条 note 的前置判断可并行, 不再按组判断"
       ],
-      "updated_at": "2026-11-06T18:05:45.489Z",
-      "content": "# ready 按 DAG 分组并补并行执行论述\n\n## 目标\n\n- `nano_flow_read` 的 `ready` 给出未完成 notes 的依赖分组列表: 组间按依赖层递增, 同组按解锁下游数、状态、id 排序, 阻塞在组内最后。\n- prompt.md 补\"同组可并行, 用 subagent\"的论述, 并明确 `nano_flow_write` 由主会话串行写。\n\n## 设计\n\n- `dag.ts` 新增 `todoGroups(notes)`: 按未完成依赖的最长路径分层; 已完成的依赖不产生层级; 组内排序: 非阻塞优先, 解锁下游数降序, 状态(in_progress / pending), id。\n- `read.ts` 的 `ready` 改为: Plan 头 + \"未完成(N)\" + 每组标题与条目(状态、id、标题、摘要、依赖、阻塞原因) + 下一步。\n- 依赖已完成的 note 落在第 1 组; blocked 仍在组内但排最后。\n- prompt.md 在 do 循环下加\"并行执行\"小节: 同组用 `subagent` 一条 note 一个任务; 主会话统一 `status` / `update` / `complete`, 避免并发覆盖 `notes.json`。\n\n## 执行检查点(2026-11-07)\n\n- `dag.ts` 新增 `todoGroups`; `read.ts` 的 `ready` 改为分组列表, 工具描述同步为\"未完成 notes 的依赖分组列表\"。\n- `prompt.md` 的 do 第 1 步改为从第 1 组选 note, 并新增\"并行执行\"小节; `do` skill 同步。\n- 测试: `dag.test` 覆盖分层与组内排序; `runtime.test` 覆盖 `ready` 输出。\n- 当前 Plan 的 `ready` 输出为: 第 1 组(04 in_progress, 02 pending), 无后续组。\n- 未安装: 需要重新打包安装后, 新会话才使用新的 `ready` 与提示词。\n\n## 验收\n\n- `dag.test` 覆盖分层与排序; `runtime.test` 覆盖 `ready` 输出。\n- prompt.md 有并行执行小节; do 步骤指向第 1 组。\n- 测试、构建、`nano_flow_check workspace` 通过。\n\n## 不做\n\n- 不改 `resume` 的恢复包格式。\n- 不改 `notes.json` 结构。\n"
+      "updated_at": "2026-11-06T18:08:41.004Z",
+      "content": "# ready 按依赖关系分组并补并行执行论述\n\n## 目标\n\n- `nano_flow_read` 的 `ready` 给出未完成 notes 的依赖分组列表: 有依赖关系的 note 在同一组, 组内按拓扑顺序(前置在前), 同层按解锁下游数、状态、id 排序.\n- prompt.md 补\"前置已完成的 note 可并行, 用 subagent\"的论述, 并明确 `nano_flow_write` 由主会话串行写.\n\n## 设计\n\n- `dag.ts` 的 `todoGroups(notes)`: 按 blocked_by 边对未完成 notes 做弱连通分量; 已完成的依赖不连边; blocked 留在原组, 同层排后可执行项; 组间按组内最小 id.\n- 组内用 Kahn 拓扑排序; 同层可选集合按\"解锁的未完成下游数降序 -> 状态 -> id\"排序.\n- `read.ts` 的 `ready`: Plan 头 + \"未完成(N)\" + 每组标题与条目(状态、id、标题、摘要、仅未完成依赖) + 下一步.\n- prompt.md: do 第 1 步改为从组内取前置已完成的 note; 新增\"并行执行\"小节: 前置已完成的 note 用 `subagent` 一条 note 一个任务, 主会话串行写 `notes.json`.\n\n## 执行检查点(2026-11-07)\n\n- 首版按依赖层级分组被用户纠正: 分组应为\"有依赖关系的 note 在同一组\", 不是\"可并行的 note 在同一组\".\n- 已改为弱连通分量 + 组内拓扑排序; `dag.test` 覆盖链、分叉、单点组; `runtime.test` 覆盖 `ready` 输出.\n- 验证: 211 测试通过; `vp check` 通过; build 成功.\n- 当前 Plan 的 `ready` 只剩 02(无依赖, 单组).\n- 未安装: 需要重新打包安装后, 新会话才使用新的 `ready` 与提示词.\n\n## 验收\n\n- `dag.test` 覆盖依赖链分组与拓扑排序; `runtime.test` 覆盖 `ready` 输出.\n- prompt.md 有并行执行小节; do 步骤指向前置已完成的 note.\n- 测试、构建、`nano_flow_check workspace` 通过.\n\n## 不做\n\n- 不改 `resume` 的恢复包格式.\n- 不改 `notes.json` 结构.\n"
     }
   ]
 }

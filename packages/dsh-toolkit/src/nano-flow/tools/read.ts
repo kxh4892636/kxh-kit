@@ -106,23 +106,18 @@ const executeRead = async (
         return lines.join("\n");
       }
       lines.push(`未完成（${unfinished.length}）:`);
-      for (const group of groups) {
-        lines.push(
-          group.level === 0
-            ? `第 ${group.level + 1} 组 · 无未完成前置，可并行（${group.notes.length}）`
-            : `第 ${group.level + 1} 组 · 有未完成前置（${group.notes.length}）`,
-        );
+      groups.forEach((group, index) => {
+        lines.push(`第 ${index + 1} 组（${group.notes.length}）:`);
         for (const note of group.notes) {
-          const dependencies =
-            group.level > 0 && note.blocked_by.length > 0
-              ? `（依赖: ${note.blocked_by.join(", ")}）`
-              : "";
-          lines.push(`  - ${formatNoteLine(note)}${dependencies}`);
+          const dependencies = note.blocked_by.filter((id) => {
+            const dependency = document.notes.find((candidate) => candidate.id === id);
+            return dependency !== undefined && dependency.status !== "completed";
+          });
+          const suffix = dependencies.length > 0 ? `（依赖: ${dependencies.join(", ")}）` : "";
+          lines.push(`  - ${formatNoteLine(note)}${suffix}`);
         }
-      }
-      lines.push(
-        "下一步: 从第 1 组开始；同组互相独立，可并行用 subagent 分担；有未完成前置的组等上一组。",
-      );
+      });
+      lines.push("下一步: 组内按从上到下执行；前置已完成的 note 可并行用 subagent 分担。");
       return lines.join("\n");
     }
     case "graph": {

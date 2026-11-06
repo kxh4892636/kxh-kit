@@ -129,7 +129,7 @@ describe("查询", () => {
     expect(readyNotes(notes).map((item) => item.id)).toEqual(["02"]);
   });
 
-  it("todoGroups 按未完成依赖分层并在组内排序", () => {
+  it("todoGroups 把有依赖关系的 note 分到同一组并按拓扑排序", () => {
     const grouped = [
       note({ id: "01", status: "completed", evidence: ["完成"] }),
       note({ id: "02" }),
@@ -138,14 +138,9 @@ describe("查询", () => {
       note({ id: "05", blocked_by: ["02"] }),
       note({ id: "06", status: "blocked", blocked_reason: "等外部确认" }),
     ];
-    expect(
-      todoGroups(grouped).map((group) => ({
-        level: group.level,
-        ids: group.notes.map((item) => item.id),
-      })),
-    ).toEqual([
-      { level: 0, ids: ["02", "03", "06"] },
-      { level: 1, ids: ["04", "05"] },
+    expect(todoGroups(grouped).map((group) => group.notes.map((item) => item.id))).toEqual([
+      ["02", "03", "04", "05"],
+      ["06"],
     ]);
 
     const chain = [
@@ -154,9 +149,18 @@ describe("查询", () => {
       note({ id: "03", blocked_by: ["02"] }),
     ];
     expect(todoGroups(chain).map((group) => group.notes.map((item) => item.id))).toEqual([
-      ["01"],
-      ["02"],
-      ["03"],
+      ["01", "02", "03"],
+    ]);
+
+    const forks = [
+      note({ id: "01" }),
+      note({ id: "02", blocked_by: ["01"] }),
+      note({ id: "03" }),
+      note({ id: "04", blocked_by: ["03"] }),
+    ];
+    expect(todoGroups(forks).map((group) => group.notes.map((item) => item.id))).toEqual([
+      ["01", "02"],
+      ["03", "04"],
     ]);
     expect(todoGroups([note({ status: "completed", evidence: ["完成"] })])).toEqual([]);
   });
