@@ -1,8 +1,7 @@
 {
   "version": 1,
   "index": [
-    "01",
-    "03",
+    "04",
     "02"
   ],
   "notes": [
@@ -37,13 +36,35 @@
       "id": "03",
       "title": "按评审清单修订 prompt.md",
       "description": "把 note 01 的 P0/P1 清单落到 prompt.md，并同步 README 与 ask skill；构建安装后验证。",
-      "status": "in_progress",
+      "status": "completed",
       "blocked_by": [
         "01"
       ],
-      "evidence": [],
-      "updated_at": "2026-11-06T17:55:26.160Z",
+      "evidence": [
+        "当前会话(2026-11-07 重启后)的系统提示词已是修订版: 含模式优先级、\"何时建 Plan\"、四个锚点, 不再有 \"## 工具\"",
+        "技能目录已出现 ask / do, 描述为新版场景触发文案",
+        "安装目录 dist/nano-flow/prompt.md 12,455 B, SHA-256 8F544BD8270113B733A6FAD924F4E5CD4456EF3132B2B421520ED6F403C1DA17, 与仓库 dist 一致; ask/do 无 agents 与 disable-model-invocation"
+      ],
+      "updated_at": "2026-11-06T18:03:18.942Z",
       "content": "# 按评审清单修订 prompt.md\n\n## 用户定案(2026-11-07)\n\n除以下调整外, note 01 的评审意见全部落地:\n\n- 忽略 3(域根冲突)与 20(Standards 措辞)。\n- 6: Plan 创建时必须有一条 note, 拷问记录写进它。\n- 7: ask / do 删除 `disable-model-invocation` 与 `agents/`, description 改成可被模型触发。\n- 26: 改 L138 论述, 允许把不影响决策的轮次压成结论指针。\n- 27: `packages/dsh-toolkit` 下所有 markdown 改用 ASCII 标点。\n\n## 落地内容\n\n- prompt.md: 模式优先级、何时建 Plan、四个锚点、合并读取清单、删空节与工具节、init 文案、index / description、已确认设计入 spec、去重、验收基线、ADR 判据、Workflow 由 `/kaizen` 沉淀、高置信门槛、同步四步、跨域输入、review 条件、拷问记录论述、模板合并。\n- ask / do SKILL.md: 去掉 `disable-model-invocation`, 删 `agents/`, 改 description。\n- README: 固定提示词描述与 ask / do 调用说明同步。\n- runtime.test: ask / do invocation 断言改为 modelInvocable true。\n- assets.lock.json: 重算 to-skill / code-spec / learning / kaizen 的哈希。\n\n## 不做\n\n- 域根规则(3)、Standards 措辞(20)。\n- 工具语义与 check-domain 规则。\n- 旧 Plan 迁移(02)。\n\n## 执行检查点(2026-11-07)\n\n- 已完成: 上述源码改动; 9 个 markdown 改为 ASCII 标点(字符级替换, 未额外补空格)。\n- 验证: `vp test run src` 209 通过; `vp check --fix` 无告警; `pnpm build` 成功; dist/nano-flow 的 prompt.md 与 assets.lock.json 与 src 同哈希; dist 无中文标点; `nano_flow_check workspace` 通过。\n- 已提交: `39eefc61 feat(dsh): 收敛 Nano Flow 提示词并开放 ask/do 触发`。\n- 已安装: 打包 `kxh4892636-dsh-toolkit-0.4.1.tgz` 到仓库根; `dsh plugin --profile desktop remove` 后 `add`; 安装目录 `dist/nano-flow/prompt.md` 12,455 B, SHA-256 `8F544BD8...C1DA17` 与仓库 dist 一致; ask/do 无 `agents/` 与 `disable-model-invocation`; `dsh.profile.bundles` 仍含本包。\n- 进行中会话的 skill 目录已刷新为新的 ask / do 描述。\n\n## 待验证\n\n- 新会话的固定提示词行为(模式优先级、Plan 初始化、无工具节等)。prompt 在会话创建时按文件读取, 新会话应自动生效; 重启宿主可确保。\n\n## 下一步\n\n1. 用户新开一个 Nano Flow 会话, 确认提示词与 ask / do 触发。\n2. 通过后 complete 本 note; 未通过则记录差异并回到修订。\n"
+    },
+    {
+      "id": "04",
+      "title": "ready 按 DAG 分组并补并行执行论述",
+      "description": "让 ready 输出依赖分组的 todo 列表，并在 prompt 写并行执行与串行写入约束。",
+      "status": "completed",
+      "blocked_by": [
+        "03"
+      ],
+      "evidence": [
+        "`pnpm --filter @kxh4892636/dsh-toolkit exec vp test run src`: 25 files / 211 tests 通过（dag 18、runtime 13）",
+        "`pnpm --filter @kxh4892636/dsh-toolkit exec vp check --fix`: 格式、lint、类型通过（77 文件）",
+        "`pnpm --filter @kxh4892636/dsh-toolkit build`: 成功，dist/nano-flow 重新生成",
+        "新 `ready` 输出: 未完成（2），第 1 组（04 in_progress、02 pending），下一步提示同组可并行",
+        "`prompt.md` 新增 \"### 并行执行\"，do 第 1 步改为从第 1 组选 note；`skills/do/SKILL.md` 同步"
+      ],
+      "updated_at": "2026-11-06T18:05:45.489Z",
+      "content": "# ready 按 DAG 分组并补并行执行论述\n\n## 目标\n\n- `nano_flow_read` 的 `ready` 给出未完成 notes 的依赖分组列表: 组间按依赖层递增, 同组按解锁下游数、状态、id 排序, 阻塞在组内最后。\n- prompt.md 补\"同组可并行, 用 subagent\"的论述, 并明确 `nano_flow_write` 由主会话串行写。\n\n## 设计\n\n- `dag.ts` 新增 `todoGroups(notes)`: 按未完成依赖的最长路径分层; 已完成的依赖不产生层级; 组内排序: 非阻塞优先, 解锁下游数降序, 状态(in_progress / pending), id。\n- `read.ts` 的 `ready` 改为: Plan 头 + \"未完成(N)\" + 每组标题与条目(状态、id、标题、摘要、依赖、阻塞原因) + 下一步。\n- 依赖已完成的 note 落在第 1 组; blocked 仍在组内但排最后。\n- prompt.md 在 do 循环下加\"并行执行\"小节: 同组用 `subagent` 一条 note 一个任务; 主会话统一 `status` / `update` / `complete`, 避免并发覆盖 `notes.json`。\n\n## 执行检查点(2026-11-07)\n\n- `dag.ts` 新增 `todoGroups`; `read.ts` 的 `ready` 改为分组列表, 工具描述同步为\"未完成 notes 的依赖分组列表\"。\n- `prompt.md` 的 do 第 1 步改为从第 1 组选 note, 并新增\"并行执行\"小节; `do` skill 同步。\n- 测试: `dag.test` 覆盖分层与组内排序; `runtime.test` 覆盖 `ready` 输出。\n- 当前 Plan 的 `ready` 输出为: 第 1 组(04 in_progress, 02 pending), 无后续组。\n- 未安装: 需要重新打包安装后, 新会话才使用新的 `ready` 与提示词。\n\n## 验收\n\n- `dag.test` 覆盖分层与排序; `runtime.test` 覆盖 `ready` 输出。\n- prompt.md 有并行执行小节; do 步骤指向第 1 组。\n- 测试、构建、`nano_flow_check workspace` 通过。\n\n## 不做\n\n- 不改 `resume` 的恢复包格式。\n- 不改 `notes.json` 结构。\n"
     }
   ]
 }

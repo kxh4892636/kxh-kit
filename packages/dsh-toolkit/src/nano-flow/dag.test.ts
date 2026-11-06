@@ -8,6 +8,7 @@ import {
   readyNotes,
   searchNotes,
   serializeDocument,
+  todoGroups,
   type NoteNode,
 } from "./dag.js";
 import type { NanoFlowSettings } from "../contract.js";
@@ -126,6 +127,38 @@ describe("查询", () => {
 
   it("readyNotes 只给依赖已完成的 pending", () => {
     expect(readyNotes(notes).map((item) => item.id)).toEqual(["02"]);
+  });
+
+  it("todoGroups 按未完成依赖分层并在组内排序", () => {
+    const grouped = [
+      note({ id: "01", status: "completed", evidence: ["完成"] }),
+      note({ id: "02" }),
+      note({ id: "03", status: "in_progress", blocked_by: ["01"] }),
+      note({ id: "04", blocked_by: ["02", "03"] }),
+      note({ id: "05", blocked_by: ["02"] }),
+      note({ id: "06", status: "blocked", blocked_reason: "等外部确认" }),
+    ];
+    expect(
+      todoGroups(grouped).map((group) => ({
+        level: group.level,
+        ids: group.notes.map((item) => item.id),
+      })),
+    ).toEqual([
+      { level: 0, ids: ["02", "03", "06"] },
+      { level: 1, ids: ["04", "05"] },
+    ]);
+
+    const chain = [
+      note({ id: "01" }),
+      note({ id: "02", blocked_by: ["01"] }),
+      note({ id: "03", blocked_by: ["02"] }),
+    ];
+    expect(todoGroups(chain).map((group) => group.notes.map((item) => item.id))).toEqual([
+      ["01"],
+      ["02"],
+      ["03"],
+    ]);
+    expect(todoGroups([note({ status: "completed", evidence: ["完成"] })])).toEqual([]);
   });
 
   it("planStatusOf 按全部 note 派生", () => {

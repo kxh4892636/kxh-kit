@@ -12,7 +12,7 @@ import {
   textBlocks,
   type ToolRuntime,
 } from "./shared.js";
-import { graphOf, planStatusOf, readyNotes, searchNotes } from "../dag.js";
+import { graphOf, planStatusOf, readyNotes, searchNotes, todoGroups } from "../dag.js";
 import { listPlans, planRefOf, resolvePlan, type PlanRef } from "../plan.js";
 import { loadDocument } from "../store.js";
 import type { ToolDefinitionLike, ToolExecContext } from "../services.js";
@@ -98,24 +98,31 @@ const executeRead = async (
       return blocks.join("\n\n");
     }
     case "ready": {
-      const ready = readyNotes(document.notes);
-      const blocked = document.notes.filter((note) => note.status === "blocked");
-      const inProgress = document.notes.filter((note) => note.status === "in_progress");
+      const unfinished = document.notes.filter((note) => note.status !== "completed");
+      const groups = todoGroups(document.notes);
       const lines = [formatPlanHeader(plan, document)];
-      lines.push(`进行中（${inProgress.length}）:`);
-      lines.push(
-        ...(inProgress.length === 0
-          ? ["  （无）"]
-          : inProgress.map((note) => `  ${formatNoteLine(note)}`)),
-      );
-      lines.push(`可推进（${ready.length}）:`);
-      lines.push(
-        ...(ready.length === 0 ? ["  （无）"] : ready.map((note) => `  ${formatNoteLine(note)}`)),
-      );
-      if (blocked.length > 0) {
-        lines.push(`阻塞（${blocked.length}）:`);
-        lines.push(...blocked.map((note) => `  ${formatNoteLine(note)}`));
+      if (unfinished.length === 0) {
+        lines.push("未完成（0）: 全部 note 已完成。");
+        return lines.join("\n");
       }
+      lines.push(`未完成（${unfinished.length}）:`);
+      for (const group of groups) {
+        lines.push(
+          group.level === 0
+            ? `第 ${group.level + 1} 组 · 无未完成前置，可并行（${group.notes.length}）`
+            : `第 ${group.level + 1} 组 · 有未完成前置（${group.notes.length}）`,
+        );
+        for (const note of group.notes) {
+          const dependencies =
+            group.level > 0 && note.blocked_by.length > 0
+              ? `（依赖: ${note.blocked_by.join(", ")}）`
+              : "";
+          lines.push(`  - ${formatNoteLine(note)}${dependencies}`);
+        }
+      }
+      lines.push(
+        "下一步: 从第 1 组开始；同组互相独立，可并行用 subagent 分担；有未完成前置的组等上一组。",
+      );
       return lines.join("\n");
     }
     case "graph": {
@@ -201,7 +208,7 @@ const executeRead = async (
 export const createReadTool = (runtime: ToolRuntime): ToolDefinitionLike => ({
   name: "nano_flow_read",
   description:
-    "只读 Nano Flow 的 Plan 与 notes DAG。plans 列工作区里的 Plan；notes 列某个 Plan 的 note 摘要；get 取正文；ready 取进行中与可推进队列；graph 查直接与传递依赖；index 看关键索引；search 检索；resume 取恢复包（路径、大小、索引、可推进、阻塞）。",
+    "只读 Nano Flow 的 Plan 与 notes DAG。plans 列工作区里的 Plan；notes 列某个 Plan 的 note 摘要；get 取正文；ready 取未完成 notes 的依赖分组列表；graph 查直接与传递依赖；index 看关键索引；search 检索；resume 取恢复包（路径、大小、索引、可推进、阻塞）。",
   parameters: {
     type: "object",
     additionalProperties: false,

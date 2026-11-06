@@ -2,7 +2,7 @@
 
 ## 目标
 
-评审固定提示词的优化空间，交付按优先级排好的修订清单；本轮不改文件。
+评审固定提示词的优化空间并落地定案修订；同时把 `ready` 改成依赖分组的 todo 列表，补并行执行论述。
 
 ## 取证口径
 
@@ -12,24 +12,22 @@
 
 ## 结论摘要
 
-详见 note 01。P0 是 Plan 初始化触发、模式优先级、story/spec 契约、域根对齐、ask 护栏位置，以及删除工具清单与空节；P1 是其余重复与模糊表述；P2 是结构与体量。
+详见 note 01（29 条评审）与 note 04（`ready` 分组）。P0 是 Plan 初始化触发、模式优先级、story/spec 契约、域根对齐、ask 护栏位置，以及删除工具清单与空节；P1 是其余重复与模糊表述；P2 是结构与体量。
 
 ## 当前进度
 
-- 评审完成（note 01 completed）。
-- note 03 实施中：`prompt.md` 已按定案改写，ask / do skill、README、`runtime.test` 与 `assets.lock.json` 同步；插件 markdown 全部改为 ASCII 标点。
-- 本地验证：209 个测试通过、`vp check` 通过、`pnpm build` 成功、dist 与 src 同哈希、`nano_flow_check workspace` 通过。
-- 已提交 `39eefc61`，打包并安装到 desktop profile（安装目录与 dist 同哈希；ask/do 无 `agents/` 与 `disable-model-invocation`）。
-- 待验证：新会话的固定提示词行为（当前会话的 skill 目录已刷新为新的 ask / do 描述）。
+- note 01 完成（评审 29 条）。
+- note 03 完成：`prompt.md` 按定案改写；ask / do skill、README、`runtime.test`、`assets.lock.json` 同步；9 个 markdown 改为 ASCII 标点；209 测试、构建、安装与新会话验证通过。
+- note 04 完成：`dag.ts` 新增 `todoGroups`，`ready` 输出依赖分组 todo 列表；`prompt.md` 新增「并行执行」小节；211 测试与构建通过。
+- 未完成：note 02（迁移 dsh 域文档与旧 Plan）。
 - 域根：dsh 已切到 `.agents/domains`，其 `CONTEXT.md` 与 `QUESTIONS.md` 目前是指向 `docs/dsh` 的迁移指针；旧 Plan 与 ADR 仍在原位，迁移见 note 02。
 
 ## 恢复入口
 
-1. 读本 spec 与 note 01 的修订清单。
-2. 要落地修订：按 note 03 改 `prompt.md` 并同步 README 与 ask skill，再构建、安装、真机验证。
-3. 要清账：按 note 02 把域文档与旧 Plan 迁到新布局。
+1. 读本 spec、note 01 的评审清单与 note 04 的 `ready` 设计。
+2. 要清账：按 note 02 选策略，把 `docs/dsh` 的域文档与旧 Plan 迁到新布局，处理相对链接。
+3. 迁移后跑 `nano_flow_check` 的 `workspace`。
 
 ## 开放问题
 
 - `docs/dsh` 的旧 Plan 保留为 Markdown 历史，还是迁到新布局（需处理相对链接）？
-- `index` 的「1–」下限补校验，还是只改文案？
