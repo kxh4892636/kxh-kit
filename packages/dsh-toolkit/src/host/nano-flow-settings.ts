@@ -15,6 +15,7 @@ const INTEGER_KEYS = [
   "contextMaxBytes",
   "questionsMaxBytes",
   "adrMaxBytes",
+  "adrMaxCount",
 ] as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {

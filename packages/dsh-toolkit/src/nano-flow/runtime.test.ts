@@ -136,6 +136,7 @@ describe("settings", () => {
       noteMaxBytes: 13312,
       contextMaxBytes: 91136,
       adrMaxBytes: 13312,
+      adrMaxCount: 55,
       indexMaxRows: 13,
       rotateAt: 0.618,
     });
@@ -144,6 +145,7 @@ describe("settings", () => {
   it("只接受正整数与 (0,1] 的阈值", () => {
     expect(() => parseNanoFlowSettings({ storyMaxBytes: "x" })).toThrow(/storyMaxBytes/);
     expect(() => parseNanoFlowSettings({ storyMaxBytes: 0 })).toThrow(/storyMaxBytes/);
+    expect(() => parseNanoFlowSettings({ adrMaxCount: 0 })).toThrow(/adrMaxCount/);
     expect(() => parseNanoFlowSettings({ rotateAt: 0 })).toThrow(/rotateAt/);
     expect(() => parseNanoFlowSettings({ rotateAt: 1.2 })).toThrow(/rotateAt/);
     expect(parseNanoFlowSettings({ noteMaxBytes: 2048 }).noteMaxBytes).toBe(2048);
@@ -343,5 +345,23 @@ describe("tools", () => {
     });
     expect(result.ok).toBe(false);
     expect(result.errors.some((error) => error.message.includes("环"))).toBe(true);
+  });
+
+  it("check 脚本按 ADR 数量上限报错", async () => {
+    const workspace = await makeWorkspace();
+    const adrDirectory = join(workspace, ".agents/domains/demo/adr");
+    await mkdir(adrDirectory, { recursive: true });
+    for (let index = 1; index <= 56; index += 1) {
+      const name = `${String(index).padStart(4, "0")}-决策${index}.md`;
+      await writeFile(join(adrDirectory, name), `# 决策\n\n理由 ${index}。\n`, "utf8");
+    }
+    const result = await runCheck({
+      script: assetsCheckScript(locateAssetsRoot()),
+      workspace,
+      domainsPath: ".agents/domains",
+      limits: DEFAULT_NANO_FLOW_SETTINGS,
+    });
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((error) => error.message.includes("超过 55"))).toBe(true);
   });
 });

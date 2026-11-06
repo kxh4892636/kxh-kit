@@ -21,6 +21,7 @@ const limits: NanoFlowSettings = {
   contextMaxBytes: 91136,
   questionsMaxBytes: 91136,
   adrMaxBytes: 13312,
+  adrMaxCount: 55,
   rotateAt: 0.9,
 };
 

@@ -21,6 +21,7 @@ export const LIMIT_KEYS = Object.freeze([
   "contextMaxBytes",
   "questionsMaxBytes",
   "adrMaxBytes",
+  "adrMaxCount",
 ]);
 
 const KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -168,6 +169,9 @@ const checkAdrs = (domainPath, limits, report) => {
   const files = readEntries(adrPath, report)
     .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
     .sort((left, right) => left.name.localeCompare(right.name, "zh-CN"));
+  if (files.length > limits.adrMaxCount) {
+    report.push(adrPath, "size", `ADR 共 ${files.length} 个，超过 ${limits.adrMaxCount}`);
+  }
   for (const [index, file] of files.entries()) {
     const filePath = path.join(adrPath, file.name);
     const expected = String(index + 1).padStart(4, "0");

@@ -148,7 +148,7 @@ API；存活会话优先于磁盘，且改文件后存活会话继续追加会�
 
 - 所有数字在 **开关旁的下拉设置面板**维护（持久化到
   `$DSH_HOME/toolkit/nano-flow.json`）：story/spec/note/摘要/索引、CONTEXT/QUESTIONS/ADR
-  上限与会话轮转阈值；体积字段在面板里以 **KB** 输入（1 KB = 1024 字节，存储仍是字节），
+  上限、ADR 数量（默认 55 个）与会话轮转阈值；体积字段在面板里以 **KB** 输入（1 KB = 1024 字节，存储仍是字节），
   提示词本身不设上限。默认值见 `contract.ts`。
 - 预设不挂载压缩插件。每轮 `turn/end` 后读 `tokenMeter` 的上下文压力，达到
   `rotateAt × contextWindow` 时：创建新会话并让它 `nano_flow_read resume` 重新读取当前

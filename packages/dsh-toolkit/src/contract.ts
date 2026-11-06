@@ -82,11 +82,13 @@ export interface NanoFlowSettings {
   readonly questionsMaxBytes: number;
   /** 单个 ADR 上限（字节）。 */
   readonly adrMaxBytes: number;
+  /** 单个域的 ADR 数量上限。 */
+  readonly adrMaxCount: number;
   /** 上下文占用达到最大上下文的这个比例后轮转会话（0–1）。 */
   readonly rotateAt: number;
 }
 
-/** 默认值（面板按 KB 显示）：34 / 34 / 13 KB，144 字，13 行，89 / 89 / 13 KB，轮转阈值 0.618。 */
+/** 默认值（面板按 KB 显示）：34 / 34 / 13 KB，144 字，13 行，89 / 89 / 13 KB，55 个 ADR，轮转阈值 0.618。 */
 export const DEFAULT_NANO_FLOW_SETTINGS: NanoFlowSettings = {
   storyMaxBytes: 34 * 1024,
   specMaxBytes: 34 * 1024,
@@ -96,6 +98,7 @@ export const DEFAULT_NANO_FLOW_SETTINGS: NanoFlowSettings = {
   contextMaxBytes: 89 * 1024,
   questionsMaxBytes: 89 * 1024,
   adrMaxBytes: 13 * 1024,
+  adrMaxCount: 55,
   rotateAt: 0.618,
 };
 

@@ -37,6 +37,7 @@ const SETTING_FIELDS: readonly {
   { key: "contextMaxBytes", label: "CONTEXT.md", unit: "KB", scale: KB, integer: true },
   { key: "questionsMaxBytes", label: "QUESTIONS.md", unit: "KB", scale: KB, integer: true },
   { key: "adrMaxBytes", label: "单个 ADR", unit: "KB", scale: KB, integer: true },
+  { key: "adrMaxCount", label: "ADR 数量", unit: "个", scale: 1, integer: true },
   { key: "rotateAt", label: "轮转阈值", unit: "比例", scale: 1, integer: false },
 ];
 

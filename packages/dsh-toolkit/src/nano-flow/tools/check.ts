@@ -27,6 +27,7 @@ const formatLimits = (runtime: ToolRuntime): string => {
     `  CONTEXT.md: ${kb(limits.contextMaxBytes)}`,
     `  QUESTIONS.md: ${kb(limits.questionsMaxBytes)}`,
     `  单个 ADR: ${kb(limits.adrMaxBytes)}`,
+    `  ADR 数量: ${limits.adrMaxCount} 个`,
     `  轮转阈值: ${limits.rotateAt}`,
   ].join("\n");
 };

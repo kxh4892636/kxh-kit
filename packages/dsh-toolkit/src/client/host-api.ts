@@ -89,6 +89,7 @@ const SETTING_KEYS = [
   "contextMaxBytes",
   "questionsMaxBytes",
   "adrMaxBytes",
+  "adrMaxCount",
   "rotateAt",
 ] as const;
 
