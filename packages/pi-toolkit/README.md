@@ -234,8 +234,13 @@ While a session runs Orchestrator:
 - `orchestrator_read` (plans / notes / get / ready / graph / index / search / resume),
   `orchestrator_write` (init / create / update / link / status / complete / set_index / merge / delete /
   move), `orchestrator_check` (plan / workspace / limits), `orchestrator_dispatch` (start or message the
-  worker of one plan) and `orchestrator_workers` (list or abort live workers) are active, together with
-  `ask_questions`.
+  worker of one plan) and `orchestrator_workers` (list or abort live workers) are the **entire** active
+  tool set, together with `ask_questions`. The host's `read` / `bash` / `edit` / `write` / web tools are
+  switched off in that session, so evidence has to come from a worker. `session_start` snapshots the
+  incoming active set once as the baseline; leaving the mode (`/orchestrator 关`, `always: false`, or the
+  `/toolkit` switch off) restores it, keeping tools owned by other switches (web tools). The snapshot
+  is never retaken, otherwise the converged set would become the baseline and the host tools would be
+  lost.
 - `status` takes `pending / in_progress / waiting / blocked`; `waiting` must say what it waits for via
   `needs: "answer" | "review"`, and `complete` only accepts `waiting` + `needs=review`. Old
   `awaiting_verification` documents are read as `waiting` + `needs=review`.
@@ -275,6 +280,9 @@ the session, drops its handle (the next dispatch starts a fresh worker) and inje
 cannot `init` a plan, cannot `move` it, and cannot write `completed` — it reports the note as
 `waiting(needs=review)` with `orchestrator_report`, and only after the orchestrator sends `pass` may it
 complete. The worker has no `ask_questions`: a question becomes `orchestrator_report(needs_answer)`.
+Every finished note is committed right away (`git add -A && git commit`, message starting with the note
+id) and the hash goes into that note's evidence: the orchestrator has no `bash`, so it cannot commit, and
+nothing is committed while tests or checks fail.
 
 `orchestrator_report` arrives in the orchestrator session as an `orchestrator-report` message. Reports
 are notifications; the notes on disk are the truth.

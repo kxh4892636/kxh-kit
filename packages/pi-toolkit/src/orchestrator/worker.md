@@ -20,9 +20,19 @@
 
 1. `orchestrator_read` 的 `ready` 看可推进的 note；本次只动消息里给出的那组 note，其余 note 属于别的组。
 2. 执行并验证；完成一条就置 `waiting` + `needs=review`，写 evidence 草稿与"待验证"小节。调研, 方案对比, 实现与复核这些事都由你做, 编排方不碰; 调研类 note 的交付物是"可检查的结论 + 依据(命令, 文件, 输出片段)", 不是复述源码。收尾前用 `orchestrator_check` 自检：`op=plan` 校验本 Plan，`op=workspace` 覆盖 common 与你自己的域（别域由编排方校验）。
-3. 用 `orchestrator_report` 上报：`outcome` 取 `needs_review` / `needs_answer` / `blocked` / `failed`；`done` 只用于纯信息性进展。`evidence` 必须写清命令与关键输出: 编排方据此放行, 不会重跑, 含糊的证据会被打回。
-4. 收到 `pass` 后自己 `complete`；收到 `rework` 回 `in_progress`；收到 `answer` 继续做。
-5. 全部 note 完成仍不归档：等编排方决定。
+3. **完成即提交**：测试与校验都通过后立刻 `git add -A && git commit` 一次，commit hash 写进该 note 的 evidence。
+4. 用 `orchestrator_report` 上报：`outcome` 取 `needs_review` / `needs_answer` / `blocked` / `failed`；`done` 只用于纯信息性进展。`evidence` 必须写清命令与关键输出: 编排方据此放行, 不会重跑, 含糊的证据会被打回。
+5. 收到 `pass` 后自己 `complete`；收到 `rework` 回 `in_progress`；收到 `answer` 继续做。
+6. 全部 note 完成仍不归档：等编排方决定。
+
+## 完成即提交
+
+编排方没有 `bash`，提交是 worker 的职责：一条 note 一个 commit，不攒着。
+
+- 时机：该 note 的目标达成，`test` / `check` / `orchestrator_check` 通过，evidence 已写。
+- message 沿用仓库约定：`feat(pi)` / `fix(pi)` / `chore(pi)` / `docs(<域>)`，首行带 note id 与一句话结论，例如 `feat(pi): note 29 子 worker 支持 depth 1`。
+- 积压（多条 note 的改动都还没提交）先一起提交，message 里说明覆盖范围，之后恢复"一条一提交"。
+- 不得在有未通过的校验时提交；也不得把无关改动塞进同一条 commit。
 
 ## 进展上报
 

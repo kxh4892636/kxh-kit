@@ -445,12 +445,34 @@ export const registerOrchestrator = (
     });
   };
 
+  /**
+   * 模式关闭时该恢复的活跃工具集合。**只在 `start()` 快照一次**：若在 `sync()` 里
+   * 重取，第二次拿到的就是收敛后的集合，关掉模式后宿主工具再也回不来。
+   */
+  let baseline: readonly string[] | undefined;
+
+  /**
+   * 严格白名单：模式开 → 活跃工具就 `ORCHESTRATOR_TOOL_NAMES` 这六个（宿主的
+   * `read` / `bash` / `edit` / `write` / web 全部收掉 —— 靠提示词自觉已被证伪）；
+   * 模式关 → 恢复基线。
+   *
+   * 关闭时的集合是「当前活跃集合去掉本插件的工具，再补回基线里缺的」：基线只是
+   * 快照，web 这类由别的开关管的工具可能在快照之后被 `/toolkit` 改过，直接用基线
+   * 覆盖会把它们的开关状态一起抹掉。
+   *
+   * 基线还没快照（`start()` 之前）时不动：宁可维持现状，也不把半收敛的集合当基线。
+   * @param enabled - 是否处于 Orchestrator 模式。
+   */
   const setTools = (enabled: boolean): void => {
+    if (baseline === undefined) return;
     const active = pi.getActiveTools();
-    const next = active.filter((name) => !ORCHESTRATOR_TOOL_SET.has(name));
+    let next: string[] = [];
     if (enabled) {
-      for (const name of ORCHESTRATOR_TOOL_NAMES) {
-        if (!next.includes(name)) next.push(name);
+      next = [...ORCHESTRATOR_TOOL_NAMES];
+    } else {
+      next = [...baseline];
+      for (const name of active) {
+        if (!ORCHESTRATOR_TOOL_SET.has(name) && !next.includes(name)) next.push(name);
       }
     }
     const unchanged =
@@ -598,6 +620,8 @@ export const registerOrchestrator = (
 
   const start = (ctx: ExtensionContext): void => {
     resetPending = false;
+    // 基线只在这里取一次：此处活跃集合还是宿主给的原始值，没被本插件收敛过。
+    baseline ??= pi.getActiveTools();
     if (
       deps.settings().tools.orchestrator &&
       pi.getFlag("orchestrator") === true &&

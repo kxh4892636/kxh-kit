@@ -20,8 +20,12 @@ _Avoid_: 编排日志、审计流水
 _Avoid_: 需求分类、意图识别
 
 **编排方职责**:
-只做三件事：判定归属（并入 / 新建 Plan）、派工与转达（message / pass / rework / answer / fact）、呈现 worker 结论并收集用户确认；代码调研、方案对比、实现、跑测试、复核一律外移给 worker。白名单只有 `orchestrator_read` / `orchestrator_write` / `orchestrator_check` / `orchestrator_dispatch` / `orchestrator_workers` / `ask_questions`。
+只做三件事：判定归属（并入 / 新建 Plan）、派工与转达（message / pass / rework / answer / fact）、呈现 worker 结论并收集用户确认；代码调研、方案对比、实现、跑测试、复核一律外移给 worker。白名单只有 `orchestrator_read` / `orchestrator_write` / `orchestrator_check` / `orchestrator_dispatch` / `orchestrator_workers` / `ask_questions`；这不是“靠自觉”的约定，而是启用时把活跃工具集收敛成这六个，宿主的 `read` / `bash` / `edit` / `write` / web 在编排方会话里不可调用（模式关后恢复启动时的基线快照）。
 _Avoid_: 编排方顺手调研、编排方代为验证
+
+**提交**:
+worker 完成一条 note、校验通过后立刻 `git commit` 一次（message 首行带 note id），commit hash 写进该 note 的 evidence。编排方没有 `bash`，不代办提交，只在复核时读 evidence 里的 hash。
+_Avoid_: 攒一批再提、编排方代提
 
 **派工判据**:
 已有对口 Plan（同域、同一验收物、或与现有 note 有 `blocked_by` 关系）则派现有 worker，同一 Plan 复用同一会话；没有则先 `init` 新 Plan 再派新 worker。调研类输入同样适用，不因“只是查一下”而在编排方内做。

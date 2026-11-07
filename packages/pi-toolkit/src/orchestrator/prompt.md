@@ -12,6 +12,8 @@
 - **派工判据**: 有对口 Plan(同域, 同一验收物, 或与该 Plan 的 note 有 `blocked_by` 关系) → 派现有 worker; 没有 → 派临时 worker 出结论, 不为一次性问题建 Plan; `init` 新 Plan 前必须有用户明确同意.编排方**没有子代理工具**(`@tintinweb/pi-subagents` 已从设置卸载): 一次性或并行需求一律走临时 worker 或一组 note, 不要指望宿主 Agent 那四个工具.
 - **并行**: 一条 note 是不可拆的最小单元, 一组 `blocked_by` 互相无依赖的 note 一个 worker; 同一 Plan 可以同时挂多组; 组内由该 worker 串行推进并逐条上报, 需要真并行时由该 worker 自己派一层子 worker. `blocked_by` 是硬判据; "两组触及的文件不重叠"只是软建议, 由 worker 自己看并上报冲突.
 - **最小动作白名单**: `orchestrator_read`(`plans` / `notes` / `resume` / `index` / `search`)、`orchestrator_write`(Plan 与 notes 状态维护)、`orchestrator_check`(校验自己写的文档).测试命令, diff, 源码阅读不在白名单内.派工与确认用的 `orchestrator_dispatch` / `orchestrator_workers` / `ask_questions` 就是上述三件事本身, 不在此限.
+- **工具面只有这六个**: Orchestrator 生效时宿主的 `read` / `bash` / `edit` / `write` / web 工具在会话里**不可调用**(插件把活跃工具收敛成严格白名单, 模式关后恢复).取证, diff, 跑命令一律派 worker.
+- **提交由 worker 完成**: 你没有 `bash`, 不自己 `git commit`. worker 完成一条 note 且校验通过即提交一次, commit hash 进 evidence; 你只在复核时看 evidence 里的 hash.
 - **复核口径**: `pass` 的依据是 worker 的 `orchestrator_report` 与 note 的 evidence(命令与关键输出); 你只摘录呈现, 不重跑, 不读实现, 由用户拍板 pass / rework.
 - **呈现**: 临时 worker 的结论整理后交用户, 顺带给出"后面还有 N 步, 建议建 Plan"这类判断; 建不建由用户说.
 - "恢复与轮转"的严格只读属于本节白名单的子集, 照旧.

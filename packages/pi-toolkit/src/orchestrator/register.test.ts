@@ -173,13 +173,16 @@ describe("registerOrchestrator", () => {
     expect(event.systemPromptOptions.sections["orchestrator"]).toBeUndefined();
     expect(await harness.fire("session_before_compact", ctx)).toEqual([undefined]);
     expect(await harness.fire("resources_discover", ctx)).toEqual([undefined]);
+    // 开关关闭时连“收敛”这一步都不做：active 集合原样留着。
+    expect(harness.active()).toEqual(["read", "bash"]);
   });
 
-  it("activates the four tools and injects the fixed prompt when always-on", async () => {
+  it("converges the live tools to the whitelist and injects the fixed prompt when always-on", async () => {
     const harness = setup(settingsWith({ always: true }));
     const ctx = makeCtx(harness.branch, harness.notifications, await tempDir());
     harness.start(ctx);
-    for (const name of ORCHESTRATOR_TOOL_NAMES) expect(harness.active()).toContain(name);
+    // 严格白名单：宿主的 read / bash 也被收掉，不只是“补上 orchestrator_*”。
+    expect(harness.active()).toEqual([...ORCHESTRATOR_TOOL_NAMES]);
 
     const event = { systemPromptOptions: { sections: {} as Record<string, string> } };
     await harness.fire("before_agent_start", ctx, event);
@@ -190,6 +193,33 @@ describe("registerOrchestrator", () => {
       skillPaths?: string[];
     }[];
     expect(discovered[0]?.skillPaths?.[0]).toBe(assetsSkillsRoot());
+  });
+
+  it("restores the host baseline after the mode turns off, without re-snapshotting it", async () => {
+    const harness = setup(settingsWith({ always: true }));
+    const ctx = makeCtx(harness.branch, harness.notifications, await tempDir());
+    harness.start(ctx);
+    expect(harness.active()).toEqual([...ORCHESTRATOR_TOOL_NAMES]);
+    // 每轮 before_agent_start 都会再 sync 一次；这里不能把收敛后的集合当成新基线。
+    await harness.fire("before_agent_start", ctx, {
+      systemPromptOptions: { sections: {} as Record<string, string> },
+    });
+    expect(harness.active()).toEqual([...ORCHESTRATOR_TOOL_NAMES]);
+
+    harness.current = settingsWith({ always: false });
+    await harness.fire("session_tree", ctx);
+    expect(harness.active()).toEqual(["read", "bash"]);
+  });
+
+  it("keeps tools owned by another switch when it restores", async () => {
+    const harness = setup(settingsWith({ always: true }));
+    const ctx = makeCtx(harness.branch, harness.notifications, await tempDir());
+    harness.start(ctx);
+    // 快照之后由 /toolkit 激活的 web 工具不属于本插件的基线，恢复时不能抹掉。
+    harness.pi.setActiveTools([...ORCHESTRATOR_TOOL_NAMES, "web_search"]);
+    harness.current = settingsWith({ always: false });
+    await harness.fire("session_tree", ctx);
+    expect(harness.active()).toEqual(["read", "bash", "web_search"]);
   });
 
   it("lets a session override turn always-on back off", async () => {
@@ -228,6 +258,7 @@ describe("registerOrchestrator", () => {
       await tempDir(),
       choose("开", false),
     );
+    harness.start(ctx);
     await harness.command("", ctx);
     expect(harness.active()).toContain("ask_questions");
     expect(harness.branch.at(-1)).toMatchObject({ data: { enabled: true } });
@@ -364,6 +395,7 @@ describe("registerOrchestrator", () => {
       select: async (_title, labels) => labels.find((label) => label === "开"),
       confirm: async () => true,
     });
+    harness.start(ctx);
     await harness.command("", ctx);
     expect(harness.alwaysCalls).toEqual([true]);
     expect(harness.current.orchestrator.always).toBe(true);
