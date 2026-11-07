@@ -62,6 +62,8 @@ import { createAskQuestionsTool } from "./ask.ts";
 import { DEFAULT_DOMAIN_ROOT } from "./config.ts";
 import {
   buildSeed,
+  currentPlanOf,
+  CURRENT_PLAN_ENTRY,
   isOrchestratorActive,
   latestResetAt,
   MODE_ENTRY,
@@ -69,7 +71,14 @@ import {
   sessionModeOf,
   type BranchEntryLike,
 } from "./mode.ts";
-import { activePlans, listPlans, planRefOf, resolvePlan, type PlanRef } from "./plan.ts";
+import {
+  activePlans,
+  listPlans,
+  mainWorkspaceOf,
+  planRefOf,
+  resolvePlan,
+  type PlanRef,
+} from "./plan.ts";
 import { pickMode } from "./selector.ts";
 import { createSidebar } from "./sidebar.ts";
 import {
@@ -1237,10 +1246,33 @@ export const registerOrchestrator = (
   /** 崩溃凭据的读写口（账本重放出来的）；只给编排方，worker 拿不到。 */
   const interrupted: InterruptedAccess = createInterruptedAccess(ledgerOf(), projectionOf());
 
+  /**
+   * 上一次记进会话的“当前 Plan”目录；用来避免每次工具调用都往会话里塞一条 entry。
+   * 进程重启后从分支里重读，所以这里只是缓存。
+   */
+  let recordedPlanDirectory: string | undefined;
+
+  /**
+   * 记住“当前 Plan”：轮转的种子必须指名它，而这个事实只存在于会话里。
+   *
+   * 只在目录变了时追加一条（同一次会话里反复命中同一个 Plan 不该长出一条条重复 entry）。
+   * @param plan - 刚解析成功的 Plan。
+   */
+  const rememberPlan = (plan: PlanRef): void => {
+    if (plan.directory === recordedPlanDirectory) return;
+    recordedPlanDirectory = plan.directory;
+    try {
+      pi.appendEntry(CURRENT_PLAN_ENTRY, { directory: plan.directory });
+    } catch {
+      // 会话正在关闭之类：记不住只是降级到“唯一的 active Plan”，不影响本次调用。
+    }
+  };
+
   const runtime = createToolRuntime({
     limits: () => deps.settings().orchestrator,
     domainRoot: DEFAULT_DOMAIN_ROOT,
     interrupted,
+    onPlan: rememberPlan,
   });
 
   /** 进程内的 worker 句柄表（**投影的缓存**：只放 session 与句柄，运行态看账本）。 */
@@ -2003,7 +2035,7 @@ export const registerOrchestrator = (
     // 一条初始 snapshot，然后删掉旧文件。已有账本时它是空操作。
     void migrateLedger({
       stateDir: stateDir(),
-      workspace: ctx.cwd,
+      workspace: mainWorkspaceOf(ctx.cwd),
       domainRoot: DEFAULT_DOMAIN_ROOT,
       limits: deps.settings().orchestrator,
     });
@@ -2150,6 +2182,8 @@ export const registerOrchestrator = (
     const at = latestResetAt(branchOf(ctx));
     if (at === undefined) return;
     resetPending = false;
+    // 种子不按 active 数量猜：会话锁定值（本会话最后一次命中的 Plan）优先。
+    const current = currentPlanOf(branchOf(ctx)) ?? recordedPlanDirectory;
     type Message = (typeof event.messages)[number];
     const kept = event.messages.filter((message) => {
       const timestamp = (message as { timestamp?: unknown }).timestamp;
@@ -2157,7 +2191,12 @@ export const registerOrchestrator = (
     });
     const seed = {
       role: "user",
-      content: [{ type: "text", text: await buildSeed(ctx.cwd, DEFAULT_DOMAIN_ROOT) }],
+      content: [
+        {
+          type: "text",
+          text: await buildSeed(mainWorkspaceOf(ctx.cwd), DEFAULT_DOMAIN_ROOT, current),
+        },
+      ],
       timestamp: at,
     } as unknown as Message;
     return { messages: [seed, ...kept] };
@@ -2175,7 +2214,8 @@ export const registerOrchestrator = (
   });
 
   const statusText = async (ctx: ExtensionContext): Promise<string> => {
-    const plans = activePlans(await listPlans(ctx.cwd, DEFAULT_DOMAIN_ROOT));
+    const workspace = mainWorkspaceOf(ctx.cwd);
+    const plans = activePlans(await listPlans(workspace, DEFAULT_DOMAIN_ROOT));
     const lines = [`Orchestrator: ${modeOn(ctx) ? "开" : "关"}`];
     if (plans.length === 0) {
       lines.push(`active Plan: 无（域根 ${DEFAULT_DOMAIN_ROOT}）`);

@@ -350,6 +350,8 @@ describe("dispatch 与 workers 工具", () => {
     const tools = new Map<string, { execute: (...args: unknown[]) => Promise<unknown> }>();
     const messages: unknown[] = [];
     const handlers = new Map<string, ((payload: unknown) => unknown)[]>();
+    /** 会话里追加的 entry（`appendEntry` 的替身）；轮转种子的当前 Plan 从这里读。 */
+    const entries: { customType: string; data: unknown }[] = [];
     const pi = {
       registerTool: (tool: { name: string } & Record<string, unknown>) => {
         tools.set(tool.name, tool as never);
@@ -357,7 +359,9 @@ describe("dispatch 与 workers 工具", () => {
       registerFlag: () => undefined,
       registerCommand: () => undefined,
       getFlag: () => undefined,
-      appendEntry: () => undefined,
+      appendEntry: (customType: string, data: unknown) => {
+        entries.push({ customType, data });
+      },
       getActiveTools: () => ["read"],
       setActiveTools: () => undefined,
       sendMessage: (message: unknown) => {
@@ -460,6 +464,7 @@ describe("dispatch 与 workers 工具", () => {
     return {
       tools,
       messages,
+      entries,
       spawns,
       reports,
       spawnOptions,
@@ -2310,6 +2315,47 @@ describe("dispatch 与 workers 工具", () => {
         .events()
         .map((event) => event.type),
     ).toContain("state.pulled");
+  });
+  it("命中过哪个 Plan 就记住哪个；清空上下文时种子直接恢复它，不问用户挑", async () => {
+    const { tools, handlers, entries } = await setup({
+      makeSession: () => fakeSession(true, false),
+    });
+    const { root } = await planArgs("2026-11-07-甲");
+    await planArgs("2026-11-07-乙", root);
+    // 多个 active 时也不该让用户挑：谁被命中过，谁就是“当前 Plan”。
+    await tools
+      .get("orchestrator_read")
+      ?.execute(
+        "id",
+        { op: "index", plan: "etf/active/2026-11-07-乙" },
+        undefined,
+        undefined,
+        ctx(root),
+      );
+    const recorded = entries.filter((entry) => entry.customType === "orchestrator-current-plan");
+    expect(recorded).toHaveLength(1);
+    const first = recorded[0] as { data: { directory: string } };
+    expect(first.data.directory).toContain("2026-11-07-乙");
+
+    const at = Date.now() - 1_000;
+    const branch = [
+      { type: "custom", customType: "orchestrator-mode", data: { enabled: true } },
+      { type: "custom", customType: "orchestrator-reset", data: { at } },
+      ...recorded.map((entry) => ({ type: "custom", ...entry })),
+    ];
+    const resetCtx = {
+      cwd: root,
+      sessionManager: { getBranch: () => branch },
+    } as unknown as ExtensionContext;
+    const resetContext = handlers.get("context")?.[0] as unknown as
+      | ((event: { messages: unknown[] }, context: unknown) => Promise<unknown>)
+      | undefined;
+    const result = (await resetContext?.({ messages: [] }, resetCtx)) as
+      | { messages: { content: { text: string }[] }[] }
+      | undefined;
+    const seed = result?.messages[0]?.content[0]?.text ?? "";
+    expect(seed).toContain("恢复当前 Plan：etf/active/2026-11-07-乙");
+    expect(seed).not.toContain("先问用户");
   });
 });
 

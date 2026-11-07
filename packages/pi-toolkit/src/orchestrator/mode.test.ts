@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import {
   buildSeed,
+  currentPlanOf,
+  CURRENT_PLAN_ENTRY,
   isOrchestratorActive,
   latestResetAt,
   MODE_ENTRY,
@@ -82,7 +84,32 @@ describe("buildSeed", () => {
     expect(seed).toContain("init");
   });
 
-  it("asks which plan when several are active", async () => {
+  it("names the current plan even when several are active（不再让用户挑）", async () => {
+    const root = await tempDir();
+    const made: string[] = [];
+    for (const name of ["2026-11-08-甲", "2026-11-08-乙"]) {
+      const plan = join(root, `.agents/domains/demo/plans/active/${name}`);
+      await mkdir(plan, { recursive: true });
+      await writeFile(
+        join(plan, "notes.json"),
+        JSON.stringify({ version: 1, index: [], notes: [] }),
+      );
+      made.push(plan);
+    }
+    // 当前 Plan 由会话记录给出：种子里直接指名它。
+    const seed = await buildSeed(root, ".agents/domains", made[1]);
+    expect(seed).toContain("demo/active/2026-11-08-乙");
+    expect(seed).toContain("恢复当前 Plan");
+    expect(seed).not.toContain("先问用户");
+
+    // 没有记录时也不问：退到唯一的 active Plan。
+    const only = join(root, ".agents/domains/demo/plans/active/2026-11-08-丙");
+    await mkdir(only, { recursive: true });
+    await writeFile(join(only, "notes.json"), JSON.stringify({ version: 1, index: [], notes: [] }));
+    expect(await buildSeed(root, ".agents/domains")).not.toContain("先问用户");
+  });
+
+  it("falls back to the most recently updated plan instead of asking", async () => {
     const root = await tempDir();
     for (const name of ["2026-11-08-甲", "2026-11-08-乙"]) {
       const plan = join(root, `.agents/domains/demo/plans/active/${name}`);
@@ -92,6 +119,37 @@ describe("buildSeed", () => {
         JSON.stringify({ version: 1, index: [], notes: [] }),
       );
     }
-    expect(await buildSeed(root, ".agents/domains")).toContain("先问用户");
+    const seed = await buildSeed(root, ".agents/domains");
+    expect(seed).toContain("恢复当前 Plan");
+    expect(seed).toContain("不要问用户挑 Plan");
+    expect(seed).not.toContain("先问用户是哪个");
+  });
+
+  it("ignores a recorded plan that no longer exists", async () => {
+    const root = await tempDir();
+    const plan = join(root, ".agents/domains/demo/plans/active/2026-11-08-现有");
+    await mkdir(plan, { recursive: true });
+    await writeFile(join(plan, "notes.json"), JSON.stringify({ version: 1, index: [], notes: [] }));
+    const gone = join(root, ".agents/domains/demo/plans/active/2026-11-08-已归档");
+    expect(await buildSeed(root, ".agents/domains", gone)).toContain("demo/active/2026-11-08-现有");
+  });
+});
+
+describe("currentPlanOf", () => {
+  const planEntry = (directory: string): BranchEntryLike => ({
+    type: "custom",
+    customType: CURRENT_PLAN_ENTRY,
+    data: { directory },
+  });
+
+  it("取最后一条记下的 Plan 目录", () => {
+    expect(currentPlanOf([])).toBeUndefined();
+    expect(currentPlanOf([planEntry("/w/a"), { type: "message" }, planEntry("/w/b")])).toBe("/w/b");
+  });
+
+  it("坏数据跳过", () => {
+    expect(currentPlanOf([{ type: "custom", customType: CURRENT_PLAN_ENTRY, data: {} }])).toBe(
+      undefined,
+    );
   });
 });
