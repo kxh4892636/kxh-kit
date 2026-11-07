@@ -75,17 +75,6 @@ export type DeliveryMode = (typeof DELIVERY_MODES)[number];
 /** 最近一次输入的摘要长度上限：清单要能一眼看完，长文留在消息正文里。 */
 export const LAST_INPUT_SUMMARY_MAX = 60;
 
-/** 输入台账最多保留的条数：只留最近这一批，更早的挤掉。 */
-export const INPUT_LOG_MAX = 20;
-
-/**
- * 一条输入“等了太久还没被消费”的阈值（固定 10 分钟）。
- *
- * 不跟随 `orchestrator.workerTimeoutMs`：那个是看门狗的无进展容忍时长（默认 30 分钟），
- * 而这里要回答的是更早的问题——「这条输入到底进了 worker 的队列没有、有没有卡在排队上」。
- */
-export const INPUT_STUCK_MS = 10 * 60_000;
-
 /** 一条输入的留痕：谁在什么时候、以什么方式说了什么（只有摘要）。 */
 export interface LastInput {
   readonly kind: InputKind;
@@ -94,37 +83,6 @@ export interface LastInput {
   readonly text: string;
   /** 投递时刻（毫秒）。 */
   readonly at: number;
-}
-
-/**
- * 一条输入的台账记录：投了什么、怎么投的、什么时候投的、被消费了没有。
- *
- * `delivery` 记的是**实际落到**的那条分支（空闲时 `steer` 退化为 `prompt`，也记 `prompt`），
- * 因为消费判定按分支走。
- */
-export interface InputRecord {
-  /** 单调递增的序号（从 1 起）。 */
-  readonly seq: number;
-  readonly kind: InputKind;
-  readonly delivery: DeliveredAs;
-  /** 渲染后正文的摘要（展示用，见 `summarizeInput`）。 */
-  readonly text: string;
-  /** 投递时刻（毫秒）。 */
-  readonly sentAt: number;
-  /** 被消费的时刻（毫秒）；还没消费时缺省。 */
-  consumedAt?: number;
-}
-
-/** 消费判定用的订阅状态：退订阅句柄 + 上一次见到的队列长度。 */
-export interface InputAck {
-  /** 退订阅函数；session 没有 `subscribe` 时缺省。 */
-  stop?: () => void;
-  /** 上一次 `queue_update` 里 steering 队列的长度。 */
-  steering: number;
-  /** 上一次 `queue_update` 里 followUp 队列的长度。 */
-  followUp: number;
-  /** 是否见过 `queue_update`；没见过时只能退化成“一次 agent_start 消费一条”。 */
-  sawQueue: boolean;
 }
 
 /** 表里的一条 worker。 */
@@ -158,16 +116,6 @@ export interface WorkerEntry {
   lastReport?: WorkerReport;
   /** 最近一次投递给它的输入（摘要 + 时刻），供编排方判断该不该插话。 */
   lastInput?: LastInput;
-  /**
-   * 输入台账（最近 `INPUT_LOG_MAX` 条），用来分辨「已消费」与「还在排队」。
-   *
-   * 可选：`deliver` 第一次投递时懒建，手搓的条目（测试替身、子 worker 的临时条目）不必填。
-   */
-  inputLog?: InputRecord[];
-  /** 消费判定的订阅状态；`attachInputAck` 建立，`disposeEntry` 拆掉。 */
-  inputAck?: InputAck;
-  /** 累计投递次数（只增不减）。存量展示仍看它，队列长度看 `pendingInputs`。 */
-  inputs: number;
   /** 在途 job；入队时登记，收割时清掉。 */
   job?: WorkerJob;
 }
@@ -291,186 +239,6 @@ export const summarizeInput = (text: string): string => {
   return flat.length <= LAST_INPUT_SUMMARY_MAX ? flat : `${flat.slice(0, LAST_INPUT_SUMMARY_MAX)}…`;
 };
 
-/** 取台账（懒建）；台账永不回退成 undefined，所以调用方不用再判。 */
-const inputLogOf = (entry: WorkerEntry): InputRecord[] => {
-  entry.inputLog ??= [];
-  return entry.inputLog;
-};
-
-/**
- * 把一条投递记进台账（只保留最近 `INPUT_LOG_MAX` 条）。
- * @param entry - 目标 worker。
- * @param kind - 输入种类。
- * @param rendered - 渲染后的正文（台账里只留摘要）。
- * @param delivery - 实际落到的分支。
- * @param now - 投递时刻，默认当前。
- * @returns 新记录。
- */
-export const recordInput = (
-  entry: WorkerEntry,
-  kind: InputKind,
-  rendered: string,
-  delivery: DeliveredAs,
-  now: number = Date.now(),
-): InputRecord => {
-  const log = inputLogOf(entry);
-  const record: InputRecord = {
-    seq: (log.at(-1)?.seq ?? 0) + 1,
-    kind,
-    delivery,
-    text: summarizeInput(rendered),
-    sentAt: now,
-  };
-  log.push(record);
-  if (log.length > INPUT_LOG_MAX) log.splice(0, log.length - INPUT_LOG_MAX);
-  return record;
-};
-
-/** 台账里还没被消费的输入（按投递先后）。 */
-export const pendingInputs = (entry: WorkerEntry): readonly InputRecord[] => {
-  return (entry.inputLog ?? []).filter((record) => record.consumedAt === undefined);
-};
-
-/**
- * 把最老的一条未消费记录标成已消费。
- *
- * 队列本身是 FIFO（`_followUpMessages` / `_steeringMessages` 是数组），所以“最老一条”
- * 就是宿主刚拼进这轮的那条；按分支过滤是因为 prompt 走 `agent_start`、排队与插话走
- * `queue_update`，两条锺点不能互相当成对方。
- * @param entry - 目标 worker。
- * @param delivery - 只消费这个分支；省略则任意分支里最老的一条。
- * @param now - 消费时刻，默认当前。
- * @returns 被标记的记录；没有可消费的返回 undefined。
- */
-export const consumeOldestInput = (
-  entry: WorkerEntry,
-  delivery?: DeliveredAs,
-  now: number = Date.now(),
-): InputRecord | undefined => {
-  const target = pendingInputs(entry).find(
-    (record) => delivery === undefined || record.delivery === delivery,
-  );
-  if (target !== undefined) target.consumedAt = now;
-  return target;
-};
-
-/** 待消费概况：条数、最老一条等了多久、是否久到可疑。 */
-export interface PendingSummary {
-  /** 还没被消费的条数（只在台账保留的最近 `INPUT_LOG_MAX` 条里算）。 */
-  readonly pending: number;
-  /** 最老一条已等毫秒数；没有待消费时缺省。 */
-  readonly oldestMs?: number;
-  /** 待消费且有超过 `INPUT_STUCK_MS` 没动的：很可能是卡住了。 */
-  readonly stuck: boolean;
-}
-
-/**
- * 算待消费概况。
- * @param entry - 目标 worker。
- * @param now - 当前时刻，默认真实时间。
- * @returns 条数、最老等待时长与卡住标记。
- */
-export const pendingSummary = (entry: WorkerEntry, now: number = Date.now()): PendingSummary => {
-  const pending = pendingInputs(entry);
-  const oldest = pending[0];
-  if (oldest === undefined) return { pending: 0, stuck: false };
-  const oldestMs = Math.max(0, now - oldest.sentAt);
-  return { pending: pending.length, oldestMs, stuck: oldestMs >= INPUT_STUCK_MS };
-};
-
-/**
- * 待消费的一句话展示：`待消费 2（最老 3 分钟）`，久到可疑时追加 `⚠ 可能卡住`。
- * @param summary - `pendingSummary` 的结果。
- * @returns 清单里那一小段文本（不带分隔符）。
- */
-export const pendingLabel = (summary: PendingSummary): string => {
-  if (summary.pending === 0) return "待消费 0";
-  const waited = summary.oldestMs ?? 0;
-  const oldest =
-    waited < 60_000
-      ? `${Math.max(1, Math.round(waited / 1000))} 秒`
-      : `${Math.round(waited / 60_000)} 分钟`;
-  return `待消费 ${summary.pending}（最老 ${oldest}）${summary.stuck ? " ⚠ 可能卡住" : ""}`;
-};
-
-const asRecord = (value: unknown): Record<string, unknown> | undefined => {
-  return typeof value === "object" && value !== null
-    ? (value as Record<string, unknown>)
-    : undefined;
-};
-
-/** 读事件里的队列长度：`queue_update` 给数组，其余一律返回 undefined。 */
-const queueSizesOf = (event: unknown): { steering: number; followUp: number } | undefined => {
-  const record = asRecord(event);
-  if (record?.["type"] !== "queue_update") return undefined;
-  const sizeOf = (value: unknown): number => (Array.isArray(value) ? value.length : 0);
-  return { steering: sizeOf(record["steering"]), followUp: sizeOf(record["followUp"]) };
-};
-
-/**
- * 用一条 session 事件推进消费判定。
- *
- * 两个锺点：
- * - `queue_update`：宿主队列长度**减少**几条，就消费几条最老的对应分支（`steered` /
- *   `queued`）。减少发生在宿主把那条消息拼进本轮 transcript 时（`message_start` 的 user
- *   消息把文本从队列里摘掉），所以这是**精确**的：排队/插话的输入被拼进去就算消费。
- * - `agent_start`：空闲投递（`prompt`）直接开新一轮，开局就是消费点。
- *
- * **退化路径**（已在文档与 evidence 里写明）：宿主不给 `queue_update`（老会话实现，或
- * session 没有 `subscribe`）时，只能每次 `agent_start` 吃掉一条最老未消费的——那是**近似**，
- * 分不清谁被消费，只保证总数对得上。
- * @param entry - 目标 worker。
- * @param event - `SessionLike.subscribe` 收到的事件。
- * @param now - 消费时刻，默认当前。
- * @returns 本次被标成已消费的记录。
- */
-export const applySessionEvent = (
-  entry: WorkerEntry,
-  event: unknown,
-  now: number = Date.now(),
-): readonly InputRecord[] => {
-  const sizes = queueSizesOf(event);
-  const ack = (entry.inputAck ??= { steering: 0, followUp: 0, sawQueue: false });
-  if (sizes !== undefined) {
-    const consumed: InputRecord[] = [];
-    const drain = (count: number, delivery: DeliveredAs): void => {
-      for (let index = 0; index < count; index += 1) {
-        const record = consumeOldestInput(entry, delivery, now);
-        if (record === undefined) return;
-        consumed.push(record);
-      }
-    };
-    drain(ack.steering - sizes.steering, "steered");
-    drain(ack.followUp - sizes.followUp, "queued");
-    ack.steering = sizes.steering;
-    ack.followUp = sizes.followUp;
-    ack.sawQueue = true;
-    return consumed;
-  }
-  if (asRecord(event)?.["type"] !== "agent_start") return [];
-  // 见过 queue_update 就只消费空闲投递的那条；没见过只能退化（近似，见上方注释）。
-  const record = consumeOldestInput(entry, ack.sawQueue ? "prompt" : undefined, now);
-  return record === undefined ? [] : [record];
-};
-
-/**
- * 挂上消费判定的订阅（幂等）。
- *
- * session 没有 `subscribe`（手搓替身 / 老路径）时不挂：台账照记，只是待消费要靠
- * `agent_start` 的退化路径推进。
- * @param entry - 目标 worker。
- */
-export const attachInputAck = (entry: WorkerEntry): void => {
-  if (entry.inputAck !== undefined) return;
-  const ack: InputAck = { steering: 0, followUp: 0, sawQueue: false };
-  entry.inputAck = ack;
-  // 用方法调用（而不是先取出函数再 call）：`this` 绑定留给宿主实现自己。
-  if (typeof entry.session.subscribe !== "function") return;
-  ack.stop = entry.session.subscribe((event) => {
-    applySessionEvent(entry, event);
-  });
-};
-
 /**
  * 投递一条输入：空闲就开新一轮；正在跑时按 `delivery` 排队（`followUp`）或插话
  * （`steer`）。**不 await 整轮**。
@@ -498,14 +266,8 @@ export const deliver = (
 ): Delivery => {
   const rendered = renderInput(kind, text, note);
   const busy = !entry.session.isIdle;
-  // 先算真正落到的分支，再记账：台账里的 `delivery` 必须是实际分支，消费判定按它走。
+  // 实际落到哪条分支由 session 的空闲状态决定；调用方随后把它写进 `input.sent` 事件。
   const delivered: DeliveredAs = !busy ? "prompt" : mode === "steer" ? "steered" : "queued";
-  // 订阅先于投递挂上：排队队列的入队/出队都在 `followUp` / `steer` 里同步发事件，
-  // 晚挂会漏掉这一次的基线长度。
-  attachInputAck(entry);
-  recordInput(entry, kind, rendered, delivered);
-  entry.inputs += 1;
-  entry.lastInput = { kind, delivery: mode, text: summarizeInput(rendered), at: Date.now() };
   if (!busy) {
     return { queued: false, mode, delivered, settled: entry.session.prompt(rendered) };
   }
@@ -571,8 +333,6 @@ export const harvest = (entry: WorkerEntry, job?: WorkerJob): boolean => {
  */
 export const disposeEntry = async (entry: WorkerEntry): Promise<void> => {
   harvest(entry);
-  entry.inputAck?.stop?.();
-  delete entry.inputAck;
   try {
     await entry.session.abort();
   } catch {

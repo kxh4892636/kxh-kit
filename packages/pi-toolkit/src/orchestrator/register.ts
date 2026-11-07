@@ -20,10 +20,8 @@ import {
   disposeEntry,
   entryKeyOf,
   harvest,
-  INPUT_STUCK_MS,
   keyBelongsToPlan,
   planDirectoryOf,
-  renew,
   type DeliveryMode,
   type WorkerEntry,
   type WorkerJob,
@@ -34,6 +32,7 @@ import { clipText } from "./events.ts";
 import { closeLedger, openLedger } from "./ledger.ts";
 import {
   closeProjection,
+  INPUT_STUCK_MS,
   openProjection,
   type ProjectedWorker,
   type Projection,
@@ -293,7 +292,6 @@ const createCommandTool = (
   ledgerOf: () => ReturnType<typeof openLedger>,
   projectionOf: () => Projection,
   onReport: (report: WorkerReport) => void,
-  sendTimeout: (entry: WorkerEntry, job: WorkerJob, timeoutMs: number) => void,
 ): OrchestratorTool => {
   return {
     name: "orchestrator_command",
@@ -485,6 +483,7 @@ const createCommandTool = (
           // 放行集合是账本里的 `note.pass` 重放出来的，不再放内存。
           released: (noteId: string) =>
             plan === undefined ? false : projectionOf().isReleased(plan.directory, noteId),
+          workerKey: key,
           sessionKey,
         };
         const spawned = await (deps.spawn ?? spawnWorker)(
@@ -510,7 +509,6 @@ const createCommandTool = (
               }),
           startedAt: Date.now(),
           session: spawned.session,
-          inputs: 0,
         });
         // 起 worker 落账：投影据此得到 worker 表（live / 组 / worktree / 会话路径）。
         ledgerOf().append({
@@ -543,7 +541,6 @@ const createCommandTool = (
         });
       }
       const target = entry;
-      const timeoutMs = deps.settings().orchestrator.workerTimeoutMs;
       const delivery = deliver(target, kind, message, note, deliveryMode);
       // 新一代 job 接管：先把上一条的清掉，免得定时器滞留到超时后才消失。
       harvest(target);
@@ -558,7 +555,6 @@ const createCommandTool = (
         notified: false,
       };
       target.job = job;
-      renew(target, job, timeoutMs, () => sendTimeout(target, job, timeoutMs));
       // 投递落账（`input.sent`）：`deliver` 已经算好实际落到哪条分支。
       const sentEvent = ledgerOf().append({
         type: "input.sent",
@@ -1013,7 +1009,6 @@ export const registerOrchestrator = (
     for (const entry of registry.list()) {
       const worker = state.workers.get(entry.planDirectory);
       if (worker === undefined) continue;
-      entry.inputs = worker.inputs;
       if (worker.lastReport !== undefined) {
         entry.lastReport = {
           outcome: worker.lastReport.outcome,
@@ -1041,17 +1036,31 @@ export const registerOrchestrator = (
   };
   projectionOf().subscribe(syncRegistry);
 
+  /** 一条 note 的“最后进展”时刻：入队、最后输入、最后 report 里最新的那个。 */
+  const lastProgressOf = (entry: WorkerEntry, worker: ProjectedWorker | undefined): number => {
+    const started = entry.job?.startedAt ?? entry.startedAt;
+    const input = worker?.lastInput === undefined ? 0 : Date.parse(worker.lastInput.at);
+    const report = worker?.lastReport === undefined ? 0 : Date.parse(worker.lastReport.at);
+    return Math.max(started, input, report);
+  };
+
   /**
-   * 卡死到点：中止 worker、摘句柄、落 `timeout` 与 `worker.exit` 事件。
+   * 卡死检测（纯代码，扫投影）：中止 worker、摘句柄、落 `timeout` 与 `worker.exit`。
    *
-   * 只对同一次派工生效一次（`job.notified`），**不代写 note 状态** —— 重新派工还是改派由人决定。
-   * 摘除句柄是必需的：被 abort 的 session 不能复用，留着会让 `orchestrator_state` 的 live 清单说谎。
+   * 两个判据，任一成立就超时：
+   * - 最老一条未消费输入超过 `inputStuckMs`（默认 10 分钟）—— 输入卡在队列里；
+   * - 距最后进展超过 `workerTimeoutMs`（report 即续期）—— 整轮没有进展。
+   *
+   * 不看模型回合：定时器自己扫。只对一个 job 生效一次（`job.notified`），**不代写 note 状态**。
    */
-  const sendTimeout = (entry: WorkerEntry, job: WorkerJob, timeoutMs: number): void => {
+  const timeoutWorker = (
+    entry: WorkerEntry,
+    job: WorkerJob,
+    cause: "input" | "idle",
+    elapsedMs: number,
+  ): void => {
     if (entry.job !== job || job.notified) return;
     job.notified = true;
-    const minutes = Math.round(timeoutMs / 60_000);
-    // 触发它的那条输入（最老未消费）带上 seq，便于在账本里对上号。
     const oldest = projectionOf().oldestPendingOf(entry.planDirectory);
     void (async () => {
       try {
@@ -1067,9 +1076,9 @@ export const registerOrchestrator = (
         type: "timeout",
         payload: {
           worker: entry.planDirectory,
-          cause: "idle",
+          cause,
           ...(oldest === undefined ? {} : { oldestUnconsumedSeq: oldest.seq }),
-          elapsedMs: Math.max(0, Date.now() - job.progressAt),
+          elapsedMs: Math.max(0, Math.round(elapsedMs)),
         },
       });
       ledgerOf().append({
@@ -1077,9 +1086,53 @@ export const registerOrchestrator = (
         payload: { worker: entry.planDirectory, reason: "timeout" },
       });
       wake(
-        `[worker] 超时：${entry.planRef} 超过 ${minutes} 分钟没有进展，已中止（note 状态未改动）。`,
+        `[worker] 超时：${entry.planRef} ${cause === "input" ? "输入一直没被消费" : "没有进展"}，已中止（note 状态未改动）。`,
       );
     })();
+  };
+
+  /**
+   * 扫一遍投影，把该超时的 worker 摘掉。
+   *
+   * 间隔跟着阈值缩放（小额阈值用于测试，真实 30 分钟阈值下就是 1s 一次），`unref` 过，
+   * 不阻止进程退出。
+   */
+  const scanTimeouts = (): void => {
+    if (registry.size() === 0) return;
+    const settings = deps.settings().orchestrator;
+    const state = projectionOf().state();
+    const now = Date.now();
+    for (const entry of registry.list()) {
+      const job = entry.job;
+      if (job === undefined) continue;
+      const worker = state.workers.get(entry.planDirectory);
+      const oldest = worker?.pending[0];
+      const pendingMs = oldest === undefined ? 0 : now - Date.parse(oldest.at);
+      if (oldest !== undefined && pendingMs >= settings.inputStuckMs) {
+        timeoutWorker(entry, job, "input", pendingMs);
+        continue;
+      }
+      const idleMs = now - lastProgressOf(entry, worker);
+      if (idleMs >= settings.workerTimeoutMs) timeoutWorker(entry, job, "idle", idleMs);
+    }
+  };
+
+  let scanTimer: ReturnType<typeof setInterval> | undefined;
+  const startScan = (): void => {
+    if (scanTimer !== undefined) return;
+    const { workerTimeoutMs, inputStuckMs } = deps.settings().orchestrator;
+    // 跟着两个阈值里更紧的那个缩放：真实配置下就是 1s 一次，测试的小阈值下不会漏检。
+    const interval = Math.max(
+      5,
+      Math.min(1_000, Math.floor(Math.min(workerTimeoutMs, inputStuckMs) / 8)),
+    );
+    scanTimer = setInterval(scanTimeouts, interval);
+    scanTimer.unref?.();
+  };
+  const stopScan = (): void => {
+    if (scanTimer === undefined) return;
+    clearInterval(scanTimer);
+    scanTimer = undefined;
   };
 
   /**
@@ -1094,18 +1147,11 @@ export const registerOrchestrator = (
     if (directory !== undefined) {
       // 路由：先找包含该 note 的组，再退到 Plan 级条目，最后试临时 worker 的键。
       matched =
+        (report.worker === undefined ? undefined : registry.get(report.worker)) ??
         findByNote(registry, directory, report.note) ??
         registry.get(entryKeyOf(directory)) ??
         registry.get(directory);
-      if (matched !== undefined) {
-        const entry = matched;
-        entry.lastReport = report;
-        const job = entry.job;
-        if (job !== undefined) {
-          const timeoutMs = deps.settings().orchestrator.workerTimeoutMs;
-          renew(entry, job, timeoutMs, () => sendTimeout(entry, job, timeoutMs));
-        }
-      }
+      if (matched !== undefined) matched.lastReport = report;
     }
     ledgerOf().append({
       type: "report.filed",
@@ -1126,20 +1172,14 @@ export const registerOrchestrator = (
     createWriteTool(runtime),
     createCheckTool(runtime),
     createAskQuestionsTool(),
-    createCommandTool(
-      runtime,
-      registry,
-      deps,
-      stateDir,
-      ledgerOf,
-      projectionOf,
-      onReport,
-      sendTimeout,
-    ),
+    createCommandTool(runtime, registry, deps, stateDir, ledgerOf, projectionOf, onReport),
     createStateTool(runtime, registry, deps, stateDir, ledgerOf, projectionOf),
   ]) {
     pi.registerTool({ ...tool, defaultActive: false });
   }
+
+  // 卡死检测是纯代码的定时器：注册即跑，空表时立刻返回（没有 worker 就没有工作）。
+  startScan();
 
   pi.registerFlag("orchestrator", {
     description: "Start this session in Orchestrator mode",
@@ -1231,6 +1271,7 @@ export const registerOrchestrator = (
   // 退出收尾：先留痕再把 worker 全摘掉，避免“worker 静默消失、note 悬空”。
   pi.on("session_shutdown", async () => {
     sidebar.dispose();
+    stopScan();
     await recordInterruptedNotes(
       "session_shutdown: worker 随会话退出，相关 note 可能停在 in_progress",
     );

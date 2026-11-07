@@ -774,7 +774,6 @@ const workerEntry = (directory: string, notes: string[]): WorkerEntry => ({
   planRef: `demo/active/${directory.split(/[\\/]/u).at(-1) ?? ""}`,
   notes,
   startedAt: Date.now(),
-  inputs: 0,
   session: fakeSession(),
 });
 
@@ -990,7 +989,6 @@ describe("侧边栏控制器", () => {
       planRef: "temp:5",
       kind: "temp",
       startedAt: Date.now(),
-      inputs: 1,
       session: fakeSession(),
       job: {
         kind: "message",
@@ -1000,16 +998,12 @@ describe("侧边栏控制器", () => {
         notified: false,
       },
       lastInput: { kind: "message", delivery: "queue", text: "看一下侧栏", at: Date.now() },
-      inputLog: [
-        { seq: 1, kind: "message", delivery: "queued", text: "看一下侧栏", sentAt: Date.now() },
-      ],
     });
     registry.add({
       planDirectory: "temp:6",
       planRef: "temp:6",
       kind: "temp",
       startedAt: Date.now(),
-      inputs: 1,
       session: fakeSession(),
       lastReport: {
         outcome: "needs_review",
@@ -1042,7 +1036,6 @@ describe("侧边栏控制器", () => {
       planRef: "temp:5",
       kind: "temp",
       startedAt: Date.now(),
-      inputs: 1,
       session: fakeSession(),
       lastReport: {
         outcome: "needs_review",

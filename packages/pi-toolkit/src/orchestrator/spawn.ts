@@ -23,6 +23,8 @@ import {
 import type { ToolkitSettings } from "../settings.ts";
 import { assetsSkillsRoot } from "./assets.ts";
 import { stateDirectory } from "./errors.ts";
+import { openLedger } from "./ledger.ts";
+import { openProjection } from "./projection.ts";
 import type { SessionLike } from "./handles.ts";
 import type { PlanRef } from "./plan.ts";
 import type { WorkerReport } from "./types.ts";
@@ -47,6 +49,13 @@ export interface SpawnWorkerOptions {
   readonly report: (report: WorkerReport) => void;
   /** 放行判定：账本里的 `note.pass` 重放出来的（不是内存集合）。 */
   readonly released: (noteId: string) => boolean;
+  /**
+   * 这个 worker 在账本里的路由键（`<plan 目录>::<组>` 或 `temp:<id>`）。
+   *
+   * ack（`agent_start` → `input.consumed`）与 report 的归属都靠它；省略时 worker 侧的
+   * ack 不生效（子 worker / 测试替身）。
+   */
+  readonly workerKey?: string;
   /**
    * 落盘会话的工作键（`<plan 目录>::<组>` 或 `temp:<id>`）；同一键重启后能续上。
    * 子 worker 省略：它不续、不落盘，仍用内存会话。
@@ -100,6 +109,7 @@ export const spawnWorker = async (options: SpawnWorkerOptions): Promise<SpawnedW
   if (given.length !== 1) {
     throw new Error("起 worker 需要 plan / temp / sub 之一，且只能给一个");
   }
+  const stateDirectoryOf = stateDirectory(options.agentDir ?? getAgentDir());
   // 子 worker 不续、不落盘；Plan worker 与临时 worker 都有 jsonl，按工作键找得回来。
   const opened =
     options.sessionKey === undefined || sub !== undefined
@@ -107,9 +117,15 @@ export const spawnWorker = async (options: SpawnWorkerOptions): Promise<SpawnedW
       : openWorkerSession({
           key: options.sessionKey,
           cwd: options.cwd,
-          stateDir: stateDirectory(options.agentDir ?? getAgentDir()),
+          stateDir: stateDirectoryOf,
           ...(options.sessionDir === undefined ? {} : { sessionDir: options.sessionDir }),
         });
+  // worker 与编排方同进程：共享账本 + 投影，ack 与状态看的是同一份 seq。
+  const ledger = openLedger(stateDirectoryOf);
+  const events = {
+    append: (input: Parameters<typeof ledger.append>[0]) => ledger.append(input),
+    oldestPendingOf: (worker: string) => openProjection(ledger).oldestPendingOf(worker),
+  };
   const loader = new DefaultResourceLoader({
     cwd: options.cwd,
     agentDir: options.agentDir ?? getAgentDir(),
@@ -126,6 +142,8 @@ export const spawnWorker = async (options: SpawnWorkerOptions): Promise<SpawnedW
           report: options.report,
           settings: options.settings,
           released: options.released,
+          ...(options.workerKey === undefined ? {} : { workerKey: options.workerKey }),
+          events,
         }),
       },
     ],

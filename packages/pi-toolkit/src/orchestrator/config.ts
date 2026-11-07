@@ -35,6 +35,13 @@ export interface OrchestratorSettings {
   /** 单个 worker 一轮跑多久算超时（毫秒）；超时会被中止并写入账本。 */
   readonly workerTimeoutMs: number;
   /**
+   * 一条输入“等了太久还没被消费”的阈值（毫秒，默认 10 分钟）。
+   *
+   * 卡死检测的另一个判据：比 `workerTimeoutMs` 更早发现问题（输入卡在队列里），
+   * 测试可以用小值实测出 `timeout` 事件。
+   */
+  readonly inputStuckMs: number;
+  /**
    * report / 超时到达时是否“叫醒”编排方（`pi.sendMessage` 注入一行）。
    *
    * 默认 **false**：账本上线后模型不再被推送，需要摘要时自己调 `orchestrator_state`。
@@ -56,6 +63,7 @@ export const DEFAULT_ORCHESTRATOR_SETTINGS: OrchestratorSettings = {
   adrMaxCount: 55,
   rotateAt: 0.618,
   workerTimeoutMs: 30 * 60 * 1000,
+  inputStuckMs: 10 * 60 * 1000,
   wakeOnReport: false,
 };
 
@@ -71,6 +79,7 @@ export const ORCHESTRATOR_INTEGER_KEYS = [
   "adrMaxBytes",
   "adrMaxCount",
   "workerTimeoutMs",
+  "inputStuckMs",
 ] as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {

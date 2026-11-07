@@ -451,6 +451,15 @@ export const restoreState = (raw: unknown): ProjectionState => {
   return state;
 };
 
+/**
+ * 一条输入“等了太久还没被消费”的阈值（默认 10 分钟）。
+ *
+ * 不跟随 `workerTimeoutMs`：那个衡量“完全没有进展”（默认 30 分钟），而这里要回答更早的
+ * 问题 ——「这条输入到底进了 worker 的队列没有、有没有卡在排队上」。可由
+ * `orchestrator.inputStuckMs` 覆盖（测试用小值）。
+ */
+export const INPUT_STUCK_MS = 10 * 60_000;
+
 /** 跨进程兜底的轮询间隔（毫秒）：`fs.watch` 之外的保险。 */
 export const PROJECTION_POLL_MS = 200;
 

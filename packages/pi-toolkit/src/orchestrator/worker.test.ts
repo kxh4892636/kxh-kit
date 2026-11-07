@@ -40,6 +40,8 @@ interface Harness {
   readonly reports: WorkerReport[];
   readonly sections: Record<string, string>;
   readonly settings: ToolkitSettings;
+  /** 注册的 pi 事件处理器（ack 等靠它验证）。 */
+  readonly handlers: Map<string, ((event: unknown) => unknown)[]>;
 }
 
 const settings: ToolkitSettings = {
@@ -111,7 +113,15 @@ const makePlan = async (): Promise<{ plan: PlanRef; workspace: string }> => {
   };
 };
 
-const setup = async (): Promise<Harness> => {
+const setup = async (
+  options: {
+    workerKey?: string;
+    events?: {
+      append: (input: unknown) => unknown;
+      oldestPendingOf: (worker: string) => { seq: number } | undefined;
+    };
+  } = {},
+): Promise<Harness> => {
   const tools = new Map<string, Tool>();
   const reports: WorkerReport[] = [];
   const sections: Record<string, string> = {};
@@ -132,18 +142,45 @@ const setup = async (): Promise<Harness> => {
     report: (report) => reports.push(report),
     settings: () => settings,
     released: (noteId: string) => released.has(noteId),
+    ...(options.workerKey === undefined ? {} : { workerKey: options.workerKey }),
+    ...(options.events === undefined ? {} : { events: options.events }),
   });
   await factory(pi);
 
   for (const handler of handlers.get("before_agent_start") ?? []) {
     handler({ systemPromptOptions: { sections } });
   }
-  return { workspace, tools, reports, sections, settings };
+  return { workspace, tools, reports, sections, settings, handlers };
 };
 
 const ctx = (cwd: string) => ({ cwd, mode: "print" });
 
 describe("worker 扩展工厂", () => {
+  it("agent_start 由代码写 ack：标掉最老一条未消费输入", async () => {
+    const appended: unknown[] = [];
+    const harness = await setup({
+      workerKey: "/w/p::01",
+      events: {
+        append: (input) => appended.push(input),
+        oldestPendingOf: (worker) => (worker === "/w/p::01" ? { seq: 7 } : undefined),
+      },
+    });
+    for (const handler of harness.handlers?.get("agent_start") ?? []) handler({});
+    expect(appended).toEqual([
+      { type: "input.consumed", payload: { worker: "/w/p::01", seqOfSent: 7 } },
+    ]);
+  });
+
+  it("没有待消费输入时 agent_start 不写空事件", async () => {
+    const appended: unknown[] = [];
+    const harness = await setup({
+      workerKey: "/w/p::01",
+      events: { append: (input) => appended.push(input), oldestPendingOf: () => undefined },
+    });
+    for (const handler of harness.handlers?.get("agent_start") ?? []) handler({});
+    expect(appended).toEqual([]);
+  });
+
   it("只注册四个工具，且注入 worker 提示词", async () => {
     const harness = await setup();
     expect([...harness.tools.keys()].sort()).toEqual([...WORKER_TOOL_NAMES].sort());

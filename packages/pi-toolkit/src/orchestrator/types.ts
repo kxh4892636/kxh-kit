@@ -29,6 +29,8 @@ export interface WorkerReport {
   readonly evidence?: readonly string[];
   /** 由桥接层补齐：路由键 —— plan 目录的绝对路径，或临时 worker 的 `temp:<id>`。 */
   readonly plan?: string;
+  /** worker 自己的账本路由键（`<plan 目录>::<组>` 或 `temp:<id>`），归属判定用它。 */
+  readonly worker?: string;
   /** 由桥接层补齐：上报时刻。 */
   readonly at?: string;
 }

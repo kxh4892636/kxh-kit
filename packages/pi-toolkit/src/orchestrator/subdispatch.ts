@@ -162,6 +162,7 @@ export const createSubDispatchTool = (options: SubDispatchOptions): Orchestrator
         depth,
         cwd: exec.cwd,
         settings: options.settings,
+        workerKey: key,
         report: (report) => {
           const entry = registry.get(key);
           if (entry !== undefined) onReport(entry, report);
@@ -174,7 +175,6 @@ export const createSubDispatchTool = (options: SubDispatchOptions): Orchestrator
         planRef: key,
         startedAt: Date.now(),
         session: spawned.session,
-        inputs: 0,
       });
       const timeoutMs = options.settings().orchestrator.workerTimeoutMs;
       const delivery = deliver(entry, "message", message);

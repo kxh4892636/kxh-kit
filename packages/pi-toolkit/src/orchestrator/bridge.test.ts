@@ -96,7 +96,6 @@ const entry = (
   planRef: "x/active/p",
   startedAt: 1,
   session,
-  inputs: 0,
 });
 
 const created: FakeSession[] = [];
@@ -160,17 +159,19 @@ describe("句柄表与输入投递", () => {
     await degenerated.settled;
   });
 
-  it("每次投递在 lastInput 留下摘要与时刻", () => {
-    const target = entry(fakeSession(false));
-    deliver(target, "pass", "", "05");
-    expect(target.lastInput).toMatchObject({ kind: "pass", delivery: "queue" });
-    expect(target.lastInput?.text).toContain("[pass] note 05");
-    expect(typeof target.lastInput?.at).toBe("number");
+  it("投递只做投递：摘要与时刻由账本 input.sent 事件承载", () => {
+    // 句柄不再自己记 lastInput（那是投影的活），这里只验证分支与正文渲染。
+    const session = fakeSession(false);
+    const target = entry(session);
+    expect(deliver(target, "pass", "", "05").delivered).toBe("queued");
+    expect(session.followUps[0]).toContain("[pass] note 05");
+    expect(target.lastInput).toBeUndefined();
 
-    deliver(target, "message", "长".repeat(200), undefined, "steer");
-    expect(target.lastInput?.delivery).toBe("steer");
-    expect(target.lastInput?.text).toHaveLength(LAST_INPUT_SUMMARY_MAX + 1);
-    expect(target.lastInput?.text.endsWith("…")).toBe(true);
+    const long = "长".repeat(200);
+    expect(deliver(target, "message", long, undefined, "steer").delivered).toBe("steered");
+    expect(session.steers[0]).toBe(long);
+    // 摘要长度上限仍是原来的常量（事件侧用 SUMMARY_MAX=120 另外截）。
+    expect(LAST_INPUT_SUMMARY_MAX).toBeLessThan(200);
   });
 
   it("投递只用 prompt / followUp / steer，不碰 nextTurn", async () => {
@@ -303,6 +304,8 @@ describe("dispatch 与 workers 工具", () => {
   const setup = async (
     options: {
       timeoutMs?: number;
+      /** 待消费的卡死阈值（默认配置 10 分钟；测试用小值实测 timeout 事件）。 */
+      inputStuckMs?: number;
       makeSession?: () => FakeSession;
       stateDir?: () => string;
       /** 模拟 `pi.sendMessage` 前几次抛错（report 注入失败）。 */
@@ -313,13 +316,14 @@ describe("dispatch 与 workers 工具", () => {
       worktree?: import("./worktree.ts").WorktreeHooks;
     } = {},
   ) => {
-    const local: ToolkitSettings =
-      options.timeoutMs === undefined
-        ? settings
-        : {
-            ...settings,
-            orchestrator: { ...settings.orchestrator, workerTimeoutMs: options.timeoutMs },
-          };
+    const local: ToolkitSettings = {
+      ...settings,
+      orchestrator: {
+        ...settings.orchestrator,
+        ...(options.timeoutMs === undefined ? {} : { workerTimeoutMs: options.timeoutMs }),
+        ...(options.inputStuckMs === undefined ? {} : { inputStuckMs: options.inputStuckMs }),
+      },
+    };
     const tools = new Map<string, { execute: (...args: unknown[]) => Promise<unknown> }>();
     const messages: unknown[] = [];
     const handlers = new Map<string, ((payload: unknown) => unknown)[]>();
@@ -842,6 +846,56 @@ describe("dispatch 与 workers 工具", () => {
     // 再等一会儿也不会重复落账。
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(await timeoutEvents(stateRoot)).toHaveLength(1);
+  });
+
+  it("卡死检测不靠模型：待消费超过阈值就落 timeout（cause=input）并 abort", async () => {
+    const sessions: FakeSession[] = [];
+    const { tools, stateRoot } = await setup({
+      // 整轮没有进展的阈值给得很大，只让“输入没被消费”这条判据触发。
+      timeoutMs: 60_000,
+      inputStuckMs: 20,
+      makeSession: () => {
+        const session = fakeSession(true, false);
+        sessions.push(session);
+        return session;
+      },
+    });
+    const { root, ref } = await planArgs();
+    await tools
+      .get("orchestrator_command")
+      ?.execute("id", { plan: ref, message: "做 01" }, undefined, undefined, ctx(root));
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    const timeouts = await timeoutEvents(stateRoot);
+    expect(timeouts).toHaveLength(1);
+    expect(timeouts[0]?.payload).toMatchObject({ cause: "input" });
+    expect(timeouts[0]?.payload["oldestUnconsumedSeq"]).toBeGreaterThan(0);
+    expect(sessions[0]?.aborted).toBe(true);
+    // 同一份账本里还记了退出原因，重启靠重放就知道这个键作废了。
+    expect((await exitEvents(stateRoot)).map((event) => event.payload["reason"])).toContain(
+      "timeout",
+    );
+  });
+
+  it("ack 由 agent_start 写进账本：待消费归零", async () => {
+    // 真 worker 的 agent_start 钩子会 append input.consumed；这里用账本端口模拟同一步。
+    const { tools, stateRoot } = await setup({ makeSession: () => fakeSession(true, false) });
+    const { root, ref } = await planArgs();
+    await tools
+      .get("orchestrator_command")
+      ?.execute("id", { plan: ref, message: "做 01" }, undefined, undefined, ctx(root));
+    const { openLedger } = await import("./ledger.ts");
+    const { openProjection } = await import("./projection.ts");
+    const ledger = openLedger(stateRoot);
+    const projection = openProjection(ledger);
+    const key = [...projection.state().workers.keys()][0];
+    expect(key).toBeDefined();
+    const oldest = projection.oldestPendingOf(key ?? "");
+    expect(oldest?.seq).toBeGreaterThan(0);
+    ledger.append({
+      type: "input.consumed",
+      payload: { worker: key ?? "", seqOfSent: oldest?.seq ?? 0 },
+    });
+    expect(projection.pendingOf(key ?? "")).toHaveLength(0);
   });
 
   it("退出收尾前把 in_progress 的 note 记进账本（worker.exit）", async () => {

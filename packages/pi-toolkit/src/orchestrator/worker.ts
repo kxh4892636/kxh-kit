@@ -17,6 +17,7 @@
  */
 
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
+import type { EventInput } from "./events.ts";
 import { Type } from "typebox";
 import { readPromptText, readWorkerPromptText } from "./assets.ts";
 import type { ToolkitSettings } from "../settings.ts";
@@ -47,8 +48,24 @@ export interface WorkerExtensionOptions {
   readonly settings: () => ToolkitSettings;
   /** 放行判定：账本里的 `note.pass` 重放出来的。 */
   readonly released: (noteId: string) => boolean;
+  /** 这个 worker 在账本里的路由键；ack 与 report 归属靠它。 */
+  readonly workerKey?: string;
+  /**
+   * 账本端口：ack（`agent_start` → `input.consumed`）与 report 归属用。
+   *
+   * `oldestPendingOf` 读的是同进程共享的投影，所以 FIFO 消费是**精确**的：谁最老就先标谁。
+   */
+  readonly events?: WorkerEventPort;
   /** 起 session 的接缝；只给子派工用，测试注入替身。 */
   readonly spawn?: typeof spawnWorker;
+}
+
+/** worker 侧用到的账本端口（由 `spawn.ts` 接到共享账本 + 投影）。 */
+export interface WorkerEventPort {
+  /** 追加一条事件（同进程即发）。 */
+  append(input: EventInput): unknown;
+  /** 这个 worker 最老一条未被消费的输入（ack 用）。 */
+  oldestPendingOf(worker: string): { readonly seq: number } | undefined;
 }
 
 /** worker session 的活动工具名。 */
@@ -131,6 +148,20 @@ export const createWorkerExtension = (options: WorkerExtensionOptions): Extensio
   });
 
   return (pi: ExtensionAPI): void => {
+    /**
+     * ack 由代码写：`agent_start` 一触发就标掉最老一条未消费输入（FIFO）。
+     *
+     * worker session 的键与账本里的 `worker` 一致（`workerKey`），所以不用“近似推断”。
+     */
+    pi.on("agent_start", () => {
+      if (options.events === undefined || options.workerKey === undefined) return;
+      const oldest = options.events.oldestPendingOf(options.workerKey);
+      if (oldest === undefined) return;
+      options.events.append({
+        type: "input.consumed",
+        payload: { worker: options.workerKey, seqOfSent: oldest.seq },
+      });
+    });
     // 本 session 就是 worker：工具随注册即激活，不需要模式开关。
     // 临时 worker 与子 worker 没有 Plan，就不给写工具与校验工具（写不进去，也无 Plan 可校验）。
     // 子 worker（depth >= 1）不再拿 `dispatch`：只往下派一层。
@@ -220,6 +251,7 @@ const createReportTool = (options: WorkerExtensionOptions, routeKey: string) => 
         ? { evidence: evidence.filter((item): item is string => typeof item === "string") }
         : {}),
       plan: routeKey,
+      ...(options.workerKey === undefined ? {} : { worker: options.workerKey }),
       at: new Date().toISOString(),
     };
     options.report(report);
