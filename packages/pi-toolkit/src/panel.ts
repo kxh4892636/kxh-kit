@@ -36,6 +36,12 @@ export const TOGGLE_DESCRIPTORS: readonly ToggleDescriptor[] = [
     label: "Session naming",
     description: "Name each session from its first user input.",
   },
+  {
+    id: "nanoFlow",
+    label: "Nano Flow",
+    description:
+      "Plan / notes DAG workflow with nano_flow_* tools and skills; run /nano-flow to pick its session mode.",
+  },
 ];
 
 /** Values a switch cycles through; the first is "on" so Enter flips it. */

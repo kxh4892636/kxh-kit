@@ -104,13 +104,14 @@ describe("openToolkitPanel", () => {
 });
 
 describe("panelItems", () => {
-  it("renders exactly three on/off rows, one per bundled tool", () => {
+  it("renders one on/off row per bundled tool", () => {
     const items = panelItems(DEFAULT_TOOLS);
     expect(items.map((item) => item.id)).toEqual([...TOOL_TOGGLE_KEYS]);
     expect(items.map((item) => item.label)).toEqual([
       "Web tools",
       "Nested skills",
       "Session naming",
+      "Nano Flow",
     ]);
     for (const item of items) {
       expect(item.values).toEqual(["on", "off"]);
@@ -120,10 +121,10 @@ describe("panelItems", () => {
   });
 
   it("reflects enabled switches", () => {
-    const items = panelItems({ ...DEFAULT_TOOLS, webTools: true, sessionName: true });
+    const items = panelItems({ ...DEFAULT_TOOLS, webTools: true, nanoFlow: true });
     const byId = new Map(items.map((item) => [item.id, item.currentValue]));
     expect(byId.get("webTools")).toBe("on");
-    expect(byId.get("sessionName")).toBe("on");
+    expect(byId.get("nanoFlow")).toBe("on");
     expect(byId.get("nestedSkills")).toBe("off");
   });
 });

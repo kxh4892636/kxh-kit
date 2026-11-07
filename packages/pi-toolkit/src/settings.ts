@@ -16,6 +16,11 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
+import {
+  DEFAULT_NANO_FLOW_SETTINGS,
+  parseNanoFlowSettings,
+  type NanoFlowSettings,
+} from "./nano-flow/config.ts";
 import { DEFAULT_EXCLUDED_DIRS } from "./skills/discover.ts";
 
 /** Config file name in the agent dir and the project `.pi` dir. */
@@ -58,9 +63,9 @@ export const DEFAULT_SESSION_NAME_TIMEOUT_MS = 5_000;
 export const DEFAULT_SESSION_NAME_MAX_TOKENS = 256;
 
 /**
- * One on/off switch per bundled tool. The three switches mirror the three
- * capabilities the toolkit merged: the web tools, nested skills, and session
- * naming. All default to `false`.
+ * One on/off switch per bundled tool. The four switches mirror the capabilities
+ * the toolkit merged: web tools, nested skills, session naming, and Nano Flow.
+ * All default to `false`.
  */
 export interface ToolToggles {
   /** Both web tools: `web_search` and `web_fetch`. */
@@ -69,10 +74,12 @@ export interface ToolToggles {
   readonly nestedSkills: boolean;
   /** Automatic session naming from the first user input. */
   readonly sessionName: boolean;
+  /** The Nano Flow Plan/DAG workflow: tools, fixed prompt, bundled skills. */
+  readonly nanoFlow: boolean;
 }
 
 /** Toggle order used by the `/toolkit` panel. */
-export const TOOL_TOGGLE_KEYS = ["webTools", "nestedSkills", "sessionName"] as const;
+export const TOOL_TOGGLE_KEYS = ["webTools", "nestedSkills", "sessionName", "nanoFlow"] as const;
 
 /** One switch key. */
 export type ToolToggleKey = (typeof TOOL_TOGGLE_KEYS)[number];
@@ -107,6 +114,12 @@ export interface NestedSkillSettings {
   readonly excludedDirs: readonly string[];
 }
 
+/** Nano Flow limits plus its global default mode. */
+export interface NanoFlowConfig extends NanoFlowSettings {
+  /** New sessions start in Nano Flow when true (per-session overrides win). */
+  readonly always: boolean;
+}
+
 /** Session-naming settings. */
 export interface SessionNameSettings {
   /** Maximum name length in Unicode code points. */
@@ -123,6 +136,7 @@ export interface ToolkitSettings {
   readonly web: WebSettings;
   readonly nestedSkill: NestedSkillSettings;
   readonly sessionName: SessionNameSettings;
+  readonly nanoFlow: NanoFlowConfig;
 }
 
 /** Every capability off: the toolkit does nothing until `/toolkit` enables it. */
@@ -130,6 +144,7 @@ export const DEFAULT_TOOLS: ToolToggles = {
   webTools: false,
   nestedSkills: false,
   sessionName: false,
+  nanoFlow: false,
 };
 
 /** Defaults used for every field a config file leaves out. */
@@ -153,6 +168,7 @@ export const DEFAULT_SETTINGS: ToolkitSettings = {
     timeoutMs: DEFAULT_SESSION_NAME_TIMEOUT_MS,
     maxTokens: DEFAULT_SESSION_NAME_MAX_TOKENS,
   },
+  nanoFlow: { ...DEFAULT_NANO_FLOW_SETTINGS, always: false },
 };
 
 /** Inputs for path resolution; injectable so tests never read the real home dir. */
@@ -278,6 +294,21 @@ export const saveToggles = (path: string, toggles: ToolToggles): void => {
 };
 
 /**
+ * Persist the global Nano Flow default, preserving every other key in the file.
+ *
+ * @param path - file returned as `writePath` by {@link loadSettings}.
+ * @param always - whether new sessions start in Nano Flow.
+ * @throws when the existing file is invalid JSON or cannot be written.
+ */
+export const saveNanoFlowAlways = (path: string, always: boolean): void => {
+  const existing = readConfigFile(path) ?? {};
+  const current = existing["nanoFlow"];
+  existing["nanoFlow"] = { ...(isRecord(current) ? current : {}), always };
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(existing, null, 2)}\n`, "utf-8");
+};
+
+/**
  * Resolve the API key or explain how to provide one.
  *
  * @param web - the resolved web settings.
@@ -313,6 +344,7 @@ const parseSettings = (
   const web = section(merged, "web", paths);
   const nestedSkill = section(merged, "nestedSkill", paths);
   const sessionName = section(merged, "sessionName", paths);
+  const nanoFlow = section(merged, "nanoFlow", paths);
 
   const apiKeyEnv = nonEmptyString(web["apiKeyEnv"]) ?? DEFAULT_API_KEY_ENV;
   const literalKey = nonEmptyString(web["apiKey"]);
@@ -333,6 +365,7 @@ const parseSettings = (
         "tools.sessionName",
         paths,
       ),
+      nanoFlow: booleanOption(tools["nanoFlow"], DEFAULT_TOOLS.nanoFlow, "tools.nanoFlow", paths),
     },
     web: {
       apiKey: literalKey ?? envKey,
@@ -390,6 +423,10 @@ const parseSettings = (
         "nestedSkill.excludedDirs",
         paths,
       ),
+    },
+    nanoFlow: {
+      ...parseNanoFlowSettings(nanoFlow, DEFAULT_NANO_FLOW_SETTINGS),
+      always: booleanOption(nanoFlow["always"], false, "nanoFlow.always", paths),
     },
     sessionName: {
       maxLength: positiveInteger(

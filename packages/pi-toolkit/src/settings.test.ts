@@ -2,6 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
+import { DEFAULT_NANO_FLOW_SETTINGS } from "./nano-flow/config.ts";
 import { DEFAULT_EXCLUDED_DIRS } from "./skills/discover.ts";
 import {
   CONFIG_FILE_NAME,
@@ -21,6 +22,7 @@ import {
   loadSettings,
   readConfigFile,
   requireApiKey,
+  saveNanoFlowAlways,
   saveToggles,
   writePathFor,
 } from "./settings.ts";
@@ -94,6 +96,7 @@ describe("loadSettings", () => {
       webTools: false,
       nestedSkills: false,
       sessionName: false,
+      nanoFlow: false,
     });
     expect(settings.web.baseURL).toBe(DEFAULT_BASE_URL);
     expect(settings.web.apiKeyEnv).toBe(DEFAULT_API_KEY_ENV);
@@ -111,6 +114,7 @@ describe("loadSettings", () => {
       timeoutMs: DEFAULT_SESSION_NAME_TIMEOUT_MS,
       maxTokens: DEFAULT_SESSION_NAME_MAX_TOKENS,
     });
+    expect(settings.nanoFlow).toEqual({ ...DEFAULT_NANO_FLOW_SETTINGS, always: false });
     expect(writePath).toBe(join(agentDir, CONFIG_FILE_NAME));
   });
 
@@ -173,6 +177,9 @@ describe("loadSettings", () => {
       /nestedSkill\.excludedDirs/u,
     );
     expect(() => load({ sessionName: { maxLength: 0 } })).toThrow(/sessionName\.maxLength/u);
+    expect(() => load({ nanoFlow: { rotateAt: 1.5 } })).toThrow(/nanoFlow\.rotateAt/u);
+    expect(() => load({ nanoFlow: { noteMaxBytes: 0 } })).toThrow(/nanoFlow\.noteMaxBytes/u);
+    expect(() => load({ nanoFlow: { always: "yes" } })).toThrow(/nanoFlow\.always/u);
   });
 
   it("rejects the retired Anthropic base URL", () => {
@@ -198,12 +205,13 @@ describe("writePathFor", () => {
 describe("saveToggles", () => {
   it("creates the file with only the switches", () => {
     const path = join(tempDir(), CONFIG_FILE_NAME);
-    saveToggles(path, { webTools: true, nestedSkills: false, sessionName: true });
+    saveToggles(path, { webTools: true, nestedSkills: false, sessionName: true, nanoFlow: false });
     const written = JSON.parse(readFileSync(path, "utf-8")) as Record<string, unknown>;
     expect(written["tools"]).toEqual({
       webTools: true,
       nestedSkills: false,
       sessionName: true,
+      nanoFlow: false,
     });
   });
 
@@ -213,7 +221,7 @@ describe("saveToggles", () => {
       tools: { webTools: true, sessionName: true },
       web: { apiKey: "k", searchCount: 4 },
     });
-    saveToggles(path, { webTools: false, nestedSkills: false, sessionName: true });
+    saveToggles(path, { webTools: false, nestedSkills: false, sessionName: true, nanoFlow: false });
     const written = JSON.parse(readFileSync(path, "utf-8")) as {
       tools: Record<string, boolean>;
       web: Record<string, unknown>;
@@ -222,6 +230,7 @@ describe("saveToggles", () => {
       webTools: false,
       nestedSkills: false,
       sessionName: true,
+      nanoFlow: false,
     });
     expect(written.web).toEqual({ apiKey: "k", searchCount: 4 });
   });
@@ -231,7 +240,7 @@ describe("saveToggles", () => {
     const path = join(dir, CONFIG_FILE_NAME);
     writeFileSync(path, "{ nope");
     expect(() =>
-      saveToggles(path, { webTools: true, nestedSkills: true, sessionName: true }),
+      saveToggles(path, { webTools: true, nestedSkills: true, sessionName: true, nanoFlow: true }),
     ).toThrow(/not valid JSON/u);
   });
 });
@@ -247,5 +256,39 @@ describe("requireApiKey", () => {
     expect(() => requireApiKey({ ...settings.web, apiKey: undefined }, paths)).toThrow(
       /no API key/u,
     );
+  });
+});
+
+describe("nanoFlow settings", () => {
+  it("merges limits and the always flag from the JSON file", () => {
+    const agentDir = tempDir();
+    writeConfig(agentDir, {
+      tools: { nanoFlow: true },
+      nanoFlow: { noteMaxBytes: 2048, rotateAt: 0.5, always: true },
+    });
+    const { settings } = loadSettings({ cwd: tempDir(), agentDir, env: {} });
+    expect(settings.tools.nanoFlow).toBe(true);
+    expect(settings.nanoFlow.noteMaxBytes).toBe(2048);
+    expect(settings.nanoFlow.rotateAt).toBe(0.5);
+    expect(settings.nanoFlow.always).toBe(true);
+    expect(settings.nanoFlow.storyMaxBytes).toBe(DEFAULT_NANO_FLOW_SETTINGS.storyMaxBytes);
+  });
+
+  it("persists always while preserving every other key", () => {
+    const dir = tempDir();
+    const path = writeConfig(dir, {
+      tools: { nanoFlow: true },
+      nanoFlow: { noteMaxBytes: 2048 },
+      web: { apiKey: "k" },
+    });
+    saveNanoFlowAlways(path, true);
+    const written = JSON.parse(readFileSync(path, "utf-8")) as {
+      tools: Record<string, boolean>;
+      nanoFlow: Record<string, unknown>;
+      web: Record<string, unknown>;
+    };
+    expect(written.nanoFlow).toEqual({ noteMaxBytes: 2048, always: true });
+    expect(written.tools).toEqual({ nanoFlow: true });
+    expect(written.web).toEqual({ apiKey: "k" });
   });
 });

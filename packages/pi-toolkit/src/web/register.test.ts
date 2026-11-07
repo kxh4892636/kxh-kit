@@ -299,7 +299,7 @@ describe("applyWebToolActivation", () => {
 
   const settings = (webTools: boolean): ToolkitSettings => ({
     ...loadSettings({ cwd: tempDir(), agentDir: tempDir(), env: {} }).settings,
-    tools: { webTools, nestedSkills: false, sessionName: false },
+    tools: { webTools, nestedSkills: false, sessionName: false, nanoFlow: false },
   });
 
   it("adds both web tools when the switch is on", () => {

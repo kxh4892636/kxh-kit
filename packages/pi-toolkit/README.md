@@ -1,6 +1,6 @@
 # @kxh4892636/pi-toolkit
 
-One [pi](https://pi.dev) extension bundling this workspace's three pi capabilities, each behind a
+One [pi](https://pi.dev) extension bundling this workspace's four pi capabilities, each behind a
 switch in a single JSON file:
 
 | Switch         | What it enables                                                                     |
@@ -8,6 +8,7 @@ switch in a single JSON file:
 | `webTools`     | The `web_search` and `web_fetch` model tools (DeepSeek official Search/Fetch APIs). |
 | `nestedSkills` | Nested `SKILL.md` discovery, `$skill-name` completion, and `$` reference expansion. |
 | `sessionName`  | Automatic session naming from the first user input.                                 |
+| `nanoFlow`     | The Nano Flow Plan/DAG workflow: fixed prompt, `nano_flow_*` tools, bundled skills. |
 
 **Every switch starts off.** Nothing is registered as active, discovered, expanded, or named until
 you turn it on.
@@ -31,6 +32,8 @@ Run `/toolkit` to open a switch panel modeled on pi's own `/settings` screen: a 
 - `sessionName` applies on the next input.
 - `nestedSkills` covers discovery, completion, and expansion. Completion and expansion apply on the
   next input; discovery runs at startup and on `/reload`, so turning it on takes effect there.
+- `nanoFlow` makes the Nano Flow command, tools and skills available; run `/nano-flow` to choose
+  whether the current session (or every new session) runs it. Skill discovery needs `/reload`.
 
 Switch changes are written back to the config file named in the panel header (see precedence below),
 preserving every other key in that file.
@@ -45,7 +48,8 @@ screen for the values; edit the file.
   "tools": {
     "webTools": false,
     "nestedSkills": false,
-    "sessionName": false
+    "sessionName": false,
+    "nanoFlow": false
   },
   "web": {
     "apiKey": "sk-...",
@@ -66,6 +70,19 @@ screen for the values; edit the file.
     "maxLength": 21,
     "timeoutMs": 5000,
     "maxTokens": 256
+  },
+  "nanoFlow": {
+    "storyMaxBytes": 34816,
+    "specMaxBytes": 34816,
+    "noteMaxBytes": 13312,
+    "noteDescriptionMaxChars": 144,
+    "indexMaxRows": 13,
+    "contextMaxBytes": 91136,
+    "questionsMaxBytes": 91136,
+    "adrMaxBytes": 13312,
+    "adrMaxCount": 55,
+    "rotateAt": 0.618,
+    "always": false
   }
 }
 ```
@@ -80,11 +97,12 @@ creates `~/.pi/agent/pi-toolkit.json`. `pi-toolkit.example.json` shows every fie
 
 ### `tools`
 
-| Key            | Default | Meaning                                                                           |
-| -------------- | ------- | --------------------------------------------------------------------------------- |
-| `webTools`     | `false` | Enable the `web_search` and `web_fetch` tools.                                    |
-| `nestedSkills` | `false` | Discover hidden nested skills, complete `$skill-name`, and expand `$` references. |
-| `sessionName`  | `false` | Name each session from its first input.                                           |
+| Key            | Default | Meaning                                                                                  |
+| -------------- | ------- | ---------------------------------------------------------------------------------------- |
+| `webTools`     | `false` | Enable the `web_search` and `web_fetch` tools.                                           |
+| `nestedSkills` | `false` | Discover hidden nested skills, complete `$skill-name`, and expand `$` references.        |
+| `sessionName`  | `false` | Name each session from its first input.                                                  |
+| `nanoFlow`     | `false` | Expose `/nano-flow`, the three `nano_flow_*` tools, `ask_questions`, and bundled skills. |
 
 ### `web`
 
@@ -119,6 +137,22 @@ The API key resolution order is `web.apiKey` > the environment variable named by
 | `maxLength` | `21`    | Maximum name length in Unicode code points. |
 | `timeoutMs` | `5000`  | Timeout for the naming model request.       |
 | `maxTokens` | `256`   | Token budget for the naming request.        |
+
+### `nanoFlow`
+
+| Field                     | Default | Meaning                                                             |
+| ------------------------- | ------- | ------------------------------------------------------------------- |
+| `storyMaxBytes`           | `34816` | `story.md` size cap.                                                |
+| `specMaxBytes`            | `34816` | `spec.md` size cap.                                                 |
+| `noteMaxBytes`            | `13312` | One note body cap.                                                  |
+| `noteDescriptionMaxChars` | `144`   | Note summary length cap.                                            |
+| `indexMaxRows`            | `13`    | Key-index row cap.                                                  |
+| `contextMaxBytes`         | `91136` | Domain `CONTEXT.md` size cap.                                       |
+| `questionsMaxBytes`       | `91136` | Domain `QUESTIONS.md` size cap.                                     |
+| `adrMaxBytes`             | `13312` | One ADR size cap.                                                   |
+| `adrMaxCount`             | `55`    | ADRs per domain.                                                    |
+| `rotateAt`                | `0.618` | Context-window ratio that clears the session and restores the Plan. |
+| `always`                  | `false` | New sessions start in Nano Flow (a per-session choice wins).        |
 
 ## Web tools
 
@@ -178,6 +212,34 @@ truncation of the filtered input. Names are cleaned of markdown markers, quotes,
 `title:`) and trailing punctuation, then truncated to `maxLength`. Naming is fire-and-forget: the
 `input` handler returns immediately, and a name set manually while the model call is in flight is
 never overwritten.
+
+## Nano Flow
+
+Turn on `nanoFlow`, then run `/nano-flow`. The selector mirrors `/thinking` and offers four choices:
+
+| Choice       | Effect                                                          |
+| ------------ | --------------------------------------------------------------- |
+| `一直开`     | Persist `nanoFlow.always = true`; new sessions start enabled.   |
+| `一直关`     | Persist `nanoFlow.always = false`; new sessions start disabled. |
+| `当前会话开` | Enable only this session.                                       |
+| `当前会话关` | Disable only this session.                                      |
+
+`/nano-flow status` prints the current mode and every active Plan with its note counts. There is no
+panel; the tools and the command are the query surface. `--nano-flow` starts a session enabled.
+
+While a session runs Nano Flow:
+
+- The fixed prompt in `prompt.md` is added as the `nano_flow` system-prompt section.
+- `nano_flow_read` (plans / notes / get / ready / graph / index / search / resume),
+  `nano_flow_write` (init / create / update / link / status / complete / set_index / merge / delete /
+  move), `nano_flow_check` (plan / workspace / limits) and `ask_questions` are active.
+- `ask_questions` asks any number of questions; each one offers model-provided options plus a custom
+  answer and a skip action.
+- pi's automatic compaction is disabled. When context usage reaches `rotateAt`, the next input
+  replaces the conversation with a resume seed plus that input; the Plan on disk is the state.
+- Non-`nano_flow_*` tools are blocked from touching `notes.json` (policy, not a security boundary).
+- The bundled skills (`ask`, `do`, `code-spec`, `kaizen`, `learning`, `to-skill`) are contributed
+  through `resources_discover` when the switch is on; `/reload` makes them visible.
 
 ## Development
 

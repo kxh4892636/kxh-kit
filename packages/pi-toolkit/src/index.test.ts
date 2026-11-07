@@ -118,6 +118,9 @@ const setup = (
     },
     getSessionName: () => undefined,
     setSessionName: () => undefined,
+    registerFlag: () => undefined,
+    getFlag: () => undefined,
+    appendEntry: () => undefined,
   } as unknown as ExtensionAPI;
   piToolkit(fake, options);
   return {
@@ -150,12 +153,17 @@ afterEach(() => {
 });
 
 describe("piToolkit", () => {
-  it("registers both web tools inactive and the /toolkit command", () => {
+  it("registers every tool inactive and the toolkit commands", () => {
     const harness = setup();
-    expect(harness.tools.map((tool) => tool.name).sort()).toEqual(["web_fetch", "web_search"]);
+    const names = harness.tools.map((tool) => tool.name);
+    expect(names).toEqual(
+      expect.arrayContaining(["web_search", "web_fetch", "nano_flow_read", "ask_questions"]),
+    );
     for (const tool of harness.tools) expect(tool.defaultActive).toBe(false);
     expect(harness.commands.get("toolkit")?.description).toMatch(/enable or disable/iu);
-    expect(Object.keys(harness.tools[0]?.parameters.properties ?? {})).toEqual(["queries"]);
+    expect(harness.commands.get("nano-flow")?.description).toMatch(/nano flow/iu);
+    const search = harness.tools.find((tool) => tool.name === "web_search");
+    expect(Object.keys(search?.parameters.properties ?? {})).toEqual(["queries"]);
   });
 
   it("leaves everything off without a config file", async () => {
@@ -260,7 +268,9 @@ describe("piToolkit", () => {
     const off = setup({ agentDir, homeDir, env: {} });
     const offCtx = sessionContext(project);
     off.fire("session_start", offCtx);
-    expect(off.fire("resources_discover", offCtx)).toEqual([undefined]);
+    const offResults = off.fire("resources_discover", offCtx);
+    expect(offResults.length).toBeGreaterThan(0);
+    for (const result of offResults) expect(result).toBeUndefined();
 
     writeAgentConfig(agentDir, { tools: { nestedSkills: true } });
     const on = setup({ agentDir, homeDir, env: {} });
@@ -281,7 +291,9 @@ describe("piToolkit", () => {
     harness.fire("session_start", ctx);
     const results = harness.fire("input", ctx, { text: "帮我看看", source: "interactive" });
     expect(results.length).toBeGreaterThan(0);
-    for (const result of results) expect(result).toEqual({ action: "continue" });
+    for (const result of results.filter((item) => item !== undefined)) {
+      expect(result).toEqual({ action: "continue" });
+    }
   });
 
   it("persists a switch flip from /toolkit and applies it immediately", async () => {
