@@ -5,25 +5,22 @@
  * `interrupted.json`（崩溃凭据）。账本上线后这些都不再是真相，但**第一次启动**要能把它们
  * 读进来，否则升级前的悬空状态就凭空消失了。
  *
- * 做法：账本不存在（或为空）时生成一条初始 `snapshot`（notes 状态缓存 + 未读 report +
- * 崩溃凭据；重启时没有 live 会话，worker 表本来就是空的），然后把两个旧文件删掉。
- * `notes.json` 结构不动 —— Plan 业务真相继续在那里。
+ * 做法：账本不存在（或为空）时生成一条初始 `snapshot`（未读 report + 崩溃凭据；重启时没有
+ * live 会话，worker 表本来就是空的），然后把两个旧文件删掉。`notes.json` 结构不动 —— Plan
+ * 业务真相继续在那里，运行态不需要它的副本。
  * @module @kxh4892636/pi-toolkit/orchestrator/migrate
  */
 
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
-import type { OrchestratorSettings } from "./config.ts";
 import { clipText } from "./events.ts";
 import { LEDGER_FILE, openLedger } from "./ledger.ts";
-import { activePlans, listPlans } from "./plan.ts";
 import {
   emptyState,
   snapshotState,
   type ProjectedReport,
   type ProjectionState,
 } from "./projection.ts";
-import { loadDocument } from "./store.ts";
 import { REPORT_OUTCOMES, type ReportOutcome } from "./types.ts";
 
 /** 旧的中断凭据文件名（迁移后删除）。 */
@@ -35,12 +32,6 @@ export const LEGACY_REPORTS_FILE = "reports-pending.json";
 export interface MigrateOptions {
   /** 状态目录（`<agentDir>/orchestrator`）。 */
   readonly stateDir: string;
-  /** 工作区根（找 Plan 用）。 */
-  readonly workspace: string;
-  /** 领域根（默认 `.agents/domains`）。 */
-  readonly domainRoot: string;
-  /** 读取 notes.json 的上限。 */
-  readonly limits: OrchestratorSettings;
 }
 
 /** 迁移结果。 */
@@ -49,8 +40,6 @@ export interface MigrateOutcome {
   readonly migrated: boolean;
   /** 删掉的旧文件名。 */
   readonly removed: readonly string[];
-  /** 迁进来的 note 状态条数。 */
-  readonly notes: number;
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -126,30 +115,9 @@ const reportsOf = (raw: unknown): ProjectedReport[] => {
  */
 export const migrateLedger = async (options: MigrateOptions): Promise<MigrateOutcome> => {
   const ledger = openLedger(options.stateDir);
-  if (ledger.events().length > 0) return { migrated: false, removed: [], notes: 0 };
+  if (ledger.events().length > 0) return { migrated: false, removed: [] };
 
   const state = emptyState();
-  let notes = 0;
-  try {
-    for (const plan of activePlans(await listPlans(options.workspace, options.domainRoot))) {
-      let document;
-      try {
-        document = await loadDocument(plan.directory, options.limits);
-      } catch {
-        continue;
-      }
-      for (const note of document.notes) {
-        state.notesStatus.set(`${plan.directory}::${note.id}`, {
-          status: note.status,
-          ...(note.needs === undefined ? {} : { needs: note.needs }),
-          at: note.updated_at,
-        });
-        notes += 1;
-      }
-    }
-  } catch {
-    // 读不到 Plan 时只迁旧的运行态：迁移本身不该因为工作区形状而失败。
-  }
 
   const legacyInterrupted = join(options.stateDir, LEGACY_INTERRUPTED_FILE);
   const legacyReports = join(options.stateDir, LEGACY_REPORTS_FILE);
@@ -171,7 +139,7 @@ export const migrateLedger = async (options: MigrateOptions): Promise<MigrateOut
     rmSync(file, { force: true });
     removed.push(name);
   }
-  return { migrated: true, removed, notes };
+  return { migrated: true, removed };
 };
 
 /** 账本是否已经存在（哪怕只有一条 snapshot）。 */

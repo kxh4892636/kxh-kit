@@ -71,7 +71,7 @@ export const readWorkerSessionIndex = (stateDir: string): WorkerSessionIndex => 
   if (!existsSync(file)) return { sessions: {} };
   try {
     const parsed = JSON.parse(readFileSync(file, "utf8")) as Partial<WorkerSessionIndex>;
-    // 旧索引里可能有 `aborted`（作废登记已删）：读入时直接忽略，不迁移、不重写。
+    // 只取 `sessions`：多余的字段（旧版本留下的）读入时忽略，不迁移、不重写。
     return { sessions: parsed.sessions ?? {} };
   } catch {
     return { sessions: {} };

@@ -2549,14 +2549,9 @@ export const registerOrchestrator = (
 
   const start = (ctx: ExtensionContext): void => {
     resetPending = false;
-    // 首启迁移：账本还空着就把旧的运行态（notes 状态 / 未送达 report / 崩溃凭据）并进
-    // 一条初始 snapshot，然后删掉旧文件。已有账本时它是空操作。
-    void migrateLedger({
-      stateDir: stateDir(),
-      workspace: mainWorkspaceOf(ctx.cwd),
-      domainRoot: DEFAULT_DOMAIN_ROOT,
-      limits: deps.settings().orchestrator,
-    });
+    // 首启迁移：账本还空着就把旧的运行态（未送达 report / 崩溃凭据）并进一条初始
+    // snapshot，然后删掉旧文件。已有账本时它是空操作。
+    void migrateLedger({ stateDir: stateDir() });
     // 首次进入本会话就把启动活跃集记进分支：reload / 恢复会话会重现上次的装载（pi 把工具装载
     // 记进 transcript），收敛之后再取就只剩六个。已被污染且没有记录的老会话里，这里记下的虽然
     // 也是六个，但 `restoreToolNames` 会把它滤掉并用配置层默认集兜底。

@@ -9,7 +9,6 @@
  * - `workers`（live / exited、待消费输入、最后 report、worktree、超时）；
  * - `released`（`note.pass` 集合，取代内存里的放行集合）；
  * - `reports`（未读 report：`state.pulled` 之前的都算未读）；
- * - `notesStatus`（`note.status` 缓存；真相仍是 `notes.json`）；
  * - `interrupted`（崩溃 / 退出凭据，取代 `interrupted.json`）。
  *
  * 压缩（`compactLedger`）把当前投影写成一条 `snapshot` 事件，旧行归档到
@@ -68,7 +67,7 @@ export interface ProjectedWorker {
   parent?: string;
   /** 层级：0 = 编排方派的 worker，1 = 上层 worker 派的子 worker。 */
   depth: number;
-  /** 最近一次自动合并成功（`worker.merged`）；`at` 是合并时刻。 */
+  /** 最近一次自动合并成功（`worktree.merged`）；`at` 是合并时刻。 */
   merged?: { at: string; commit?: string };
   /** 最近一次自动合并失败（`worker.merge_blocked`）；成功合并会清掉它。 */
   mergeBlocked?: { at: string; reason: string; directory: string };
@@ -135,13 +134,6 @@ export interface ProjectedInterrupted {
   notes: string[];
 }
 
-/** 一条 note 的状态缓存。 */
-export interface ProjectedNoteStatus {
-  status: string;
-  needs?: string;
-  at: string;
-}
-
 /** 投影里的一个现场（一个组一个）。`phase` 只剩三步：建好 / 合并成功 / 已回收。 */
 export interface ProjectedWorktree {
   /** 组键，也是 worktree 名字：`note-<id>` / `grp-<id-id>`。 */
@@ -177,8 +169,6 @@ export interface ProjectionState {
   retries: Map<string, ProjectedRetry>;
   /** 全部 report（`report.filed`），按 seq 升序；`read=false` 即未读。 */
   reports: ProjectedReport[];
-  /** `` `${plan}::${note}` `` → 状态。 */
-  notesStatus: Map<string, ProjectedNoteStatus>;
   interrupted?: ProjectedInterrupted;
   /** 最后应用的事件 seq。 */
   lastSeq: number;
@@ -193,7 +183,6 @@ export const emptyState = (): ProjectionState => ({
   released: new Map(),
   retries: new Map(),
   reports: [],
-  notesStatus: new Map(),
   lastSeq: 0,
   seenIdem: new Set(),
 });
@@ -273,7 +262,6 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
       state.released = restored.released;
       state.retries = restored.retries;
       state.reports = restored.reports;
-      state.notesStatus = restored.notesStatus;
       if (restored.interrupted === undefined) delete state.interrupted;
       else state.interrupted = restored.interrupted;
       state.seenIdem = restored.seenIdem;
@@ -353,20 +341,6 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
       const set = state.released.get(plan) ?? new Set<string>();
       set.add(note);
       state.released.set(plan, set);
-      return true;
-    }
-    case "note.status": {
-      const plan = payloadString(payload, "plan");
-      const note = payloadString(payload, "note");
-      const status = payloadString(payload, "to");
-      if (plan === undefined || note === undefined || status === undefined) return true;
-      state.notesStatus.set(`${plan}::${note}`, {
-        status,
-        ...(payloadString(payload, "needs") === undefined
-          ? {}
-          : { needs: payloadString(payload, "needs") as string }),
-        at: event.at,
-      });
       return true;
     }
     case "worker.spawned": {
@@ -460,16 +434,6 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
         }
         state.interrupted = current;
       }
-      return true;
-    }
-    case "worker.merged": {
-      const worker = payloadString(payload, "worker");
-      if (worker === undefined) return true;
-      const entry = ensureWorker(state, worker, event.at);
-      const commit = payloadString(payload, "commit");
-      entry.merged = { at: event.at, ...(commit === undefined ? {} : { commit }) };
-      // 合并成功即撤销上一次的“未合并”标记：现场已经收掉了。
-      delete entry.mergeBlocked;
       return true;
     }
     case "worktree.created": {
@@ -672,7 +636,6 @@ export const snapshotState = (state: ProjectionState): Record<string, unknown> =
   released: [...state.released].map(([plan, notes]) => [plan, [...notes]]),
   retries: [...state.retries.values()],
   reports: state.reports,
-  notesStatus: [...state.notesStatus],
   ...(state.interrupted === undefined ? {} : { interrupted: state.interrupted }),
   seenIdem: [...state.seenIdem].slice(-500),
 });
@@ -752,13 +715,6 @@ export const restoreState = (raw: unknown): ProjectionState => {
             }
           : {}),
       });
-    }
-  }
-  const notesStatus = raw["notesStatus"];
-  if (Array.isArray(notesStatus)) {
-    for (const pair of notesStatus) {
-      if (!Array.isArray(pair) || typeof pair[0] !== "string" || !isRecord(pair[1])) continue;
-      state.notesStatus.set(pair[0], pair[1] as unknown as ProjectedNoteStatus);
     }
   }
   const interrupted = raw["interrupted"];

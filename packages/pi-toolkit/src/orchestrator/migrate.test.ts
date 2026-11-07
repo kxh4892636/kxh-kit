@@ -1,9 +1,7 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { DEFAULT_ORCHESTRATOR_SETTINGS } from "./config.ts";
-import { serializeDocument } from "./dag.ts";
 import { LEDGER_FILE, openLedger, resetLedgers } from "./ledger.ts";
 import {
   LEGACY_INTERRUPTED_FILE,
@@ -12,7 +10,6 @@ import {
   migrateLedger,
 } from "./migrate.ts";
 import { createProjection, resetProjections } from "./projection.ts";
-import { NOTES_FILE } from "./store.ts";
 
 const created: string[] = [];
 
@@ -28,43 +25,11 @@ afterEach(async () => {
   await Promise.all(created.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
 });
 
-/** 造一个带一条 in_progress note 的 Plan 工作区。 */
-const workspace = async (): Promise<string> => {
-  const root = await tempDir();
-  const directory = join(root, ".agents/domains/etf/plans/active/2026-11-07-示例");
-  await mkdir(directory, { recursive: true });
-  await writeFile(
-    join(directory, NOTES_FILE),
-    serializeDocument({
-      version: 1,
-      index: [],
-      notes: [
-        {
-          id: "01",
-          title: "旧活",
-          description: "摘要",
-          status: "in_progress",
-          blocked_by: [],
-          evidence: [],
-          updated_at: "2026-11-07T00:00:00.000Z",
-          content: "正文",
-        },
-      ],
-    }),
-    "utf8",
-  );
-  return root;
-};
-
-const options = async (stateDir: string) => ({
-  stateDir,
-  workspace: await workspace(),
-  domainRoot: ".agents/domains",
-  limits: DEFAULT_ORCHESTRATOR_SETTINGS,
-});
+/** 迁移只需要状态目录。 */
+const options = (stateDir: string) => ({ stateDir });
 
 describe("首启迁移", () => {
-  it("把 notes 状态 / 崩溃凭据 / 未送达 report 并成一条初始 snapshot，再删旧文件", async () => {
+  it("把崩溃凭据 / 未送达 report 并成一条初始 snapshot，再删旧文件", async () => {
     const stateDir = await tempDir();
     await writeFile(
       join(stateDir, LEGACY_INTERRUPTED_FILE),
@@ -102,8 +67,8 @@ describe("首启迁移", () => {
     );
 
     expect(ledgerExists(stateDir)).toBe(false);
-    const outcome = await migrateLedger(await options(stateDir));
-    expect(outcome).toMatchObject({ migrated: true, notes: 1 });
+    const outcome = await migrateLedger(options(stateDir));
+    expect(outcome).toMatchObject({ migrated: true });
     expect([...outcome.removed].sort()).toEqual(
       [LEGACY_INTERRUPTED_FILE, LEGACY_REPORTS_FILE].sort(),
     );
@@ -114,12 +79,9 @@ describe("首启迁移", () => {
     expect(lines).toHaveLength(1);
     expect(JSON.parse(lines[0] ?? "{}")).toMatchObject({ seq: 1, type: "snapshot" });
 
-    // 重放出来的投影：note 状态缓存、凭据、未读 report 都在。
+    // 重放出来的投影：凭据与未读 report 都在。
     const projection = createProjection(openLedger(stateDir), { pollMs: 1_000 });
     const state = projection.state();
-    expect(state.notesStatus.get("/x")).toBeUndefined();
-    const notesStatus = [...state.notesStatus.values()];
-    expect(notesStatus[0]?.status).toBe("in_progress");
     expect(state.interrupted).toMatchObject({ plans: ["etf/active/2026-11-07-示例"] });
     expect(state.reports).toHaveLength(1);
     expect(state.reports[0]).toMatchObject({
@@ -133,7 +95,7 @@ describe("首启迁移", () => {
 
   it("旧文件不存在时也写一条空 snapshot（首启有账本）", async () => {
     const stateDir = await tempDir();
-    const outcome = await migrateLedger(await options(stateDir));
+    const outcome = await migrateLedger(options(stateDir));
     expect(outcome).toMatchObject({ migrated: true, removed: [] });
     expect(openLedger(stateDir).events()).toHaveLength(1);
   });
@@ -147,7 +109,7 @@ describe("首启迁移", () => {
       JSON.stringify({ reason: "x" }),
       "utf8",
     );
-    const outcome = await migrateLedger(await options(stateDir));
+    const outcome = await migrateLedger(options(stateDir));
     expect(outcome.migrated).toBe(false);
     expect(ledger.events()).toHaveLength(1);
     await expect(readFile(join(stateDir, LEGACY_INTERRUPTED_FILE), "utf8")).resolves.toContain("x");
