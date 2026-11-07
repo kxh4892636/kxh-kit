@@ -1,39 +1,19 @@
 /**
- * pi extension entry point. On the first user input of a session, generate a
- * short title with the current model (falling back to a deterministic
- * truncation) and store it through the same API as the built-in `/name`.
- * @module @kxh4892636/pi-session-name
+ * Session naming wiring: on the first user input of a session, generate a short
+ * title with the current model (falling back to a deterministic truncation) and
+ * store it through the same API as the built-in `/name`. Gated by the
+ * `/toolkit` session-naming switch, which applies to the next input.
+ * @module @kxh4892636/pi-toolkit/naming/register
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import {
-  buildNamePrompt,
-  cleanModelOutput,
-  fallbackName,
-  namingInput,
-  MAX_NAME_LENGTH,
-} from "./name.ts";
+import type { SessionNameSettings, ToolkitSettings } from "../settings.ts";
+import { buildNamePrompt, cleanModelOutput, fallbackName, namingInput } from "./name.ts";
 
-/** Default ceiling for the naming request. */
-const DEFAULT_TIMEOUT_MS = 5_000;
-
-/**
- * Reasoning models spend part of the budget on thinking before the title, so
- * the cap covers both; the title itself needs only a handful of tokens.
- */
-const DEFAULT_MAX_TOKENS = 256;
-
-/** Tunables, mainly for tests. */
-export interface SessionNameOptions {
-  readonly maxLength?: number;
-  readonly timeoutMs?: number;
-  readonly maxTokens?: number;
-}
-
-interface NameLimits {
-  readonly maxLength: number;
-  readonly timeoutMs: number;
-  readonly maxTokens: number;
+/** Dependencies supplied by the toolkit entry point. */
+export interface NamingDeps {
+  /** Resolve settings at input time so `/toolkit` changes apply immediately. */
+  readonly settings: () => ToolkitSettings;
 }
 
 /** A stored name counts only when it is a non-empty string. */
@@ -70,7 +50,7 @@ const extractText = (blocks: readonly unknown[]): string => {
 const generateName = async (
   ctx: ExtensionContext,
   input: string,
-  limits: NameLimits,
+  limits: SessionNameSettings,
 ): Promise<string> => {
   try {
     const model = ctx.model;
@@ -107,7 +87,7 @@ const nameSession = async (
   ctx: ExtensionContext,
   input: string,
   fallback: string,
-  limits: NameLimits,
+  limits: SessionNameSettings,
   isCurrentSession: () => boolean,
 ): Promise<void> => {
   const generated = await generateName(ctx, input, limits);
@@ -117,12 +97,7 @@ const nameSession = async (
 };
 
 /** Register first-input session naming. */
-export default function piSessionName(pi: ExtensionAPI, options: SessionNameOptions = {}): void {
-  const limits: NameLimits = {
-    maxLength: options.maxLength ?? MAX_NAME_LENGTH,
-    timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
-    maxTokens: options.maxTokens ?? DEFAULT_MAX_TOKENS,
-  };
+export const registerSessionNaming = (pi: ExtensionAPI, deps: NamingDeps): void => {
   let namingStarted = false;
   let generation = 0;
 
@@ -132,17 +107,21 @@ export default function piSessionName(pi: ExtensionAPI, options: SessionNameOpti
   });
 
   pi.on("input", (event, ctx) => {
+    const settings = deps.settings();
+    if (!settings.tools.sessionName) return { action: "continue" };
     if (event.source === "extension" || namingStarted) return { action: "continue" };
     if (hasSessionName(pi)) return { action: "continue" };
     if (hasUserMessage(ctx)) return { action: "continue" };
     const input = namingInput(event.text);
-    const fallback = fallbackName(input, limits.maxLength);
+    const fallback = fallbackName(input, settings.sessionName.maxLength);
     if (fallback.length === 0) return { action: "continue" };
     namingStarted = true;
     const startedAt = generation;
     const isCurrentSession = (): boolean => startedAt === generation;
     // Never let a background naming failure surface as an unhandled rejection.
-    void nameSession(pi, ctx, input, fallback, limits, isCurrentSession).catch(() => undefined);
+    void nameSession(pi, ctx, input, fallback, settings.sessionName, isCurrentSession).catch(
+      () => undefined,
+    );
     return { action: "continue" };
   });
-}
+};

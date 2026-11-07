@@ -10,7 +10,7 @@
  * `ori_question`.
  */
 
-import type { DeepSeekWebConfig } from "./config.ts";
+import type { WebSettings } from "../settings.ts";
 import { postJson, toolEndpoint } from "./http.ts";
 
 /** Most `ori_question` characters the Search API accepts. */
@@ -40,13 +40,13 @@ interface SearchApiRequest {
   readonly need_content: false;
 }
 
-/** One Search request; limits come from {@link DeepSeekWebConfig}. */
+/** One Search request; limits come from {@link WebSettings}. */
 export interface SearchRequest {
   readonly query: string;
   readonly oriQuestion?: string;
   readonly apiKey: string;
   readonly config: Pick<
-    DeepSeekWebConfig,
+    WebSettings,
     "baseURL" | "searchCount" | "searchMaxResults" | "searchTimeoutMs"
   >;
   readonly signal?: AbortSignal;
@@ -60,7 +60,7 @@ export interface SearchBatchRequest {
   readonly oriQuestion?: string;
   readonly apiKey: string;
   readonly config: Pick<
-    DeepSeekWebConfig,
+    WebSettings,
     "baseURL" | "searchCount" | "searchMaxResults" | "searchTimeoutMs"
   >;
   readonly signal?: AbortSignal;

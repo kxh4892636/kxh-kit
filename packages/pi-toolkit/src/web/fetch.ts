@@ -6,7 +6,7 @@
  * retrieved with HTTP 200.
  */
 
-import type { DeepSeekWebConfig } from "./config.ts";
+import type { WebSettings } from "../settings.ts";
 import { postJson, toolEndpoint } from "./http.ts";
 
 /** One decoded fetch body. The DeepSeek Fetch API returns Markdown text. */
@@ -27,7 +27,7 @@ export interface WebFetchResult {
 export interface FetchPageRequest {
   readonly url: string;
   readonly apiKey: string;
-  readonly config: Pick<DeepSeekWebConfig, "baseURL" | "fetchTimeoutMs">;
+  readonly config: Pick<WebSettings, "baseURL" | "fetchTimeoutMs">;
   readonly signal?: AbortSignal;
   readonly fetchImpl?: typeof fetch;
 }

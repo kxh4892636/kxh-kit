@@ -1,7 +1,7 @@
 /**
  * Pure naming helpers: turn a raw user input or model reply into a short,
  * clean session title. Kept free of pi APIs so it is easy to unit test.
- * @module @kxh4892636/pi-session-name/name
+ * @module @kxh4892636/pi-toolkit/name
  */
 
 /** Maximum number of Unicode code points kept in a session name. */

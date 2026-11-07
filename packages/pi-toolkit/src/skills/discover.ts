@@ -13,7 +13,14 @@ import { dirname, join, resolve } from "node:path";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 
 /** Directory names pruned from the walk. Dot-prefixed names are always pruned. */
-const DEFAULT_EXCLUDED_DIRS = ["node_modules", ".git", "dist", "build", "coverage", "out"];
+export const DEFAULT_EXCLUDED_DIRS = [
+  "node_modules",
+  ".git",
+  "dist",
+  "build",
+  "coverage",
+  "out",
+] as const;
 
 /** Discovery inputs; `agentDir` and `homeDir` are injectable for tests. */
 export interface DiscoverOptions {

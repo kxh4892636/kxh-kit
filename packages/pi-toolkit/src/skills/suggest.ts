@@ -78,11 +78,13 @@ export function buildSuggestions(
 
 /**
  * Wrap the built-in provider: answer `$` completions ourselves and delegate
- * everything else to `current`.
+ * everything else to `current`. `isEnabled` is read per request, so the
+ * toolkit switch applies without re-registering the provider.
  */
 export function createDollarAutocompleteProvider(
   source: CommandsSource,
   current: AutocompleteProvider,
+  isEnabled: () => boolean = () => true,
 ): AutocompleteProvider {
   return {
     triggerCharacters: ["$"],
@@ -92,6 +94,7 @@ export function createDollarAutocompleteProvider(
       cursorCol,
       options,
     ): Promise<AutocompleteSuggestions | null> {
+      if (!isEnabled()) return current.getSuggestions(lines, cursorLine, cursorCol, options);
       const line = lines[cursorLine] ?? "";
       const match = matchDollarPrefix(line.slice(0, cursorCol));
       if (match === undefined) return current.getSuggestions(lines, cursorLine, cursorCol, options);
@@ -99,7 +102,7 @@ export function createDollarAutocompleteProvider(
       return items.length > 0 ? { prefix: match.prefix, items } : null;
     },
     applyCompletion(lines, cursorLine, cursorCol, item, prefix) {
-      if (!prefix.startsWith("$")) {
+      if (!isEnabled() || !prefix.startsWith("$")) {
         return current.applyCompletion(lines, cursorLine, cursorCol, item, prefix);
       }
       const line = lines[cursorLine] ?? "";

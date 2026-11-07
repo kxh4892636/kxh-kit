@@ -3,11 +3,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
-import piDeepSeekWeb, { type DeepSeekWebOptions } from "./index.ts";
+import {
+  CONFIG_FILE_NAME,
+  loadSettings,
+  type ToolkitSettings,
+  type ToolToggles,
+} from "../settings.ts";
+import { applyWebToolActivation, registerWebTools } from "./register.ts";
 
 interface RegisteredTool {
   name: string;
   description: string;
+  defaultActive?: boolean;
   parameters: {
     type?: string;
     properties?: Record<string, unknown>;
@@ -31,34 +38,40 @@ interface FakeContext {
 const created: string[] = [];
 
 const tempDir = (): string => {
-  const dir = mkdtempSync(join(tmpdir(), "pi-dsw-index-"));
+  const dir = mkdtempSync(join(tmpdir(), "pi-toolkit-web-"));
   created.push(dir);
   return dir;
 };
 
-/** Register the extension against a fake pi, with isolated config inputs. */
-const register = (): RegisteredTool[] => {
+/** Write a project config and register the tools against the parsed settings. */
+const setup = (
+  cwd: string,
+  web: Record<string, unknown> = {},
+  toggles: Partial<ToolToggles> = {},
+): { tools: RegisteredTool[]; settings: ToolkitSettings } => {
+  mkdirSync(join(cwd, ".pi"), { recursive: true });
+  writeFileSync(
+    join(cwd, ".pi", CONFIG_FILE_NAME),
+    JSON.stringify({
+      tools: { webTools: true, ...toggles },
+      web,
+    }),
+  );
+  const { settings } = loadSettings({ cwd, agentDir: tempDir(), env: {} });
   const tools: RegisteredTool[] = [];
   const fake = {
     registerTool: (definition: unknown) => {
       tools.push(definition as RegisteredTool);
     },
   } as unknown as ExtensionAPI;
-  const options: DeepSeekWebOptions = { agentDir: tempDir(), env: {} };
-  piDeepSeekWeb(fake, options);
-  return tools;
+  registerWebTools(fake, { settings: () => settings, configPaths: () => ["config"] });
+  return { tools, settings };
 };
 
 const toolNamed = (tools: RegisteredTool[], name: string): RegisteredTool => {
   const tool = tools.find((candidate) => candidate.name === name);
   if (tool === undefined) throw new Error(`tool ${name} was not registered`);
   return tool;
-};
-
-/** Write a project-local config so the real agent-dir config never leaks in. */
-const useProjectConfig = (dir: string, config: Record<string, unknown>): void => {
-  mkdirSync(join(dir, ".pi"), { recursive: true });
-  writeFileSync(join(dir, ".pi", "pi-deepseek-web.json"), JSON.stringify(config));
 };
 
 const contextFor = (cwd: string, userText?: string): FakeContext => ({
@@ -100,10 +113,11 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("piDeepSeekWeb", () => {
-  it("registers the harness tool schemas", () => {
-    const tools = register();
+describe("registerWebTools", () => {
+  it("registers the harness tool schemas inactive", () => {
+    const { tools } = setup(tempDir(), { apiKey: "k" });
     expect(tools.map((tool) => tool.name).sort()).toEqual(["web_fetch", "web_search"]);
+    for (const tool of tools) expect(tool.defaultActive).toBe(false);
     const search = toolNamed(tools, "web_search");
     expect(Object.keys(search.parameters.properties ?? {})).toEqual(["queries"]);
     expect(search.parameters.required).toEqual(["queries"]);
@@ -112,9 +126,26 @@ describe("piDeepSeekWeb", () => {
     expect(fetch.parameters.required).toEqual(["url"]);
   });
 
+  it("rejects calls while the switch is off", async () => {
+    const { tools } = setup(tempDir(), { apiKey: "k" }, { webTools: false });
+    const ctx = contextFor(tempDir());
+    await expect(
+      toolNamed(tools, "web_search").execute("id", { queries: ["a"] }, undefined, undefined, ctx),
+    ).rejects.toThrow(/web_search is disabled/u);
+    await expect(
+      toolNamed(tools, "web_fetch").execute(
+        "id",
+        { url: "https://a.example" },
+        undefined,
+        undefined,
+        ctx,
+      ),
+    ).rejects.toThrow(/web_fetch is disabled/u);
+  });
+
   it("merges multiple queries, caps sources, and injects the user question", async () => {
     const dir = tempDir();
-    useProjectConfig(dir, {
+    const { tools } = setup(dir, {
       apiKey: "k",
       searchCount: 10,
       searchMaxResults: 2,
@@ -135,7 +166,7 @@ describe("piDeepSeekWeb", () => {
     });
     vi.stubGlobal("fetch", fetchImpl);
 
-    const response = await toolNamed(register(), "web_search").execute(
+    const response = await toolNamed(tools, "web_search").execute(
       "id",
       { queries: ["a", "b"] },
       undefined,
@@ -172,9 +203,9 @@ describe("piDeepSeekWeb", () => {
 
   it("enforces searchMaxQueries from the JSON config", async () => {
     const dir = tempDir();
-    useProjectConfig(dir, { apiKey: "k", searchMaxQueries: 2 });
+    const { tools } = setup(dir, { apiKey: "k", searchMaxQueries: 2 });
     await expect(
-      toolNamed(register(), "web_search").execute(
+      toolNamed(tools, "web_search").execute(
         "id",
         { queries: ["a", "b", "c"] },
         undefined,
@@ -186,13 +217,13 @@ describe("piDeepSeekWeb", () => {
 
   it("executes web_fetch with the harness result shape", async () => {
     const dir = tempDir();
-    useProjectConfig(dir, { apiKey: "k", fetchMaxOutputChars: 1_000 });
+    const { tools } = setup(dir, { apiKey: "k", fetchMaxOutputChars: 1_000 });
     const fetchImpl = vi.fn<typeof fetch>(async () =>
       jsonResponse({ title: "Hi", content: "# Hi" }),
     );
     vi.stubGlobal("fetch", fetchImpl);
 
-    const response = await toolNamed(register(), "web_fetch").execute(
+    const response = await toolNamed(tools, "web_fetch").execute(
       "id",
       { url: "https://example.com" },
       undefined,
@@ -213,8 +244,7 @@ describe("piDeepSeekWeb", () => {
 
   it("fails both tools without an API key", async () => {
     const dir = tempDir();
-    useProjectConfig(dir, {});
-    const tools = register();
+    const { tools } = setup(dir);
     await expect(
       toolNamed(tools, "web_search").execute(
         "id",
@@ -235,14 +265,62 @@ describe("piDeepSeekWeb", () => {
     ).rejects.toThrow(/no API key/u);
   });
 
-  it("ignores an untrusted project config", async () => {
+  it("ignores an untrusted project config", () => {
     const dir = tempDir();
-    useProjectConfig(dir, { apiKey: "attacker" });
-    await expect(
-      toolNamed(register(), "web_search").execute("id", { queries: ["pi"] }, undefined, undefined, {
-        ...contextFor(dir),
-        isProjectTrusted: () => false,
-      }),
-    ).rejects.toThrow(/no API key/u);
+    mkdirSync(join(dir, ".pi"), { recursive: true });
+    writeFileSync(
+      join(dir, ".pi", CONFIG_FILE_NAME),
+      JSON.stringify({ tools: { webTools: true }, web: { apiKey: "attacker" } }),
+    );
+    const { settings } = loadSettings({
+      cwd: dir,
+      agentDir: tempDir(),
+      env: {},
+      projectTrusted: false,
+    });
+    expect(settings.web.apiKey).toBeUndefined();
+    expect(settings.tools.webTools).toBe(false);
+  });
+});
+
+describe("applyWebToolActivation", () => {
+  const fake = (initial: readonly string[]): { pi: ExtensionAPI; active: () => string[] } => {
+    let active = [...initial];
+    return {
+      pi: {
+        getActiveTools: () => [...active],
+        setActiveTools: (names: string[]) => {
+          active = [...names];
+        },
+      } as unknown as ExtensionAPI,
+      active: () => [...active],
+    };
+  };
+
+  const settings = (webTools: boolean): ToolkitSettings => ({
+    ...loadSettings({ cwd: tempDir(), agentDir: tempDir(), env: {} }).settings,
+    tools: { webTools, nestedSkills: false, sessionName: false },
+  });
+
+  it("adds both web tools when the switch is on", () => {
+    const { pi, active } = fake(["read"]);
+    applyWebToolActivation(pi, settings(true));
+    expect(active()).toEqual(["read", "web_search", "web_fetch"]);
+  });
+
+  it("removes disabled web tools and leaves other tools alone", () => {
+    const { pi, active } = fake(["read", "web_search", "web_fetch", "bash"]);
+    applyWebToolActivation(pi, settings(false));
+    expect(active()).toEqual(["read", "bash"]);
+  });
+
+  it("does not call setActiveTools when nothing changes", () => {
+    const calls: string[][] = [];
+    const pi = {
+      getActiveTools: () => ["read", "web_search", "web_fetch"],
+      setActiveTools: (names: string[]) => calls.push(names),
+    } as unknown as ExtensionAPI;
+    applyWebToolActivation(pi, settings(true));
+    expect(calls).toEqual([]);
   });
 });

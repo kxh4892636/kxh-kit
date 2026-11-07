@@ -49,7 +49,7 @@ describe("postJson", () => {
     expect(headers["authorization"]).toBe("Bearer k");
     expect(headers["content-type"]).toBe("application/json");
     expect(headers["accept"]).toBe("application/json");
-    expect(headers["user-agent"]).toMatch(/^pi-deepseek-web\//u);
+    expect(headers["user-agent"]).toMatch(/^pi-toolkit\//u);
     expect(JSON.parse(typeof init?.body === "string" ? init.body : "{}")).toEqual({
       query: "pi",
     });

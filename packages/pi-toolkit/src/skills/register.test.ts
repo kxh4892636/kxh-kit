@@ -4,7 +4,13 @@ import { join } from "node:path";
 import type { ExtensionAPI, SlashCommandInfo } from "@earendil-works/pi-coding-agent";
 import type { AutocompleteProvider } from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import piNestedSkill, { type NestedSkillOptions } from "./index.ts";
+import {
+  DEFAULT_SETTINGS,
+  DEFAULT_TOOLS,
+  type ToolkitSettings,
+  type ToolToggles,
+} from "../settings.ts";
+import { registerNestedSkills, type SkillDeps } from "./register.ts";
 
 type Handler = (...args: unknown[]) => unknown;
 
@@ -37,9 +43,20 @@ const skillCommand = (name: string, path: string): SlashCommandInfo => ({
   sourceInfo: { path, source: "local", scope: "user", origin: "top-level" },
 });
 
-const emptyOptions = (): NestedSkillOptions => ({ agentDir: tempDir(), homeDir: tempDir() });
+const settingsFor = (overrides: Partial<ToolToggles> = {}): ToolkitSettings => ({
+  ...DEFAULT_SETTINGS,
+  tools: { ...DEFAULT_TOOLS, nestedSkills: true, ...overrides },
+});
 
-const setup = (commands: SlashCommandInfo[], options: NestedSkillOptions): Map<string, Handler> => {
+const depsFor = (overrides: Partial<ToolToggles> = {}): SkillDeps => ({
+  settings: () => settingsFor(overrides),
+  agentDir: tempDir(),
+  homeDir: tempDir(),
+});
+
+const emptyOptions = (): SkillDeps => depsFor();
+
+const setup = (commands: SlashCommandInfo[], deps: SkillDeps): Map<string, Handler> => {
   const handlers = new Map<string, Handler>();
   const fake = {
     on: (event: string, handler: Handler) => {
@@ -47,7 +64,7 @@ const setup = (commands: SlashCommandInfo[], options: NestedSkillOptions): Map<s
     },
     getCommands: () => commands,
   } as unknown as ExtensionAPI;
-  piNestedSkill(fake, options);
+  registerNestedSkills(fake, deps);
   return handlers;
 };
 
@@ -148,6 +165,56 @@ describe("piNestedSkill", () => {
     const handlers = setup([skillCommand("ghost", missing)], emptyOptions());
     expect(handlers.get("input")?.({ text: "try $ghost", source: "interactive" })).toEqual({
       action: "continue",
+    });
+  });
+
+  it("contributes nothing while nested discovery is switched off", async () => {
+    const { project } = buildProject();
+    const handlers = setup([], depsFor({ nestedSkills: false }));
+    const result = handlers.get("resources_discover")?.(
+      {},
+      { cwd: project, isProjectTrusted: () => true },
+    );
+    expect(result).toBeUndefined();
+  });
+
+  it("does not expand references while the nested-skill switch is off", () => {
+    const { alphaFile } = buildProject();
+    const handlers = setup([skillCommand("alpha", alphaFile)], depsFor({ nestedSkills: false }));
+    expect(handlers.get("input")?.({ text: "run $alpha now", source: "interactive" })).toEqual({
+      action: "continue",
+    });
+  });
+
+  it("delegates $ completion while the nested-skill switch is off", async () => {
+    const handlers = setup([], depsFor({ nestedSkills: false }));
+    let factory: ((current: AutocompleteProvider) => AutocompleteProvider) | undefined;
+    handlers.get("session_start")?.(
+      {},
+      {
+        hasUI: true,
+        ui: {
+          addAutocompleteProvider: (candidate: typeof factory) => {
+            factory = candidate;
+          },
+        },
+      },
+    );
+    const fallback = async (): Promise<{ prefix: string; items: [] }> => ({
+      prefix: "delegated",
+      items: [],
+    });
+    const provider = factory?.({
+      getSuggestions: fallback,
+      applyCompletion: () => ({ lines: [], cursorLine: 0, cursorCol: 0 }),
+    } as unknown as AutocompleteProvider);
+    expect(
+      await provider?.getSuggestions(["$a"], 0, 2, {
+        signal: new AbortController().signal,
+      }),
+    ).toEqual({
+      prefix: "delegated",
+      items: [],
     });
   });
 });

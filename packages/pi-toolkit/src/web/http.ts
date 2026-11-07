@@ -3,7 +3,7 @@
  * endpoints take a bearer-authenticated JSON POST and return JSON; keeping the
  * timeout, cancellation, and error decoding here prevents the two clients from
  * drifting apart.
- * @module @kxh4892636/pi-deepseek-web/http
+ * @module @kxh4892636/pi-toolkit/http
  */
 
 /** A JSON POST to one DeepSeek tool endpoint. */
@@ -25,7 +25,7 @@ interface ApiErrorBody {
 }
 
 /** Attribution header; keep in sync with the package version. */
-const USER_AGENT = "pi-deepseek-web/1.0.0";
+const USER_AGENT = "pi-toolkit/1.0.0";
 
 /**
  * Build one official tool endpoint.

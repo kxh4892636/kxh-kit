@@ -1,6 +1,7 @@
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it } from "vite-plus/test";
-import piSessionName, { type SessionNameOptions } from "./index.ts";
+import { DEFAULT_SETTINGS, DEFAULT_TOOLS, type ToolkitSettings } from "../settings.ts";
+import { registerSessionNaming } from "./register.ts";
 
 type Handler = (...args: unknown[]) => unknown;
 
@@ -22,7 +23,17 @@ interface Harness {
   fire(event: unknown, ctx: ExtensionContext): unknown;
 }
 
-const setup = (options: SessionNameOptions = {}): Harness => {
+const settingsWith = (
+  sessionName: Partial<ToolkitSettings["sessionName"]> = {},
+  enabled = true,
+): ToolkitSettings => ({
+  ...DEFAULT_SETTINGS,
+  tools: { ...DEFAULT_TOOLS, sessionName: enabled },
+  sessionName: { ...DEFAULT_SETTINGS.sessionName, ...sessionName },
+});
+
+const setup = (options: Partial<ToolkitSettings["sessionName"]> = {}, enabled = true): Harness => {
+  const settings = settingsWith(options, enabled);
   const handlers = new Map<string, Handler>();
   const setCalls: string[] = [];
   let currentName: string | undefined;
@@ -36,7 +47,7 @@ const setup = (options: SessionNameOptions = {}): Harness => {
       setCalls.push(name);
     },
   } as unknown as ExtensionAPI;
-  piSessionName(pi, options);
+  registerSessionNaming(pi, { settings: () => settings });
   return {
     handlers,
     setCalls,
@@ -316,5 +327,14 @@ describe("piSessionName", () => {
     harness.fire({ text: "帮我看看这个报错", source: "interactive" }, ctx);
     await settle();
     expect(harness.setCalls).toEqual(["帮我看看"]);
+  });
+
+  it("stays idle while the toolkit switch is off", async () => {
+    const harness = setup({}, false);
+    const { ctx, calls } = makeCtx();
+    harness.fire({ text: "帮我看看这个报错", source: "interactive" }, ctx);
+    await settle();
+    expect(harness.setCalls).toHaveLength(0);
+    expect(calls).toHaveLength(0);
   });
 });
