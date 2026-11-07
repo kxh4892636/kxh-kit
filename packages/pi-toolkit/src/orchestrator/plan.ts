@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 
@@ -29,6 +29,49 @@ export const planRefOf = (plan: PlanRef): string => {
 
 /** 领域根的目录名（与 `DEFAULT_DOMAIN_ROOT` 同构，只是拆成两段便于按路径切分）。 */
 const DOMAIN_ROOT_SEGMENTS = [".agents", "domains"] as const;
+
+/** worktree 的目录名；与 `worktree.ts` 的 `WORKTREE_ROOT` 同义。 */
+const WORKTREE_SEGMENT = ".worktrees";
+
+/**
+ * 把 cwd 归一化回主工作区根。
+ *
+ * worktree 派工时 worker 的 cwd 是 `<root>/.worktrees/<名字>`，而领域根与 `notes.json`
+ * 只在主工作区那一份：不归一化就会把 worktree 内的 `.agents/domains` 副本当成另一套真相。
+ * 只有真的落在 `.worktrees` 段之后才切，普通目录原样返回。
+ * @param cwd - 会话 cwd（通常是绝对的）。
+ * @returns 主工作区根；不在 worktree 里时返回原值。
+ */
+export const mainWorkspaceOf = (cwd: string): string => {
+  const segments = cwd.split(/[\\/]+/u);
+  const at = segments.lastIndexOf(WORKTREE_SEGMENT);
+  // `at === 0` 是相对路径 `.worktrees/x` 或根下同名目录：没有可切的主工作区段。
+  if (at <= 0 || segments.length <= at + 1) return cwd;
+  const root = segments.slice(0, at).join(sep);
+  return root === "" ? cwd : root;
+};
+
+/**
+ * 工作区里 worktree 内的领域根副本（`.worktrees/<名字>/.agents/domains`）。
+ *
+ * 这些副本永不读写，列出来只为在 `orchestrator_state` 里明示“有副本、已忽略”。
+ * @param workspace - 主工作区根。
+ * @returns 存在的副本目录（绝对路径）。
+ */
+export const worktreeDomainCopies = (workspace: string): readonly string[] => {
+  const worktreeRoot = join(workspace, WORKTREE_SEGMENT);
+  let names: readonly string[];
+  try {
+    names = readdirSync(worktreeRoot, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+  } catch {
+    return [];
+  }
+  return names
+    .map((name) => join(worktreeRoot, name, ...DOMAIN_ROOT_SEGMENTS))
+    .filter((directory) => existsSync(directory));
+};
 
 /**
  * 从一个绝对的 Plan 目录反推工作区根。

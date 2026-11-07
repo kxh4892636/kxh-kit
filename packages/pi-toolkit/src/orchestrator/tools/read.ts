@@ -131,6 +131,7 @@ const executeRead = async (
   if (op === "plans") return formatPlans(runtime, workspace, runtime.lockedPlan);
 
   const plan = await resolvePlan(workspace, runtime.domainRoot, planArgument);
+  runtime.onPlan?.(plan);
   if (op === "inspect") return inspectRaw(plan);
   const document = await loadDocument(plan.directory, runtime.limits());
 

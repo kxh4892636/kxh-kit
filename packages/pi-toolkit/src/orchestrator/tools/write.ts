@@ -377,7 +377,10 @@ const planFor = async (
   args: Record<string, unknown>,
 ): Promise<PlanRef> => {
   const ref = runtime.lockedPlan ?? optionalString(args, "plan");
-  return resolvePlan(workspace, runtime.domainRoot, ref);
+  const plan = await resolvePlan(workspace, runtime.domainRoot, ref);
+  // 编排方靠它记住“当前 Plan”：轮转种子指名要恢复的那一个。
+  runtime.onPlan?.(plan);
+  return plan;
 };
 
 const executeWrite = async (

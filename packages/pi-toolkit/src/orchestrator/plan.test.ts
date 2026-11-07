@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import {
   activePlans,
+  mainWorkspaceOf,
+  worktreeDomainCopies,
   workspaceOfPlanDirectory,
   isPlanLifecycle,
   listPlans,
@@ -63,6 +65,38 @@ describe("listPlans", () => {
 
   it("returns nothing for a missing domains root", async () => {
     expect(await listPlans(await tempDir(), ".agents/domains")).toEqual([]);
+  });
+});
+
+describe("mainWorkspaceOf（worktree 归一化）", () => {
+  it("cwd 落在 .worktrees/<名> 时回到主工作区根", () => {
+    const root = join(tmpdir(), "pi-main-workspace");
+    expect(mainWorkspaceOf(join(root, ".worktrees", "plan"))).toBe(root);
+    expect(mainWorkspaceOf(join(root, ".worktrees", "note-01", "packages"))).toBe(root);
+  });
+
+  it("普通目录、相对路径与根下 .worktrees 都原样返回", () => {
+    const root = join(tmpdir(), "pi-main-workspace");
+    expect(mainWorkspaceOf(root)).toBe(root);
+    expect(mainWorkspaceOf(join(root, "packages", "pi-toolkit"))).toBe(
+      join(root, "packages", "pi-toolkit"),
+    );
+    expect(mainWorkspaceOf(".worktrees/plan")).toBe(".worktrees/plan");
+  });
+});
+
+describe("worktreeDomainCopies（只提示，不读写）", () => {
+  it("列出 .worktrees 内存在的领域根副本", async () => {
+    const root = await tempDir();
+    await mkdir(join(root, ".worktrees", "plan", ".agents", "domains"), { recursive: true });
+    await mkdir(join(root, ".worktrees", "empty"), { recursive: true });
+    expect(worktreeDomainCopies(root)).toEqual([
+      join(root, ".worktrees", "plan", ".agents", "domains"),
+    ]);
+  });
+
+  it("没有 .worktrees 时返回空", async () => {
+    expect(worktreeDomainCopies(await tempDir())).toEqual([]);
   });
 });
 

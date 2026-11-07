@@ -53,7 +53,11 @@ const executeCheck = async (
           workspace,
           runtime.domainRoot,
           runtime.lockedPlan ?? optionalString(args, "plan"),
-        )
+        ).then((plan) => {
+          // 编排方靠它记住“当前 Plan”：轮转种子指名要恢复的那一个。
+          runtime.onPlan?.(plan);
+          return plan;
+        })
       : undefined;
   const result = await runCheck({
     script: checkScriptPath(),

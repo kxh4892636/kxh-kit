@@ -77,6 +77,7 @@ import {
   mainWorkspaceOf,
   planRefOf,
   resolvePlan,
+  worktreeDomainCopies,
   type PlanRef,
 } from "./plan.ts";
 import { pickMode } from "./selector.ts";
@@ -984,6 +985,11 @@ const createStateTool = (
     const lines: string[] = [
       `账本：seq ${state.lastSeq} · live ${live.length} · 未读 report ${unread.length} · 放行 ${[...state.released.values()].reduce((sum, set) => sum + set.size, 0)} 条 note`,
     ];
+    // worktree 内的领域副本不参与解析；亮出来是为了让“为什么看不到那份改动”有答案。
+    const copies = worktreeDomainCopies(runtime.workspace(exec));
+    if (copies.length > 0) {
+      lines.push(`worktree 内有副本，已忽略: ${copies.join("、")}`);
+    }
     if (live.length === 0) {
       lines.push("当前没有 live worker。");
     } else {

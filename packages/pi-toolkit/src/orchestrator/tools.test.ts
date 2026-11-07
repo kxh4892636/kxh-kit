@@ -602,6 +602,69 @@ describe("notes.json 写回锁", () => {
   });
 });
 
+describe("cwd 在 worktree 内时解析锚定主工作区", () => {
+  it("read / write 命中主工作区同一份 notes.json，worktree 副本被忽略", async () => {
+    const { serializeDocument } = await import("./dag.ts");
+    const { NOTES_FILE } = await import("./store.ts");
+    const root = await makeWorkspace();
+    const planRef = "demo/active/2026-11-08-归一化";
+    const planDirectory = join(root, ".agents/domains/demo/plans/active/2026-11-08-归一化");
+    await mkdir(planDirectory, { recursive: true });
+    const doc = (title: string, status: "pending" | "in_progress") => ({
+      version: 1 as const,
+      index: [],
+      notes: [
+        {
+          id: "01",
+          title,
+          description: "摘要",
+          status,
+          blocked_by: [],
+          evidence: [],
+          updated_at: "2026-11-08T00:00:00.000Z",
+          content: "正文",
+        },
+      ],
+    });
+    await writeFile(
+      join(planDirectory, NOTES_FILE),
+      serializeDocument(doc("主工作区 note", "pending")),
+      "utf8",
+    );
+
+    // worktree 里有第二份副本：内容明显不同，用来证明它既不被读也不被写。
+    const worktree = join(root, ".worktrees", "plan");
+    const copyDirectory = join(worktree, ".agents/domains/demo/plans/active/2026-11-08-归一化");
+    await mkdir(copyDirectory, { recursive: true });
+    const copyBefore = serializeDocument(doc("worktree 副本 note", "pending"));
+    await writeFile(join(copyDirectory, NOTES_FILE), copyBefore, "utf8");
+
+    const tools = setup();
+    // plans：看到的只有主工作区的那一份（副本不参与列举）。
+    const plans = await run(tools.read, { op: "plans" }, worktree);
+    expect(plans).toContain(`工作区: ${root}`);
+    expect(plans).toContain("Plan（1）");
+    expect(plans).toContain(planRef);
+
+    // notes：读到的也是主工作区内容。
+    const notes = await run(tools.read, { op: "notes", plan: planRef }, worktree);
+    expect(notes).toContain("主工作区 note");
+    expect(notes).not.toContain("worktree 副本 note");
+
+    // write：改动落在主工作区，worktree 副本一个字节也不动。
+    await run(
+      tools.write,
+      { op: "status", plan: planRef, note: "01", status: "in_progress" },
+      worktree,
+    );
+    const mainAfter = JSON.parse(await readFile(join(planDirectory, NOTES_FILE), "utf8")) as {
+      notes: { status: string }[];
+    };
+    expect(mainAfter.notes[0]?.status).toBe("in_progress");
+    expect(await readFile(join(copyDirectory, NOTES_FILE), "utf8")).toBe(copyBefore);
+  });
+});
+
 describe("worker 在 worktree 里也能解析锚定的 Plan", () => {
   it("cwd 是 .worktrees/<名> 时，用 lockedPlan 反推工作区根", async () => {
     const { mkdtemp, mkdir, writeFile } = await import("node:fs/promises");

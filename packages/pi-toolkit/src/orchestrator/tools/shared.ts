@@ -8,7 +8,7 @@ import { assetsCheckScript } from "../assets.ts";
 import type { OrchestratorSettings } from "../config.ts";
 import type { NoteNode, PlanDocument } from "../dag.ts";
 import type { ProjectedInterrupted } from "../projection.ts";
-import { workspaceOfPlanDirectory, type PlanRef } from "../plan.ts";
+import { workspaceOfPlanDirectory, mainWorkspaceOf, type PlanRef } from "../plan.ts";
 
 /** 调用方角色：编排方拥有 plan 级动作，worker 只拥有 note 级动作。 */
 export type OrchestratorRole = "orchestrator" | "worker";
@@ -48,6 +48,11 @@ export interface ToolRuntime {
   readonly released?: (noteId: string) => boolean;
   /** 崩溃凭据读写口；只有编排方注入，worker 留空。 */
   readonly interrupted?: InterruptedAccess;
+  /**
+   * 命中一个 Plan 时的回调（每次解析成功都调）：编排方用它记住“当前 Plan”，
+   * 轮转种子据此指名要恢复的 Plan。worker 不注入。
+   */
+  readonly onPlan?: (plan: PlanRef) => void;
 }
 
 /** 工具执行结果里的一段模型可见文本。 */
@@ -158,6 +163,7 @@ export const createToolRuntime = (options: {
   lockedPlan?: string;
   released?: (noteId: string) => boolean;
   interrupted?: InterruptedAccess;
+  onPlan?: (plan: PlanRef) => void;
 }): ToolRuntime => {
   return {
     limits: options.limits,
@@ -166,14 +172,16 @@ export const createToolRuntime = (options: {
     ...(options.lockedPlan === undefined ? {} : { lockedPlan: options.lockedPlan }),
     ...(options.released === undefined ? {} : { released: options.released }),
     ...(options.interrupted === undefined ? {} : { interrupted: options.interrupted }),
+    ...(options.onPlan === undefined ? {} : { onPlan: options.onPlan }),
     workspace(ctx: ExtensionToolContext): string {
-      // worktree worker 的 cwd 是 `.worktrees/<名字>`，Plan 却锚定主工作区绝对路径：
-      // 能从 lockedPlan 反推工作区根时以它为准，否则保持旧行为（cwd）。
+      // worker 侧：句柄里的 `plan` 绝对路径优先，cwd 只当兜底。
       if (options.lockedPlan !== undefined) {
         const root = workspaceOfPlanDirectory(options.lockedPlan);
         if (root !== undefined) return root;
       }
-      return ctx.cwd;
+      // 其余情况（编排方或临时 worker）：cwd 落在 `.worktrees/<名字>` 时归一化回主工作区根，
+      // 不在 worktree 里则原样返回。这样 worktree 内的领域副本永远不会被读写。
+      return mainWorkspaceOf(ctx.cwd);
     },
   };
 };
