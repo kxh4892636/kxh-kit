@@ -34,21 +34,20 @@
 - note 02 完成（2026-11-07）：6 个域已用 `git mv` 迁到 `.agents/domains`（186 文件无丢失，184 rename + dsh CONTEXT/QUESTIONS 覆盖 stub）；空 `planning` / `implementing` 删除，etf implementing 与 dsh-infinite-story → reference；`CONTEXT-MAP` 与 `notes-guard.ts` 注释已改；workspace 校验通过。`docs/` 只剩空目录，留给 note 14。
 - note 13 完成（2026-11-07）：28 个旧 Plan 全部转成 `notes.json`（101 条 note，4 条超限拆分；无限故事 spec 拆册；14 个 Plan 补 story；迁移链接改写；description 修复 1 条）。check-domain 对冻结 Plan 跳过 Markdown 链接校验并补测试；29 个 Plan 逐个 `nano_flow_check plan` 全绿；249 测试通过。
 - note 14 完成（2026-11-07）：`docs/` 已删除，`apps/etf`、`apps/music`、`packages/nano-flow` README 的残留引用已改；仓库内不再有 docs 域路径引用；workspace 校验通过。
-- 未完成：note 12（等待验证落地，已实现待装）、note 08 的轮转触发验证（需要一条高上下文 queue 消息）。
-- 域根：dsh 已切到 `.agents/domains`；其余 5 个域（common / etf / music / nano-flow / pi）仍以 `docs/` 为权威，迁移见 note 02。
+- note 12 实施完成（2026-11-07，待重启确认）：`awaiting_verification` 全链路落地（dag / check-domain / write / read / shared / contract / host / 面板 / prompt / README）；249 测试、`vp check`、build 通过；0.4.3 装进 desktop profile（安装目录与仓库 dist 同哈希）；提交 ee3a5d36。
+- 未完成：note 12 的重启真机确认（顺带把 note 08 置为等待验证、看面板与 resume），note 08 的轮转触发验证（需要一条高上下文 queue 消息）。
+- 域根：6 个域全部在 `.agents/domains`，`docs/` 已删除；29 个 Plan 均有 `notes.json` 且逐个校验通过。
 
 ## 恢复入口
 
 1. 读本 spec、note 01 的评审清单、note 04 的 `ready` 设计与 note 05 的面板设计。
 2. 要动 `notes.json` 的收口：实现与真机验收见 note 07（已完成），边界见 note 06。
-3. 要迁移：按 note 02 把 6 个域搬到 `.agents/domains` 并归位生命周期，再按 note 13 把旧 Plan 转成 `notes.json`，最后按 note 14 删除 `docs/` 并改外部引用。
-4. 迁移后跑 `nano_flow_check` 的 `workspace`；旧 Plan 逐个跑 `nano_flow_check` 的 `plan`（note 13 验收）。
+3. 迁移已完成（note 02 / 13 / 14）：6 个域在 `.agents/domains`，旧 Plan 转为 `notes.json`，`docs/` 已删除，外部引用已改。
+4. 复跑校验：`nano_flow_check` 的 `workspace`；单 Plan 用 `plan`（冻结 Plan 不校验 Markdown 链接，active 仍校验）。
 5. 要验轮转：note 08 仍在等一条高上下文 queue 消息；`$DSH_HOME/toolkit/nano-flow-mount.json` 的 `rotation` stage 可确认宿主侧已挂上。
 6. 只读恢复已落地并真机确认（note 10，0.4.2 已装）。
-7. 要动等待验证状态：定案见 note 11，落地见 note 12。
+7. 等待验证状态：定案 note 11，落地与安装见 note 12；重启后确认面板与 note 08 的状态。
 
 ## 开放问题
 
-- `docs/` 全量迁移的执行口径：28 个旧 Plan 转 DAG（97 条 note、4 条超限拆条、1 份 spec 拆子文件、约 8 个 Plan 补 story）；规则见 note 13。
-- `packages/nano-flow/README.md` 的 Anki 冒烟检查清单外链指向仓库里不存在的文件（git 无历史），note 14 收尾时改指或删除。
 - 2026-11-07 02:48 观察到的「本会话没有固定提示词与 `nano_flow_*`」已定位：不是会话创建时机，而是 a6f6b7cc 读 `ctx.agent` 触发注入守卫，预设行静默失效；修复见 note 08 的回归小节。
