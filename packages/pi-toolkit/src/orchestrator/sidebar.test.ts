@@ -1152,6 +1152,93 @@ describe("侧边栏控制器", () => {
     sidebar.dispose();
   });
 
+  it("详情卡片的流跟随该组当前 live worker：abort 后重绑，两代不混流", async () => {
+    const { root, directory } = await tempPlan("demo", "2026-01-01-rebind", [
+      runningNote("07", "侧栏实现"),
+    ]);
+    const registry = createRegistry();
+    /** 每一代会话都记下自己的订阅者与退订次数：重绑的证据就在这里。 */
+    const generation = () => {
+      const state = { listeners: [] as Array<(event: unknown) => void>, subscribed: 0, stopped: 0 };
+      const session: SessionLike = {
+        ...fakeSession(),
+        subscribe: (listener) => {
+          state.subscribed += 1;
+          state.listeners.push(listener);
+          return () => {
+            state.stopped += 1;
+          };
+        },
+      };
+      return { state, session };
+    };
+    const first = generation();
+    const key = `${directory}::07`;
+    registry.add({
+      planDirectory: key,
+      planRef: "demo/active/2026-01-01-rebind",
+      notes: ["07"],
+      startedAt: Date.now(),
+      session: first.session,
+    });
+    const refreshListeners: Array<() => void> = [];
+    const sidebar = createSidebar({
+      registry,
+      limits: () => DEFAULT_ORCHESTRATOR_SETTINGS,
+      events: {
+        subscribe: (listener) => {
+          refreshListeners.push(listener);
+          return () => undefined;
+        },
+      },
+    });
+    const { ctx, widgets } = createFakeCtx(root);
+    const { tui, overlays } = createFakeTui();
+    sidebar.sync(ctx, true);
+    mountWidget(widgets, tui);
+    await wait(20);
+    overlays[1]?.component.handleMouse?.(click(SIDEBAR_HEADER_ROWS + 2));
+    const card = (): string => (overlays[2]?.component.render(DETAIL_WIDTH) ?? []).join("\n");
+    /** 刷新是异步读盘 + setTimeout(0)：轮询到位再断言，不赌 20ms。 */
+    const waitFor = async (predicate: () => boolean): Promise<void> => {
+      const started = Date.now();
+      while (!predicate() && Date.now() - started < 1_000) await wait(2);
+    };
+    // 一代：卡片绑的就是它，流目标写在卡片上。
+    await waitFor(() => first.state.subscribed === 1);
+    expect(first.state.subscribed).toBe(1);
+    expect(card()).toContain("流目标：demo/active/2026-01-01-rebind");
+    first.state.listeners[0]?.({ type: "tool_execution_start", toolName: "一代工具" });
+    expect(card()).toContain("⋯ 一代工具");
+
+    // abort：句柄没了，但卡片不关、不“永久丢弃”——只解绑。
+    registry.remove(key);
+    for (const listener of refreshListeners) listener();
+    await waitFor(() => first.state.stopped === 1);
+    expect(first.state.stopped).toBe(1);
+    expect(card()).toContain("◇ note 07");
+    expect(card()).not.toContain("流目标：");
+
+    // 同组重派（新一代）：下一帧就重新绑上，且只看到新一代的流。
+    const second = generation();
+    registry.add({
+      planDirectory: key,
+      planRef: "demo/active/2026-01-01-rebind",
+      notes: ["07"],
+      startedAt: Date.now() + 1000,
+      session: second.session,
+    });
+    for (const listener of refreshListeners) listener();
+    await waitFor(() => second.state.subscribed === 1);
+    expect(second.state.subscribed).toBe(1);
+    expect(card()).toContain("流目标：demo/active/2026-01-01-rebind");
+    second.state.listeners[0]?.({ type: "tool_execution_start", toolName: "二代工具" });
+    expect(card()).toContain("⋯ 二代工具");
+    // 两代不混流：一代那条已经随退订消失。
+    expect(card()).not.toContain("一代工具");
+    sidebar.dispose();
+  });
+
   it("Esc 只关详情，侧栏保留；详情关着时不吃 Esc", async () => {
     const { root, directory } = await tempPlan("demo", "2026-01-01-demo", [
       runningNote("07", "侧边栏实现"),

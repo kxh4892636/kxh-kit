@@ -44,9 +44,11 @@ import {
   type LiveFeed,
 } from "./detail-overlay.ts";
 import {
+  entryKeyOf,
   findEntryByNote,
   planDirectoryOf,
   runningNotesOf,
+  type WorkerEntry,
   type WorkerRegistry,
 } from "./handles.ts";
 import { activePlans, listPlans, planRefOf, type PlanRef } from "./plan.ts";
@@ -833,6 +835,10 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
   let iconHandle: OverlayHandle | undefined;
   let detailHandle: OverlayHandle | undefined;
   let feed: LiveFeed | undefined;
+  /** 当前 feed 绑定的 session 引用：换了引用就必须解绑重绑，绝不两条流混进一张卡片。 */
+  let feedSession: unknown;
+  /** 卡片上标明的流目标（哪个 worker / 哪一个组）。 */
+  let feedLabel: string | undefined;
   let detailContent: (() => DetailContent) | undefined;
   let detailTarget:
     | { readonly kind: "note"; readonly plan: string; readonly note: string }
@@ -856,6 +862,74 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
     detailTarget = undefined;
     feed?.stop();
     feed = undefined;
+    feedSession = undefined;
+    feedLabel = undefined;
+  };
+
+  /**
+   * 一张卡片该绑哪个 worker 的流（**每次刷新重新解析**，不缓存一次判定）。
+   *
+   * - note 卡片：领这条 note 的组 worker → 没有就 Plan 级 worker（键 `<目录>::`）→ 再没有就取该
+   *   Plan 里最近启动、仍在跑的那个，并在卡片上标明是哪个 worker（Plan 级派工没有 `notes`，
+   *   按 note 定位不到它）；
+   * - 临时卡片：按 `temp:` 键取。
+   *
+   * 这是 `temp:15` 那个 bug 的修法：原先只在打开卡片时绑一次，`refresh` 一旦判定 not running
+   * 就永久丢弃；现在 live 是**当前事实**，abort 后重派 / resume / 同键新代都会重新绑上。
+   * @param target - 详情卡片的定位。
+   * @returns 该绑的条目；没有可用 worker 时 undefined。
+   */
+  const streamEntryOf = (
+    target:
+      | { readonly kind: "note"; readonly plan: string; readonly note: string }
+      | { readonly kind: "temp"; readonly id: string },
+  ): WorkerEntry | undefined => {
+    if (target.kind === "temp") return deps.registry.get(target.id);
+    const directory = plansByRef.get(target.plan)?.directory;
+    if (directory === undefined) return undefined;
+    const byNote = findEntryByNote(deps.registry, directory, target.note);
+    if (byNote !== undefined) return byNote;
+    const planLevel = deps.registry.get(entryKeyOf(directory));
+    if (planLevel !== undefined) return planLevel;
+    // Plan 级派工（没有 notes）也可能正带着这条 note：绑最近启动、仍在跑的那个。
+    const running = deps.registry
+      .list()
+      .filter(
+        (entry) => planDirectoryOf(entry.planDirectory) === directory && entry.job !== undefined,
+      );
+    return running[running.length - 1];
+  };
+
+  /** 卡片上标明的流目标：`<planRef> · 组 [...]` / `<planRef> · Plan 级` / `temp:<id>`。 */
+  const streamLabelOf = (entry: WorkerEntry): string => {
+    const notes = entry.notes ?? [];
+    if (entry.kind === "temp" || entry.planDirectory.startsWith("temp:"))
+      return entry.planDirectory;
+    return `${entry.planRef}${notes.length === 0 ? " · Plan 级" : ` · 组 [${notes.join(", ")}]`}`;
+  };
+
+  /**
+   * 按当前 live 事实对齐 feed：同一条 session 就不动，换了一代（或当时没绑上）就解旧绑新。
+   *
+   * 解旧再绑新是**混流的唯一防线**：`createLiveFeed` 自带新尾巴，旧代的输出不会跟到新卡片里。
+   * 没有可用 worker 时只解绑、不做任何“永久丢弃”的标记 —— 下一次刷新照样会尝试重新绑。
+   */
+  const ensureFeed = (): void => {
+    const target = detailTarget;
+    if (target === undefined) return;
+    const entry = streamEntryOf(target);
+    const session: unknown = entry?.session;
+    if (session !== undefined && session === feedSession) {
+      feedLabel = entry === undefined ? feedLabel : streamLabelOf(entry);
+      return;
+    }
+    feed?.stop();
+    feed = undefined;
+    feedSession = undefined;
+    feedLabel = entry === undefined ? undefined : streamLabelOf(entry);
+    if (session === undefined) return;
+    feed = createLiveFeed(entry?.session, requestRender);
+    feedSession = session;
   };
 
   /** 详情浮层：只占卡片矩形（外部真透明），快照 + 实时流；`×` 或 `Esc` 关。 */
@@ -868,8 +942,7 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
     if (snapshot === undefined) return;
     closeDetail();
     detailTarget = { kind: "note", plan: planRef, note: noteId };
-    const entry = findEntryByNote(deps.registry, plansByRef.get(planRef)?.directory ?? "", noteId);
-    if (entry !== undefined) feed = createLiveFeed(entry.session, requestRender);
+    ensureFeed();
     const note = (): SidebarNote => findSidebarNote(plans, planRef, noteId) ?? snapshot;
     detailContent = (): DetailContent => {
       const current = note();
@@ -880,6 +953,7 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
       const group = groupLabelOfNote(plans, planRef, noteId);
       if (group !== undefined) body.push("", `组：${group}`);
       body.push("", `Plan: ${planRef}`);
+      if (feedLabel !== undefined) body.push(`流目标：${feedLabel}`);
       return {
         heading: `◇ note ${current.id} · ${noteStatusText(current)}`,
         body,
@@ -939,7 +1013,7 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
     if (localTui === undefined || localTheme === undefined || snapshot === undefined) return;
     closeDetail();
     detailTarget = { kind: "temp", id };
-    feed = createLiveFeed(snapshot.session, requestRender);
+    ensureFeed();
     detailContent = (): DetailContent => {
       const current = deps.registry.get(id) ?? snapshot;
       const running = current.job !== undefined;
@@ -965,6 +1039,7 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
       }
       if (current.model !== undefined) body.push(`模型：${current.model}`);
       if (current.worktree !== undefined) body.push(`worktree：${current.worktree.name}`);
+      if (feedLabel !== undefined) body.push(`流目标：${feedLabel}`);
       return {
         heading: `◇ ${id} · ${noteStatusText({ status })}`,
         body,
@@ -1127,18 +1202,12 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
         view = nextView;
         requestRender();
       }
-      if (feed !== undefined && detailTarget !== undefined) {
-        // worker 结束就退订阅；浮层留着显示最终状态。
-        const target = detailTarget;
-        const stillRunning =
-          target.kind === "note"
-            ? findSidebarNote(next, target.plan, target.note)?.running
-            : deps.registry.get(target.id)?.job !== undefined;
-        if (stillRunning !== true) {
-          feed.stop();
-          feed = undefined;
-          requestRender();
-        }
+      // 流目标跟着 live 事实走：worker 换了一代（abort 后重派 / resume / 同键新代）就重绑；
+      // 暂时没有 live worker 只解绑，不再“永久丢弃”（`temp:15` 的病根）。
+      if (detailTarget !== undefined) {
+        const wasSession = feedSession;
+        ensureFeed();
+        if (feedSession !== wasSession) requestRender();
       }
     } catch {
       // 读盘失败保留上一帧，下一次 tick 再试。
