@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  dependencyClosure,
   graphOf,
   nextNoteId,
   parseDocument,
@@ -236,6 +237,61 @@ describe("查询", () => {
 
   it("graphOf 返回传递上下游", () => {
     expect(graphOf(notes, "02")).toMatchObject({ upstream: ["01"], downstream: ["03"] });
+  });
+
+  it("dependencyClosure 双向取整条链并含种子", () => {
+    const chain = [
+      note({ id: "01" }),
+      note({ id: "02", blocked_by: ["01"] }),
+      note({ id: "03", blocked_by: ["02"] }),
+    ];
+    // 链 01 → 02 → 03，取中间的 02：两边都展开。
+    expect(dependencyClosure(chain, ["02"])).toEqual(["01", "02", "03"]);
+    // 种子在中间结果里就有，按 id 升序返回。
+    expect(dependencyClosure(chain, ["03"])).toEqual(["01", "02", "03"]);
+    expect(dependencyClosure(chain, [])).toEqual([]);
+  });
+
+  it("dependencyClosure 在分叉处把两侧都拉进来", () => {
+    // 01 → 02 / 03，02 与 03 都指向 04。
+    const forked = [
+      note({ id: "01" }),
+      note({ id: "02", blocked_by: ["01"] }),
+      note({ id: "03", blocked_by: ["01"] }),
+      note({ id: "04", blocked_by: ["02", "03"] }),
+    ];
+    expect(dependencyClosure(forked, ["02"])).toEqual(["01", "02", "03", "04"]);
+    // 无关的分支不进来。
+    const split = [
+      note({ id: "01" }),
+      note({ id: "02", blocked_by: ["01"] }),
+      note({ id: "03" }),
+      note({ id: "04", blocked_by: ["03"] }),
+    ];
+    expect(dependencyClosure(split, ["02"])).toEqual(["01", "02"]);
+  });
+
+  it("dependencyClosure 不穿 completed 的中间节点，但保留 completed 种子", () => {
+    const done = (id: string): NoteNode =>
+      note({ id, status: "completed", evidence: [`${id} 完成`] });
+    const chain = [
+      done("01"),
+      note({ id: "02", blocked_by: ["01"] }),
+      done("03"),
+      note({ id: "04", blocked_by: ["03"] }),
+    ];
+    // 03 已完成：它上面不加、也不从它往 04 扩。
+    expect(dependencyClosure(chain, ["02"])).toEqual(["02"]);
+    // 种子里的 03 保留（进“已完成 N 条”）但也同样不再往外扩。
+    expect(dependencyClosure(chain, ["03"])).toEqual(["03"]);
+    // 已完成的上游同理：01 已完成 ⇒ 02 的闭包只有 02。
+    expect(dependencyClosure(chain, ["04", "02"])).toEqual(["02", "04"]);
+  });
+
+  it("dependencyClosure 忽略未知种子与悬空依赖", () => {
+    const chain = [note({ id: "01" }), note({ id: "02", blocked_by: ["01", "09"] })];
+    expect(dependencyClosure(chain, ["02", "77"])).toEqual(["01", "02"]);
+    expect(dependencyClosure([], ["01"])).toEqual([]);
   });
 
   it("searchNotes 命中标题、摘要与正文", () => {

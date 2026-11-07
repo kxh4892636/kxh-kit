@@ -34,7 +34,7 @@ import {
   type TuiMouseEventResult,
 } from "@earendil-works/pi-tui";
 import { DEFAULT_DOMAIN_ROOT, type OrchestratorSettings } from "./config.ts";
-import type { NoteNeeds, NoteStatus } from "./dag.ts";
+import { dependencyClosure, type ClosureNote, type NoteNeeds, type NoteStatus } from "./dag.ts";
 import {
   createLiveFeed,
   createDetailComponent,
@@ -153,6 +153,9 @@ export const STATUS_LABELS: Readonly<Record<NoteStatus, string>> = {
   completed: "已完成",
 };
 
+/** 一条 note 同时落在多个组的闭包里时，行尾加的标记。 */
+export const SHARED_MARK = "↔";
+
 /** 列表里的一条 note。 */
 export interface SidebarNote {
   readonly id: string;
@@ -161,6 +164,10 @@ export interface SidebarNote {
   readonly status: NoteStatus;
   readonly needs?: NoteNeeds;
   readonly blockedReason?: string;
+  /** 直接依赖（分组算依赖闭包用；渲染不读它）。 */
+  readonly blockedBy?: readonly string[];
+  /** 闭包被多个组重叠、这一行被借去代表别组也有的 note：行尾加 `↔`。 */
+  readonly shared?: boolean;
   /** 有 worker 正领这条 note。 */
   readonly running: boolean;
 }
@@ -310,40 +317,45 @@ export const noteStatusText = (note: {
  * note 行的文本：`{状态中文名} · {序号} {名称}`，不含概述（概述只在详情卡片里）。
  *
  * 超出 `maxWidth` 时**只截名称**并补省略号，状态与序号保持完整（用户要求：序号和状态不能截）。
- * @param note - note 的 id / title / status / needs。
+ * `shared` 的 `↔` 也算进宽度：它是行尾标记，不能被截掉也不许挤掉状态与序号。
+ * @param note - note 的 id / title / status / needs / shared。
  * @param maxWidth - 可用列数；省略时按标题原样。
  * @returns 行文本，可见宽度不超过 `maxWidth`。
  */
 export const noteRowText = (
-  note: Pick<SidebarNote, "id" | "title" | "status" | "needs">,
+  note: Pick<SidebarNote, "id" | "title" | "status" | "needs" | "running" | "shared">,
   maxWidth: number = Number.POSITIVE_INFINITY,
 ): string => {
   const head = `${noteStatusText(note)} · ${note.id} `;
-  const room = maxWidth - visibleWidth(head);
-  if (room >= visibleWidth(note.title)) return `${head}${note.title}`;
-  return `${head}${truncateToWidth(note.title, Math.max(1, room), "…")}`;
+  const mark = note.shared === true ? ` ${SHARED_MARK}` : "";
+  const room = maxWidth - visibleWidth(head) - visibleWidth(mark);
+  // 一列都挤不出时连分隔符一起收掉，让位给状态、id 与标记（不留孤零零的省略号）。
+  if (room < 2) return `${head.trimEnd()}${mark}`;
+  if (room >= visibleWidth(note.title)) return `${head}${note.title}${mark}`;
+  return `${head}${truncateToWidth(note.title, room, "…")}${mark}`;
 };
 
 /** Plan 目录名去掉 `YYYY-MM-DD-` 前缀，32 列里才放得下。 */
 export const shortPlanName = (name: string): string => name.replace(/^\d{4}-\d{2}-\d{2}-/u, "");
 
-/** 状态排序：正在跑的最靠上，已完成的沉底。 */
-const STATUS_ORDER: Readonly<Record<NoteStatus, number>> = {
-  in_progress: 0,
-  waiting: 1,
-  blocked: 2,
-  pending: 3,
-  completed: 4,
-};
-
-/** 一个组内未完成的 note：按状态再按 id 排序。 */
+/**
+ * 组内顺序：**执行中置顶**（按现有 `noteStatusText` 的口径：`in_progress`，或者有 live worker
+ * 的 `pending`），多个执行中之间按 id；其余一律按 id 升序。
+ *
+ * 不再按状态档位排：档位会随时序抖动，且未开工/待验收/阻塞之间并没有“谁更靠上”的用户口径，
+ * 只有“正在干的先看见”是刚需。
+ */
 const undoneOf = (notes: readonly SidebarNote[]): readonly SidebarNote[] =>
   notes
     .filter((note) => note.status !== "completed")
     .sort(
       (left, right) =>
-        STATUS_ORDER[left.status] - STATUS_ORDER[right.status] || left.id.localeCompare(right.id),
+        executingRank(left) - executingRank(right) || left.id.localeCompare(right.id),
     );
+
+/** 执行中排 0，其余排 1（`noteStatusText` 的中文名就是唯一口径）。 */
+const executingRank = (note: SidebarNote): number =>
+  noteStatusText(note) === STATUS_LABELS.in_progress ? 0 : 1;
 
 /** 同层后面还有兄弟的接续符。 */
 export const TREE_BRANCH = "├─ ";
@@ -656,48 +668,71 @@ export interface WorkerGroupSpec {
 }
 
 /**
- * 把 note 按 worker 组分桶：每个 `registry` 条目一个组（同一个 Plan 下多组分别列出），
- * 不属于任何组的（历史遗留、已完成）落到 `未分组`。
- * @param notes - 该 Plan 的全部 note。
- * @param groups - 该 Plan 的 worker 组（按句柄表顺序）。
- * @returns 组列表：有 live worker 的组在前，`未分组` 总在最后；空组不列出。
- */
-/**
- * 把 note 按 worker 组分桶：每个 `registry` 条目一个组（同一个 Plan 下多组分别列出），
- * 不属于任何组的（历史遗留、已完成）落到 `未分组`。
+ * 把 note 按 worker 组的**依赖闭包**分桶：每个 `registry` 条目一个组（同一 Plan 下多组分别列出）。
  *
- * 组名按 worker 的形态：领了具体 note 的叫 `worker: notes 38,42`；`notes` 为空数组表示
- * **Plan 级派工**（见 `handles.ts`），这个 worker 领的就是剩下没被其他组占的 note，叫 `worker: plan`。
+ * 组的种子是派工显式给的 `notes`，成员是种子在 `blocked_by` 图上的双向传递闭包（见
+ * `dag.ts` 的 `dependencyClosure`）—— 所以“派 46”会把它的前置 45 与它的下游一起带进组里。
+ *
+ * - **去重**：闭包会重叠，同一条 note 只归**组键排序最前**的组（组键 = 闭包 id 升序 `,` 连接），
+ *   该行标 `shared: true`，渲染时行尾加 `↔`。
+ * - **已完成**：照旧留在组里（`已完成 N 条 ▸` 的计数靠它），可见性由 `buildSidebarView` 折叠。
+ * - **未分组**：没被任何闭包覆盖的 note；有 Plan 级派工（`notes` 为空）时由它全部认领。
+ * - **顺序**：组按 `registry` 顺序（句柄表 = 起始时刻），`worker: plan` / `未分组` 总在最后。
  * @param notes - 该 Plan 的全部 note。
  * @param groups - 该 Plan 的 worker 组（按句柄表顺序）。
- * @returns 组列表：有 live worker 的组在前，`worker: plan` / `未分组` 总在最后；空组不列出。
+ * @returns 组列表；空组不列出。
  */
 export const groupSidebarNotes = (
   notes: readonly SidebarNote[],
   groups: readonly WorkerGroupSpec[],
 ): readonly SidebarGroup[] => {
   const byId = new Map(notes.map((note) => [note.id, note]));
-  const assigned = new Set<string>();
+  const closureNotes: readonly ClosureNote[] = notes.map((note) => ({
+    id: note.id,
+    status: note.status,
+    blocked_by: note.blockedBy ?? [],
+  }));
+  // Plan 级 worker 没有种子，留到最后统一认领剩下的 note。
+  const closures = groups
+    .filter((group) => group.notes.length > 0)
+    .map((group) => ({ group, ids: dependencyClosure(closureNotes, group.notes) }))
+    .filter((item) => item.ids.length > 0);
+
+  // 去重按**组实例**判，不按键串：两个组的闭包可能完全相同（同一条依赖链被拆成两组派），
+  // 键相等时若按“键串相等”判归属，两组会同时认领同一批 note、重复出现。
+  const order = closures.map((item, index) => ({ index, key: item.ids.join(",") }));
+  order.sort((left, right) => left.key.localeCompare(right.key) || left.index - right.index);
+  const owner = new Map<string, number>();
+  const shared = new Set<string>();
+  for (const { index } of order) {
+    const item = closures[index];
+    if (item === undefined) continue;
+    for (const id of item.ids) {
+      const claimed = owner.get(id);
+      if (claimed === undefined) owner.set(id, index);
+      else if (claimed !== index) shared.add(id);
+    }
+  }
+
   const result: SidebarGroup[] = [];
-  for (const group of groups) {
-    // Plan 级 worker 留到最后统一认领剩下的 note。
-    if (group.notes.length === 0) continue;
-    const members = group.notes
+  for (const [index, item] of closures.entries()) {
+    const key = item.ids.join(",");
+    const members = item.ids
+      .filter((id) => owner.get(id) === index)
       .map((id) => byId.get(id))
       .filter((note): note is SidebarNote => note !== undefined)
-      // 组内按 id 排序：组的 key/label 本来就按 id 排，成员顺序也跟着定下来。
-      .sort((left, right) => left.id.localeCompare(right.id));
+      .sort((left, right) => left.id.localeCompare(right.id))
+      .map((note) => (shared.has(note.id) ? { ...note, shared: true } : note));
     if (members.length === 0) continue;
-    for (const note of members) assigned.add(note.id);
-    const ids = members.map((note) => note.id);
     result.push({
-      key: ids.join(","),
-      label: `${WORKER_NOTES_LABEL}${ids.join(",")}`,
-      running: group.running,
+      key,
+      label: `${WORKER_NOTES_LABEL}${key}`,
+      running: item.group.running,
       notes: members,
     });
   }
-  const rest = notes.filter((note) => !assigned.has(note.id));
+
+  const rest = notes.filter((note) => !owner.has(note.id));
   const planLevel = groups.find((group) => group.notes.length === 0);
   if (planLevel !== undefined && rest.length > 0) {
     result.push({
@@ -715,6 +750,71 @@ export const groupSidebarNotes = (
 };
 
 /**
+ * 组构建的输入签名：组 specs + 每条 note 的展示字段。
+ *
+ * 闭包本身只看 `id` / `status` / `blocked_by`，但缓存的产物是带标题、摘要与运行态的
+ * `SidebarNote`（会原样交给下一帧），所以这些字段也一起进签名 —— 否则改了标题或者 worker
+ * 一跑起来，界面上还是上一帧的旧值。
+ * @param notes - 该 Plan 的全部 note。
+ * @param groups - 该 Plan 的 worker 组。
+ * @returns 字符串签名（相等即等价输入）。
+ */
+export const sidebarGroupSignature = (
+  notes: readonly SidebarNote[],
+  groups: readonly WorkerGroupSpec[],
+): string => {
+  const specs = groups.map((group) => `${group.running ? "1" : "0"}:${group.notes.join(",")}`);
+  const rows = notes.map((note) =>
+    [
+      note.id,
+      note.status,
+      note.needs ?? "",
+      note.running ? "1" : "0",
+      (note.blockedBy ?? []).join(","),
+      note.blockedReason ?? "",
+      note.title,
+      note.description,
+    ].join("|"),
+  );
+  return `${specs.join(";")}#${rows.join(";")}`;
+};
+
+/** 组构建的一帧缓存（按 Plan 目录）。 */
+export interface SidebarGroupCache {
+  /**
+   * 取该 Plan 的组：签名不变就返回上一帧的同一个数组（不重走闭包），变了才重建。
+   * @param directory - Plan 的绝对目录（缓存键）。
+   * @param notes - 该 Plan 的全部 note。
+   * @param groups - 该 Plan 的 worker 组。
+   * @returns 该 Plan 的组。
+   */
+  groupsOf(
+    directory: string,
+    notes: readonly SidebarNote[],
+    groups: readonly WorkerGroupSpec[],
+  ): readonly SidebarGroup[];
+}
+
+/**
+ * 建一个组构建缓存：读盘每 3s 一次、而分组（闭包 + 去重）是帧里唯一“算”的步骤，
+ * 盘没变就没必要重算。渲染路径（`buildSidebarView`）不读 note，本缓存只挡在组构建这一层。
+ * @returns 按目录记忆最近一帧的缓存。
+ */
+export const createSidebarGroupCache = (): SidebarGroupCache => {
+  const frames = new Map<string, { signature: string; groups: readonly SidebarGroup[] }>();
+  return {
+    groupsOf(directory, notes, groups) {
+      const signature = sidebarGroupSignature(notes, groups);
+      const cached = frames.get(directory);
+      if (cached !== undefined && cached.signature === signature) return cached.groups;
+      const built = groupSidebarNotes(notes, groups);
+      frames.set(directory, { signature, groups: built });
+      return built;
+    },
+  };
+};
+
+/**
  * 建一个侧栏控制器。同一时刻只挂一份 overlay；模式关、会话退出、reload 都走 `dispose`。
  * @param deps - 句柄表与设置来源。
  * @returns 控制器。
@@ -722,6 +822,8 @@ export const groupSidebarNotes = (
 export const createSidebar = (deps: SidebarDeps): Sidebar => {
   const expanded = new Set<string>();
   const plansByRef = new Map<string, PlanRef>();
+  /** 组构建按 Plan 目录缓存一帧：读盘 3s 一次，盘没变就不重走闭包。 */
+  const groupCache = createSidebarGroupCache();
   let plans: readonly SidebarPlan[] = [];
   let view: SidebarView = { rows: [] };
   let ctx: ExtensionContext | undefined;
@@ -1010,12 +1112,13 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
           status: note.status,
           ...(note.needs === undefined ? {} : { needs: note.needs }),
           ...(note.blocked_reason === undefined ? {} : { blockedReason: note.blocked_reason }),
+          blockedBy: note.blocked_by,
           running: running.has(note.id),
         }));
         next.push({
           ref,
           name: plan.name,
-          groups: groupSidebarNotes(notes, groupsOfPlan(plan.directory)),
+          groups: groupCache.groupsOf(plan.directory, notes, groupsOfPlan(plan.directory)),
         });
       }
       plans = next;

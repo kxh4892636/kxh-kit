@@ -14,6 +14,10 @@ import { DETAIL_CLOSE_GLYPH, DETAIL_MAX_HEIGHT, DETAIL_WIDTH } from "./detail-ov
 import { createRegistry, type SessionLike, type WorkerEntry } from "./handles.ts";
 import {
   buildSidebarView,
+  COMPLETED_LABEL,
+  createSidebarGroupCache,
+  sidebarGroupSignature,
+  SHARED_MARK,
   TEMP_NO_REPORT,
   TEMP_SECTION_LABEL,
   tempRowText,
@@ -228,13 +232,13 @@ describe("侧边栏列表", () => {
     const childPipe = `${TREE_PIPE}${TREE_BRANCH}`;
     expect(view.rows[2]?.text).toBe(`${childPipe}执行中 · 02 在跑`);
     expect(view.rows[3]?.text).toBe(`${TREE_PIPE}${TREE_LAST}待验收 · 03 等验收`);
-    // 组内按状态排序（in_progress → waiting）。
+    // 组内按状态排序（in_progress 置顶，其余按 id）。
     expect(view.rows.slice(2, 4).map((row) => row.note)).toEqual(["02", "03"]);
-    // 未分组组内：waiting → blocked → pending。
-    expect(view.rows.slice(5, 8).map((row) => row.note)).toEqual(["04", "05", "01"]);
-    expect(view.rows[5]?.text).toBe(`${childPipe}待回答 · 04 等人答`);
-    expect(view.rows[6]?.text).toBe(`${childPipe}阻塞 · 05 卡住`);
-    expect(view.rows[7]?.text).toBe(`${TREE_PIPE}${TREE_LAST}待开工 · 01 待办`);
+    // 未分组组内：没有执行中的，一律按 id 升序。
+    expect(view.rows.slice(5, 8).map((row) => row.note)).toEqual(["01", "04", "05"]);
+    expect(view.rows[5]?.text).toBe(`${childPipe}待开工 · 01 待办`);
+    expect(view.rows[6]?.text).toBe(`${childPipe}待回答 · 04 等人答`);
+    expect(view.rows[7]?.text).toBe(`${TREE_PIPE}${TREE_LAST}阻塞 · 05 卡住`);
     // Plan 的最后一支：折叠行用 └─。
     expect(view.rows[8]?.text).toBe(`${TREE_LAST}已完成 1 条 ▸`);
   });
@@ -655,6 +659,165 @@ describe("按 worker 组分桶", () => {
     expect(planVisibleInSidebar({ domain: "orchestration" })).toBe(false);
     expect(planVisibleInSidebar({ domain: "pi" })).toBe(true);
     expect(planVisibleInSidebar({ domain: "common" })).toBe(true);
+  });
+});
+
+describe("按依赖闭包分组", () => {
+  /** 把一组 note + 派工 specs 拼成单 Plan 帧。 */
+  const planOf = (
+    notes: readonly SidebarNote[],
+    specs: readonly WorkerGroupSpec[],
+  ): SidebarPlan => ({
+    ref: "pi/active/2026-11-07-closure",
+    name: "2026-11-07-closure",
+    groups: groupSidebarNotes(notes, specs),
+  });
+  /** 帧里的 note 行（不含组与标题行）。 */
+  const noteRows = (
+    notes: readonly SidebarNote[],
+    specs: readonly WorkerGroupSpec[],
+  ): readonly SidebarRow[] =>
+    buildSidebarView([planOf(notes, specs)]).rows.filter((row) => row.kind === "note");
+
+  it("派工的 note 把下游一起带进组：45 + 46 同组，46 显示真实状态", () => {
+    const notes = [
+      note("45", "侧栏", "in_progress"),
+      note("46", "依赖侧栏", "pending", { blockedBy: ["45"] }),
+    ];
+    const groups = groupSidebarNotes(notes, [{ notes: ["45"], running: true }]);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.key).toBe("45,46");
+    expect(groups[0]?.label).toBe(`${WORKER_NOTES_LABEL}45,46`);
+    expect(groups[0]?.notes.map((item) => item.id)).toEqual(["45", "46"]);
+    const rows = noteRows(notes, [{ notes: ["45"], running: true }]);
+    expect(rows.map((row) => row.note)).toEqual(["45", "46"]);
+    // 46 是真实状态（待开工），不是因为它被“展开”而变成别的。
+    expect(rows[1]?.text).toContain("待开工 · 46 依赖侧栏");
+    expect(rows.some((row) => row.text.includes(UNGROUPED_LABEL))).toBe(false);
+  });
+
+  it("上游也进同组：44 被 45 依赖，派 45 就带上 44", () => {
+    const notes = [
+      note("44", "前置", "pending"),
+      note("45", "中间", "in_progress", { blockedBy: ["44"] }),
+      note("46", "后续", "pending", { blockedBy: ["45"] }),
+    ];
+    const specs: readonly WorkerGroupSpec[] = [{ notes: ["45"], running: true }];
+    const groups = groupSidebarNotes(notes, specs);
+    expect(groups.map((item) => item.label)).toEqual([`${WORKER_NOTES_LABEL}44,45,46`]);
+    expect(groups[0]?.notes.map((item) => item.id)).toEqual(["44", "45", "46"]);
+    // 执行中置顶，其余按 id。
+    expect(noteRows(notes, specs).map((row) => row.note)).toEqual(["45", "44", "46"]);
+  });
+
+  it("已完成的仍在组里但不进可见行，只计入「已完成 N 条」", () => {
+    const notes = [
+      note("45", "待办", "pending"),
+      note("46", "已完成", "completed", { blockedBy: ["45"] }),
+    ];
+    const specs: readonly WorkerGroupSpec[] = [{ notes: ["45", "46"], running: true }];
+    const groups = groupSidebarNotes(notes, specs);
+    expect(groups[0]?.notes.map((item) => item.id)).toEqual(["45", "46"]);
+    const collapsed = buildSidebarView([planOf(notes, specs)]).rows;
+    expect(collapsed.some((row) => row.note === "46")).toBe(false);
+    expect(collapsed.at(-1)).toMatchObject({ kind: "fold" });
+    expect(collapsed.at(-1)?.text).toContain(`${COMPLETED_LABEL} 1 条`);
+    // 展开后它才出现，且仍在组内（组名不变）。
+    const open = buildSidebarView([planOf(notes, specs)], ["pi/active/2026-11-07-closure"]).rows;
+    expect(open.find((row) => row.note === "46")?.text).toContain("已完成 · 46 已完成");
+  });
+
+  it("闭包重叠时只归组键最前的组，行尾标 ↔", () => {
+    // 未完成的连通分量双向闭合，所以两个组的闭包重叠只会来自“已完成的种子”。
+    // 这里 03 已完成，同时是 A（01,03）与 B（03,04）的种子。
+    const notes = [
+      note("01", "左支", "pending"),
+      note("03", "已完成", "completed"),
+      note("04", "右支", "pending"),
+    ];
+    const specs: readonly WorkerGroupSpec[] = [
+      { notes: ["01", "03"], running: true },
+      { notes: ["03", "04"], running: true },
+    ];
+    const groups = groupSidebarNotes(notes, specs);
+    expect(groups.map((item) => item.label)).toEqual([
+      `${WORKER_NOTES_LABEL}01,03`,
+      `${WORKER_NOTES_LABEL}03,04`,
+    ]);
+    expect(groups[0]?.notes.map((item) => item.id)).toEqual(["01", "03"]);
+    expect(groups[1]?.notes.map((item) => item.id)).toEqual(["04"]);
+
+    const frame = (): readonly SidebarRow[] =>
+      buildSidebarView([planOf(notes, specs)], ["pi/active/2026-11-07-closure"]).rows;
+    const rows = frame();
+    // 03 只出现一次（且只在展开后出现，因为已完成），行尾带标记。
+    expect(rows.filter((row) => row.note === "03")).toHaveLength(1);
+    const sharedRow = rows.find((row) => row.note === "03");
+    expect(sharedRow?.text.endsWith(SHARED_MARK)).toBe(true);
+    // 不重叠的行不带标记。
+    expect(rows.find((row) => row.note === "01")?.text).not.toContain(SHARED_MARK);
+    expect(rows.find((row) => row.note === "04")?.text).not.toContain(SHARED_MARK);
+    // 标记要算进宽度：不挤掉状态与 id。
+    const shared = note("01", "很长的名称很长的名称很长的名称", "pending", { shared: true });
+    const narrow = stripTerminalSequences(noteRowText(shared, 14));
+    expect(visibleWidth(narrow)).toBeLessThanOrEqual(14);
+    expect(narrow.startsWith("待开工 · 01 ")).toBe(true);
+    expect(narrow.endsWith(SHARED_MARK)).toBe(true);
+  });
+
+  it("两个组的闭包完全相同（同一条链拆成两组派）时 note 也不重复", () => {
+    // 45 → 46 是同一条链，两个组各自的闭包都是 {45,46}：键相等时按组实例判归属，
+    // 只归排序最前的那个组，另一组因此为空、不列出（同一条链本就不该拆两组并行派）。
+    const notes = [
+      note("45", "前", "in_progress"),
+      note("46", "后", "pending", { blockedBy: ["45"] }),
+    ];
+    const specs: readonly WorkerGroupSpec[] = [
+      { notes: ["45"], running: true },
+      { notes: ["46"], running: true },
+    ];
+    const groups = groupSidebarNotes(notes, specs);
+    expect(groups.map((item) => item.label)).toEqual([`${WORKER_NOTES_LABEL}45,46`]);
+    expect(noteRows(notes, specs).map((row) => row.note)).toEqual(["45", "46"]);
+    expect(noteRows(notes, specs).filter((row) => row.note === "45")).toHaveLength(1);
+  });
+
+  it("既没被闭包覆盖也没派工的 note 落 未分组", () => {
+    const notes = [note("01", "在闭包里", "pending"), note("02", "历史遗留", "pending")];
+    const specs: readonly WorkerGroupSpec[] = [{ notes: ["01"], running: true }];
+    const groups = groupSidebarNotes(notes, specs);
+    expect(groups.map((item) => item.label)).toEqual([`${WORKER_NOTES_LABEL}01`, UNGROUPED_LABEL]);
+    expect(groups[1]?.notes.map((item) => item.id)).toEqual(["02"]);
+  });
+
+  it("执行中置顶，其余按 id 升序（含 live worker 的 pending）", () => {
+    const notes = [
+      note("04", "等人答", "waiting", { needs: "answer" }),
+      note("05", "有 worker", "pending", { running: true }),
+      note("06", "在改了", "in_progress"),
+    ];
+    const specs: readonly WorkerGroupSpec[] = [{ notes: ["04", "05", "06"], running: true }];
+    expect(noteRows(notes, specs).map((row) => row.note)).toEqual(["05", "06", "04"]);
+  });
+
+  it("组缓存：签名不变复用同一份结果，变了才重建", () => {
+    const notes = [note("01", "A", "pending"), note("02", "B", "pending", { blockedBy: ["01"] })];
+    const specs: readonly WorkerGroupSpec[] = [{ notes: ["02"], running: true }];
+    const cache = createSidebarGroupCache();
+    const first = cache.groupsOf("/tmp/plan", notes, specs);
+    const second = cache.groupsOf("/tmp/plan", notes, specs);
+    expect(second).toBe(first);
+    expect(second.map((item) => item.label)).toEqual([`${WORKER_NOTES_LABEL}01,02`]);
+    // 不同 Plan 目录不共用缓存。
+    expect(cache.groupsOf("/tmp/other", notes, specs)).not.toBe(first);
+    // 状态变了（闭包输入变）：重建。
+    const changed = [notes[0]!, { ...notes[1]!, status: "in_progress" as const }];
+    expect(cache.groupsOf("/tmp/plan", changed, specs)).not.toBe(first);
+    expect(sidebarGroupSignature(notes, specs)).toBe(sidebarGroupSignature(notes, specs));
+    expect(sidebarGroupSignature(notes, specs)).not.toBe(sidebarGroupSignature(changed, specs));
+    expect(sidebarGroupSignature(notes, specs)).not.toBe(
+      sidebarGroupSignature(notes, [{ notes: ["02"], running: false }]),
+    );
   });
 });
 

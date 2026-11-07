@@ -468,6 +468,66 @@ export const graphOf = (
   };
 };
 
+/** 算依赖闭包只需要这三个字段（`SidebarNote` 之类的最小结构也能直接传）。 */
+export interface ClosureNote {
+  readonly id: string;
+  readonly status: NoteStatus;
+  readonly blocked_by: readonly string[];
+}
+
+/**
+ * 依赖闭包：从种子出发，沿 `blocked_by` 边**双向**展开得到的 id 集合（含种子，按 id 升序）。
+ *
+ * **为什么双向**：闭包是给侧栏分组用的 —— 一组派工给的几条 note 只是“入口”，一条 note 的
+ * 上游（它依赖谁）与下游（谁等它）天然是同一条链上的工作；只取下游会把前置漏在组外，只取
+ * 上游会把后续漏在组外，两侧都取才让整条链稳定落在同一组。
+ *
+ * **为什么不穿 `completed`**：已完成的 note 是收尾过的历史，把它当桥会把两条本来无关的链
+ * 借一个早已完成的前置并成一组，组会越滚越大。所以已完成的节点只保留种子显式给出的那些
+ * （组里仍要有它，`已完成 N 条 ▸` 的计数才对），既不加入别的已完成节点，也不从它再往外走。
+ * @param notes - 全部 note（或只带 `id` / `status` / `blocked_by` 的最小结构）。
+ * @param seeds - 起点 id；文档里不存在的忽略。
+ * @returns 含种子、按 id 升序的闭包。
+ */
+export const dependencyClosure = (
+  notes: readonly ClosureNote[],
+  seeds: readonly string[],
+): readonly string[] => {
+  const byId = new Map(notes.map((note) => [note.id, note]));
+  /** 反向边：被依赖的 id → 依赖它的 id。 */
+  const dependents = new Map<string, string[]>();
+  for (const note of notes) {
+    for (const dependency of note.blocked_by) {
+      const list = dependents.get(dependency) ?? [];
+      list.push(note.id);
+      dependents.set(dependency, list);
+    }
+  }
+  const reached = new Set<string>();
+  const queue: string[] = [];
+  for (const seed of seeds) {
+    if (reached.has(seed) || !byId.has(seed)) continue;
+    reached.add(seed);
+    queue.push(seed);
+  }
+  while (queue.length > 0) {
+    const current = queue.pop();
+    if (current === undefined) continue;
+    const node = byId.get(current);
+    if (node === undefined) continue;
+    // 已完成的种子留在结果里，但不再往两边扩：它是终点，不是桥。
+    if (node.status === "completed") continue;
+    for (const next of [...node.blocked_by, ...(dependents.get(current) ?? [])]) {
+      if (reached.has(next)) continue;
+      const target = byId.get(next);
+      if (target === undefined || target.status === "completed") continue;
+      reached.add(next);
+      queue.push(next);
+    }
+  }
+  return [...reached].sort((left, right) => left.localeCompare(right));
+};
+
 /** 在标题、摘要与正文里做包含匹配。 */
 export const searchNotes = (notes: readonly NoteNode[], query: string): readonly NoteNode[] => {
   const needle = query.trim().toLowerCase();
