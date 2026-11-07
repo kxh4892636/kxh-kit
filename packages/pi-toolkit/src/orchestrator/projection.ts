@@ -670,6 +670,12 @@ export interface OrphanWorker {
   readonly notes: readonly string[];
   readonly sessionKey?: string;
   readonly sessionPath?: string;
+  /** 它原来跑的 worktree：`resume` 必须回到同一个 cwd，否则文件状态对不上。 */
+  readonly worktree?: {
+    readonly name: string;
+    readonly directory: string;
+    readonly branch: string;
+  };
   readonly depth: number;
   /** 上一次是怎么挂起的（`worker.suspended` 的 reason）。 */
   readonly suspendedReason?: string;
@@ -713,6 +719,7 @@ export const orphanWorkers = (
       notes: worker.notes,
       ...(worker.sessionKey === undefined ? {} : { sessionKey: worker.sessionKey }),
       ...(worker.sessionPath === undefined ? {} : { sessionPath: worker.sessionPath }),
+      ...(worker.worktree === undefined ? {} : { worktree: worker.worktree }),
       depth: worker.depth,
       ...(worker.suspended === undefined ? {} : { suspendedReason: worker.suspended.reason }),
       anchor,

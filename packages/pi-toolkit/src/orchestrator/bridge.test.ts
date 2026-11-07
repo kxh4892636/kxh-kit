@@ -745,6 +745,70 @@ describe("dispatch 与 workers 工具", () => {
     expect(names).toEqual(["note-01", "grp-01-02", "plan"]);
   });
 
+  it("pass / rework / answer / fact 不建 worktree，只有要干活的 message 才建", async () => {
+    const worktree = fakeWorktree();
+    const { tools, spawnCwds, spawnOptions } = await setup({
+      worktree: worktree.hooks,
+      makeSession: () => fakeSession(true, false),
+    });
+    const { root, ref } = await planWithNotes([note("01", [], "in_progress"), note("02")]);
+    const dispatch = tools.get("orchestrator_command");
+    const send = async (args: Record<string, unknown>): Promise<string> =>
+      textOf(await dispatch?.execute("id", args, undefined, undefined, ctx(root)));
+
+    // 未分组的 note 直接 pass：新起一个 worker，但它是纯控制指令，不进 worktree。
+    const passed = await send({ plan: ref, kind: "pass", note: "01", message: "" });
+    expect(passed).not.toContain("worktree:");
+    expect(worktree.ensured).toEqual([]);
+    expect(worktree.installed).toEqual([]);
+    expect(spawnCwds).toEqual([root]);
+    expect(spawnOptions[0]?.sessionKey).toBeDefined();
+
+    // 同一组再来 rework / answer / fact：复用主工作区的会话，仍然不建。
+    const requests: Record<string, unknown>[] = [
+      { plan: ref, kind: "rework", note: "01", message: "改一下" },
+      { plan: ref, kind: "answer", note: "01", message: "按 A 做" },
+      { plan: ref, kind: "fact", note: "01", message: "环境已经就绪" },
+    ];
+    for (const args of requests) {
+      const text = await send({ ...args });
+      expect(text).not.toContain("worktree:");
+      expect(text).toContain(`已投递给 ${ref} 的 worker（组 [01]）`);
+    }
+    expect(worktree.ensured).toEqual([]);
+    expect(worktree.installed).toEqual([]);
+    expect(spawnCwds).toEqual([root]);
+
+    // 要干活的 message 仍然默认隔离。
+    const worked = await send({ plan: ref, notes: ["02"], message: "做 02" });
+    expect(worked).toContain("worktree: note-02（wt/note-02）· 新建");
+    expect(worktree.ensured).toEqual(["note-02"]);
+    expect(spawnCwds[1]).toBe(`${root}/.worktrees/note-02`);
+  });
+
+  it("显式 worktree: true 对 pass 也生效（尊重覆盖）", async () => {
+    const worktree = fakeWorktree();
+    const { tools, spawnCwds } = await setup({
+      worktree: worktree.hooks,
+      makeSession: () => fakeSession(true, false),
+    });
+    const { root, ref } = await planWithNotes([note("01", [], "in_progress")]);
+    const text = textOf(
+      await tools
+        .get("orchestrator_command")
+        ?.execute(
+          "id",
+          { plan: ref, kind: "pass", note: "01", message: "", worktree: true },
+          undefined,
+          undefined,
+          ctx(root),
+        ),
+    );
+    expect(text).toContain("worktree: note-01（wt/note-01）· 新建");
+    expect(worktree.ensured).toEqual(["note-01"]);
+    expect(spawnCwds).toEqual([`${root}/.worktrees/note-01`]);
+  });
+
   it("worktree: false 在 Plan 派工里也不建", async () => {
     const worktree = fakeWorktree();
     const { tools, spawnCwds } = await setup({ worktree: worktree.hooks });
@@ -805,10 +869,11 @@ describe("dispatch 与 workers 工具", () => {
     )) as { details: { merged: Array<{ worker: string; commit?: string }> } };
     expect(details.details.merged[0]?.commit).toBe("deadbeef");
 
-    // 合并后目录没了：同一键再派（rework）重新 ensure + install，复用同一个会话。
+    // 合并后目录没了：同一键再派（rework 要改代码，显式 worktree: true）重新 ensure + install，
+    // 复用同一个会话 —— 纯控制指令默认不再建目录，所以这里必须显式要求。
     await dispatch?.execute(
       "id",
-      { plan: ref, notes: ["05"], kind: "rework", message: "再改" },
+      { plan: ref, notes: ["05"], kind: "rework", message: "再改", worktree: true },
       undefined,
       undefined,
       ctx(root),

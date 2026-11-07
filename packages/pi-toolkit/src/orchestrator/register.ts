@@ -456,12 +456,12 @@ const createCommandTool = (
     name: "orchestrator_command",
     label: "Command",
     description:
-      "编排方对 worker 的统一命令入口：op=dispatch（默认，派工或追加输入）/ pass / rework / answer / fact / abort。给了 plan + notes 就按组分派（一组无依赖 note 一个 worker），只给 plan 走 Plan 级派工，都没给则起临时 worker（无 Plan、只读 + report、跑完即弃）。Plan 派工默认先在 .worktrees/<名字>（分支 wt/<名字>）里隔离并在那里 pnpm install；临时 worker 默认不建，显式 worktree: true / 一个名字才建。worker 终态后代码自动做 --ff-only 合并并回收（可 ff-only 才合，否则保留现场）。delivery 为 steer（默认，插入当前运行）或 queue（排到 worker 当前轮之后）。每个命令都写进事件账本。",
+      "编排方对 worker 的统一命令入口：op=dispatch（默认，派工或追加输入）/ pass / rework / answer / fact / abort。给了 plan + notes 就按组分派（一组无依赖 note 一个 worker），只给 plan 走 Plan 级派工，都没给则起临时 worker（无 Plan、只读 + report、跑完即弃）。**只有 kind=message（要干活）的 Plan 派工**默认先在 .worktrees/<名字>（分支 wt/<名字>）里隔离并在那里 pnpm install；pass / rework / answer / fact 是纯控制指令，复用主工作区、不建也不装依赖；临时 worker 默认不建。显式 worktree: true / 一个名字会覆盖默认（任何 kind 都尊重），false 保证不建。worker 终态后代码自动做 --ff-only 合并并回收（可 ff-only 才合，否则保留现场）。delivery 为 steer（默认，插入当前运行）或 queue（排到 worker 当前轮之后）。每个命令都写进事件账本。",
     promptSnippet:
       "Send commands to workers (dispatch / pass / rework / answer / abort); every command is an event in the ledger.",
     promptGuidelines: [
       "一组无依赖 note 一个 worker：用 notes 显式给出这一组；组内不得互相 blocked_by。",
-      "Plan 派工默认在 .worktrees/<名字> 隔离（单 note 为 note-<id>，组为 grp-<id-id>，Plan 级为 plan），worker 的 cwd 就是那个目录，Plan 仍锚定主工作区；临时 worker 默认不建，需要隔离时显式给 worktree: true 或一个名字，不想隔离用 worktree: false。",
+      "只有 kind=message 的 Plan 派工默认在 .worktrees/<名字> 隔离（单 note 为 note-<id>，组为 grp-<id-id>，Plan 级为 plan），worker 的 cwd 就是那个目录，Plan 仍锚定主工作区；pass / rework / answer / fact 复用主工作区，不建也不装依赖。临时 worker 默认不建；需要隔离时显式给 worktree: true 或一个名字（任何 kind 都尊重），不想隔离用 worktree: false。",
       "worktree 的 worker 完成前必须自己 rebase 到主分支最新提交并在 report 里写明；合并由代码自动做（可 ff-only 就合 + 回收，否则保留现场），不要再派回收指令。",
       "pass / rework / answer 带 note 时路由到包含它的组；该 note 不属于任何组就自动以 [note] 单独成组投递。只有 note 本身不在 Plan 里才报错。",
       "默认 delivery=steer：追加口径在本轮生效；批量派活或不希望打断时显式 delivery=queue。硬停整个 worker 用 op=abort。",
@@ -503,7 +503,7 @@ const createCommandTool = (
         worktree: {
           type: ["boolean", "string"],
           description:
-            "Plan 派工省略即默认建（true → 自动命名：单 note 为 note-<id>，组为 grp-<id-id>，Plan 级为 plan）；临时 worker 省略则不建。给名字 → 复用或新建 .worktrees/<名字>（分支 wt/<名字>，基线 HEAD），并先在该目录 pnpm install；false → 不建。",
+            "省略时：kind=message 的 Plan 派工默认建（true → 自动命名：单 note 为 note-<id>，组为 grp-<id-id>，Plan 级为 plan），pass / rework / answer / fact 与临时 worker 默认不建。给 true 或名字 → 任何 kind 都建 / 复用 .worktrees/<名字>（分支 wt/<名字>，基线 HEAD），并先在该目录 pnpm install；false → 不建。",
         },
         worker: {
           type: "string",
@@ -600,10 +600,14 @@ const createCommandTool = (
       ) {
         throw new Error("worktree 必须是 true 或一个名字");
       }
-      // Plan 派工默认隔离：两个 worker 改同一批文件时不靠“文件不重叠”的自觉。
-      // 临时 worker 默认不建（一次性活不值得花 13s 装依赖），但显式要求时允许。
+      // 只有**要干活**的派工（`kind: message`）才默认建 worktree：两个 worker 改同一批文件时
+      // 不靠“文件不重叠”的自觉。`pass` / `rework` / `answer` / `fact` 是纯控制指令，不产生代码
+      // 改动，建 + 装依赖只是白花十几秒；临时 worker 同样默认不建（一次性活不值得）。
+      // 显式 `worktree: true | "<名字>"` 仍然覆盖默认（任何 kind 都尊重），`false` 保证不建。
       const wantsWorktree =
-        requestedWorktree === undefined ? plan !== undefined : requestedWorktree !== false;
+        requestedWorktree === undefined
+          ? plan !== undefined && kind === "message"
+          : requestedWorktree !== false;
       let entry = registry.get(key);
       const started = entry === undefined;
       let worktree: WorktreeInfo | undefined;
@@ -1815,8 +1819,10 @@ export const registerOrchestrator = (
           planRef: orphan.planRef,
           ...(plan === undefined ? {} : { plan }),
           notes: orphan.notes,
-          cwd: plan?.directory ?? workspace,
+          // 有 worktree 就回到那个目录：换回主工作区会看到“改了半截”的另一份树。
+          cwd: orphan.worktree?.directory ?? plan?.directory ?? workspace,
           workspace,
+          ...(orphan.worktree === undefined ? {} : { worktree: orphan.worktree }),
           sessionKey,
           message:
             "继续上次未完成的工作。先 git status 核对工作区与 note 的执行检查点：能确定下一步就直接做，不确定就 blocked 上报。",
