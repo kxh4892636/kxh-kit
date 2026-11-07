@@ -59,15 +59,27 @@ _Avoid_: 打断、抢占、nextTurn
 _Avoid_: 聊天模式、无上下文会话、随手派个临时工
 
 **子 worker**:
-worker 自己用受限的 `orchestrator_dispatch` 派出的一层会话（`depth 1`）：有宿主文件工具、只读 `orchestrator_read` 与 `orchestrator_report`，**改不了 `notes.json`**（无 `orchestrator_write`），也没有 `dispatch`（不再往下派）。键 `<上级路由键>/sub:<n>`，一轮 settle 或超时就摘除；report 与超时只注入上级 worker 的会话，编排方看不到它的句柄。宿主子代理包已卸载，并行只留这条链路。
-_Avoid_: subagent、子任务、第二层 worker、worktree 分身
+worker 自己用受限的 `orchestrator_dispatch` 派出的一层会话（`depth 1`）：有宿主文件工具、只读 `orchestrator_read` 与 `orchestrator_report`，**改不了 `notes.json`**（无 `orchestrator_write`），也没有 `dispatch`（不再往下派）。键 `<上级路由键>/sub:<n>`，一轮 settle 或超时就摘除；report 与超时只注入上级 worker 的会话，编排方看不到它的句柄。它的 `worker.spawned` / `input.sent` / `report.filed` / `worker.exit` **照样落账本**（payload 带 `parent` 与 `depth`），`orchestrator_state` 里缩进列在父下面；会话不落盘，进程重启后由父重建。宿主子代理包已卸载，并行只留这条链路。
+_Avoid_: subagent、子任务、第二层 worker、worktree 分身、子 worker 不入账
+
+**判活**:
+只认账本里**worker 自己**的痕迹：`input.consumed`（真的开始处理输入）与 `report.filed`（还在推进）。派工本身（`input.sent`）只决定起点，不算进展；`待消费` 的等待时长只用于展示。判据由**代码定时器扫投影**得出，不依赖模型回合。
+_Avoid_: 按派工时刻计时、把 `input.sent` 当进展、靠模型回合发现卡死
 
 **超时**:
-两个判据都由**代码定时器扫投影**得出，不依赖模型回合：最老一条未消费输入超过 `inputStuckMs`（默认 10 分钟），或距最后进展（派工 / 输入 / report）超过 `workerTimeoutMs`（默认 30 分钟，report 即续期）。到点 `abort` → 摘除句柄 → `dispose` → 落 `timeout` 与 `worker.exit` 事件；不代写 note 状态，下次派工是干净的新会话。
-_Avoid_: 前台等待、轮询 jobId、按任务总量计时的超时
+距最后进展超过 `workerTimeoutMs`（默认 30 分钟）即 `abort` → 摘除句柄 → `dispose` → 落 `timeout` 与 `worker.exit`（真结束，会话作废）；不代写 note 状态。超过 `softStallMs`（默认 15 分钟）只在 `state` 里标 `⚠ 疑似停滞`，**不杀**。超时只针对 Plan worker 进入「诊断 → 重试」；临时 worker 没有 note，不诊断也不重派。
+_Avoid_: 前台等待、轮询 jobId、按任务总量计时的超时、软提示也杀
+
+**诊断**:
+超时后由代码把现场打成证据包（该 worker 最近 N 条账本事件、最后一次 report、note 状态与正文摘要、会话 jsonl 尾部 M 条、`git status` 摘要、命中判据与阈值），交给一个**只读**诊断 worker（`depth 1` 临时会话，只有 `orchestrator_read` 与 `orchestrator_report`，禁止全盘扫描、只准读证据包里的路径）产出 `{cause, evidence, suggestion{adjust, retryMessage}, confidence}`，落 `timeout.diagnosed`。`adjust` 限定为 `split-note` / `narrow-scope` / `longer-timeout` / `change-strategy` / `needs-human`。
+_Avoid_: 代码盲重试、诊断 worker 有写权限、让诊断自己扩大调查范围
+
+**重试**:
+按诊断建议**新开一代** worker（不复用被中止的会话）：新会话键带作废时刻，`retryMessage` 写明上次原因、上次到哪一步、本次调整与“不要重复已完成的 X”。先落 `retry.scheduled{retryKey, attempt}`（幂等键 `(retryKey, attempt)`）再真的派。同一条 note 最多自动重派 `retryLimit`（默认 2）次；到上限、建议 `needs-human`、或诊断不可解析 → `retry.exhausted` 且不再自动重试（转人工）。`state` 显示超时次数、最近诊断与是否还会自动重试。
+_Avoid_: 无限重试、同一条 note 反复踩同一个坑、把重试当心跳
 
 **worktree 派工**:
-**Plan worker 默认隔离**：派工时建 `.worktrees/<名字>`（自动命名 `note-<id>` / `grp-<id-id>` / `plan`）、分支 `wt/<名字>`，并先在该目录各自 `pnpm install`（建 worktree 或装依赖失败就**中止派工**，worker 不许跳过测试，也不降级回主工作区）。临时 worker 默认不建，需要时显式 `worktree: true`；`worktree: false | "<名字>"` 仍支持。Plan 仍锚定主工作区绝对路径，`notes.json` 只有主工作区一份。worker 完成前自己 rebase 到主分支最新提交并在 report 里写明可 `--ff-only` 合并。**合并与回收由代码做**（不经模型、不需编排方派工）：worker 终态后校验分支可 ff-only → `git merge --ff-only wt/<名字>` → 删 worktree 与分支 → 落 `worker.merged`；不可 ff-only → **不合并、保留现场**，落 `worker.merge_blocked`（含现场路径），`orchestrator_state` 里标 `✗` 等人工处理。合并串行化：主工作区同一时刻只允许一个 merge（进程内互斥 + 锁错误重试），避免两个 worktree 并发插队；abort / 超时**不删** worktree。
+**只有 `kind: message`（要干活）的 Plan 派工默认隔离**：派工时建 `.worktrees/<名字>`（自动命名 `note-<id>` / `grp-<id-id>` / `plan`）、分支 `wt/<名字>`，并先在该目录各自 `pnpm install`（建 worktree 或装依赖失败就**中止派工**，worker 不许跳过测试，也不降级回主工作区）。`pass` / `rework` / `answer` / `fact` 是纯控制指令，复用主工作区、不建也不装依赖（返工确实要改代码时由编排方**显式**给 `worktree: true`，不靠默认猜）；临时 worker 默认不建。显式 `worktree: true | "<名字>"` 对任何 kind 都覆盖默认，`false` 保证不建。Plan 仍锚定主工作区绝对路径，`notes.json` 只有主工作区一份。worker 完成前自己 rebase 到主分支最新提交并在 report 里写明可 `--ff-only` 合并。**合并与回收由代码做**（不经模型、不需编排方派工）：worker 终态后校验分支可 ff-only → `git merge --ff-only wt/<名字>` → 删 worktree 与分支 → 落 `worker.merged`；不可 ff-only → **不合并、保留现场**，落 `worker.merge_blocked`（含现场路径），`orchestrator_state` 里标 `✗` 等人工处理。合并串行化：主工作区同一时刻只允许一个 merge（进程内互斥 + 锁错误重试），避免两个 worktree 并发插队；abort / 超时**不删** worktree。
 _Avoid_: 真左右分栏式隔离、共享 node_modules、worker 自行删 worktree、编排方手工跑合并、rebase 冲突时硬推
 
 **刹车**:
@@ -75,14 +87,23 @@ _Avoid_: 真左右分栏式隔离、共享 node_modules、worker 自行删 workt
 _Avoid_: 限流、配额
 
 **上报**:
-worker 的 `orchestrator_report` 只落账本事件 `report.filed`（`worker` / `note` / `outcome` / `summary` / `question?` / `evidence?`，都截短），**不注入编排方会话**；编排方需要时调 `orchestrator_state`，读一次落 `state.pulled` 把未读清零，所以“未读 report”跨重启成立。旧的 outbox / `reports-pending.json` 重试机制随之删除：账本是记录，不需要重新投递。`orchestrator.wakeOnReport` 只留一个默认关闭的“叫醒”开关。report 只是通知，磁盘上的 notes 才是事实。
+worker 的 `orchestrator_report` 落账本事件 `report.filed`（`worker` / `note` / `outcome` / `summary` / `question?` / `evidence?`，都截短）；编排方需要全量时调 `orchestrator_state`，读一次落 `state.pulled` 把未读清零，所以“未读 report”跨重启成立。旧的 outbox / `reports-pending.json` 重试机制删除：账本是记录，不需要重新投递。report 只是通知，磁盘上的 notes 才是事实。
 _Avoid_: 静默吞异常、把 report 当真相、重复投递阻塞编排方
+
+**推送口径**:
+`IMPORTANT = needs_review / needs_answer / blocked / failed / timeout / retry.exhausted` 才 `pi.sendMessage` 推送并 `triggerTurn`；**普通 `done` 不推送、不渲染、不进上下文**，只留账本。5 秒内的多条合并成一条 digest（`plan · note · outcome · summary`），避免同一轮里超时 + 报告 + 放弃重试三连打断。注入失败不重试（账本里都有）。
+_Avoid_: 每条 report 都打断编排方、把 done 当心跳推送、推送失败阻塞收尾
 
 ### 恢复
 
 **按 Plan 恢复**:
-传入 `resume <plan>` 时才算"选中"这个 Plan，输出它的状态行、可推进队列、待回答/待验证与阻塞；会话启动不自动播报、不自动跑一轮模型。
+传入 `resume <plan>` 时才算"选中"这个 Plan，输出它的状态行、可推进队列、待回答/待验证与阻塞；会话启动不自动播报、不自动跑一轮模型。它恢复的是**文档层**进度；**孤儿 worker** 走下面的「孤儿」。
 _Avoid_: 启动对账、自愈、自动恢复
 
+**孤儿**:
+账本上派生过、却没有任何 `worker.exit`、进程内也没有对应 session 的 worker（会话退出 / 崩溃 / 重启后）。`session_shutdown` 与崩溃写的是 `worker.suspended` 而不是 `worker.exit` —— 前者 jsonl 还在、**可恢复**，后者是 abort / 超时那种真结束（会话作废）。`orchestrator_state` 先列「可恢复 worker」，用户确认后 `op: "resume"` 才动手：**先父后子**，用同一份 jsonl 投一句“继续（先 git status 核对）”，落 `worker.resumed{resumeOf}`（幂等键 = 会话代数锚点）；子 worker 的会话不落盘，由父重建，建不回来的写明“子任务丢失”。
+_Avoid_: 自动挂回全部 worker、把 suspended 当 exit、恢复时新开一份会话
+
 **崩溃凭据**:
-由账本里的 `worker.exit`（带可能悬空的 `in_progress` note）投影成凭据，不再有 `interrupted.json`；`resume <plan>` 只在本 Plan 命中时展示并落 `interrupted.forgotten` 移除本条目，`status` 展示整档后落 `interrupted.cleared` 清空。
+由账本里的 `worker.suspended`（带可能悬空的 `in_progress` note）投影成凭据，不再有 `interrupted.json`；`resume <plan>` 只在本 Plan 命中时展示并落 `interrupted.forgotten` 移除本条目，`status` 展示整档后落 `interrupted.cleared` 清空。
+_Avoid_: 用 json 文件记崩溃、恢复后凭据不清

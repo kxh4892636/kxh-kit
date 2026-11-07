@@ -82,6 +82,9 @@ screen for the values; edit the file.
     "adrMaxBytes": 13312,
     "adrMaxCount": 55,
     "rotateAt": 0.618,
+    "workerTimeoutMs": 1800000,
+    "softStallMs": 900000,
+    "retryLimit": 2,
     "always": false
   }
 }
@@ -140,19 +143,22 @@ The API key resolution order is `web.apiKey` > the environment variable named by
 
 ### `orchestrator`
 
-| Field                     | Default | Meaning                                                             |
-| ------------------------- | ------- | ------------------------------------------------------------------- |
-| `storyMaxBytes`           | `34816` | `story.md` size cap.                                                |
-| `specMaxBytes`            | `34816` | `spec.md` size cap.                                                 |
-| `noteMaxBytes`            | `13312` | One note body cap.                                                  |
-| `noteDescriptionMaxChars` | `144`   | Note summary length cap.                                            |
-| `indexMaxRows`            | `13`    | Key-index row cap.                                                  |
-| `contextMaxBytes`         | `91136` | Domain `CONTEXT.md` size cap.                                       |
-| `questionsMaxBytes`       | `91136` | Domain `QUESTIONS.md` size cap.                                     |
-| `adrMaxBytes`             | `13312` | One ADR size cap.                                                   |
-| `adrMaxCount`             | `55`    | ADRs per domain.                                                    |
-| `rotateAt`                | `0.618` | Context-window ratio that clears the session and restores the Plan. |
-| `always`                  | `false` | New sessions start in Orchestrator (a per-session choice wins).     |
+| Field                     | Default   | Meaning                                                             |
+| ------------------------- | --------- | ------------------------------------------------------------------- |
+| `storyMaxBytes`           | `34816`   | `story.md` size cap.                                                |
+| `specMaxBytes`            | `34816`   | `spec.md` size cap.                                                 |
+| `noteMaxBytes`            | `13312`   | One note body cap.                                                  |
+| `noteDescriptionMaxChars` | `144`     | Note summary length cap.                                            |
+| `indexMaxRows`            | `13`      | Key-index row cap.                                                  |
+| `contextMaxBytes`         | `91136`   | Domain `CONTEXT.md` size cap.                                       |
+| `questionsMaxBytes`       | `91136`   | Domain `QUESTIONS.md` size cap.                                     |
+| `adrMaxBytes`             | `13312`   | One ADR size cap.                                                   |
+| `adrMaxCount`             | `55`      | ADRs per domain.                                                    |
+| `rotateAt`                | `0.618`   | Context-window ratio that clears the session and restores the Plan. |
+| `workerTimeoutMs`         | `1800000` | No ledger progress for this long → abort + `timeout` (30 min).      |
+| `softStallMs`             | `900000`  | No progress for this long → only a `⚠ 疑似停滞` mark (15 min).      |
+| `retryLimit`              | `2`       | Auto re-dispatches per note after a diagnosed timeout.              |
+| `always`                  | `false`   | New sessions start in Orchestrator (a per-session choice wins).     |
 
 ## Web tools
 
@@ -235,7 +241,8 @@ While a session runs Orchestrator:
   `orchestrator_write` (init / create / update / link / status / complete / set_index / merge / delete /
   move), `orchestrator_check` (plan / workspace / limits), `orchestrator_command` (dispatch / pass / rework /
   answer / fact / abort — the one entry point for everything sent to workers) and `orchestrator_state`
-  (pull the ledger projection: live workers, pending input, unread reports, stuck workers; or abort) are
+  (pull the ledger projection: live workers with their sub-worker hierarchy, pending input, timeouts and
+  retries, unread reports, stuck workers, resumable orphans; or abort / resume) are
   the **entire** active
   tool set, together with `ask_questions`. The host's `read` / `bash` / `edit` / `write` / web tools are
   switched off in that session, so evidence has to come from a worker. Leaving the mode (`/orchestrator
@@ -412,13 +419,17 @@ idle worker has no running turn to steer into and degrades to `prompt()`; the re
 `note.pass` / `worker.exit`) before or after the SDK call — the log guarantees order and history, the SDK
 still does the delivery.
 
-**Worktrees** (`worktree.ts`): **Plan workers are isolated by default** — dispatch auto-creates
-`.worktrees/<名字>` on branch `wt/<名字>` (names: `note-<id>` / `grp-<id-id>` / `plan`) and runs
+**Worktrees** (`worktree.ts`): **Plan dispatches that do work (`kind: "message"`) are isolated by
+default** — dispatch auto-creates `.worktrees/<名字>` on branch `wt/<名字>` (names: `note-<id>` /
+`grp-<id-id>` / `plan`) and runs
 `pnpm install --prefer-offline` there first — one install per worktree, as measured on Windows with a warm
 store: worktree add ≈1.5s / 98 MB, install ≈13.5s, `node_modules` 894 MB nominal but ≈183 MB of real disk
 (pnpm hardlinks its store), and `pnpm test` then runs in 3.8s (372 tests). Temporary workers default to
-**no** worktree (read-only, seconds long); pass `worktree: true` to force one, `worktree: false` or an
-explicit name still works. A failed worktree add or install aborts the dispatch with the reason instead of
+**no** worktree (read-only, seconds long). Pure control inputs — `pass` / `rework` / `answer` / `fact` —
+reuse the main workspace: they change no code, so creating a worktree and installing dependencies there is
+pure waste (one `pass` used to cost a fresh directory plus 13.7s of install). An explicit
+`worktree: true | "<名字>"` still overrides for **any** kind (a `rework` that really rewrites code asks for
+it), and `worktree: false` guarantees none. A failed worktree add or install aborts the dispatch with the reason instead of
 letting the worker skip tests — it never silently falls back to the main workspace. The plan stays anchored
 to the main workspace (absolute path), so `notes.json` still has exactly one writer. The worker must rebase
 onto the latest main commit and report "ready for `--ff-only` merge"; a conflicting rebase becomes `blocked`
@@ -449,39 +460,70 @@ progress); dispatching an input is only the starting point, never progress. A wo
 older than `orchestrator.workerTimeoutMs` (default 30 minutes) is aborted, its handle dropped and `timeout`
 
 - `worker.exit` appended. `orchestrator.softStallMs` (default 15 minutes) only adds a `⚠ 疑似停滞` mark in
-  `state` — it never kills anything. No message is injected for a plain timeout in this phase; note state is
-  never touched by the watchdog.
-  The worker can do every note-level action but
-  cannot `init` a plan, cannot `move` it, and cannot write `completed` — it reports the note as
-  `waiting(needs=review)` with `orchestrator_report`, and only after the orchestrator sends `pass` may it
-  complete. The worker has no `ask_questions`: a question becomes `orchestrator_report(needs_answer)`.
-  Every finished note is committed right away (`git add -A && git commit`, message starting with the note
-  id) and the hash goes into that note's evidence: the orchestrator has no `bash`, so it cannot commit, and
-  nothing is committed while tests or checks fail.
+  `state` — it never kills anything, and the pending-input age is display only. Note state is never touched by
+  the watchdog.
 
-`orchestrator_report` **does not arrive in the orchestrator session**: it appends a `report.filed` event
-(`worker`, `note`, `outcome`, `summary`, `question?`, `evidence?` — all clipped so events stay small). The
-orchestrator pulls `orchestrator_state` instead, and that read appends `state.pulled`, which marks the
-reports as read; "unread report" therefore survives a restart. The old outbox / retry machinery is gone:
-the ledger is the record, so nothing has to be re-delivered. A `wakeOnReport: true` setting exists for
-callers who want one injected line (`orchestrator-wake`) and is **off by default**.
+**Timeout → diagnose → retry is code too, but the retry is never blind.** On a timeout the plugin collects
+the scene into an evidence pack (that worker's recent ledger events, its last report, the note's status and
+body excerpt, the tail of its session jsonl, a `git status` summary, the threshold and elapsed time) and
+spawns a **read-only diagnosis worker** (`depth 1`, `orchestrator_read` + `orchestrator_report` only, told to
+read only the paths in the pack — no full-disk scans). It answers with one JSON object
+`{cause, evidence, suggestion{adjust, retryMessage}, confidence}` where `adjust` is drawn from `split-note` /
+`narrow-scope` / `longer-timeout` / `change-strategy` / `needs-human`. The ledger records `timeout` →
+`timeout.diagnosed` → `retry.scheduled` (or `retry.exhausted`), and a retry is a **new generation** session
+(the aborted one is voided, never revived) whose message repeats the cause, where the previous generation
+got to, the adjustment, and "do not redo the finished part". The same note is auto-retried at most
+`orchestrator.retryLimit` times (default 2); `needs-human`, an unparseable diagnosis and hitting the limit
+all append `retry.exhausted` and hand it back to the human. Temporary workers have no note, so they are
+never diagnosed or retried — the `timeout` event is the whole story. `orchestrator_state` shows the
+per-worker timeout count, the latest diagnosis and whether another retry will happen.
+The worker can do every note-level action but
+cannot `init` a plan, cannot `move` it, and cannot write `completed` — it reports the note as
+`waiting(needs=review)` with `orchestrator_report`, and only after the orchestrator sends `pass` may it
+complete. The worker has no `ask_questions`: a question becomes `orchestrator_report(needs_answer)`.
+Every finished note is committed right away (`git add -A && git commit`, message starting with the note
+id) and the hash goes into that note's evidence: the orchestrator has no `bash`, so it cannot commit, and
+nothing is committed while tests or checks fail.
+
+`orchestrator_report` always appends a `report.filed` event (`worker`, `note`, `outcome`, `summary`,
+`question?`, `evidence?` — all clipped so events stay small). **Only important outcomes are pushed**:
+`needs_review` / `needs_answer` / `blocked` / `failed` (plus `timeout` and `retry.exhausted`) inject one
+`orchestrator-important` message with `triggerTurn`, and anything arriving within 5 seconds merges into a
+single digest (one line per item: `plan · note · outcome · summary`). A plain `done` is **not** pushed, not
+rendered and never enters the orchestrator's context: it is a progress ping, and pinging the model on every
+one of them just fills its window. `orchestrator_state` still has everything (and its read appends
+`state.pulled`, marking reports read, so "unread report" survives a restart). The old outbox / retry
+machinery is gone: the ledger is the record, so nothing has to be re-delivered.
 
 A worker can dispatch **one layer of sub-workers** (`depth 1`) with its own restricted
 `orchestrator_dispatch`, which takes a `message` and nothing else. A sub-worker gets the host's file
 tools plus read-only `orchestrator_read` and `orchestrator_report`: it can edit workspace files, it
 cannot write `notes.json` (no `orchestrator_write`), and it cannot dispatch further. Its reports and
 timeouts go to the **parent worker's** session only — the orchestrator never sees a sub-worker's
-handle — and it is dropped as soon as it settles. The subagent package that used to provide a second
-parallel channel is no longer installed, so this is the only way down.
+handle — and it is dropped as soon as it settles. Sub-workers are nonetheless **in the ledger**: their
+`worker.spawned` / `input.sent` / `report.filed` / `worker.exit` carry `parent` and `depth`, and
+`orchestrator_state` prints them indented (`↳`) under the parent, so a hang is visible without the
+orchestrator holding the handle. The subagent package that used to provide a second parallel channel is no
+longer installed, so this is the only way down.
 
 The plugin never reconciles on `session_start`: opening a session neither injects a message nor spends a
-turn. Recovery is explicit — `orchestrator_read` with `op: "resume"` is the one place that selects a plan
-and reports where it stands (status line, index, ready queue, waiting for answer/review, blocked). A crash
-or a session shutdown appends `worker.exit` (with the `in_progress` notes it may strand) and exits;
-`resume <plan>` shows `上次崩溃: <at> · <reason>` when the projection still carries that plan's credential
-and drops only that entry (`interrupted.forgotten`), while `/orchestrator status` lists every active plan
-plus the record and clears it (`interrupted.cleared`). There is no concurrency cap: use
-`orchestrator_state` to see live workers and abort them, individually or all.
+turn. Recovery is explicit and happens on two levels.
+
+**Documents:** `orchestrator_read` with `op: "resume"` selects a plan and reports where it stands (status
+line, index, ready queue, waiting for answer/review, blocked).
+
+**Workers:** a crash or a session shutdown appends `worker.suspended` — not `worker.exit`. The difference is
+whether recovery is possible: `exit` is a real end (abort / timeout, session voided), `suspended` means the
+jsonl is still on disk. Every worker derived in the ledger that has no `exit` and no live in-process session
+is an **orphan**; `orchestrator_state` lists them (`⚠ 孤儿`). After the user confirms, `orchestrator_state`
+with `op: "resume"` resumes them — parents first, each with the **same** jsonl and a very short "continue;
+check `git status` first" message, appending `worker.resumed{resumeOf}` under an idempotency key, so a second
+call never double-spawns. Sub-workers keep their sessions in memory, so they cannot be resumed: the parent
+rebuilds them, and the ones that cannot be rebuilt are reported as `子任务丢失`. `resume <plan>` also shows
+`上次崩溃: <at> · <reason>` when the projection still carries that plan's credential and drops only that
+entry (`interrupted.forgotten`), while `/orchestrator status` lists every active plan plus the record and
+clears it (`interrupted.cleared`). There is no concurrency cap: use `orchestrator_state` to see live workers
+and abort them, individually or all.
 
 When a plan cannot pass validation, `orchestrator_read` with `op: "inspect"` returns the raw notes and
 the validation errors, and `orchestrator_write` with `op: "repair"` applies model-supplied
