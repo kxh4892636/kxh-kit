@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "index": [],
+  "notes": [
+    {
+      "id": "01",
+      "title": "工作区配置crud",
+      "description": "用户通过 `workspace config` 初始化工作区，并完整新增、读取、更新和移除 `workspace.yaml` 中的子仓配置项。",
+      "status": "completed",
+      "blocked_by": [],
+      "evidence": [
+        "CLI 黑盒与配置测试证明：`config init/add/list/update/remove` 完整覆盖配置 CRUD，add 不 upsert，update 不创建，list 不读取物化状态，update/remove 不级联改动已物化资源；并通过 spec 固定的全部 `/verifying` 门禁。"
+      ],
+      "updated_at": "2026-11-07T00:00:00.000Z",
+      "content": "# 工作区配置 CRUD\n\n## 交付\n\n用户通过 `workspace config` 初始化工作区，并完整新增、读取、更新和移除 `workspace.yaml` 中的子仓配置项。\n\n## 范围\n\n- 建立 `config init/add/list/update/remove`，移入旧扁平配置责任，将 add upsert 拆为 add 只创建、update 只更新。\n- 以稳定 name 标识配置项；update 至少提供一个 url/path/branch，不支持 rename。\n- list 只返回 `workspace.yaml` 中的 `name/url/path/branch`，不混入物化状态。\n- update/remove 在配置 path 已物化时拒绝，不级联修改下层资源。\n- 建立「workspace root + 配置 path → 子仓克隆绝对路径」单一 resolver。\n\n## 直接依赖\n\n- 无。\n\n## 验收\n\n- [x] CLI 黑盒与配置测试证明：`config init/add/list/update/remove` 完整覆盖配置 CRUD，add 不 upsert，update 不创建，list 不读取物化状态，update/remove 不级联改动已物化资源；并通过 spec 固定的全部 `/verifying` 门禁。\n\n## 交付记录\n\n- 交付物：`workspace config init/add/list/update/remove`、配置 path resolver、等价路径去重、真实 Git 物化门禁及对应 CLI/配置/集成测试。\n- 验证证据：变更文件格式/lint/type 通过；全量 `test` 20 files / 256 tests 通过；`build` 通过。完整 `check` 的 lint/type 通过，仓库既有 CRLF checkout 导致 145 个未改文件被 oxfmt 报格式差异，未进行无关批量改写。\n- 审查：Standards 与 Spec 双轴审查的 5 项发现均已修复并定向重验。\n\n## 上下文\n\n- [spec](spec.md)\n- [现有 workspace config 实现](../../../../../packages/nano-flow/src/builtins/workspace/workspace-config.ts)\n- [ADR-0004](../../../adr/0004-子仓克隆由工作区配置定位.md)\n\n## 下一步\n\n/implement\n"
+    },
+    {
+      "id": "02",
+      "title": "子仓物化crud",
+      "description": "用户通过 `workspace repository` 在配置 `path` 上完整克隆、查看、更新和移除远程子仓的本地物化，不产生隐式 worktree 副作用。",
+      "status": "completed",
+      "blocked_by": [
+        "01"
+      ],
+      "evidence": [
+        "真实 git 集成测试证明：clone/status/pull/remove 完整覆盖物化 CRUD，clone 与 pull 不互相隐式代理，pull 只快进安全克隆，remove 守住确认、dirty、本地独有历史和 worktree 门禁，全组不隐式创建 worktree；并通过 spec 固定的全部 `/ver"
+      ],
+      "updated_at": "2026-11-07T00:00:00.000Z",
+      "content": "# 子仓物化 CRUD\n\n## 交付\n\n用户通过 `workspace repository` 在配置 `path` 上完整克隆、查看、更新和移除远程子仓的本地物化，不产生隐式 worktree 副作用。\n\n## 范围\n\n- 建立 `repository clone/status/pull/remove`，以 01 的 resolver 定位子仓克隆。\n- clone 只 Create 缺失克隆；status 只 Read 本地现场且不 fetch；pull 只 Update 已存在克隆；remove 只 Delete 单个克隆。\n- clone/pull 保持多 name 或默认全部的顺序批处理与单项失败隔离；remove 要求单 name + `--yes`。\n- pull 只对安全克隆 fetch + fast-forward-only，不更新 worktree。\n- remove 在有额外 worktree 时拒绝；primary 克隆 dirty 或存在 remote refs 不可达的本地历史时需 `--force`，不删除 config 项。\n- repository 命令只使用配置 `path` 定位仓库，并移除旧扁平 status/pull。\n\n## 直接依赖\n\n- 01：repository CRUD 消费其 config CRUD 产出与唯一克隆路径 resolver。\n\n## 验收\n\n- [x] 真实 git 集成测试证明：clone/status/pull/remove 完整覆盖物化 CRUD，clone 与 pull 不互相隐式代理，pull 只快进安全克隆，remove 守住确认、dirty、本地独有历史和 worktree 门禁，全组不隐式创建 worktree；并通过 spec 固定的全部 `/verifying` 门禁。\n\n## 交付记录\n\n- 交付物：`workspace repository clone/status/pull/remove`、配置 path 物化、批处理失败隔离、浅克隆安全快进、物理路径删除门禁、remote 不可达 refs 与凭据脱敏保护，以及 16 项真实 Git 集成测试。\n- 验证证据：变更文件 format/lint/type 通过；全量 `test` 19 files / 254 tests 通过；`build` 通过。完整 `check` 的 lint/type 通过；全仓格式仍受既有 CRLF checkout 差异影响，未批量改写未改文件。\n- 审查：Standards 4 项、Spec 2 项发现全部修复；新增 symlink/junction 越界、tag-only 历史、mixed unknown name、凭据脱敏与 pull 后保持 shallow 的回归测试。\n\n## 上下文\n\n- [spec](spec.md)\n- [现有 pull 实现](../../../../../packages/nano-flow/src/builtins/workspace/workspace-pull.ts)\n- [现有 status 实现](../../../../../packages/nano-flow/src/builtins/workspace/workspace-query.ts)\n- [ADR-0004](../../../adr/0004-子仓克隆由工作区配置定位.md)\n\n## 下一步\n\n/implement\n"
+    },
+    {
+      "id": "03",
+      "title": "worktree生命周期crud",
+      "description": "用户通过 `workspace worktree` 从已物化子仓克隆显式创建目标 worktree，并完整列出、切换和移除其生命周期；最终 workspace CLI 只剩三层领域资源契约。",
+      "status": "completed",
+      "blocked_by": [
+        "02"
+      ],
+      "evidence": [
+        "真实 git 与 CLI 黑盒集成测试证明：add/list/switch/remove 完整覆盖 worktree CRUD，每个目标操作都显式指定 path，primary 克隆受保护，prune 只清失效注册；最终 CLI 只暴露 config/repository/worktree 三组领域命令；并通过 spe"
+      ],
+      "updated_at": "2026-11-07T00:00:00.000Z",
+      "content": "# Worktree CRUD\n\n## 交付\n\n用户通过 `workspace worktree` 从已物化子仓克隆显式创建目标 worktree，并完整列出、切换和移除其生命周期；最终 workspace CLI 只剩三层领域资源契约。\n\n## 范围\n\n- 完成 `worktree add/list/switch/remove` CRUD：add 必须 `--name` + 相对工作区根的目标 `--path`，branch/base 保留已确认默认；list 按 name 聚合；switch/remove 必须显式目标 path。\n- 所有 Git worktree 操作从 02 的配置子仓克隆执行；以 `primary` 识别并保护克隆本身。\n- 保留 `worktree prune [--name...]` 作为失效注册维护，不把它作为正常 Delete。\n- 保留 remove 的 dirty `--force` 和可选 `--delete-branch`，不级联删除 repository/config。\n- 删除旧扁平命令、help 和测试。\n\n## 直接依赖\n\n- 02：worktree CRUD 消费其已物化子仓克隆和 repository CRUD 契约。\n\n## 验收\n\n- [x] 真实 git 与 CLI 黑盒集成测试证明：add/list/switch/remove 完整覆盖 worktree CRUD，每个目标操作都显式指定 path，primary 克隆受保护，prune 只清失效注册；最终 CLI 只暴露 config/repository/worktree 三组领域命令；并通过 spec 固定的全部 `/verifying` 门禁。\n\n## 交付记录\n\n- 交付物：完成 worktree add/list/switch/remove CRUD 与 prune，所有目标操作显式接收工作区相对 `--path`；删除旧扁平 pull/query，实现 config path 上的 primary clone 保护、物理路径 containment 与安全删除顺序；CLI 和分发包版本升级到 `0.0.4`。\n- 验证证据：`build` 通过；源码 19 files / 244 tests 通过；distribution 1 file / 3 tests 通过；mutation 在 22m17s 内完成 8024 mutants，总分 51.74%、covered 62.50%、workspace 60.37%；领域文档校验通过；Spec/Standards 双轴审查通过。\n- 门禁说明：`vp check --no-fmt` 对 105 files 的 lint/type 全通过，全部本次变更文件定向 format/lint/type 通过；精确 `vp check` 仅因 Windows checkout 中 137 个未修改文件的既有 CRLF 格式基线失败，为避免把全仓行尾改写混入本 issue，未批量格式化无关文件。\n\n## 上下文\n\n- [spec](spec.md)\n- [现有 worktree 实现](../../../../../packages/nano-flow/src/builtins/workspace/workspace-worktree.ts)\n- [现有 workspace 命令入口](../../../../../packages/nano-flow/src/builtins/workspace/index.ts)\n\n## 下一步\n\n/implement\n"
+    }
+  ]
+}

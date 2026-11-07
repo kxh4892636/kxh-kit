@@ -73,6 +73,6 @@ pnpm --filter @kxh4892636/etf run sync:market   # 全量同步两个证券历史
 pnpm --filter @kxh4892636/etf run db:generate
 ```
 
-`sync:market` 遍历证券目录，按上游 `count=-10000` 拉取全量、裁剪到上海昨日，事务写入日线与交易日历并输出覆盖摘要；首次预填或缓存范围偏短时执行。当前两个证券的全量约为 3108 / 5048 根，详见 [行情全量同步工作流](../../docs/etf/workflows/0001-行情全量同步/0001-行情全量同步.md)。
+`sync:market` 遍历证券目录，按上游 `count=-10000` 拉取全量、裁剪到上海昨日，事务写入日线与交易日历并输出覆盖摘要；首次预填或缓存范围偏短时执行。当前两个证券的全量约为 3108 / 5048 根，详见 [行情全量同步工作流](../../.agents/domains/etf/workflows/0001-行情全量同步/0001-行情全量同步.md)。
 
 修改存储 schema 后执行 `db:generate`，将 SQL、journal 与 snapshot 一并保留。E2E 共六组（含按 ETF 持久化状态），使用独立端口 15173/18181、临时 SQLite 与受控上游，结束回收自有进程；可通过 `ETF_E2E_FRONTEND_PORT`、`ETF_E2E_BACKEND_PORT` 改端口。日线仅支持前复权，历史范围受上游返回窗口限制。

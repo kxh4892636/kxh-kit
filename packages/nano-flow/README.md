@@ -66,7 +66,7 @@ nnf anki notes add --deck Default --model Basic --field Front=hello --field Back
 
 `--read-only` 阻止集合写入；也可设置 `READ_ONLY=true`。连接配置支持 `ANKI_CONNECT_URL`、`ANKI_CONNECT_API_KEY`、`ANKI_CONNECT_API_VERSION`、`ANKI_CONNECT_TIMEOUT` 和 `LOG_LEVEL`。媒体安全例外由 `MEDIA_ALLOWED_TYPES`、`MEDIA_IMPORT_DIR`、`MEDIA_ALLOWED_HOSTS` 控制。
 
-真实 Anki 验收见仓库中的 [Anki 冒烟检查清单](https://github.com/kxh4892636/kxh-kit/blob/main/docs/nano-flow/anki%E5%86%92%E7%83%9F%E6%A3%80%E6%9F%A5%E6%B8%85%E5%8D%95.md)。自动化只连接临时假 AnkiConnect，不改动用户集合。
+真实 Anki 验收见 [skills/nano-flow-cli/references/anki.md](./skills/nano-flow-cli/references/anki.md)。自动化只连接临时假 AnkiConnect，不改动用户集合。
 
 ## 迁移
 

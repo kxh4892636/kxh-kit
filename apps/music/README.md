@@ -58,7 +58,7 @@ $env:MUSIC_BASE = "/music/"
 pnpm --filter @kxh4892636/music build
 ```
 
-服务器侧的 `BASE_PATH=/music` 让 Hono 把页面、API、音频一起挂在 `/music` 下。步骤与安全措施见 [06-部署到服务器](../../docs/music/plans/reference/2026-10-28-古典音乐曲库与随机播放站点/06-部署到服务器.md)。
+服务器侧的 `BASE_PATH=/music` 让 Hono 把页面、API、音频一起挂在 `/music` 下。步骤与安全措施见 [06-部署到服务器（note 06）](../../.agents/domains/music/plans/reference/2026-10-28-古典音乐曲库与随机播放站点/notes.json)。
 
 ## 测试
 

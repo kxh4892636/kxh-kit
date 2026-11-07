@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "index": [],
+  "notes": [
+    {
+      "id": "01",
+      "title": "spawn重构抽seam",
+      "description": "`host.ts` 的 spawn 拆出 workspace 解析（`resolveSpawnLocation`）与上下文注入 seam，行为完全不变（既有 40 项测试守护）；为 02/03 并行实现铺路。",
+      "status": "completed",
+      "blocked_by": [],
+      "evidence": [
+        "`pnpm --filter @kxh4892636/dsh-session-manager test` 全部通过（含既有 40 项）",
+        "覆盖率 ≥80% 且无新增未覆盖分支",
+        "`vp check` 通过；`vp pack` 构建通过",
+        "单测覆盖：显式 workspaceId/cwd 透传；两者省略时行为与之前一致。"
+      ],
+      "updated_at": "2026-11-07T00:00:00.000Z",
+      "content": "# spawn 重构抽 seam(prefactoring)\n\n## 交付\n\n`host.ts` 的 spawn 拆出 workspace 解析（`resolveSpawnLocation`）与上下文注入 seam，行为完全不变（既有 40 项测试守护）；为 02/03 并行实现铺路。\n\n## 范围\n\n- `host.ts`：新增 `resolveSpawnLocation(options, callerCwd?)`——决定 `{ workspaceId?, cwd? }`；当前行为：显式参数优先，否则 undefined（由 Host 回退）。\n- spawn 调用点改走该 helper；注入点留 async 空钩子（默认 no-op）。\n- 单测：既有行为锁定（显式 workspaceId/cwd 透传、都省时不变）。\n- 不包含：默认 workspace 行为变更（02）、context 注入（03）。\n\n## 直接依赖\n\n无（根 issue；以 spec/ADR-0004/CONTEXT 为约束）。\n\n## 验收\n\n- [ ] `pnpm --filter @kxh4892636/dsh-session-manager test` 全部通过（含既有 40 项）\n- [ ] 覆盖率 ≥80% 且无新增未覆盖分支\n- [ ] `vp check` 通过；`vp pack` 构建通过\n- [ ] 单测覆盖：显式 workspaceId/cwd 透传；两者省略时行为与之前一致。\n\n## 上下文\n\n- [spec](../../spec.md)\n- 现有实现：`packages/dsh-session-manager/src/host.ts`（spawn）、`src/tools.ts`（session_spawn execute）\n\n## 下一步\n\n/code-delivery\n\n## 交付记录\n\n- **交付物**：`host.ts` 新增 `resolveSpawnLocation`(显式透传/省略返回空,行为不变)与 `ContextInstaller` seam + spawn `context` 参数(暂不注册);3 项新单测;主分支提交 `52f5bb4`。\n- **验证证据**：`test` 43 项全部通过;覆盖率 98.13/90.19/98.46/99.49 ≥80%;`vp check` 无警告错误。\n- 变异测试：未配置,`skipped: not configured`。\n"
+    },
+    {
+      "id": "02",
+      "title": "spawn默认workspace",
+      "description": "`session_spawn` 未给 workspaceId/cwd 时，新会话默认落在调用方会话同一 workspace（而非 Host 回退 cwd）。",
+      "status": "completed",
+      "blocked_by": [
+        "01"
+      ],
+      "evidence": [
+        "单测：默认 workspace = 调用方；显式覆盖；无 caller 回退",
+        "`test` 全部通过 + 覆盖率 ≥80%；`vp check`/`vp pack` 通过",
+        "与 03 并行实现无文件冲突（合并后总测试全绿）"
+      ],
+      "updated_at": "2026-11-07T00:00:00.000Z",
+      "content": "# spawn 默认 workspace = 调用方会话\n\n## 交付\n\n`session_spawn` 未给 workspaceId/cwd 时，新会话默认落在**调用方会话同一 workspace**（而非 Host 回退 cwd）。\n\n## 范围\n\n- `tools.ts`：`session_spawn.execute` 从 `exec.agent?.session` 取调用方 cwd/workspace 传入 host.spawn（经 01 的 seam）。\n- `host.ts`：`resolveSpawnLocation` 增加 callerCwd 兜底。\n- 描述更新：参数说明改为「缺省与调用方会话同 workspace」。\n- 单测：未给参数 → 落在调用方 workspace；显式给出 → 覆盖；调用方无 cwd 时 → 回退既有行为。\n- 不包含：context 注入（03）。\n\n## 直接依赖\n\n- 01：消费其 `resolveSpawnLocation` seam（本 issue 工作区与 03 不重叠：01 之内的拆解与参数透传区）。\n\n## 验收\n\n- [ ] 单测：默认 workspace = 调用方；显式覆盖；无 caller 回退\n- [ ] `test` 全部通过 + 覆盖率 ≥80%；`vp check`/`vp pack` 通过\n- [ ] 与 03 并行实现无文件冲突（合并后总测试全绿）\n\n## 上下文\n\n- [spec](../../spec.md)\n- [ADR-0004](../../adr/0004-会话初始化上下文以系统消息注入.md)\n\n## 下一步\n\n/code-delivery\n\n## 交付记录\n\n- **交付物**：`resolveSpawnLocation` callerCwd 兜底;`session_spawn.execute` 从 `exec.agent.session.header.cwd` 取调用方 cwd;描述更新;并行分支提交 `6132042`,经 main merge `7631a41` 合入。\n- **验证证据**：`test` 46 项通过(新增 callerSessionCwdOf/spawn 落位 3 项);覆盖率 98.19/90.82/98.48/99.51;`vp check` 通过。\n- 变异测试：`skipped: not configured`。\n"
+    },
+    {
+      "id": "03",
+      "title": "会话上下文系统消息注入",
+      "description": "`session_spawn` 增加 `context` 参数：以其系统消息形式注入新会话（`agent.ctx.systemPrompt.section` 会话作用域注册），不触发模型调用；首次模型调用由第一条用户消息驱动（ADR-0004）。",
+      "status": "completed",
+      "blocked_by": [
+        "01"
+      ],
+      "evidence": [
+        "单测：注册参数/幂等/就绪等待/空 context 短路",
+        "`test` 全部通过 + 覆盖率 ≥80%；`vp check`/`vp pack` 通过",
+        "与 02 并行实现无文件冲突（合并后总测试全绿）"
+      ],
+      "updated_at": "2026-11-07T00:00:00.000Z",
+      "content": "# 会话上下文系统消息注入\n\n## 交付\n\n`session_spawn` 增加 `context` 参数：以其**系统消息**形式注入新会话（`agent.ctx.systemPrompt.section` 会话作用域注册），不触发模型调用；首次模型调用由第一条用户消息驱动（ADR-0004）。\n\n## 范围\n\n- 新建 `src/session-context.ts`：`installSessionContext(ctx, sessionId, text)`——经 `ctx.agents.get`/`session/created` 等待 Agent 就绪后在 `agent.ctx.systemPrompt.section({ name: 'session-manager:context', order: 2850, text })` 注册；幂等（同 session 不重复注册）；Agent 未就绪时等待。\n- `host.ts` spawn 集成（消费 01 的注入钩子）；`tools.ts` 增加 `context` 参数与描述。\n- 单测：注册参数（name/order/text）、幂等、未就绪等待路径、context 为空时不调用注入。\n- 不包含：默认 workspace 行为变更（02）。\n\n## 直接依赖\n\n- 01：消费其注入钩子 seam（与 02 改动区域不重叠）。\n\n## 验收\n\n- [ ] 单测：注册参数/幂等/就绪等待/空 context 短路\n- [ ] `test` 全部通过 + 覆盖率 ≥80%；`vp check`/`vp pack` 通过\n- [ ] 与 02 并行实现无文件冲突（合并后总测试全绿）\n\n## 上下文\n\n- [spec](../../spec.md)\n- [ADR-0004](../../adr/0004-会话初始化上下文以系统消息注入.md)\n- 机制契约：`deepseek-harness\\packages\\core\\agent-loop\\tests\\scope-lifecycle.spec.ts`、`core\\system-prompt\\tests\\scoped.spec.ts`\n\n## 下一步\n\n/code-delivery\n\n## 交付记录\n\n- **交付物**：`src/session-context.ts`(`installSessionContext`/`makeContextInstaller`,幂等;经 `agent.ctx.systemPrompt.section` 注册 `session-manager:context` @2850);`session_spawn.context` 参数;main.ts 接线;并行分支提交 `6fd9a6f`,经 main merge `ee6a8e1` 合入(描述冲突已合并)。\n- **验证证据**：`test` 50 项通过(新增 7 项);`session-context.ts` 覆盖率 100%;总覆盖率 98.36/90.7/98.59/99.55;`vp check` 通过;`vp pack` 26.32 kB。\n- 变异测试：`skipped: not configured`。\n"
+    },
+    {
+      "id": "04",
+      "title": "安装并端到端冒烟",
+      "description": "改动后的插件安装到 web profile 并重启生效；冒烟验证两项行为：①未给 workspace 时新会话与调用方同 workspace；②`context` 作为系统消息注入、创建不触发调用、首调用由用户消息驱动后（`session_read` 可读到注入上下文与回复）。",
+      "status": "completed",
+      "blocked_by": [
+        "02",
+        "03"
+      ],
+      "evidence": [
+        "安装成功 + 重启后工具可用",
+        "冒烟：同 workspace 验证通过；注入上下文出现在系统视图中；创建后无模型调用（**零调用证据**：创建到首条用户消息之间无 assistant 回复）",
+        "首条用户消息触发模型调用并产生回复；`session_read` 可读",
+        "冒烟会话已归档；`vp check`/`test` 全绿（合并后）"
+      ],
+      "updated_at": "2026-11-07T00:00:00.000Z",
+      "content": "# 安装并端到端冒烟\n\n## 交付\n\n改动后的插件安装到 web profile 并重启生效；冒烟验证两项行为：①未给 workspace 时新会话与调用方同 workspace；②`context` 作为系统消息注入、创建不触发调用、首调用由用户消息驱动后（`session_read` 可读到注入上下文与回复）。\n\n## 范围\n\n- `vp pack` 重建 dist → **同步 dist 到 profile 快照**（经验：`dsh plugin add` 是快照复制）→ 用户手动重启 web 进程。\n- 冒烟（一次模型请求）：`session_spawn`（带 `context`、不带 workspaceId/cwd）→ 验证新会话 workspace 与调用方一致 → 确认创建后未触发调用（`session_wait` 前 `session_read` 无回复；或等待观察）→ `session_prompt` 首条用户消息 → `session_wait` → `session_read` 看见注入上下文（系统段）与回复 → `session_archive` 清理。\n- 不包含：任何其他功能变更。\n\n## 直接依赖\n\n- 02：消费默认 workspace 行为。\n- 03：消费 context 注入行为。\n\n## 验收\n\n- [ ] 安装成功 + 重启后工具可用\n- [ ] 冒烟：同 workspace 验证通过；注入上下文出现在系统视图中；创建后无模型调用（**零调用证据**：创建到首条用户消息之间无 assistant 回复）\n- [ ] 首条用户消息触发模型调用并产生回复；`session_read` 可读\n- [ ] 冒烟会话已归档；`vp check`/`test` 全绿（合并后）\n\n## 上下文\n\n- [spec](../../spec.md)\n- [ADR-0004](../../adr/0004-会话初始化上下文以系统消息注入.md)\n- 经验：`docs/dsh/plans/archived/2026-09-01-session与model管理插件/03-安装到web-profile并端到端冒烟.md`\n\n## 下一步\n\n/code-delivery\n\n## 交付记录\n\n- **交付物**：插件(含 02/03 改动 + inject 修复)安装到 web profile;端到端冒烟全部通过;主分支提交 `43cb243`(docs)+ `52de226`(inject 修复)。\n- **验证证据**:\n  - 安装:`dsh plugin --profile web add file:...` 成功;首次启动曾失败(cordis strict inject:`cannot get property 'agents' without inject`)——已在 main.ts `inject` 声明 `agents` 修复(commit `52de226`),重装后启动成功(PID 9424,端口 3080 正常)。\n  - 冒烟(会话 `session-smoke2-20260901-1`,一次模型请求):\n    - `session_spawn`(带 `context`,不带 workspaceId/cwd)→ 会话 header.cwd = `C:\\Users\\kxh\\kxh-awesome\\projects\\kxh-kit` = 调用方会话 workspace ✓\n    - **零调用证据**:创建后 `session_read` 仅初始化事件(seq 0-3),无 request/assistant ✓\n    - 首条用户消息(`session_prompt` queue)→ `session_wait` running→false(标题「提取SMOKE2-CONTEXT原文」)→ `session_read`:\n      - **seq 176 assistant 回复 = 注入上下文原文「SMOKE2-CONTEXT 本会话由会话上下文注入冒烟创建(ADR-0004)。」** —— context 作为系统消息参与首轮 ✓\n    - `session_archive` 清理;默认列表不可见 ✓\n  - `test` 54 项全绿(合并后);`vp check` 通过;`vp pack` dist 26.91 kB。\n  - **经验**:cordis strict inject 模式下 `apply` 访问任何 ctx 服务必须列入插件 `inject`(单测假 ctx 无法暴露,只能靠真实启动冒烟)。\n- 变异测试：`skipped: not configured`。\n"
+    }
+  ]
+}

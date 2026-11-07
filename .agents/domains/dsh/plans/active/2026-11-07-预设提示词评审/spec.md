@@ -2,7 +2,7 @@
 
 ## 目标
 
-评审固定提示词的优化空间并落地定案修订；把 `ready` 改成按依赖关系分组的 todo 列表，补并行执行论述，在会话输入框上方提供可折叠的 ready 面板，并按策略收口 `notes.json` 的访问。
+评审固定提示词的优化空间并落地定案修订；把 `ready` 改成按依赖关系分组的 todo 列表，补并行执行论述，在会话输入框上方提供可折叠的 ready 面板，并按策略收口 `notes.json` 的访问。后续扩展：恢复已有 Plan 只读、note 增加 `awaiting_verification`（等待验证）状态，以及把 `docs/` 下全部业务域迁到 `.agents/domains`。
 
 ## 取证口径
 
@@ -28,20 +28,27 @@
 - note 07 完成（真机已验证）：`read` Plan 的 `notes.json` 被拒（提示只用 `nano_flow_*`），`pwsh` 的字面路径命令同样被拒，`grep` 搜 `notes.json` 与读其它文件不受影响，`nano_flow_read` / `nano_flow_write` 正常。
 - 已打包并安装到 desktop profile：安装目录的 `dist/index.mjs` 与仓库 dist 同哈希（9A380331…60A7）；重启宿主后生效。
 - note 09 完成（2026-11-07）：恢复已有 Plan 改为严格只读（不写 Plan、不执行 note），报告后用户第一条消息放行；轮转种子同步只读口径。四处口径与改动点见 note 09。
-- note 10 实施完成（2026-11-07，待真机）：`prompt.md`、`read.ts` resume 文案、`rotate.ts` 种子、`skills/do` 与 README 全部改为只读口径；241 测试、`check`、`pack` 通过；desktop profile 装 0.4.2，安装目录与仓库 dist 同哈希；已提交 4f5180b0。
-- 未完成：note 02（已按用户决定暂缓）、note 08 的轮转触发验证（需要一条高上下文 queue 消息）、note 10 的重启真机确认。
-- 域根：dsh 已切到 `.agents/domains`，其 `CONTEXT.md` 与 `QUESTIONS.md` 目前是指向 `docs/dsh` 的迁移指针；旧 Plan 与 ADR 仍在原位，迁移见 note 02。
+- note 10 完成（2026-11-07）：`prompt.md`、`read.ts` resume 文案、`rotate.ts` 种子、`skills/do` 与 README 全部改为只读口径；241 测试、`check`、`pack` 通过；desktop profile 装 0.4.2，安装目录与仓库 dist 同哈希；已提交 4f5180b0；用户确认重启后真机验证通过。
+- 2026-11-07 第 1 轮拷问（note 02 / 11）：note 02 范围扩到 `docs/` 全部 6 个域，旧 Plan 全部转 `notes.json` DAG（note 13），迁完删除 `docs/`（note 14）；新增 `awaiting_verification` 状态，`complete` 必须先经过它，`ready` 不列但分组内排在可执行项之后（note 12 落地）。
+- note 11 定案完成（2026-11-07）：`awaiting_verification` 的状态机、呈现、影响面与测试面。
+- note 02 完成（2026-11-07）：6 个域已用 `git mv` 迁到 `.agents/domains`（186 文件无丢失，184 rename + dsh CONTEXT/QUESTIONS 覆盖 stub）；空 `planning` / `implementing` 删除，etf implementing 与 dsh-infinite-story → reference；`CONTEXT-MAP` 与 `notes-guard.ts` 注释已改；workspace 校验通过。`docs/` 只剩空目录，留给 note 14。
+- note 13 完成（2026-11-07）：28 个旧 Plan 全部转成 `notes.json`（101 条 note，4 条超限拆分；无限故事 spec 拆册；14 个 Plan 补 story；迁移链接改写；description 修复 1 条）。check-domain 对冻结 Plan 跳过 Markdown 链接校验并补测试；29 个 Plan 逐个 `nano_flow_check plan` 全绿；249 测试通过。
+- note 14 完成（2026-11-07）：`docs/` 已删除，`apps/etf`、`apps/music`、`packages/nano-flow` README 的残留引用已改；仓库内不再有 docs 域路径引用；workspace 校验通过。
+- 未完成：note 12（等待验证落地，已实现待装）、note 08 的轮转触发验证（需要一条高上下文 queue 消息）。
+- 域根：dsh 已切到 `.agents/domains`；其余 5 个域（common / etf / music / nano-flow / pi）仍以 `docs/` 为权威，迁移见 note 02。
 
 ## 恢复入口
 
 1. 读本 spec、note 01 的评审清单、note 04 的 `ready` 设计与 note 05 的面板设计。
 2. 要动 `notes.json` 的收口：实现与真机验收见 note 07（已完成），边界见 note 06。
-3. 要清账：按 note 02 选策略，把 `docs/dsh` 的域文档与旧 Plan 迁到新布局，处理相对链接。
-4. 迁移后跑 `nano_flow_check` 的 `workspace`。
+3. 要迁移：按 note 02 把 6 个域搬到 `.agents/domains` 并归位生命周期，再按 note 13 把旧 Plan 转成 `notes.json`，最后按 note 14 删除 `docs/` 并改外部引用。
+4. 迁移后跑 `nano_flow_check` 的 `workspace`；旧 Plan 逐个跑 `nano_flow_check` 的 `plan`（note 13 验收）。
 5. 要验轮转：note 08 仍在等一条高上下文 queue 消息；`$DSH_HOME/toolkit/nano-flow-mount.json` 的 `rotation` stage 可确认宿主侧已挂上。
-6. 只读恢复已落地（note 10，0.4.2 已装）；重启后确认新会话只读恢复、报告后放行，见 note 10 的待真机项。
+6. 只读恢复已落地并真机确认（note 10，0.4.2 已装）。
+7. 要动等待验证状态：定案见 note 11，落地见 note 12。
 
 ## 开放问题
 
-- `docs/dsh` 的旧 Plan 保留为 Markdown 历史，还是迁到新布局（需处理相对链接）？2026-11-07 用户决定先不动：note 02 保持 pending，等 note 07 / 08 的真机验证做完再定策略。
+- `docs/` 全量迁移的执行口径：28 个旧 Plan 转 DAG（97 条 note、4 条超限拆条、1 份 spec 拆子文件、约 8 个 Plan 补 story）；规则见 note 13。
+- `packages/nano-flow/README.md` 的 Anki 冒烟检查清单外链指向仓库里不存在的文件（git 无历史），note 14 收尾时改指或删除。
 - 2026-11-07 02:48 观察到的「本会话没有固定提示词与 `nano_flow_*`」已定位：不是会话创建时机，而是 a6f6b7cc 读 `ctx.agent` 触发注入守卫，预设行静默失效；修复见 note 08 的回归小节。

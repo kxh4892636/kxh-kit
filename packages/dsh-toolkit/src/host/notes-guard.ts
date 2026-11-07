@@ -11,7 +11,7 @@ import { hasMethod, serviceOf } from "./services.js";
  *   按**已解析的 target** 拒绝，相对路径与别名都绕不过。
  *
  * 这不是安全边界：shell 子进程、`jobs`、ripgrep 泛搜与编码过的路径都能绕过；
- * `nano_flow_*` 自己用 `node:fs`，不受包装影响。边界写在 README 与 `docs/dsh/QUESTIONS.md`。
+ * `nano_flow_*` 自己用 `node:fs`，不受包装影响。边界写在 README 与 `.agents/domains/dsh/QUESTIONS.md`。
  */
 
 /** 受保护的文件名（比较时统一小写）。 */

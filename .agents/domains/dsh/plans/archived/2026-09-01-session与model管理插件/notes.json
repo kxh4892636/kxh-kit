@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "index": [],
+  "notes": [
+    {
+      "id": "01",
+      "title": "会话管理工具实现与单元测试",
+      "description": "用户可在会话中通过 9 个模型工具完成 session/model CRUD：`session_list` / `session_read` / `session_spawn` / `session_prompt` / `session_model_list` / `session_mo",
+      "status": "completed",
+      "blocked_by": [],
+      "evidence": [
+        "`pnpm --filter @kxh4892636/dsh-session-manager test` 全部通过（覆盖阈值 ≥80%）",
+        "`pnpm --filter @kxh4892636/dsh-session-manager build` 产出 `dist/main.mjs` 与 `dist/main.d.mts`",
+        "`pnpm --filter @kxh4892636/dsh-session-manager check` 通过",
+        "单测覆盖：9 个工具的正常路径与参数校验；`RemoteError` 映射为可读文本；`session_list` 归档隐藏/`includeArchived`/workspace 归属/`parentSessionId` 过滤；`session_read` 普通与子会话寻址（含 mode 投影失败错误）；`sessi"
+      ],
+      "updated_at": "2026-11-07T00:00:00.000Z",
+      "content": "# 会话管理工具实现与单元测试\n\n## 交付\n\n用户可在会话中通过 9 个模型工具完成 session/model CRUD：`session_list` / `session_read` / `session_spawn` / `session_prompt` / `session_model_list` / `session_model_select` / `session_rename` / `session_archive` / `session_wait`，均直调 Host 服务并携带可读错误映射。\n\n## 范围\n\n- 包脚手架：`package.json`（`dsh.bundle.patch` 声明、peer/deps）、`cordis.patch.yml`（至少含 `session-manager` 插入行）、`tsconfig.json`、`vite.config.ts`、`README.md`。\n- 9 个工具的实现（`defineTool` + 参数校验 + `execute` + `presentCall`）：参数/输出契约按 spec「实施决策」表。\n- Host 调用封装：`sessionController` / `workspaceRegistry` 注入、`RemoteError` → 可读错误映射、subagent 子会话寻址（`parentSessionId` + 投影 mode 自动解析）。\n- vitest 单元测试（fake ctx/服务驱动）：参数校验、正常路径、错误映射、归档过滤与 workspace 归属、子会话寻址失败路径。\n- 不包含：上游搜索挂载（Issue 02）、安装与冒烟（Issue 03）。\n\n## 直接依赖\n\n无（根 issue，以 story/spec/ADR 为约束）。\n\n## 验收\n\n- [ ] `pnpm --filter @kxh4892636/dsh-session-manager test` 全部通过（覆盖阈值 ≥80%）\n- [ ] `pnpm --filter @kxh4892636/dsh-session-manager build` 产出 `dist/main.mjs` 与 `dist/main.d.mts`\n- [ ] `pnpm --filter @kxh4892636/dsh-session-manager check` 通过\n- [ ] 单测覆盖：9 个工具的正常路径与参数校验；`RemoteError` 映射为可读文本；`session_list` 归档隐藏/`includeArchived`/workspace 归属/`parentSessionId` 过滤；`session_read` 普通与子会话寻址（含 mode 投影失败错误）；`session_spawn` create→selectModel 顺序；`session_wait` 轮询与超时。\n\n## 上下文\n\n- [spec](../../spec.md)\n- [story](../../story.md)\n- [ADR-0002](../../adr/0002-会话管理能力以模型工具面交付.md)\n- DSH Host 服务契约：`C:\\Users\\kxh\\kxh-awesome\\projects\\deepseek-harness\\packages\\api\\session-controller\\src\\index.ts`（list/search/create/selectModel/modelCatalog/rename/fork/prompt/page/follow）、`types.ts`（请求/响应 shape）\n- 工具注册先例：`deepseek-harness\\packages\\subagent\\tool-subagent\\src\\index.ts`、`packages\\extensions\\tool-cordis\\src\\index.ts`\n- workspace 归档：`deepseek-harness\\packages\\api\\workspace-controller\\src\\index.ts`（archiveSession）\n\n## 下一步\n\n/code-delivery\n\n## 交付记录\n\n- **交付物**：`packages/dsh-session-manager`（`@kxh4892636/dsh-session-manager`，`README.md`、`cordis.patch.yml`、`src/` 3 个实现 + 3 个测试 + test-support）；`dist/main.mjs` 与 `dist/main.d.mts` 构建产物；worktree feature 分支提交 `2526d5b`。\n- **验证证据**：\n  - `pnpm --filter @kxh4892636/dsh-session-manager test`：37 项全部通过（host 23 / tools 13 / main 1）。\n  - 覆盖率（v8，阈值全 80%）：statements 97.91 / branches 88.5 / functions 98.38 / lines 99.43。\n  - `vp check`：无 lint、类型或格式错误。\n  - `vp pack`：产出 `dist/main.mjs`（22.23 kB）、`dist/main.d.mts`。\n  - 变异测试：本包未配置 mutation（stryker 入口不存在），记为 `skipped: not configured`，不阻断。\n"
+    },
+    {
+      "id": "02",
+      "title": "挂载上游内容搜索并启用索引",
+      "description": "会话内容搜索经上游 `@deepseek-ai/dsh-tool-session-query@0.1.2-alpha.2` 可用：插件 patch 挂载其 5 个只读工具，并把 `session-query-sqlite` 行覆盖为 `openAt: first-search` + 持久",
+      "status": "completed",
+      "blocked_by": [
+        "01"
+      ],
+      "evidence": [
+        "`pnpm --filter @kxh4892636/dsh-session-manager build` 通过，patch 文件随包发布（`dist` 产物与 `cordis.patch.yml`）",
+        "单测断言：patch YAML 含 `session-query-sqlite` 覆盖行（`openAt: first-search`、持久化 `path`）、`session-query-tool` 行（name 指向 `@deepseek-ai/dsh-tool-session-query`）、`session-m",
+        "`package.json` 依赖声明 `@deepseek-ai/dsh-tool-session-query@0.1.2-alpha.2`"
+      ],
+      "updated_at": "2026-11-07T00:00:00.000Z",
+      "content": "# 挂载上游内容搜索并启用索引\n\n## 交付\n\n会话内容搜索经上游 `@deepseek-ai/dsh-tool-session-query@0.1.2-alpha.2` 可用：插件 patch 挂载其 5 个只读工具，并把 `session-query-sqlite` 行覆盖为 `openAt: first-search` + 持久化 path，启用部署级内容搜索索引（ADR-0003 确认的行为变更）。\n\n## 范围\n\n- `package.json` 增加 dependency `@deepseek-ai/dsh-tool-session-query`（exact `0.1.2-alpha.2`）。\n- `cordis.patch.yml` 增加两块：`session-query-sqlite` 的 id-targeted config 覆盖（`path: !!js dshHomePath('storages/session-query.sqlite')`、`openAt: first-search`）与 `session-query-tool` 插入行。\n- 构建与静态校验：`vp check`、`vp pack`；patch YAML 结构单测（断言三块修订存在且顺序/字段正确）。\n- 不包含：安装与真实搜索冒烟（Issue 03）。\n\n## 直接依赖\n\n- 01：本 issue 修改其创建的包脚手架（`cordis.patch.yml`、`package.json`）并复用其构建/测试管线。\n\n## 验收\n\n- [ ] `pnpm --filter @kxh4892636/dsh-session-manager build` 通过，patch 文件随包发布（`dist` 产物与 `cordis.patch.yml`）\n- [ ] 单测断言：patch YAML 含 `session-query-sqlite` 覆盖行（`openAt: first-search`、持久化 `path`）、`session-query-tool` 行（name 指向 `@deepseek-ai/dsh-tool-session-query`）、`session-manager` 行（四块同时存在且 `session-query-tool` 在 `session-manager` 之前）\n- [ ] `package.json` 依赖声明 `@deepseek-ai/dsh-tool-session-query@0.1.2-alpha.2`\n\n## 上下文\n\n- [spec](../../spec.md)\n- [ADR-0003](../../adr/0003-内容搜索经上游opt-in工具与索引启用交付.md)\n- [CONTEXT 术语：内容搜索索引](../../CONTEXT.md)\n- 上游包：`C:\\Users\\kxh\\kxh-awesome\\projects\\deepseek-harness\\packages\\session-query\\tool-session-query\\README.zh.md`（5 工具、opt-in、配置）\n- sqlite 行基线：`deepseek-harness\\packages\\bundle\\base\\cordis.patch.yml`（`session-query-sqlite`：`path: ':memory:'`、`openAt: never`）\n- patch 覆盖语义：`deepseek-harness\\packages\\boot\\app-boot\\tests\\config-reload.spec.ts`（id-targeted config 覆盖、later-layer 可见）\n\n## 下一步\n\n/code-delivery\n\n## 交付记录\n\n- **交付物**：`packages/dsh-session-manager` 的 `package.json`（dependency `@deepseek-ai/dsh-tool-session-query@0.1.2-alpha.2`）、`cordis.patch.yml`（三块修订：`session-query-sqlite` 覆盖 + `session-query-tool` 行 + `session-manager` 行）、`src/patch.test.ts`（结构断言）；worktree feature 分支提交 `51a37ba`。\n- **验证证据**：\n  - `pnpm install`：上游包 `0.1.2-alpha.2` 从 npm 成功装入 worktree（与 DSH 安装同版本）。\n  - `pnpm --filter @kxh4892636/dsh-session-manager test`：40 项全部通过（新增 patch 结构 3 项）。\n  - 覆盖率（v8，阈值全 80%）：statements 97.91 / branches 88.5 / functions 98.38 / lines 99.43。\n  - `vp check`：无 lint、类型或格式错误；`vp pack` 构建通过（dist/main.mjs 22.23 kB）。\n  - patch 断言：`openAt: first-search`、持久化 `path`、上游工具行在插件行之前、覆盖行在 insert 之前。\n  - 变异测试：未配置 mutation，记为 `skipped: not configured`，不阻断。\n"
+    },
+    {
+      "id": "03",
+      "title": "安装到web-profile并端到端冒烟",
+      "description": "`@kxh4892636/dsh-session-manager` 安装到本机 web profile 并经重启生效：会话中可见全部工具（自有 9 个 + 上游 5 个），完成一次端到端真实冒烟（创建→选模型→发消息→读取→搜索→归档），清理测试会话。",
+      "status": "completed",
+      "blocked_by": [
+        "01",
+        "02"
+      ],
+      "evidence": [
+        "`dsh plugin --profile web add file:<路径>` 成功，profile `package.json` bundles 含 `@kxh4892636/dsh-session-manager`",
+        "重启 web 进程后 GUI 可访问；会话工具目录含 9 个 `session_*` 工具与 5 个上游搜索工具",
+        "冒烟脚本步骤全部通过（spawn/select/prompt/wait/read/search/rename/archive），`session_search` 命中 seed 指令文本",
+        "冒烟创建的测试 session 已归档；`session_list` 默认视图不再出现（`includeArchived` 可见）",
+        "运行中 Host 日志无 `SESSION_MANAGER_TOOL_FAILED` / 未预期堆栈"
+      ],
+      "updated_at": "2026-11-07T00:00:00.000Z",
+      "content": "# 安装到 web profile 并端到端冒烟\n\n## 交付\n\n`@kxh4892636/dsh-session-manager` 安装到本机 web profile 并经重启生效：会话中可见全部工具（自有 9 个 + 上游 5 个），完成一次端到端真实冒烟（创建→选模型→发消息→读取→搜索→归档），清理测试会话。\n\n## 范围\n\n- `dsh plugin --profile web add file:<工作区包路径>` 安装（含上游依赖解析装入 profile）。\n- 重启运行中 Host 进程（`node ...\\dsh\\lib\\bin.js web`），确认 bundle 行装配生效；GUI `http://127.0.0.1:3080` 可访问。\n- 工具可见性验证：在会话中（GUI 或当前会话注入）确认 9 个 `session_*` 工具与 5 个上游搜索工具出现在工具目录。\n- 端到端冒烟（消耗一次模型请求）：`session_list` → `session_spawn`（默认模型）→ `session_model_select`（或 spawn 时指定）→ `session_prompt` 发指令 → `session_wait` / `session_read` 读到内容 → `session_search`（上游）命中该内容 → `session_rename` → `session_archive` 清理。\n- 不包含：任何 GUI/上游改动；npm 发布；CLI/HTTP 面。\n\n## 直接依赖\n\n- 01：消费其插件包实现与本 issue 冒烟的工具面。\n- 02：消费其依赖声明与 patch（上游搜索工具与索引启用，冒烟需 `session_search` 真实命中）。\n\n## 验收\n\n- [ ] `dsh plugin --profile web add file:<路径>` 成功，profile `package.json` bundles 含 `@kxh4892636/dsh-session-manager`\n- [ ] 重启 web 进程后 GUI 可访问；会话工具目录含 9 个 `session_*` 工具与 5 个上游搜索工具\n- [ ] 冒烟脚本步骤全部通过（spawn/select/prompt/wait/read/search/rename/archive），`session_search` 命中 seed 指令文本\n- [ ] 冒烟创建的测试 session 已归档；`session_list` 默认视图不再出现（`includeArchived` 可见）\n- [ ] 运行中 Host 日志无 `SESSION_MANAGER_TOOL_FAILED` / 未预期堆栈\n\n## 上下文\n\n- [spec](../../spec.md)\n- [ADR-0002](../../adr/0002-会话管理能力以模型工具面交付.md)\n- [ADR-0003](../../adr/0003-内容搜索经上游opt-in工具与索引启用交付.md)\n- 前例安装验证：`../../reference/2026-08-31-dsh嵌套skill发现插件/02-安装到web-profile并验证.md`\n- profile：`C:\\Users\\kxh\\.dsh\\profiles\\web`；GUI：`http://127.0.0.1:3080`\n\n## 下一步\n\n/code-delivery\n\n## 交付记录\n\n- **交付物**：插件安装到 web profile(profile `package.json` bundles 含 `@kxh4892636/dsh-session-manager`);端到端冒烟全部通过;实践修复提交 worktree `9830ee8`(chunk 文本展开)、`ebe1d47`(双 wire 形状)。\n- **验证证据**:\n  - `dsh plugin --profile web add file:<worktree 包路径>` 成功;`node_modules` 含插件与 `@deepseek-ai/dsh-tool-session-query@0.1.2-alpha.2`。\n  - 工具可见性:9 个 `session_*` 工具 + 上游搜索工具(session_search/session_trace/session_event_search/session_event_trace/session_event_read)均进入会话工具目录。\n  - 端到端冒烟(会话 `session-smoke-20260901-1`,真实模型请求一次):`session_spawn`(显式 sessionId)→ `session_model_select`(deepseek-official/v4-flash-vision-exp,归一化 high)→ `session_prompt`(queue)→ `session_wait`(running→false,标题自动生成)→ `session_read`(**assistant 回复 `SMOKE-OK` 正确展开**)→ `session_search`(**命中** seed 文本,snippet 正确)→ `session_rename`(标题→`插件冒烟-已完成`,seq 57)→ `session_archive`(归档后默认列表不可见)。\n  - 冒烟暴露并修复:`session_read` 对 `chunkrow/*` 打包行(文本存于 `texts`)只输出摘要——修复为展开 assistant 文本,并兼容 `{type:'chunks'}` 与 `{type:'event'}` 两种 wire 形状(单元测试覆盖,40 项全绿)。\n  - **经验**:`dsh plugin add` 对 `file:` 依赖是快照复制——插件代码变更后须同步 `dist/` 到 profile 快照(或重装)并重启。\n  - 变异测试:未配置 mutation,记为 `skipped: not configured`,不阻断。\n"
+    }
+  ]
+}

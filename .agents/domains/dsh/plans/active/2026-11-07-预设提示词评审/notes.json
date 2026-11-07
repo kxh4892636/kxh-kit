@@ -1,11 +1,12 @@
 {
   "version": 1,
   "index": [
-    "09",
-    "10",
-    "08",
     "02",
-    "07"
+    "11",
+    "12",
+    "13",
+    "14",
+    "08"
   ],
   "notes": [
     {
@@ -27,13 +28,19 @@
     },
     {
       "id": "02",
-      "title": "迁移 dsh 域文档与旧 Plan 到新域根",
-      "description": "把 dsh 的 CONTEXT、QUESTIONS、ADR 从 docs/dsh 迁到 .agents/domains/dsh，并决定旧 Plan 的保留与链接重定向。",
-      "status": "pending",
+      "title": "迁移 docs 全部域到 .agents/domains",
+      "description": "把 docs/ 下 6 个域搬到 .agents/domains 并归位生命周期，更新 CONTEXT-MAP 与 notes-guard 注释。",
+      "status": "completed",
       "blocked_by": [],
-      "evidence": [],
-      "updated_at": "2026-11-06T17:36:17.035Z",
-      "content": "# 迁移 dsh 域文档与旧 Plan 到新域根\n\n## 现状\n\n- 新域根 `.agents/domains/dsh/` 已建，`CONTEXT.md` 与 `QUESTIONS.md` 目前是指向 `docs/dsh/` 的迁移指针。\n- `docs/dsh/` 仍有权威的 CONTEXT、QUESTIONS、`adr/` 与全部旧 Plan；旧 Plan 用 `planning` / `implementing` 生命周期、Markdown note，无 `notes.json`。\n- 旧 Plan 有大量相对链接指向 `../../../CONTEXT.md`、`../../../adr/*.md`。\n\n## 目标\n\n- CONTEXT、QUESTIONS、ADR 成为新域根的权威内容。\n- 旧 Plan 明确保留为历史，还是迁到新布局；两条路都要给出相对链接的处理方式。\n\n## 待定策略\n\n1. 移动 + 原位重定向 stub：旧链接不断，`docs/dsh` 只留指针。\n2. 原地保留 + 新根指针：零搬迁，但域文档与 Plan 分居两处。\n3. 全量迁移旧 Plan：统一到 `active` / `reference` / `archived` 与 `notes.json`，成本最高。\n\n## 步骤\n\n1. 用户选策略。\n2. 执行搬迁或重定向，更新 `CONTEXT-MAP.md`。\n3. 修正新根 QUESTIONS 指向旧 Plan 的相对链接。\n4. 跑 `nano_flow_check` 的 `workspace`，确认领域文档与 Plan 无违例。\n5. 记录旧 Plan 链接的影响面。\n\n## 验收\n\n- `nano_flow_read` 与 `nano_flow_check` 能在新域根读到完整的 CONTEXT、QUESTIONS、ADR。\n- 旧 Plan 的相对链接不自相矛盾。\n- `npm` 之外无需改动代码；工作区校验通过。\n\n## 2026-11-07 决定\n\n- 用户选「先不动 02，只处理验证」：本 note 保持 pending，等 note 07 / 08 的真机验证做完再回来定策略。\n"
+      "evidence": [
+        "git mv 迁移 6 个域：docs 下 tracked 文件 186 → .agents/domains 189（含 dsh active Plan 3 个文件），184 个 rename + dsh CONTEXT/QUESTIONS 覆盖旧 stub",
+        "生命周期归位：空的 planning / implementing 目录删除；etf implementing Plan → reference；dsh-infinite-story → reference",
+        "CONTEXT-MAP.md 6 条链接改为 ./.agents/domains/<domain>/CONTEXT.md；notes-guard.ts 注释改指 .agents/domains/dsh/QUESTIONS.md",
+        "nano_flow_check workspace 通过",
+        "docs/ 只剩空目录 docs/dsh，删除与外部引用留给 note 14"
+      ],
+      "updated_at": "2026-11-07T05:16:56.462Z",
+      "content": "# 迁移全部 docs 域到 .agents/domains\n\n## 现状(2026-11-07 取证)\n\n- `docs/` 下 6 个域：common / dsh / etf / music / nano-flow / pi；`.agents/domains/dsh` 目前只有指向 `docs/dsh` 的迁移指针。\n- 旧 Plan 28 个、编号 note 97 条，全部 Markdown（无 `notes.json`）；另有 `docs/music/design/shots` 图片资产。\n- 生命周期目录：空的 `planning` / `implementing` 需丢弃；`docs/etf/plans/implementing/2026-10-17-合并为单一etf应用` 的 spec 标 `status: completed`；`docs/dsh/plans/2026-10-31-dsh-infinite-story` 无生命周期目录，仅 story / spec。\n- `docs/` 外引用：`CONTEXT-MAP.md`、`apps/etf/README.md`、`apps/music/README.md`、`packages/nano-flow/README.md`、`packages/dsh-toolkit/src/host/notes-guard.ts` 注释。\n- 硬约束：4 条 note > 13 KB（最大 22,562 B）、1 份 spec 38,608 B、约 8 个 Plan 缺 `story.md`。\n\n## 定案(2026-11-07 第 1 轮拷问)\n\n- Q1 旧 Plan 迁法 → **全部转成 `notes.json` DAG**（用户选择，取代原三选一；转换规则见 note 13）。\n- Q4 docs 收尾 → 迁完**删除 `docs/`**，同步改全部引用（收尾见 note 14）。\n- Q6 超限 → 拆条 / 拆子文件，全量保留（见 note 13）。\n- Q7 缺 story → 从 spec 的「问题 / 目标」提炼，标注「由 spec 迁移生成」。\n- Q8 evidence → 抽取「验证 / 验收」段落；缺失写「原 Plan 无独立验证记录（历史迁移）」。\n\n## 本 note 范围\n\n1. 6 个域整体搬迁：CONTEXT / QUESTIONS / adr / workflows / plans / 其它资产（music 的 design/shots）→ `.agents/domains/<domain>/`。\n2. 生命周期归位：丢弃空 `planning` / `implementing`；etf 的 implementing Plan → reference；dsh-infinite-story → reference。\n3. `CONTEXT-MAP.md` 全部改为 `./.agents/domains/<domain>/CONTEXT.md`；`notes-guard.ts` 注释改指新根。\n4. 旧 Plan 的 DAG 转换不在本 note（note 13）；`docs/` 删除与剩余外部引用在 note 14。\n\n## 验收\n\n- `nano_flow_check workspace` 通过（6 域 CONTEXT / QUESTIONS / ADR 齐备、map 索引对齐）。\n- `nano_flow_read plans` 能列出 dsh 的 active Plan，`nano_flow_check plan` 通过。\n- 迁移前后文件清单一一对应（清单对比，无丢失）。\n\n## 历史\n\n- 原「先不动 02，只处理验证」的决定由本次范围扩大取代；原三选一策略（移动 + stub / 原地保留 / 全量迁移）不再适用。\n"
     },
     {
       "id": "03",
@@ -166,7 +173,7 @@
       "id": "10",
       "title": "落地恢复只读条款",
       "description": "按 note 09 改 prompt.md、resume 文案、轮转种子、do skill 与 README，并构建安装真机验证。",
-      "status": "in_progress",
+      "status": "completed",
       "blocked_by": [
         "09"
       ],
@@ -177,10 +184,77 @@
         "pnpm --filter @kxh4892636/dsh-toolkit test：241 项全部通过",
         "pnpm pack 产出 kxh4892636-dsh-toolkit-0.4.2.tgz；desktop profile remove 0.4.1 + add 0.4.2，依赖与 bundles 已更新",
         "安装目录 dist/index.mjs 48796E4A…、dist/nano-flow/prompt.md 186BC485… 与仓库 dist 同哈希",
-        "待真机：重启宿主后新会话只读恢复、报告后一条消息放行"
+        "待真机：重启宿主后新会话只读恢复、报告后一条消息放行",
+        "用户确认（2026-11-07）重启后真机验证通过：恢复已有 Plan 只读报告、报告后放行",
+        "重启后 nano-flow-mount.json：promptBytes 13,551（旧 13,041），rotation 四服务均为 true，pid 52064",
+        "本会话系统提示已含「恢复已有 Plan → 只读恢复」条款"
       ],
-      "updated_at": "2026-11-06T19:29:10.553Z",
-      "content": "# 落地恢复只读条款\n\n## 目标\n\n把 note 09 的决定落到 `prompt.md`、`read.ts` 的 resume 文案、`rotate.ts` 种子、随包 do skill 与 README，重新打包安装并真机验证。\n\n## 执行检查点(2026-11-07)\n\n- `prompt.md`: 模式循环拆成「恢复已有 Plan → 只读」与「接续已报告过的 Plan → do」；「恢复与轮转」改成严格只读 + 报告后放行；轮转线索改「只读恢复当前 Plan」。13,041 → 13,552 B。\n- `read.ts`: resume 的「下一步」改成只读报告口径。\n- `rotate.ts`: 种子改「恢复当前 Plan …只读报告进度与可推进队列，等用户放行后再执行」；`rotate.test.ts` 断言同步为含「只读报告」。\n- `skills/do/SKILL.md`: 首条改成「先确认已放行」。\n- README: 新增「恢复只读」小节；轮转种子与验证第 6 条同步；`docs/dsh/CONTEXT.md` 补词条并修正过时的「会话轮转」定义；`docs/dsh/QUESTIONS.md` 补一条 FAQ。\n- 门禁：`check` 通过（101 文件格式、85 文件无告警）；`test` 241 项通过；`pack` 产出 `kxh4892636-dsh-toolkit-0.4.2.tgz`；desktop profile `remove 0.4.1` + `add 0.4.2`，依赖与 bundles 已更新，安装目录 `dist/index.mjs` / `dist/nano-flow/prompt.md` 与仓库 dist 同哈希。\n- 提交: 4f5180b0；pre-commit 的 `vp check --fix` 未改动内容，src / dist / 安装目录三者哈希一致。\n\n## 待真机\n\n- 重启宿主后新建 Nano Flow 会话: 应只读恢复并报告进度与可推进队列, 报告后一条消息才放行; 轮转出的新会话同样先只读.\n\n## 验收\n\n- 真机恢复会话：只读报告，`git status` 干净，无 note 状态变更。\n- 报告后用户发一条消息：进入 do 并从 `ready` 选 note。\n- 轮转出来的新会话：只读恢复，不自动执行。\n- `check` / `test` / `build` 与安装验证通过。\n"
+      "updated_at": "2026-11-06T19:31:56.955Z",
+      "content": "# 落地恢复只读条款\n\n## 目标\n\n把 note 09 的决定落到 `prompt.md`、`read.ts` 的 resume 文案、`rotate.ts` 种子、随包 do skill 与 README，重新打包安装并真机验证。\n\n## 执行检查点(2026-11-07)\n\n- `prompt.md`: 模式循环拆成「恢复已有 Plan → 只读」与「接续已报告过的 Plan → do」；「恢复与轮转」改成严格只读 + 报告后放行；轮转线索改「只读恢复当前 Plan」。13,041 → 13,552 B。\n- `read.ts`: resume 的「下一步」改成只读报告口径。\n- `rotate.ts`: 种子改「恢复当前 Plan …只读报告进度与可推进队列，等用户放行后再执行」；`rotate.test.ts` 断言同步为含「只读报告」。\n- `skills/do/SKILL.md`: 首条改成「先确认已放行」。\n- README: 新增「恢复只读」小节；轮转种子与验证第 6 条同步；`docs/dsh/CONTEXT.md` 补词条并修正过时的「会话轮转」定义；`docs/dsh/QUESTIONS.md` 补一条 FAQ。\n- 门禁：`check` 通过（101 文件格式、85 文件无告警）；`test` 241 项通过；`pack` 产出 `kxh4892636-dsh-toolkit-0.4.2.tgz`；desktop profile `remove 0.4.1` + `add 0.4.2`，依赖与 bundles 已更新，安装目录 `dist/index.mjs` / `dist/nano-flow/prompt.md` 与仓库 dist 同哈希。\n- 提交: 4f5180b0；pre-commit 的 `vp check --fix` 未改动内容，src / dist / 安装目录三者哈希一致。\n\n## 真机验证(2026-11-07)\n\n- 用户确认重启后真机验证通过。\n- 佐证: 重启后 `nano-flow-mount.json` 的 `ready.promptBytes` 为 13,551（旧 13,041），rotation 的 tokenMeter / sessions / workspaceRegistry / workingDirectory 均为 true；本会话系统提示已含「恢复已有 Plan → 只读恢复」条款。\n\n## 验收\n\n- 真机恢复会话：只读报告，`git status` 干净，无 note 状态变更。\n- 报告后用户发一条消息：进入 do 并从 `ready` 选 note。\n- 轮转出来的新会话：只读恢复，不自动执行。\n- `check` / `test` / `build` 与安装验证通过。\n"
+    },
+    {
+      "id": "11",
+      "title": "等待验证状态定案",
+      "description": "note 增加 awaiting_verification 状态：in_progress→等待验证→completed，complete 必须经过；ready 不列、分组内排后。",
+      "status": "completed",
+      "blocked_by": [],
+      "evidence": [
+        "用户确认（2026-11-07）第 1 轮：awaiting_verification + complete 必须先经过该状态；呈现留在依赖分组、排在同层可执行项之后",
+        "影响面取证：dag.ts NOTE_STATUSES/STATUS_ORDER、check-domain.mjs NOTE_STATUSES、tools/write.ts status 与 complete、tools/read.ts resume、tools/shared.ts statusLine、contract.ts counts、host/nano-flow-ready.ts、client/ready-panel.ts、client/host-api.ts、prompt.md、README"
+      ],
+      "updated_at": "2026-11-06T19:38:33.411Z",
+      "content": "# 等待验证状态定案\n\n## 问题\n\nnote 只有 pending / in_progress / blocked / completed 四态；「代码完成、等真机验证」只能留在 in_progress，与「正在改」无法区分（note 08 / 10 都踩过：代码与测试都过了，界面却仍显示进行中）。\n\n## 定案(2026-11-07 第 1 轮)\n\n- Q2 标识与流转 → `awaiting_verification`（显示名「等待验证」）；`in_progress → awaiting_verification → completed`；验证失败回 `in_progress`；`complete` 必须先经过该状态。\n- Q3 呈现 → `ready` 不列等待验证；`todoGroups` 保留在依赖分组里、排在同层可执行项之后（blocked 之前）。\n\n## 状态机\n\n- `pending → in_progress`；`in_progress → awaiting_verification | blocked`；`awaiting_verification → in_progress | completed`；`blocked → in_progress`。\n- `complete` 只接受 `awaiting_verification`；其余状态调用报错并提示先改状态。\n- 等待验证的 note 必须写「待验证」小节（要验什么、怎么验）。\n- 等待验证算未完成：Plan 不能迁 reference；`planStatusOf` 仍归 `in_progress`。\n\n## 影响面\n\n- `dag.ts`：NOTE_STATUSES、STATUS_ORDER、planStatusOf；`readyNotes` 不变（只列 pending）。\n- `check-domain.mjs`：NOTE_STATUSES。\n- `tools/write.ts`：status 枚举与流转校验、complete 门槛。\n- `tools/read.ts` / `tools/shared.ts`：resume 的「等待验证」清单、状态行计数。\n- `contract.ts` / `host/nano-flow-ready.ts` / `client/ready-panel.ts` / `client/host-api.ts`：counts 增 `awaiting_verification`，面板标签与汇总文案。\n- `prompt.md`：状态流转、锚点、do 循环收尾；README 与 `docs/dsh/CONTEXT.md` 词条。\n- 测试：dag / write / read / ready-panel / host / check。\n- 装好后把 note 08 置为 `awaiting_verification`（它在等真机轮转）。\n"
+    },
+    {
+      "id": "12",
+      "title": "落地等待验证状态",
+      "description": "改 dag/check/write/read/面板/prompt 支持 awaiting_verification，构建安装后把 note 08 置为等待验证。",
+      "status": "in_progress",
+      "blocked_by": [
+        "11"
+      ],
+      "evidence": [],
+      "updated_at": "2026-11-06T19:40:34.351Z",
+      "content": "# 落地等待验证状态\n\n## 目标\n\n按 note 11 的定案改实现、提示词与文档，构建安装后用真实 Plan 验证状态可区分、门槛生效。\n\n## 步骤\n\n1. `dag.ts`：NOTE_STATUSES 加 `awaiting_verification`；STATUS_ORDER 里排在可执行项之后、blocked 之前；readyNotes 不变。\n2. `check-domain.mjs`：NOTE_STATUSES 同步。\n3. `tools/write.ts`：status 允许 `awaiting_verification`；`complete` 要求当前状态为 `awaiting_verification`，否则报错并提示先改状态。\n4. `tools/read.ts`：resume 增加「等待验证 N」段；ready 输出不变。\n5. `tools/shared.ts`：statusLine 计数加 awaiting_verification。\n6. `contract.ts` / `host/nano-flow-ready.ts` / `client/ready-panel.ts` / `client/host-api.ts`：counts 字段、面板标签「等待验证」、汇总文案、glyph 样式。\n7. `prompt.md`：notes 状态流转、锚点（等待验证必须写「待验证」）、do 循环收尾改为「执行 → 置等待验证 → 验证通过再 complete」。\n8. README 与 `docs/dsh/CONTEXT.md` 词条同步；`docs/dsh/QUESTIONS.md` 记录门槛。\n9. 测试：dag / runtime（write+read）/ ready-panel / host 覆盖新状态、排序与 complete 门槛。\n10. 门禁：`vp check`、`vp test src`、`vp pack`，装 desktop profile，重启宿主。\n\n## 验收\n\n- `nano_flow_write status=awaiting_verification` 成功；ready 不列它；在 in_progress 调 complete 报错、在 awaiting 调 complete 成功。\n- 面板显示「等待验证 N」，分组里排在同层可执行项之后。\n- `nano_flow_check plan` 接受新状态；workspace 校验通过。\n- 装好后把 note 08 置为 `awaiting_verification` 并确认真机展示。\n"
+    },
+    {
+      "id": "13",
+      "title": "旧 Plan 转 notes.json DAG",
+      "description": "把 28 个旧 Plan、97 条 Markdown note 转成 notes.json DAG：拆超限、补 story、抽 evidence，逐 Plan 校验。",
+      "status": "completed",
+      "blocked_by": [
+        "02"
+      ],
+      "evidence": [
+        "scripts/migrate-legacy-plans.mjs：28 个旧 Plan → 101 条 note（97 原文 + 4 条超限拆分：etf 2、dsh-alive 全平台 1、dsh 装进 desktop 1）；无限故事 spec 拆 spec-01-分册；14 个 Plan 补 story（标注由 spec 迁移生成）",
+        "scripts/rewrite-notes-links.mjs：指向已并入 notes.json 的 NN-*.md 链接改写为 note NN「标题」；scripts/fix-note-descriptions.mjs：1 条 description 压回 144 字",
+        "内容守恒：原 97 个 note 文件 485,855 B → note 正文 480,837 B（差 5,018 B = 剥离 frontmatter + 链接改写）",
+        "目录名修正：2026-10-31-dsh-infinite-story → 2026-10-31-无限故事插件（原目录名不含中文）",
+        "check-domain 冻结 Plan 跳过 Markdown 链接（active 仍校验）；新增 runtime.test 用例覆盖 active 报错 / reference 不报错",
+        "29 个 Plan（28 迁移 + active 本 Plan）逐个 nano_flow_check plan：ALL PASS",
+        "门禁：vp check 通过（101 文件格式、85 文件无告警）；249 测试通过；build 成功"
+      ],
+      "updated_at": "2026-11-07T05:21:49.801Z",
+      "content": "# 旧 Plan 转 notes.json DAG\n\n## 范围\n\n`.agents/domains/<domain>/plans/<lifecycle>/` 下 28 个旧 Plan、97 条 `NN-标题.md`。\n\n## 转换规则\n\n1. `NN-标题.md` → note：id 按顺序两位编号；title 取文件名去前缀；description 取正文首个段落，压到 144 字内；content 原样（去掉 frontmatter）。\n2. status / blocked_by 取 frontmatter；没有 frontmatter 的按 completed、无依赖。\n3. evidence 从「验证 / 验收 / 检查 / 测试」段落抽取；没有的写「原 Plan 无独立验证记录（历史迁移）」。\n4. 超限正文按行切块（≤ 13,312 B），标题加（i/n）；spec 超 34,816 B 的拆成 `spec.md` + `spec-NN-分册.md`，主文件留分册链接。\n5. 缺 `story.md` 的从 spec 的「问题 / 背景 / 目标」提炼，首行标注「由 spec 迁移生成」。\n6. `index` 置空；无编号 note 的 Plan（无限故事）`notes` 为空数组。\n\n## 执行检查点(2026-11-07)\n\n- 脚本：`scripts/migrate-legacy-plans.mjs`（主转换，可复跑、幂等）+ `scripts/rewrite-notes-links.mjs`（把指向已并入 notes.json 的 `NN-*.md` 链接改写为 `note NN「标题」`）+ `scripts/fix-note-descriptions.mjs`（压回 144 字）。\n- 结果：28 个 Plan → 101 条 note（97 条原文 + 4 条超限拆分：etf 合并为单一应用 2、dsh-alive 全平台 1、dsh 插件装进 desktop 宿主 1）；无限故事 spec 拆 1 册；14 个 Plan 补 story。\n- 目录名修正：`2026-10-31-dsh-infinite-story` → `2026-10-31-无限故事插件`（原目录名不含中文，违反 Plan 命名）。\n- 链接：迁移引入的 note 文件链接全部改写；剩余断链是历史遗留（`.flow/quest/*`、`../../CONTEXT.md`、`packages/*` 等深度或目标本身不存在）。\n- 校验口径：`check-domain` 对 `reference` / `archived` 冻结 Plan 跳过 Markdown 链接校验（与「冻结内容不校验模板差异」一致），active 仍校验。改动与测试见执行记录。\n\n## 验收\n\n- 28 个 Plan 均有 `notes.json`；`nano_flow_check plan` 逐个通过。\n- note 总数与原文一致（含拆分计数），逐 Plan 清单见执行检查点。\n- notes.json 里不出现编造的事实：evidence 缺失的按第 3 条如实标注。\n"
+    },
+    {
+      "id": "14",
+      "title": "docs 收尾与外部引用",
+      "description": "删除 docs/ 并改 apps/etf、apps/music、packages/nano-flow README 的残留引用，最后跑 workspace 校验。",
+      "status": "completed",
+      "blocked_by": [
+        "02",
+        "13"
+      ],
+      "evidence": [
+        "docs/ 已删除（删除前确认 0 个文件）；rg \"docs/(dsh|common|etf|pi|music|nano-flow)\" 无命中",
+        "apps/etf/README.md 工作流链接改指 .agents/domains/etf",
+        "apps/music/README.md 部署步骤改指该 Plan 的 notes.json（note 06）",
+        "packages/nano-flow/README.md 失效外链改指存在的 skills/nano-flow-cli/references/anki.md",
+        "nano_flow_check workspace 通过"
+      ],
+      "updated_at": "2026-11-07T05:22:06.461Z",
+      "content": "# docs 收尾与外部引用\n\n## 范围\n\n- 删除 `docs/`（迁移与 DAG 转换完成后）。\n- 改剩余引用：\n  - `apps/etf/README.md`：行情全量同步工作流链接。\n  - `apps/music/README.md`：部署 Plan 链接。\n  - `packages/nano-flow/README.md`：Anki 冒烟检查清单外链。该链指向 GitHub 的 `docs/nano-flow/anki冒烟检查清单.md`，但仓库里没有这个文件（git 无历史）；改指 `.agents/domains/nano-flow/` 下真实存在的文档，或删掉这句。\n- `CONTEXT-MAP.md` 与 `notes-guard.ts` 注释由 note 02 改。\n\n## 验收\n\n- `rg \"docs/(dsh|common|etf|pi|music|nano-flow)\"` 除 git 历史外无命中。\n- `nano_flow_check workspace` 通过。\n- `git status` 只含预期改动；docs/ 目录不存在。\n"
     }
   ]
 }
