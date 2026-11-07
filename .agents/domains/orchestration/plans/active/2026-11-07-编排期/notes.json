@@ -9,8 +9,8 @@
       "status": "pending",
       "blocked_by": [],
       "evidence": [],
-      "updated_at": "2026-11-07T11:32:18.614Z",
-      "content": "# 编排期待办（2026-11-07）\n\n## 追踪中\n\n- `pi/active/2026-11-07-pi多plan编排`\n  - note 13 / 14 / 15 / 16 全部 completed，Plan 13 条 note 结清。\n  - 用户 2026-11-07 决定：**暂留 active**（不迁 reference / archived），下次有改动继续在此 Plan 加 note。\n  - 内容：启动对账移除（改为 `resume` / `status` 显式呈现崩溃凭据）+ 派工异步化（入队即返回、promise 作终态、后台 watchdog）。测试 270 通过。\n\n## 本编排期\n\n- 用户 2026-11-07 决定：**暂留 active**，等新任务开新编排期时一并处理。\n- 本次改动以单条提交落库（代码 + 域文档 + ADR + video 归档移动）。\n\n## 待回答\n\n- 无。\n\n## 执行检查点\n\n- 2026-11-07 建立本编排期 Plan；复核过 note 14、note 16 的实际改动与测试，不只信 worker 自述。\n- 已归档并清理 video：Plan 迁 `video/archived/`，工程目录 `.temp/video` 删除，成品 mp4 保留在 `C:\\Users\\kxh\\Pictures\\kxr`。\n\n## 下一步\n\n- 无未结事项；下一条输入若指向新目标，按归属判定决定是并入某个 active Plan 还是新开 Plan。\n"
+      "updated_at": "2026-11-07T13:51:36.361Z",
+      "content": "# 编排期待办（2026-11-07）\n\n## 追踪中\n\n- `pi/active/2026-11-07-pi多plan编排`：**30/30 note 全部 completed**。用户此前决定留在 `active`，去向待定（`reference` 或继续 active）。\n  - 本批落地：`36` ask 提交页与未答拦截（`9562679d`）、`37` 定案+执行合成一条（`d302e408`）、`38` 右侧边栏（`23377a88` / `69735ab2` / `fb59451a` / `c406ae2fa` 系）、`39` worktree 派工（`fee3e14d`）、`40` pass 未分组自动建组（`7574e796`）、`41` 自定义回车前进、`42` 下行 ack（`bb337dff`）。\n\n## 经验（本轮真实踩到）\n\n1. **会碰同一批文件的并行必须用 `worktree: true`**（`39` 已支持）。本轮 `38`（侧栏接线）与 `42`（ack 展示）同改 `register.ts`，靠 hunk 级暂存才没互相污染；这不是可依赖的常态。\n2. **note 状态是编排方唯一的进度信号**：多次出现“代码已实现但 note 停在 `pending`”，导致误判为没开工。已要求 worker 动手即置 `in_progress`。\n3. **`pass` 只能投给已包含该 note 的组**（`40` 之前）；现在未分组会自动 `[note]` 成组。\n4. **report 注入曾静默丢失**（`33` 已修为 outbox + 重试 + 未送达计数）。\n\n## 待回答\n\n- `pi` 域这个 Plan 的去向：`reference` 还是继续 `active`。\n\n## 执行检查点\n\n- 编排方无宿主工具；一切取证、测试、提交由 worker 完成。\n- 建议用户 `/reload` 让 `38`（3s 刷新 / top-right 对齐 / 边框分色）与 `42`（`待消费` 显示）在当前会话生效。\n\n## 下一步\n\n- 用户决定 Plan 去向；之后处理挂起项（后台运行调研、通信可靠性剩余项）。\n"
     }
   ]
 }
