@@ -17,8 +17,14 @@ import {
   noteStatusLabel,
   renderSidebarLines,
   SIDEBAR_HEADER_ROWS,
+  ICON_ROWS,
+  ICON_WIDTH,
+  iconColumns,
+  iconMargin,
   SIDEBAR_MARGIN,
   SIDEBAR_MIN_COLUMNS,
+  sidebarColumns,
+  sidebarMargin,
   SIDEBAR_REFRESH_MS,
   SIDEBAR_TITLE,
   SIDEBAR_WIDTH,
@@ -215,6 +221,33 @@ describe("侧边栏列表", () => {
   });
 });
 
+describe("右上角定位与图标对齐", () => {
+  it("图标与侧栏右边缘对齐，图标正好在侧栏顶部那一行", () => {
+    for (const termWidth of [100, 120, 160]) {
+      const box = sidebarColumns(termWidth);
+      const icon = iconColumns(termWidth);
+      // 右边缘（不含）相同 ⇒ 视觉上右对齐
+      expect(icon.right).toBe(box.right);
+      expect(box.right).toBe(termWidth - SIDEBAR_MARGIN);
+      expect(box.left).toBe(termWidth - SIDEBAR_MARGIN - SIDEBAR_WIDTH);
+      expect(icon.left).toBe(box.right - ICON_WIDTH);
+      // 图标落在侧栏宽度范围内（挂在侧栏顶部，不越过左边界）
+      expect(icon.left).toBeGreaterThanOrEqual(box.left);
+    }
+    // 行：图标占第 SIDEBAR_MARGIN 行，侧栏从它下一行开始（同一右 margin）。
+    expect(iconMargin().right).toBe(sidebarMargin().right);
+    expect(sidebarMargin().top).toBe(SIDEBAR_MARGIN + ICON_ROWS);
+    expect(iconMargin().top).toBe(SIDEBAR_MARGIN);
+  });
+
+  it("占位：32 是内容宽，屏幕上是 32 + 左右 margin", () => {
+    const box = sidebarColumns(140);
+    expect(box.width).toBe(SIDEBAR_WIDTH);
+    expect(140 - box.right).toBe(SIDEBAR_MARGIN);
+    expect(box.left).toBe(SIDEBAR_MARGIN + (140 - SIDEBAR_MARGIN * 2) - SIDEBAR_WIDTH);
+  });
+});
+
 describe("侧边栏组件的鼠标", () => {
   const rows: SidebarRow[] = [];
 
@@ -324,15 +357,21 @@ describe("侧边栏控制器", () => {
     mountWidget(widgets, tui);
     expect(overlays).toHaveLength(2);
     const [icon, list] = overlays;
-    expect(icon?.options).toMatchObject({ anchor: "top-right", nonCapturing: true });
-    expect(list?.options).toMatchObject({
-      anchor: "right-center",
-      width: SIDEBAR_WIDTH,
-      maxHeight: "100%",
-      // 四周各留 1 列/1 行：32 是组件内容宽，屏幕上占 34 列。
-      margin: SIDEBAR_MARGIN,
+    expect(icon?.options).toMatchObject({
+      anchor: "top-right",
+      width: ICON_WIDTH,
+      maxHeight: ICON_ROWS,
       nonCapturing: true,
     });
+    expect(icon?.options.margin).toEqual(iconMargin());
+    expect(list?.options).toMatchObject({
+      // 固定右上角，不居中。
+      anchor: "top-right",
+      width: SIDEBAR_WIDTH,
+      maxHeight: "100%",
+      nonCapturing: true,
+    });
+    expect(list?.options.margin).toEqual(sidebarMargin());
     await wait(20);
     const text = (list?.component.render(SIDEBAR_WIDTH) ?? []).join("\n");
     expect(text).toContain("demo");

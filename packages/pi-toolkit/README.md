@@ -278,11 +278,15 @@ While a session runs Orchestrator:
   200ms-throttled live stream of its text deltas and tool calls. The list itself re-reads the plans every 5s (only when the rows actually change
   is a render requested) — the stream keeps its own 200ms cadence.
 
-  Both layers are framed and visually distinct: the sidebar is a 32-column box in the `accent` colour with the
-  title `▤ Note 状态` and a 1-column/1-row gap to the terminal edges (`margin: 1`, so it occupies 34 screen
-  columns), while the detail card is framed in `warning` and headed `◇ note <id>` — neither uses the body
-  text colour, so it is obvious which layer you are looking at. The 32 is the _component_ width handed to
-  `render()`: the host adds no frame of its own, so borders and padding live inside those 32 columns.
+  Both layers are framed and visually distinct: the sidebar is a 32-column box in the `accent` colour with
+  the title `▤ Note 状态`, pinned to the **top-right** corner (`anchor: "top-right"`, margin 1 on the right
+  and bottom, one extra row on top for the icon), while the detail card is framed in `warning` and headed
+  `◇ note <id>` — neither uses the body text colour, so it is obvious which layer you are looking at. The
+  `▤` icon is its own one-line overlay but derives its columns from the sidebar's: both share the same right
+  margin, so `iconColumns(term).right === sidebarColumns(term).right` and the icon sits exactly on the
+  sidebar's top row, like a tab on the panel. The 32 is the _component_ width handed to `render()`: the host
+  adds no frame of its own, so borders and padding live inside those 32 columns and the panel occupies 34
+  screen columns once the side gaps are counted.
 
   Three things were verified rather than assumed: a `nonCapturing` overlay **does** receive mouse clicks
   (hit-testing is geometric; only focus acquisition respects the flag), so the sidebar neither steals

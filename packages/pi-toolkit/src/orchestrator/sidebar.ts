@@ -25,6 +25,7 @@ import {
   visibleWidth,
   type Component,
   type OverlayHandle,
+  type OverlayMargin,
   type TUI,
   type TuiMouseEvent,
   type TuiMouseEventResult,
@@ -58,14 +59,59 @@ export const SIDEBAR_WIDGET_KEY = "orchestrator-sidebar";
 export const ICON_OPEN = "▤";
 /** 侧栏收起后的图标（同一位置，提示可以再点开）。 */
 export const ICON_CLOSED = "▥";
-/** 图标 overlay 宽度。 */
+/** 图标 overlay 宽度；与侧栏右边缘对齐，正好“挂”在侧栏顶部。 */
 export const ICON_WIDTH = 3;
+/** 图标 overlay 占的行数（一行）。 */
+export const ICON_ROWS = 1;
 /** 列表顶部的固定行数：上边框（含标题）+ 汇总行；鼠标 `y` 减去它才是行下标。 */
 export const SIDEBAR_HEADER_ROWS = 2;
 /** 侧栏外框标题：与详情卡片的 `◇ note …` 一眼区分开。 */
 export const SIDEBAR_TITLE = "▤ Note 状态";
-/** 侧栏外框留白：overlay 的四边 margin（列/行各 1），不贴终端边缘。 */
+/** 侧栏/图标与终端右边缘的留白（列），也是两者右对齐的基准。 */
 export const SIDEBAR_MARGIN = 1;
+
+/**
+ * 侧栏在终端里的列区间 `[left, right)`：右上角对齐，右边缘距终端右侧 `SIDEBAR_MARGIN`。
+ *
+ * 与宿主 `resolveOverlayLayout` 的算法一致（`anchor: "top-right"` + 右 margin 1 ⇒
+ * `col = termWidth - 1 - width`），所以图标可以用同一个 `right` 反推自己的左列。
+ * @param termWidth - 终端列数。
+ * @returns 宽、左边界（含）、右边界（不含）。
+ */
+export const sidebarColumns = (
+  termWidth: number,
+): { readonly width: number; readonly left: number; readonly right: number } => {
+  const right = termWidth - SIDEBAR_MARGIN;
+  return { width: SIDEBAR_WIDTH, left: right - SIDEBAR_WIDTH, right };
+};
+
+/**
+ * 图标在终端里的列区间 `[left, right)`：右边缘与侧栏相同，宽度 `ICON_WIDTH`。
+ * @param termWidth - 终端列数。
+ * @returns 宽、左边界（含）、右边界（不含）。
+ */
+export const iconColumns = (
+  termWidth: number,
+): { readonly width: number; readonly left: number; readonly right: number } => {
+  const box = sidebarColumns(termWidth);
+  return { width: ICON_WIDTH, left: box.right - ICON_WIDTH, right: box.right };
+};
+
+/** 侧栏 overlay 的 margin：右边留 gap，上边让出图标那一行。 */
+export const sidebarMargin = (): OverlayMargin => ({
+  top: SIDEBAR_MARGIN + ICON_ROWS,
+  right: SIDEBAR_MARGIN,
+  bottom: SIDEBAR_MARGIN,
+  left: SIDEBAR_MARGIN,
+});
+
+/** 图标 overlay 的 margin：与侧栏同一个右 margin ⇒ 右边缘自动对齐。 */
+export const iconMargin = (): OverlayMargin => ({
+  top: SIDEBAR_MARGIN,
+  right: SIDEBAR_MARGIN,
+  bottom: 0,
+  left: 0,
+});
 /** 折叠行文案里的“已完成”前缀。 */
 export const COMPLETED_LABEL = "已完成";
 
@@ -447,10 +493,11 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
     iconHandle = localTui.showOverlay(
       createIconComponent({ open: () => listVisible, theme: localTheme, onClick: toggleList }),
       {
+        // 与侧栏同一个右 margin：两者右边缘对齐，图标正好落在侧栏顶部那一行。
         anchor: "top-right",
         width: ICON_WIDTH,
-        maxHeight: 1,
-        margin: { top: 0, right: 0 },
+        maxHeight: ICON_ROWS,
+        margin: iconMargin(),
         nonCapturing: true,
         visible: () => localTui.mode === "fullscreen",
       },
@@ -458,11 +505,11 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
     listHandle = localTui.showOverlay(
       createSidebarComponent({ view: () => view, theme: localTheme, onRow }),
       {
-        anchor: "right-center",
+        // 固定右上角（不居中）：图标占上面一行，侧栏从它下面开始。
+        anchor: "top-right",
         width: SIDEBAR_WIDTH,
         maxHeight: "100%",
-        // 四周各留 1 列/1 行：不贴终端边缘（窄终端本来整块隐藏，不受影响）。
-        margin: SIDEBAR_MARGIN,
+        margin: sidebarMargin(),
         nonCapturing: true,
         visible: (width) => {
           lastColumns = width;
