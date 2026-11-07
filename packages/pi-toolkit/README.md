@@ -439,7 +439,13 @@ core.longpaths=true worktree remove`, `--force` if that fails, then `rm -rf` bec
 files such as `node_modules/` behind, then `worktree prune`) and the branch, and appends `worktree.merged` /
 `worktree.removed`. `worktree.removed` is only written when the directory is really gone; a directory that
 survives the cleanup appends `worktree.leftover` instead (shown as `✗ 现场残留` together with the path to
-delete by hand). If it is not ff-only (diverged, dirty workspace, no rebase) it does **not** merge: it keeps
+delete by hand). Scene rows in `orchestrator_state` are re-checked **against the disk**, not just the
+ledger: a `worktree.created` whose directory is gone (hand-run `git worktree remove` / `rm -rf` leaves no
+event) shows up as `已消失（无事件）` — no `worktree.removed` is ever back-filled, because events only come
+from real actions — and is not reusable; a directory that exists without any ledger record is shown as
+`未登记现场（疑似手建）` and is not reusable either. Reuse and dispatch read the same verdict: only ledger
+`created` **and** a directory on disk reuse a scene without installing again; everything else counts as a
+new scene and appends a fresh `worktree.created`. If it is not ff-only (diverged, dirty workspace, no rebase) it does **not** merge: it keeps
 the scene and appends one error (`worker.merge_blocked`) that `orchestrator_state` shows with a `✗`, and
 `complete` returns `✗ 未合并：…` right in its result text. Merges are serialized in-process (mutex + retry on git lock errors) so two scenes cannot
 interleave; `abort` and timeouts never touch a scene (a scene belongs to the group, not to one generation),

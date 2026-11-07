@@ -27,7 +27,7 @@
 
 import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
-import { rm } from "node:fs/promises";
+import { readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
 
@@ -134,6 +134,24 @@ export const groupWorktreeName = (notes: readonly string[]): string | undefined 
   if (ids.length === 0) return undefined;
   if (ids.length === 1) return `note-${ids[0] as string}`;
   return `grp-${ids.join("-")}`;
+};
+
+/**
+ * 磁盘上现存的现场名字（`.worktrees/` 下的目录），没有目录就是空数组。
+ *
+ * 账本只是“发生过什么”，磁盘才是“现在有什么”：手工 `git worktree remove` / `rm -rf`
+ * 不会留下 `worktree.removed`，所以 `state` 的现场行与派工的复用判断都要过这一道。
+ * @param input - 工作区根（`workspace`，即 `C:\...\kxh-kit`）。
+ * @returns 目录名列表（不排好序，调用方自己决定）。
+ */
+export const listWorktrees = async (input: { readonly workspace: string }): Promise<string[]> => {
+  try {
+    const entries = await readdir(join(input.workspace, WORKTREE_ROOT), { withFileTypes: true });
+    return entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+  } catch {
+    // 还没建过任何现场：`.worktrees` 不存在，等同于“一个都没有”。
+    return [];
+  }
 };
 
 /**
@@ -394,6 +412,12 @@ export interface WorktreeHooks {
     readonly name: string;
     readonly branch: string;
   }): Promise<MergeOutcome>;
+  /**
+   * 磁盘上现存的现场名字（不跑 git）。`state` 的现场行与派工的复用判断共用这一份结论：
+   * 账本说 `created` 但目录没了 → 标「已消失（无事件）」、不复用、按新建落新的
+   * `worktree.created`。省略时用 `listWorktrees`（真查盘）。
+   */
+  list?(input: { readonly workspace: string }): Promise<string[]>;
 }
 
 /** 默认实现：真的跑 git 与 pnpm。 */
@@ -402,4 +426,5 @@ export const DEFAULT_WORKTREE_HOOKS: WorktreeHooks = {
   install: (directory) => installDependencies(directory),
   remove: removeWorktree,
   merge: (input) => mergeWorktree(input),
+  list: listWorktrees,
 };

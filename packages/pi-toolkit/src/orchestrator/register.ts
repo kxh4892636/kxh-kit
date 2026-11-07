@@ -10,6 +10,7 @@ import {
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
 import { existsSync } from "node:fs";
+import { join } from "node:path";
 import { Type } from "typebox";
 import type { ToolkitSettings } from "../settings.ts";
 import { installCrashGuard, stateDirectory } from "./errors.ts";
@@ -41,6 +42,7 @@ import {
   orphanWorkers,
   progressAtOf,
   type ProjectedWorker,
+  type ProjectedWorktree,
   type Projection,
 } from "./projection.ts";
 import { nextTempSeq, rememberWorkerSession } from "./worker-sessions.ts";
@@ -82,6 +84,8 @@ import { createSidebar } from "./sidebar.ts";
 import {
   DEFAULT_WORKTREE_HOOKS,
   groupWorktreeName,
+  listWorktrees,
+  WORKTREE_ROOT,
   type InstallOutcome,
   type MergeOutcome,
   type WorktreeHooks,
@@ -102,6 +106,74 @@ import {
   type ToolRuntime,
 } from "./tools/shared.ts";
 import { createWriteTool } from "./tools/write.ts";
+
+/**
+ * 现场行的状态文字：`created` 还要跟磁盘再核一次。
+ *
+ * 账本只是“发生过什么”，磁盘才是“现在有什么”：手工 `git worktree remove` / `rm -rf`
+ * 不会留下 `worktree.removed`，只照账本说「存在」就是假象（真机 `note-49` / `note-50`
+ * 就是这样）。所以：
+ * - `created` + 目录在 → 「存在」（可复用）；
+ * - `created` + 目录没了 → 「已消失（无事件）」：账本没有 `removed` 这条事实就不写它，
+ *   也不为对齐补一条事件（事件只由真实动作产生），但该组现场**不复用**；
+ * - `merged` / `removed` 照账本（磁盘残留另由 `leftover` 标 ✗）。
+ * @param site - 账本投影出来的现场。
+ * @param onDisk - 磁盘上现存的现场名字（`sitesOnDisk` 的结果）。
+ * @returns 给人看的状态文字。
+ */
+const sitePhaseLabel = (site: ProjectedWorktree, onDisk: ReadonlySet<string>): string => {
+  if (site.phase === "created") return onDisk.has(site.key) ? "存在" : "已消失（无事件）";
+  if (site.phase === "merged") {
+    return `已合并${site.commit === undefined ? "" : ` ${site.commit.slice(0, 8)}`}`;
+  }
+  return `已回收${site.reason === undefined ? "" : `（${site.reason}）`}`;
+};
+
+/**
+ * `state` 的现场段：账本投影 + 磁盘校验。
+ *
+ * 账本里有的逐行渲染（`created` 再核磁盘）；磁盘上有、账本里没有的单独标「未登记现场」——
+ * 手建 / 旧版本残留同样不能当某组的现场。
+ * @param sites - 账本里的现场（调用方已按时间升序）。
+ * @param onDisk - 磁盘上现存的现场名字（`sitesOnDisk` 的结果）。
+ * @returns 渲染行；一个现场都没有时为空数组。
+ */
+const siteLines = (sites: readonly ProjectedWorktree[], onDisk: ReadonlySet<string>): string[] => {
+  const registered = new Set(sites.map((site) => site.key));
+  const unregistered = [...onDisk].filter((name) => !registered.has(name)).sort();
+  if (sites.length === 0 && unregistered.length === 0) return [];
+  const lines = [`现场（${sites.length + unregistered.length}，一个组一个）:`];
+  for (const name of unregistered) lines.push(`${WORKTREE_ROOT}/${name} · 未登记现场（疑似手建）`);
+  for (const site of sites.slice(-10)) {
+    const install = site.installMs === undefined ? "" : ` · 依赖 ${site.installMs}ms`;
+    const owner = site.worker === undefined ? "" : ` · ${site.worker}`;
+    // 目录没删干净：不能当已回收（人工删之前同组再派会落回一个假现场）。
+    const leftover =
+      site.leftover === undefined
+        ? ""
+        : ` · ✗ 现场残留：${site.leftover.reason}（手动删 ${site.directory}）`;
+    lines.push(
+      `${site.key} · ${site.branch} · ${sitePhaseLabel(site, onDisk)}${install}${owner}${leftover}`,
+    );
+  }
+  return lines;
+};
+
+/**
+ * 磁盘上的现场（`.worktrees/` 下的目录名）。
+ *
+ * `state` 的现场行与派工的复用判断**共用这一份结论**：只有“账本说 `created` 且目录还在”
+ * 才复用现场，否则按新建走（重新建目录 + 装依赖 + 落新的 `worktree.created`）。
+ * @param deps - 工具依赖（`worktree` 可注入，默认真查盘）。
+ * @param workspace - 主工作区根。
+ * @returns 目录名集合。
+ */
+const sitesOnDisk = async (deps: OrchestratorDeps, workspace: string): Promise<Set<string>> => {
+  const hooks = deps.worktree ?? DEFAULT_WORKTREE_HOOKS;
+  const names =
+    hooks.list === undefined ? await listWorktrees({ workspace }) : await hooks.list({ workspace });
+  return new Set(names);
+};
 
 /** 三个 Plan 工具、账本摘要 / 命令入口与询问工具；Orchestrator 生效时一并激活。 */
 export const ORCHESTRATOR_TOOL_NAMES = [
@@ -801,9 +873,22 @@ const createCommandTool = (
         const siteName = groupWorktreeName(targetNotes);
         if (siteName !== undefined) {
           const hooks = deps.worktree ?? DEFAULT_WORKTREE_HOOKS;
-          // 已有现场且目录还在 → 直接复用；目录不在（合并回收过）→ 重新建 + 装一次。
+          // 能不能复用**只认磁盘**（与 `state` 的现场行同一份校验结果）：账本说 `created`
+          // 不等于目录还在，手工 `git worktree remove` / `rm -rf` 不会留下 `removed` 事件。
+          const record = projectionOf().state().worktrees.get(siteName);
+          const present = (await sitesOnDisk(deps, workspace)).has(siteName);
+          if (present && record?.phase !== "created") {
+            // 目录在但不属于这个组：手建 / 上一轮回收残留。接管它等于把别人的东西当自己的现场。
+            throw new Error(
+              (record === undefined
+                ? `现场 ${siteName} 在磁盘上存在但账本没有创建记录（未登记现场，疑似手建）`
+                : `现场 ${siteName} 的账本状态是 ${record.phase}（已合并 / 已回收）但目录还在`) +
+                `：已中止派工，避免复用来历不明的目录。确认后手工删掉 ${join(workspace, WORKTREE_ROOT, siteName)} 再重派。`,
+            );
+          }
+          // 目录不在（合并回收过 / 手工删了）→ 重新建 + 装一次，并落新的 `worktree.created`。
           const ensured = await hooks.ensure({ workspace, name: siteName });
-          worktreeCreated = ensured.created;
+          worktreeCreated = !present;
           worktree = ensured;
           if (worktreeCreated) {
             worktreeInstall = await hooks.install(ensured.directory);
@@ -1193,7 +1278,11 @@ const createStateTool = (
       `账本：seq ${state.lastSeq} · live ${live.length} · 未读 report ${unread.length} · 放行 ${[...state.released.values()].reduce((sum, set) => sum + set.size, 0)} 条 note`,
     ];
     // worktree 内的领域副本不参与解析；亮出来是为了让“为什么看不到那份改动”有答案。
-    const copies = worktreeDomainCopies(runtime.workspace(exec));
+    const workspace = runtime.workspace(exec);
+    const copies = worktreeDomainCopies(workspace);
+    // 磁盘上的现场：账本说 `created` 不等于目录还在（手工 `git worktree remove` /
+    // `rm -rf` 不留事件），所以现场行与复用判断都按这一份校验结果说。
+    const onDisk = await sitesOnDisk(deps, workspace);
     if (copies.length > 0) {
       lines.push(`worktree 内有副本，已忽略: ${copies.join("、")}`);
     }
@@ -1225,14 +1314,13 @@ const createStateTool = (
           siteKey === undefined
             ? " · 无现场（无组）"
             : site === undefined
-              ? ` · 组键 ${siteKey} · 现场 无记录`
-              : ` · 组键 ${siteKey} · 现场 ${site.directory === "" ? site.branch : site.directory}（${
-                  site.phase === "created"
-                    ? "存在"
-                    : site.phase === "merged"
-                      ? `已合并${site.commit === undefined ? "" : ` ${site.commit.slice(0, 8)}`}`
-                      : `已回收${site.reason === undefined ? "" : `（${site.reason}）`}`
-                }）`;
+              ? onDisk.has(siteKey)
+                ? ` · 组键 ${siteKey} · 现场 未登记现场（疑似手建）`
+                : ` · 组键 ${siteKey} · 现场 无记录`
+              : ` · 组键 ${siteKey} · 现场 ${site.directory === "" ? site.branch : site.directory}（${sitePhaseLabel(
+                  site,
+                  onDisk,
+                )}）`;
         // 合并结论：成功报 commit 前 8 位；失败用 ✗ 醒目地把现场路径带出来。
         const mergeMark =
           worker.mergeBlocked !== undefined
@@ -1264,29 +1352,12 @@ const createStateTool = (
       }
     }
     // 现场：一个组一个（`.worktrees/<组键>`）。从账本投影出来，所以“旧现场”与
-    // “当前 live worker”是两行事实，不会糊成一件事。
+    // “当前 live worker”是两行事实，不会糊成一件事；`created` 的行再跟磁盘对一次。
     const sites = [...state.worktrees.values()].sort(
       (left, right) => Date.parse(left.at) - Date.parse(right.at),
     );
-    if (sites.length > 0) {
-      lines.push(`现场（${sites.length}，一个组一个）:`);
-      for (const site of sites.slice(-10)) {
-        const phase =
-          site.phase === "created"
-            ? "存在"
-            : site.phase === "merged"
-              ? `已合并${site.commit === undefined ? "" : ` ${site.commit.slice(0, 8)}`}`
-              : `已回收${site.reason === undefined ? "" : `（${site.reason}）`}`;
-        const install = site.installMs === undefined ? "" : ` · 依赖 ${site.installMs}ms`;
-        const owner = site.worker === undefined ? "" : ` · ${site.worker}`;
-        // 目录没删干净：不能当已回收（人工删之前同组再派会落回一个假现场）。
-        const leftover =
-          site.leftover === undefined
-            ? ""
-            : ` · ✗ 现场残留：${site.leftover.reason}（手动删 ${site.directory}）`;
-        lines.push(`${site.key} · ${site.branch} · ${phase}${install}${owner}${leftover}`);
-      }
-    }
+    const unregisteredSites = [...onDisk].filter((name) => !state.worktrees.has(name)).sort();
+    lines.push(...siteLines(sites, onDisk));
     if (orphans.length > 0) {
       lines.push(
         `可恢复 worker（${orphans.length}，op=resume 恢复）：${orphans
@@ -1360,8 +1431,11 @@ const createStateTool = (
         unread: unread.length,
         waiting: waiting.length,
         seq: state.lastSeq,
-        // 现场（组键 → 存在 / 已合并 / 已回收）也进 details：验收与测试不用拆文本。
-        worktrees: [...state.worktrees.values()],
+        // 现场（组键 → 存在 / 已消失（无事件） / 已合并 / 已回收）也进 details：
+        // 验收与测试不用拆文本；`present` 是磁盘校验的结果（不是账本）。
+        worktrees: sites.map((site) => ({ ...site, present: onDisk.has(site.key) })),
+        /** 目录在但账本无记录（疑似手建）：同样不复用。 */
+        unregisteredSites,
         // 合并结论也进 details：汇报与测试不必去拆文本行。
         merged: live.flatMap((worker) =>
           worker.merged === undefined ? [] : [{ worker: worker.worker, ...worker.merged }],
