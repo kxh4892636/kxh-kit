@@ -481,6 +481,40 @@ describe("侧边栏控制器", () => {
     sidebar.dispose();
   });
 
+  it("列表按 SIDEBAR_REFRESH_MS（3s）刷新，实时流的 200ms 不参与", async () => {
+    // 读盘是真实 IO：只假 timer，别假 setImmediate，否则等不到 fs 回调。
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout", "setInterval", "clearInterval"] });
+    const tick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+    const root = await tempWorkspace([runningNote("07", "侧边栏实现")]);
+    const sidebar = createSidebar({
+      registry: createRegistry(),
+      limits: () => DEFAULT_ORCHESTRATOR_SETTINGS,
+    });
+    const { ctx, widgets } = createFakeCtx(root);
+    const { tui, state } = createFakeTui();
+    sidebar.sync(ctx, true);
+    mountWidget(widgets, tui);
+    // 首帧读盘落地。
+    await vi.advanceTimersByTimeAsync(0);
+    await tick();
+    expect(SIDEBAR_REFRESH_MS).toBe(3_000);
+    // 盘上内容变了：tick 没到就不重绘。
+    const directory = join(root, ".agents/domains/demo/plans/active/2026-01-01-demo");
+    const document = parseDocument(
+      { version: 1, index: [], notes: [runningNote("07", "改名后的标题")] },
+      DEFAULT_ORCHESTRATOR_SETTINGS,
+    );
+    await writeFile(join(directory, "notes.json"), serializeDocument(document), "utf8");
+    const before = state.renders;
+    await vi.advanceTimersByTimeAsync(SIDEBAR_REFRESH_MS - 1);
+    await tick();
+    expect(state.renders).toBe(before);
+    await vi.advanceTimersByTimeAsync(1);
+    await tick();
+    expect(state.renders).toBeGreaterThan(before);
+    sidebar.dispose();
+  });
+
   it("模式关与 dispose 都会清 overlay、定时器与监听", async () => {
     vi.useFakeTimers();
     const root = await tempWorkspace([]);
@@ -499,7 +533,7 @@ describe("侧边栏控制器", () => {
     expect(widgets.size).toBe(0);
     expect(overlays.every((overlay) => overlay.hidden)).toBe(true);
     expect(listeners.size).toBe(0);
-    // 定时器已清：推进 3 个刷新周期（3 × 5s）也不再有重绘请求
+    // 定时器已清：推进 3 个刷新周期（3 × 3s）也不再有重绘请求
     vi.advanceTimersByTime(SIDEBAR_REFRESH_MS * 3);
     expect(state.renders).toBe(before);
     sidebar.dispose();

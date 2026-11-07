@@ -49,10 +49,10 @@ export const SIDEBAR_MIN_COLUMNS = 100;
 /**
  * 列表刷新间隔（毫秒）。
  *
- * 5s：列表只是状态快照，读盘 + 整帧重绘都不便宜；**实时流不走这个节奏**，
- * 它由 `STREAM_THROTTLE_MS`（200ms）单独节流。
+ * 3s：列表只是状态快照，读盘 + 整帧重绘都不便宜，但 5s 的感知延迟偏高；
+ * **实时流不走这个节奏**，它由 `STREAM_THROTTLE_MS`（200ms）单独节流，两者独立。
  */
-export const SIDEBAR_REFRESH_MS = 5_000;
+export const SIDEBAR_REFRESH_MS = 3_000;
 /** 承载侧栏的 widget 键（唯一一个，`dispose` 时清掉）。 */
 export const SIDEBAR_WIDGET_KEY = "orchestrator-sidebar";
 /** 显示侧栏的图标。 */
@@ -358,7 +358,7 @@ export const createIconComponent = (options: {
 
 /** 侧栏控制器。 */
 export interface Sidebar {
-  /** 每次模式同步时调用：开（且是 tui）→ 挂 overlay + 5s 定时刷新；否则全清。 */
+  /** 每次模式同步时调用：开（且是 tui）→ 挂 overlay + 3s 定时刷新；否则全清。 */
   sync(ctx: ExtensionContext, enabled: boolean): void;
   /** 清定时器、退订阅、隐藏全部 overlay。幂等。 */
   dispose(): void;

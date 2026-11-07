@@ -275,8 +275,9 @@ While a session runs Orchestrator:
   centered bordered card inside it (the background is blanked, i.e. a modal); clicking outside the card
   closes only the detail, and so does `Esc`, while a second `Esc` collapses the sidebar. It shows the
   snapshot (title, status, needs, description, blocking reason) and, while a worker holds that note, a
-  200ms-throttled live stream of its text deltas and tool calls. The list itself re-reads the plans every 5s (only when the rows actually change
-  is a render requested) — the stream keeps its own 200ms cadence.
+  200ms-throttled live stream of its text deltas and tool calls. The list itself re-reads the plans every
+  3s (only when the rows actually change is a render requested) — the stream keeps its own, independent
+  200ms cadence.
 
   Both layers are framed and visually distinct: the sidebar is a 32-column box in the `accent` colour with
   the title `▤ Note 状态`, pinned to the **top-right** corner (`anchor: "top-right"`, margin 1 on the right
