@@ -7,8 +7,9 @@
  * 也没有空行；这里每项两行（`→ 1. label` + 缩进概述），项间 `Spacer(1)`。
  *
  * TUI 下由**一个组件管全部题目**：`←/→`（或 Tab/Shift+Tab）切题，切回去恢复该题原来的
- * 选中位置，末题 Enter 或选中「提交」项才结束提问；还有题未作答（既未作答也未显式跳过）时
- * 提交被拦下，光标跳到第一道未答题并提示是哪几题。
+ * 选中位置；题目之后另有一页独立的「提交」页（汇总各题答案），末题 Enter 只是前进到那里，
+ * 在提交页按 Enter 才结束提问；还有题未作答（既未作答也未显式跳过）时提交被拦下，光标跳到
+ * 第一道未答题并提示是哪几题。
  * 选中「自定义回答」时组件先退出，外层用 `ctx.ui.input` 取文本，
  * 再带着同一份草稿重新进入组件并停在同一题 —— 之前的答案不会丢。
  *
@@ -49,7 +50,10 @@ export interface AskAnswer {
   readonly custom: boolean;
 }
 
-/** 多题共用的作答草稿：当前题、每题选中位置、每题答案。 */
+/**
+ * 多题共用的作答草稿：当前 tab、每题选中位置、每题答案。
+ * `index` 取 `0..questions.length-1` 表示第几题，取 `questions.length` 表示提交页。
+ */
 export interface AskDraft {
   readonly index: number;
   readonly selection: readonly number[];
@@ -72,7 +76,7 @@ export interface AskResult {
 export const CUSTOM_LABEL = "✎ 自定义回答";
 /** 末尾追加的「跳过」项。 */
 export const SKIP_LABEL = "跳过";
-/** 末尾追加的「提交」项：多题时方便提前结束提问。 */
+/** 「提交」页的标签：题目 tab 之后的独立一页，汇总各题答案并在此提交。 */
 export const SUBMIT_LABEL = "提交";
 
 /** 渲染与选择共用的候选项：预设项在前，自定义 / 跳过在后。 */
@@ -187,24 +191,63 @@ const withDescription = (label: string, description?: string): string =>
 const fallbackLabels = (entries: readonly AskEntry[]): string[] =>
   entries.map((entry) => withDescription(entry.label, entry.description));
 
-/** 每题最终的候选：该题已有自定义答案时，把它挂在「自定义回答」项下方；末尾追加「提交」。 */
-const entriesFor = (question: AskQuestion, answer: AskAnswer | undefined): readonly AskEntry[] => {
-  const described = askEntries(question).map((entry) =>
+/**
+ * 一题的候选项：预设项 + 自定义 / 跳过。
+ * 「提交」不混进候选项 —— 它是题目 tab 之后的独立一页，免得提交被当成一种回答。
+ * 该题已有自定义答案时，把它挂在「自定义回答」项下方。
+ */
+const entriesFor = (question: AskQuestion, answer: AskAnswer | undefined): readonly AskEntry[] =>
+  askEntries(question).map((entry) =>
     answer !== undefined && answer.custom && !answer.skipped && entry.value === CUSTOM_LABEL
       ? { ...entry, description: `已填：${answer.answer}` }
       : entry,
   );
-  return [...described, { value: SUBMIT_LABEL, label: SUBMIT_LABEL }];
-};
 
-/** 底部键位提示；多题时顺带报已答进度与「提交」项。 */
-const hintText = (total: number, answered: number): string => {
+/** 提交页的一行：一题及其当前状态。 */
+export interface SubmitRow {
+  readonly questionIndex: number;
+  readonly question: string;
+  /** 渲染好的答案文本：答案 / `（跳过）` / `未作答`。 */
+  readonly answer: string;
+  /** `false` 表示这道题既没作答也没显式跳过，提交会被拦下。 */
+  readonly answered: boolean;
+}
+
+/** 提交页的汇总行：每题一行，未作答的列出来好让人知道差什么。 */
+export const submitRows = (
+  questions: readonly AskQuestion[],
+  answers: readonly (AskAnswer | undefined)[],
+): readonly SubmitRow[] =>
+  questions.map((question, at) => {
+    const answer = answers[at];
+    if (answer === undefined) {
+      return { questionIndex: at, question: question.question, answer: "未作答", answered: false };
+    }
+    const text = answer.skipped
+      ? "（跳过）"
+      : answer.custom
+        ? `${answer.answer}（自定义）`
+        : answer.answer;
+    return { questionIndex: at, question: question.question, answer: text, answered: true };
+  });
+
+/** 题目页的底部键位提示：切页、移动、直选、确认前进。 */
+const questionHint = (total: number, answered: number): string => {
   const confirm = keyText("tui.select.confirm");
   const cancel = keyText("tui.select.cancel");
-  const progress = total > 1 ? `已答 ${answered}/${total} · ` : "";
-  const next = total > 1 ? "并下一题 / 末题提交 · 「提交」提前结束" : "";
-  return `  ${progress}←/→ 或 Tab/Shift+Tab 切题 · ↑/↓ 或 k/j 移动 · 数字 1-9 直选 · ${confirm} 确认${next} · ${cancel} 取消`;
+  return `  已答 ${answered}/${total} · ←/→ 或 Tab/Shift+Tab 切题（末页为「${SUBMIT_LABEL}」） · ↑/↓ 或 k/j 移动 · 数字 1-9 直选 · ${confirm} 确认并前进 · ${cancel} 取消`;
 };
+
+/** 提交页的底部键位提示：这里 Enter 才是提交。 */
+const submitHint = (): string => {
+  const confirm = keyText("tui.select.confirm");
+  const cancel = keyText("tui.select.cancel");
+  return `  ${confirm} ${SUBMIT_LABEL} · ←/Shift+Tab 回上一题 · ${cancel} 取消`;
+};
+
+/** 提交页标题。 */
+const submitTitle = (answered: number, total: number): string =>
+  `${SUBMIT_LABEL}（已答 ${answered}/${total}）`;
 
 /**
  * TUI：一个组件管全部题目，每项两行、项间空行，可来回切题。
@@ -220,8 +263,10 @@ const askInTui = async (
 ): Promise<AskEvent> =>
   ctx.ui.custom<AskEvent>((tui, theme: Theme, keybindings, done) => {
     const total = questions.length;
+    /** 提交页的 tab 下标：题目是 `0..total-1`，提交页是 `total`。 */
+    const submitTab = total;
     const container = new Container();
-    let index = Math.min(Math.max(draft.index, 0), total - 1);
+    let index = Math.min(Math.max(draft.index, 0), submitTab);
     /** 提交被拦下时的提示；下一次按键先清掉。 */
     let warning: string | undefined;
     const selection: number[] = [];
@@ -265,10 +310,27 @@ const askInTui = async (
     };
 
     const draw = (): void => {
-      const entries = entriesAt();
       container.clear();
       container.addChild(new DynamicBorder((text) => theme.fg("accent", text)));
       container.addChild(new Spacer(1));
+      if (index >= submitTab) {
+        container.addChild(new Text(theme.bold(submitTitle(answered(), total)), 0, 0));
+        container.addChild(new Spacer(1));
+        for (const row of submitRows(questions, answers)) {
+          const head = theme.fg("dim", `Q${row.questionIndex + 1} ${row.question}`);
+          const body = row.answered ? row.answer : theme.fg("warning", row.answer);
+          container.addChild(new Text(`${head} → ${body}`, 0, 0));
+          container.addChild(new Spacer(1));
+        }
+        if (warning !== undefined) {
+          container.addChild(new Text(theme.fg("warning", warning), 0, 0));
+          container.addChild(new Spacer(1));
+        }
+        container.addChild(new Text(theme.fg("dim", submitHint()), 0, 0));
+        container.addChild(new DynamicBorder((text) => theme.fg("accent", text)));
+        return;
+      }
+      const entries = entriesAt();
       container.addChild(
         new Text(theme.bold(questionTitle(questions[index] as AskQuestion, index, total)), 0, 0),
       );
@@ -283,15 +345,17 @@ const askInTui = async (
         container.addChild(new Text(theme.fg("warning", warning), 0, 0));
         container.addChild(new Spacer(1));
       }
-      container.addChild(new Text(theme.fg("dim", hintText(total, answered())), 0, 0));
+      container.addChild(new Text(theme.fg("dim", questionHint(total, answered())), 0, 0));
       container.addChild(new DynamicBorder((text) => theme.fg("accent", text)));
     };
 
-    /** 确认当前题：选中「提交」或停在末题时提交（要过未答拦截），否则内部前进。 */
+    /**
+     * 确认当前页：提交页才真提交（要过未答拦截）；题目页只记答案并前进，末题前进到提交页。
+     */
     const commit = (): AskEvent | undefined => {
+      if (index >= submitTab) return attemptSubmit();
       const question = questions[index] as AskQuestion;
       const entry = entriesAt()[selection[index] ?? 0];
-      if (entry?.value === SUBMIT_LABEL) return attemptSubmit();
       if (entry !== undefined) {
         if (entry.value === CUSTOM_LABEL) {
           // 已有自定义答案时 Enter 表示「采用它」，不再重复弹输入。
@@ -315,16 +379,15 @@ const askInTui = async (
                 };
         }
       }
-      if (index >= total - 1) return attemptSubmit();
       index += 1;
       return undefined;
     };
 
     draw();
 
-    /** 切到另一题：保留每题自己的选中位置。 */
+    /** 切到另一个 tab（题目与提交页共 `total + 1` 页）：保留每题自己的选中位置。 */
     const moveTo = (offset: number): void => {
-      index = (index + offset + total) % total;
+      index = (index + offset + submitTab + 1) % (submitTab + 1);
       draw();
       tui.requestRender();
     };
@@ -353,17 +416,19 @@ const askInTui = async (
           tui.requestRender();
           return;
         }
-        const entries = entriesAt();
         const back = matchesKey(data, "left") || matchesKey(data, "shift+tab");
         const forward = matchesKey(data, "right") || matchesKey(data, "tab");
         if (back) {
-          if (total > 1) moveTo(-1);
+          moveTo(-1);
           return;
         }
         if (forward) {
-          if (total > 1) moveTo(1);
+          moveTo(1);
           return;
         }
+        // 提交页没有候选项：Enter / Esc / 切页已在上面处理，其余键忽略。
+        if (index >= submitTab) return;
+        const entries = entriesAt();
         if (entries.length === 0) return;
         const at = selection[index] ?? 0;
         if (keybindings.matches(data, "tui.select.up") || data === "k") {
@@ -568,13 +633,13 @@ export const createAskQuestionsTool = (): ToolDefinition => ({
   name: "ask_questions",
   label: "Ask Questions",
   description:
-    "向用户提出一个或多个问题，逐题等待回答。每题最多 3 个预设选项（每个选项建议配一句话概述），也可自定义回答或跳过；用于 Orchestrator 的 ask 循环与其他需要用户决策的场景。TUI 下可用 ←/→ 或 Tab/Shift+Tab 在题目间来回切换并回改答案，另有「提交」项可提前结束提问；有题未作答（既未作答也未显式跳过）时提交会被拦下并提示是哪几题。rpc / print 为顺序问答，不支持回退。",
+    "向用户提出一个或多个问题，逐题等待回答。每题最多 3 个预设选项（每个选项建议配一句话概述），也可自定义回答或跳过；用于 Orchestrator 的 ask 循环与其他需要用户决策的场景。TUI 下可用 ←/→ 或 Tab/Shift+Tab 在题目间来回切换并回改答案；题目之后还有一页独立的「提交」（先汇总各题答案再提交），有题未作答（既未作答也未显式跳过）时提交会被拦下并提示是哪几题。rpc / print 为顺序问答，不支持回退。",
   promptSnippet: "Ask the user one or more questions and wait for answers.",
   promptGuidelines: [
     "ask_questions 会阻塞直到用户作答；一次可提任意数量的问题，每题都能自定义回答或跳过。",
     "每题最多给 3 个预设选项：优先给满 3 个，但不要硬凑；凑不出就少给，用户仍可自定义回答或跳过。",
     "给预设选项时，为每个选项写一句话 description（取舍 / 代价 / 后果）；TUI 会把它展示在选项下方，建议 ≤ 60 字，字段可选。",
-    "多题可放进一次调用：TUI 下用户能来回切题、回改答案，所以每题都应能独立作答，不依赖上一题的选择。",
+    "多题可放进一次调用：TUI 下用户能来回切题、回改答案，也能直接翻到末尾的「提交」页预览，所以每题都应能独立作答，不依赖上一题的选择。",
   ],
   executionMode: "sequential",
   parameters: Type.Unsafe<Record<string, unknown>>({

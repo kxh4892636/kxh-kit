@@ -5,6 +5,7 @@ import {
   createAskQuestionsTool,
   formatAnswers,
   parseQuestions,
+  submitRows,
 } from "./ask.ts";
 
 const params = (questions: unknown): Record<string, unknown> => ({ questions });
@@ -218,34 +219,40 @@ describe("TUI 状态机", () => {
     { question: "第二题", options: [{ label: "C" }, { label: "D" }] },
   ];
 
-  it("Enter 前进到下一题，末题 Enter 提交", async () => {
-    const { text, renders } = await runTui(twoQuestions, [["\r", "\u001b[B", "\r"]]);
+  it("Enter 前进到下一题，末题 Enter 前进到提交页", async () => {
+    const { text, frames, renders } = await runTui(twoQuestions, [["\r", "\u001b[B", "\r", "\r"]]);
     expect(renders[0]?.join("\n")).toContain("问题 1/2");
     expect(text).toContain("A1: A");
     expect(text).toContain("A2: D");
-    expect((await runTui(twoQuestions, [["\r", "\r"]])).text).toContain("A2: C");
+    // 末题 Enter 只前进到提交页，不直接提交。
+    expect((frames.at(-1) ?? []).join("\n")).toContain("提交（已答 2/2）");
+    expect((await runTui(twoQuestions, [["\r", "\r", "\r"]])).text).toContain("A2: C");
   });
 
   it("→ / Tab 前进、← / Shift+Tab 回退，回退后能覆盖答案", async () => {
-    // Q1 Enter 得 A 并前进 → ← 回 Q1 改选 B 并确认 → Q2 选 D 提交。
+    // Q1 Enter 得 A 并前进 → ← 回 Q1 改选 B 并确认 → Q2 选 D → 提交页提交。
     const viaArrows = await runTui(twoQuestions, [
-      ["\r", "\u001b[D", "\u001b[B", "\r", "\u001b[B", "\r"],
+      ["\r", "\u001b[D", "\u001b[B", "\r", "\u001b[B", "\r", "\r"],
     ]);
     expect(viaArrows.text).toContain("A1: B");
     expect(viaArrows.text).toContain("A2: D");
     expect(viaArrows.details["cancelled"]).toBe(false);
 
-    // Tab 前进、Shift+Tab 回退（在首题上用 Shift+Tab 得回绕）。
-    const viaTab = await runTui(twoQuestions, [["\t", "\u001b[Z", "\r", "\r"]]);
+    // Tab 前进、Shift+Tab 回退（在首题上用 Shift+Tab 得回绕到提交页）。
+    const viaTab = await runTui(twoQuestions, [["\t", "\u001b[Z", "\r", "\r", "\r"]]);
     expect(viaTab.text).toContain("A1: A");
     expect(viaTab.text).toContain("A2: C");
+    expect(viaTab.details["cancelled"]).toBe(false);
   });
 
   it("回退保留该题原来的选中位置", async () => {
     // Q1 ↓ 到 B 但先不确认，→ 去 Q2，← 回来应仍在 B（Enter 直接就是 B）。
-    const { text } = await runTui(twoQuestions, [["\u001b[B", "\u001b[C", "\u001b[D", "\r", "\r"]]);
+    const { text, details } = await runTui(twoQuestions, [
+      ["\u001b[B", "\u001b[C", "\u001b[D", "\r", "\r", "\r"],
+    ]);
     expect(text).toContain("A1: B");
     expect(text).toContain("A2: C");
+    expect(details["cancelled"]).toBe(false);
   });
 
   it("Esc 取消并保留已答", async () => {
@@ -262,16 +269,16 @@ describe("TUI 「提交」拦截未答", () => {
     { question: "第一题", options: [{ label: "A" }, { label: "B" }] },
     { question: "第二题", options: [{ label: "C" }, { label: "D" }] },
   ];
-  // 每题候选项：预设项 + ✎ 自定义回答 + 跳过 + 提交。
-  const Q2_SUBMIT = ["\u001b[B", "\u001b[B", "\u001b[B", "\u001b[B"];
 
   it("还有未答题时提交被拒并指出是哪几题", async () => {
-    const { text, renders, frames, details } = await runTui(twoQuestions, [
-      ["\r", ...Q2_SUBMIT, "\r"],
-    ]);
-    // 被拦下：组件没有退出（只进入过一次），最后一帧给出未答清单。
+    // Q1 确认前进 → Tab 翻到「提交」页 → Enter 被拦下。
+    const { text, renders, frames, details } = await runTui(twoQuestions, [["\r", "\t", "\r"]]);
+    // 被拦下：组件没有退出（只进入过一次）。
     expect(renders).toHaveLength(1);
-    expect((frames.at(-1) ?? []).join("\n")).toContain("还有 Q2 未作答");
+    const last = (frames.at(-1) ?? []).join("\n");
+    expect(last).toContain("还有 Q2 未作答");
+    // 光标回到第一道未答题。
+    expect(last).toContain("问题 2/2");
     // 没交出去就是取消（脚本耗尽后的兜底），已答的 Q1 保留。
     expect(text).toContain("A1: A");
     expect(text).not.toContain("A2");
@@ -280,20 +287,18 @@ describe("TUI 「提交」拦截未答", () => {
 
   it("拦下后补答再提交就通过，且光标停在首个未答题", async () => {
     const { text, frames, details } = await runTui(twoQuestions, [
-      // Q1 确认前进 → Q2 选到「提交」→ 被拦（光标回 Q2、提示）→ 选 D → 提交。
-      ["\r", ...Q2_SUBMIT, "\r", "\u001b[B", "\u001b[B", "\r"],
+      // Q1 确认 → Tab 到提交页 → Enter 被拦（光标回 Q2）→ 选 D → 前进到提交页 → Enter 提交。
+      ["\r", "\t", "\r", "\u001b[B", "\r", "\r"],
     ]);
-    expect((frames.at(-1) ?? []).join("\n")).toContain("问题 2/2");
+    expect((frames.at(-1) ?? []).join("\n")).toContain("提交（已答 2/2）");
     expect(text).toContain("A1: A");
     expect(text).toContain("A2: D");
     expect(details["cancelled"]).toBe(false);
   });
 
-  it("跳题后停在首题按「提交」也被拦下，并指出跳过的题", async () => {
-    const { text, frames } = await runTui(twoQuestions, [
-      // Q1 直接选到「提交」（↓×4）并回车。
-      [...Q2_SUBMIT, "\r"],
-    ]);
+  it("从首题直接翻到提交页也被拦下，并指出没答的题", async () => {
+    // 在 Q1 上按 ← 回绕到「提交」页，再 Enter。
+    const { text, frames } = await runTui(twoQuestions, [["\u001b[D", "\r"]]);
     const last = (frames.at(-1) ?? []).join("\n");
     expect(last).toContain("还有 Q1、Q2 未作答");
     expect(last).toContain("问题 1/2");
@@ -302,8 +307,8 @@ describe("TUI 「提交」拦截未答", () => {
 
   it("显式跳过不算未作答，提交通过，details 能区分跳过与未答", async () => {
     const { text, details } = await runTui(twoQuestions, [
-      // Q1 选「跳过」（↓↓↓）→ 自动前进 → Q2 选 C → 末题 Enter 提交。
-      ["\u001b[B", "\u001b[B", "\u001b[B", "\r", "\r"],
+      // Q1 选「跳过」（↓↓↓）→ 前进 → Q2 选 C → 提交页 → 提交。
+      ["\u001b[B", "\u001b[B", "\u001b[B", "\r", "\r", "\r"],
     ]);
     expect(text).toContain("A1: （跳过）");
     expect(text).toContain("A2: C");
@@ -311,6 +316,51 @@ describe("TUI 「提交」拦截未答", () => {
     expect(answers).toHaveLength(2);
     expect(answers[0]).toMatchObject({ skipped: true, answer: "" });
     expect(answers[1]).toMatchObject({ skipped: false, answer: "C" });
+  });
+});
+
+describe("TUI 「提交」独立一页", () => {
+  const twoQuestions = [
+    { question: "第一题", options: [{ label: "A" }, { label: "B" }] },
+    { question: "第二题", options: [{ label: "C" }, { label: "D" }] },
+  ];
+
+  it("提交页汇总每题状态：答案与跳过", async () => {
+    const { frames } = await runTui(twoQuestions, [
+      // Q1 A → 前进；Q2 选「跳过」→ 前进到提交页。
+      ["\r", "\u001b[B", "\u001b[B", "\u001b[B", "\r"],
+    ]);
+    const page = (frames.at(-1) ?? []).join("\n");
+    expect(page).toContain("提交（已答 2/2）");
+    expect(page).toContain("Q1 第一题 → A");
+    expect(page).toContain("Q2 第二题 → （跳过）");
+    expect(page).toContain("←/Shift+Tab 回上一题");
+  });
+
+  it("提交页按 ← 回到末题，改完再回提交页提交", async () => {
+    const { text, details } = await runTui(twoQuestions, [
+      // Q1 A → Q2 C → 提交页 → ← 回 Q2 → D → 提交页 → Enter 提交。
+      ["\r", "\r", "\u001b[D", "\u001b[B", "\r", "\r"],
+    ]);
+    expect(text).toContain("A1: A");
+    expect(text).toContain("A2: D");
+    expect(details["cancelled"]).toBe(false);
+  });
+
+  it("submitRows 区分答案 / 跳过 / 未作答", () => {
+    const parsed = parseQuestions(params(twoQuestions));
+    const rows = submitRows(parsed, [
+      { question: "第一题", answer: "A", skipped: false, custom: false },
+      undefined,
+    ]);
+    expect(rows[0]).toMatchObject({ questionIndex: 0, answer: "A", answered: true });
+    expect(rows[1]).toMatchObject({ questionIndex: 1, answer: "未作答", answered: false });
+    const mixed = submitRows(parsed, [
+      { question: "第一题", answer: "", skipped: true, custom: false },
+      { question: "第二题", answer: "手写", skipped: false, custom: true },
+    ]);
+    expect(mixed[0]?.answer).toBe("（跳过）");
+    expect(mixed[1]?.answer).toBe("手写（自定义）");
   });
 });
 
@@ -445,21 +495,21 @@ describe("TUI 自定义组件", () => {
     expect(text).toContain("A1: B");
   });
 
-  it("k/j 也能移动，↑ 从首项环绕到末项（提交）", async () => {
+  it("k/j 也能移动，↑ 从首项环绕到末项（跳过）", async () => {
     const { text } = await runTui(question, [["j", "\r"]]);
     expect(text).toContain("A1: B");
     const wrapped = await runTui(question, [["\u001b[A", "\r"]]);
-    // 首项向上环绕到末项「提交」；单题未作答时提交被拦下。
-    expect(wrapped.text).toContain("取消了后续问题");
-    expect((wrapped.frames.at(-1) ?? []).join("\n")).toContain("还有 Q1 未作答");
+    // 首项向上环绕到末项「跳过」；单题也还有一页提交页要过。
+    expect(wrapped.text).toContain("A1: （跳过）");
+    expect((wrapped.frames.at(-1) ?? []).join("\n")).toContain("提交（已答 1/1）");
   });
 
-  it("末尾固定项依次是 自定义 / 跳过 / 提交", async () => {
+  it("末尾固定项只有 自定义 / 跳过，「提交」不占选项位", async () => {
     const { rendered } = await runTui(question, [["\r"]]);
     const text = rendered.join("\n");
     expect(text).toContain("3. ✎ 自定义回答");
     expect(text).toContain("4. 跳过");
-    expect(text).toContain("5. 提交");
+    expect(text).not.toContain("5. 提交");
   });
 
   it("Esc 取消并保留已完成答案", async () => {
