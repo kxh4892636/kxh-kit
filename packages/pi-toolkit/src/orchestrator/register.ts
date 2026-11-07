@@ -36,6 +36,7 @@ import {
   closeProjection,
   createInterruptedAccess,
   openProjection,
+  orphanWorkers,
   progressAtOf,
   type ProjectedWorker,
   type Projection,
@@ -689,6 +690,7 @@ const createCommandTool = (
             kind: plan === undefined ? "temp" : "plan",
             ...(targetNotes.length === 0 ? {} : { notes: targetNotes }),
             ...(spawned.sessionPath === undefined ? {} : { sessionPath: spawned.sessionPath }),
+            sessionKey,
             resumed: spawned.resumed,
             startedAt: new Date().toISOString(),
             ...(worktree === undefined
@@ -912,25 +914,35 @@ const createStateTool = (
   stateDir: () => string,
   ledgerOf: () => ReturnType<typeof openLedger>,
   projectionOf: () => Projection,
+  /** op=resume 的实现：起新一代、复用 jsonl、落 `worker.resumed`。 */
+  resumeOrphans: (
+    target: string | undefined,
+    workspace: string,
+  ) => Promise<{ content: ReturnType<typeof textBlocks>; details: Record<string, unknown> }>,
 ): OrchestratorTool => ({
   name: "orchestrator_state",
   label: "State",
   description:
-    "拉取编排摘要：live worker（含待消费输入、最后 report、worktree）、未读 report、待确认 note、⚠ 卡死项与上次中断凭据。读一次即把未读 report 标成已读（账本里的 state.pulled）。op=abort 时中止一个 plan / temp worker，省略 plan 则中止全部。",
+    "拉取编排摘要：live worker（含待消费输入、最后 report、worktree、超时与重试）、子 worker 层级、未读 report、待确认 note、⚠ 卡死项、可恢复的孤儿与上次中断凭据。读一次即把未读 report 标成已读（账本里的 state.pulled）。op=abort 中止一个 plan / temp worker（省略 plan 中止全部）；op=resume 恢复孤儿 worker（复用 jsonl，极短续跑消息）。",
   promptSnippet:
-    "Pull the orchestrator state summary from the event ledger (workers, pending input, unread reports, stuck workers); or abort workers.",
+    "Pull the orchestrator state summary from the event ledger (workers, hierarchy, unread reports, stuck workers, resumable orphans); or abort / resume workers.",
   promptGuidelines: [
-    "worker 的 report 不再自动注入你的会话：需要时调它拉摘要。",
+    "重要上报（needs_review / needs_answer / blocked / failed / 超时 / 放弃重试）会推给你；普通 done 只在账本里，需要时用这个工具拉。",
     "读一次就把未读 report 消费掉，所以按需调用，别为了心跳反复读。",
+    "op=resume 先恢复父 worker；子 worker 的会话不落盘，由父重建，建不回来的会写明“子任务丢失”。",
   ],
   parameters: Type.Unsafe<Record<string, unknown>>({
     type: "object",
     additionalProperties: false,
     properties: {
-      op: { type: "string", enum: ["list", "abort"], description: "list（默认）| abort" },
+      op: {
+        type: "string",
+        enum: ["list", "abort", "resume"],
+        description: "list（默认）| abort | resume（恢复孤儿 worker）",
+      },
       plan: {
         type: "string",
-        description: "op=abort 时的 plan 引用或 `temp:<id>`；省略表示中止全部",
+        description: "op=abort 时的 plan 引用或 `temp:<id>`；op=resume 时只恢复这个 Plan 的孤儿",
       },
     },
     required: [],
@@ -941,12 +953,21 @@ const createStateTool = (
     if (op === "abort") {
       return abortWorker(args, registry, stateDir, ledgerOf);
     }
+    if (op === "resume") {
+      return resumeOrphans(optionalString(args, "plan"), runtime.workspace(exec));
+    }
+
     const state = projectionOf().state();
     const now = Date.now();
     const live = [...state.workers.values()]
       .filter((worker) => worker.status === "live")
       .sort((left, right) => Date.parse(left.startedAt) - Date.parse(right.startedAt));
     const unread = state.reports.filter((report) => !report.read);
+    // 孤儿：账本上没有 exit、进程内也没有 session（重启 / 会话退出后就是这样）。
+    const orphans = orphanWorkers(state, ledgerOf().events(), (key) => {
+      return registry.get(key) !== undefined;
+    });
+    const orphanOf = new Map(orphans.map((orphan) => [orphan.worker, orphan]));
     const lines: string[] = [
       `账本：seq ${state.lastSeq} · live ${live.length} · 未读 report ${unread.length} · 放行 ${[...state.released.values()].reduce((sum, set) => sum + set.size, 0)} 条 note`,
     ];
@@ -981,6 +1002,11 @@ const createStateTool = (
               : worker.merged.commit === undefined
                 ? " · 已合并"
                 : ` · 已合并 ${worker.merged.commit.slice(0, 8)}`;
+        const orphan = orphanOf.get(worker.worker);
+        const orphanMark =
+          orphan === undefined
+            ? ""
+            : ` · ⚠ 孤儿${orphan.suspendedReason === undefined ? "" : `（上次 ${orphan.suspendedReason}）`}`;
         const pending = stallOfProjection(worker, now, deps.settings().orchestrator.softStallMs);
         // 超时 / 诊断：一眼看出“它已经卡过一次、下一步还会不会再自动重试”。
         const timeoutMark = worker.timeouts === 0 ? "" : ` · 超时 ${worker.timeouts} 次`;
@@ -993,9 +1019,21 @@ const createStateTool = (
                   : `（${worker.lastDiagnosis.adjust.join("+")}）`
               }`;
         lines.push(
-          `${indent}${worker.planRef} · ${group}${shape} · ${minutes} 分钟 · 输入 ${worker.inputs} 次 · ${pendingLabelOf(pending)} · ${report} · 最近输入 ${lastInput}${worktreeMark}${mergeMark}${timeoutMark}${diagnosisMark}`,
+          `${indent}${worker.planRef} · ${group}${shape} · ${minutes} 分钟 · 输入 ${worker.inputs} 次 · ${pendingLabelOf(pending)} · ${report} · 最近输入 ${lastInput}${worktreeMark}${mergeMark}${orphanMark}${timeoutMark}${diagnosisMark}`,
         );
       }
+    }
+    if (orphans.length > 0) {
+      lines.push(
+        `可恢复 worker（${orphans.length}，op=resume 恢复）：${orphans
+          .slice(0, 10)
+          .map((orphan) =>
+            orphan.depth > 0
+              ? `${orphan.planRef}（子 worker，由父重建）`
+              : `${orphan.planRef}（${orphan.worker}）`,
+          )
+          .join("、")}`,
+      );
     }
     // 超时 / 重试记录：worker 已经不在 live 清单里时（放弃重试、等人工）仍然看得到。
     const retryLimit = deps.settings().orchestrator.retryLimit;
@@ -1556,84 +1594,88 @@ export const registerOrchestrator = (
   };
 
   /**
-   * 重派下一代 worker：同一个键，新一代会话（不复用被中止的上下文）。
+   * 起一代 worker 并接上句柄、账本与看门狗。
    *
-   * 不走 `orchestrator_command` 的参数解析：现场（plan / cwd / worktree / notes）已经在
-   * `TimedOutWorker` 里了，再造一份参数只会多一处���能和派工侧走偏。
+   * 三处需要它：正常派工之外的**重派**（超时诊断之后）与**恢复**（孤儿 resume）。正常派工走
+   * `orchestrator_command` 的参数解析（要处理 worktree / 组 / 幂等），这两条路不需要 —— 现场
+   * 已经在手里，参数只会多一处能和派工侧走偏的地方。
+   * @param input - 这一代的全部现场与消息。
    */
-  const redispatchWorker = async (
-    scene: TimedOutWorker,
-    diagnosis: Diagnosis,
-    attempt: number,
-    retryLimit: number,
-  ): Promise<void> => {
-    const key = scene.key;
-    // 作废登记已经把旧一代标掉了：会话键带作废时刻，于是这次是**新开**一份 jsonl。
-    const aborted = abortedWorkerSession(stateDir(), key);
-    const sessionKey = aborted === undefined ? key : `${key}#${aborted.at}`;
-    const message = buildRetryMessage({
-      diagnosis,
-      attempt,
-      retryLimit,
-      ...(scene.lastReport === undefined ? {} : { lastReport: scene.lastReport }),
-      elapsedMinutes: Math.max(1, Math.round(scene.elapsedMs / 60_000)),
-    });
+  const startWorkerGeneration = async (input: {
+    readonly key: string;
+    readonly planRef: string;
+    readonly plan?: PlanRef;
+    readonly notes: readonly string[];
+    readonly note?: string;
+    readonly cwd: string;
+    readonly workspace: string;
+    readonly worktree?: {
+      readonly name: string;
+      readonly directory: string;
+      readonly branch: string;
+    };
+    readonly sessionKey: string;
+    readonly message: string;
+    /** 额外写进 `worker.spawned` 的字段（`retryOf` / `resumedOf`）。 */
+    readonly spawnedExtra?: Record<string, unknown>;
+  }): Promise<void> => {
     const base = {
-      cwd: scene.cwd,
+      cwd: input.cwd,
       settings: deps.settings,
       report: onReport,
       released: (noteId: string) =>
-        scene.plan === undefined ? false : projectionOf().isReleased(scene.plan.directory, noteId),
-      workerKey: key,
-      sessionKey,
+        input.plan === undefined ? false : projectionOf().isReleased(input.plan.directory, noteId),
+      workerKey: input.key,
+      sessionKey: input.sessionKey,
     };
     const spawned = await (deps.spawn ?? spawnWorker)(
-      scene.plan === undefined
-        ? { ...base, temp: key.replace(/^temp:/u, "") }
-        : { ...base, plan: scene.plan },
+      input.plan === undefined
+        ? { ...base, temp: input.key.replace(/^temp:/u, "") }
+        : { ...base, plan: input.plan },
     );
-    rememberWorkerSession(stateDir(), sessionKey, spawned.sessionPath ?? "");
+    rememberWorkerSession(stateDir(), input.sessionKey, spawned.sessionPath ?? "");
     const entry = registry.add({
-      planDirectory: key,
-      planRef: scene.planRef,
-      ...(scene.plan === undefined ? { kind: "temp" as const } : {}),
-      ...(scene.notes.length === 0 ? {} : { notes: scene.notes }),
+      planDirectory: input.key,
+      planRef: input.planRef,
+      ...(input.plan === undefined ? { kind: "temp" as const } : {}),
+      ...(input.notes.length === 0 ? {} : { notes: input.notes }),
       ...(spawned.sessionPath === undefined ? {} : { sessionPath: spawned.sessionPath }),
-      cwd: scene.cwd,
-      workspace: scene.workspace,
-      ...(scene.plan === undefined ? {} : { plan: scene.plan }),
-      ...(scene.worktree === undefined ? {} : { worktree: scene.worktree }),
+      cwd: input.cwd,
+      workspace: input.workspace,
+      ...(input.plan === undefined ? {} : { plan: input.plan }),
+      ...(input.worktree === undefined ? {} : { worktree: input.worktree }),
       startedAt: Date.now(),
       session: spawned.session,
     });
     ledgerOf().append({
       type: "worker.spawned",
       payload: {
-        worker: key,
-        planRef: scene.planRef,
-        kind: scene.plan === undefined ? "temp" : "plan",
-        ...(scene.notes.length === 0 ? {} : { notes: scene.notes }),
+        worker: input.key,
+        planRef: input.planRef,
+        kind: input.plan === undefined ? "temp" : "plan",
+        ...(input.notes.length === 0 ? {} : { notes: input.notes }),
         ...(spawned.sessionPath === undefined ? {} : { sessionPath: spawned.sessionPath }),
-        resumed: false,
-        retryOf: scene.timeoutSeq,
+        sessionKey: input.sessionKey,
+        resumed: spawned.resumed,
         startedAt: new Date().toISOString(),
-        ...(scene.worktree === undefined
+        ...input.spawnedExtra,
+        ...(input.worktree === undefined
           ? {}
           : {
               worktree: {
-                name: scene.worktree.name,
-                branch: scene.worktree.branch,
-                directory: scene.worktree.directory,
+                name: input.worktree.name,
+                branch: input.worktree.branch,
+                directory: input.worktree.directory,
               },
             }),
       },
     });
-    const delivery = deliver(entry, "message", message, scene.note, "steer");
+    const delivery = deliver(entry, "message", input.message, input.note, "steer");
     const now = Date.now();
     const job: WorkerJob = {
       kind: "message",
-      ...(scene.note === undefined ? {} : { note: scene.note }),
-      ...(scene.notes.length === 0 ? {} : { notes: scene.notes }),
+      ...(input.note === undefined ? {} : { note: input.note }),
+      ...(input.notes.length === 0 ? {} : { notes: input.notes }),
       startedAt: now,
       progressAt: now,
       settled: delivery.settled,
@@ -1643,23 +1685,173 @@ export const registerOrchestrator = (
     ledgerOf().append({
       type: "input.sent",
       payload: {
-        worker: key,
-        planRef: scene.planRef,
+        worker: input.key,
+        planRef: input.planRef,
         kind: "message",
         delivery: "steer",
         delivered: delivery.delivered,
-        text: clipText(message),
-        ...(scene.note === undefined ? {} : { note: scene.note }),
-        ...(scene.notes.length === 0 ? {} : { notes: scene.notes }),
+        text: clipText(input.message),
+        ...(input.note === undefined ? {} : { note: input.note }),
+        ...(input.notes.length === 0 ? {} : { notes: input.notes }),
       },
     });
     const done = (): void => {
       const harvested = harvest(entry, job);
       if (harvested && entry.job === undefined) {
-        void mergeWorktreeOf({ entry, workspace: scene.workspace, deps, ledgerOf });
+        void mergeWorktreeOf({ entry, workspace: input.workspace, deps, ledgerOf });
       }
     };
     void delivery.settled.then(done, done);
+  };
+
+  /**
+   * 重派下一代 worker：同一个键，新一代会话（不复用被中止的上下文）。
+   * @param scene - 超时现场。
+   * @param diagnosis - 诊断结论（重试消息的口径）。
+   * @param attempt - 第几次重试（1 起）。
+   * @param retryLimit - 上限（写进消息，模型看得见还剩几次）。
+   */
+  const redispatchWorker = async (
+    scene: TimedOutWorker,
+    diagnosis: Diagnosis,
+    attempt: number,
+    retryLimit: number,
+  ): Promise<void> => {
+    // 作废登记已经把旧一代标掉了：会话键带作废时刻，于是这次是**新开**一份 jsonl。
+    const aborted = abortedWorkerSession(stateDir(), scene.key);
+    const sessionKey = aborted === undefined ? scene.key : `${scene.key}#${aborted.at}`;
+    const message = buildRetryMessage({
+      diagnosis,
+      attempt,
+      retryLimit,
+      ...(scene.lastReport === undefined ? {} : { lastReport: scene.lastReport }),
+      elapsedMinutes: Math.max(1, Math.round(scene.elapsedMs / 60_000)),
+    });
+    await startWorkerGeneration({
+      key: scene.key,
+      planRef: scene.planRef,
+      ...(scene.plan === undefined ? {} : { plan: scene.plan }),
+      notes: scene.notes,
+      ...(scene.note === undefined ? {} : { note: scene.note }),
+      cwd: scene.cwd,
+      workspace: scene.workspace,
+      ...(scene.worktree === undefined ? {} : { worktree: scene.worktree }),
+      sessionKey,
+      message,
+      spawnedExtra: { retryOf: scene.timeoutSeq },
+    });
+  };
+
+  const resumeOrphans = async (
+    target: string | undefined,
+    workspace: string,
+  ): Promise<{ content: ReturnType<typeof textBlocks>; details: Record<string, unknown> }> => {
+    // target 可以是展示引用（`<domain>/<lifecycle>/<name>`）、目录或 worker 键。
+    let targetDirectory: string | undefined;
+    if (target !== undefined) {
+      try {
+        targetDirectory = (await resolvePlan(workspace, runtime.domainRoot, target)).directory;
+      } catch {
+        targetDirectory = undefined;
+      }
+    }
+    const inScope = (worker: string, planRef: string): boolean => {
+      if (target === undefined) return true;
+      if (planRef === target || worker === target) return true;
+      const directory = planDirectoryOf(worker);
+      return directory === target || directory === targetDirectory;
+    };
+    const orphans = orphanWorkers(projectionOf().state(), ledgerOf().events(), (key) => {
+      return registry.get(key) !== undefined;
+    }).filter((orphan) => inScope(orphan.worker, orphan.planRef));
+    if (orphans.length === 0) {
+      return {
+        content: textBlocks(
+          "没有可恢复的孤儿 worker（进程内 session 都还在，或账本里没有未结束的派生）。",
+        ),
+        details: { resumed: [], lost: [] },
+      };
+    }
+    const resumed: Array<{ worker: string; planRef: string; sessionPath?: string }> = [];
+    const lost: Array<{ worker: string; planRef: string; reason: string }> = [];
+    const lines: string[] = [];
+    // 先父后子（orphanWorkers 按 depth 排过）：父恢复后子任务由父重建。
+    for (const orphan of orphans) {
+      if (orphan.depth > 0) {
+        // 子 worker 的会话不落盘，代码没法替父重建它；落一条 exit 让 state 不再把它当活口。
+        ledgerOf().append({
+          type: "worker.exit",
+          payload: {
+            worker: orphan.worker,
+            reason: "sub-lost: 子 worker 会话不落盘，父恢复后需重建",
+            parent: orphan.worker.replace(/\/sub:\d+$/u, ""),
+          },
+        });
+        lost.push({ worker: orphan.worker, planRef: orphan.planRef, reason: "子任务丢失" });
+        continue;
+      }
+      const idem = `resume:${orphan.worker}:${orphan.anchor}`;
+      if (ledgerOf().findByIdem(idem) !== undefined) {
+        lines.push(`跳过（已恢复过这一代）：${orphan.planRef}`);
+        continue;
+      }
+      let plan: PlanRef | undefined;
+      if (orphan.kind === "plan") {
+        try {
+          plan = await resolvePlan(workspace, runtime.domainRoot, orphan.planRef);
+        } catch (error) {
+          lost.push({
+            worker: orphan.worker,
+            planRef: orphan.planRef,
+            reason: `Plan 解析失败：${error instanceof Error ? error.message : String(error)}`,
+          });
+          continue;
+        }
+      }
+      const sessionKey = orphan.sessionKey ?? orphan.worker;
+      try {
+        await startWorkerGeneration({
+          key: orphan.worker,
+          planRef: orphan.planRef,
+          ...(plan === undefined ? {} : { plan }),
+          notes: orphan.notes,
+          cwd: plan?.directory ?? workspace,
+          workspace,
+          sessionKey,
+          message:
+            "继续上次未完成的工作。先 git status 核对工作区与 note 的执行检查点：能确定下一步就直接做，不确定就 blocked 上报。",
+        });
+      } catch (error) {
+        lost.push({
+          worker: orphan.worker,
+          planRef: orphan.planRef,
+          reason: `恢复失败：${error instanceof Error ? error.message : String(error)}`,
+        });
+        continue;
+      }
+      ledgerOf().append({
+        type: "worker.resumed",
+        idem,
+        payload: {
+          worker: orphan.worker,
+          resumeOf: orphan.anchor,
+          sessionKey,
+          ...(orphan.sessionPath === undefined ? {} : { sessionPath: orphan.sessionPath }),
+        },
+      });
+      resumed.push({
+        worker: orphan.worker,
+        planRef: orphan.planRef,
+        ...(orphan.sessionPath === undefined ? {} : { sessionPath: orphan.sessionPath }),
+      });
+    }
+    for (const item of resumed) lines.push(`已恢复：${item.planRef}（${item.worker}）`);
+    for (const item of lost) lines.push(`未恢复：${item.planRef} · ${item.reason}`);
+    lines.push("恢复用的是同一份 jsonl：接着上次的上下文跑，不重开一份会话。");
+    return {
+      content: textBlocks(lines.join("\n")),
+      details: { resumed, lost, orphans: orphans.length },
+    };
   };
 
   /**
@@ -1774,7 +1966,7 @@ export const registerOrchestrator = (
     createCheckTool(runtime),
     createAskQuestionsTool(),
     createCommandTool(runtime, registry, deps, stateDir, ledgerOf, projectionOf, onReport),
-    createStateTool(runtime, registry, deps, stateDir, ledgerOf, projectionOf),
+    createStateTool(runtime, registry, deps, stateDir, ledgerOf, projectionOf, resumeOrphans),
   ]) {
     pi.registerTool({ ...tool, defaultActive: false });
   }
@@ -1820,11 +2012,14 @@ export const registerOrchestrator = (
   };
 
   /**
-   * 摘掉 worker 之前，先把「哪条 note 会被留在 `in_progress`」记进账本。
+   * 会话结束 / 崩溃时把 worker 记成 `worker.suspended`（**不是** `worker.exit`）。
    *
-   * worker 随会话退出而消失，note 却还停在 `in_progress`：没有这条记录，人下次只看到一条悬空的
-   * note，看不出它是被中断的。这里**只记录不改状态**（`status=blocked` 会改业务域文档），
-   * 改状态是人的决定；凭据由 `orchestrator_state` / `resume` 展示后被移除。
+   * 两者的区别就是能不能恢复：jsonl 还在盘上，`orchestrator_state op=resume` 能拿同一份会话
+   * 接着跑；`worker.exit` 只留给 abort / 超时这种“会话已作废”的真结束。
+   *
+   * 同时把「哪条 note 会被留在 `in_progress`」记进凭据：worker 随会话退出而消失，note 却还停在
+   * `in_progress`，没有这条记录下次只看到一条悬空的 note。这里**只记录不改状态**，改状态是人的
+   * 决定；凭据由 `orchestrator_state` / `resume` 展示后被移除。
    * @param reason - 写进凭据的原因。
    */
   const recordInterruptedNotes = async (reason: string): Promise<void> => {
@@ -1848,7 +2043,7 @@ export const registerOrchestrator = (
       }
       try {
         ledgerOf().append({
-          type: "worker.exit",
+          type: "worker.suspended",
           payload: {
             worker: entry.planDirectory,
             reason,
@@ -1861,13 +2056,13 @@ export const registerOrchestrator = (
     }
   };
 
-  // 进程级兜底：把 live worker 记成 `worker.exit`（崩溃）后干净退出。
+  // 进程级兜底：把 live worker 记成 `worker.suspended`（崩溃也能靠 jsonl 恢复）后干净退出。
   installCrashGuard({
     record: (reason) => {
       for (const entry of registry.list()) {
         try {
           ledgerOf().append({
-            type: "worker.exit",
+            type: "worker.suspended",
             payload: { worker: entry.planDirectory, reason },
           });
         } catch {
@@ -1881,8 +2076,9 @@ export const registerOrchestrator = (
   pi.on("session_shutdown", async () => {
     sidebar.dispose();
     stopScan();
+    flushDigest();
     await recordInterruptedNotes(
-      "session_shutdown: worker 随会话退出，相关 note 可能停在 in_progress",
+      "session_shutdown: worker 随会话退出（jsonl 还在，可 resume），相关 note 可能停在 in_progress",
     );
     await disposeAll(registry);
     closeProjection(stateDir());

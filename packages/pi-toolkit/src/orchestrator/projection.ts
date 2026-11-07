@@ -46,6 +46,8 @@ export interface ProjectedWorker {
   kind: "plan" | "temp";
   notes: readonly string[];
   sessionPath?: string;
+  /** 落盘会话的工作键（可能带 `#<作废时刻>` 的代数后缀）；`resume` 靠它接上同一份 jsonl。 */
+  sessionKey?: string;
   worktree?: { readonly name: string; readonly branch: string; readonly directory: string };
   /** 起点时刻（ISO）。 */
   startedAt: string;
@@ -341,6 +343,7 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
       if (worker === undefined) return true;
       const notes = payloadStrings(payload, "notes");
       const sessionPath = payloadString(payload, "sessionPath");
+      const sessionKey = payloadString(payload, "sessionKey");
       const planRef = payloadString(payload, "planRef");
       const parent = payloadString(payload, "parent");
       const depth = payloadNumber(payload, "depth");
@@ -350,6 +353,7 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
         status: "live",
         ...(notes.length === 0 ? {} : { notes }),
         ...(sessionPath === undefined ? {} : { sessionPath }),
+        ...(sessionKey === undefined ? {} : { sessionKey }),
         ...(parent === undefined ? {} : { parent }),
         ...(depth === undefined ? {} : { depth }),
         ...(isRecord(worktree) &&
@@ -653,6 +657,68 @@ export const restoreState = (raw: unknown): ProjectionState => {
     }
   }
   return state;
+};
+
+/**
+ * 一个可恢复的孤儿 worker：账本上没有任何 `worker.exit`（不是真结束），但进程内也
+ * 没有它的 session（重启 / 会话退出 / 崩溃后就是这样）。
+ */
+export interface OrphanWorker {
+  readonly worker: string;
+  readonly planRef: string;
+  readonly kind: "plan" | "temp";
+  readonly notes: readonly string[];
+  readonly sessionKey?: string;
+  readonly sessionPath?: string;
+  readonly depth: number;
+  /** 上一次是怎么挂起的（`worker.suspended` 的 reason）。 */
+  readonly suspendedReason?: string;
+  /** 代数锚点：最后一次 `worker.spawned` / `worker.exit` 的 seq（`worker.resumed` 幂等键用）。 */
+  readonly anchor: number;
+}
+
+/**
+ * 从投影 + 账本里找出孤儿 worker。
+ *
+ * 优先级口径：**先恢复父**（按 depth 升序）。子 worker 的会话不落盘，交给父重建：
+ * 建不回来的由调用方写“子任务丢失”。
+ * @param state - 投影状态。
+ * @param events - 账本事件（算代数锚点）。
+ * @param alive - 进程内是否还有这个 key 的活句柄。
+ * @returns 孤儿（按 depth、anchor 升序）。
+ */
+export const orphanWorkers = (
+  state: ProjectionState,
+  events: readonly LedgerEvent[],
+  alive: (worker: string) => boolean,
+): readonly OrphanWorker[] => {
+  const anchors = new Map<string, number>();
+  for (const event of events) {
+    if (event.type !== "worker.spawned" && event.type !== "worker.exit") continue;
+    const worker = payloadString(event.payload, "worker");
+    if (worker === undefined) continue;
+    anchors.set(worker, Math.max(anchors.get(worker) ?? 0, event.seq));
+  }
+  const orphans: OrphanWorker[] = [];
+  for (const worker of state.workers.values()) {
+    if (worker.status !== "live") continue;
+    if (alive(worker.worker)) continue;
+    const anchor = anchors.get(worker.worker);
+    // 没有派生记录的不是“孤儿”，是残缺数据：宁可不碰它。
+    if (anchor === undefined) continue;
+    orphans.push({
+      worker: worker.worker,
+      planRef: worker.planRef,
+      kind: worker.kind,
+      notes: worker.notes,
+      ...(worker.sessionKey === undefined ? {} : { sessionKey: worker.sessionKey }),
+      ...(worker.sessionPath === undefined ? {} : { sessionPath: worker.sessionPath }),
+      depth: worker.depth,
+      ...(worker.suspended === undefined ? {} : { suspendedReason: worker.suspended.reason }),
+      anchor,
+    });
+  }
+  return orphans.sort((left, right) => left.depth - right.depth || left.anchor - right.anchor);
 };
 
 /** 跨进程兜底的轮询间隔（毫秒）：`fs.watch` 之外的保险。 */

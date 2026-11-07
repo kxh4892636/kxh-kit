@@ -1451,7 +1451,7 @@ describe("dispatch 与 workers 工具", () => {
     expect(projection.pendingOf(key ?? "")).toHaveLength(0);
   });
 
-  it("退出收尾前把 in_progress 的 note 记进账本（worker.exit）", async () => {
+  it("退出收尾前把 in_progress 的 note 记进账本（worker.suspended，可 resume）", async () => {
     // worker 随会话退出而消失，note 却还停在 in_progress：先留痕再摘句柄，note 不悬空。
     const fs = await import("node:fs/promises");
     const os = await import("node:os");
@@ -1480,12 +1480,18 @@ describe("dispatch 与 workers 工具", () => {
         await handler({ reason: "quit" });
       }
       const { openLedger } = await import("./ledger.ts");
-      const exits = openLedger(stateDirectory(agentDir))
+      const suspended = openLedger(stateDirectory(agentDir))
         .events()
-        .filter((event) => event.type === "worker.exit");
-      expect(exits).toHaveLength(1);
-      expect(exits[0]?.payload["reason"]).toContain("session_shutdown");
-      expect(exits[0]?.payload["notes"]).toEqual([`${ref} · note 01`]);
+        .filter((event) => event.type === "worker.suspended");
+      expect(suspended).toHaveLength(1);
+      expect(suspended[0]?.payload["reason"]).toContain("session_shutdown");
+      expect(suspended[0]?.payload["notes"]).toEqual([`${ref} · note 01`]);
+      // 会话退出 ≠ 真结束：jsonl 还在，所以不写 worker.exit。
+      expect(
+        openLedger(stateDirectory(agentDir))
+          .events()
+          .filter((event) => event.type === "worker.exit"),
+      ).toHaveLength(0);
       const { openProjection } = await import("./projection.ts");
       expect(
         openProjection(openLedger(stateDirectory(agentDir))).state().interrupted,
@@ -1497,6 +1503,156 @@ describe("dispatch 与 workers 工具", () => {
       if (previous === undefined) delete process.env["PI_CODING_AGENT_DIR"];
       else process.env["PI_CODING_AGENT_DIR"] = previous;
     }
+  });
+
+  it("重启后 resume 孤儿：复用同一份 jsonl、带 parent 的子任务写明丢失、重复调用幂等", async () => {
+    const first = await setup({ makeSession: () => fakeSession(true, false) });
+    const { root, ref } = await planWithNotes([note("01")]);
+    await first.tools
+      .get("orchestrator_command")
+      ?.execute(
+        "id",
+        { plan: ref, notes: ["01"], note: "01", message: "做 01" },
+        undefined,
+        undefined,
+        ctx(root),
+      );
+    const sessionKey = first.spawnOptions[0]?.sessionKey;
+    expect(sessionKey).toBeDefined();
+
+    // 手动记一个子 worker：它的会话不落盘，恢复时只能算“子任务丢失”。
+    const { openLedger } = await import("./ledger.ts");
+    const { openProjection } = await import("./projection.ts");
+    const parentKey =
+      [...openProjection(openLedger(first.stateRoot)).state().workers.keys()][0] ?? "";
+    const subKey = `${parentKey}/sub:1`;
+    openLedger(first.stateRoot).append({
+      type: "worker.spawned",
+      payload: {
+        worker: subKey,
+        planRef: subKey,
+        kind: "temp",
+        parent: parentKey,
+        depth: 1,
+        startedAt: new Date().toISOString(),
+      },
+    });
+    // 模拟会话退出：写 suspended（不写 exit），jsonl 留在盘上。
+    for (const handler of first.handlers.get("session_shutdown") ?? []) {
+      await handler({ reason: "quit" });
+    }
+    const spawned = openLedger(first.stateRoot)
+      .events()
+      .find((event) => event.type === "worker.spawned");
+    expect(spawned?.seq).toBeGreaterThan(0);
+
+    // 第二次注册 = 重启后的同一个状态目录。
+    const second = await setup({
+      stateDir: () => first.stateRoot,
+      makeSession: () => fakeSession(true, false),
+    });
+    const resume = second.tools.get("orchestrator_state");
+    // 先列可恢复项（父 + 子），用户确认后再恢复。
+    const listedBefore = textOf(
+      await resume?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
+    );
+    expect(listedBefore).toContain("可恢复 worker（2");
+    expect(listedBefore).toContain("⚠ 孤儿");
+    expect(listedBefore).toContain("子 worker，由父重建");
+
+    const resumed = await resume?.execute(
+      "id",
+      { op: "resume", plan: ref },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+    const resumedText = textOf(resumed);
+    expect(resumedText).toContain("已恢复");
+    expect(resumedText).toContain("同一份 jsonl");
+    expect(resumedText).toContain("子任务丢失");
+    expect((resumed as { details: Record<string, unknown> }).details).toMatchObject({
+      orphans: 2,
+    });
+    // 恢复用的是原来的会话键（同一份 jsonl），消息极短且要求先核对工作区。
+    expect(second.spawnOptions[0]?.sessionKey).toBe(sessionKey);
+    expect(second.spawns[0]?.prompts[0]).toContain("继续上次未完成的工作");
+    expect(second.spawns[0]?.prompts[0]).toContain("git status");
+
+    // 账本：worker.resumed 带 resumeOf；子 worker 被记成 sub-lost。
+    const events = openLedger(first.stateRoot).events();
+    const resumedEvent = events.find((event) => event.type === "worker.resumed");
+    expect(resumedEvent?.payload).toMatchObject({ worker: parentKey, resumeOf: spawned?.seq });
+    const subExit = events.find(
+      (event) => event.type === "worker.exit" && event.payload["worker"] === subKey,
+    );
+    expect(subExit?.payload["reason"]).toContain("sub-lost");
+
+    // 幂等：再 resume 一次不再起会话（父已在进程内活着，不再是孤儿）。
+    const before = second.spawnOptions.length;
+    const again = textOf(
+      await resume?.execute("id", { op: "resume", plan: ref }, undefined, undefined, ctx(root)),
+    );
+    expect(again).toContain("没有可恢复的孤儿 worker");
+    expect(second.spawnOptions).toHaveLength(before);
+  });
+
+  it("resume 幂等键：同一代已经恢复过就跳过，不再起会话", async () => {
+    const { tools, stateRoot, spawnOptions } = await setup();
+    const { root, ref } = await planWithNotes([note("01")]);
+    const path = await import("node:path");
+    const directory = path.join(
+      root,
+      ".agents",
+      "domains",
+      "etf",
+      "plans",
+      "active",
+      "2026-11-07-分组",
+    );
+    const key = `${directory}::01`;
+    const { openLedger } = await import("./ledger.ts");
+    const ledger = openLedger(stateRoot);
+    const spawned = ledger.append({
+      type: "worker.spawned",
+      payload: { worker: key, planRef: ref, kind: "plan", sessionKey: key },
+    });
+    ledger.append({
+      type: "worker.suspended",
+      payload: { worker: key, reason: "crash" },
+    });
+    // 上一代已经恢复过一次（但进程又挂了）：幂等键还在账本里。
+    ledger.append({
+      type: "worker.resumed",
+      idem: `resume:${key}:${spawned.seq}`,
+      payload: { worker: key, resumeOf: spawned.seq },
+    });
+
+    const text = textOf(
+      await tools
+        .get("orchestrator_state")
+        ?.execute("id", { op: "resume", plan: ref }, undefined, undefined, ctx(root)),
+    );
+    expect(text).toContain("跳过（已恢复过这一代）");
+    expect(spawnOptions).toHaveLength(0);
+    expect(ledger.events().filter((event) => event.type === "worker.resumed")).toHaveLength(1);
+  });
+
+  it("没有孤儿时 resume 直接说明（不无中生有起会话）", async () => {
+    const { tools, stateRoot } = await setup();
+    const { root } = await planArgs();
+    const text = textOf(
+      await tools
+        .get("orchestrator_state")
+        ?.execute("id", { op: "resume" }, undefined, undefined, ctx(root)),
+    );
+    expect(text).toContain("没有可恢复的孤儿 worker");
+    const { openLedger } = await import("./ledger.ts");
+    expect(
+      openLedger(stateRoot)
+        .events()
+        .filter((event) => event.type === "worker.resumed"),
+    ).toHaveLength(0);
   });
 
   it("worker 正常结束即收割，不会误报超时", async () => {

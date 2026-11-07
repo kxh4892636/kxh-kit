@@ -171,6 +171,8 @@ export interface WorkerSpawnedPayload {
   readonly kind: "plan" | "temp";
   readonly notes?: readonly string[];
   readonly sessionPath?: string;
+  /** 落盘会话的工作键（可能带 `#<作废时刻>` 的代数后缀）：`resume` 靠它接同一份 jsonl。 */
+  readonly sessionKey?: string;
   readonly resumed?: boolean;
   readonly startedAt?: string;
   /** 子 worker 的上级路由键（顶层 worker 不填）。 */
