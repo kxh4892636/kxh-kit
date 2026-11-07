@@ -35,7 +35,7 @@
 - note 13 完成（2026-11-07）：28 个旧 Plan 全部转成 `notes.json`（101 条 note，4 条超限拆分；无限故事 spec 拆册；14 个 Plan 补 story；迁移链接改写；description 修复 1 条）。check-domain 对冻结 Plan 跳过 Markdown 链接校验并补测试；29 个 Plan 逐个 `nano_flow_check plan` 全绿；249 测试通过。
 - note 14 完成（2026-11-07）：`docs/` 已删除，`apps/etf`、`apps/music`、`packages/nano-flow` README 的残留引用已改；仓库内不再有 docs 域路径引用；workspace 校验通过。
 - note 12 完成（2026-11-07）：`awaiting_verification` 全链路落地；249 测试、`vp check`、build 通过；0.4.3 装进 desktop profile；重启后真机确认——note 08 置为等待验证成功，`resume` 显示 `awaiting_verification 1` 与「等待验证（1）」段，`ready` 可推进 0（不列等待验证）。提交 ee3a5d36。
-- 未完成：note 08 的轮转触发验证（已置 `awaiting_verification`，等一条高上下文 queue 消息；验证通过后 `complete`）。
+- 未完成（阻塞）：note 08 的轮转真机验证未执行——需要 DSH desktop 里一条高上下文 queue 消息；代码、单测（241）、build、pack 与 profile 重装均已完成，已置 `blocked` 并写明解除条件。
 - 域根：6 个域全部在 `.agents/domains`，`docs/` 已删除；29 个 Plan 均有 `notes.json` 且逐个校验通过。
 
 ## 恢复入口
@@ -44,10 +44,10 @@
 2. 要动 `notes.json` 的收口：实现与真机验收见 note 07（已完成），边界见 note 06。
 3. 迁移已完成（note 02 / 13 / 14）：6 个域在 `.agents/domains`，旧 Plan 转为 `notes.json`，`docs/` 已删除，外部引用已改。
 4. 复跑校验：`nano_flow_check` 的 `workspace`；单 Plan 用 `plan`（冻结 Plan 不校验 Markdown 链接，active 仍校验）。
-5. 要验轮转：note 08 仍在等一条高上下文 queue 消息；`$DSH_HOME/toolkit/nano-flow-mount.json` 的 `rotation` stage 可确认宿主侧已挂上。
+5. 要验轮转：note 08 为 `blocked`，需一条高上下文 queue 消息；`$DSH_HOME/toolkit/nano-flow-mount.json` 的 `rotation` stage 可确认宿主侧已挂上。
 6. 只读恢复已落地并真机确认（note 10，0.4.2 已装）。
 7. 等待验证状态：定案 note 11，落地与真机确认见 note 12（已完成）。
-8. 收尾：note 08 仍是 `awaiting_verification`；等一条高上下文 queue 消息验证轮转，通过后 `complete`，Plan 才能迁 `reference`。
+8. 收尾：本 Plan 已归档，note 08 仍为 `blocked`（真机轮转未跑）；若确认 DSH 侧轮转已被 pi-toolkit 的就地清空方案取代，可将 08 记为作废结论后置 `completed`。
 
 ## 开放问题
 
