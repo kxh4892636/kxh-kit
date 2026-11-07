@@ -70,7 +70,7 @@ _Avoid_: 前台等待、轮询 jobId、按任务总量计时的超时
 _Avoid_: 限流、配额
 
 **上报**:
-worker 的 `orchestrator_report` 落成编排方会话里的一条 `orchestrator-report` 消息（超时提醒走同一通道）。pi 的 `sendMessage` 是即发即忘的，失败既不会抛给扩展也不会留痕，所以本插件自己记账：投递失败入队并计数（`outbox`），只在 `agent_settled` / `before_agent_start` / `input` 这几个可注入时机重试，成功即出队；积压条数与最近失败原因在 `orchestrator_workers` 与 `/orchestrator status` 都能看到。忙时用 `followUp`（等当前轮结束再插），空闲时用 `steer` + `triggerTurn`（立刻开一轮）。重试失败**不改任何 note 状态** —— report 只是通知，磁盘上的 notes 才是事实。
+worker 的 `orchestrator_report` 落成编排方会话里的一条 `orchestrator-report` 消息（超时提醒走同一通道）。pi 的 `sendMessage` 是即发即忘的，失败既不会抛给扩展也不会留痕，所以本插件自己记账：投递失败入队并计数（`outbox`），只在 `agent_settled` / `before_agent_start` / `input` 这几个可注入时机重试，成功即出队；积压条数与最近失败原因在 `orchestrator_workers` 与 `/orchestrator status` 都能看到。忙时用 `followUp`（等当前轮结束再插），空闲时用 `steer` + `triggerTurn`（立刻开一轮）。积压还**落盘**在状态目录的 `reports-pending.json`（按 id 去重，送达即重写，清空即删文件）：进程被杀或重启后，下个会话的第一个钩子会接着重试。重试失败**不改任何 note 状态** —— report 只是通知，磁盘上的 notes 才是事实。
 _Avoid_: 静默吞异常、把 report 当真相、重复投递阻塞编排方
 
 ### 恢复

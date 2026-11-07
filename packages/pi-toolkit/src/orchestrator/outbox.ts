@@ -9,8 +9,14 @@
  *
  * 投递方式按编排方会话忙不忙选：忙 → `followUp`（等当前轮结束再插进队列），空闲 →
  * `steer` + `triggerTurn`（立刻开一轮）。
+ *
+ * 积压可以**落盘**（状态目录的 `reports-pending.json`，`fileOutboxStore`）：进程被杀、
+ * 崩溃、上下文轮转之后，未送达的通知还在，下一次启动的第一个钩子会接着重试。
  * @module @kxh4892636/pi-toolkit/orchestrator/outbox
  */
+
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 
 /** 一条待送达通知。 */
 export interface OutboxNotice {
@@ -48,6 +54,46 @@ export type OutboxSender = (
   options: OutboxSendOptions,
 ) => void;
 
+/** 积压的持久化后端：读回未送达的、覆盖保存当前的（空数组即清掉）。 */
+export interface OutboxStore {
+  load(): readonly OutboxNotice[];
+  save(notices: readonly OutboxNotice[]): void;
+}
+
+/** 积压文件的文件名（编排方状态目录下）。 */
+export const PENDING_REPORTS_FILE = "reports-pending.json";
+
+/**
+ * 文件后端：把积压写到 `file`，送达即重写（空队列直接删文件，不留垃圾）。
+ *
+ * 读写失败一律当作"没有积压" / "没存下来"：通知能否持久化不影响投递主路径。
+ * @param file - 积压文件绝对路径。
+ * @returns 持久化后端。
+ */
+export const fileOutboxStore = (file: string): OutboxStore => ({
+  load: () => {
+    if (!existsSync(file)) return [];
+    try {
+      const parsed = JSON.parse(readFileSync(file, "utf8")) as { notices?: OutboxNotice[] };
+      return Array.isArray(parsed.notices) ? parsed.notices : [];
+    } catch {
+      return [];
+    }
+  },
+  save: (notices) => {
+    try {
+      if (notices.length === 0) {
+        if (existsSync(file)) rmSync(file, { force: true });
+        return;
+      }
+      mkdirSync(dirname(file), { recursive: true });
+      writeFileSync(file, `${JSON.stringify({ notices }, null, 2)}\n`, "utf8");
+    } catch {
+      // 状态目录不可写时退回纯内存队列。
+    }
+  },
+});
+
 /** 通知队列。 */
 export interface Outbox {
   /** 提交一条通知：立即尝试，失败入队（不抛错，通知不能把调用方带崩）。 */
@@ -66,13 +112,26 @@ export interface Outbox {
 
 /**
  * 建一个通知队列。
+ *
+ * 给了 `store` 就把积压落盘：启动时先载入上次没送出去的通知（id 已存在的不重复入队），
+ * 入队/出队时重写。不带 `store` 就是纯内存队列（测试与老路径）。
  * @param send - 真正的投递函数（通常是 `pi.sendMessage` 的封装）；失败抛错。
+ * @param store - 积压的持久化后端；省略则只在内存里排队。
  * @returns 队列。
  */
-export const createOutbox = (send: OutboxSender): Outbox => {
+export const createOutbox = (send: OutboxSender, store?: OutboxStore): Outbox => {
   const queued: OutboxNotice[] = [];
   let seq = 0;
   let lastError: string | undefined;
+
+  /** 载入盘上的积压：按 id 去重，序号续着最大值走（否则重启后会发出重复 id）。 */
+  for (const notice of store?.load() ?? []) {
+    if (queued.some((existing) => existing.id === notice.id)) continue;
+    queued.push(notice);
+    if (notice.id > seq) seq = notice.id;
+  }
+
+  const persist = (): void => store?.save(queued);
 
   const attempt = (notice: OutboxNotice, busy: boolean): boolean => {
     notice.attempts += 1;
@@ -103,7 +162,9 @@ export const createOutbox = (send: OutboxSender): Outbox => {
         at: Date.now(),
         attempts: 0,
       };
-      if (!attempt(notice, busy)) queued.push(notice);
+      if (attempt(notice, busy)) return;
+      queued.push(notice);
+      persist();
     },
     retry(busy) {
       let sent = 0;
@@ -113,6 +174,8 @@ export const createOutbox = (send: OutboxSender): Outbox => {
         queued.shift();
         sent += 1;
       }
+      // 不论送出几条都重写：进度（attempts / lastError）也要落盘。
+      if (queued.length > 0 || sent > 0) persist();
       return sent;
     },
     count: () => queued.length,

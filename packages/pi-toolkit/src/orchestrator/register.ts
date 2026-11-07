@@ -9,6 +9,7 @@ import {
   type ExtensionAPI,
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { join } from "node:path";
 import { Type } from "typebox";
 import type { ToolkitSettings } from "../settings.ts";
 import {
@@ -36,7 +37,7 @@ import {
   type WorkerRegistry,
 } from "./handles.ts";
 import { spawnWorker, type SpawnWorkerOptions, type SpawnedWorker } from "./spawn.ts";
-import { createOutbox, type Outbox } from "./outbox.ts";
+import { createOutbox, fileOutboxStore, PENDING_REPORTS_FILE, type Outbox } from "./outbox.ts";
 import {
   abortedWorkerSession,
   markWorkerSessionAborted,
@@ -697,9 +698,13 @@ export const registerOrchestrator = (
 
   /**
    * 编排方会话的通知队列（report / 超时）。pi 的 `sendMessage` 是即发即忘的，失败不会
-   * 抛给我们，所以必须自己留账：失败入队、下一次可注入的时机重试、积压可见。
+   * 抛给我们，所以必须自己留账：失败入队（并落盘到 `reports-pending.json`，跨重启仍在）、
+   * 下一次可注入的时机重试、积压可见。
    */
-  const outbox: Outbox = createOutbox((message, options) => pi.sendMessage(message, options));
+  const outbox: Outbox = createOutbox(
+    (message, options) => pi.sendMessage(message, options),
+    fileOutboxStore(join(stateDir(), PENDING_REPORTS_FILE)),
+  );
 
   /** 编排方是否正在跑一轮：注入方式据此选 `followUp`（忙）/ `steer` + `triggerTurn`（闲）。 */
   let busy = false;

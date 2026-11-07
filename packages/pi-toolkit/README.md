@@ -314,7 +314,9 @@ is fire-and-forget (failures are swallowed by the host), so the plugin keeps its
 injection is queued and counted, retried on the next `agent_settled` / `before_agent_start` / `input`, and
 removed once it lands. Busy orchestrator → `deliverAs: "followUp"`; idle → `steer` + `triggerTurn`. Pending
 count and the last error show up in `orchestrator_workers` and `/orchestrator status`, and a retry never
-touches note state.
+touches note state. The backlog is also **persisted** to `reports-pending.json` in the state dir (ids are
+deduplicated, the file is rewritten on every change and deleted once the queue drains), so an undelivered
+report survives a crash or a restart and is retried by the first hook of the next session.
 
 A worker can dispatch **one layer of sub-workers** (`depth 1`) with its own restricted
 `orchestrator_dispatch`, which takes a `message` and nothing else. A sub-worker gets the host's file

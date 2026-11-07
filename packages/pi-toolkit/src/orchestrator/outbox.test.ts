@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vite-plus/test";
-import { createOutbox, type OutboxSendOptions } from "./outbox.ts";
+import { existsSync } from "node:fs";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import {
+  createOutbox,
+  fileOutboxStore,
+  PENDING_REPORTS_FILE,
+  type OutboxSendOptions,
+} from "./outbox.ts";
 
 /** 记录每次投递；`failNext` 控制接下来几次抛错。 */
 const recorder = () => {
@@ -92,5 +101,52 @@ describe("通知队列", () => {
     const [notice] = outbox.list();
     expect(notice?.attempts).toBe(3);
     expect(notice?.customType).toBe("orchestrator-worker-timeout");
+  });
+
+  it("积压落盘：失败写文件、送达删文件，重建队列后接着重试", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pi-outbox-"));
+    const file = join(dir, PENDING_REPORTS_FILE);
+    try {
+      const fake = recorder();
+      const first = createOutbox(fake.send, fileOutboxStore(file));
+      fake.failTimes(1);
+      first.submit(
+        { customType: "orchestrator-report", content: "重启前没送出去", planRef: "a" },
+        true,
+      );
+      expect(existsSync(file)).toBe(true);
+      const raw = JSON.parse(await readFile(file, "utf8")) as { notices: { attempts: number }[] };
+      expect(raw.notices).toHaveLength(1);
+      expect(raw.notices[0]?.attempts).toBe(1);
+
+      // 模拟重启：新队列从盘上载回积压，序号接着走，送到就删文件。
+      const second = createOutbox(fake.send, fileOutboxStore(file));
+      expect(second.count()).toBe(1);
+      expect(second.retry(false)).toBe(1);
+      expect(second.count()).toBe(0);
+      expect(existsSync(file)).toBe(false);
+
+      // 新通知的 id 不会与重启前的重复（序号从盘上最大值续）。
+      fake.failTimes(1);
+      second.submit({ customType: "orchestrator-report", content: "重启之后" }, true);
+      const saved = JSON.parse(await readFile(file, "utf8")) as { notices: { id: number }[] };
+      expect(saved.notices[0]?.id).toBe(2);
+      expect(fake.calls.map((call) => call.options.deliverAs)).toEqual(["steer"]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("积压文件损坏或丢失时当作没有积压", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "pi-outbox-bad-"));
+    const file = join(dir, PENDING_REPORTS_FILE);
+    const fake = recorder();
+    try {
+      expect(createOutbox(fake.send, fileOutboxStore(file)).count()).toBe(0);
+      await (await import("node:fs/promises")).writeFile(file, "{ not json", "utf8");
+      expect(createOutbox(fake.send, fileOutboxStore(file)).count()).toBe(0);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 });
