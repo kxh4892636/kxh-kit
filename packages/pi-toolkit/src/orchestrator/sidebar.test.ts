@@ -480,6 +480,90 @@ describe("temp workers 分组", () => {
   });
 });
 
+describe("结构快照（追加口径锁定）", () => {
+  const plans = (): SidebarPlan[] => [
+    {
+      ref: "pi/active/2026-11-07-demo",
+      name: "2026-11-07-demo",
+      groups: [
+        group(
+          `${WORKER_NOTES_LABEL}43,44`,
+          [
+            note("43", "侧栏改版", "in_progress", { running: true }),
+            note("44", "追问默认 steer", "waiting", { needs: "review", running: true }),
+          ],
+          true,
+        ),
+        group(UNGROUPED_LABEL, [
+          note("01", "旧活", "completed"),
+          note("02", "更旧的活", "completed"),
+        ]),
+      ],
+    },
+    {
+      ref: "pi/active/2026-11-08-demo2",
+      name: "2026-11-08-demo2",
+      groups: [group(`${WORKER_NOTES_LABEL}05`, [note("05", "另一个 Plan 的活", "pending")], true)],
+    },
+  ];
+
+  it("整帧：树形层级 + Plan 间一行空行 + 最下方 temp workers + 40 列对齐", () => {
+    const temps: SidebarTemp[] = [
+      { id: "temp:5", status: "in_progress", summary: "核对合成逻辑" },
+      { id: "temp:6", status: "completed", summary: "侧栏渲染核对完毕" },
+    ];
+    const lines = renderSidebarLines(
+      buildSidebarView(plans(), ["pi/active/2026-11-07-demo"], undefined, temps),
+      SIDEBAR_WIDTH,
+      fakeTheme as never,
+    ).map((line) => stripTerminalSequences(line));
+
+    expect(lines).toEqual([
+      "┌ ▤ Note 状态 ─────────────────────────┐",
+      "│ demo                                 │",
+      "│ ├─ worker: notes 43,44               │",
+      "│ │  ├─ 执行中 · 43 侧栏改版           │",
+      "│ │  └─ 待验收 · 44 追问默认 steer     │",
+      "│ ├─ 未分组                            │",
+      "│ │  ├─ 已完成 · 01 旧活               │",
+      "│ │  └─ 已完成 · 02 更旧的活           │",
+      "│ └─ 已完成 2 条 ▾                     │",
+      "│                                      │",
+      "│ demo2                                │",
+      "│ └─ worker: notes 05                  │",
+      "│    └─ 待开工 · 05 另一个 Plan 的活   │",
+      "│                                      │",
+      "│ └─ temp workers                      │",
+      "│    ├─ 执行中 · temp:5 · 核对合成逻辑 │",
+      "│    └─ 已完成 · temp:6 · 侧栏渲染核…  │",
+      "└──────────────────────────────────────┘",
+    ]);
+
+    // 1) 宽度恒 40（40 内容宽 + margin 1 ⇒ 屏幕 42）。
+    for (const line of lines) expect(visibleWidth(line)).toBe(SIDEBAR_WIDTH);
+    // 2) 只有 Plan 之间 / Plan 与 temp 分组之间有空行（恰好两处），组与 note 之间没有。
+    const blank = `│${" ".repeat(SIDEBAR_WIDTH - 2)}│`;
+    expect(lines.slice(1, -1).filter((line) => line === blank)).toHaveLength(2);
+    // 3) 层级只用树形接续符。
+    for (const mark of [TREE_BRANCH, TREE_LAST, TREE_PIPE, TREE_BLANK]) {
+      expect(lines.some((line) => line.includes(mark))).toBe(true);
+    }
+    // 4) 侧栏任何位置都没有“待消费”。
+    for (const line of lines) expect(line).not.toContain("待消费");
+  });
+
+  it("没有 live 临时 worker 时，temp 分组与它前面的空行都不出现", () => {
+    const lines = renderSidebarLines(
+      buildSidebarView(plans(), [], undefined, []),
+      SIDEBAR_WIDTH,
+      fakeTheme as never,
+    ).map((line) => stripTerminalSequences(line));
+    for (const line of lines) expect(line).not.toContain(TEMP_SECTION_LABEL);
+    // 末尾不留尾巴空行：最后一行正文就是第二个 Plan 的 note。
+    expect(lines.at(-2)).toContain("待开工 · 05 另一个 Plan 的活");
+  });
+});
+
 describe("按 worker 组分桶", () => {
   const notes: SidebarNote[] = [
     note("01", "A", "pending"),
