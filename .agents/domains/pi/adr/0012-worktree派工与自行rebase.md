@@ -17,3 +17,7 @@
 ## 后续
 
 - ADR-0014 把 worktree 从“可选”改成 **Plan worker 默认**（临时 worker 默认不建），并把合并 / 回收从“编排方另派一条指令”改成**代码在 worker 终态后自动执行**。本 ADR 的核心结论不变：worker 自己 rebase、主工作区分支只做 `--ff-only`、冲突保留现场。
+
+## 后续（取代）
+
+- ADR-0017 把现场单位从「某一代 worker」改成**组**：`worktree: true | <名字>` 覆盖删除，键固定为组键，现场整组共用、组完成即回收。本 ADR 仍然成立的部分：worker 自己 rebase、主分支只做 `--ff-only`、合并失败保留现场。

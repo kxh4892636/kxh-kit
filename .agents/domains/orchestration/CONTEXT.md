@@ -78,13 +78,13 @@ _Avoid_: 代码盲重试、诊断 worker 有写权限、让诊断自己扩大调
 按诊断建议**新开一代** worker（不复用被中止的会话）：新会话键带作废时刻，`retryMessage` 写明上次原因、上次到哪一步、本次调整与“不要重复已完成的 X”。先落 `retry.scheduled{retryKey, attempt}`（幂等键 `(retryKey, attempt)`）再真的派。同一条 note 最多自动重派 `retryLimit`（默认 2）次；到上限、建议 `needs-human`、或诊断不可解析 → `retry.exhausted` 且不再自动重试（转人工）。`state` 显示超时次数、最近诊断与是否还会自动重试。
 _Avoid_: 无限重试、同一条 note 反复踩同一个坑、把重试当心跳
 
-**worktree 派工**:
-**只有 `kind: message`（要干活）的 Plan 派工默认隔离**：派工时建 `.worktrees/<名字>`（自动命名 `note-<id>` / `grp-<id-id>` / `plan`）、分支 `wt/<名字>`，并先在该目录各自 `pnpm install`（建 worktree 或装依赖失败就**中止派工**，worker 不许跳过测试，也不降级回主工作区）。`pass` / `rework` / `answer` / `fact` 是纯控制指令，复用主工作区、不建也不装依赖（返工确实要改代码时由编排方**显式**给 `worktree: true`，不靠默认猜）；临时 worker 默认不建。显式 `worktree: true | "<名字>"` 对任何 kind 都覆盖默认，`false` 保证不建。Plan 仍锚定主工作区绝对路径，`notes.json` 只有主工作区一份。worker 完成前自己 rebase 到主分支最新提交并在 report 里写明可 `--ff-only` 合并。**合并与回收由代码做**（不经模型、不需编排方派工）：worker 终态后校验分支可 ff-only → `git merge --ff-only wt/<名字>` → 删 worktree 与分支 → 落 `worker.merged`；不可 ff-only → **不合并、保留现场**，落 `worker.merge_blocked`（含现场路径），`orchestrator_state` 里标 `✗` 等人工处理。合并串行化：主工作区同一时刻只允许一个 merge（进程内互斥 + 锁错误重试），避免两个 worktree 并发插队；abort / 超时**不删** worktree。
-_Avoid_: 真左右分栏式隔离、共享 node_modules、worker 自行删 worktree、编排方手工跑合并、rebase 冲突时硬推
+**worktree 现场**:
+**一个组一个现场，且持久存在**：现场单位是派工的 `notes`（单 note 也是组），键 = `note-<id>`（单）/ `grp-<id-id>`（多），目录 `.worktrees/<组键>`、分支 `wt/<组键>`。第一次派工该组时建一次 + `pnpm install` 一次（建现场或装依赖失败就**中止派工**，worker 不许跳过测试，也不降级回主工作区）；之后该组所有代 worker（`abort` 后重派 / `rework` / `resume` / 追加 `steer`）**共用同一现场**，不再建、不再装。现场只看组键，**没有开关**：Plan 级派工（无 `notes`）与临时 worker 没有现场，仍在主工作区；要隔离就换组。Plan 仍锚定主工作区绝对路径，`notes.json` 只有主工作区一份。worker 完成前自己 rebase 到主分支最新提交并在 report 里写明可 `--ff-only` 合并。**回收由代码做**（不经模型、不需编排方派工）：组内 note 全部 `completed` 时校验分支可 ff-only → `git merge --ff-only wt/<组键>` → 删现场与分支 → 落 `worktree.merged` / `worktree.removed`；不可 ff-only → **不合并、保留现场**，落一条 error（`worker.merge_blocked`，含现场路径），`orchestrator_state` 里标 `✗` 等人工处理。合并串行化：主工作区同一时刻只允许一个 merge（进程内互斥 + 锁错误重试），避免两个现场并发插队；`abort` / 超时**不动**现场（现场属于组，不属于某一代 worker）。
+_Avoid_: 真左右分栏式隔离、共享 node_modules、worker 自行删 worktree、编排方手工跑合并、rebase 冲突时硬推、按 `kind` 猜要不要建现场、worktree 开关
 
 **刹车**:
-不设并发上限时的替代手段：`orchestrator_state` 列 live 清单、按 Plan 或全部中止、退出时自动收尾。
-_Avoid_: 限流、配额
+不设并发上限时的替代手段：`orchestrator_state` 列 live 清单，`op: "abort"` **按句柄 / 组 / Plan** 三档粒度中止（给 `notes` 只摘那一组、给 `plan` 摘该 Plan 全部组、都不给才摘全部），退出时自动收尾。中止只摘 live 句柄，**不动现场**。
+_Avoid_: 限流、配额、一个 notes 参数把别组一起杀掉
 
 **上报**:
 worker 的 `orchestrator_report` 落账本事件 `report.filed`（`worker` / `note` / `outcome` / `summary` / `question?` / `evidence?`，都截短）；编排方需要全量时调 `orchestrator_state`，读一次落 `state.pulled` 把未读清零，所以“未读 report”跨重启成立。旧的 outbox / `reports-pending.json` 重试机制删除：账本是记录，不需要重新投递。report 只是通知，磁盘上的 notes 才是事实。
@@ -101,7 +101,7 @@ _Avoid_: 每条 report 单独开一轮、把 done 当心跳反复刷屏、推送
 _Avoid_: 启动对账、自愈、自动恢复
 
 **孤儿**:
-账本上派生过、却没有任何 `worker.exit`、进程内也没有对应 session 的 worker（会话退出 / 崩溃 / 重启后）。`session_shutdown` 与崩溃写的是 `worker.suspended` 而不是 `worker.exit` —— 前者 jsonl 还在、**可恢复**，后者是 abort / 超时那种真结束（会话作废）。`orchestrator_state` 先列「可恢复 worker」，用户确认后 `op: "resume"` 才动手：**先父后子**，用同一份 jsonl 投一句“继续（先 git status 核对）”，落 `worker.resumed{resumeOf}`（幂等键 = 会话代数锚点）；子 worker 的会话不落盘，由父重建，建不回来的写明“子任务丢失”。
+账本上派生过、却没有任何 `worker.exit`、进程内也没有对应 session 的 worker（会话退出 / 崩溃 / 重启后）。`session_shutdown` 与崩溃写的是 `worker.suspended` 而不是 `worker.exit` —— 前者 jsonl 还在、**可恢复**，后者是 abort / 超时那种真结束（会话作废）。恢复入口只有两个，且是同一个实现：`session_start`（含 reload / 重启）对**本会话当前 Plan** 自动跑一次，与显式 `op: "resume"`；自动那条不猜 Plan（会话里没有当前 Plan 记录就不动、不做全局对账，`state` 仍列「可恢复 worker」）。**先父后子**，用同一份 jsonl 投一句“继续（先 git status 核对）”，落 `worker.resumed{resumeOf}`（幂等键 = 会话代数锚点）；子 worker 的会话不落盘，由父重建，建不回来的写明“子任务丢失”。
 _Avoid_: 自动挂回全部 worker、把 suspended 当 exit、恢复时新开一份会话
 
 **崩溃凭据**:

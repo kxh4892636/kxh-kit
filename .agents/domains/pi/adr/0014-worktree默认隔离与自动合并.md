@@ -16,3 +16,7 @@ ADR-0012 把 worktree 定为“两个 worker 可能改同一批文件时”的**
 - 合并串行化：主工作区同一时刻只允许一个 merge（进程内互斥 + `index.lock` 类错误小重试），否则两个 worktree 并发 ff-only 会互相把对方的基线推走，第二个必然失败。
 - 合并会删掉 cwd，所以同一个组再派工（rework / answer）时重新建一个 worktree 并写回句柄；会话仍续上，只是路径变了。abort / 超时**不删** worktree（现场留给人工）。
 - 默认值翻转的代价：Plan worker 每次派工多 ≈1.5s + ≈13.5s 与 ≈183 MB 增量磁盘（Windows 热 store 实测，见 ADR-0012）。
+
+## 后续（取代）
+
+- ADR-0017 取代本文的「按 `kind` 推导 + 显式覆盖」与「合并会删 cwd 所以同组再派重建目录」两条：现场改为**一个组一个、整组共用**，键 `note-<id>` / `grp-<id-id>`，组内 note 全部 completed 才 ff-only 合并并删除，`abort` / 超时不动现场，「默认隔离」不再需要推导。
