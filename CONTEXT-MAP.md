@@ -19,3 +19,4 @@
 - **DSH → Nano Flow**：DSH 工具集的嵌套 skill 工具使 Nano Flow 以嵌套 skill 形式分发的主流程 skill 能被发现与调用。
 - **pi → Nano Flow**：pi 插件使 Nano Flow 以嵌套 skill 形式分发的主流程 skill 能被发现，并支持以 `$` 引用在任意位置插入与展开。
 - **Orchestration → 各业务域**：编排方只读各业务域的 Plan、CONTEXT、ADR 与 QUESTIONS，用于判定归属与放行；业务域 Plan 的 note 由该域的 worker 写，编排方不写。
+- [video](./.agents/domains/video/CONTEXT.md) - video 域：把图片、文字稿与录音合成为可发布视频的代码化渲染管线。

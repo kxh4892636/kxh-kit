@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "index": [],
+  "notes": [
+    {
+      "id": "01",
+      "title": "实现路径拷问与定案",
+      "description": "记录「图片+文字+录音→视频」实现路径的第 1 轮拷问与定案",
+      "status": "completed",
+      "blocked_by": [],
+      "evidence": [
+        "两轮拷问结论与三次修订 (BGM、竖构图、全图使用、字号) 已写入 spec 与 note 01",
+        "素材/环境事实: 16 图 + 24.78s 录音; Remotion v4.0.541 自带 ffmpeg; TEMP 重定向坑已记录",
+        "交付物由 note 02 (工程/分镜/混音) 与 note 03 (成片) 承接"
+      ],
+      "updated_at": "2026-11-07T10:11:13.646Z",
+      "content": "# 实现路径拷问与定案\n\n## 已取证\n\n- toolchain: Node v24.21.0 + pnpm 11.22.0; 系统无 ffmpeg/ffprobe, 无 winget/scoop/choco; npm 可装包。\n- 既有结论: 视频编辑走代码/API 而非 GUI (wiki《代码驱动的多媒体生成》)。\n- Remotion 核验: v4.0.541; 自带轻量 ffmpeg/ffprobe (无 afade/sidechaincompress); Chromium 由 `npx remotion browser ensure` 安装。\n- 素材: 16 张竖幅照片 (1279×1706, 最后一张 1024×1366), 1 个 m4a 录音 (24.78s); 文案 8 句英文。\n- 录音逐句时间轴: `silencedetect noise=-33dB d=0.28` 切出 7 个句间停顿 + 1 个句内停顿 (第 4 句), 9 个语音段合并为 8 句。\n- BGM: 本地公共领域曲库 `C:\\Users\\kxh\\Music\\musopen-flac` (Musopen, CC PD Mark 1.0), 选 Josef Suk《Meditation》。\n\n## 第 1 轮\n\n#### Q1 - 交付形态\n\n- 问题: 只要一个成品 mp4, 还是要可复用的脚本/工具?\n- 前置问题: 无\n- 下游边界: 决定是否建参数化 CLI、素材目录约定与测试方式\n- 推荐答案及理由: 可复用工具; 若只做一次可退化为单脚本\n- 处理结论: 用户选「一次性成品」——不建通用 CLI, 验收物为一个 mp4; 代码按一次性 Remotion 工程交付。\n\n#### Q2 - 画面规格与平台\n\n- 问题: 横屏 16:9 / 竖屏 9:16? 分辨率?\n- 前置问题: 无\n- 下游边界: 画布尺寸、图片裁切方式、字幕安全区\n- 推荐答案及理由: 竖屏 9:16 · 1080×1920\n- 处理结论: 用户选「竖屏 9:16 · 1080×1920」; 帧率 30fps (假设, 已采用)。\n\n#### Q3 - 文字呈现\n\n- 问题: 整段静态字幕 / 按句自动断句并随录音出现 / 关键词高亮动画?\n- 前置问题: Q2\n- 下游边界: 是否需要断句对齐, ASS 模板或 Remotion\n- 推荐答案及理由: 按句字幕, 用录音静音段 + 文字分句对齐\n- 处理结论: 用户选「按句字幕, 随录音出现」; 对齐方式见 Q9。\n\n#### Q4 - 图片节奏\n\n- 问题: 均分停留 / 跟随讲解切换 / 自由编排?\n- 前置问题: Q3\n- 下游边界: 时间轴编排复杂度\n- 推荐答案及理由: 均分 + Ken Burns\n- 处理结论: 用户要求「根据图片数量、文案自由排布, 要有电影版剪辑效果」; 后续追加「所有图片都要使用, 可以一个镜头多图或拼接」——最终 16 图分 9 镜, 3 个镜头用 2×2 网格/左右分屏承载多图。\n\n#### Q5 - 音频处理\n\n- 问题: 仅原录音 / 加 BGM 闪避 / 加降噪与标准化?\n- 前置问题: 无\n- 下游边界: 是否引入 BGM 与 ducking\n- 推荐答案及理由: 原录音 + 响度标准化\n- 处理结论: 用户先选「仅原录音 + 标准化」; **2026-11-07 改口追加 BGM**——改为「原录音 + 公共领域 BGM 侧链闪避 + 响度标准化」。\n\n#### Q6 - 环境授权\n\n- 问题: 是否允许 npm/Chromium 安装?\n- 前置问题: Q1\n- 下游边界: 路径可行性\n- 推荐答案及理由: 允许; 无 winget, 系统级安装不可行\n- 处理结论: 用户选「改用 Remotion (含 Chromium)」——路径 B 定案。\n\n## 第 2 轮\n\n#### Q7 - 素材提供\n\n- 问题: 素材怎么给?\n- 前置问题: Q1\n- 下游边界: 分镜编排\n- 推荐答案及理由: 给本机路径\n- 处理结论: 用户给 `C:\\Users\\kxh\\Pictures\\kxr`; 已复制到 `.temp/video/public/`。\n\n#### Q8 - 电影感元素\n\n- 问题: 电影感要哪些具体效果? (多选)\n- 前置问题: Q4\n- 下游边界: 分镜方案与实现复杂度\n- 推荐答案及理由: 黑边 + 颗粒暗角 + 推拉 + 叠化 + 字幕动效\n- 处理结论: 用户先全选六项 (含 2.35:1 宽银幕黑边); **2026-11-07 修订: 竖屏视频, 照片也要竖构图, 不要按横屏裁剪** → 取消 letterbox, 改全屏竖构图, 保留电影质感 (调色/颗粒/暗角/漏光/推拉漂浮运镜/字幕动效)。\n\n#### Q9 - 文字分句与对齐\n\n- 问题: 文字稿格式与字幕对齐方式?\n- 前置问题: Q3\n- 下游边界: 字幕时序生成\n- 推荐答案及理由: 能分句直接映射, 否则自动断句\n- 处理结论: 用户选「整段文字, 自动断句」——按标点切句, 与 silence 段按语速校验对齐 (第 4 句跨两段)。\n\n#### Q10 - 片头片尾\n\n- 问题: 要不要片头标题卡和片尾?\n- 前置问题: Q2\n- 下游边界: 时长与结构\n- 推荐答案及理由: 标题卡增强完成度\n- 处理结论: 用户选「加标题卡」——1.5s 标题卡, 不做片尾署名。\n\n### 补充说明\n\n- 2026-11-07 追加: 「加一段符合场景的免费开源 BGM」——用本地公共领域曲库 Suk《Meditation》, 侧链闪避, 许可可追溯 (CC PD Mark 1.0)。\n- 2026-11-07 追加: 竖屏视频照片必须竖构图, 不要横屏裁剪; 全部 16 张图必须使用 (可单镜多图或拼接) —— 已落到 9 镜分镜表 (note 02)。\n- 工程与成品放 `.temp/video/` (gitignored)。\n"
+    },
+    {
+      "id": "02",
+      "title": "Remotion 工程与分镜编排",
+      "description": "Remotion 工程、分镜与混音交付",
+      "status": "completed",
+      "blocked_by": [],
+      "evidence": [
+        "工程可 bundle 并单帧渲染通过: out/v9-170.png (顶标签/拼贴), out/v8-35.png (标题卡)",
+        "分镜表覆盖 16 张图、每图一次: note 02 表; 抽帧 out/v4-170.png / v4-480.png / v4-660.png / v4-800.png",
+        "混音: 旁白 -16 LUFS, BGM -28 LUFS 段, 成品 -17.2 LUFS / -1.4 dBTP",
+        "成片渲染 819/819 帧: out/render-crf22.log (+ out/museum.mp4)"
+      ],
+      "updated_at": "2026-11-07T10:16:58.662Z",
+      "content": "# Remotion 工程与分镜编排\n\n## 交付\n\n`.temp/video/` 下可渲染的 Remotion 工程：竖屏 9:16 全构图、9 个镜头 (其中 3 个为多图拼接，16 张照片全部使用)、8 句逐句字幕、电影质感层 (调色/颗粒/暗角/漏光/缓慢推拉与漂浮运镜)、标题卡、混音音轨 (旁白 loudnorm + Carefree 闪避)。\n\n## 分镜表 (16 图全部使用)\n\n| # | 帧区间 | 布局 | 图片 |\n| --- | --- | --- | --- |\n| 1 | 0–150 | 单图 | img-14 博物馆入口 |\n| 2 | 150–243 | 2×2 | img-07 青铜器 / img-06 金器 / img-05 展柜 / img-04 孝悌忠信墙 |\n| 3 | 243–330 | 2×2 | img-09 读展签 / img-13 书架 / img-12 大同理想碑 / img-01 书架近景 |\n| 4 | 330–456 | 单图 | img-02 文创店 |\n| 5 | 456–540 | 单图 | img-03 折扇 |\n| 6 | 540–636 | 单图 | img-00 博物馆外景 |\n| 7 | 636–714 | 单图 | img-15 草地自拍 |\n| 8 | 714–780 | 单图 | img-10 写「仁」互动桌 |\n| 9 | 780–819 | 左右分屏 | img-11 印章画 / img-08 互动屏 |\n\n## 排版\n\n- 标题卡: 「A LITTLE MUSEUM STORY」26px + 「MY FAVOURITE PLACE」74px Georgia + 「孔子博物馆 · 2026」34px，1.5s;\n- 常驻左上标签: 「KONGZI MUSEUM · 2026」36px + 金色短线, 第 50 帧淡入;\n- 字幕: Georgia 58px, `text-wrap: balance`, 底部安全区 bottom 300, 逐句淡入上浮。\n\n## 混音\n\n- 旁白: loudnorm -16 LUFS, 延迟 1.5s, 尾部补 1s;\n- BGM: Kevin MacLeod「Carefree」(CC BY 4.0) 截取 27.3s, loudnorm **-30 LUFS** (2026-11-07 用户要求下调 4dB), 音量包络淡入 1.0s / 淡出 1.6s; 旧版 Suk《Meditation》音轨保留为 `public/bgm_ready_suk.wav` / `public/final_audio_suk.wav`; Carefree 初版 (-26 LUFS) 保留为 `final_audio_carefree.wav` / `out/museum-carefree.mp4`;\n- 闪避: 逐句区间用 Python 包络压低 11dB (attack 80ms / release 450ms), 后混音并限幅;\n- 成品: 旁白段 -16.3 LUFS, BGM-only 段 -29.5 LUFS, 全片 -16.8 LUFS, 真峰 -1.44 dBTP。\n\n## 范围\n\n- 做: 工程骨架与依赖、素材命名、分镜与字幕数据、视觉组件、混音链、抽帧验证。\n- 不做: 通用 CLI、测试基建、多平台版本。\n\n## 验收\n\n- [x] 工程可 bundle 并渲染单帧成功\n- [x] 分镜表覆盖 16 张图, 每图仅用一次\n- [x] 字幕 8 句与录音时间对应\n- [x] 混音完成, 响度达标 (BGM 已按要求下调)\n- [x] 无占位素材\n- [x] 成片渲染成功 (见 note 03/04/05)\n\n## 直接依赖\n\n- **01**: 已定案 (路线/规格/元素/素材路径)\n\n## 上下文\n\n- Plan 目录: `.agents/domains/video/plans/active/2026-11-07-图片文字录音剪辑为视频/`\n- 工程文件: `src/Museum.tsx`、`src/data.ts`、`src/Root.tsx`、`src/index.ts`\n- 素材: `.temp/video/public/assets/img-00..15.jpg`、`public/final_audio.wav`、`public/grain.png`\n- BGM 源: `https://incompetech.com/music/royalty-free/mp3-royaltyfree/Carefree.mp3` (CC BY 4.0, Kevin MacLeod)\n- 抽帧证据: `out/v4-170.png`、`out/v4-480.png`、`out/v4-660.png`、`out/v4-800.png`、`out/v9-170.png`；成片抽帧在 `out/verify22/`、`out/verify-carefree/`\n\n## 决策\n\n- **竖构图优先**: 照片 3:4 竖幅, 全屏 cover 裁切 (主要裁左右), 不做横带 letterbox——用户明确要求。\n- **多图拼接承担内容密度**: 24.8s 内 16 张图, 用 2×2 网格与左右分屏承载「很多老物件与照片」「读故事」与结尾蒙太奇, 其余单图全屏。\n- **隐藏手机水印**: 单图 scale ≥1.12、网格 cell scale ≥1.14 并把底部约 5% 裁掉, 避免 HONOR 水印入画。\n- **环境坑**: Remotion 自带 ffmpeg 无法写系统 `%TEMP%` (Permission denied → `write EOF`), 渲染前把 `TEMP`/`TMP` 指到 `.temp/video/tmp`。\n"
+    },
+    {
+      "id": "03",
+      "title": "渲染成片与验收",
+      "description": "渲染 mp4 与验收证据",
+      "status": "completed",
+      "blocked_by": [
+        "02"
+      ],
+      "evidence": [
+        "ffprobe: 1080x1920, 30fps, 27.307s, h264+aac, 8.83 Mbps, 30,143,583 字节",
+        "抽帧核对: out/verify22/frame-0.9.jpg (标题卡), frame-2.6.jpg (S1), frame-5.6.jpg (S2 拼贴), frame-8.8.jpg (S3 拼贴), frame-16.jpg (S5), frame-24.2.jpg (S8), frame-26.6.jpg (分屏结尾)",
+        "响度: 旁白段 -16.2 LUFS, BGM-only 段 -28.0 LUFS, 全片 -17.2 LUFS, 真峰 -1.4 dBTP",
+        "成片: .temp/video/out/museum.mp4 (28.7 MB), 渲染日志 out/render-crf22.log Encoded 819/819"
+      ],
+      "updated_at": "2026-11-07T10:11:02.709Z",
+      "content": "# 渲染成片与验收\n\n## 交付\n\n`.temp/video/out/museum.mp4`：1080×1920 / 30fps / 27.307s，h264 + aac，8.83 Mbps，30,143,583 字节 (28.7 MB)。标题卡 + 9 分镜 (16 图全用) + 8 句字幕 + 旁白与闪避 BGM。\n\n## 验收记录\n\n- [x] ffprobe: 1080×1920, 30fps, 27.307s, h264 + aac, 8.83 Mbps\n- [x] 抽帧 (out/verify22): 0.9s 标题卡 (单行 74px)、2.6s S1、5.6s 2×2 拼贴 S2、8.8s 拼贴 S3、16s 折扇、24.2s S8、26.6s 分屏结尾——画面与字幕逐句对应\n- [x] 响度: 旁白段 -16.2 LUFS, BGM-only 段 -28.0 LUFS, 全片 -17.2 LUFS, 真峰 -1.4 dBTP\n- [x] 16 张图全部出现 (分镜表见 note 02), 每图仅一次\n- [x] 无黑帧、无错序、无相机水印\n\n## 证据\n\n- 成片: `.temp/video/out/museum.mp4` (28.7 MB)\n- 渲染日志: `out/render-crf22.log` (Encoded 819/819)\n- 抽帧: `out/verify22/frame-{0.9,2.6,5.6,8.8,16,24.2,26.6}.jpg`\n- 渲染命令: `TEMP=.temp/video/tmp npx remotion render src/index.ts Museum out/museum.mp4 --crf=22 --concurrency=4`\n\n## 范围\n\n- 做: 正式渲染、参数核对、抽帧检查、响度抽查、交付整理。\n- 不做: 二次剪辑、平台上传、封面制作。\n\n## 直接依赖\n\n- **02**: 工程与分镜编排 (completed)\n\n## 上下文\n\n- 工程: `.temp/video/`\n- BGM: Josef Suk《Meditation》(Musopen, CC PD Mark 1.0)\n"
+    },
+    {
+      "id": "04",
+      "title": "更换欢快 BGM 并重渲染",
+      "description": "欢快 BGM 替换与重渲染",
+      "status": "completed",
+      "blocked_by": [],
+      "evidence": [
+        "BGM 来源: https://incompetech.com/music/royalty-free/mp3-royaltyfree/Carefree.mp3 (205s, 256kbps, CC BY 4.0, Kevin MacLeod)",
+        "混音: public/final_audio.wav -17.3 LUFS / -1.41 dBTP; BGM-only 段 -25.5 LUFS, 旁白段 -16.3 LUFS",
+        "重渲染: out/museum.mp4 30,143,809 字节 (28.7MB), 1080x1920, 30fps, 27.307s, h264+aac",
+        "片尾署名核对: out/verify-carefree/frame-26.9.jpg 显示 CAREFREE BY KEVIN MACLEOD · CC BY 4.0 · INCOMPETECH.COM",
+        "旧版回退: C:\\Users\\kxh\\Pictures\\kxr\\museum-suk.mp4 与 public/final_audio_suk.wav / bgm_ready_suk.wav"
+      ],
+      "updated_at": "2026-11-07T10:15:04.757Z",
+      "content": "# 更换欢快 BGM 并重渲染\n\n## 交付\n\n把成片 BGM 从 Suk《Meditation》（古典、沉思）换成欢快曲目 Kevin MacLeod「Carefree」，重新混音、更新片尾版权行并重渲染 mp4；旧版视频与旧音轨保留可回退。\n\n## 选择依据\n\n- 用户要求「欢快、古典不适合」，并指定「在网络进行选择」；\n- 候选: Kevin MacLeod「Carefree」(CC BY 4.0, 轻快吉他/乌克丽丽, 官方描述适合 kids/travel/vlog)、「Life of Riley」(quirky)；\n- 定案: Carefree——欢快、无歌词、适合儿童 vlog；代价是 CC BY 需署名, 片尾版权行补充「CAREFREE BY KEVIN MACLEOD · CC BY 4.0 · INCOMPETECH.COM」；\n- 来源: `https://incompetech.com/music/royalty-free/mp3-royaltyfree/Carefree.mp3` (205s, 256kbps)。\n\n## 范围\n\n- 做: 下载与许可核对、BGM 截取/标准化/淡入淡出、保留原闪避包络重混、片尾署名更新、重渲染、验收。\n- 不做: 改分镜/字幕/画面；不重排时间轴。\n\n## 验收\n\n- [ ] mp4 音轨为新 BGM, 旁白段仍被压低\n- [ ] 全片响度约 -17 LUFS, 无爆音\n- [ ] 片尾版权行显示 Carefree 署名\n- [ ] 时长/分辨率/帧率不变 (1080×1920, 30fps, 27.3s)\n- [ ] 旧版成片保留 (便于回退)\n\n## 直接依赖\n\n- **02**: 工程与混音链 (completed)\n- **03**: 旧版成片与验收基线 (completed)\n\n## 上下文\n\n- 工程: `.temp/video/`\n- 新 BGM: `.temp/video/public/bgm_carefree.mp3`\n- 混音脚本: `.temp/video/mix_audio.py`\n- 旧成片: `.temp/video/out/museum.mp4` (可先备份)\n"
+    },
+    {
+      "id": "05",
+      "title": "下调 BGM 音量并替换音轨",
+      "description": "下调 BGM 音量并以拷贝方式替换音轨",
+      "status": "completed",
+      "blocked_by": [],
+      "evidence": [
+        "bgm_ready.wav 目标 -30 LUFS: BGM-only 段从 -25.5 降至 -29.5",
+        "final_audio 全片 -16.81 LUFS / -1.44 dBTP, 旁白段 -16.27 LUFS",
+        "remux: 视频流 copy, 成片 27.300s / 28.3MB / h264 1080x1920 30fps + aac",
+        "抽帧 out/verify-carefree/frame-17.jpg 画面正常; 旧版 out/museum-carefree.mp4 与 final_audio_carefree.wav 保留"
+      ],
+      "updated_at": "2026-11-07T10:17:03.733Z",
+      "content": "# 下调 BGM 音量并替换音轨\n\n## 交付\n\n现行成片 (Carefree 版) 的 BGM 整体下调约 4.5dB：BGM 归一化目标从 -26 LUFS 改为 -30 LUFS，旁白/画面/字幕/署名均不变；用视频流拷贝 + 新音轨封装，避免重渲染。\n\n## 范围\n\n- 做: 重做 bgm_ready.wav (-30 LUFS)、重混 final_audio.wav、remux 替换音轨、核对响度与时长。\n- 不做: 画面、分镜、字幕、片尾署名、BGM 曲目本身。\n\n## 验收\n\n- [ ] 成片 BGM-only 段比上一版低 ~4.5dB (约 -29.5 LUFS)\n- [ ] 旁白段仍约 -16 LUFS, 语音清晰\n- [ ] 时长仍 27.307s, 画面不变 (video copy)\n- [ ] 旧版音轨与旧成片可回退\n\n## 直接依赖\n\n- **04**: Carefree 版成片 (completed)\n\n## 上下文\n\n- 工程: `.temp/video/`\n- 上一版成片: `out/museum.mp4` (Carefree, BGM -25.5 LUFS)\n- 混音脚本: `mix_audio.py` (DUCK=0.28 保持不变)\n"
+    }
+  ]
+}
