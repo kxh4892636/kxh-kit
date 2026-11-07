@@ -385,5 +385,34 @@ describe("worker 扩展工厂", () => {
     });
     expect(harness.reports).toHaveLength(1);
     expect(harness.reports[0]?.summary).toBe("改完了");
+    // 正常长度不受影响：不提示、不带截断字段。
+    expect(String((result as { content: { text: string }[] }).content[0]?.text)).not.toContain(
+      "注意",
+    );
+    expect(harness.reports[0]?.summaryTruncated).toBeUndefined();
+    expect(harness.reports[0]?.summaryLength).toBeUndefined();
+  });
+
+  it("超长 summary 不静默截断：返回值提示 + 记原始长度", async () => {
+    const harness = await setup();
+    const report = harness.tools.get("orchestrator_report");
+    const long = "很长的结论".repeat(40);
+    const result = await report?.execute("id", {
+      outcome: "needs_review",
+      note: "01",
+      summary: long,
+    });
+    const text = (result as { content: { text: string }[] }).content[0]?.text ?? "";
+    expect(text).toContain("注意：summary 已截断到 120 码元");
+    expect(text).toContain("长内容请写进 note 01 的 evidence");
+    // report 对象带原始长度与截断标记，交给桥接层落账（不存全文）。
+    expect(harness.reports[0]).toMatchObject({
+      summaryTruncated: true,
+      summaryLength: long.length,
+    });
+    expect((result as { details: Record<string, unknown> }).details).toMatchObject({
+      summaryTruncated: true,
+      summaryLength: long.length,
+    });
   });
 });

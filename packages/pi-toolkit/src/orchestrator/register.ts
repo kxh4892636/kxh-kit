@@ -1508,6 +1508,10 @@ export const registerOrchestrator = (
         summary: clipText(report.summary),
         ...(report.question === undefined ? {} : { question: clipText(report.question) }),
         ...(report.evidence === undefined ? {} : { evidence: [...report.evidence] }),
+        // 超限时留“当时写了多长”，但不存全文：长内容应在 note 的 evidence 里。
+        ...(report.summaryTruncated === true
+          ? { summaryTruncated: true, summaryLength: report.summaryLength ?? report.summary.length }
+          : {}),
       },
     });
     // 普通 done 不推送：它在账本里，需要时用 orchestrator_state 拉。

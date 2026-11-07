@@ -154,6 +154,9 @@ export const createSubDispatchTool = (options: SubDispatchOptions): Orchestrator
         summary: report.summary,
         ...(report.question === undefined ? {} : { question: report.question }),
         ...(report.evidence === undefined ? {} : { evidence: [...report.evidence] }),
+        ...(report.summaryTruncated === true
+          ? { summaryTruncated: true, summaryLength: report.summaryLength ?? report.summary.length }
+          : {}),
       },
     });
     notify(SUB_REPORT_TYPE, lines, { ...report, sub: entry.planRef, depth });

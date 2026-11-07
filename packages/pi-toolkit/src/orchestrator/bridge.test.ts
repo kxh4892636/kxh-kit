@@ -2384,6 +2384,48 @@ describe("report 落账本", () => {
     expect(summary).toContain("改完了");
   });
 
+  it("超长 summary 落账时截断，并记 summaryTruncated / summaryLength（不存全文）", async () => {
+    const { captured, stateRoot, root } = await harness();
+    const long = "很长的结论".repeat(40);
+    captured[0]?.({
+      outcome: "needs_review",
+      note: "01",
+      summary: long,
+      summaryTruncated: true,
+      summaryLength: long.length,
+      plan: `${root}/.agents/domains/etf/plans/active/2026-11-07-示例`,
+    } as WorkerReport);
+    const { openLedger } = await import("./ledger.ts");
+    const filed = openLedger(stateRoot)
+      .events()
+      .find((event) => event.type === "report.filed");
+    const summary = filed?.payload["summary"] as string;
+    expect(summary.length).toBeLessThanOrEqual(120);
+    expect(filed?.payload).toMatchObject({
+      summaryTruncated: true,
+      summaryLength: long.length,
+    });
+    // 不存全文：事件里除了截断后的摘要没有原始长文。
+    expect(JSON.stringify(filed)).not.toContain(long);
+  });
+
+  it("正常长度的 summary 不带宽限字段", async () => {
+    const { captured, stateRoot, root } = await harness();
+    captured[0]?.({
+      outcome: "needs_review",
+      note: "01",
+      summary: "改完了",
+      plan: `${root}/.agents/domains/etf/plans/active/2026-11-07-示例`,
+    } as WorkerReport);
+    const { openLedger } = await import("./ledger.ts");
+    const filed = openLedger(stateRoot)
+      .events()
+      .find((event) => event.type === "report.filed");
+    expect(filed?.payload["summary"]).toBe("改完了");
+    expect(filed?.payload["summaryTruncated"]).toBeUndefined();
+    expect(filed?.payload["summaryLength"]).toBeUndefined();
+  });
+
   it("普通 done 零推送：不渲染、不进上下文，只留账本", async () => {
     const { messages, captured, stateRoot, root } = await harness();
     captured[0]?.({

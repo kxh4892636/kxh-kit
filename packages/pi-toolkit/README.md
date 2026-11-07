@@ -486,7 +486,10 @@ id) and the hash goes into that note's evidence: the orchestrator has no `bash`,
 nothing is committed while tests or checks fail.
 
 `orchestrator_report` always appends a `report.filed` event (`worker`, `note`, `outcome`, `summary`,
-`question?`, `evidence?` — all clipped so events stay small). **Only important outcomes are pushed**:
+`question?`, `evidence?` — all clipped so events stay small). `summary` is capped at 120 code units: a longer
+one is still truncated on write, but the tool now says so in its own return value and the event carries
+`summaryTruncated: true` + the original `summaryLength` (never the full text — long content belongs in the
+target note's `evidence`). **Only important outcomes are pushed**:
 `needs_review` / `needs_answer` / `blocked` / `failed` (plus `timeout` and `retry.exhausted`) inject one
 `orchestrator-important` message with `triggerTurn`, and anything arriving within 5 seconds merges into a
 single digest (one line per item: `plan · note · outcome · summary`). A plain `done` is **not** pushed, not

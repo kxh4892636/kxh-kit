@@ -137,7 +137,11 @@ export interface InputConsumedPayload {
   readonly seqOfSent: number;
 }
 
-/** `report.filed` 的正文。 */
+/** `report.filed` 的正文。
+ *
+ * `summary` 只存摘要（≤ `SUMMARY_MAX` 码元，超出会被截断）；超限时额外记
+ * `summaryTruncated` 与原始 `summaryLength`（**不存全文**：长内容应在 note 的 evidence 里）。
+ */
 export interface ReportFiledPayload {
   readonly worker: string;
   readonly note: string;
@@ -145,6 +149,10 @@ export interface ReportFiledPayload {
   readonly summary: string;
   readonly question?: string;
   readonly evidence?: readonly string[];
+  /** summary 超限被截断（便于事后判断“当时是不是写了长文”）。 */
+  readonly summaryTruncated?: boolean;
+  /** summary 的原始长度（码元）。 */
+  readonly summaryLength?: number;
 }
 
 /** `note.status` 的正文。 */

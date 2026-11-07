@@ -21,8 +21,12 @@ export interface WorkerReport {
   readonly outcome: ReportOutcome;
   /** 这条 report 针对的 note id。 */
   readonly note: string;
-  /** 一句话摘要，直接给人看。 */
+  /** 一句话摘要，直接给人看。**上限 120 码元**（超出写账本时会被截断）。 */
   readonly summary: string;
+  /** summary 的原始长度（码元）；由 `orchestrator_report` 在超限时补上。 */
+  readonly summaryLength?: number;
+  /** summary 是否超出 120 码元（true 时账本里的正文已截断，长内容应在 note evidence 里）。 */
+  readonly summaryTruncated?: boolean;
   /** `needs_answer` 时必填。 */
   readonly question?: string;
   /** 已产出的证据；`needs_review` 时建议给出。 */

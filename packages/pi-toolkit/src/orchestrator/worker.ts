@@ -17,7 +17,7 @@
  */
 
 import type { ExtensionAPI, ExtensionFactory } from "@earendil-works/pi-coding-agent";
-import type { EventInput } from "./events.ts";
+import { SUMMARY_MAX, type EventInput } from "./events.ts";
 import { Type } from "typebox";
 import { readPromptText, readWorkerPromptText } from "./assets.ts";
 import type { ToolkitSettings } from "../settings.ts";
@@ -202,10 +202,11 @@ const createReportTool = (options: WorkerExtensionOptions, routeKey: string) => 
   name: "orchestrator_report",
   label: "Report",
   description:
-    "把一条 note 的进展、待答问题或待验收结果上报给编排方。完成用 needs_review，需要人回答用 needs_answer，受阻或失败用 blocked / failed；done 只用于进展播报。",
+    "把一条 note 的进展、待答问题或待验收结果上报给编排方。完成用 needs_review，需要人回答用 needs_answer，受阻或失败用 blocked / failed；done 只用于进展播报。summary ≤120 码元，超出会被截断；长内容写进目标 note 的 evidence。",
   promptSnippet: "Report a note's progress, question, or ready-for-review result.",
   promptGuidelines: [
     "worker 有笔没印：把 note 置 waiting(needs=review) 后用 needs_review 上报，等编排方下发 pass 再 complete。",
+    "summary 只写一句话：≤120 码元，超出会被截断；长内容（日志、diff、命令输出）写进目标 note 的 evidence。",
     "需要人决定时用 needs_answer 并给出 question，不要自己扩大范围。",
   ],
   parameters: Type.Unsafe<Record<string, unknown>>({
@@ -218,7 +219,11 @@ const createReportTool = (options: WorkerExtensionOptions, routeKey: string) => 
         description: "上报结论",
       },
       note: { type: "string", description: "note id" },
-      summary: { type: "string", description: "一句话摘要，直接给人看" },
+      summary: {
+        type: "string",
+        description:
+          "一句话摘要，直接给人看。summary ≤120 码元，超出会被截断；长内容写进目标 note 的 evidence。",
+      },
       question: { type: "string", description: "outcome=needs_answer 时必填" },
       evidence: {
         type: "array",
@@ -243,10 +248,14 @@ const createReportTool = (options: WorkerExtensionOptions, routeKey: string) => 
       throw new Error("outcome=needs_answer 必须给 question");
     }
     const evidence = args["evidence"];
+    // 不静默截断：写账本前就告诉 worker “你写的会被截”，并记下原始长度。
+    const summaryLength = summary.length;
+    const summaryTruncated = summaryLength > SUMMARY_MAX;
     const report: WorkerReport = {
       outcome,
       note,
       summary,
+      ...(summaryTruncated ? { summaryLength, summaryTruncated: true } : {}),
       ...(typeof question === "string" ? { question } : {}),
       ...(Array.isArray(evidence)
         ? { evidence: evidence.filter((item): item is string => typeof item === "string") }
@@ -257,8 +266,18 @@ const createReportTool = (options: WorkerExtensionOptions, routeKey: string) => 
     };
     options.report(report);
     return {
-      content: textBlocks(`已上报 ${outcome}（note ${note}）。收到编排方的输入后继续。`),
-      details: { ...report },
+      content: textBlocks([
+        `已上报 ${outcome}（note ${note}）。收到编排方的输入后继续。`,
+        ...(summaryTruncated
+          ? [
+              `注意：summary 已截断到 ${SUMMARY_MAX} 码元（原始 ${summaryLength} 码元），长内容请写进 note ${note} 的 evidence。`,
+            ]
+          : []),
+      ]),
+      details: {
+        ...report,
+        ...(summaryTruncated ? { summaryTruncated: true, summaryLength } : {}),
+      },
     };
   },
 });
