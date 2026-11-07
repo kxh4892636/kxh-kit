@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { DEFAULT_ORCHESTRATOR_SETTINGS } from "./config.ts";
-import { forgetInterruptedPlan, readInterrupted, writeInterrupted } from "./errors.ts";
+import { openLedger } from "./ledger.ts";
+import { createInterruptedAccess, createProjection } from "./projection.ts";
 import { createCheckTool } from "./tools/check.ts";
 import { createReadTool } from "./tools/read.ts";
 import { createToolRuntime, type ToolRuntime } from "./tools/shared.ts";
@@ -467,6 +468,7 @@ describe("resume 消费崩溃凭据", () => {
         at: "2026-11-07T00:00:00.000Z",
         reason: "uncaughtException: worker 炸了",
         plans: [PLAN, "demo/active/另一个计划"],
+        notes: [],
       }),
       forget: (planRef) => forgotten.push(planRef),
       clear: () => {
@@ -488,6 +490,7 @@ describe("resume 消费崩溃凭据", () => {
         at: "2026-11-07T00:00:00.000Z",
         reason: "boom",
         plans: ["demo/active/另一个计划"],
+        notes: [],
       }),
       forget: () => {
         throw new Error("未命中时不该移除凭据");
@@ -502,26 +505,40 @@ describe("resume 消费崩溃凭据", () => {
   });
 });
 
-describe("resume 与真实凭据文件", () => {
-  it("只移除本 Plan 条目，其它条目留在文件里", async () => {
+describe("resume 与账本里的凭据", () => {
+  it("只移除本 Plan 条目，其它条目留在账本里", async () => {
     const cwd = await makeWorkspace();
     const tools = setup();
     await run(tools.write, { op: "init", domain: "demo", name: "2026-11-08-测试计划" }, cwd);
     const stateDir = await tempDir();
-    writeInterrupted(stateDir, {
+    const ledger = openLedger(stateDir);
+    ledger.append({
+      type: "worker.exit",
       at: "2026-11-07T00:00:00.000Z",
-      reason: "uncaughtException: worker 炸了",
-      plans: [PLAN, "demo/active/另一个计划"],
+      payload: {
+        worker: "/w/demo/active/测试计划::",
+        planRef: PLAN,
+        reason: "uncaughtException: worker 炸了",
+      },
     });
+    ledger.append({
+      type: "worker.exit",
+      at: "2026-11-07T00:00:01.000Z",
+      payload: {
+        worker: "/w/demo/active/另一个计划::",
+        planRef: "demo/active/另一个计划",
+        reason: "uncaughtException: worker 炸了",
+      },
+    });
+    const projection = createProjection(ledger, { pollMs: 1_000 });
     // 与 register.ts 注入编排方的三个入口同形。
-    const read = withInterrupted({
-      read: () => readInterrupted(stateDir),
-      forget: (planRef) => forgetInterruptedPlan(stateDir, planRef),
-      clear: () => undefined,
-    });
+    const interrupted = createInterruptedAccess(ledger, projection);
+    const read = withInterrupted(interrupted);
     const text = await run(read, { op: "resume", plan: PLAN }, cwd);
-    expect(text).toContain("上次崩溃: 2026-11-07T00:00:00.000Z · uncaughtException: worker 炸了");
-    expect(readInterrupted(stateDir)?.plans).toEqual(["demo/active/另一个计划"]);
+    // 凭据的 at 取最后一次中断（两条 worker.exit 里更晚的那条）。
+    expect(text).toContain("上次崩溃: 2026-11-07T00:00:01.000Z · uncaughtException: worker 炸了");
+    expect(interrupted.read()?.plans).toEqual(["demo/active/另一个计划"]);
+    projection.dispose();
   });
 });
 

@@ -8,21 +8,7 @@
  * @module @kxh4892636/pi-toolkit/orchestrator/errors
  */
 
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-
-/** 状态文件名：崩溃时写下的中断凭据。 */
-export const INTERRUPTED_FILE = "interrupted.json";
-
-/** 中断凭据。 */
-export interface InterruptedState {
-  readonly at: string;
-  readonly reason: string;
-  /** 崩溃时仍 live 的 plan 引用。 */
-  readonly plans: readonly string[];
-  /** 被摘掉的 worker 可能留在 `in_progress` 的 note（`<plan 引用> · note <id>`）；没有就省略。 */
-  readonly notes?: readonly string[];
-}
+import { join } from "node:path";
 
 /**
  * orchestrator 的状态目录。
@@ -30,70 +16,6 @@ export interface InterruptedState {
  * @returns `<agentDir>/orchestrator`。
  */
 export const stateDirectory = (agentDir: string): string => join(agentDir, "orchestrator");
-
-/**
- * 写中断凭据（覆盖旧值）。
- * @param directory - 状态目录。
- * @param state - 凭据。
- */
-export const writeInterrupted = (directory: string, state: InterruptedState): void => {
-  mkdirSync(directory, { recursive: true });
-  writeFileSync(join(directory, INTERRUPTED_FILE), `${JSON.stringify(state, null, 2)}\n`, "utf8");
-};
-
-/**
- * 读中断凭据；没有或损坏时返回 undefined。
- * @param directory - 状态目录。
- * @returns 凭据或 undefined。
- */
-export const readInterrupted = (directory: string): InterruptedState | undefined => {
-  try {
-    const parsed: unknown = JSON.parse(readFileSync(join(directory, INTERRUPTED_FILE), "utf8"));
-    if (typeof parsed !== "object" || parsed === null) return undefined;
-    const record = parsed as Record<string, unknown>;
-    if (typeof record["at"] !== "string" || typeof record["reason"] !== "string") return undefined;
-    const plans = Array.isArray(record["plans"])
-      ? record["plans"].filter((item): item is string => typeof item === "string")
-      : [];
-    const notes = Array.isArray(record["notes"])
-      ? record["notes"].filter((item): item is string => typeof item === "string")
-      : [];
-    return {
-      at: record["at"],
-      reason: record["reason"],
-      plans,
-      ...(notes.length === 0 ? {} : { notes }),
-    };
-  } catch {
-    return undefined;
-  }
-};
-
-/**
- * 清掉整档中断凭据（`/orchestrator status` 展示之后调用）。
- * @param directory - 状态目录。
- */
-export const clearInterrupted = (directory: string): void => {
-  rmSync(join(directory, INTERRUPTED_FILE), { force: true });
-};
-
-/**
- * 只移除某个 plan 的条目：剩余条目重写回文件，没有剩余就删掉整档。
- *
- * 单个 plan 的恢复报告只清自己那条，不能顺手丢掉其它 plan 的中断记录。
- * @param directory - 状态目录。
- * @param planRef - `<domain>/<lifecycle>/<name>`。
- */
-export const forgetInterruptedPlan = (directory: string, planRef: string): void => {
-  const state = readInterrupted(directory);
-  if (state === undefined || !state.plans.includes(planRef)) return;
-  const remaining = state.plans.filter((item) => item !== planRef);
-  if (remaining.length === 0) {
-    clearInterrupted(directory);
-    return;
-  }
-  writeInterrupted(directory, { ...state, plans: remaining });
-};
 
 /**
  * 把一次 handler 失败收成一行文本，绝不向外抛。
@@ -163,7 +85,3 @@ export const installCrashGuard = (
     }
   };
 };
-
-/** 目录名辅助：拼状态文件路径。 */
-export const interruptedPath = (directory: string): string =>
-  join(dirname(directory), INTERRUPTED_FILE);

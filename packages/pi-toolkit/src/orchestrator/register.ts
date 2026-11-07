@@ -29,9 +29,12 @@ import {
 } from "./handles.ts";
 import { spawnWorker, type SpawnWorkerOptions, type SpawnedWorker } from "./spawn.ts";
 import { clipText } from "./events.ts";
+import { compactLedger, COMPACT_THRESHOLD } from "./projection.ts";
+import { migrateLedger } from "./migrate.ts";
 import { closeLedger, openLedger } from "./ledger.ts";
 import {
   closeProjection,
+  createInterruptedAccess,
   INPUT_STUCK_MS,
   openProjection,
   type ProjectedWorker,
@@ -939,24 +942,7 @@ export const registerOrchestrator = (
   const projectionOf = (): Projection => openProjection(ledgerOf());
 
   /** 崩溃凭据的读写口（账本重放出来的）；只给编排方，worker 拿不到。 */
-  const interrupted: InterruptedAccess = {
-    read: () => {
-      const view = projectionOf().state().interrupted;
-      if (view === undefined) return undefined;
-      return {
-        at: view.at,
-        reason: view.reason,
-        plans: [...view.plans],
-        ...(view.notes.length === 0 ? {} : { notes: [...view.notes] }),
-      };
-    },
-    forget: (planRef) => {
-      ledgerOf().append({ type: "interrupted.forgotten", payload: { planRef } });
-    },
-    clear: () => {
-      ledgerOf().append({ type: "interrupted.cleared", payload: {} });
-    },
-  };
+  const interrupted: InterruptedAccess = createInterruptedAccess(ledgerOf(), projectionOf());
 
   const runtime = createToolRuntime({
     limits: () => deps.settings().orchestrator,
@@ -1115,6 +1101,20 @@ export const registerOrchestrator = (
       const idleMs = now - lastProgressOf(entry, worker);
       if (idleMs >= settings.workerTimeoutMs) timeoutWorker(entry, job, "idle", idleMs);
     }
+    maybeCompact();
+  };
+
+  /** 压缩的节流：最多每分钟检查一次（`compactLedger` 自己看条数门槛）。 */
+  let compacting = false;
+  let lastCompactAt = 0;
+  const maybeCompact = (): void => {
+    if (compacting || Date.now() - lastCompactAt < 60_000) return;
+    lastCompactAt = Date.now();
+    if (ledgerOf().events().length <= COMPACT_THRESHOLD) return;
+    compacting = true;
+    void compactLedger(ledgerOf()).finally(() => {
+      compacting = false;
+    });
   };
 
   let scanTimer: ReturnType<typeof setInterval> | undefined;
@@ -1194,6 +1194,14 @@ export const registerOrchestrator = (
 
   const start = (ctx: ExtensionContext): void => {
     resetPending = false;
+    // 首启迁移：账本还空着就把旧的运行态（notes 状态 / 未送达 report / 崩溃凭据）并进
+    // 一条初始 snapshot，然后删掉旧文件。已有账本时它是空操作。
+    void migrateLedger({
+      stateDir: stateDir(),
+      workspace: ctx.cwd,
+      domainRoot: DEFAULT_DOMAIN_ROOT,
+      limits: deps.settings().orchestrator,
+    });
     // 首次进入本会话就把启动活跃集记进分支：reload / 恢复会话会重现上次的装载（pi 把工具装载
     // 记进 transcript），收敛之后再取就只剩六个。已被污染且没有记录的老会话里，这里记下的虽然
     // 也是六个，但 `restoreToolNames` 会把它滤掉并用配置层默认集兜底。
@@ -1381,7 +1389,7 @@ export const registerOrchestrator = (
       lines.push(
         `  仍在跑: ${crashed.plans.length === 0 ? "（无记录）" : crashed.plans.join(", ")}`,
       );
-      if (crashed.notes !== undefined && crashed.notes.length > 0) {
+      if (crashed.notes.length > 0) {
         lines.push(`  可能悬空: ${crashed.notes.join(", ")}`);
       }
       interrupted.clear();

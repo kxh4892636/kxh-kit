@@ -7,7 +7,7 @@ import type { ExtensionToolContext, ToolDefinition } from "@earendil-works/pi-co
 import { assetsCheckScript } from "../assets.ts";
 import type { OrchestratorSettings } from "../config.ts";
 import type { NoteNode, PlanDocument } from "../dag.ts";
-import type { InterruptedState } from "../errors.ts";
+import type { ProjectedInterrupted } from "../projection.ts";
 import type { PlanRef } from "../plan.ts";
 
 /** 调用方角色：编排方拥有 plan 级动作，worker 只拥有 note 级动作。 */
@@ -19,7 +19,7 @@ export type OrchestratorRole = "orchestrator" | "worker";
  */
 export interface InterruptedAccess {
   /** 读整档凭据；没有或损坏时为 undefined。 */
-  read(): InterruptedState | undefined;
+  read(): ProjectedInterrupted | undefined;
   /** 移除某个 plan 的条目；剩余条目重写，无剩余则删文件。 */
   forget(planRef: string): void;
   /** 清空整档。 */

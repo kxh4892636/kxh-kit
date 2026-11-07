@@ -304,7 +304,12 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
       const worker = payloadString(payload, "worker");
       if (worker === undefined) return true;
       const reason = payloadString(payload, "reason") ?? "exit";
-      const entry = ensureWorker(state, worker, event.at, { status: "exited", exitReason: reason });
+      const planRef = payloadString(payload, "planRef");
+      const entry = ensureWorker(state, worker, event.at, {
+        status: "exited",
+        exitReason: reason,
+        ...(planRef === undefined ? {} : { planRef }),
+      });
       entry.status = "exited";
       entry.exitReason = reason;
       // 崩溃 / 会话退出：把可能悬着的 in_progress 记进凭据（取代 interrupted.json）。
@@ -578,6 +583,37 @@ export const resetProjections = (): void => {
   for (const projection of openProjections.values()) projection.dispose();
   openProjections.clear();
 };
+
+/** 崩溃凭据的读写口（与 `tools/shared.ts` 的 `InterruptedAccess` 同形）。 */
+export interface InterruptedAccessView {
+  /** 读当前凭据；没有或已清除时 undefined。 */
+  read(): ProjectedInterrupted | undefined;
+  /** 移除某个 plan 的条目（落一条 `interrupted.forgotten`）。 */
+  forget(planRef: string): void;
+  /** 清空整档（落一条 `interrupted.cleared`）。 */
+  clear(): void;
+}
+
+/**
+ * 用账本实现崩溃凭据的读写（取代 `interrupted.json`）。
+ *
+ * 读走投影、写落事件，所以重启后凭据还在，`forget` / `clear` 也被记账。
+ * @param ledger - 账本。
+ * @param projection - 这个账本的投影。
+ * @returns 读写口。
+ */
+export const createInterruptedAccess = (
+  ledger: Ledger,
+  projection: Projection,
+): InterruptedAccessView => ({
+  read: () => projection.state().interrupted,
+  forget: (planRef) => {
+    ledger.append({ type: "interrupted.forgotten", payload: { planRef } });
+  },
+  clear: () => {
+    ledger.append({ type: "interrupted.cleared", payload: {} });
+  },
+});
 
 /** 压缩结果。 */
 export interface CompactOutcome {
