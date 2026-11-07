@@ -49,7 +49,7 @@ description: 用户已放行且有可推进的 note 时使用; 逐条走门禁, 
 
 ## review
 
-交付物触及代码,行为或用户可见输出时, 该 Plan 的 worker 启动两个 subagent(若可用), 并行审查; 纯文档改动可只做 Spec 审查.审查也属于外移范围: 编排方只收 worker 的审查结论与 evidence, 不自己复审.
+交付物触及代码,行为或用户可见输出时, 该 Plan 的 worker 启动两个 subagent, 并行审查; 纯文档改动可只做 Spec 审查.审查也属于外移范围: 编排方只收 worker 的审查结论与 evidence, 不自己复审.
 
 - **Spec**: 读取交付产物对应的 story,spec,notes,adr,context 和其他来源, 验证是否符合工作需求.
 - **Standards**: 基于已有知识, 额外遵循 `AGENTS.md` 和适用的规范 skill, 判断交付产物是否符合工作规范.
