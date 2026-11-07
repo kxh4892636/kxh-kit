@@ -81,7 +81,7 @@ import {
   type PlanRef,
 } from "./plan.ts";
 import { pickMode } from "./selector.ts";
-import { createSidebar } from "./sidebar.ts";
+import { createSidebar, groupSourceLive } from "./sidebar.ts";
 import {
   DEFAULT_WORKTREE_HOOKS,
   groupWorktreeName,
@@ -1761,7 +1761,8 @@ export const registerOrchestrator = (
         .map((worker) => ({
           worker: worker.worker,
           notes: worker.notes,
-          running: worker.status === "live",
+          // suspended / 已合并 / 已超时的都不算 live：投影的 status 只在 `worker.exit` 时翻转。
+          running: groupSourceLive(worker),
         })),
   });
 

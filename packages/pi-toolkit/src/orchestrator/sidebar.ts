@@ -147,6 +147,26 @@ export const COMPLETED_LABEL = "已完成";
  * 收起则必须看得出来 —— 否则点了半天不知道有没有生效。
  */
 export const GROUP_COLLAPSED_MARK = "▸";
+
+/**
+ * 账本投影里的一个 worker 算不算 **live**（侧栏据此高亮、并让 Plan 级派工认领 `未分组`）。
+ *
+ * 只看 `status` 不够：`worker.suspended`（会话退出 / 崩溃）与 `worker.merged`（组完成回收）
+ * 都不写 `worker.exit`，投影 status 会一直是 `"live"` —— 真机现场就是 note 56 明明已合并、
+ * 侧栏却拿它当在跑的 worker 高亮（截图里的紫行）。
+ * @param worker - 投影条目里与“活没活着”相关的字段。
+ * @returns 还能干活返回 true。
+ */
+export const groupSourceLive = (worker: {
+  readonly status: string;
+  readonly suspended?: unknown;
+  readonly merged?: unknown;
+  readonly timedOut?: unknown;
+}): boolean =>
+  worker.status === "live" &&
+  worker.suspended === undefined &&
+  worker.merged === undefined &&
+  worker.timedOut === undefined;
 /** 没有 worker 组归属的历史 note 放在这个组下。 */
 export const UNGROUPED_LABEL = "未分组";
 /** 领了具体 note 的 worker 组前缀（后面接 id 列表）。 */
@@ -215,8 +235,15 @@ export interface SidebarRow {
   readonly running?: boolean;
   /** 组行的组名（= `SidebarGroup.label`）：折叠状态以 `<plan ref>::<组名>` 为键。 */
   readonly group?: string;
-  /** 组行当前是收起的（`▸ N 条`，子行不出现）。 */
+  /** 组行当前是收起的（`▸ N 条` / `▸ 已完成 N 条`，子行不出现）。 */
   readonly collapsed?: boolean;
+  /**
+   * 这一行收得起吗（只有可收起的组行才响应点击）。
+   *
+   * 纯已完成且只有 1 条的组**收不起**：收起只省 1 行、却留下 `▸ 1 条` 残行
+   * （真机截图里 `worker: notes 46 ▸ 1 条` 就是这样被读成“坏了”的）。
+   */
+  readonly collapsible?: boolean;
 }
 
 /**
@@ -401,6 +428,18 @@ type PlanChild =
   | { readonly kind: "fold"; readonly done: number };
 
 /**
+ * 这个组收得起吗：收起必须真实省地方，不能只留一行残行。
+ *
+ * - 有未完成 note ⇒ 收得起（那是当前在干的活）；
+ * - 纯已完成但 ≥2 条 ⇒ 收得起（用户常靠它把历史完成项折掉省屏）；
+ * - 纯已完成且只有 1 条 ⇒ **收不起**（收起只省 1 行，却留下 `▸ 1 条` 残行）。
+ * @param notes - 该组这一帧要展示的 note。
+ * @returns 可收起返回 true。
+ */
+const collapsibleGroup = (notes: readonly SidebarNote[]): boolean =>
+  notes.length > 1 || notes.some((note) => note.status !== "completed");
+
+/**
  * 构建一帧列表：**Plan → worker 组 → note** 三级，用 `├─` / `└─` 树形接续符表现层级。
  *
  * 行距靠连接符而不是空行：组与组、note 与 note 之间**不插空行**，只有 Plan 与 Plan 之间留一行。
@@ -412,7 +451,7 @@ type PlanChild =
  * @param expanded - 已展开“已完成”的 Plan ref 集合。
  * @param textWidth - 行文本可用列数（默认 `SIDEBAR_TEXT_WIDTH`），用于只截名称/摘要。
  * @param temps - live 临时 worker（来自 `registry` 的 `temp:` 条目）；空数组则整块不显示。
- * @param collapsed - 已收起的组（键 `<plan ref>::<组名>`）：组行后面跟 `▸ N 条`，子行不出现。
+ * @param collapsed - 已收起的组（键 `<plan ref>::<组名>`）：`▸ N 条`（全是已完成时是 `▸ 已完成 N 条`），子行不出现。
  * @returns 行数组（下标 = 鼠标 `y` - `SIDEBAR_HEADER_ROWS`）。
  */
 export const buildSidebarView = (
@@ -451,16 +490,22 @@ export const buildSidebarView = (
         });
         return;
       }
-      const isCollapsed = closed.has(`${plan.ref}::${child.group.label}`);
+      const isCollapsed =
+        closed.has(`${plan.ref}::${child.group.label}`) && collapsibleGroup(child.notes);
+      const allCompleted = child.notes.every((note) => note.status === "completed");
+      const countText = allCompleted
+        ? `${COMPLETED_LABEL} ${child.notes.length} 条`
+        : `${child.notes.length} 条`;
       rows.push({
         kind: "group",
         text: isCollapsed
-          ? `${branch}${child.group.label} ${GROUP_COLLAPSED_MARK} ${child.notes.length} 条`
+          ? `${branch}${child.group.label} ${GROUP_COLLAPSED_MARK} ${countText}`
           : `${branch}${child.group.label}`,
         plan: plan.ref,
         group: child.group.label,
         ...(child.group.running ? { running: true } : {}),
         ...(isCollapsed ? { collapsed: true } : {}),
+        ...(collapsibleGroup(child.notes) ? { collapsible: true } : {}),
       });
       // 收起的组只留组行：子行一条都不出，但“已完成 N 条”的计数照旧算（它是 Plan 级的）。
       if (isCollapsed) return;
@@ -1121,7 +1166,8 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
     }
     if (row.plan === undefined) return;
     if (row.kind === "group" && row.group !== undefined) {
-      // 组行点一下就收起 / 展开：状态挂在 `<plan ref>::<组名>` 上，`refresh` 不清它。
+      // 只有收得起的组行才响应：纯已完成且只 1 条的组收起来只留一行残行（见 `collapsibleGroup`）。
+      if (row.collapsible !== true) return;
       const key = `${row.plan}::${row.group}`;
       if (collapsed.has(key)) collapsed.delete(key);
       else collapsed.add(key);

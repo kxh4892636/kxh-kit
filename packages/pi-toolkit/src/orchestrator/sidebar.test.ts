@@ -28,6 +28,7 @@ import {
   createSidebar,
   createSidebarComponent,
   groupSidebarNotes,
+  groupSourceLive,
   GROUP_COLLAPSED_MARK,
   ICON_CLOSED,
   ICON_OPEN,
@@ -1652,6 +1653,98 @@ describe("分组来源与组折叠（note 62）", () => {
     expect(card()).toContain("⋯ 二代工具");
     expect(card()).not.toContain("一代工具");
     expect(stale.state.subscribed).toBe(0);
+    sidebar.dispose();
+  });
+});
+
+describe("收起态的口径（真机回归 note 62）", () => {
+  /** 一个只有已完成 note 的组（真机帧里 46–50 就是这种：一条已完成、一个组头）。 */
+  const doneGroupPlans = (count: number): SidebarPlan[] => [
+    {
+      ref: "pi/active/2026-11-07-done",
+      name: "2026-11-07-done",
+      groups: [
+        group(
+          `${WORKER_NOTES_LABEL}46`,
+          Array.from({ length: count }, (_, index) =>
+            note(String(index + 1).padStart(2, "0"), "已完成项", "completed"),
+          ),
+        ),
+      ],
+    },
+  ];
+
+  it("只含已完成 note 的单条组不提供收起：点了也还是展开（真机帧里 `worker: notes 46 ▸ 1 条` 是噪声）", () => {
+    const plans = doneGroupPlans(1);
+    const collapsed = new Set([`${plans[0]!.ref}::${WORKER_NOTES_LABEL}46`]);
+    const view = buildSidebarView(plans, [plans[0]!.ref], undefined, [], collapsed);
+    const groupRow = view.rows.find((row) => row.kind === "group");
+    // 组后面还有「已完成 N 条」那一支 ⇒ 组行是 ├─。
+    expect(groupRow?.text).toBe(`${TREE_BRANCH}${WORKER_NOTES_LABEL}46`);
+    expect(groupRow?.collapsed).toBeUndefined();
+    // 子行照旧展开：收起 1 条等于没省地方，只留一行 `▸ 1 条` 让人以为坏了。
+    expect(view.rows.filter((row) => row.kind === "note")).toHaveLength(1);
+  });
+
+  it("确实能省地方的纯已完成组可收起，且文案自解释（`▸ 已完成 N 条`）", () => {
+    const plans = doneGroupPlans(2);
+    const key = `${plans[0]!.ref}::${WORKER_NOTES_LABEL}46`;
+    const collapsed = buildSidebarView(plans, [plans[0]!.ref], undefined, [], new Set([key]));
+    const row = collapsed.rows.find((item) => item.kind === "group");
+    expect(row?.collapsed).toBe(true);
+    expect(row?.text).toBe(
+      `${TREE_BRANCH}${WORKER_NOTES_LABEL}46 ${GROUP_COLLAPSED_MARK} ${COMPLETED_LABEL} 2 条`,
+    );
+    expect(collapsed.rows.filter((item) => item.kind === "note")).toHaveLength(0);
+  });
+
+  it("投影里 suspended / merged 的历史 worker 不算 live：不高亮、也不认领 未分组", async () => {
+    const { root, directory } = await tempPlan("demo", "2026-01-01-suspended", [
+      runningNote("07", "侧栏实现"),
+      { ...(runningNote("08", "历史遗留") as Record<string, unknown>), status: "pending" },
+    ]);
+    // 真机现场（note 56）：账本是 `worker.suspended`，但没有 `worker.exit` ⇒ 投影 status 仍是 live。
+    expect(groupSourceLive({ status: "live", suspended: { at: "2026-01-01T00:00:00.000Z" } })).toBe(
+      false,
+    );
+    expect(groupSourceLive({ status: "live", merged: { at: "2026-01-01T00:00:00.000Z" } })).toBe(
+      false,
+    );
+    expect(groupSourceLive({ status: "live", timedOut: { at: "2026-01-01T00:00:00.000Z" } })).toBe(
+      false,
+    );
+    expect(groupSourceLive({ status: "live" })).toBe(true);
+    expect(groupSourceLive({ status: "exited" })).toBe(false);
+
+    const sidebar = createSidebar({
+      registry: createRegistry(),
+      limits: () => DEFAULT_ORCHESTRATOR_SETTINGS,
+      workers: () => [
+        // Plan 级派工（还没有种子）但已 suspended：不许把两条 note 洗成 `worker: plan`。
+        {
+          worker: `${directory}::`,
+          notes: [],
+          running: groupSourceLive({
+            status: "live",
+            suspended: { at: "2026-01-01T00:00:00.000Z" },
+          }),
+        },
+        {
+          worker: `${directory}::07`,
+          notes: ["07"],
+          running: groupSourceLive({ status: "live" }),
+        },
+      ],
+    });
+    const { ctx, widgets } = createFakeCtx(root);
+    const { tui, overlays } = createFakeTui();
+    sidebar.sync(ctx, true);
+    mountWidget(widgets, tui);
+    await wait(20);
+    const text = (overlays[1]?.component.render(SIDEBAR_WIDTH) ?? []).join(String.fromCharCode(10));
+    expect(text).toContain(`${WORKER_NOTES_LABEL}07`);
+    expect(text).toContain(UNGROUPED_LABEL);
+    expect(text).not.toContain(WORKER_PLAN_LABEL);
     sidebar.dispose();
   });
 });
