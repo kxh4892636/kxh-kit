@@ -26,4 +26,4 @@
 
 1. 读 note 02–05 的检查点与证据；定案与拷问见 note 01。
 2. 复验：`nano_flow_check` 的 `workspace` 与 `plan`；`resume` 确认状态与队列。
-3. 全部完成且用户确认后，用 `nano_flow_write` 的 `move` 迁到 `reference`。
+3. 2026-11-08 按用户要求把 Plan 迁到 `archived`（5 条 note 全部完成）；恢复时先 `move` 回 `active`。
