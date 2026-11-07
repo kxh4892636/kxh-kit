@@ -209,12 +209,20 @@ export interface WorkerMergeBlockedPayload {
   readonly reason: string;
 }
 
-/** `timeout` 的正文。 */
+/** `timeout` 的正文：判活只看账本，这里是当时能拿到的事实。 */
 export interface TimeoutPayload {
   readonly worker: string;
-  /** `input`：待消费太久；`idle`：一直没有进展。 */
-  readonly cause: "input" | "idle";
-  readonly oldestUnconsumedSeq?: number;
+  /** 最后一次算作进展的时刻（`input.consumed` / `report.filed` / 派工起点，ISO）。 */
+  readonly lastProgressAt: string;
+  /** 当时的阈值（毫秒），方便事后解释“为什么现在判它超时”。 */
+  readonly threshold: number;
+  /** 最后一次 report 的摘要（没有就不填）。 */
+  readonly lastReport?: {
+    readonly note: string;
+    readonly outcome: string;
+    readonly summary: string;
+  };
+  /** 距最后进展多久（毫秒）。 */
   readonly elapsedMs: number;
 }
 

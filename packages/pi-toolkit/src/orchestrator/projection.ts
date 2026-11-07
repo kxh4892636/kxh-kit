@@ -55,13 +55,16 @@ export interface ProjectedWorker {
   inputs: number;
   /** 还没被 `input.consumed` 消费的输入（按 seq 升序）。 */
   pending: ProjectedInput[];
+  /** 最近一次 `input.consumed`（worker 真的开始处理那条输入）的时刻；这是判活的一半。 */
+  lastConsumedAt?: string;
   lastReport?: ProjectedReport;
   lastInput?: ProjectedInput;
   /** 最近一次自动合并成功（`worker.merged`）；`at` 是合并时刻。 */
   merged?: { at: string; commit?: string };
   /** 最近一次自动合并失败（`worker.merge_blocked`）；成功合并会清掉它。 */
   mergeBlocked?: { at: string; reason: string; directory: string };
-  timedOut?: { readonly at: string; readonly cause: "input" | "idle"; readonly elapsedMs: number };
+  /** 最近一次超时（`timeout`）；之后再派工或重试会清掉它。 */
+  timedOut?: { readonly at: string; readonly elapsedMs: number };
 }
 
 /** 投影里的一条输入。 */
@@ -134,6 +137,25 @@ export const emptyState = (): ProjectionState => ({
 /** 退出原因是不是“中断”（崩溃 / 会话退出）：这类才值得留凭据。 */
 export const isInterruption = (reason: string): boolean =>
   /crash|shutdown|uncaught|unhandled/iu.test(reason);
+
+/**
+ * 一个 worker 的「最后进展」时刻（毫秒）。
+ *
+ * 判活只认**worker 自己**的痕迹：`input.consumed`（真的开始处理）与 `report.filed`
+ * （还在推进）。`input.sent` 是编排方的动作，不算进展；派工时刻只当起点。
+ * @param worker - 投影里的 worker。
+ * @returns 毫秒时间戳；什么都没有时 0。
+ */
+export const progressAtOf = (worker: ProjectedWorker): number => {
+  const consumed = worker.lastConsumedAt === undefined ? 0 : Date.parse(worker.lastConsumedAt);
+  const report = worker.lastReport === undefined ? 0 : Date.parse(worker.lastReport.at);
+  const started = Number.isFinite(Date.parse(worker.startedAt)) ? Date.parse(worker.startedAt) : 0;
+  return Math.max(
+    started,
+    Number.isFinite(consumed) ? consumed : 0,
+    Number.isFinite(report) ? report : 0,
+  );
+};
 
 /** 撞到已存在的 worker 条目时取它，否则建一个（`worker.spawned` 之前也可能先来输入）。 */
 const ensureWorker = (
@@ -220,6 +242,8 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
       const index =
         seqOfSent === undefined ? 0 : entry.pending.findIndex((input) => input.seq === seqOfSent);
       if (index >= 0) entry.pending.splice(index, 1);
+      // ack 是“worker 真的开始干活”的证据：判活的进展只认它与 `report.filed`。
+      entry.lastConsumedAt = event.at;
       return true;
     }
     case "report.filed": {
@@ -354,9 +378,8 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
     case "timeout": {
       const worker = payloadString(payload, "worker");
       if (worker === undefined) return true;
-      const cause = payloadString(payload, "cause") === "idle" ? "idle" : "input";
       const entry = ensureWorker(state, worker, event.at);
-      entry.timedOut = { at: event.at, cause, elapsedMs: payloadNumber(payload, "elapsedMs") ?? 0 };
+      entry.timedOut = { at: event.at, elapsedMs: payloadNumber(payload, "elapsedMs") ?? 0 };
       return true;
     }
     case "state.pulled": {
@@ -480,15 +503,6 @@ export const restoreState = (raw: unknown): ProjectionState => {
   }
   return state;
 };
-
-/**
- * 一条输入“等了太久还没被消费”的阈值（默认 10 分钟）。
- *
- * 不跟随 `workerTimeoutMs`：那个衡量“完全没有进展”（默认 30 分钟），而这里要回答更早的
- * 问题 ——「这条输入到底进了 worker 的队列没有、有没有卡在排队上」。可由
- * `orchestrator.inputStuckMs` 覆盖（测试用小值）。
- */
-export const INPUT_STUCK_MS = 10 * 60_000;
 
 /** 跨进程兜底的轮询间隔（毫秒）：`fs.watch` 之外的保险。 */
 export const PROJECTION_POLL_MS = 200;

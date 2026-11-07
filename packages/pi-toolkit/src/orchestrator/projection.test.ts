@@ -9,6 +9,7 @@ import {
   createProjection,
   openProjection,
   project,
+  progressAtOf,
   resetProjections,
   snapshotState,
 } from "./projection.ts";
@@ -178,10 +179,50 @@ describe("投影重放", () => {
     ledger.append(sent("temp:1", "卡住"));
     ledger.append({
       type: "timeout",
-      payload: { worker: "temp:1", cause: "input", oldestUnconsumedSeq: 1, elapsedMs: 600_000 },
+      payload: {
+        worker: "temp:1",
+        lastProgressAt: "2026-11-07T00:00:00.000Z",
+        threshold: 1_800_000,
+        elapsedMs: 600_000,
+      },
     });
     const worker = project(ledger.events()).workers.get("temp:1");
-    expect(worker?.timedOut).toMatchObject({ cause: "input", elapsedMs: 600_000 });
+    expect(worker?.timedOut).toMatchObject({ elapsedMs: 600_000 });
+  });
+
+  it("判活只认 ack 与 report：派工本身不算进展", async () => {
+    const dir = await tempDir();
+    const ledger = createLedger(dir);
+    // 一条输入 + 一个很晚的投递时刻：input.sent 不参与 progressAtOf。
+    const at = "2026-11-07T00:00:00.000Z";
+    ledger.append({
+      type: "worker.spawned",
+      payload: { worker: "temp:1", planRef: "temp:1", kind: "temp", startedAt: at },
+      at,
+    });
+    const state = project(ledger.events());
+    const started = Date.parse(at);
+    expect(progressAtOf(state.workers.get("temp:1") as never)).toBe(started);
+
+    // ack 是 worker 自己的痕迹：它推进“最后进展”。
+    ledger.append({
+      type: "input.consumed",
+      payload: { worker: "temp:1", seqOfSent: 0 },
+      at: "2026-11-07T00:10:00.000Z",
+    });
+    expect(progressAtOf(project(ledger.events()).workers.get("temp:1") as never)).toBe(
+      Date.parse("2026-11-07T00:10:00.000Z"),
+    );
+
+    // report 同样算进展。
+    ledger.append({
+      type: "report.filed",
+      payload: { worker: "temp:1", note: "01", outcome: "done", summary: "还在跑" },
+      at: "2026-11-07T00:20:00.000Z",
+    });
+    expect(progressAtOf(project(ledger.events()).workers.get("temp:1") as never)).toBe(
+      Date.parse("2026-11-07T00:20:00.000Z"),
+    );
   });
 
   it("同进程 append 后订阅者立刻收到（<50ms）", async () => {

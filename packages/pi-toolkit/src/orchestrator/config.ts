@@ -32,15 +32,19 @@ export interface OrchestratorSettings {
   readonly adrMaxCount: number;
   /** 上下文占用达到该比例后清空并恢复 Plan（0–1）。 */
   readonly rotateAt: number;
-  /** 单个 worker 一轮跑多久算超时（毫秒）；超时会被中止并写入账本。 */
+  /**
+   * 一个 worker 多久没有进展算超时（毫秒，默认 30 分钟）。
+   *
+   * 进展只认账本里的 `input.consumed` 与 `report.filed`：派工本身不算进展（它只决定
+   * 起点）。超时会中止 worker 并写入账本，之后走「诊断 → 重试」。
+   */
   readonly workerTimeoutMs: number;
   /**
-   * 一条输入“等了太久还没被消费”的阈值（毫秒，默认 10 分钟）。
+   * 软提示阈值（毫秒，默认 15 分钟）：超过它只在 `state` 标「疑似停滞」，**不杀**。
    *
-   * 卡死检测的另一个判据：比 `workerTimeoutMs` 更早发现问题（输入卡在队列里），
-   * 测试可以用小值实测出 `timeout` 事件。
+   * 单轮长任务期间账本里没有事件，杀它只会误伤；真正的判据是 `workerTimeoutMs`。
    */
-  readonly inputStuckMs: number;
+  readonly softStallMs: number;
   /**
    * report / 超时到达时是否“叫醒”编排方（`pi.sendMessage` 注入一行）。
    *
@@ -63,7 +67,7 @@ export const DEFAULT_ORCHESTRATOR_SETTINGS: OrchestratorSettings = {
   adrMaxCount: 55,
   rotateAt: 0.618,
   workerTimeoutMs: 30 * 60 * 1000,
-  inputStuckMs: 10 * 60 * 1000,
+  softStallMs: 15 * 60 * 1000,
   wakeOnReport: false,
 };
 
@@ -79,7 +83,7 @@ export const ORCHESTRATOR_INTEGER_KEYS = [
   "adrMaxBytes",
   "adrMaxCount",
   "workerTimeoutMs",
-  "inputStuckMs",
+  "softStallMs",
 ] as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {

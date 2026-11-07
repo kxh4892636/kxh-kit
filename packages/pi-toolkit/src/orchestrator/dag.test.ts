@@ -26,7 +26,7 @@ const limits: OrchestratorSettings = {
   adrMaxCount: 55,
   rotateAt: 0.9,
   workerTimeoutMs: 1_800_000,
-  inputStuckMs: 600_000,
+  softStallMs: 900_000,
   wakeOnReport: false,
 };
 

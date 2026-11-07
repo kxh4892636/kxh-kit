@@ -325,8 +325,8 @@ describe("dispatch 与 workers 工具", () => {
   const setup = async (
     options: {
       timeoutMs?: number;
-      /** 待消费的卡死阈值（默认配置 10 分钟；测试用小值实测 timeout 事件）。 */
-      inputStuckMs?: number;
+      /** 软提示阈值（只标“疑似停滞”，不杀）。 */
+      softStallMs?: number;
       makeSession?: () => FakeSession;
       stateDir?: () => string;
       /** 模拟 `pi.sendMessage` 前几次抛错（report 注入失败）。 */
@@ -342,7 +342,7 @@ describe("dispatch 与 workers 工具", () => {
       orchestrator: {
         ...settings.orchestrator,
         ...(options.timeoutMs === undefined ? {} : { workerTimeoutMs: options.timeoutMs }),
-        ...(options.inputStuckMs === undefined ? {} : { inputStuckMs: options.inputStuckMs }),
+        ...(options.softStallMs === undefined ? {} : { softStallMs: options.softStallMs }),
       },
     };
     const tools = new Map<string, { execute: (...args: unknown[]) => Promise<unknown> }>();
@@ -1044,7 +1044,7 @@ describe("dispatch 与 workers 工具", () => {
     for (const session of sessions) session.finish?.();
   });
 
-  it("超时由后台 watchdog abort，并落一条 timeout 与 worker.exit", async () => {
+  it("超时由后台 watchdog abort，并把判活事实记进 timeout 事件", async () => {
     const sessions: FakeSession[] = [];
     const { tools, stateRoot } = await setup({
       timeoutMs: 10,
@@ -1061,7 +1061,8 @@ describe("dispatch 与 workers 工具", () => {
     await new Promise((resolve) => setTimeout(resolve, 40));
     const timeouts = await timeoutEvents(stateRoot);
     expect(timeouts).toHaveLength(1);
-    expect(timeouts[0]?.payload).toMatchObject({ cause: "idle" });
+    expect(timeouts[0]?.payload).toMatchObject({ threshold: 10 });
+    expect(timeouts[0]?.payload["lastProgressAt"]).toEqual(expect.any(String));
     expect(sessions[0]?.aborted).toBe(true);
     expect((await exitEvents(stateRoot)).map((event) => event.payload["reason"])).toContain(
       "timeout",
@@ -1071,12 +1072,12 @@ describe("dispatch 与 workers 工具", () => {
     expect(await timeoutEvents(stateRoot)).toHaveLength(1);
   });
 
-  it("卡死检测不靠模型：待消费超过阈值就落 timeout（cause=input）并 abort", async () => {
+  it("待消费再久也只是 ⚠ 疑似停滞：不杀、不落 timeout", async () => {
     const sessions: FakeSession[] = [];
     const { tools, stateRoot } = await setup({
-      // 整轮没有进展的阈值给得很大，只让“输入没被消费”这条判据触发。
+      // 软提示很小、终止阈值很大：只可能有 ⚠，不可能被中止。
       timeoutMs: 60_000,
-      inputStuckMs: 20,
+      softStallMs: 20,
       makeSession: () => {
         const session = fakeSession(true, false);
         sessions.push(session);
@@ -1088,15 +1089,15 @@ describe("dispatch 与 workers 工具", () => {
       .get("orchestrator_command")
       ?.execute("id", { plan: ref, message: "做 01" }, undefined, undefined, ctx(root));
     await new Promise((resolve) => setTimeout(resolve, 80));
-    const timeouts = await timeoutEvents(stateRoot);
-    expect(timeouts).toHaveLength(1);
-    expect(timeouts[0]?.payload).toMatchObject({ cause: "input" });
-    expect(timeouts[0]?.payload["oldestUnconsumedSeq"]).toBeGreaterThan(0);
-    expect(sessions[0]?.aborted).toBe(true);
-    // 同一份账本里还记了退出原因，重启靠重放就知道这个键作废了。
-    expect((await exitEvents(stateRoot)).map((event) => event.payload["reason"])).toContain(
-      "timeout",
+    expect(await timeoutEvents(stateRoot)).toHaveLength(0);
+    expect(sessions[0]?.aborted).toBe(false);
+    const listed = textOf(
+      await tools
+        .get("orchestrator_state")
+        ?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
     );
+    expect(listed).toContain("⚠ 疑似停滞");
+    expect(listed).toContain("待消费 1");
   });
 
   it("ack 由 agent_start 写进账本：待消费归零", async () => {

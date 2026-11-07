@@ -64,7 +64,7 @@
 
 - 预计超过 15 分钟的任务，每 10–15 分钟用 `orchestrator_report` 以 `outcome=done` 报一句进展（一句话即可）。
 - report **只落事件账本**（`report.filed`），不再注入编排方的会话；编排方自己调 `orchestrator_state` 拉摘要。所以不必为了“让它看见”而反复报。
-- 卡死检测是纯代码的定时器：距最后一次进展（report、输入或开工）超过 `workerTimeoutMs`，或最老一条未消费输入超过 `inputStuckMs`（默认 10 分钟），就会被 abort 并落 `timeout` 事件。定期报一句进展是最便宜的续期。
+- 卡死检测是纯代码的定时器：**只有两种东西算进展** —— 你开始处理输入（`agent_start` 写 `input.consumed`）与 `orchestrator_report`（`report.filed`）。距最后一次进展超过 `workerTimeoutMs`（30 分钟）就会被 abort 并落 `timeout` 事件；15 分钟只在你那一行标 `⚠ 疑似停滞`，不会杀。所以长任务要定期 report，这是唯一的续期方式。
 - 你消费输入的时机由代码记：每次 `agent_start` 会 append `input.consumed`，标掉最老一条输入，不需要你手工确认。
 - `needs_answer` / `needs_review` 只用于真正需要人处理的事，不要拿它当心跳。
 

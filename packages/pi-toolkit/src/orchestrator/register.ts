@@ -35,8 +35,8 @@ import { closeLedger, openLedger } from "./ledger.ts";
 import {
   closeProjection,
   createInterruptedAccess,
-  INPUT_STUCK_MS,
   openProjection,
+  progressAtOf,
   type ProjectedWorker,
   type Projection,
 } from "./projection.ts";
@@ -770,30 +770,38 @@ const abortWorker = async (
   };
 };
 
-/** 待消费概况（从投影算）：条数、最老一条等了多久、是否久到可疑。 */
-const pendingOfProjection = (
+/** 待消费概况（从投影算）：条数、最老一条等了多久、是否久到该提醒（软提示，不杀）。 */
+const stallOfProjection = (
   worker: ProjectedWorker,
   now: number,
-): { pending: number; oldestMs?: number; stuck: boolean } => {
+  softStallMs: number,
+): { pending: number; oldestMs?: number; stalled: boolean; lastProgressAt: number } => {
+  const lastProgressAt = progressAtOf(worker);
   const oldest = worker.pending[0];
-  if (oldest === undefined) return { pending: 0, stuck: false };
-  const oldestMs = Math.max(0, now - Date.parse(oldest.at));
-  return { pending: worker.pending.length, oldestMs, stuck: oldestMs >= INPUT_STUCK_MS };
+  const oldestMs = oldest === undefined ? undefined : Math.max(0, now - Date.parse(oldest.at));
+  return {
+    pending: worker.pending.length,
+    ...(oldestMs === undefined ? {} : { oldestMs }),
+    stalled: lastProgressAt > 0 && now - lastProgressAt >= softStallMs,
+    lastProgressAt,
+  };
 };
 
-/** 待消费的一句话展示：`待消费 2（最老 3 分钟）`，可疑时追加 `⚠ 可能卡住`。 */
+/** 待消费的一句话展示：`待消费 2（最老 3 分钟）`；久无进展时追 `⚠ 疑似停滞`（不杀）。 */
 const pendingLabelOf = (summary: {
   pending: number;
   oldestMs?: number;
-  stuck: boolean;
+  stalled: boolean;
 }): string => {
-  if (summary.pending === 0) return "待消费 0";
-  const waited = summary.oldestMs ?? 0;
-  const oldest =
+  const wait = (waited: number): string =>
     waited < 60_000
       ? `${Math.max(1, Math.round(waited / 1000))} 秒`
       : `${Math.round(waited / 60_000)} 分钟`;
-  return `待消费 ${summary.pending}（最老 ${oldest}）${summary.stuck ? " ⚠ 可能卡住" : ""}`;
+  const base =
+    summary.pending === 0
+      ? "待消费 0"
+      : `待消费 ${summary.pending}（最老 ${wait(summary.oldestMs ?? 0)}）`;
+  return `${base}${summary.stalled ? " ⚠ 疑似停滞" : ""}`;
 };
 
 /**
@@ -876,7 +884,7 @@ const createStateTool = (
               : worker.merged.commit === undefined
                 ? " · 已合并"
                 : ` · 已合并 ${worker.merged.commit.slice(0, 8)}`;
-        const pending = pendingOfProjection(worker, now);
+        const pending = stallOfProjection(worker, now, deps.settings().orchestrator.softStallMs);
         lines.push(
           `  ${worker.planRef} · ${group}${worker.kind === "temp" ? "temp" : "plan"} · ${minutes} 分钟 · 输入 ${worker.inputs} 次 · ${pendingLabelOf(pending)} · ${report} · 最近输入 ${lastInput}${worktreeMark}${mergeMark}`,
         );
@@ -1119,32 +1127,33 @@ export const registerOrchestrator = (
   };
   projectionOf().subscribe(syncRegistry);
 
-  /** 一条 note 的“最后进展”时刻：入队、最后输入、最后 report 里最新的那个。 */
+  /**
+   * 一个 worker 的“最后进展”时刻：只认账本里的 ack（`input.consumed`）与 `report.filed`，
+   * 派工时刻只当起点。判活与记里都得是同一个数，否则“为什么判它超时”说不清。
+   */
   const lastProgressOf = (entry: WorkerEntry, worker: ProjectedWorker | undefined): number => {
     const started = entry.job?.startedAt ?? entry.startedAt;
-    const input = worker?.lastInput === undefined ? 0 : Date.parse(worker.lastInput.at);
-    const report = worker?.lastReport === undefined ? 0 : Date.parse(worker.lastReport.at);
-    return Math.max(started, input, report);
+    const fromLedger = worker === undefined ? 0 : progressAtOf(worker);
+    return Math.max(started, fromLedger);
   };
 
   /**
    * 卡死检测（纯代码，扫投影）：中止 worker、摘句柄、落 `timeout` 与 `worker.exit`。
    *
-   * 两个判据，任一成立就超时：
-   * - 最老一条未消费输入超过 `inputStuckMs`（默认 10 分钟）—— 输入卡在队列里；
-   * - 距最后进展超过 `workerTimeoutMs`（report 即续期）—— 整轮没有进展。
+   * 唯一判据：距最后进展超过 `workerTimeoutMs`。进展 = `input.consumed` / `report.filed`，
+   * 所以“输入推给了它但一直没被消费”和“干到一半没了”都会纳进来：两者部同样意味着
+   * 账本里久了没有任何属于它的活迹。`softStallMs` 只影响 `state` 的 ⚠ 标记，不杀。
    *
    * 不看模型回合：定时器自己扫。只对一个 job 生效一次（`job.notified`），**不代写 note 状态**。
    */
-  const timeoutWorker = (
-    entry: WorkerEntry,
-    job: WorkerJob,
-    cause: "input" | "idle",
-    elapsedMs: number,
-  ): void => {
+  const timeoutWorker = (entry: WorkerEntry, job: WorkerJob, elapsedMs: number): void => {
     if (entry.job !== job || job.notified) return;
     job.notified = true;
-    const oldest = projectionOf().oldestPendingOf(entry.planDirectory);
+    const threshold = deps.settings().orchestrator.workerTimeoutMs;
+    const lastProgressAt = new Date(
+      lastProgressOf(entry, projectionOf().state().workers.get(entry.planDirectory)),
+    ).toISOString();
+    const lastReport = projectionOf().state().workers.get(entry.planDirectory)?.lastReport;
     void (async () => {
       try {
         await entry.session.abort();
@@ -1159,8 +1168,17 @@ export const registerOrchestrator = (
         type: "timeout",
         payload: {
           worker: entry.planDirectory,
-          cause,
-          ...(oldest === undefined ? {} : { oldestUnconsumedSeq: oldest.seq }),
+          lastProgressAt,
+          threshold,
+          ...(lastReport === undefined
+            ? {}
+            : {
+                lastReport: {
+                  note: lastReport.note,
+                  outcome: lastReport.outcome,
+                  summary: lastReport.summary,
+                },
+              }),
           elapsedMs: Math.max(0, Math.round(elapsedMs)),
         },
       });
@@ -1169,7 +1187,7 @@ export const registerOrchestrator = (
         payload: { worker: entry.planDirectory, reason: "timeout" },
       });
       wake(
-        `[worker] 超时：${entry.planRef} ${cause === "input" ? "输入一直没被消费" : "没有进展"}，已中止（note 状态未改动）。`,
+        `[worker] 超时：${entry.planRef} ${Math.round(elapsedMs / 60_000)} 分钟没有进展，已中止（note 状态未改动）。`,
       );
     })();
   };
@@ -1188,15 +1206,8 @@ export const registerOrchestrator = (
     for (const entry of registry.list()) {
       const job = entry.job;
       if (job === undefined) continue;
-      const worker = state.workers.get(entry.planDirectory);
-      const oldest = worker?.pending[0];
-      const pendingMs = oldest === undefined ? 0 : now - Date.parse(oldest.at);
-      if (oldest !== undefined && pendingMs >= settings.inputStuckMs) {
-        timeoutWorker(entry, job, "input", pendingMs);
-        continue;
-      }
-      const idleMs = now - lastProgressOf(entry, worker);
-      if (idleMs >= settings.workerTimeoutMs) timeoutWorker(entry, job, "idle", idleMs);
+      const idleMs = now - lastProgressOf(entry, state.workers.get(entry.planDirectory));
+      if (idleMs >= settings.workerTimeoutMs) timeoutWorker(entry, job, idleMs);
     }
     maybeCompact();
   };
@@ -1217,12 +1228,9 @@ export const registerOrchestrator = (
   let scanTimer: ReturnType<typeof setInterval> | undefined;
   const startScan = (): void => {
     if (scanTimer !== undefined) return;
-    const { workerTimeoutMs, inputStuckMs } = deps.settings().orchestrator;
-    // 跟着两个阈值里更紧的那个缩放：真实配置下就是 1s 一次，测试的小阈值下不会漏检。
-    const interval = Math.max(
-      5,
-      Math.min(1_000, Math.floor(Math.min(workerTimeoutMs, inputStuckMs) / 8)),
-    );
+    const { workerTimeoutMs } = deps.settings().orchestrator;
+    // 跟着阈值缩放：真实配置下就是 1s 一次，测试的小阈值下不会漏检。
+    const interval = Math.max(5, Math.min(1_000, Math.floor(workerTimeoutMs / 8)));
     scanTimer = setInterval(scanTimeouts, interval);
     scanTimer.unref?.();
   };

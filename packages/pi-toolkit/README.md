@@ -435,26 +435,29 @@ time, and the orchestrator's handle table is a **cache of the projection** used 
 delivery. `orchestrator_state` prints `输入 N 次` (cumulative, only grows) and `待消费 N（最老 X）` (the
 queue). Acknowledgements are written by code, not inferred: the worker extension's `agent_start` hook
 appends `input.consumed` for the **oldest** unconsumed `input.sent` of that worker key (FIFO, exact), so
-`待消费` returns to zero the moment the host starts the turn. An input whose oldest pending entry is older
-than `orchestrator.inputStuckMs` (default 10 minutes; independent of `workerTimeoutMs`) is a stuck worker
-and the scanner appends `timeout` before aborting it. `pass` is authorization recorded in the ledger: the
+`待消费` returns to zero the moment the host starts the turn. The pending count is **display only** now:
+how long an input has waited no longer decides anything on its own — liveness is judged by real progress. `pass` is authorization recorded in the ledger: the
 `note.pass` event replaces the old in-memory `released` set, so a restart replays it and a worker's
 `complete` gate still sees it. `pass` / `rework` / `answer` with a `note` route to the group that owns it;
 a note no group owns is dispatched as a single-note group, a note missing from the plan is an error.
 `notes.json` writes are serialized per path inside the process (workers and the orchestrator share one pi
 process); two pi instances writing the same plan are out of scope. The turn's terminal state is the
 enqueued input's promise (`prompt()`, or `followUp()` then `waitForIdle()`), which harvests the job.
-A **code timer scans the projection** — it does not wait for a model turn: a worker whose oldest pending
-input exceeds `inputStuckMs`, or whose last progress (dispatch, input, report) is older than
-`orchestrator.workerTimeoutMs`, is aborted, its handle dropped and `timeout` + `worker.exit` appended. No
-message is injected into the orchestrator; note state is never touched by the watchdog.
-The worker can do every note-level action but
-cannot `init` a plan, cannot `move` it, and cannot write `completed` — it reports the note as
-`waiting(needs=review)` with `orchestrator_report`, and only after the orchestrator sends `pass` may it
-complete. The worker has no `ask_questions`: a question becomes `orchestrator_report(needs_answer)`.
-Every finished note is committed right away (`git add -A && git commit`, message starting with the note
-id) and the hash goes into that note's evidence: the orchestrator has no `bash`, so it cannot commit, and
-nothing is committed while tests or checks fail.
+A **code timer scans the projection** — it does not wait for a model turn. Liveness comes from the ledger:
+progress is `input.consumed` (the worker actually started the turn) or `report.filed` (it is still making
+progress); dispatching an input is only the starting point, never progress. A worker whose last progress is
+older than `orchestrator.workerTimeoutMs` (default 30 minutes) is aborted, its handle dropped and `timeout`
+
+- `worker.exit` appended. `orchestrator.softStallMs` (default 15 minutes) only adds a `⚠ 疑似停滞` mark in
+  `state` — it never kills anything. No message is injected for a plain timeout in this phase; note state is
+  never touched by the watchdog.
+  The worker can do every note-level action but
+  cannot `init` a plan, cannot `move` it, and cannot write `completed` — it reports the note as
+  `waiting(needs=review)` with `orchestrator_report`, and only after the orchestrator sends `pass` may it
+  complete. The worker has no `ask_questions`: a question becomes `orchestrator_report(needs_answer)`.
+  Every finished note is committed right away (`git add -A && git commit`, message starting with the note
+  id) and the hash goes into that note's evidence: the orchestrator has no `bash`, so it cannot commit, and
+  nothing is committed while tests or checks fail.
 
 `orchestrator_report` **does not arrive in the orchestrator session**: it appends a `report.filed` event
 (`worker`, `note`, `outcome`, `summary`, `question?`, `evidence?` — all clipped so events stay small). The
