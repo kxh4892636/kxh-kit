@@ -13,3 +13,7 @@
 - 每个 worktree 各自 `pnpm install`（实测 Windows、热 store：建 worktree ≈1.5s / 98 MB；install ≈13.5s，真实增量磁盘 ≈183 MB，因为 pnpm 硬链接 store；装完 `pnpm test` 3.8s 通过 372 项）。装不上就中止派工，worker 不许跳过测试。
 - Windows 上 `git worktree remove` 会因 `node_modules` 长路径报 `Filename too long`；加 `-c core.longpaths=true` 后仍可能留几 MB 残留，所以回收实现总要检查目录是否真消失，必要时 `rm -rf` 补删再 `worktree prune`。
 - worktree 不用于临时 worker（它们没有 Plan 可锚定），也不改变“一条 note 只允许一个 worker”的组语义。
+
+## 后续
+
+- ADR-0014 把 worktree 从“可选”改成 **Plan worker 默认**（临时 worker 默认不建），并把合并 / 回收从“编排方另派一条指令”改成**代码在 worker 终态后自动执行**。本 ADR 的核心结论不变：worker 自己 rebase、主工作区分支只做 `--ff-only`、冲突保留现场。

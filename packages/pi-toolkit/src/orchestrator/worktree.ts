@@ -14,6 +14,10 @@
  * 回收（Windows 坑）：`git worktree remove` 在长路径上会报 `Filename too long`
  * （node_modules 深路径），加 `-c core.longpaths=true` 后返回 0 但仍可能留几 MB 残留，
  * 所以这里**一定**再检查目录是否真的没了，必要时自己删，然后 `worktree prune`。
+ *
+ * 合并（`mergeWorktree`）：worker 终态后由代码直接做 `--ff-only` 合并，不经模型 ——
+ * 收工信号的最后一跳不该再排队等一个 LLM 回合。只在主分支可 fast-forward 时合并，
+ * 分叉 / 冲突 / 主工作区脏一律不合并，现场（目录 + 分支）原样保留。
  * @module @kxh4892636/pi-toolkit/orchestrator/worktree
  */
 
@@ -57,6 +61,26 @@ export interface RemoveOutcome {
   readonly leftover: boolean;
   /** 过程中的异常说明（Windows 长路径等），成功也应留一句。 */
   readonly note: string;
+}
+
+/**
+ * 合并结果。
+ *
+ * `merged: false` 时**不删** worktree、**不删**分支：现场留给编排方或人看（rework 还要用），
+ * 所以 `directory` 一定是真实存在的路径。
+ */
+export interface MergeOutcome {
+  readonly merged: boolean;
+  /** `wt/<名字>`。 */
+  readonly branch: string;
+  /** `.worktrees/<名字>` 的绝对路径。 */
+  readonly directory: string;
+  /** 合并后的主分支 HEAD（`merged: true` 才有）。 */
+  readonly commit?: string;
+  /** 回收说明（目录残留、分支删除失败等）；`merged: true` 时填。 */
+  readonly cleanup?: string;
+  /** 没合并的原因：分叉、merge 报错、主工作区脏导致拒绝；`merged: false` 时填。 */
+  readonly reason?: string;
 }
 
 const describe = (error: unknown): string =>
@@ -120,7 +144,14 @@ export const ensureWorktree = async (input: {
   const directory = join(input.workspace, WORKTREE_ROOT, name);
   const branch = branchOfWorktree(name);
   if (existsSync(directory)) return { name, directory, branch, created: false };
-  await git(input.workspace, ["worktree", "add", directory, "-b", branch, "HEAD"]);
+  try {
+    await git(input.workspace, ["worktree", "add", directory, "-b", branch, "HEAD"]);
+  } catch (error) {
+    // 目录被删而分支还在（手工清理 / 合并回收半途）：直接把它挂回来，不重复建分支。
+    if (!/already exists/iu.test(describe(error))) throw error;
+    await git(input.workspace, ["worktree", "prune"]);
+    await git(input.workspace, ["worktree", "add", directory, branch]);
+  }
   return { name, directory, branch, created: true };
 };
 
@@ -204,11 +235,137 @@ export const removeWorktree = async (input: {
   };
 };
 
+/** git 的 lock 类错误：另一个 git 进程短暂抢占时值得小退避重试，别把合并判死。 */
+const LOCK_PATTERN = /index\.lock|cannot lock ref|Unable to create .*lock/iu;
+
+/** 合并的 lock 重试次数与退避基数（毫秒）。 */
+const MERGE_LOCK_RETRIES = 3;
+const MERGE_LOCK_BACKOFF_MS = 50;
+
+/**
+ * lock 类错误重试：只在命中 lock 特征时退避重试，其它错误立刻抛给调用方。
+ * @param task - 要跑的命令。
+ * @returns 命令结果。
+ */
+const withLockRetry = async <T>(task: () => Promise<T>): Promise<T> => {
+  let last: unknown;
+  for (let attempt = 1; attempt <= MERGE_LOCK_RETRIES; attempt += 1) {
+    try {
+      return await task();
+    } catch (error) {
+      last = error;
+      if (attempt === MERGE_LOCK_RETRIES || !LOCK_PATTERN.test(describe(error))) break;
+      await new Promise((resolve) => setTimeout(resolve, MERGE_LOCK_BACKOFF_MS * attempt));
+    }
+  }
+  throw last;
+};
+
+/**
+ * 合并必须串行：同一进程同一时刻只允许一个 merge（`index.lock` 抢不过就白等）。
+ *
+ * 串行化的另一层意义：前一个合并会把主分支往前推，后一个才能在最新主分支上判
+ * “可 ff-only”。并行跑两个 `git merge` 会互相当成脏 / 抢锁。
+ */
+let mergeQueue: Promise<void> = Promise.resolve();
+
+const serialize = <T>(task: () => Promise<T>): Promise<T> => {
+  const result = mergeQueue.then(task, task);
+  mergeQueue = result.then(
+    () => undefined,
+    () => undefined,
+  );
+  return result;
+};
+
+/** `ancestor` 是不是 `descendant` 的祖先（`git merge-base --is-ancestor`）。 */
+const isAncestor = async (cwd: string, ancestor: string, descendant: string): Promise<boolean> => {
+  try {
+    await git(cwd, ["merge-base", "--is-ancestor", ancestor, descendant]);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * 把 worktree 自动合并回主工作区：只在可 fast-forward 时合并，然后回收目录与分支。
+ *
+ * 判定（任一不成立就不合并，现场原样保留）：
+ * 1. 主分支当前 HEAD 是 `wt/<名字>` 的祖先，或两者相同（否则主分支已经分叉）；
+ * 2. `git merge --ff-only` 成功（主工作区脏、文件冲突等都会在这里失败）。
+ *
+ * lock 类错误小退避重试；整个合并串行执行（见 `serialize`）。
+ * @param input - 工作区根与名字（`branch` 只用于调用方对齐，实际由名字推导）。
+ * @returns 合并结果；失败不抛，原因写进 `reason`。
+ */
+export const mergeWorktree = (input: {
+  readonly workspace: string;
+  readonly name: string;
+}): Promise<MergeOutcome> => serialize(() => mergeOnce(input));
+
+const mergeOnce = async (input: {
+  readonly workspace: string;
+  readonly name: string;
+}): Promise<MergeOutcome> => {
+  const name = sanitizeWorktreeName(input.name);
+  const directory = join(input.workspace, WORKTREE_ROOT, name);
+  const branch = branchOfWorktree(name);
+  const blocked = (reason: string): MergeOutcome => ({ merged: false, branch, directory, reason });
+  let mainHead: string;
+  try {
+    mainHead = await withLockRetry(() => git(input.workspace, ["rev-parse", "HEAD"]));
+  } catch (error) {
+    return blocked(`读不到主分支 HEAD：${describe(error)}`);
+  }
+  let tip: string;
+  try {
+    tip = await withLockRetry(() => git(input.workspace, ["rev-parse", branch]));
+  } catch (error) {
+    return blocked(`读不到分支 ${branch}：${describe(error)}`);
+  }
+  if (mainHead !== tip && !(await isAncestor(input.workspace, mainHead, branch))) {
+    return blocked(
+      `主分支已有自己的提交（${mainHead.slice(0, 8)} 不是 ${branch} 的祖先），不能 --ff-only；现场保留在 ${directory}`,
+    );
+  }
+  try {
+    await withLockRetry(() => git(input.workspace, ["merge", "--ff-only", branch]));
+  } catch (error) {
+    return blocked(`git merge --ff-only ${branch} 失败：${describe(error)}`);
+  }
+  let commit: string | undefined;
+  try {
+    commit = await withLockRetry(() => git(input.workspace, ["rev-parse", "HEAD"]));
+  } catch {
+    commit = undefined;
+  }
+  // 合并成功后立刻回收：目录还在会让下次派工误以为隔离目录可用。
+  const removed = await removeWorktree({ workspace: input.workspace, name });
+  return {
+    merged: true,
+    branch,
+    directory,
+    ...(commit === undefined ? {} : { commit }),
+    cleanup: removed.note,
+  };
+};
+
 /** 派工侧需要的一组 worktree 操作（测试可整体替换）。 */
 export interface WorktreeHooks {
   ensure(input: { readonly workspace: string; readonly name: string }): Promise<WorktreeInfo>;
   install(directory: string): Promise<InstallOutcome>;
   remove(input: { readonly workspace: string; readonly name: string }): Promise<RemoveOutcome>;
+  /**
+   * worker 终态后自动合并回主工作区（代码执行，不经模型）。
+   *
+   * 失败只返回 `merged: false` + 原因：**不删** worktree、**不删**分支，现场留给 rework 或人。
+   */
+  merge(input: {
+    readonly workspace: string;
+    readonly name: string;
+    readonly branch: string;
+  }): Promise<MergeOutcome>;
 }
 
 /** 默认实现：真的跑 git 与 pnpm。 */
@@ -216,4 +373,5 @@ export const DEFAULT_WORKTREE_HOOKS: WorktreeHooks = {
   ensure: ensureWorktree,
   install: (directory) => installDependencies(directory),
   remove: removeWorktree,
+  merge: (input) => mergeWorktree(input),
 };

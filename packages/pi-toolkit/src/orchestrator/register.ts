@@ -67,6 +67,7 @@ import {
   DEFAULT_WORKTREE_HOOKS,
   sanitizeWorktreeName,
   type InstallOutcome,
+  type MergeOutcome,
   type WorktreeHooks,
   type WorktreeInfo,
 } from "./worktree.ts";
@@ -274,6 +275,70 @@ const formatAgo = (at: number, now: number): string => {
 };
 
 /**
+ * worker 终态后自动合并它的 worktree（代码执行，不经模型）。
+ *
+ * 为什么不让编排方派一条“回收指令”：合并是收工信号的最后一跳，再排一个 LLM 回合去
+ * 跑两条 git 命令既慢又容易忘。这里只在主分支能 fast-forward 时合并 —— 分叉的现场
+ * （目录 + 分支）一律保留，rework 和人看都还要它。
+ *
+ * 只写账本：成功 `worker.merged`、失败 `worker.merge_blocked`；不写任何 json 文件、
+ * 不碰 `released`。
+ * @param input - 目标 worker、主工作区、依赖与账本。
+ */
+const mergeWorktreeOf = async (input: {
+  readonly entry: WorkerEntry;
+  readonly workspace: string;
+  readonly deps: OrchestratorDeps;
+  readonly ledgerOf: () => ReturnType<typeof openLedger>;
+}): Promise<void> => {
+  const worktree = input.entry.worktree;
+  if (worktree === undefined) return;
+  const hooks = input.deps.worktree ?? DEFAULT_WORKTREE_HOOKS;
+  let outcome: MergeOutcome;
+  try {
+    outcome = await hooks.merge({
+      workspace: input.workspace,
+      name: worktree.name,
+      branch: worktree.branch,
+    });
+  } catch (error) {
+    // 钩子自己抛错也要落账：合并失败不能变成一条未处理拒绕。
+    outcome = {
+      merged: false,
+      branch: worktree.branch,
+      directory: worktree.directory,
+      reason: error instanceof Error ? error.message : String(error),
+    };
+  }
+  const worker = input.entry.planDirectory;
+  if (outcome.merged) {
+    input.ledgerOf().append({
+      type: "worker.merged",
+      payload: {
+        worker,
+        worktree: worktree.name,
+        branch: worktree.branch,
+        ...(outcome.commit === undefined ? {} : { commit: outcome.commit }),
+        ...(outcome.cleanup === undefined ? {} : { cleanup: outcome.cleanup }),
+      },
+    });
+    // 目录已回收：条目上不再挂 worktree，否则同一键再派会拿一个不存在的目录。
+    if (input.entry.worktree?.name === worktree.name) delete input.entry.worktree;
+    return;
+  }
+  input.ledgerOf().append({
+    type: "worker.merge_blocked",
+    payload: {
+      worker,
+      worktree: worktree.name,
+      branch: worktree.branch,
+      directory: outcome.directory,
+      reason: outcome.reason ?? "未知原因",
+    },
+  });
+};
+
+/**
  * `orchestrator_command`：编排方对 worker 的所有动作的统一入口。
  *
  * `op` 默认 `dispatch`（派工或追加）；`pass` / `rework` / `answer` / `fact` 是对应输入种类的
@@ -300,13 +365,13 @@ const createCommandTool = (
     name: "orchestrator_command",
     label: "Command",
     description:
-      "编排方对 worker 的统一命令入口：op=dispatch（默认，派工或追加输入）/ pass / rework / answer / fact / abort。给了 plan + notes 就按组分派（一组无依赖 note 一个 worker），只给 plan 走 Plan 级派工，都没给则起临时 worker（无 Plan、只读 + report、跑完即弃）。worktree 为 true（自动命名）或一个名字时，先把 worker 放进 .worktrees/<名字>（分支 wt/<名字>）并在那里 pnpm install，隔离并行改动。delivery 为 steer（默认，插入当前运行）或 queue（排到 worker 当前轮之后）。每个命令都写进事件账本。",
+      "编排方对 worker 的统一命令入口：op=dispatch（默认，派工或追加输入）/ pass / rework / answer / fact / abort。给了 plan + notes 就按组分派（一组无依赖 note 一个 worker），只给 plan 走 Plan 级派工，都没给则起临时 worker（无 Plan、只读 + report、跑完即弃）。Plan 派工默认先在 .worktrees/<名字>（分支 wt/<名字>）里隔离并在那里 pnpm install；临时 worker 默认不建，显式 worktree: true / 一个名字才建。worker 终态后代码自动做 --ff-only 合并并回收（可 ff-only 才合，否则保留现场）。delivery 为 steer（默认，插入当前运行）或 queue（排到 worker 当前轮之后）。每个命令都写进事件账本。",
     promptSnippet:
       "Send commands to workers (dispatch / pass / rework / answer / abort); every command is an event in the ledger.",
     promptGuidelines: [
       "一组无依赖 note 一个 worker：用 notes 显式给出这一组；组内不得互相 blocked_by。",
-      "需要真隔离（两个 worker 可能改同一批文件）时给 worktree: true 或一个名字；worker 的 cwd 就是 .worktrees/<名字>，Plan 仍锚定主工作区。",
-      "worktree 的 worker 完成前必须自己 rebase 到主分支最新提交，并在 report 里写明可以 --ff-only 合并；rebase 冲突就报 blocked 并保留现场。合并成功后派一条回收指令（git merge --ff-only + 删 worktree 与分支）。",
+      "Plan 派工默认在 .worktrees/<名字> 隔离（单 note 为 note-<id>，组为 grp-<id-id>，Plan 级为 plan），worker 的 cwd 就是那个目录，Plan 仍锚定主工作区；临时 worker 默认不建，需要隔离时显式给 worktree: true 或一个名字，不想隔离用 worktree: false。",
+      "worktree 的 worker 完成前必须自己 rebase 到主分支最新提交并在 report 里写明；合并由代码自动做（可 ff-only 就合 + 回收，否则保留现场），不要再派回收指令。",
       "pass / rework / answer 带 note 时路由到包含它的组；该 note 不属于任何组就自动以 [note] 单独成组投递。只有 note 本身不在 Plan 里才报错。",
       "默认 delivery=steer：追加口径在本轮生效；批量派活或不希望打断时显式 delivery=queue。硬停整个 worker 用 op=abort。",
       "用户的明确决定才可下发 pass / rework；不要把推断当放行。worker 的 report 不再自动推给你，需要时用 orchestrator_state 拉摘要。",
@@ -347,7 +412,7 @@ const createCommandTool = (
         worktree: {
           type: ["boolean", "string"],
           description:
-            "true → 自动命名（单 note 为 note-<id>，组为 grp-<id-id>，Plan 级为 plan）；给名字 → 复用或新建 .worktrees/<名字>（分支 wt/<名字>，基线 HEAD），并先在该目录 pnpm install。仅 Plan 派工可用。",
+            "Plan 派工省略即默认建（true → 自动命名：单 note 为 note-<id>，组为 grp-<id-id>，Plan 级为 plan）；临时 worker 省略则不建。给名字 → 复用或新建 .worktrees/<名字>（分支 wt/<名字>，基线 HEAD），并先在该目录 pnpm install；false → 不建。",
         },
         worker: {
           type: "string",
@@ -444,21 +509,24 @@ const createCommandTool = (
       ) {
         throw new Error("worktree 必须是 true 或一个名字");
       }
+      // Plan 派工默认隔离：两个 worker 改同一批文件时不靠“文件不重叠”的自觉。
+      // 临时 worker 默认不建（一次性活不值得花 13s 装依赖），但显式要求时允许。
+      const wantsWorktree =
+        requestedWorktree === undefined ? plan !== undefined : requestedWorktree !== false;
+      let entry = registry.get(key);
+      const started = entry === undefined;
       let worktree: WorktreeInfo | undefined;
       /** 本次是否新建（复用已有 worktree 时不再装依赖）。 */
       let worktreeCreated = false;
       let worktreeInstall: InstallOutcome | undefined;
-      if (requestedWorktree !== undefined && requestedWorktree !== false) {
-        if (plan === undefined) {
-          throw new Error(
-            "worktree 只用于 Plan 派工：临时 worker 不绑 Plan，没有可锚定的 Plan 目录",
-          );
-        }
+      if (wantsWorktree) {
         const hooks = deps.worktree ?? DEFAULT_WORKTREE_HOOKS;
         const name =
-          requestedWorktree === true
-            ? autoWorktreeName(targetNotes)
-            : sanitizeWorktreeName(requestedWorktree);
+          typeof requestedWorktree === "string"
+            ? sanitizeWorktreeName(requestedWorktree)
+            : (entry?.worktree?.name ?? autoWorktreeName(targetNotes));
+        // 合并成功会在条目上摘掉 worktree；同一键再派（rework / answer）时目录已经没了，
+        // 这里重新 ensure + install 并写回条目 —— 复用同一个会话，不重开会话。
         worktree = await hooks.ensure({ workspace, name });
         worktreeCreated = worktree.created;
         // 复用已有 worktree 时依赖已装完（上次派工装的），不重复花 13s。
@@ -471,10 +539,15 @@ const createCommandTool = (
               `worker 在那里跑不了测试，已中止派工；工作区保留在 ${worktree.directory}，可手工修后重派或删掉。`,
           );
         }
+        if (entry !== undefined) {
+          entry.worktree = {
+            name: worktree.name,
+            directory: worktree.directory,
+            branch: worktree.branch,
+          };
+        }
       }
 
-      let entry = registry.get(key);
-      const started = entry === undefined;
       /** 本次是否从磁盘上的旧会话续上（新建时为 false）。 */
       let resumed = false;
       if (entry === undefined) {
@@ -576,7 +649,13 @@ const createCommandTool = (
       // 终态到了就收割：清定时器、摘 job。reject 也走到这里，不让它变成未处理拒绝。
       // 临时 worker 是一次性的：终态即摘除句柄并 dispose，会话文件留在盘上等同 id 再派。
       const done = (): void => {
-        harvest(target, job);
+        const harvested = harvest(target, job);
+        // 自动合并只在“正常终态”做：
+        // - 已有更新的一代 job 排着（`target.job !== undefined`）：等它的终态，否则会把别人还没改完的分支合掉；
+        // - abort / 超时已经提前收割了 job（`harvest` 返回 false）：半成品不合入主分支，现场保留。
+        if (harvested && target.job === undefined) {
+          void mergeWorktreeOf({ entry: target, workspace, deps, ledgerOf });
+        }
         if (target.kind === "temp") {
           ledgerOf().append({
             type: "worker.exit",
@@ -623,7 +702,7 @@ const createCommandTool = (
             ...(target.worktree === undefined
               ? []
               : [
-                  `worker 的 cwd 是 ${target.worktree.directory}；Plan 仍锚定主工作区。完成前先 rebase 到主分支最新提交，再 report 里写“可 --ff-only 合并”。`,
+                  `worker 的 cwd 是 ${target.worktree.directory}；Plan 仍锚定主工作区。完成前先 rebase 到主分支最新提交，再 report 里写“可 --ff-only 合并”（合并由代码自动做，不需派回收指令）。`,
                 ]),
             `已记入账本：seq ${sentEvent.seq}（事件账本不再推送 report，用 orchestrator_state 拉摘要）。`,
           ].join("\n"),
@@ -788,9 +867,18 @@ const createStateTool = (
           worker.worktree === undefined
             ? ""
             : ` · worktree ${worker.worktree.name}（${worker.worktree.branch}）`;
+        // 合并结论：成功报 commit 前 8 位；失败用 ✗ 醒目地把现场路径带出来。
+        const mergeMark =
+          worker.mergeBlocked !== undefined
+            ? ` · ✗ 未合并：${worker.mergeBlocked.reason}（现场 ${worker.mergeBlocked.directory}）`
+            : worker.merged === undefined
+              ? ""
+              : worker.merged.commit === undefined
+                ? " · 已合并"
+                : ` · 已合并 ${worker.merged.commit.slice(0, 8)}`;
         const pending = pendingOfProjection(worker, now);
         lines.push(
-          `  ${worker.planRef} · ${group}${worker.kind === "temp" ? "temp" : "plan"} · ${minutes} 分钟 · 输入 ${worker.inputs} 次 · ${pendingLabelOf(pending)} · ${report} · 最近输入 ${lastInput}${worktreeMark}`,
+          `  ${worker.planRef} · ${group}${worker.kind === "temp" ? "temp" : "plan"} · ${minutes} 分钟 · 输入 ${worker.inputs} 次 · ${pendingLabelOf(pending)} · ${report} · 最近输入 ${lastInput}${worktreeMark}${mergeMark}`,
         );
       }
     }
@@ -835,6 +923,15 @@ const createStateTool = (
         unread: unread.length,
         waiting: waiting.length,
         seq: state.lastSeq,
+        // 合并结论也进 details：汇报与测试不必去拆文本行。
+        merged: live.flatMap((worker) =>
+          worker.merged === undefined ? [] : [{ worker: worker.worker, ...worker.merged }],
+        ),
+        mergeBlocked: live.flatMap((worker) =>
+          worker.mergeBlocked === undefined
+            ? []
+            : [{ worker: worker.worker, ...worker.mergeBlocked }],
+        ),
       },
     };
   },

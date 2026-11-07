@@ -57,6 +57,10 @@ export interface ProjectedWorker {
   pending: ProjectedInput[];
   lastReport?: ProjectedReport;
   lastInput?: ProjectedInput;
+  /** 最近一次自动合并成功（`worker.merged`）；`at` 是合并时刻。 */
+  merged?: { at: string; commit?: string };
+  /** 最近一次自动合并失败（`worker.merge_blocked`）；成功合并会清掉它。 */
+  mergeBlocked?: { at: string; reason: string; directory: string };
   timedOut?: { readonly at: string; readonly cause: "input" | "idle"; readonly elapsedMs: number };
 }
 
@@ -324,6 +328,27 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
         }
         state.interrupted = current;
       }
+      return true;
+    }
+    case "worker.merged": {
+      const worker = payloadString(payload, "worker");
+      if (worker === undefined) return true;
+      const entry = ensureWorker(state, worker, event.at);
+      const commit = payloadString(payload, "commit");
+      entry.merged = { at: event.at, ...(commit === undefined ? {} : { commit }) };
+      // 合并成功即撤销上一次的“未合并”标记：现场已经收掉了。
+      delete entry.mergeBlocked;
+      return true;
+    }
+    case "worker.merge_blocked": {
+      const worker = payloadString(payload, "worker");
+      if (worker === undefined) return true;
+      const entry = ensureWorker(state, worker, event.at);
+      entry.mergeBlocked = {
+        at: event.at,
+        reason: payloadString(payload, "reason") ?? "未知原因",
+        directory: payloadString(payload, "directory") ?? "",
+      };
       return true;
     }
     case "timeout": {

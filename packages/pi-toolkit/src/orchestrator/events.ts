@@ -21,6 +21,8 @@ export const EVENT_TYPES = [
   "note.pass",
   "worker.spawned",
   "worker.exit",
+  "worker.merged",
+  "worker.merge_blocked",
   "timeout",
   "state.pulled",
   "interrupted.forgotten",
@@ -178,6 +180,33 @@ export interface WorkerExitPayload {
   readonly worker: string;
   readonly reason: string;
   readonly notes?: readonly string[];
+}
+
+/**
+ * `worker.merged` 的正文：worker 终态后代码自动把 worktree ff-only 合并回主工作区。
+ *
+ * 只写账本（不写任何 json 文件、不写内存 released）：合并结论属于运行态事实。
+ */
+export interface WorkerMergedPayload {
+  readonly worker: string;
+  /** worktree 名字（`.worktrees/<名字>`）。 */
+  readonly worktree: string;
+  /** `wt/<名字>`。 */
+  readonly branch: string;
+  /** 合并后的主分支 HEAD；拿不到 `rev-parse` 时不填。 */
+  readonly commit?: string;
+  /** 清收说明（目录残留补删、分支删除等）。 */
+  readonly cleanup?: string;
+}
+
+/** `worker.merge_blocked` 的正文：不能 ff-only 时现场保留，记下原因与目录。 */
+export interface WorkerMergeBlockedPayload {
+  readonly worker: string;
+  readonly worktree: string;
+  readonly branch: string;
+  /** worktree 目录（现场保留下来给人看）。 */
+  readonly directory: string;
+  readonly reason: string;
 }
 
 /** `timeout` 的正文。 */

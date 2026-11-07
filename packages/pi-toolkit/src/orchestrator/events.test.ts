@@ -22,6 +22,8 @@ describe("事件 schema", () => {
       "note.pass",
       "worker.spawned",
       "worker.exit",
+      "worker.merged",
+      "worker.merge_blocked",
       "timeout",
       "state.pulled",
       "interrupted.forgotten",

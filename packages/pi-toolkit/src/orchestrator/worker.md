@@ -9,14 +9,17 @@
 - **临时 worker**（无 Plan）：只有只读 `orchestrator_read` 与 `orchestrator_report`，没有写工具；结论写进 report，不写任何文件。它就是一个普通的 pi 会话：有自己的 jsonl，同 `temp:<id>` 再派能续上，被 abort 的 id 直接作废。
 - **子 worker**（你派的那一层，`depth 1`）：由你用 `orchestrator_dispatch` 派出，改得了工作区文件，但**改不了 notes**；它的 report 与超时只回到你这里。
 
-## worktree 形态（cwd 不是主工作区时）
+## worktree 形态（cwd 是 `.worktrees/<名字>`）
 
-消息里如果说 cwd 是 `.worktrees/<名字>`，你就是**隔离 worker**：
+**组 worker 与 Plan 级 worker 默认就在这里工作**（派工时代码建 worktree、装依赖）；临时 worker 默认在主工作区只读，除非派工显式给了 `worktree`。消息里 cwd 指向 `.worktrees/<名字>` 时，你就是**隔离 worker**：
 
 - 文件改动只落在该目录，别 `cd` 回主工作区改；Plan 的绝对路径仍指向主工作区，`notes.json` 只有那一份。
-- 依赖已由编排方在派工时装好（每个 worktree 各自 `pnpm install`）；装不上时根本不会派工，所以 `test` 跑不起来就是真问题，照实上报，不许跳过测试。
-- **完成前自己 rebase**：`git rebase <主分支最新>`，冲突自己解；解完在 report 里写明「已 rebase 到 `<sha>`，可 `--ff-only` 合并」。rebase 冲突解不掉就报 `blocked` 并保留现场，不许硬推。
-- 合并与回收由编排方派工执行（`git merge --ff-only wt/<名字>` + 删 worktree/分支），你不要自己删目录。
+- 依赖已由派工装好（每个 worktree 各自 `pnpm install`）；装不上时根本不会派工，所以 `test` 跑不起来就是真问题，照实上报，不许跳过测试。
+- **结束前必须 rebase（不是可选）**：`git rebase <主分支最新>`，冲突自己解；解完在 report 里写明「已 rebase 到 `<sha>`，可 `--ff-only` 合并」。rebase 冲突解不掉就报 `blocked` 并保留现场，不许硬推。
+- 合并与回收由**代码**执行，不是编排方派工：worker 终态后代码校验分支可 `--ff-only` 就合并、删 worktree 与分支并落 `worker.merged`；不可 ff-only（没 rebase、主工作区有别的提交、工作区脏）就**不合并、保留现场**、落 `worker.merge_blocked`（`orchestrator_state` 里带 `✗`）。因此：
+  - 不要在 report 里让编排方去跑合并命令，也不要自己删目录；
+  - 没 rebase 的提交换不来合并，只会得到一条 `merge_blocked`；
+  - 合并后同一个组再派工会新建一个 worktree（会话续上），cwd 里的路径会变。
 
 ## 边界
 

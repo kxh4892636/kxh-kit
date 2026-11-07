@@ -106,9 +106,10 @@ export interface WorkerEntry {
    * 这个 worker 跑在哪个 worktree 里（没开 worktree 时不填）。
    *
    * 只做展示与回收线索：abort / 超时 **不删** worktree（现场留给合并或人工看），
-   * 删除只发生在合并成功后的显式回收。
+   * 删除只发生在合并成功后的显式回收。自动合并成功后会被摘掉（目录已回收），
+   * 同一键再派工时由派工侧重新 ensure 并写回。
    */
-  readonly worktree?: {
+  worktree?: {
     readonly name: string;
     readonly directory: string;
     readonly branch: string;
