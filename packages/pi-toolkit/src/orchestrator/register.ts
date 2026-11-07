@@ -29,6 +29,8 @@ import {
   entryKeyOf,
   harvest,
   keyBelongsToPlan,
+  pendingLabel,
+  pendingSummary,
   planDirectoryOf,
   renew,
   type DeliveryMode,
@@ -597,7 +599,7 @@ const createWorkersTool = (
   name: "orchestrator_workers",
   label: "Workers",
   description:
-    "列出当前 live worker（plan 或 temp:<id>、形态、起始时刻、最近上报、最近一次输入），或中止其中一个 / 全部。",
+    "列出当前 live worker（plan 或 temp:<id>、形态、起始时刻、最近上报、最近一次输入、待消费条数），或中止其中一个 / 全部。",
   promptSnippet: "List or abort live worker sessions.",
   parameters: Type.Unsafe<Record<string, unknown>>({
     type: "object",
@@ -658,8 +660,11 @@ const createWorkersTool = (
         entry.worktree === undefined
           ? ""
           : ` · worktree ${entry.worktree.name}（${entry.worktree.branch}）`;
+      const pending = pendingSummary(entry, now);
+      // “输入 N 次”只增不减，看队列要看待消费：最老超过 INPUT_STUCK_MS 标可疑卡住。
+      const pendingMark = ` · ${pendingLabel(pending)}`;
       lines.push(
-        `  ${entry.planRef} · ${group}${entry.kind === "temp" ? "temp" : "plan"} · ${minutes} 分钟 · 输入 ${entry.inputs} 次 · ${report} · 最近输入 ${lastInput}${worktreeMark}${unsentMark}`,
+        `  ${entry.planRef} · ${group}${entry.kind === "temp" ? "temp" : "plan"} · ${minutes} 分钟 · 输入 ${entry.inputs} 次${pendingMark} · ${report} · 最近输入 ${lastInput}${worktreeMark}${unsentMark}`,
       );
     }
     const unsent = outbox.count();
