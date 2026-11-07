@@ -267,7 +267,7 @@ While a session runs Orchestrator:
   replaces the conversation with a resume seed plus that input; the Plan on disk is the state.
 - Non-`orchestrator_*` tools are blocked from touching `notes.json` (policy, not a security boundary).
 - **Sidebar (TUI only).** While the mode is on, a `▤` icon sits in the top-right corner and toggles a
-  32-column right-anchored overlay (`sidebar.ts`). The list is **three levels — Plan → worker group →
+  40-column right-anchored overlay (`sidebar.ts`). The list is **three levels — Plan → worker group →
   note** — with no summary line at the top, drawn as a tree: the Plan row is unadorned, its children use
   `├─` / `└─` (the last child of each level is always `└─`) and continue with `│  ` while the parent still
   has siblings below.
@@ -313,23 +313,27 @@ While a session runs Orchestrator:
   Plan is the orchestrator's own progress board and never produces worker deliverables, whereas a
   "live worker" test would make whole Plans flicker in and out as workers start and finish.
 
-  Both layers are framed and visually distinct: the sidebar is a 32-column box in the `accent` colour with
+  Both layers are framed and visually distinct: the sidebar is a 40-column box in the `accent` colour with
   the title `▤ Note 状态`, pinned to the **top-right** corner (`anchor: "top-right"`, margin 1 on the right
   and bottom, one extra row on top for the icon), while the detail card is framed in `warning` and headed
   `◇ note <id>` — neither uses the body text colour, so it is obvious which layer you are looking at. The
   `▤` icon is its own one-line overlay but derives its columns from the sidebar's: both share the same right
   margin, so `iconColumns(term).right === sidebarColumns(term).right` and the icon sits exactly on the
-  sidebar's top row, like a tab on the panel. The 32 is the _component_ width handed to `render()`: the host
-  adds no frame of its own, so borders and padding live inside those 32 columns and the panel occupies 34
-  screen columns once the side gaps are counted.
+  sidebar's top row, like a tab on the panel. The 40 is the _component_ width handed to `render()`: the host
+  adds no frame of its own, so borders and padding live inside those 40 columns (36 usable for text) and
+  the panel occupies 42 screen columns once the side gaps are counted. Long note titles are truncated in
+  the **title only**, with an ellipsis: `执行中 · 43 侧栏改版：去汇总 …` — the status name and the note id
+  are always shown in full.
 
   Three things were verified rather than assumed: a `nonCapturing` overlay **does** receive mouse clicks
   (hit-testing is geometric; only focus acquisition respects the flag), so the sidebar neither steals
   focus nor needs a keyboard fallback; mouse input only exists in fullscreen (alt-screen) mode, and in
   `regular` mode an overlay's rows can scroll into the scrollback where they can no longer be repainted —
   so both the icon and the sidebar are shown **only when `tui.mode === "fullscreen"`** (pi's default);
-  below 100 columns the sidebar hides itself (32 columns would cover the transcript) while the icon stays
-  put and answers a click with a notification explaining the width requirement.
+  below 110 columns the sidebar hides itself while the icon stays put and answers a click with a
+  notification explaining the width requirement. The threshold moved with the width: 42 screen columns
+  out of 100 would leave the transcript only 58, so 110 keeps it at 68 — the same ratio the old
+  32-column panel had at 100 columns.
 
 - The bundled skills (`ask`, `do`, `code-spec`, `kaizen`, `learning`, `to-skill`) are contributed
   through `resources_discover` when the switch is on; `/reload` makes them visible.

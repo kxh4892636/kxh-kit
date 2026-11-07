@@ -50,10 +50,21 @@ import {
 import { activePlans, listPlans, planRefOf, type PlanRef } from "./plan.ts";
 import { loadDocument } from "./store.ts";
 
-/** 侧栏宽度（列）：固定 32，窄终端整块隐藏而不是缩窄。 */
-export const SIDEBAR_WIDTH = 32;
-/** 侧栏要求的最小终端宽度：再窄就盖住正文了。 */
-export const SIDEBAR_MIN_COLUMNS = 100;
+/** 侧栏宽度（列）：固定 40（内容宽，屏幕实际占 42 = 40 + 左右各 1 margin），窄终端整块隐藏而不是缩窄。 */
+export const SIDEBAR_WIDTH = 40;
+/**
+ * 侧栏文本可用宽度：`SIDEBAR_WIDTH` 减左右竖线（2）与两侧内距（2）。
+ * 行构建时按它截标题，保证状态与序号不被截掉。
+ */
+export const SIDEBAR_TEXT_WIDTH = SIDEBAR_WIDTH - 4;
+/**
+ * 侧栏要求的最小终端宽度：再窄就盖住正文了。
+ *
+ * 数字依据：40 列的侧栏加上左右 margin 占 42 屏幕列。旧的 32 列侧栏在 100 列终端上留给正文
+ * `100 - 34 = 66` 列；若阈值仍为 100，40 列下正文只剩 `100 - 42 = 58` 列（不足一半）。
+ * 取 **110** 使得正文至少 `110 - 42 = 68` 列，与旧的 100/34 体感一致。
+ */
+export const SIDEBAR_MIN_COLUMNS = 110;
 /**
  * 列表刷新间隔（毫秒）。
  *
@@ -197,9 +208,23 @@ export interface SidebarView {
 export const noteStatusText = (note: Pick<SidebarNote, "status" | "needs">): string =>
   note.status === "waiting" && note.needs === "answer" ? "待回答" : STATUS_LABELS[note.status];
 
-/** note 行的文本：`{状态中文名} · {序号} {名称}`，不包含概述（描述进详情卡片）。 */
-export const noteRowText = (note: Pick<SidebarNote, "id" | "title" | "status" | "needs">): string =>
-  `${noteStatusText(note)} · ${note.id} ${note.title}`;
+/**
+ * note 行的文本：`{状态中文名} · {序号} {名称}`，不含概述（概述只在详情卡片里）。
+ *
+ * 超出 `maxWidth` 时**只截名称**并补省略号，状态与序号保持完整（用户要求：序号和状态不能截）。
+ * @param note - note 的 id / title / status / needs。
+ * @param maxWidth - 可用列数；省略时按标题原样。
+ * @returns 行文本，可见宽度不超过 `maxWidth`。
+ */
+export const noteRowText = (
+  note: Pick<SidebarNote, "id" | "title" | "status" | "needs">,
+  maxWidth: number = Number.POSITIVE_INFINITY,
+): string => {
+  const head = `${noteStatusText(note)} · ${note.id} `;
+  const room = maxWidth - visibleWidth(head);
+  if (room >= visibleWidth(note.title)) return `${head}${note.title}`;
+  return `${head}${truncateToWidth(note.title, Math.max(1, room), "…")}`;
+};
 
 /** Plan 目录名去掉 `YYYY-MM-DD-` 前缀，32 列里才放得下。 */
 export const shortPlanName = (name: string): string => name.replace(/^\d{4}-\d{2}-\d{2}-/u, "");
@@ -260,11 +285,13 @@ type PlanChild =
  * `未分组`，不再平铺到 Plan 下。
  * @param plans - 各 Plan 的组（只含 active、且已过滤编排期域）。
  * @param expanded - 已展开“已完成”的 Plan ref 集合。
+ * @param textWidth - 行文本可用列数（默认 `SIDEBAR_TEXT_WIDTH`），用于只截名称。
  * @returns 行数组（下标 = 鼠标 `y` - `SIDEBAR_HEADER_ROWS`）。
  */
 export const buildSidebarView = (
   plans: readonly SidebarPlan[],
   expanded: Iterable<string> = [],
+  textWidth: number = SIDEBAR_TEXT_WIDTH,
 ): SidebarView => {
   const open = new Set(expanded);
   const rows: SidebarRow[] = [];
@@ -302,7 +329,11 @@ export const buildSidebarView = (
       });
       child.notes.forEach((note, noteIndex) => {
         const noteBranch = branchOf(noteIndex, child.notes.length);
-        rows.push(noteRow(plan, note, `${cont}${noteBranch}${noteRowText(note)}`));
+        // 接续符占的列从文本宽度里扣掉，剩下的只截名称、状态与序号不动。
+        const prefix = `${cont}${noteBranch}`;
+        rows.push(
+          noteRow(plan, note, `${prefix}${noteRowText(note, textWidth - visibleWidth(prefix))}`),
+        );
       });
     });
   });
@@ -316,16 +347,17 @@ export const buildSidebarView = (
 const renderRow = (row: SidebarRow, width: number, theme: Theme): string => {
   switch (row.kind) {
     case "plan":
-      return truncateToWidth(theme.bold(row.text), width);
+      return truncateToWidth(theme.bold(row.text), width, "…");
     case "group":
       return truncateToWidth(
         row.running === true ? theme.fg("accent", row.text) : theme.bold(row.text),
         width,
+        "…",
       );
     case "note":
       return truncateToWidth(row.running === true ? theme.fg("accent", row.text) : row.text, width);
     case "fold":
-      return truncateToWidth(row.text, width);
+      return truncateToWidth(row.text, width, "…");
     case "spacer":
       return "";
   }

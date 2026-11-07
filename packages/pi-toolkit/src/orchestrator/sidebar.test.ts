@@ -1,7 +1,12 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { visibleWidth, type Component, type OverlayOptions } from "@earendil-works/pi-tui";
+import {
+  stripTerminalSequences,
+  visibleWidth,
+  type Component,
+  type OverlayOptions,
+} from "@earendil-works/pi-tui";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { DEFAULT_ORCHESTRATOR_SETTINGS } from "./config.ts";
 import { parseDocument, serializeDocument } from "./dag.ts";
@@ -29,6 +34,7 @@ import {
   sidebarColumns,
   sidebarMargin,
   SIDEBAR_REFRESH_MS,
+  SIDEBAR_TEXT_WIDTH,
   SIDEBAR_TITLE,
   SIDEBAR_WIDTH,
   SIDEBAR_WIDGET_KEY,
@@ -324,6 +330,31 @@ describe("侧边栏列表", () => {
     expect(shortPlanName("2026-11-07-pi多plan编排")).toBe("pi多plan编排");
   });
 
+  it("长名称只截名称并补省略号，状态与序号完整", () => {
+    const item = note("43", "侧栏改版：去汇总 / 按 worker 分组 / 浮层外区透明", "in_progress");
+    // 40 列侧栏的文本宽 36，扣掉 note 前缀（6 列）后剩 30。
+    const text = stripTerminalSequences(noteRowText(item, 30));
+    expect(visibleWidth(text)).toBeLessThanOrEqual(30);
+    expect(text.startsWith("执行中 · 43 ")).toBe(true);
+    expect(text.endsWith("…")).toBe(true);
+    expect(text).not.toContain("浮层外区");
+
+    // 整帧渲染：note 行同样满足「前缀完整 + 不超文本宽」。
+    const plans: SidebarPlan[] = [
+      {
+        ref: "a/active/x",
+        name: "2026-01-02-x",
+        groups: [group(`${WORKER_NOTES_LABEL}43`, [item])],
+      },
+    ];
+    const lines = renderSidebarLines(buildSidebarView(plans), SIDEBAR_WIDTH, fakeTheme as never);
+    const noteLine = lines.find((line) => line.includes("执行中 · 43")) ?? "";
+    expect(noteLine).toContain("执行中 · 43 ");
+    expect(noteLine.endsWith("│")).toBe(true);
+    // 宽度仍然对齐到 40 列，说明是文本自己截断而不是撑破外框。
+    expect(visibleWidth(noteLine)).toBe(SIDEBAR_WIDTH);
+  });
+
   it("样式：不用 dim 弱化假装小字号，只有 running 用 accent", () => {
     const colorTheme = {
       fg: (color: string, text: string) => `<${color}>${text}</>`,
@@ -338,7 +369,7 @@ describe("侧边栏列表", () => {
     expect(text).toContain("<accent>");
   });
 
-  it("上边框就是第一行（无汇总行），行与 rows 一一对应，且每行不超 32 列", () => {
+  it("上边框就是第一行（无汇总行），行与 rows 一一对应，且每行不超 40 列", () => {
     const view = buildSidebarView(demoPlans());
     const lines = renderSidebarLines(view, SIDEBAR_WIDTH, fakeTheme as never);
     expect(SIDEBAR_HEADER_ROWS).toBe(1);
@@ -430,11 +461,15 @@ describe("右上角定位与图标对齐", () => {
     expect(iconMargin().top).toBe(SIDEBAR_MARGIN);
   });
 
-  it("占位：32 是内容宽，屏幕上是 32 + 左右 margin", () => {
+  it("占位：40 是内容宽，屏幕上是 40 + 左右 margin = 42 列", () => {
+    expect(SIDEBAR_WIDTH).toBe(40);
+    expect(SIDEBAR_TEXT_WIDTH).toBe(SIDEBAR_WIDTH - 4);
     const box = sidebarColumns(140);
     expect(box.width).toBe(SIDEBAR_WIDTH);
     expect(140 - box.right).toBe(SIDEBAR_MARGIN);
     expect(box.left).toBe(SIDEBAR_MARGIN + (140 - SIDEBAR_MARGIN * 2) - SIDEBAR_WIDTH);
+    // 屏幕上占的列 = 内容宽 + 左右各 1 margin = 42。
+    expect(SIDEBAR_WIDTH + 2 * SIDEBAR_MARGIN).toBe(42);
   });
 });
 
@@ -557,7 +592,7 @@ describe("侧边栏控制器", () => {
     sidebar.dispose();
   });
 
-  it("编排模式下挂图标 + 32 列侧栏，读盘出 Plan → 组 → note", async () => {
+  it("编排模式下挂图标 + 40 列侧栏，读盘出 Plan → 组 → note", async () => {
     const { root, directory } = await tempPlan("demo", "2026-01-01-demo", [
       runningNote("07", "侧边栏实现"),
     ]);
@@ -614,7 +649,9 @@ describe("侧边栏控制器", () => {
     sidebar.dispose();
   });
 
-  it("侧栏只在 fullscreen 且 ≥100 列时可见，图标只在 fullscreen", async () => {
+  it("侧栏只在 fullscreen 且 ≥110 列时可见（40 列侧栏给正文留够），图标只在 fullscreen", async () => {
+    // 40 + 2 margin = 42 屏幕列；100 列时正文只剩 58（< 一半），110 列时剩 68（与旧的 100/34 同体感）。
+    expect(SIDEBAR_MIN_COLUMNS).toBe(110);
     const root = await tempWorkspace([]);
     const sidebar = createSidebar({
       registry: createRegistry(),
