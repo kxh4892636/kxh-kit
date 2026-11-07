@@ -43,15 +43,12 @@ const executeCheck = async (
   if (!(CHECK_OPS as readonly string[]).includes(op)) {
     throw new Error(`未知的 op: ${op}（可用: ${CHECK_OPS.join(" | ")}）`);
   }
-  // `workspace` 校验全部域的文档，属于跨域读取，只留给编排方。
-  if (op === "workspace" && runtime.role === "worker") {
-    throw new Error(
-      "workspace 校验全部业务域的文档，属于跨域读取；worker 只用 op=plan 校验自己的 Plan。",
-    );
-  }
+
   const workspace = runtime.workspace(exec);
+  // worker 的 workspace 只覆盖自己能写的地方：common + 本域。
+  const scoped = op === "workspace" && runtime.role === "worker";
   const plan =
-    op === "plan"
+    op === "plan" || scoped
       ? await resolvePlan(
           workspace,
           runtime.domainRoot,
@@ -63,12 +60,13 @@ const executeCheck = async (
     workspace,
     domainsPath: runtime.domainRoot,
     limits: runtime.limits(),
-    ...(plan === undefined ? {} : { planRef: planRefOf(plan) }),
+    ...(plan === undefined ? {} : { planRef: scoped ? undefined : planRefOf(plan) }),
+    ...(scoped && plan !== undefined ? { onlyDomains: [plan.domain, "common"] } : {}),
   });
   if (result.ok) {
-    return plan === undefined
-      ? `工作区校验通过（${workspace}）。`
-      : `Plan 校验通过: ${planRefOf(plan)}`;
+    if (op === "plan" && plan !== undefined) return `Plan 校验通过: ${planRefOf(plan)}`;
+    const scope = scoped && plan !== undefined ? `；范围 common + ${plan.domain}` : "";
+    return `工作区校验通过（${workspace}${scope}）。`;
   }
   return [`校验失败，共 ${result.errors.length} 项：`, formatIssues(result.errors)].join("\n");
 };
@@ -82,7 +80,7 @@ export const createCheckTool = (runtime: ToolRuntime): ToolDefinition => ({
   name: "orchestrator_check",
   label: "Orchestrator Check",
   description:
-    "校验 Orchestrator 的结构：plan 校验单个 Plan（布局、story/spec 字节、notes DAG、索引）；workspace 额外校验领域文档与全部 active 的 Plan；limits 回显当前生效的上限数字。",
+    "校验 Orchestrator 的结构：plan 校验单个 Plan（布局、story/spec 字节、notes DAG、索引）；workspace 额外校验领域文档与全部 active 的 Plan（worker 只覆盖 common 与自己的域）；limits 回显当前生效的上限数字。",
   promptSnippet: "Validate Orchestrator plans, workspace domain docs and limits.",
   parameters: Type.Unsafe<Record<string, unknown>>({
     type: "object",

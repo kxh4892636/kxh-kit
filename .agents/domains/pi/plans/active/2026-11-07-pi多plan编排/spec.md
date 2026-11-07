@@ -29,7 +29,7 @@
 | `status` → `in_progress` / `waiting` / `blocked` | ✅ | ✅ |
 | `status` → `completed` | 仅收到 `pass` 后 | ❌ |
 | `orchestrator_check`：`plan` / `limits` | ✅ | ✅ |
-| `orchestrator_check`：`workspace` | ❌（要跨域扫描，只留给编排方） | ✅ |
+| `orchestrator_check`：`workspace` | ✅ 但只覆盖 `common` + 本域（与可写范围一致） | ✅ 全工作区 |
 | `init` / `move` | ❌ | ✅ |
 | UI 提问 | ❌（结构化登记） | ✅ |
 | spawn / abort worker | ❌ | ✅ |

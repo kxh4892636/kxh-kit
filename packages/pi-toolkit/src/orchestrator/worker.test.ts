@@ -10,6 +10,7 @@ import type { PlanRef } from "./plan.ts";
 import { createWorkerExtension, WORKER_TOOL_NAMES } from "./worker.ts";
 import type { WorkerReport } from "./types.ts";
 import { mkdir, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 
 const created: string[] = [];
 
@@ -41,19 +42,45 @@ const settings: ToolkitSettings = {
   tools: { ...DEFAULT_TOOLS, orchestrator: true },
 };
 
-/** 造一个工作区：`.agents/domains/orchestration/plans/active/<plan>`。 */
+/** 换行符；测试里不写反斜杠转义，避免被外层转义吃掉。 */
+const NL = String.fromCharCode(10);
+
+/**
+ * 造一个工作区：`common` + `etf`（本域，含一个 Plan）+ `other`。
+ * `other` 故意残缺，用来验证 worker 的 workspace 只覆盖 common + 本域。
+ */
 const makePlan = async (): Promise<{ plan: PlanRef; workspace: string }> => {
   const root = await mkdtemp(join(tmpdir(), "pi-worker-"));
   created.push(root);
-  const directory = join(
-    root,
-    ".agents",
-    "domains",
-    "orchestration",
-    "plans",
-    "active",
-    "2026-11-07-示例",
+  const write = async (relative: string, body: string): Promise<void> => {
+    const target = join(root, relative);
+    await mkdir(dirname(target), { recursive: true });
+    await writeFile(target, body, "utf8");
+  };
+  const knowledge = ["# 域", "", "**示例**: 一句话 / Avoid: 别名", ""].join(NL);
+  const questions = ["# 问题", "", "暂无。", ""].join(NL);
+  await write(
+    "CONTEXT-MAP.md",
+    [
+      "# Context Map",
+      "",
+      "- [common](./.agents/domains/common/CONTEXT.md) - 基础域。",
+      "- [etf](./.agents/domains/etf/CONTEXT.md) - 本域。",
+      "- [other](./.agents/domains/other/CONTEXT.md) - 别的域。",
+      "",
+    ].join(NL),
   );
+  for (const domain of ["common", "etf"]) {
+    await write(`.agents/domains/${domain}/CONTEXT.md`, knowledge);
+    await write(`.agents/domains/${domain}/QUESTIONS.md`, questions);
+  }
+  // 别域故意残缺：缺 QUESTIONS.md、Plan 缺 story/spec。
+  await write(".agents/domains/other/CONTEXT.md", knowledge);
+  await mkdir(join(root, ".agents", "domains", "other", "plans", "active", "2026-11-07-坏"), {
+    recursive: true,
+  });
+
+  const directory = join(root, ".agents", "domains", "etf", "plans", "active", "2026-11-07-示例");
   await mkdir(directory, { recursive: true });
   const document = {
     ...emptyDocument(),
@@ -71,10 +98,10 @@ const makePlan = async (): Promise<{ plan: PlanRef; workspace: string }> => {
     ],
   };
   await writeFile(join(directory, NOTES_FILE), serializeDocument(document), "utf8");
-  await writeFile(join(directory, "story.md"), "# 示例\n", "utf8");
-  await writeFile(join(directory, "spec.md"), "# 规格\n", "utf8");
+  await writeFile(join(directory, "story.md"), ["# 示例 story", ""].join(NL), "utf8");
+  await writeFile(join(directory, "spec.md"), ["# 示例 spec", ""].join(NL), "utf8");
   return {
-    plan: { domain: "orchestration", lifecycle: "active", name: "2026-11-07-示例", directory },
+    plan: { domain: "etf", lifecycle: "active", name: "2026-11-07-示例", directory },
     workspace: root,
   };
 };
@@ -179,9 +206,16 @@ describe("worker 扩展工厂", () => {
     };
     expect(limits.content[0]?.text).toContain("生效上限");
 
-    await expect(
-      check?.execute("id", { op: "workspace" }, undefined, undefined, ctx(harness.workspace)),
-    ).rejects.toThrow(/跨域读取/);
+    // other 域缺 QUESTIONS.md、Plan 缺 story/spec；worker 的 workspace 不应扫到。
+    const workspace = (await check?.execute(
+      "id",
+      { op: "workspace" },
+      undefined,
+      undefined,
+      ctx(harness.workspace),
+    )) as { content: { text: string }[] };
+    expect(workspace.content[0]?.text).toContain("工作区校验通过");
+    expect(workspace.content[0]?.text).not.toContain("other");
   });
 
   it("orchestrator_report 校验并回调编排方", async () => {

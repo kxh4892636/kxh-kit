@@ -33,7 +33,9 @@ export const runCheck = (options: {
   workspace: string;
   domainsPath: string;
   limits: unknown;
-  planRef?: string;
+  planRef?: string | undefined;
+  /** 只校验这些业务域（worker 用：common + 自己那一个域）。 */
+  onlyDomains?: readonly string[] | undefined;
 }): Promise<CheckResult> => {
   return new Promise<CheckResult>((resolve, reject) => {
     const args = [
@@ -45,6 +47,7 @@ export const runCheck = (options: {
       "--limits",
       JSON.stringify(options.limits),
       ...(options.planRef === undefined ? [] : ["--plan", options.planRef]),
+      ...(options.onlyDomains ?? []).flatMap((domain) => ["--only-domain", domain]),
     ];
     execFile(
       process.execPath,

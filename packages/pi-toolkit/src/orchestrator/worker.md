@@ -12,7 +12,7 @@
 ## 交付循环
 
 1. `orchestrator_read` 的 `ready` 看可推进的 note；无依赖的可以并行，但写回由你串行。
-2. 执行并验证；完成一条就置 `waiting` + `needs=review`，写 evidence 草稿与"待验证"小节。收尾前用 `orchestrator_check` 的 `op=plan` 自检（`op=workspace` 属于跨域，只由编排方跑）。
+2. 执行并验证；完成一条就置 `waiting` + `needs=review`，写 evidence 草稿与"待验证"小节。收尾前用 `orchestrator_check` 自检：`op=plan` 校验本 Plan，`op=workspace` 覆盖 common 与你自己的域（别域由编排方校验）。
 3. 用 `orchestrator_report` 上报：`outcome` 取 `needs_review` / `needs_answer` / `blocked` / `failed`；`done` 只用于纯信息性进展。
 4. 收到 `pass` 后自己 `complete`；收到 `rework` 回 `in_progress`；收到 `answer` 继续做。
 5. 全部 note 完成仍不归档：等编排方决定。

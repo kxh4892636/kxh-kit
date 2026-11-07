@@ -114,7 +114,7 @@ const readEntries = (targetPath, report) => {
   }
 };
 
-const checkDomainKnowledge = (rootDir, domainsPath, limits) => {
+const checkDomainKnowledge = (rootDir, domainsPath, limits, onlyDomains) => {
   const report = createReporter(rootDir);
   const mapPath = path.join(rootDir, "CONTEXT-MAP.md");
   if (!fs.existsSync(mapPath)) {
@@ -130,6 +130,7 @@ const checkDomainKnowledge = (rootDir, domainsPath, limits) => {
   const domainNames = new Set();
   for (const entry of readEntries(domainsDir, report)) {
     if (!entry.isDirectory()) continue;
+    if (onlyDomains !== undefined && !onlyDomains.has(entry.name)) continue;
     domainNames.add(entry.name);
     const domainPath = path.join(domainsDir, entry.name);
     if (!KEBAB.test(entry.name)) {
@@ -166,6 +167,7 @@ const checkDomainKnowledge = (rootDir, domainsPath, limits) => {
       const target = match[1];
       if (!target.startsWith(prefix) || !target.endsWith(suffix)) continue;
       const name = target.slice(prefix.length, -suffix.length);
+      if (onlyDomains !== undefined && !onlyDomains.has(name)) continue;
       if (!domainNames.has(name))
         report.push(mapPath, "knowledge", `索引指向不存在的业务域 ${name}`);
     }
@@ -416,7 +418,7 @@ const checkPlan = (planDir, lifecycle, limits, report) => {
   checkNotesDocument(planDir, limits, report);
 };
 
-const checkPlans = (rootDir, domainsPath, limits, report, planRef) => {
+const checkPlans = (rootDir, domainsPath, limits, report, planRef, onlyDomains) => {
   const domainsDir = resolveDomains(rootDir, domainsPath);
   if (planRef !== undefined) {
     const segments = planRef.split("/").filter(Boolean);
@@ -439,6 +441,7 @@ const checkPlans = (rootDir, domainsPath, limits, report, planRef) => {
   }
   for (const domainEntry of readEntries(domainsDir, report)) {
     if (!domainEntry.isDirectory()) continue;
+    if (onlyDomains !== undefined && !onlyDomains.has(domainEntry.name)) continue;
     const plansDir = path.join(domainsDir, domainEntry.name, "plans");
     if (!fs.existsSync(plansDir)) continue;
     for (const lifecycleEntry of readEntries(plansDir, report)) {
@@ -463,25 +466,26 @@ const checkPlans = (rootDir, domainsPath, limits, report, planRef) => {
 
 /**
  * 校验一个工作区（或其中单个 Plan）。
- * @param {{ rootDirectory: string, domainsPath?: string, planRef?: string, limits?: Record<string, number> }} options
+ * @param {{ rootDirectory: string, domainsPath?: string, planRef?: string, limits?: Record<string, number>, onlyDomains?: string[] }} options
  * @returns {{ path: string, rule: string, message: string }[]}
  */
 export const checkWorkspace = (options) => {
   const rootDir = path.resolve(options.rootDirectory);
   const domainsPath = options.domainsPath ?? DEFAULT_DOMAINS;
   const limits = options.limits ?? parseLimits(undefined);
+  const onlyDomains = options.onlyDomains === undefined ? undefined : new Set(options.onlyDomains);
   if (options.planRef === undefined) {
     return [
-      ...checkDomainKnowledge(rootDir, domainsPath, limits),
+      ...checkDomainKnowledge(rootDir, domainsPath, limits, onlyDomains),
       ...(() => {
         const report = createReporter(rootDir);
-        checkPlans(rootDir, domainsPath, limits, report, undefined);
+        checkPlans(rootDir, domainsPath, limits, report, undefined, onlyDomains);
         return report.errors;
       })(),
     ];
   }
   const report = createReporter(rootDir);
-  checkPlans(rootDir, domainsPath, limits, report, options.planRef);
+  checkPlans(rootDir, domainsPath, limits, report, options.planRef, onlyDomains);
   return report.errors;
 };
 
@@ -494,6 +498,7 @@ const run = (argv) => {
   let planRef;
   let limitsText;
   let domainsPath = DEFAULT_DOMAINS;
+  const onlyDomains = [];
   let rootDirectory = ".";
   const positional = [];
   while (args.length > 0) {
@@ -501,10 +506,13 @@ const run = (argv) => {
     if (arg === "--json") json = true;
     else if (arg === "--plan") planRef = args.shift();
     else if (arg === "--domains") domainsPath = args.shift() ?? DEFAULT_DOMAINS;
-    else if (arg === "--limits") limitsText = args.shift();
+    else if (arg === "--only-domain") {
+      const name = args.shift();
+      if (name !== undefined) onlyDomains.push(name);
+    } else if (arg === "--limits") limitsText = args.shift();
     else if (arg === "--help" || arg === "-h") {
       console.log(
-        "用法: node check-domain.mjs <工作区根> [--domains <相对路径>] [--plan <domain>/<lifecycle>/<name>] [--json]",
+        "用法: node check-domain.mjs <工作区根> [--domains <相对路径>] [--only-domain <name> ...] [--plan <domain>/<lifecycle>/<name>] [--json]",
       );
       return 0;
     } else positional.push(arg);
@@ -514,7 +522,13 @@ const run = (argv) => {
   try {
     if (limitsText === undefined) throw new Error("缺少 --limits（由 orchestrator_check 传入）");
     const limits = parseLimits(JSON.parse(limitsText));
-    errors = checkWorkspace({ rootDirectory, domainsPath, planRef, limits });
+    errors = checkWorkspace({
+      rootDirectory,
+      domainsPath,
+      planRef,
+      limits,
+      ...(onlyDomains.length === 0 ? {} : { onlyDomains }),
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (json)

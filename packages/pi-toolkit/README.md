@@ -244,8 +244,9 @@ While a session runs Orchestrator:
 
 ### Workers
 
-The worker keeps `orchestrator_check` for self-checking (`op: "plan"` and `op: "limits"`);
-`op: "workspace"` covers every domain's documents, so it stays with the orchestrator.
+The worker keeps `orchestrator_check` for self-checking: `op: "plan"` validates its own plan,
+`op: "limits"` reports the limits, and `op: "workspace"` is scoped to `common` plus its own domain —
+the same set it may write. The orchestrator's `op: "workspace"` covers every domain.
 
 `orchestrator_dispatch` starts one worker per plan with the SDK's `createAgentSession` (in process, no
 extension discovery, only the worker extension). A plan has at most one live worker at a time; a second
