@@ -29,30 +29,38 @@
       "id": "03",
       "title": "inspect + repair",
       "description": "新增 inspect/repair：原始视图 + 模型修正后重校验，坏文档也能修。",
-      "status": "pending",
+      "status": "awaiting_verification",
       "blocked_by": [],
       "evidence": [],
-      "updated_at": "2026-11-07T18:42:30.738Z",
+      "updated_at": "2026-11-07T18:43:27.476Z",
       "content": "# inspect + repair\n\n## 定案（参考 pi）\n\n- `nano_flow_read op=inspect`：文档无法通过校验时给原始视图（id/title/description/content 与 index）。\n- `nano_flow_write op=repair`：模型给出 `repairs`（按 id 的 title/description/content）与 `ids`（新 index），工具重新校验后落盘；不自动截断、不自动删索引项。\n- repair 先于正常加载执行，所以坏文档也能修。\n\n## 执行检查点（2026-11-08）\n\n- `store.ts`：新增 `loadRawDocument`（读原始 JSON，不校验）。\n- `tools/read.ts`：新增 `inspect` op 与工具描述。\n- `tools/write.ts`：新增 `repair` op、`repairs` 参数与 schema；`repair` 在 `loadDocument` 之前路由。\n- `prompt.md`：新增「修复校验失败」小节；README 记录用法与边界。\n- 测试：`runtime.test` 覆盖「坏摘要 → resume 报错 → inspect 原始视图 → repair → resume 正常」；250 项通过。\n\n## 待验证\n\n- 重启（0.4.5）后 `inspect` / `repair` 在真机会话可用。\n\n## 验收\n\n- 坏摘要可 repair 回合法文档；未知 note、无字段的 repair 被拒；JSON 语法错误明确不可 repair。\n"
     },
     {
       "id": "04",
       "title": "一条 note 两阶段",
       "description": "约定一条 note 走两阶段：waiting/answer 定案 → in_progress 实施 → waiting/review 完成，默认不拆两条。",
-      "status": "pending",
+      "status": "completed",
       "blocked_by": [],
-      "evidence": [],
-      "updated_at": "2026-11-07T18:42:34.222Z",
+      "evidence": [
+        "prompt.md notes 节新增「一条 note 走完两个阶段」：waiting/answer 定案 → in_progress 实施 → waiting/review 完成，默认不拆两条",
+        "skills/ask/SKILL.md 收敛步骤写明结论写回同一条 note 的「定案」并在同一 note 继续实施",
+        "250 项测试、vp check、build 通过；提交 4e9f3cf3"
+      ],
+      "updated_at": "2026-11-07T18:43:32.427Z",
       "content": "# 一条 note 两阶段\n\n## 定案（参考 pi）\n\n- 需要人拍板的 note：先置 `waiting + needs=answer`，用户答完把结论写进「定案」小节，再回 `in_progress` 实施，完成后 `waiting + needs=review` → `completed`。\n- 常态路径 `pending → in_progress → waiting/answer → in_progress → waiting/review → completed`；定案与执行默认不拆成两条 note。\n- 例外：定案与执行由不同角色承担，或执行要拆成多个可独立验收的能力时才拆。\n\n## 执行检查点（2026-11-08）\n\n- `prompt.md` 的 notes 节新增「一条 note 走完两个阶段」；\n- `skills/ask/SKILL.md` 收敛步骤写明：结论写回同一条 note 的「定案」，需要实施时在同一 note 继续；\n- 切片规则保留例外，不强制把定案/执行合并到所有场景。\n\n## 待验证\n\n- 重启后新会话按此口径执行（同一 note 内完成定案与实施）。\n\n## 验收\n\n- prompt 与 ask skill 口径一致；Plan 切片规则能解释「何时仍拆两条」。\n"
     },
     {
       "id": "05",
       "title": "ask / do 循环下沉到 skill",
       "description": "把 ask/do 两循环的完整论述从 prompt 下沉到对应 skill，prompt 只留模式判定与指针。",
-      "status": "pending",
+      "status": "completed",
       "blocked_by": [],
-      "evidence": [],
-      "updated_at": "2026-11-07T18:42:36.923Z",
+      "evidence": [
+        "prompt.md 212 → 92 行：ask / do 两节与并行执行、门禁、执行、verifying、review、完成与登记全部下沉",
+        "skills/ask/SKILL.md 承载 Design tree / frontier / 步骤 / 每轮记录；skills/do/SKILL.md 承载步骤 / 并行执行 / 门禁 / 执行 / verifying / review / 完成与登记",
+        "runtime.test 断言改为 Design tree + frontier；250 项测试、vp check、build 通过；提交 4e9f3cf3"
+      ],
+      "updated_at": "2026-11-07T18:43:36.592Z",
       "content": "# ask / do 循环下沉到 skill\n\n## 执行检查点（2026-11-08）\n\n- `prompt.md`：删掉 ask 循环与 do 循环两节（含并行执行、门禁、执行、verifying、review、完成与登记），改为两个指针小节；模式循环加「先读对应 skill 再动手」与 `skills/ask/SKILL.md` / `skills/do/SKILL.md` 指针。全文 212 → 92 行。\n- `skills/ask/SKILL.md`：承载 Design tree / frontier / 取证-提问-修订-收敛 / 每轮记录模板与 remind；收敛后在原 note 继续实施。\n- `skills/do/SKILL.md`：承载选 note、并行执行、门禁、执行、verifying、review、完成与登记（含 `waiting` 门槛）。\n- `runtime.test`：ask skill 断言改为 Design tree + frontier；250 项测试、`vp check`、build 通过。\n\n## 待验证\n\n- 重启后新会话按 prompt 指针加载 skill；`/ask` `/do` 与模型触发都能拿到完整循环规格。\n\n## 验收\n\n- prompt 不再含循环步骤；两个 skill 含完整规格；构建后 `dist/nano-flow/skills` 与源码一致。\n"
     }
   ]

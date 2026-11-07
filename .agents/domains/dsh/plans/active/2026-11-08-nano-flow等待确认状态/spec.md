@@ -13,10 +13,10 @@
 
 - 定案：改 `dsh-toolkit` 的 nano-flow（用户 2026-11-08），照搬 pi 的 `needs`；旧 dsh Plan 已归档，本 Plan 新建。
 - note 02（waiting 改名）实施完成：249 测试、`vp check`、build 通过；0.4.3 → 0.4.4 已装，待重启确认。
-- note 03（inspect + repair）完成：原始视图 + 模型修正后重校验，坏文档可修；`runtime.test` 覆盖整条链路。
+- note 03（inspect + repair）实施完成，待重启确认：`loadRawDocument` + `inspect` + `repair`，坏文档可修；`runtime.test` 覆盖整条链路；0.4.5 已装。
 - note 04（一条 note 两阶段）完成：prompt 与 ask skill 口径一致。
 - note 05（ask / do 下沉）完成：prompt 212 → 92 行，循环规格在 `skills/ask`、`skills/do`；250 项测试通过。
-- 当前 0.4.5 已构建待装（含 03/04/05）；安装后重启确认 waiting、inspect/repair、循环加载。
+- 当前 0.4.5 已装；重启后确认 waiting、inspect/repair、循环加载，再收 note 02 / 03。
 
 ## 恢复入口
 
