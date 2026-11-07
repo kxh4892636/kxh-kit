@@ -215,14 +215,10 @@ never overwritten.
 
 ## Nano Flow
 
-Turn on `nanoFlow`, then run `/nano-flow`. The selector mirrors `/thinking` and offers four choices:
-
-| Choice       | Effect                                                          |
-| ------------ | --------------------------------------------------------------- |
-| `一直开`     | Persist `nanoFlow.always = true`; new sessions start enabled.   |
-| `一直关`     | Persist `nanoFlow.always = false`; new sessions start disabled. |
-| `当前会话开` | Enable only this session.                                       |
-| `当前会话关` | Disable only this session.                                      |
+Turn on `nanoFlow`, then run `/nano-flow`. The selector mirrors `/thinking`: it lists only `开` and
+`关` (the current session value is checked), Enter changes the current session, and `Ctrl+S` also
+sets the value as the default for new sessions (`nanoFlow.always`). The default entry is marked with
+`· default`.
 
 `/nano-flow status` prints the current mode and every active Plan with its note counts. There is no
 panel; the tools and the command are the query surface. `--nano-flow` starts a session enabled.

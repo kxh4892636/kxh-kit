@@ -44,6 +44,6 @@
 
 - 适用条件与现象：需要在 pi 里运行 Plan/story/spec/notes DAG 交付流程；或达到上下文阈值后期望继续同一 Plan 而不是新建会话。
 - 原因：pi 没有 agent preset 注册表，`ctx.newSession` 只在命令上下文可用，也没有删除会话的扩展 API；因此不能用 DSH 的预设与自动轮转。
-- 解决方法：`/toolkit` 打开 `Nano Flow` 开关，再执行 `/nano-flow` 选择 `一直开` / `一直关` / `当前会话开` / `当前会话关`（`一直*` 写 `nanoFlow.always`，会话覆盖优先）。模式生效时注入固定提示词、激活 `nano_flow_*` 与 `ask_questions`、取消 pi 压缩；`getContextUsage()` 达到 `rotateAt` 时追加 `nano-flow-reset`，`context` 只保留标记后的消息并前置恢复种子。查询用 `/nano-flow status` 与 `nano_flow_read`。
+- 解决方法：`/toolkit` 打开 `Nano Flow` 开关，再执行 `/nano-flow` 选择 `开` / `关`（Enter 只改当前会话，`Ctrl+S` 同时写 `nanoFlow.always` 作为新会话默认）。模式生效时注入固定提示词、激活 `nano_flow_*` 与 `ask_questions`、取消 pi 压缩；`getContextUsage()` 达到 `rotateAt` 时追加 `nano-flow-reset`，`context` 只保留标记后的消息并前置恢复种子。查询用 `/nano-flow status` 与 `nano_flow_read`。
 - 验证：`register.test.ts` 覆盖开关、模式、flag、收口与清空；真实 pi 会话 JSONL 含 `nano_flow_*`、`ask_questions`、`nano_flow` section 与 `nano-flow-reset` entry。
 - 来源：本域 ADR-0005；Plan `2026-11-07-NanoFlow迁移到pi-toolkit`；`packages/pi-toolkit/src/nano-flow/`。

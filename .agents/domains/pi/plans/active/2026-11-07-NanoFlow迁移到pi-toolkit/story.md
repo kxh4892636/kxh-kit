@@ -26,12 +26,12 @@
 - [x] 打开时贡献随包 skill（`/reload` 后可见），并允许 `/nano-flow` 选择模式
 - [x] 不引入 Agent 预设 roster
 
-#### US-002 `/nano-flow` 四选一
+#### US-002 `/nano-flow` 开 / 关
 
 作为 pi 使用者，我用与 `/thinking` 相同的选择器决定 Nano Flow 在何时生效。
 
-- [x] 选项：`一直开` / `一直关` / `当前会话开` / `当前会话关`
-- [x] `一直*` 写 `nanoFlow.always` 并同步当前会话；`当前会话*` 只写分支 entry；会话覆盖优先
+- [x] 列表只有 `开` / `关`，当前会话值打勾；默认值描述带 `· default`
+- [x] Enter 只写分支上的 `nano-flow-mode` entry；`Ctrl+S` 同时写 `nanoFlow.always` 设为默认
 - [x] `--nano-flow` 启动即开；`/nano-flow status` 报告模式与 active Plan 计数
 
 ### 上下文
@@ -74,7 +74,7 @@
 
 ## 迷雾
 
-无。开关粒度、模式四项、压缩取消、就地清空、`ask_questions` 形态与无面板均由 2026-11-07 用户输入确定。
+无。开关粒度、开/关与设默认键、压缩取消、就地清空、`ask_questions` 形态与无面板均由 2026-11-07 用户输入确定。
 
 ## 上下文
 

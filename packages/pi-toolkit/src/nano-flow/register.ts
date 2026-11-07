@@ -233,7 +233,7 @@ export const registerNanoFlow = (pi: ExtensionAPI, deps: NanoFlowDeps): NanoFlow
   };
 
   pi.registerCommand("nano-flow", {
-    description: "Nano Flow：选择一直开 / 一直关 / 当前会话开 / 当前会话关",
+    description: "Nano Flow：开 / 关；Ctrl+S 同时设为新会话默认",
     handler: async (args, ctx) => {
       if (!deps.settings().tools.nanoFlow) {
         ctx.ui.notify("Nano Flow 未启用：先在 /toolkit 打开 Nano Flow 开关。", "warning");
@@ -246,13 +246,12 @@ export const registerNanoFlow = (pi: ExtensionAPI, deps: NanoFlowDeps): NanoFlow
       const settings = deps.settings();
       const choice = await pickMode(ctx, {
         enabled: modeOn(ctx),
-        sessionOverride: sessionModeOf(branchOf(ctx)),
         always: settings.nanoFlow.always,
       });
       if (choice === undefined) return;
-      if (choice === "always-on" || choice === "always-off") {
+      if (choice.persist) {
         try {
-          deps.setAlways(choice === "always-on");
+          deps.setAlways(choice.enabled);
         } catch (error) {
           ctx.ui.notify(
             `pi-toolkit: 保存 nanoFlow.always 失败: ${error instanceof Error ? error.message : String(error)}`,
@@ -261,11 +260,12 @@ export const registerNanoFlow = (pi: ExtensionAPI, deps: NanoFlowDeps): NanoFlow
           return;
         }
       }
-      pi.appendEntry(MODE_ENTRY, {
-        enabled: choice === "always-on" || choice === "session-on",
-      });
+      pi.appendEntry(MODE_ENTRY, { enabled: choice.enabled });
       sync(ctx);
-      ctx.ui.notify(`Nano Flow：${modeOn(ctx) ? "开" : "关"}`, "info");
+      ctx.ui.notify(
+        `Nano Flow：${modeOn(ctx) ? "开" : "关"}${choice.persist ? "（已设为默认）" : ""}`,
+        "info",
+      );
     },
   });
 

@@ -81,7 +81,7 @@ _避免使用_：重命名会话、总结会话
 ### Nano Flow
 
 **Nano Flow 模式**：
-`tools.nanoFlow` 打开后由 `/nano-flow` 选择的会话状态：`一直开` / `一直关` 写全局默认 `nanoFlow.always`，`当前会话开` / `当前会话关` 写当前分支的 `nano-flow-mode` entry；生效值 = 开关 ∧（会话覆盖 ?? 全局默认）。
+`tools.nanoFlow` 打开后由 `/nano-flow` 选择的会话状态：列表只有 `开` / `关`，Enter 写当前分支的 `nano-flow-mode` entry，`Ctrl+S` 同时写全局默认 `nanoFlow.always`；生效值 = 开关 ∧（会话覆盖 ?? 全局默认）。
 _避免使用_：预设、preset、agentPreset
 
 **上下文清空**：

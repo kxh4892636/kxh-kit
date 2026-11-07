@@ -2,7 +2,7 @@
 
 ## 目标
 
-把 `packages/dsh-toolkit/src/nano-flow` 的交付流程迁移到 `packages/pi-toolkit`：第四个开关、`/nano-flow` 四选一模式、固定提示词、三个 `nano_flow_*` 工具、`ask_questions`、随包 skill、取消压缩与就地清空上下文。不迁移预设 roster、Web ready 面板与自动新建会话轮转。
+把 `packages/dsh-toolkit/src/nano-flow` 的交付流程迁移到 `packages/pi-toolkit`：第四个开关、`/nano-flow` 开/关（`Ctrl+S` 设默认）、固定提示词、三个 `nano_flow_*` 工具、`ask_questions`、随包 skill、取消压缩与就地清空上下文。不迁移预设 roster、Web ready 面板与自动新建会话轮转。
 
 ## 方案
 
@@ -27,7 +27,7 @@ packages/pi-toolkit/src/nano-flow/
 
 - `settings.ts` 增加 `tools.nanoFlow` 与 `nanoFlow` 配置节（10 个上限 + `always`）；`DEFAULT_TOOLS` 仍全部 `false`。
 - 生效值 = `tools.nanoFlow && (sessionMode ?? nanoFlow.always)`；sessionMode 取分支最后一条 `nano-flow-mode` 自定义 entry。
-- `/nano-flow` 选择器四项：`一直开` / `一直关` 写 `nanoFlow.always` 并追加 session entry；`当前会话开` / `当前会话关` 只追加 entry。
+- `/nano-flow` 选择器两项（开 / 关）：Enter 只追加当前分支的 `nano-flow-mode` entry；`Ctrl+S` 同时写 `nanoFlow.always` 并追加 entry。列表勾选当前值，默认值描述带 `· default`。
 - `--nano-flow` flag：配置加载完成后的 `session_start` 若无 session entry 则追加 enabled。
 - 配置加载顺序：入口的 `session_start` 先加载 `pi-toolkit.json`，再调用 `nanoFlow.start(ctx)`；避免模块注册顺序导致读默认值。
 

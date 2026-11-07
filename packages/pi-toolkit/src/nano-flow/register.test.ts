@@ -120,6 +120,7 @@ const setup = (settings: ToolkitSettings): Harness => {
 interface CtxOptions {
   readonly usage?: { tokens: number | null; contextWindow: number; percent: number | null };
   readonly select?: (title: string, labels: string[]) => Promise<string | undefined>;
+  readonly confirm?: (title: string, message: string) => Promise<boolean>;
   readonly mode?: string;
 }
 
@@ -144,6 +145,7 @@ const makeCtx = (
     ui: {
       notify: (message: string, level?: string) => notifications.push({ message, level }),
       select: options.select ?? (async () => undefined),
+      confirm: options.confirm ?? (async () => false),
       custom: undefined,
       addAutocompleteProvider: () => undefined,
     },
@@ -200,22 +202,30 @@ describe("registerNanoFlow", () => {
     expect(harness.active()).toContain("nano_flow_read");
   });
 
-  it("changes the mode through /nano-flow and persists always", async () => {
+  it("changes the session mode and persists the default separately", async () => {
     const harness = setup(settingsWith({}));
-    const select = (wanted: string) => async (_title: string, labels: string[]) =>
-      labels.find((label) => label.includes(wanted));
-    const ctx = makeCtx(harness.branch, harness.notifications, await tempDir(), {
-      select: select("当前会话开"),
+    const choose = (picked: string, persist: boolean) => ({
       mode: "print",
+      select: async (_title: string, labels: string[]) => labels.find((label) => label === picked),
+      confirm: async () => persist,
     });
+    const ctx = makeCtx(
+      harness.branch,
+      harness.notifications,
+      await tempDir(),
+      choose("开", false),
+    );
     await harness.command("", ctx);
     expect(harness.active()).toContain("ask_questions");
     expect(harness.branch.at(-1)).toMatchObject({ data: { enabled: true } });
+    expect(harness.alwaysCalls).toEqual([]);
 
-    const offCtx = makeCtx(harness.branch, harness.notifications, await tempDir(), {
-      select: select("一直关"),
-      mode: "print",
-    });
+    const offCtx = makeCtx(
+      harness.branch,
+      harness.notifications,
+      await tempDir(),
+      choose("关", true),
+    );
     await harness.command("", offCtx);
     expect(harness.alwaysCalls).toEqual([false]);
     expect(harness.active()).toEqual(["read", "bash"]);
@@ -290,11 +300,12 @@ describe("registerNanoFlow", () => {
     expect(message).toContain("active Plan: 无");
   });
 
-  it("turns always on through /nano-flow", async () => {
+  it("sets the default through the save action", async () => {
     const harness = setup(settingsWith({}));
     const ctx = makeCtx(harness.branch, harness.notifications, await tempDir(), {
       mode: "print",
-      select: async (_title, labels) => labels.find((label) => label.includes("一直开")),
+      select: async (_title, labels) => labels.find((label) => label === "开"),
+      confirm: async () => true,
     });
     await harness.command("", ctx);
     expect(harness.alwaysCalls).toEqual([true]);
