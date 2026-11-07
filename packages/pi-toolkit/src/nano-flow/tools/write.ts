@@ -224,10 +224,13 @@ const completeNote = async (
     replaceNote(document, next),
     runtime.limits(),
   );
+  const remaining = committed.notes.filter((item) => item.status !== "completed").length;
   return [
     `已完成 note ${id} ${note.title}`,
     statusLine(committed),
-    "回 nano_flow_read 的 ready 看下一条。",
+    remaining === 0
+      ? "全部 note 已完成；确认参考价值后 move 到 reference。"
+      : "回 nano_flow_read 的 ready 看下一条。",
   ].join("\n");
 };
 
@@ -378,7 +381,11 @@ const executeWrite = async (
         { ...document, notes: [...document.notes, note] },
         runtime.limits(),
       );
-      return `已创建 note ${note.id} ${note.title}；${statusLine(committed)}`;
+      const hint =
+        document.notes.length === 0
+          ? "这是首条 note：保持拷问与定案记录的角色；之后按依赖顺序 create 后续 note。"
+          : "用 status 置 in_progress 开工，依赖用 blocked_by 表达。";
+      return `已创建 note ${note.id} ${note.title}；${statusLine(committed)}\n下一步: ${hint}`;
     }
     case "update": {
       const id = requiredString(args, "note");

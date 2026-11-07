@@ -6,7 +6,7 @@
       "id": "01",
       "title": "Nano Flow 迁入 pi-toolkit",
       "description": "pi-toolkit 新增第四个开关与 /nano-flow 开/关选择：固定提示词、nano_flow_* 工具、ask_questions、随包 skill，取消 pi 压缩并在达到阈值时就地清空上下文恢复 Plan。",
-      "status": "awaiting_verification",
+      "status": "completed",
       "blocked_by": [],
       "evidence": [
         "`pnpm --filter @kxh4892636/pi-toolkit test`：21 个测试文件、231 个用例通过",
@@ -14,10 +14,18 @@
         "`pnpm --filter @kxh4892636/pi-toolkit check`：格式、lint、类型通过",
         "真实 pi 会话（临时 PI_TOOLKIT_CONFIG，tools.nanoFlow=true，--nano-flow）：JSONL 含 nano_flow_read/write/check、ask_questions 与 nano_flow prompt section",
         "阈值实验（rotateAt=0.000001，两次输入）：JSONL 含 1 个 nano-flow-reset entry",
-        "本机 ~/.pi/agent/pi-toolkit.json 增加 tools.nanoFlow=false 与 nanoFlow 默认值"
+        "本机 ~/.pi/agent/pi-toolkit.json 增加 tools.nanoFlow=false 与 nanoFlow 默认值",
+        "`pnpm --filter @kxh4892636/pi-toolkit test`：21 个测试文件、231 个用例通过",
+        "`test:coverage`：statements 91.4 / branches 81.09 / functions 94.67 / lines 94.25（阈值 80）",
+        "`pnpm --filter @kxh4892636/pi-toolkit check`：格式、lint、类型通过",
+        "真实 pi 会话（临时 PI_TOOLKIT_CONFIG，tools.nanoFlow=true，--nano-flow）：JSONL 含 nano_flow_read/write/check、ask_questions 与 nano_flow prompt section",
+        "阈值实验（rotateAt=0.000001，两次输入）：JSONL 含 1 个 nano-flow-reset entry",
+        "真机 TUI 人工验收：用户重启后在真实会话确认 /toolkit 第四行与 /nano-flow 开/关选择器渲染与交互（用户反馈「已经完成了」，2026-11-07）",
+        "轮转实测：本会话达到阈值后上下文清空，nano_flow_read resume 从磁盘恢复 Plan 全部状态，无丢失",
+        "git：main 干净，HEAD 4b95d4d3"
       ],
-      "updated_at": "2026-11-07T00:00:00.000Z",
-      "content": "# Nano Flow 迁入 pi-toolkit\n\n## 交付\n\n`packages/pi-toolkit/src/nano-flow/` 新增 Nano Flow：第四个 `/toolkit` 开关、`/nano-flow` 开/关选择（`Ctrl+S` 设默认）、固定提示词 section、`nano_flow_read/write/check`、`ask_questions`、随包 skill、取消 pi 压缩与就地清空上下文。纯逻辑与校验脚本从 DSH 原样移植，宿主接缝按 pi 重写。\n\n## 范围\n\n- 新增 `src/nano-flow/`：`config` / `dag` / `plan` / `store` / `check-runner` / `assets` / `prompt.md` / `skills/` / `scripts/check-domain.mjs` / `tools/` / `ask` / `mode` / `selector` / `register`。\n- `settings.ts`：`tools.nanoFlow` + `nanoFlow` 配置节（10 个上限 + `always`），`saveNanoFlowAlways`。\n- `panel.ts` 第 4 行开关；`index.ts` 接线并在配置加载后调用 `nanoFlow.start(ctx)`。\n- 测试：移植 `dag.test`，新增 `plan` / `mode` / `selector` / `ask` / `register` / `tools` 测试；README、示例配置、ADR-0005、域 CONTEXT 同步。\n- 本机 `~/.pi/agent/pi-toolkit.json` 增加 `tools.nanoFlow=false` 与 `nanoFlow` 默认值。\n\n不包含：DSH 预设 roster、Web ready 面板、自动新建/删除会话、DSH 包删除。\n\n## 直接依赖\n\n无（根 Note）。以 [spec](spec.md)、[ADR-0005](../../../adr/0005-NanoFlow迁移到pi-toolkit.md) 与 2026-11-07 用户输入为约束。\n\n## 验收\n\n- [x] 开关默认关；关闭时 `/nano-flow` 提示先开开关，四个工具不激活\n- [x] `/nano-flow` 只有开/关：Enter 写会话 entry，`Ctrl+S` 同时写 `always`；`--nano-flow` 启动即开\n- [x] 模式生效时注入 `nano_flow` 提示词 section、激活三个 Plan 工具与 `ask_questions`\n- [x] 模式生效时取消 pi 压缩；达到 `rotateAt` 追加 reset 标记，`context` 只保留标记后的消息并前置恢复种子\n- [x] `ask_questions` 支持任意数量问题、选项、自定义回答、跳过与取消\n- [x] 非 `nano_flow_*` 工具访问 `notes.json` 被拒绝\n- [x] `/nano-flow status` 返回模式与 active Plan 计数；无面板\n- [x] `test`、`test:coverage`、`check` 全部通过；真实 pi 会话确认提示词与工具挂载\n- [ ] 真机 TUI 人工验证 `/nano-flow` 选择器与 `/toolkit` 第四行交互（选择器渲染/`Ctrl+S` 已由单测覆盖）\n\n## 上下文\n\n- [story](../story.md)、[spec](../spec.md)\n- [ADR-0005](../../../adr/0005-NanoFlow迁移到pi-toolkit.md)\n- 来源：`packages/dsh-toolkit/src/nano-flow/`\n- 目标：`packages/pi-toolkit/src/nano-flow/`\n\n## 决策与证据\n\n- **第四个开关 + `/nano-flow`**：pi 无预设注册表，用开关控制能力、用开/关控制会话模式；Enter 只写分支 entry，`Ctrl+S` 持久化 `nanoFlow.always`。\n- **清空不换会话**：`ctx.newSession` 仅命令上下文可用且无删除会话 API，因此用 `nano-flow-reset` 时间戳标记 + `context` 过滤 + 合成恢复种子；TUI 转录仍保留旧消息。\n- **取消压缩**：`session_before_compact` 在模式生效时 `{ cancel: true }`；退出模式恢复。\n- **ask_questions**：pi 无内置问询工具，新增模型工具；`ui.select` + `ui.input` 逐题询问，非 TUI/RPC 返回错误。\n- **收口**：`tool_call` 扫描参数中的 `notes.json`；策略级，shell 等旁路仍存在。\n- **配置加载顺序**：`nanoFlow.start` 必须在入口加载 `pi-toolkit.json` 之后调用，否则 `--nano-flow` 读到默认值。\n\n## 验证证据\n\n- `pnpm --filter @kxh4892636/pi-toolkit test`：21 个测试文件、231 个用例通过。\n- `test:coverage`：statements 91.4 / branches 81.09 / functions 94.67 / lines 94.25（阈值 80）。\n- `pnpm --filter @kxh4892636/pi-toolkit check`：格式、lint、类型通过。\n- 真实 pi 会话（临时 `PI_TOOLKIT_CONFIG`，`tools.nanoFlow=true`，`--nano-flow`）：session JSONL 出现 `nano_flow_read/write/check`、`ask_questions` 与 `\"nano_flow\"` section。\n- 阈值实验（`rotateAt=0.000001`，两次输入）：session JSONL 出现 1 个 `nano-flow-reset` entry。\n\n## 待验证\n\n- 真机 TUI：`/toolkit` 第四行开关、`/nano-flow` 开/关选择器的展示、勾选与 `Ctrl+S` 默认标记。\n- 清空后 TUI 转录仍显示旧消息，需确认用户可接受这一行为（pi 无删除会话条目的扩展 API）。\n- `learning` skill 依赖本工作区 `nnf anki`，在未安装 nnf 的环境应视为已知限制。\n"
+      "updated_at": "2026-11-07T08:22:55.046Z",
+      "content": "# Nano Flow 迁入 pi-toolkit\n\n## 交付\n\n`packages/pi-toolkit/src/nano-flow/` 新增 Nano Flow：第四个 `/toolkit` 开关、`/nano-flow` 开/关选择（`Ctrl+S` 设默认）、固定提示词 section、`nano_flow_read/write/check`、`ask_questions`、随包 skill、取消 pi 压缩与就地清空上下文。纯逻辑与校验脚本从 DSH 原样移植，宿主接缝按 pi 重写。\n\n## 范围\n\n- 新增 `src/nano-flow/`：`config` / `dag` / `plan` / `store` / `check-runner` / `assets` / `prompt.md` / `skills/` / `scripts/check-domain.mjs` / `tools/` / `ask` / `mode` / `selector` / `register`。\n- `settings.ts`：`tools.nanoFlow` + `nanoFlow` 配置节（10 个上限 + `always`），`saveNanoFlowAlways`。\n- `panel.ts` 第 4 行开关；`index.ts` 接线并在配置加载后调用 `nanoFlow.start(ctx)`。\n- 测试：移植 `dag.test`，新增 `plan` / `mode` / `selector` / `ask` / `register` / `tools` 测试；README、示例配置、ADR-0005、域 CONTEXT 同步。\n- 本机 `~/.pi/agent/pi-toolkit.json` 增加 `tools.nanoFlow=false` 与 `nanoFlow` 默认值。\n\n不包含：DSH 预设 roster、Web ready 面板、自动新建/删除会话、DSH 包删除。\n\n## 直接依赖\n\n无（根 Note）。以 [spec](spec.md)、[ADR-0005](../../../adr/0005-NanoFlow迁移到pi-toolkit.md) 与 2026-11-07 用户输入为约束。\n\n## 验收\n\n- [x] 开关默认关；关闭时 `/nano-flow` 提示先开开关，四个工具不激活\n- [x] `/nano-flow` 只有开/关：Enter 写会话 entry，`Ctrl+S` 同时写 `always`；`--nano-flow` 启动即开\n- [x] 模式生效时注入 `nano_flow` 提示词 section、激活三个 Plan 工具与 `ask_questions`\n- [x] 模式生效时取消 pi 压缩；达到 `rotateAt` 追加 reset 标记，`context` 只保留标记后的消息并前置恢复种子\n- [x] `ask_questions` 支持任意数量问题、选项、自定义回答、跳过与取消\n- [x] 非 `nano_flow_*` 工具访问 `notes.json` 被拒绝\n- [x] `/nano-flow status` 返回模式与 active Plan 计数；无面板\n- [x] `test`、`test:coverage`、`check` 全部通过；真实 pi 会话确认提示词与工具挂载\n- [x] 真机 TUI 人工验证 `/nano-flow` 选择器与 `/toolkit` 第四行交互（选择器渲染/`Ctrl+S` 已由单测覆盖）\n\n## 上下文\n\n- [story](../story.md)、[spec](../spec.md)\n- [ADR-0005](../../../adr/0005-NanoFlow迁移到pi-toolkit.md)\n- 来源：`packages/dsh-toolkit/src/nano-flow/`\n- 目标：`packages/pi-toolkit/src/nano-flow/`\n\n## 决策与证据\n\n- **第四个开关 + `/nano-flow`**：pi 无预设注册表，用开关控制能力、用开/关控制会话模式；Enter 只写分支 entry，`Ctrl+S` 持久化 `nanoFlow.always`。\n- **清空不换会话**：`ctx.newSession` 仅命令上下文可用且无删除会话 API，因此用 `nano-flow-reset` 时间戳标记 + `context` 过滤 + 合成恢复种子；TUI 转录仍保留旧消息。\n- **取消压缩**：`session_before_compact` 在模式生效时 `{ cancel: true }`；退出模式恢复。\n- **ask_questions**：pi 无内置问询工具，新增模型工具；`ui.select` + `ui.input` 逐题询问，非 TUI/RPC 返回错误。\n- **收口**：`tool_call` 扫描参数中的 `notes.json`；策略级，shell 等旁路仍存在。\n- **配置加载顺序**：`nanoFlow.start` 必须在入口加载 `pi-toolkit.json` 之后调用，否则 `--nano-flow` 读到默认值。\n\n## 验证证据\n\n- `pnpm --filter @kxh4892636/pi-toolkit test`：21 个测试文件、231 个用例通过。\n- `test:coverage`：statements 91.4 / branches 81.09 / functions 94.67 / lines 94.25（阈值 80）。\n- `pnpm --filter @kxh4892636/pi-toolkit check`：格式、lint、类型通过。\n- 真实 pi 会话（临时 `PI_TOOLKIT_CONFIG`，`tools.nanoFlow=true`，`--nano-flow`）：session JSONL 出现 `nano_flow_read/write/check`、`ask_questions` 与 `\"nano_flow\"` section。\n- 阈值实验（`rotateAt=0.000001`，两次输入）：session JSONL 出现 1 个 `nano-flow-reset` entry。\n- 真机 TUI 人工验收：用户重启后在真实会话确认 `/toolkit` 第四行与 `/nano-flow` 开/关选择器的渲染与交互（用户反馈「已经完成了」，2026-11-07）。\n- 轮转实测：本会话达到 `rotateAt` 后上下文被清空，`nano_flow_read resume` 从磁盘恢复 Plan 全部状态（notes 计数、可推进/等待验证队列、下一步），无状态丢失。\n\n## 已知限制\n\n- 清空后 TUI 转录仍显示旧消息（pi 无删除会话条目的扩展 API）；用户未单独提出异议，行为保留。\n- `learning` skill 依赖工作区的 `nnf anki`；未安装 nnf 的环境需视为已知限制。\n"
     },
     {
       "id": "02",
@@ -52,6 +60,25 @@
       ],
       "updated_at": "2026-11-07T08:17:19.385Z",
       "content": "## 交付\n\n移除脚本化自动修复，改为模型判断修复：\n\n- `nano_flow_read` 新增 `op: \"inspect\"`：文档无法通过校验时返回原始 note（id/title/status/description/content）与 index，并提示用 repair。\n- `nano_flow_write` 新增 `op: \"repair\"`：接受显式 `notes`（按 id 给 title/description/content）与 `index`，应用到原始 JSON 后重新严格校验并原子写回；脚本只执行模型给出的值。\n- `nano_flow_check` 只报告问题，不再修复。\n- 收口只检查路径/命令字段，源码内容与 grep 检索词不误伤。\n\n## 验收\n\n- [x] 坏文档 `notes`/`get` 仍报错；`inspect` 可读取原始内容\n- [x] `repair` 一次修正多条 note 与 index 后通过校验并写回\n- [x] `repair` 拒绝无改动、未知 note id、非法 JSON\n- [x] `check` 不修改文件，只报告问题\n- [x] 无 active Plan 时的恢复种子提示 init 并 create 首条 note\n- [x] `test`、`test:coverage`、`check` 通过\n\n## 决策\n\n- 摘要压缩与索引增删属于语义判断，脚本不做；保留作者/模型的显式选择。\n- 用 `inspect` 解决「坏文档读不出来就无法修」的死锁，而不是放宽校验。\n- `repair` 与其它写操作一样先严格校验再写，避免产生新的坏文档。\n\n## 证据\n\n- `packages/pi-toolkit/src/nano-flow/tools/read.ts`（inspect）\n- `packages/pi-toolkit/src/nano-flow/tools/write.ts`（repair）\n- `packages/pi-toolkit/src/nano-flow/mode.ts`（无 Plan 种子）\n- `tools.test.ts`、`mode.test.ts`；ADR-0006\n"
+    },
+    {
+      "id": "04",
+      "title": "删 spec 锚点强制与补完成态引导",
+      "description": "按复盘结论收敛两处：prompt.md 不再强制 spec 写「当前进度」「恢复入口」；nano_flow_write 的 complete / create 补完成态与上下文相关的提示文案。",
+      "status": "completed",
+      "blocked_by": [],
+      "evidence": [
+        "`pnpm --filter @kxh4892636/pi-toolkit test`：21 文件 / 235 用例通过",
+        "`test:coverage`：statements 91.06 / branches 80.2 / functions 94.52 / lines 94.01（阈值 80）",
+        "`pnpm --filter @kxh4892636/pi-toolkit check`：66 文件格式、51 文件 lint 与类型通过",
+        "prompt.md diff：第 84 行改为「进度与队列由 notes.json 派生, spec 不强制固定小节; 三个锚点固定…」；132 行仅保留 note 锚点；216 行改为用 nano_flow_read resume 恢复；50 行「恢复入口」改为「恢复路径」",
+        "tools/write.ts diff：complete 增加 remaining===0 分支（全部完成 → 提示 move 到 reference）；create 提示按 document.notes.length 分流",
+        "tools.test.ts：新增「首条 note」「用 status 置 in_progress」「全部 note 已完成」三处断言",
+        "spec.md：回退本会话加的「当前进度」「恢复入口」两节",
+        "nano_flow_check plan / workspace：通过"
+      ],
+      "updated_at": "2026-11-07T08:34:14.884Z",
+      "content": "# 删 spec 锚点强制与补完成态引导\n\n## 交付\n\n1. `src/nano-flow/prompt.md`：删掉「spec 必须有『当前进度』『恢复入口』」的强制口径，改为\"进度与队列由 `notes.json` 派生, spec 不强制固定小节\"，只保留 note 的三个锚点。\n2. `src/nano-flow/tools/write.ts`：`complete` 后若全部 note 完成，提示\"确认参考价值后 move 到 reference\"；`create` 的提示按已有 note 数分流（0 条 → 首条保持拷问与定案记录角色，≥1 条 → `status` 置 `in_progress`）。\n3. `spec.md` 同步回退：删掉本会话加上的「当前进度」「恢复入口」两节（随口径撤销）。\n\n## 依据\n\n用户 2026-11-07 复盘：spec 两个锚点不是用户要求，且可由 `notes.json` 派生；本 Plan 的 spec 从头到尾没有这两节，校验与恢复都正常。`ask_questions` 未被调用、index 空提示、恢复流程去重、种子压缩四项经论证后撤销，不做。\n\n## 执行检查点\n\n- [x] 定位三处口径与两处提示文案\n- [x] 改 `prompt.md`（84/132/216 与第 50 行\"恢复入口\"措辞）与 `write.ts`（`complete` / `create`）\n- [x] 补测试断言并在 `spec.md` 回退两节\n- [x] 跑 test / coverage / check\n\n## 下一步\n\n验证已通过；写 evidence 后 `complete`，然后与 `01` 一并确认迁 `reference`。\n\n## 待验证\n\n- [x] `pnpm --filter @kxh4892636/pi-toolkit test`：21 文件 / 235 用例通过\n- [x] `test:coverage`：91.06 / 80.2 / 94.52 / 94.01（阈值 80）\n- [x] `pnpm --filter @kxh4892636/pi-toolkit check`：66 文件格式、51 文件 lint 与类型通过\n- [x] `grep '当前进度|恢复入口' prompt.md`：无强制口径残留\n- [x] `nano_flow_check` 的 `plan` / `workspace` 通过\n"
     }
   ]
 }

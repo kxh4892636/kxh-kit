@@ -104,6 +104,7 @@ describe("nano_flow_write / nano_flow_read", () => {
       cwd,
     );
     expect(createdNote).toContain("已创建 note 01");
+    expect(createdNote).toContain("首条 note");
 
     const ready = await run(tools.read, { op: "ready", plan: PLAN }, cwd);
     expect(ready).toContain("第 1 组");
@@ -128,6 +129,7 @@ describe("nano_flow_write / nano_flow_read", () => {
       cwd,
     );
     expect(completed).toContain("已完成 note 01");
+    expect(completed).toContain("全部 note 已完成");
     const raw = JSON.parse(
       await readFile(
         join(cwd, ".agents/domains", "demo/plans/active/2026-11-08-测试计划", "notes.json"),
@@ -148,7 +150,7 @@ describe("nano_flow_write / nano_flow_read", () => {
       ["第二条", ["01"]],
       ["第三条", undefined],
     ] as const) {
-      await run(
+      const created = await run(
         tools.write,
         {
           op: "create",
@@ -160,6 +162,7 @@ describe("nano_flow_write / nano_flow_read", () => {
         },
         cwd,
       );
+      if (blockedBy !== undefined) expect(created).toContain("用 status 置 in_progress");
     }
     await run(tools.write, { op: "status", plan, note: "01", status: "in_progress" }, cwd);
     await run(
