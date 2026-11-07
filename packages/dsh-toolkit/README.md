@@ -147,8 +147,11 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
 └── notes.json   实现记录(DAG)      单条 content 默认 ≤ 13 KB(面板可调)
 ```
 
-`notes.json` 的 `index` 取代旧的 spec `## Notes` 表;`evidence` 是完成凭据,`completed`
-只能由 `nano_flow_write` 的 `complete` 设置(内部先跑 Plan 校验).
+`notes.json` 的 `index` 取代旧的 spec `## Notes` 表;`evidence` 是完成凭据. note 状态为
+`pending → in_progress → awaiting_verification → completed`: `awaiting_verification` 表示代码
+完成、等真机或用户验收, 只能从 `in_progress` 进入, 仍是未完成(Plan 不迁 `reference`,
+`ready` 不列它, 面板与 `resume` 单列"等待验证"); `complete` 只接受 `awaiting_verification`
+的 note, 验证失败用 `status` 退回 `in_progress`, 内部仍先跑 Plan 校验.
 
 **上限与轮转**
 
@@ -204,6 +207,8 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
    正常,`nano_flow_read` / `nano_flow_write` 正常工作.
 8. 挂载诊断:`$DSH_HOME/toolkit/nano-flow-mount.json` 的 `stages` 应同时有 `entry`
    (`via: preset`)、`apply`、`ready` 与 `rotation`;缺哪个就说明哪一步没生效.
+9. 把一条 note 置 `awaiting_verification`:面板摘要出现"N 等待验证", `ready` 不列它,
+   `complete` 在 `in_progress` 时被拒并提示先置状态, 置等待验证后才能完成.
 
 ## 配置
 

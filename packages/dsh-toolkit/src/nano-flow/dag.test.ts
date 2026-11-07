@@ -98,6 +98,21 @@ describe("parseDocument", () => {
     );
   });
 
+  it("接受 awaiting_verification，且其直接依赖必须已完成", () => {
+    expect(
+      parseDocument(raw([note({ status: "awaiting_verification" })]), limits).notes[0]?.status,
+    ).toBe("awaiting_verification");
+    expect(() =>
+      parseDocument(
+        raw([
+          note({ id: "01" }),
+          note({ id: "02", status: "awaiting_verification", blocked_by: ["01"] }),
+        ]),
+        limits,
+      ),
+    ).toThrow(/尚未 completed/);
+  });
+
   it("拒绝超长 note 正文", () => {
     const tight = { ...limits, noteMaxBytes: 4 };
     expect(() => parseDocument(raw([note({ content: "中文" })]), tight)).toThrow(/超过 4/);
@@ -127,6 +142,22 @@ describe("查询", () => {
 
   it("readyNotes 只给依赖已完成的 pending", () => {
     expect(readyNotes(notes).map((item) => item.id)).toEqual(["02"]);
+    expect(
+      readyNotes([note({ id: "01", status: "awaiting_verification" })]).map((item) => item.id),
+    ).toEqual([]);
+  });
+
+  it("todoGroups 把等待验证排在同层可执行项之后、blocked 之前", () => {
+    const grouped = [
+      note({ id: "01", status: "completed", evidence: ["完成"] }),
+      note({ id: "02", blocked_by: ["01"] }),
+      note({ id: "03", status: "awaiting_verification", blocked_by: ["01"] }),
+      note({ id: "04", status: "blocked", blocked_by: ["01"], blocked_reason: "等外部确认" }),
+      note({ id: "05", blocked_by: ["02", "03", "04"] }),
+    ];
+    expect(todoGroups(grouped).map((group) => group.notes.map((item) => item.id))).toEqual([
+      ["02", "03", "04", "05"],
+    ]);
   });
 
   it("todoGroups 把有依赖关系的 note 分到同一组并按拓扑排序", () => {
@@ -165,10 +196,17 @@ describe("查询", () => {
     expect(todoGroups([note({ status: "completed", evidence: ["完成"] })])).toEqual([]);
   });
 
-  it("planStatusOf 按全部 note 派生", () => {
+  it("planStatusOf 按全部 note 派生，等待验证算未完成", () => {
     expect(planStatusOf([])).toBe("pending");
     expect(planStatusOf([note()])).toBe("pending");
     expect(planStatusOf([note({ status: "completed" }), note({ id: "02" })])).toBe("in_progress");
+    expect(planStatusOf([note({ status: "awaiting_verification" })])).toBe("in_progress");
+    expect(
+      planStatusOf([
+        note({ id: "01", status: "completed", evidence: ["完成"] }),
+        note({ id: "02", status: "awaiting_verification" }),
+      ]),
+    ).toBe("in_progress");
     expect(planStatusOf([note({ status: "completed" })])).toBe("completed");
   });
 

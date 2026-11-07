@@ -13,7 +13,14 @@ const json = (body: unknown): Response =>
 const payload = {
   available: true,
   plan: { domain: "dsh", lifecycle: "active", name: "2026-11-07-示例工作" },
-  counts: { total: 2, pending: 1, in_progress: 0, blocked: 0, completed: 1 },
+  counts: {
+    total: 2,
+    pending: 1,
+    in_progress: 0,
+    awaiting_verification: 0,
+    blocked: 0,
+    completed: 1,
+  },
   groups: [
     {
       notes: [
@@ -53,6 +60,45 @@ describe("ReadyPanel", () => {
 
     fireEvent.click(screen.getByRole("button"));
     expect(screen.queryByText("基座")).toBeNull();
+  });
+
+  it("summarizes awaiting notes and renders their glyph", async () => {
+    const awaiting = {
+      ...payload,
+      counts: {
+        total: 2,
+        pending: 0,
+        in_progress: 0,
+        awaiting_verification: 1,
+        blocked: 0,
+        completed: 1,
+      },
+      groups: [
+        {
+          notes: [
+            {
+              id: "02",
+              title: "等真机",
+              description: "代码已完成",
+              status: "awaiting_verification",
+              blocked_by: [],
+            },
+          ],
+        },
+      ],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => json(awaiting)),
+    );
+    const { container } = render(createElement(ReadyPanel, { sessionId: "s1" }));
+    expect(await screen.findByText("1 未完成 · 1 等待验证 · 1 已完成")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button"));
+    expect(await screen.findByText("等真机")).toBeDefined();
+    const item = container.querySelector("[data-status='awaiting_verification']");
+    expect(item).not.toBeNull();
+    expect(item?.querySelector(".dshtk-ready-glyph-awaiting_verification")).not.toBeNull();
   });
 
   it("renders nothing when the host reports the panel unavailable", async () => {

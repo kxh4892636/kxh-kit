@@ -161,6 +161,7 @@ const executeRead = async (
     }
     case "resume": {
       const ready = readyNotes(document.notes);
+      const awaiting = document.notes.filter((note) => note.status === "awaiting_verification");
       const blocked = document.notes.filter((note) => note.status === "blocked");
       const storyBytes = await describeBytes(plan, "story.md");
       const specBytes = await describeBytes(plan, "spec.md");
@@ -183,6 +184,10 @@ const executeRead = async (
       lines.push(
         ...(ready.length === 0 ? ["  （无）"] : ready.map((note) => `  ${formatNoteLine(note)}`)),
       );
+      if (awaiting.length > 0) {
+        lines.push(`等待验证（${awaiting.length}）:`);
+        lines.push(...awaiting.map((note) => `  ${formatNoteLine(note)}`));
+      }
       if (blocked.length > 0) {
         lines.push(`阻塞（${blocked.length}）:`);
         lines.push(...blocked.map((note) => `  ${formatNoteLine(note)}`));
@@ -205,7 +210,7 @@ const executeRead = async (
 export const createReadTool = (runtime: ToolRuntime): ToolDefinitionLike => ({
   name: "nano_flow_read",
   description:
-    "只读 Nano Flow 的 Plan 与 notes DAG。plans 列工作区里的 Plan；notes 列某个 Plan 的 note 摘要；get 取正文；ready 取未完成 notes 的依赖分组列表；graph 查直接与传递依赖；index 看关键索引；search 检索；resume 取恢复包（路径、大小、索引、可推进、阻塞）。",
+    "只读 Nano Flow 的 Plan 与 notes DAG。plans 列工作区里的 Plan；notes 列某个 Plan 的 note 摘要；get 取正文；ready 取未完成 notes 的依赖分组列表；graph 查直接与传递依赖；index 看关键索引；search 检索；resume 取恢复包（路径、大小、索引、可推进、等待验证、阻塞）。",
   parameters: {
     type: "object",
     additionalProperties: false,

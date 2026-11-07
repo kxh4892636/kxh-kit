@@ -36,6 +36,7 @@ export const readNanoFlowReady = async (
       total: document.notes.length,
       pending: 0,
       in_progress: 0,
+      awaiting_verification: 0,
       blocked: 0,
       completed: 0,
     };

@@ -116,6 +116,7 @@ const parseSettings = (body: unknown): NanoFlowSettings => {
 const NOTE_STATUSES: readonly NanoFlowNoteStatus[] = [
   "pending",
   "in_progress",
+  "awaiting_verification",
   "blocked",
   "completed",
 ];
@@ -189,7 +190,14 @@ const parseReady = (body: unknown): NanoFlowReadyResponse | undefined => {
   ) {
     return undefined;
   }
-  for (const key of ["total", "pending", "in_progress", "blocked", "completed"] as const) {
+  for (const key of [
+    "total",
+    "pending",
+    "in_progress",
+    "awaiting_verification",
+    "blocked",
+    "completed",
+  ] as const) {
     if (typeof counts[key] !== "number") return undefined;
   }
   if (!Array.isArray(groups)) return undefined;

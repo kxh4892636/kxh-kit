@@ -79,7 +79,9 @@ export const statusLine = (document: PlanDocument): string => {
   const total = document.notes.length;
   return `notes ${total}（completed ${count("completed")} / in_progress ${count(
     "in_progress",
-  )} / blocked ${count("blocked")} / pending ${count("pending")}）`;
+  )} / awaiting_verification ${count("awaiting_verification")} / blocked ${count(
+    "blocked",
+  )} / pending ${count("pending")}）`;
 };
 
 /** 一条 note 的列表行。 */

@@ -384,6 +384,9 @@ const css = `
   color: var(--dsw-alias-state-business-primary);
   animation: dshtk-ready-spin 1s linear infinite;
 }
+.dshtk-ready-glyph-awaiting_verification {
+  color: var(--dsw-alias-state-warn-label);
+}
 .dshtk-ready-glyph-blocked {
   color: var(--dsw-alias-state-error-primary);
 }

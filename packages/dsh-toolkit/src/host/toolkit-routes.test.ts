@@ -78,7 +78,14 @@ const setup = async () => {
   const ready = vi.fn(async (_sessionId: string) => ({
     available: true as const,
     plan: { domain: "dsh", lifecycle: "active" as const, name: "2026-11-07-示例工作" },
-    counts: { total: 1, pending: 1, in_progress: 0, blocked: 0, completed: 0 },
+    counts: {
+      total: 1,
+      pending: 1,
+      in_progress: 0,
+      awaiting_verification: 0,
+      blocked: 0,
+      completed: 0,
+    },
     groups: [
       {
         notes: [

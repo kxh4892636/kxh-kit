@@ -95,6 +95,28 @@ const StatusGlyph: FC<{ status: NanoFlowNoteStatus }> = ({ status }) => {
       createElement("circle", { cx: 7, cy: 10.2, r: 0.7, fill: "currentColor" }),
     );
   }
+  if (status === "awaiting_verification") {
+    return createElement(
+      "svg",
+      { viewBox: "0 0 14 14", width: 14, height: 14, className, "aria-hidden": "true" },
+      createElement("circle", {
+        cx: 7,
+        cy: 7,
+        r: 6.4,
+        fill: "none",
+        stroke: "currentColor",
+        strokeWidth: 1.2,
+      }),
+      createElement("path", {
+        d: "M4.4 7.2 6.1 8.9 9.6 5.2",
+        fill: "none",
+        stroke: "currentColor",
+        strokeWidth: 1.2,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+      }),
+    );
+  }
   return createElement(
     "svg",
     { viewBox: "0 0 14 14", width: 14, height: 14, className, "aria-hidden": "true" },
@@ -157,11 +179,14 @@ export const ReadyPanel: FC<ReadyPanelProps> = (props) => {
   const groups = state.groups;
   const counts = state.counts;
   if (groups === undefined || counts === undefined || groups.length === 0) return null;
-  const unfinished = counts.pending + counts.in_progress + counts.blocked;
+  const unfinished =
+    counts.pending + counts.in_progress + counts.awaiting_verification + counts.blocked;
   if (unfinished === 0) return null;
 
   const summaryParts = [`${unfinished} 未完成`];
   if (counts.in_progress > 0) summaryParts.push(`${counts.in_progress} 进行中`);
+  if (counts.awaiting_verification > 0)
+    summaryParts.push(`${counts.awaiting_verification} 等待验证`);
   if (counts.blocked > 0) summaryParts.push(`${counts.blocked} 阻塞`);
   if (counts.completed > 0) summaryParts.push(`${counts.completed} 已完成`);
   const planRef =

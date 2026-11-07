@@ -10,7 +10,13 @@ export const DEFAULT_DOMAINS = ".agents/domains";
 export const PLAN_LIFECYCLES = Object.freeze(["active", "reference", "archived"]);
 // reference 与 archived 是冻结内容，模板差异不再校验，避免历史缺项淹没本次新增问题。
 export const CHECKED_LIFECYCLES = Object.freeze(["active"]);
-export const NOTE_STATUSES = Object.freeze(["pending", "in_progress", "blocked", "completed"]);
+export const NOTE_STATUSES = Object.freeze([
+  "pending",
+  "in_progress",
+  "awaiting_verification",
+  "blocked",
+  "completed",
+]);
 
 export const LIMIT_KEYS = Object.freeze([
   "storyMaxBytes",
@@ -207,7 +213,7 @@ const checkMarkdownLinks = (planDir, filePath, report) => {
   }
 };
 
-const checkPlanDocuments = (planDir, limits, report) => {
+const checkPlanDocuments = (planDir, limits, report, checkLinks) => {
   const entries = readEntries(planDir, report);
   for (const entry of entries) {
     if (entry.isDirectory()) {
@@ -231,7 +237,7 @@ const checkPlanDocuments = (planDir, limits, report) => {
     if (size > max) {
       report.push(filePath, "size", `${name} 共 ${size} 字节，超过 ${max}；先压缩，再拆子索引`);
     }
-    checkMarkdownLinks(planDir, filePath, report);
+    if (checkLinks) checkMarkdownLinks(planDir, filePath, report);
   }
 };
 
@@ -382,7 +388,7 @@ const checkNotesDocument = (planDir, limits, report) => {
   }
 };
 
-const checkPlan = (planDir, limits, report) => {
+const checkPlan = (planDir, lifecycle, limits, report) => {
   // 没有 notes.json 的目录是旧 Markdown Plan：当作不存在，不校验、不报错。
   if (!fs.existsSync(path.join(planDir, "notes.json"))) return;
   const name = path.basename(planDir);
@@ -390,7 +396,9 @@ const checkPlan = (planDir, limits, report) => {
   if (!match || !isValidDate(match[1]) || !HAN.test(match[2])) {
     report.push(planDir, "layout", "Plan 目录名必须是 YYYY-MM-DD-中文工作名");
   }
-  checkPlanDocuments(planDir, limits, report);
+  // reference / archived 是冻结内容：历史链接常指向已退役文件或从未提交的运行时资料，
+  // 与「冻结内容不校验模板差异」一致，Markdown 链接只对 active 校验。
+  checkPlanDocuments(planDir, limits, report, lifecycle === "active");
   checkNotesDocument(planDir, limits, report);
 };
 
@@ -412,7 +420,7 @@ const checkPlans = (rootDir, domainsPath, limits, report, planRef) => {
       report.push(planDir, "layout", "Plan 不存在");
       return;
     }
-    checkPlan(planDir, limits, report);
+    checkPlan(planDir, lifecycle, limits, report);
     return;
   }
   for (const domainEntry of readEntries(domainsDir, report)) {
@@ -433,7 +441,7 @@ const checkPlans = (rootDir, domainsPath, limits, report, planRef) => {
       const lifecyclePath = path.join(plansDir, lifecycleEntry.name);
       for (const planEntry of readEntries(lifecyclePath, report)) {
         if (!planEntry.isDirectory()) continue;
-        checkPlan(path.join(lifecyclePath, planEntry.name), limits, report);
+        checkPlan(path.join(lifecyclePath, planEntry.name), lifecycleEntry.name, limits, report);
       }
     }
   }

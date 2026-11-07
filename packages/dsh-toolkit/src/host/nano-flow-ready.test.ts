@@ -67,7 +67,39 @@ describe("readNanoFlowReady", () => {
       lifecycle: "active",
       name: "2026-11-07-示例工作",
     });
-    expect(ready.counts).toMatchObject({ total: 2, pending: 2, completed: 0 });
+    expect(ready.counts).toMatchObject({
+      total: 2,
+      pending: 2,
+      awaiting_verification: 0,
+      completed: 0,
+    });
+    expect(ready.groups?.map((group) => group.notes.map((item) => item.id))).toEqual([
+      ["01", "02"],
+    ]);
+  });
+
+  it("counts awaiting_verification and keeps it in the dependency group", async () => {
+    const workspace = await makeWorkspace([
+      {
+        name: "2026-11-07-等待验证",
+        notes: [
+          note("01", { status: "awaiting_verification" }),
+          note("02", { blocked_by: ["01"] }),
+        ],
+      },
+    ]);
+    const ready = await readNanoFlowReady({
+      workspace,
+      domainRoot: ".agents/domains",
+      limits: DEFAULT_NANO_FLOW_SETTINGS,
+    });
+    expect(ready.available).toBe(true);
+    expect(ready.counts).toMatchObject({
+      total: 2,
+      pending: 1,
+      awaiting_verification: 1,
+      completed: 0,
+    });
     expect(ready.groups?.map((group) => group.notes.map((item) => item.id))).toEqual([
       ["01", "02"],
     ]);

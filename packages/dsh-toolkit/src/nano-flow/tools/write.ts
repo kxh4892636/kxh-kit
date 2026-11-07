@@ -182,6 +182,11 @@ const completeNote = async (
   const evidence = requiredStringArray(args, "evidence");
   const note = findNote(document, id);
   if (note.status === "completed") return `note ${id} 已经是 completed。`;
+  if (note.status !== "awaiting_verification") {
+    throw new Error(
+      `note ${id} 当前是 ${note.status}，不能直接 complete；先 status=awaiting_verification，验证通过后再 complete`,
+    );
+  }
   const result = await runCheck({
     script: assetsCheckScript(runtime.assetsRoot),
     workspace,
@@ -314,10 +319,13 @@ const executeWrite = async (
       const id = requiredString(args, "note");
       const status = requiredString(args, "status");
       if (status === "completed") throw new Error("completed 只能由 complete 动作设置");
-      if (!["pending", "in_progress", "blocked"].includes(status)) {
-        throw new Error("status 必须是 pending | in_progress | blocked");
+      if (!["pending", "in_progress", "awaiting_verification", "blocked"].includes(status)) {
+        throw new Error("status 必须是 pending | in_progress | awaiting_verification | blocked");
       }
       const note = findNote(document, id);
+      if (status === "awaiting_verification" && note.status === "pending") {
+        throw new Error("pending 的 note 不能直接进 awaiting_verification；先 status=in_progress");
+      }
       const reason = optionalString(args, "reason");
       if (status === "blocked" && (reason === undefined || reason.trim() === "")) {
         throw new Error("status=blocked 必须给 reason（障碍与解除条件）");
@@ -326,7 +334,7 @@ const executeWrite = async (
         id: note.id,
         title: note.title,
         description: note.description,
-        status: status as "pending" | "in_progress" | "blocked",
+        status: status as "pending" | "in_progress" | "awaiting_verification" | "blocked",
         blocked_by: note.blocked_by,
         evidence: note.evidence,
         updated_at: nowIso(),
@@ -381,7 +389,7 @@ const executeWrite = async (
 export const createWriteTool = (runtime: ToolRuntime): ToolDefinitionLike => ({
   name: "nano_flow_write",
   description:
-    "写 Nano Flow 的 Plan 与 notes DAG。init 建 Plan；create / update 维护 note；link 改依赖；status 设 pending / in_progress / blocked；complete 写 evidence 并通过 Plan 校验后置 completed；set_index 维护关键索引；merge / delete 合并删除；move 迁移生命周期。completed 只能由 complete 设置。",
+    "写 Nano Flow 的 Plan 与 notes DAG。init 建 Plan；create / update 维护 note；link 改依赖；status 设 pending / in_progress / awaiting_verification / blocked；complete 只接受 awaiting_verification 的 note，写 evidence 并通过 Plan 校验后置 completed；set_index 维护关键索引；merge / delete 合并删除；move 迁移生命周期。completed 只能由 complete 设置。",
   parameters: {
     type: "object",
     additionalProperties: false,
@@ -420,7 +428,7 @@ export const createWriteTool = (runtime: ToolRuntime): ToolDefinitionLike => ({
       },
       status: {
         type: "string",
-        enum: ["pending", "in_progress", "blocked"],
+        enum: ["pending", "in_progress", "awaiting_verification", "blocked"],
         description: "status 动作的目标状态",
       },
       reason: { type: "string", description: "status=blocked 时的障碍与解除条件" },
