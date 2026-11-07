@@ -1,3 +1,4 @@
+import { existsSync, readdirSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_SETTINGS, DEFAULT_TOOLS, type ToolkitSettings } from "../settings.ts";
@@ -594,6 +595,8 @@ describe("dispatch 与 workers 工具", () => {
       installOk?: boolean;
       /** merge 的结论；false 时返回 blocked（现场保留）。 */
       merged?: boolean;
+      /** true 时合并成功但目录残留（模拟 Windows 锁文件删不掉）。 */
+      leftover?: boolean;
     } = {},
   ) => {
     const ensured: string[] = [];
@@ -639,6 +642,17 @@ describe("dispatch 与 workers 工具", () => {
             branch,
             directory,
             reason: "主分支已有自己的提交，不能 --ff-only；现场保留",
+          };
+        }
+        if (options.leftover === true) {
+          // 合并成功、分支删了，但目录删不掉：不能落 `worktree.removed`。
+          return {
+            merged: true,
+            branch,
+            directory,
+            commit: "deadbeef",
+            cleanup: "补删目录失败: EBUSY（锁文件）",
+            removed: false,
           };
         }
         // 真实实现合并成功会顺手回收目录与分支，替身同样记账。
@@ -1136,6 +1150,334 @@ describe("dispatch 与 workers 工具", () => {
     );
     expect(listed).toContain("✗ 未合并");
     expect(listed).toContain(`${root}/.worktrees/note-06`);
+  });
+
+  /** 一条等人验收的 note（`complete` 只接受 `waiting` + `needs=review`）。 */
+  const reviewNote = (id: string): NoteNode => ({
+    ...note(id),
+    status: "waiting",
+    needs: "review",
+  });
+
+  /**
+   * 真 git 仓库 + 一个带 story / spec / notes 的 Plan。
+   *
+   * `complete` 会跑 Plan 校验（要求三个文件都在），所以不能只用 `planWithNotes`。
+   * 现场回收必须验在真 git 上：目录、分支、主分支内容都要经得起 `git` 看。
+   */
+  const repoWithPlan = async (notes: NoteNode[]) => {
+    const fs = await import("node:fs/promises");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const { execFile } = await import("node:child_process");
+    const { promisify } = await import("node:util");
+    const { serializeDocument } = await import("./dag.ts");
+    const { NOTES_FILE } = await import("./store.ts");
+    const run = promisify(execFile);
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "pi-bridge-recycle-"));
+    createdDirs.push(root);
+    await run("git", ["init", "-q", "-b", "main"], { cwd: root });
+    await run("git", ["config", "user.email", "t@example.com"], { cwd: root });
+    await run("git", ["config", "user.name", "t"], { cwd: root });
+    await run("git", ["config", "commit.gpgsign", "false"], { cwd: root });
+    await fs.writeFile(path.join(root, "README.md"), "demo\n", "utf8");
+    const name = "2026-11-07-回收";
+    const directory = path.join(root, ".agents", "domains", "etf", "plans", "active", name);
+    await fs.mkdir(directory, { recursive: true });
+    await fs.writeFile(
+      path.join(directory, NOTES_FILE),
+      serializeDocument({ version: 1, index: [], notes }),
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(directory, "story.md"),
+      "# 用户故事\n\n组干完就回收现场。\n",
+      "utf8",
+    );
+    await fs.writeFile(
+      path.join(directory, "spec.md"),
+      "# 规格\n\n`complete` 即触发合并回收。\n",
+      "utf8",
+    );
+    await run("git", ["add", "."], { cwd: root });
+    await run("git", ["commit", "-qm", "plan"], { cwd: root });
+    return { root, ref: `etf/active/${name}`, directory, run };
+  };
+
+  /** 真 git 的 worktree 钩子（`install` 只是 pnpm，测试里记一笔就跳过）。 */
+  const realWorktree = async () => {
+    const { ensureWorktree, mergeWorktree, removeWorktree } = await import("./worktree.ts");
+    const installs: string[] = [];
+    const hooks: import("./worktree.ts").WorktreeHooks = {
+      ensure: ensureWorktree,
+      install: async (directory) => {
+        installs.push(directory);
+        return { ok: true, command: "(test) 跳过 pnpm install", durationMs: 0 };
+      },
+      remove: removeWorktree,
+      merge: mergeWorktree,
+    };
+    return { hooks, installs };
+  };
+
+  /** 路径比对：git / node 在 Windows 上一个给 `/` 一个给 `\`。 */
+  const slash = (path: string): string => path.replaceAll("\\", "/");
+
+  /** 账本里某类事件的条数（幂等断言用它）。 */
+  const eventCount = async (stateRoot: string, type: string): Promise<number> => {
+    const { openLedger } = await import("./ledger.ts");
+    return openLedger(stateRoot)
+      .events()
+      .filter((event) => event.type === type).length;
+  };
+
+  it("complete 即触发：真 git 上 ff-only 合并 + 回收目录与分支", async () => {
+    const { hooks } = await realWorktree();
+    const { tools, stateRoot } = await setup({ worktree: hooks });
+    const { root, ref, run } = await repoWithPlan([reviewNote("05")]);
+    await tools
+      .get("orchestrator_command")
+      ?.execute(
+        "id",
+        { plan: ref, notes: ["05"], message: "做 05" },
+        undefined,
+        undefined,
+        ctx(root),
+      );
+    // worker 在隔离目录里提交一次（真 git）：合并后主工作区应该拿到这个文件。
+    const site = `${root}/.worktrees/note-05`;
+    await (
+      await import("node:fs/promises")
+    ).writeFile(`${site}/demo.txt`, "from worktree\n", "utf8");
+    await run("git", ["add", "."], { cwd: site });
+    await run("git", ["commit", "-qm", "worker"], { cwd: site });
+
+    const completed = textOf(
+      await tools
+        .get("orchestrator_write")
+        ?.execute(
+          "id",
+          { op: "complete", plan: ref, note: "05", evidence: ["真跑：complete 即回收"] },
+          undefined,
+          undefined,
+          ctx(root),
+        ),
+    );
+    expect(completed).toContain("已合并并回收现场 note-05");
+    expect(await eventCount(stateRoot, "worktree.merged")).toBe(1);
+    expect(await eventCount(stateRoot, "worktree.removed")).toBe(1);
+
+    // 真 git：主分支拿到 worker 的文件，worktree 目录与分支都没了。
+    const { stdout: content } = await run("git", ["show", "main:demo.txt"], { cwd: root });
+    expect(content).toContain("from worktree");
+    const { stdout: list } = await run("git", ["worktree", "list"], { cwd: root });
+    expect(slash(list)).not.toContain(".worktrees/note-05");
+    expect(existsSync(site)).toBe(false);
+    // `git worktree remove` 不删未跟踪文件：`.worktrees` 里不能还留着旧名字。
+    const leftovers = existsSync(`${root}/.worktrees`) ? readdirSync(`${root}/.worktrees`) : [];
+    expect(leftovers).not.toContain("note-05");
+    await expect(run("git", ["rev-parse", "wt/note-05"], { cwd: root })).rejects.toThrow();
+  });
+
+  it("合并成功但目录删不掉：不落 worktree.removed，改落 leftover 并在 state 标 ✗", async () => {
+    const worktree = fakeWorktree({ leftover: true });
+    const { tools, stateRoot } = await setup({ worktree: worktree.hooks });
+    const { root, ref } = await planWithNotes([note("07", [], "completed")]);
+    await tools
+      .get("orchestrator_command")
+      ?.execute(
+        "id",
+        { plan: ref, notes: ["07"], message: "做 07" },
+        undefined,
+        undefined,
+        ctx(root),
+      );
+
+    const leftover = await waitForEvent(stateRoot, "worktree.leftover");
+    expect(leftover?.payload).toMatchObject({
+      key: "note-07",
+      directory: `${root}/.worktrees/note-07`,
+    });
+    // 账本不能谎报“已回收”：removed 一条都不许落。
+    expect(await eventCount(stateRoot, "worktree.removed")).toBe(0);
+    expect(worktree.removed).toEqual([]);
+    const listed = textOf(
+      await tools
+        .get("orchestrator_state")
+        ?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
+    );
+    expect(listed).toContain("✗ 现场残留");
+    expect(listed).toContain(`${root}/.worktrees/note-07`);
+  });
+
+  it("组内还有未完成的 note：complete 不合并，现场照旧", async () => {
+    const { hooks } = await realWorktree();
+    const { tools, stateRoot } = await setup({ worktree: hooks });
+    const { root, ref } = await repoWithPlan([reviewNote("05"), reviewNote("06")]);
+    await tools
+      .get("orchestrator_command")
+      ?.execute(
+        "id",
+        { plan: ref, notes: ["05", "06"], message: "两条一起做" },
+        undefined,
+        undefined,
+        ctx(root),
+      );
+    const completed = textOf(
+      await tools
+        .get("orchestrator_write")
+        ?.execute(
+          "id",
+          { op: "complete", plan: ref, note: "05", evidence: ["05 完成"] },
+          undefined,
+          undefined,
+          ctx(root),
+        ),
+    );
+    expect(completed).toContain("已完成 note 05");
+    expect(completed).not.toContain("已合并");
+    expect(completed).not.toContain("✗");
+    expect(await eventCount(stateRoot, "worktree.merged")).toBe(0);
+    expect(existsSync(`${root}/.worktrees/grp-05-06`)).toBe(true);
+  });
+
+  it("非 ff（主分支前进了）：complete 返回 ✗ + 现场保留 + merge_blocked", async () => {
+    const { hooks } = await realWorktree();
+    const { tools, stateRoot } = await setup({ worktree: hooks });
+    const { root, ref, run } = await repoWithPlan([reviewNote("05")]);
+    await tools
+      .get("orchestrator_command")
+      ?.execute(
+        "id",
+        { plan: ref, notes: ["05"], message: "做 05" },
+        undefined,
+        undefined,
+        ctx(root),
+      );
+    // 主分支自己往前走：合并只能被拒。
+    await (await import("node:fs/promises")).writeFile(`${root}/main.txt`, "main\n", "utf8");
+    await run("git", ["add", "."], { cwd: root });
+    await run("git", ["commit", "-qm", "main 前进"], { cwd: root });
+
+    const completed = textOf(
+      await tools
+        .get("orchestrator_write")
+        ?.execute(
+          "id",
+          { op: "complete", plan: ref, note: "05", evidence: ["想合并但不 ff"] },
+          undefined,
+          undefined,
+          ctx(root),
+        ),
+    );
+    expect(completed).toContain("✗ 未合并");
+    expect(slash(completed)).toContain(slash(`现场保留在 ${root}/.worktrees/note-05`));
+    expect(await eventCount(stateRoot, "worker.merge_blocked")).toBe(1);
+    expect(await eventCount(stateRoot, "worktree.merged")).toBe(0);
+    expect(existsSync(`${root}/.worktrees/note-05`)).toBe(true);
+    // 分支还在：现场原样留给 rework 或人。
+    const { stdout: branch } = await run("git", ["rev-parse", "--verify", "wt/note-05"], {
+      cwd: root,
+    });
+    expect(branch.trim()).not.toBe("");
+  });
+
+  it("幂等：complete 已回收，worker settle 再跑不重复合并", async () => {
+    const { hooks } = await realWorktree();
+    const sessions: FakeSession[] = [];
+    const { tools, stateRoot } = await setup({
+      worktree: hooks,
+      makeSession: () => {
+        // 不自动结束：让句柄在 `complete` 那一刻还活着，settle 留到后面手动触发。
+        const session = fakeSession(true, false);
+        sessions.push(session);
+        return session;
+      },
+    });
+    const { root, ref } = await repoWithPlan([reviewNote("05")]);
+    await tools
+      .get("orchestrator_command")
+      ?.execute(
+        "id",
+        { plan: ref, notes: ["05"], message: "做 05" },
+        undefined,
+        undefined,
+        ctx(root),
+      );
+    const completed = textOf(
+      await tools
+        .get("orchestrator_write")
+        ?.execute(
+          "id",
+          { op: "complete", plan: ref, note: "05", evidence: ["先 complete"] },
+          undefined,
+          undefined,
+          ctx(root),
+        ),
+    );
+    expect(completed).toContain("已合并并回收现场 note-05");
+    expect(await eventCount(stateRoot, "worktree.merged")).toBe(1);
+
+    // 句柄还活着：回收后必须已经收工（cwd 不存在了）。
+    const listed = textOf(
+      await tools
+        .get("orchestrator_state")
+        ?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
+    );
+    expect(listed).toContain("note-05 · wt/note-05 · 已回收（merged）");
+
+    // 再触发一次 settle：现场已 removed，不许再合并、不许再落事件。
+    sessions[0]?.finish?.();
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(await eventCount(stateRoot, "worktree.merged")).toBe(1);
+    expect(await eventCount(stateRoot, "worktree.removed")).toBe(1);
+  });
+
+  it("回收后同组再派：重建现场（再落一条 worktree.created）", async () => {
+    const { hooks, installs } = await realWorktree();
+    const sessions: FakeSession[] = [];
+    const { tools, stateRoot } = await setup({
+      worktree: hooks,
+      makeSession: () => {
+        // 第一代自动结束（settle 不会触发合并：note 还没 completed）；第二代挂着不动。
+        const session = sessions.length === 0 ? fakeSession() : fakeSession(true, false);
+        sessions.push(session);
+        return session;
+      },
+    });
+    const { root, ref } = await repoWithPlan([reviewNote("05")]);
+    const dispatch = tools.get("orchestrator_command");
+    await dispatch?.execute(
+      "id",
+      { plan: ref, notes: ["05"], message: "做 05" },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+    await tools
+      .get("orchestrator_write")
+      ?.execute(
+        "id",
+        { op: "complete", plan: ref, note: "05", evidence: ["完成并回收"] },
+        undefined,
+        undefined,
+        ctx(root),
+      );
+    const site = `${root}/.worktrees/note-05`;
+    expect(existsSync(site)).toBe(false);
+    expect(await eventCount(stateRoot, "worktree.created")).toBe(1);
+
+    // 同组再派（rework）：现场重建、再装一次依赖，不复用已删目录。
+    await dispatch?.execute(
+      "id",
+      { plan: ref, notes: ["05"], kind: "rework", message: "再改" },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+    expect(existsSync(site)).toBe(true);
+    expect(await eventCount(stateRoot, "worktree.created")).toBe(2);
+    expect(installs.map(slash)).toEqual([slash(site), slash(site)]);
   });
 
   it("worker 运行中 dispatch 立即返回摘要，不等整轮", async () => {

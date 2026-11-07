@@ -432,12 +432,16 @@ dispatch with the reason instead of letting the worker skip tests — it never s
 workspace. The plan stays anchored to the main workspace (absolute path), so `notes.json` still has exactly
 one writer. The worker must rebase onto the latest main commit and report "ready for `--ff-only` merge"; a
 conflicting rebase becomes `blocked` with the scene left intact. **Merging and cleanup are code, not a
-dispatch:** when every note of the group is `completed`, the plugin checks ff-only (`git merge-base
---is-ancestor`), then `git merge --ff-only wt/<key>`, removes the scene (`git -c core.longpaths=true
-worktree remove` with an `rm -rf` fallback + `worktree prune`) and the branch, and appends
-`worktree.merged` / `worktree.removed`. If it is not ff-only (diverged, dirty workspace, no rebase) it does
-**not** merge: it keeps the scene and appends one error (`worker.merge_blocked`) that `orchestrator_state`
-shows with a `✗`. Merges are serialized in-process (mutex + retry on git lock errors) so two scenes cannot
+dispatch:** the moment the group's last note reaches `completed` (whoever wrote it — worker settle or the
+orchestrator's own `orchestrator_write complete`; same code path, idempotent), the plugin checks ff-only
+(`git merge-base --is-ancestor`), then `git merge --ff-only wt/<key>`, removes the scene (`git -c
+core.longpaths=true worktree remove`, `--force` if that fails, then `rm -rf` because git leaves untracked
+files such as `node_modules/` behind, then `worktree prune`) and the branch, and appends `worktree.merged` /
+`worktree.removed`. `worktree.removed` is only written when the directory is really gone; a directory that
+survives the cleanup appends `worktree.leftover` instead (shown as `✗ 现场残留` together with the path to
+delete by hand). If it is not ff-only (diverged, dirty workspace, no rebase) it does **not** merge: it keeps
+the scene and appends one error (`worker.merge_blocked`) that `orchestrator_state` shows with a `✗`, and
+`complete` returns `✗ 未合并：…` right in its result text. Merges are serialized in-process (mutex + retry on git lock errors) so two scenes cannot
 interleave; `abort` and timeouts never touch a scene (a scene belongs to the group, not to one generation),
 and `abort` itself is group-scoped: `notes` stops only that group's worker, `plan` its whole plan, nothing
 stops everything. `dispatch` only honours a **live handle** — otherwise it spawns a new worker and the old
@@ -541,7 +545,13 @@ a summary or drops an index entry on its own; those are semantic choices for the
 
 ## Development
 
+验收口径是**在包目录里**跑（`cd packages/pi-toolkit && vp test --run`）：仓库根还挂着
+`.worktrees/*`（worker 现场 = 整份仓库副本，自带 `node_modules`），从根跑会把现场里的测试
+与现场 cwd 一起扫进来，红的是「假红」。根 `vite.config.ts` 的 `test.exclude` 已排除
+`**/.worktrees/**`，但 cwd 敏感的那几组测试仍然只保证在包目录里可信。
+
 ```bash
+cd packages/pi-toolkit && vp test --run && vp check
 pnpm --filter @kxh4892636/pi-toolkit test
 pnpm --filter @kxh4892636/pi-toolkit test:coverage
 pnpm --filter @kxh4892636/pi-toolkit check

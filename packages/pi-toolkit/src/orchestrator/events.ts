@@ -30,6 +30,8 @@ export const EVENT_TYPES = [
   "worktree.created",
   "worktree.merged",
   "worktree.removed",
+  /** 合并成功但目录没删干净（Windows 锁文件 / 权限）：一条 error，等人工删。 */
+  "worktree.leftover",
   "timeout",
   "timeout.diagnosed",
   "retry.scheduled",
@@ -290,6 +292,19 @@ export interface WorktreeRemovedPayload {
   readonly key: string;
   readonly branch: string;
   /** `merged`（合并成功后回收）。 */
+  readonly reason: string;
+  readonly worker?: string;
+}
+
+/**
+ * `worktree.leftover` 的正文：合并成功、分支已删，但目录没删干净。
+ *
+ * 不落 `worktree.removed`（目录还在），免得账本谎报“已回收”；记下目录与原因等人工删。
+ */
+export interface WorktreeLeftoverPayload {
+  readonly key: string;
+  readonly branch: string;
+  readonly directory: string;
   readonly reason: string;
   readonly worker?: string;
 }

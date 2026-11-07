@@ -53,6 +53,18 @@ export interface ToolRuntime {
    * 轮转种子据此指名要恢复的 Plan。worker 不注入。
    */
   readonly onPlan?: (plan: PlanRef) => void;
+  /**
+   * `complete` 落库后的回收口（只有编排方注入；worker 留空）。
+   *
+   * 复用 register 里 settle 路径同一个 `finishGroupOf`：组内 note 全 completed →
+   * `--ff-only` 合并 → 删现场。返回值直接拼进 `complete` 的文本 —— 合并失败必须
+   * **就地**告诉编排方（`✗ 未合并：…；现场保留 <path>`），不能只藏在 `state` 里。
+   */
+  readonly onNoteCompleted?: (input: {
+    readonly plan: PlanRef;
+    readonly workspace: string;
+    readonly note: string;
+  }) => Promise<string | undefined>;
 }
 
 /** 工具执行结果里的一段模型可见文本。 */
@@ -164,6 +176,11 @@ export const createToolRuntime = (options: {
   released?: (noteId: string) => boolean;
   interrupted?: InterruptedAccess;
   onPlan?: (plan: PlanRef) => void;
+  onNoteCompleted?: (input: {
+    readonly plan: PlanRef;
+    readonly workspace: string;
+    readonly note: string;
+  }) => Promise<string | undefined>;
 }): ToolRuntime => {
   return {
     limits: options.limits,
@@ -173,6 +190,7 @@ export const createToolRuntime = (options: {
     ...(options.released === undefined ? {} : { released: options.released }),
     ...(options.interrupted === undefined ? {} : { interrupted: options.interrupted }),
     ...(options.onPlan === undefined ? {} : { onPlan: options.onPlan }),
+    ...(options.onNoteCompleted === undefined ? {} : { onNoteCompleted: options.onNoteCompleted }),
     workspace(ctx: ExtensionToolContext): string {
       // worker 侧：句柄里的 `plan` 绝对路径优先，cwd 只当兜底。
       if (options.lockedPlan !== undefined) {

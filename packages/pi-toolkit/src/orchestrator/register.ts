@@ -9,6 +9,7 @@ import {
   type ExtensionAPI,
   type ExtensionContext,
 } from "@earendil-works/pi-coding-agent";
+import { existsSync } from "node:fs";
 import { Type } from "typebox";
 import type { ToolkitSettings } from "../settings.ts";
 import { installCrashGuard, stateDirectory } from "./errors.ts";
@@ -400,22 +401,53 @@ const retireWorker = (input: {
  * 组内 note 是否全部 completed（真相在 `notes.json`）。
  *
  * 现场属于**组**：只有整组干完才回收，否则下一代 worker（rework / 追加 / 重派）还要用它。
- * @param entry - 目标 worker。
+ * @param input - 目标组：Plan 与组内 note。
  * @param deps - 设置读取器。
  * @returns 组内每条 note 都 completed 返回 true；读不到文档 / 没有组 / 有未完成的返回 false。
  */
-const groupCompleted = async (entry: WorkerEntry, deps: OrchestratorDeps): Promise<boolean> => {
-  const notes = entry.notes ?? [];
-  if (entry.plan === undefined || notes.length === 0) return false;
+const groupCompleted = async (
+  input: { readonly plan: PlanRef; readonly notes: readonly string[] },
+  deps: OrchestratorDeps,
+): Promise<boolean> => {
+  if (input.notes.length === 0) return false;
   try {
-    const document = await loadDocument(entry.plan.directory, deps.settings().orchestrator);
-    return notes.every(
+    const document = await loadDocument(input.plan.directory, deps.settings().orchestrator);
+    return input.notes.every(
       (id) => document.notes.find((note) => note.id === id)?.status === "completed",
     );
   } catch {
     return false;
   }
 };
+
+/** 一条 note 所属的组：成员、路由键与现场（`entry` 只在句柄还活着时给）。 */
+interface GroupOfNote {
+  readonly plan: PlanRef;
+  readonly notes: readonly string[];
+  readonly worker: string;
+  readonly site: { readonly name: string; readonly branch: string; readonly directory: string };
+  readonly entry?: WorkerEntry;
+}
+
+/** 一次回收的结论：跳过（不满足条件或已经回收过）/ 合并成功 / 现场残留 / 不能 ff-only。 */
+type RecycleOutcome =
+  | { readonly status: "skipped"; readonly reason: string }
+  | { readonly status: "merged"; readonly commit?: string; readonly cleanup?: string }
+  | {
+      readonly status: "leftover";
+      readonly reason: string;
+      readonly directory: string;
+      readonly commit?: string;
+    }
+  | { readonly status: "blocked"; readonly reason: string; readonly directory: string };
+
+/**
+ * 进程内正在回收的组（`<plan 目录>::<组键>`）。
+ *
+ * `complete` 与 worker settle 可能同时对同一组触发回收：互斥让第二次直接跳过，
+ * 不会连着合并同一条分支、连着落两条 `worktree.merged`。
+ */
+const recycling = new Set<string>();
 
 /**
  * 组内 note 全 completed 后回收现场：`--ff-only` 合并回主工作区（代码执行，不经模型）。
@@ -424,8 +456,117 @@ const groupCompleted = async (entry: WorkerEntry, deps: OrchestratorDeps): Promi
  * 跑两条 git 命令既慢又容易忘。这里只在主分支能 fast-forward 时合并 —— 分叉的现场
  * （目录 + 分支）一律保留并落一条 error（`worker.merge_blocked`），等人工处理。
  *
+ * **两个入口共用这一份实现**：worker settle（`finishGroupOf`）与编排方 `complete`
+ * （`recycleAfterComplete`）—— 后者才是真机上唯一走过的那条（note 53）。
+ *
  * 账本：成功 `worktree.merged` + `worktree.removed`，失败 `worker.merge_blocked`。
- * 合并成功后 worker 也收工：它的 cwd 已经不存在，下次同组再派工是干净的新 worker + 新现场。
+ * @param input - 组（Plan + notes + 现场）与主工作区、依赖、账本。
+ * @returns 回收结论；调用方据此摘句柄、拼返回值。
+ */
+const recycleGroup = async (input: {
+  readonly workspace: string;
+  readonly deps: OrchestratorDeps;
+  readonly ledgerOf: () => ReturnType<typeof openLedger>;
+  readonly plan: PlanRef;
+  readonly notes: readonly string[];
+  /** 落账用的路由键（组的句柄键）。 */
+  readonly worker: string;
+  readonly site: { readonly name: string; readonly branch: string; readonly directory: string };
+}): Promise<RecycleOutcome> => {
+  const lock = `${input.plan.directory}::${input.site.name}`;
+  if (recycling.has(lock)) return { status: "skipped", reason: "回收进行中" };
+  recycling.add(lock);
+  try {
+    if (!(await groupCompleted({ plan: input.plan, notes: input.notes }, input.deps))) {
+      return { status: "skipped", reason: "组内还有未完成的 note" };
+    }
+    const hooks = input.deps.worktree ?? DEFAULT_WORKTREE_HOOKS;
+    let outcome: MergeOutcome;
+    try {
+      outcome = await hooks.merge({
+        workspace: input.workspace,
+        name: input.site.name,
+        branch: input.site.branch,
+      });
+    } catch (error) {
+      // 钩子自己抛错也要落账：合并失败不能变成一条未处理拒绕。
+      outcome = {
+        merged: false,
+        branch: input.site.branch,
+        directory: input.site.directory,
+        reason: error instanceof Error ? error.message : String(error),
+      };
+    }
+    if (!outcome.merged) {
+      const reason = outcome.reason ?? "未知原因";
+      input.ledgerOf().append({
+        type: "worker.merge_blocked",
+        payload: {
+          worker: input.worker,
+          worktree: input.site.name,
+          branch: input.site.branch,
+          directory: outcome.directory,
+          reason,
+        },
+      });
+      return { status: "blocked", reason, directory: outcome.directory };
+    }
+    input.ledgerOf().append({
+      type: "worktree.merged",
+      payload: {
+        key: input.site.name,
+        branch: input.site.branch,
+        worker: input.worker,
+        ...(outcome.commit === undefined ? {} : { commit: outcome.commit }),
+        ...(outcome.cleanup === undefined ? {} : { cleanup: outcome.cleanup }),
+      },
+    });
+    // 只有目录**真的**不存在才落 `worktree.removed`：`git worktree remove` 不删未跟踪文件
+    // （`node_modules/`、空壳目录），账本谎报“已回收”会让“同组再派要不要重建”判错。
+    const gone = outcome.removed ?? !existsSync(input.site.directory);
+    if (!gone) {
+      const reason = outcome.cleanup ?? "目录删不掉（未跟踪文件 / 锁文件 / 权限）";
+      input.ledgerOf().append({
+        type: "worktree.leftover",
+        payload: {
+          key: input.site.name,
+          branch: input.site.branch,
+          directory: input.site.directory,
+          reason,
+          worker: input.worker,
+        },
+      });
+      return {
+        status: "leftover",
+        reason,
+        directory: input.site.directory,
+        ...(outcome.commit === undefined ? {} : { commit: outcome.commit }),
+      };
+    }
+    input.ledgerOf().append({
+      type: "worktree.removed",
+      payload: {
+        key: input.site.name,
+        branch: input.site.branch,
+        reason: "merged",
+        worker: input.worker,
+      },
+    });
+    return {
+      status: "merged",
+      ...(outcome.commit === undefined ? {} : { commit: outcome.commit }),
+      ...(outcome.cleanup === undefined ? {} : { cleanup: outcome.cleanup }),
+    };
+  } finally {
+    recycling.delete(lock);
+  }
+};
+
+/**
+ * worker 收工（settle）时的回收入口：现场记在句柄上，合并成功后摘掉它并让这一代收工。
+ *
+ * 现场已被回收过（`complete` 先触发过）就必须什么都不做：`entry.worktree` 已删，
+ * 这里直接返回，不会再合并一次（幂等）。
  * @param input - 目标 worker、主工作区、依赖与账本。
  */
 const finishGroupOf = async (input: {
@@ -436,57 +577,42 @@ const finishGroupOf = async (input: {
   readonly onRetire: (entry: WorkerEntry, reason: string) => void;
 }): Promise<void> => {
   const worktree = input.entry.worktree;
-  if (worktree === undefined) return;
-  if (!(await groupCompleted(input.entry, input.deps))) return;
-  const hooks = input.deps.worktree ?? DEFAULT_WORKTREE_HOOKS;
-  const worker = input.entry.planDirectory;
-  let outcome: MergeOutcome;
-  try {
-    outcome = await hooks.merge({
-      workspace: input.workspace,
-      name: worktree.name,
-      branch: worktree.branch,
-    });
-  } catch (error) {
-    // 钩子自己抛错也要落账：合并失败不能变成一条未处理拒绕。
-    outcome = {
-      merged: false,
-      branch: worktree.branch,
-      directory: worktree.directory,
-      reason: error instanceof Error ? error.message : String(error),
-    };
-  }
-  if (!outcome.merged) {
-    input.ledgerOf().append({
-      type: "worker.merge_blocked",
-      payload: {
-        worker,
-        worktree: worktree.name,
-        branch: worktree.branch,
-        directory: outcome.directory,
-        reason: outcome.reason ?? "未知原因",
-      },
-    });
-    return;
-  }
-  input.ledgerOf().append({
-    type: "worktree.merged",
-    payload: {
-      key: worktree.name,
-      branch: worktree.branch,
-      worker,
-      ...(outcome.commit === undefined ? {} : { commit: outcome.commit }),
-      ...(outcome.cleanup === undefined ? {} : { cleanup: outcome.cleanup }),
-    },
+  const plan = input.entry.plan;
+  const notes = input.entry.notes ?? [];
+  if (worktree === undefined || plan === undefined || notes.length === 0) return;
+  const outcome = await recycleGroup({
+    workspace: input.workspace,
+    deps: input.deps,
+    ledgerOf: input.ledgerOf,
+    plan,
+    notes,
+    worker: input.entry.planDirectory,
+    site: worktree,
   });
-  input.ledgerOf().append({
-    type: "worktree.removed",
-    payload: { key: worktree.name, branch: worktree.branch, reason: "merged", worker },
-  });
-  // 现场已经没了：条目上的 worktree 一并删掉，否则同一键再派会拿一个不存在的目录。
+  if (outcome.status === "skipped" || outcome.status === "blocked") return;
+  // merged 与 leftover 都算这一代收工：分支已经没了，cwd 不能再当现场用。
   delete input.entry.worktree;
-  // 它的 cwd 已经不存在：让这一代收工，下一次派工是干净的新 worker。
-  input.onRetire(input.entry, "merged");
+  input.onRetire(input.entry, outcome.status);
+};
+
+/**
+ * 把回收结论折成一句给编排方看的话（拼进 `complete` 的返回值）。
+ * @param outcome - 回收结论。
+ * @param key - 组键（现场名）。
+ * @returns 合并 / 现场残留 / 不能合并各一句；跳过时说 `undefined`（无事可报，不要噪声）。
+ */
+const recycleLine = (outcome: RecycleOutcome, key: string): string | undefined => {
+  if (outcome.status === "skipped") return undefined;
+  if (outcome.status === "merged") {
+    const commit = outcome.commit === undefined ? "" : `（主分支 ${outcome.commit.slice(0, 8)}）`;
+    return `已合并并回收现场 ${key}${commit}`;
+  }
+  if (outcome.status === "leftover") {
+    return `⚠ 已合并，但现场没删干净（${outcome.reason}）：手动删 ${outcome.directory}`;
+  }
+  // 合并钩子的原因里往往已经写了“现场保留在 <path>”：不要再叠一遍同样的路径。
+  const keep = outcome.reason.includes(outcome.directory) ? "" : `；现场保留 ${outcome.directory}`;
+  return `✗ 未合并：${outcome.reason}${keep}`;
 };
 
 /**
@@ -534,7 +660,7 @@ const createCommandTool = (
     promptGuidelines: [
       "一组无依赖 note 一个 worker：用 notes 显式给出这一组；组内不得互相 blocked_by。",
       "现场属于组：第一次派工该组时建 `.worktrees/<组键>`（单 note 为 note-<id>，组为 grp-<id-id>，分支 wt/<组键>）并装一次依赖，之后同组任何一代 worker 都落回同一个目录；Plan 级派工（无 notes）与临时 worker 没有现场。没有开关可改，要隔离就换组。",
-      "组内 note 全 completed 后代码自动做 --ff-only 合并且成功即删现场；不能 ff-only 就不合并、保留现场并落一条 error（`orchestrator_state` 里带 ✗）。不要派“回收现场”的指令。",
+      "组内 note 全 completed 后代码自动做 --ff-only 合并且成功即删现场（`complete` 落地那一刻就触发，不等 worker settle）；不能 ff-only 就不合并、保留现场并落一条 error（`orchestrator_state` 里带 ✗，`complete` 的返回值里也带 `✗ 未合并：…`）。不要派“回收现场”的指令。",
       "dispatch 只认**进程内的 live 句柄**：句柄不在就新建一个 worker（旧 jsonl 只当历史，不接管）。续跑落盘会话的唯一入口是 orchestrator_state 的 op=resume。",
       "pass / rework / answer 带 note 时路由到包含它的组；该 note 不属于任何组就自动以 [note] 单独成组投递。只有 note 本身不在 Plan 里才报错。",
       "默认 delivery=steer：追加口径在本轮生效；批量派活或不希望打断时显式 delivery=queue。硬停整个 worker 用 op=abort（abort 不动现场）。",
@@ -1153,7 +1279,12 @@ const createStateTool = (
               : `已回收${site.reason === undefined ? "" : `（${site.reason}）`}`;
         const install = site.installMs === undefined ? "" : ` · 依赖 ${site.installMs}ms`;
         const owner = site.worker === undefined ? "" : ` · ${site.worker}`;
-        lines.push(`${site.key} · ${site.branch} · ${phase}${install}${owner}`);
+        // 目录没删干净：不能当已回收（人工删之前同组再派会落回一个假现场）。
+        const leftover =
+          site.leftover === undefined
+            ? ""
+            : ` · ✗ 现场残留：${site.leftover.reason}（手动删 ${site.directory}）`;
+        lines.push(`${site.key} · ${site.branch} · ${phase}${install}${owner}${leftover}`);
       }
     }
     if (orphans.length > 0) {
@@ -1395,10 +1526,93 @@ export const registerOrchestrator = (
     domainRoot: DEFAULT_DOMAIN_ROOT,
     interrupted,
     onPlan: rememberPlan,
+    // 口径 A：`complete` 落库后立刻回收（与 worker settle 共用 `recycleGroup`）。
+    onNoteCompleted: (input) => recycleAfterComplete(input),
   });
 
   /** 进程内的 worker 句柄表（**投影的缓存**：只放 session 与句柄，运行态看账本）。 */
   const registry: WorkerRegistry = createRegistry();
+
+  /**
+   * 认回一条 note 所属的组（成员 + 现场）。
+   *
+   * 现场属于**组**，而编排方的 `complete` 往往发生在句柄已经收工（settle / abort）之后：
+   * 那时只有账本投影还记得这个组的成员与它的现场，不能只看句柄表。
+   * @param plan - 目标 Plan。
+   * @param note - 刚 `complete` 的 note。
+   * @returns 组；现场已经回收过（`phase` 不是 created）/ 不属于任何组时 undefined。
+   */
+  const groupOfNote = (plan: PlanRef, note: string): GroupOfNote | undefined => {
+    const live = findByNote(registry, plan.directory, note);
+    const liveNotes = live?.notes ?? [];
+    if (
+      live !== undefined &&
+      live.plan !== undefined &&
+      live.worktree !== undefined &&
+      liveNotes.length > 0
+    ) {
+      return {
+        plan: live.plan,
+        notes: liveNotes,
+        worker: live.planDirectory,
+        site: live.worktree,
+        entry: live,
+      };
+    }
+    const state = projectionOf().state();
+    const ref = planRefOf(plan);
+    for (const worker of state.workers.values()) {
+      if (worker.planRef !== ref || !worker.notes.includes(note)) continue;
+      const name = groupWorktreeName(worker.notes);
+      const site = name === undefined ? undefined : state.worktrees.get(name);
+      // 已经 merged / removed 的现场不再碰（幂等的那一半）；同一 note 换过组时继续找那个还活着的。
+      if (name === undefined || site === undefined || site.phase !== "created") continue;
+      return {
+        plan,
+        notes: worker.notes,
+        worker: worker.worker,
+        site: { name, branch: site.branch, directory: site.directory },
+      };
+    }
+    return undefined;
+  };
+
+  /**
+   * 编排方 `orchestrator_write complete` 之后的回收（口径 A：`complete` 即触发）。
+   *
+   * 复用 settle 路径同一个 `recycleGroup`，不另写一套：组内全 completed → ff-only 合并 →
+   * `worktree.merged` + `worktree.removed`；失败落 `worker.merge_blocked` 并保留现场。
+   * 回收后该组句柄**收工**（`worker.exit` + 摘句柄）：它的 cwd 已经不存在，同组再派是
+   * 干净的新 worker + 重建的新现场（`worktree.created` 再落一条）。
+   * @param input - 刚 `complete` 的 note、Plan 与工作区。
+   * @returns 拼进 `complete` 返回值的一句话；无事可做时 undefined。
+   */
+  const recycleAfterComplete = async (input: {
+    readonly plan: PlanRef;
+    readonly workspace: string;
+    readonly note: string;
+  }): Promise<string | undefined> => {
+    const group = groupOfNote(input.plan, input.note);
+    if (group === undefined) return undefined;
+    const outcome = await recycleGroup({
+      workspace: input.workspace,
+      deps,
+      ledgerOf,
+      plan: group.plan,
+      notes: group.notes,
+      worker: group.worker,
+      site: group.site,
+    });
+    if (
+      (outcome.status === "merged" || outcome.status === "leftover") &&
+      group.entry !== undefined
+    ) {
+      // 现场已经没了（或分支已删、目录残留）：句柄留着只会让下一次投递落进死目录/脏目录。
+      delete group.entry.worktree;
+      retireWorker({ registry, ledgerOf, entry: group.entry, reason: outcome.status });
+    }
+    return recycleLine(outcome, group.site.name);
+  };
 
   /**
    * TUI 侧边栏（纯界面）：只读 `plan.ts` / `store.ts` 与句柄表，不注册工具、不发起回合。

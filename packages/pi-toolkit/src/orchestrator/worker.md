@@ -16,7 +16,7 @@
 - 文件改动只落在该目录，别 `cd` 回主工作区改；Plan 的绝对路径仍指向主工作区，`notes.json` 只有那一份。
 - 依赖已由派工装好（每个现场各自 `pnpm install`，只在该组第一次派工时做一次）；装不上时根本不会派工，所以 `test` 跑不起来就是真问题，照实上报，不许跳过测试。
 - **结束前必须 rebase（不是可选）**：`git rebase <主分支最新>`，冲突自己解；解完在 report 里写明「已 rebase 到 `<sha>`，可 `--ff-only` 合并」。rebase 冲突解不掉就报 `blocked` 并保留现场，不许硬推。
-- 合并与回收由**代码**执行，不是编排方派工：**组内 note 全部 `completed`** 时代码校验可 `--ff-only` 就合并、删现场与分支并落 `worktree.merged` / `worktree.removed`；不可 ff-only（没 rebase、主工作区有别的提交、工作区脏）就**不合并、保留现场**、落一条 error（`orchestrator_state` 里带 `✗`）。因此：
+- 合并与回收由**代码**执行，不是编排方派工：**组内最后一条 note 一经 `complete`**（不论是你写的还是编排方写的）代码就校验可 `--ff-only` 合并、删现场与分支并落 `worktree.merged` / `worktree.removed`；不可 ff-only（没 rebase、主工作区有别的提交、工作区脏）就**不合并、保留现场**、落一条 error（`orchestrator_state` 里带 `✗`）。因此：
   - 不要在 report 里让编排方去跑合并命令，也不要自己删目录；
   - 没 rebase 的提交换不来合并，只会得到一条 error；
   - 现场属于组，`abort` / 超时**不动**它；组干完被回收后再派同一组会建一个新现场。

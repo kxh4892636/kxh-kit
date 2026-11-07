@@ -83,6 +83,13 @@ export interface MergeOutcome {
   readonly commit?: string;
   /** 回收说明（目录残留、分支删除失败等）；`merged: true` 时填。 */
   readonly cleanup?: string;
+  /**
+   * 合并成功后现场目录是否真的不在了。
+   *
+   * `false` = 合并成功但目录残留（Windows 锁文件 / 权限）：不能当作已回收，要落一条 error
+   * 让人工删。省略表示实现没报（调用方自己 `existsSync` 兜底）。
+   */
+  readonly removed?: boolean;
   /** 没合并的原因：分叉、merge 报错、主工作区脏导致拒绝；`merged: false` 时填。 */
   readonly reason?: string;
 }
@@ -190,8 +197,10 @@ export const installDependencies = async (
 /**
  * 回收 worktree 与分支。
  *
- * 顺序：`git worktree remove --force`（带 `core.longpaths`）→ 目录还在就自己删 →
- * `git worktree prune` → `git branch -D`。失败不抛，写进返回值，由调用方决定怎么提示。
+ * 顺序：`git worktree remove`（没加 `--force` 失败再带 `--force`）→ 目录还在就自己
+ * `rm -rf`（`git worktree remove` **不删未跟踪文件**：`node_modules/`、空壳 `apps/`
+ * 会留在原地，`ls .worktrees` 里仍看得见旧名字）→ `git worktree prune` → `git branch -D`。
+ * 失败不抛，写进返回值，由调用方决定怎么提示；`removed` 只看目录**真的**不存在。
  * @param input - 工作区根与名字。
  * @returns 回收结果。
  */
@@ -202,22 +211,32 @@ export const removeWorktree = async (input: {
   const name = sanitizeWorktreeName(input.name);
   const directory = join(input.workspace, WORKTREE_ROOT, name);
   const notes: string[] = [];
-  try {
+  const remove = async (force: boolean): Promise<void> => {
     await git(input.workspace, [
       "-c",
       "core.longpaths=true",
       "worktree",
       "remove",
-      "--force",
+      ...(force ? ["--force"] : []),
       directory,
     ]);
+  };
+  try {
+    await remove(false);
   } catch (error) {
-    notes.push(`git worktree remove 失败: ${describe(error)}`);
+    // 脏现场（未提交的改动 / 被锁住的 node_modules）只有 --force 才删得动。
+    notes.push(`git worktree remove 失败，改 --force: ${describe(error)}`);
+    try {
+      await remove(true);
+    } catch (forced) {
+      notes.push(`git worktree remove --force 也失败: ${describe(forced)}`);
+    }
   }
   if (existsSync(directory)) {
     try {
+      // git 不删未跟踪文件（node_modules / 生成目录），这一趟才是真正的“删干净”。
       await rm(directory, { recursive: true, force: true, maxRetries: 5 });
-      notes.push("目录有残留，已用 rm -rf 补删（Windows 长路径）");
+      notes.push("目录有残留（未跟踪文件），已用 rm -rf 补删");
     } catch (error) {
       notes.push(`补删目录失败: ${describe(error)}`);
     }
@@ -356,6 +375,7 @@ const mergeOnce = async (input: {
     directory,
     ...(commit === undefined ? {} : { commit }),
     cleanup: removed.note,
+    removed: removed.removed,
   };
 };
 

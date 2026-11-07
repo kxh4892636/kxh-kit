@@ -239,9 +239,19 @@ const completeNote = async (
     replaceNote(document, next),
     runtime.limits(),
   );
+  // 口径 A：`complete` 即触发组的现场回收（与 worker settle 路径同一份实现）。
+  // note 已经落库，回收失败不能让整次调用变成异常：结论折成返回值里的一行。
+  const recycle =
+    runtime.onNoteCompleted === undefined
+      ? undefined
+      : await runtime.onNoteCompleted({ plan, workspace, note: id }).then(
+          (line) => line,
+          (error: unknown) => `✗ 回收触发失败：${messageOf(error)}`,
+        );
   const remaining = committed.notes.filter((item) => item.status !== "completed").length;
   return [
     `已完成 note ${id} ${note.title}`,
+    ...(recycle === undefined ? [] : [recycle]),
     statusLine(committed),
     remaining === 0
       ? "全部 note 已完成；确认参考价值后 move 到 reference。"
@@ -556,7 +566,7 @@ export const createWriteTool = (runtime: ToolRuntime): ToolDefinition => ({
   name: "orchestrator_write",
   label: "Orchestrator Write",
   description:
-    "写 Orchestrator 的 Plan 与 notes DAG。init 建 Plan；create / update 维护 note；link 改依赖；status 设 pending / in_progress / waiting（需 needs: answer | review）/ blocked；complete 只接受 waiting 且 needs=review 的 note，写 evidence 并通过 Plan 校验后置 completed；set_index 维护关键索引；merge / delete 合并删除；move 迁移生命周期；repair 用模型给出的 title/description/content 与 index 修复无法通过校验的文档（脚本不自作主张截断或删除）。completed 只能由 complete 设置。",
+    "写 Orchestrator 的 Plan 与 notes DAG。init 建 Plan；create / update 维护 note；link 改依赖；status 设 pending / in_progress / waiting（需 needs: answer | review）/ blocked；complete 只接受 waiting 且 needs=review 的 note，写 evidence 并通过 Plan 校验后置 completed；组内 note 因此全 completed 时，complete 立刻做 --ff-only 合并并回收现场（失败时返回值里带 `✗ 未合并：…；现场保留 <path>`）；set_index 维护关键索引；merge / delete 合并删除；move 迁移生命周期；repair 用模型给出的 title/description/content 与 index 修复无法通过校验的文档（脚本不自作主张截断或删除）。completed 只能由 complete 设置。",
   promptSnippet: "Create and maintain Orchestrator plans and their notes DAG.",
   parameters: Type.Unsafe<Record<string, unknown>>({
     type: "object",

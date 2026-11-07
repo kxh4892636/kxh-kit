@@ -29,6 +29,7 @@ describe("事件 schema", () => {
       "worktree.created",
       "worktree.merged",
       "worktree.removed",
+      "worktree.leftover",
       "timeout",
       "timeout.diagnosed",
       "retry.scheduled",

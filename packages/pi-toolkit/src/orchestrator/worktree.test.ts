@@ -1,5 +1,5 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
-import { existsSync } from "node:fs";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { existsSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { execFile } from "node:child_process";
@@ -96,6 +96,23 @@ describe("worktree 生命周期（真 git）", () => {
     expect(existsSync(first.directory)).toBe(false);
     const branches = await run("git", ["branch", "--list", "wt/note-07"], { cwd: root });
     expect(branches.stdout.trim()).toBe("");
+  });
+
+  it("回收时把未跟踪文件也删干净（node_modules 这类 git 不删的东西）", async () => {
+    const root = await tempRepo();
+    const tree = await ensureWorktree({ workspace: root, name: "note-09" });
+    // 未跟踪的东西：`git worktree remove` 不动它们，必须由我们 `rm -rf` 补删。
+    await mkdir(join(tree.directory, "node_modules", "dep"), { recursive: true });
+    await writeFile(join(tree.directory, "node_modules", "dep", "index.js"), "x\n", "utf8");
+    // 脏活树：`git worktree remove` 不带 `--force` 会拒，走 --force 回退。
+    await writeFile(join(tree.directory, "README.md"), "改过的\n", "utf8");
+
+    const removed = await removeWorktree({ workspace: root, name: "note-09" });
+    expect(removed.removed).toBe(true);
+    expect(removed.leftover).toBe(false);
+    expect(existsSync(tree.directory)).toBe(false);
+    // `.worktrees` 里不再有旧名字（否则同组再派会把残留目录当现场复用）。
+    expect(readdirSync(join(root, WORKTREE_ROOT))).not.toContain("note-09");
   });
 
   it("worktree 的改动提交后可直接合并到主分支", async () => {

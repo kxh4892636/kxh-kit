@@ -157,6 +157,11 @@ export interface ProjectedWorktree {
   commit?: string;
   /** 回收原因（`worktree.removed`）。 */
   reason?: string;
+  /**
+   * 合并成功但目录没删干净（`worktree.leftover`）：不能当已回收，`state` 里标 ✗。
+   * 仍然算 `phase: "merged"`（主分支已经拿到提交、分支已删），只是现场还在。
+   */
+  leftover?: { readonly at: string; readonly reason: string };
   /** `pnpm install` 花的时间（毫秒）。 */
   installMs?: number;
 }
@@ -526,6 +531,23 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
         ...(payloadString(payload, "reason") === undefined
           ? {}
           : { reason: payloadString(payload, "reason") as string }),
+      });
+      return true;
+    }
+    case "worktree.leftover": {
+      const key = payloadString(payload, "key");
+      if (key === undefined) return true;
+      const previous = state.worktrees.get(key);
+      state.worktrees.set(key, {
+        key,
+        branch: payloadString(payload, "branch") ?? previous?.branch ?? branchOfWorktree(key),
+        directory: payloadString(payload, "directory") ?? previous?.directory ?? "",
+        phase: previous?.phase === "created" ? "merged" : (previous?.phase ?? "merged"),
+        at: event.at,
+        ...(previous?.worker === undefined ? {} : { worker: previous.worker }),
+        ...(previous?.commit === undefined ? {} : { commit: previous.commit }),
+        ...(previous?.installMs === undefined ? {} : { installMs: previous.installMs }),
+        leftover: { at: event.at, reason: payloadString(payload, "reason") ?? "未知原因" },
       });
       return true;
     }
