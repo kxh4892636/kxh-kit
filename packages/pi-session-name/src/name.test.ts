@@ -119,19 +119,6 @@ describe("namingInput", () => {
     expect(namingInput(raw)).toBe("pi-session-name 插件有异常case, 以下输入 阅读相关文档");
   });
 
-  it("strips a block whose closing tag is indented", () => {
-    const raw =
-      '<skill name="ecom-x-flow" location="/skills/ecom-x-flow/SKILL.md">\n' +
-      " References are relative to /skills/ecom-x-flow.\n\n流程正文\n   </skill> 阅读相关文档";
-    expect(namingInput(raw)).toBe("阅读相关文档");
-  });
-
-  it("strips a block that uses CRLF line endings", () => {
-    const raw =
-      '<skill name="alpha" location="/skills/alpha/SKILL.md">\r\n正文\r\n</skill>\r\n修一下';
-    expect(namingInput(raw)).toBe("修一下");
-  });
-
   it("keeps a request after several skill blocks", () => {
     const raw = `${block("alpha", "a")} ${block("beta", "b")} 排查打包失败`;
     expect(namingInput(raw)).toBe("排查打包失败");

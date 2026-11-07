@@ -11,9 +11,8 @@ picker with a short, recognizable title instead of the raw first prompt.
 - Skill invocations are filtered out of the naming input first: expanded
   `<skill name="…" location="…">…</skill>` blocks (for example from `$name` expansion) and a leading
   `/skill:<name>` command are removed, so the title reflects the user's request. Blocks are stripped
-  wherever they appear (an indented closing tag such as `\n   </skill>` and CRLF line endings are
-  tolerated). A bare invocation with no remaining request is named after the skill. The message
-  actually sent to the model is untouched.
+  wherever they appear. A bare invocation with no remaining request is named after the skill. The
+  message actually sent to the model is untouched.
 - If there is no model, no configured auth, the request fails, or the reply has no usable text, it
   falls back to a deterministic truncation of the filtered input.
 - Names are cleaned and truncated to **21 Unicode code points**: surrounding whitespace, markdown

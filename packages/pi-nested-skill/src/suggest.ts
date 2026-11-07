@@ -25,15 +25,16 @@ export interface CommandsSource {
 
 const DOLLAR_PREFIX = /(?:^|\s)\$([^\s$]*)$/u;
 
+/** Prefix pi uses for skill-backed slash commands. */
+const SKILL_PREFIX = "skill:";
+
 /** Project `pi.getCommands()` into deduped skill entries, stripping `skill:`. */
 export function skillEntries(commands: readonly SlashCommandInfo[]): SkillEntry[] {
   const seen = new Set<string>();
   const entries: SkillEntry[] = [];
   for (const command of commands) {
-    if (command.source !== "skill") continue;
-    const name = command.name.startsWith("skill:")
-      ? command.name.slice("skill:".length)
-      : command.name;
+    if (command.source !== "skill" || !command.name.startsWith(SKILL_PREFIX)) continue;
+    const name = command.name.slice(SKILL_PREFIX.length);
     if (name.length === 0 || seen.has(name)) continue;
     seen.add(name);
     entries.push({ name, description: command.description });

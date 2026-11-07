@@ -26,6 +26,7 @@ describe("skillEntries", () => {
       command("skill:alpha", "Alpha"),
       command("skill:alpha", "duplicate"),
       command("skill:beta"),
+      command("unprefixed"),
       { ...command("review"), source: "prompt" },
     ]);
     expect(entries).toEqual([

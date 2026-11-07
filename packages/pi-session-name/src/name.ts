@@ -17,11 +17,10 @@ const LEADING_MARKERS = /^(?:#{1,6}\s*|[-*+]\s+|>\s*|\d+[.)]\s*)+/u;
 const TITLE_LABEL = /^(?:标题|名称|title|name)\s*[:：]\s*/iu;
 
 /**
- * Expanded skill wrapper: `<skill name="…" location="…">\n…\n</skill>`.
- * Tolerates CRLF and an indented closing tag (`\n   </skill>`) as produced by
- * pasted blocks or renderers that indent the body.
+ * Expanded skill wrapper in the host's exact shape:
+ * `<skill name="…" location="…">\n…\n</skill>`.
  */
-const SKILL_BLOCK = /<skill name="([^"]*)"[^>]*>\r?\n[\s\S]*?\r?\n[ \t]*<\/skill>/gu;
+const SKILL_BLOCK = /<skill name="([^"]*)"[^>]*>\n[\s\S]*?\n<\/skill>/gu;
 
 /** Forced skill command, e.g. `/skill:pdf-tools extract report.pdf`. */
 const SKILL_COMMAND = /^\/skill:([a-z0-9-]+)(?:\s+([\s\S]*))?\s*$/u;
