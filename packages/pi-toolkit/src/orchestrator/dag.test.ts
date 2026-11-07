@@ -27,7 +27,7 @@ const limits: OrchestratorSettings = {
   rotateAt: 0.9,
   workerTimeoutMs: 1_800_000,
   softStallMs: 900_000,
-  wakeOnReport: false,
+  retryLimit: 2,
 };
 
 const note = (overrides: Partial<NoteNode> = {}): NoteNode => ({

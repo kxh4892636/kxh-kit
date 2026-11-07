@@ -21,9 +21,14 @@ export const EVENT_TYPES = [
   "note.pass",
   "worker.spawned",
   "worker.exit",
+  "worker.suspended",
+  "worker.resumed",
   "worker.merged",
   "worker.merge_blocked",
   "timeout",
+  "timeout.diagnosed",
+  "retry.scheduled",
+  "retry.exhausted",
   "state.pulled",
   "interrupted.forgotten",
   "interrupted.cleared",
@@ -168,6 +173,12 @@ export interface WorkerSpawnedPayload {
   readonly sessionPath?: string;
   readonly resumed?: boolean;
   readonly startedAt?: string;
+  /** 子 worker 的上级路由键（顶层 worker 不填）。 */
+  readonly parent?: string;
+  /** 层级：0 = 编排方派的 worker，1 = 上层 worker 派的子 worker。 */
+  readonly depth?: number;
+  /** 这一代是重派出来的：上一次超时的 `timeout` 事件 seq。 */
+  readonly retryOf?: number;
   readonly worktree?: {
     readonly name: string;
     readonly branch: string;
@@ -180,6 +191,26 @@ export interface WorkerExitPayload {
   readonly worker: string;
   readonly reason: string;
   readonly notes?: readonly string[];
+}
+
+/**
+ * `worker.suspended` 的正文：会话结束 / 崩溃，但 jsonl 还在，**可以恢复**。
+ *
+ * 与 `worker.exit` 的区别就是能不能恢复：`exit` 意味着会话已作废（abort / 超时），
+ * `suspended` 意味着只是这一代进程不在了，`resume` 能拿同一份 jsonl 接着跑。
+ */
+export interface WorkerSuspendedPayload {
+  readonly worker: string;
+  readonly reason: string;
+  readonly notes?: readonly string[];
+}
+
+/** `worker.resumed` 的正文：把一条孤儿 worker 从 jsonl 接着跑起来。 */
+export interface WorkerResumedPayload {
+  readonly worker: string;
+  /** 被恢复的那一代的代数锚点（最后一次 spawned / exit / resumed 的 seq）。 */
+  readonly resumeOf: number;
+  readonly sessionPath?: string;
 }
 
 /**
@@ -224,6 +255,47 @@ export interface TimeoutPayload {
   };
   /** 距最后进展多久（毫秒）。 */
   readonly elapsedMs: number;
+}
+
+/** `timeout.diagnosed` 的正文：只读诊断 worker 给出的结论（全部可检查）。 */
+export interface TimeoutDiagnosedPayload {
+  readonly worker: string;
+  /** 重试计数用的键：note id（没有就组 / plan 引用）。 */
+  readonly retryKey: string;
+  readonly note?: string;
+  /** 一句话原因；解析失败时是“未能解析”。 */
+  readonly cause: string;
+  /** `split-note` / `narrow-scope` / `longer-timeout` / `change-strategy` / `needs-human`。 */
+  readonly adjust: readonly string[];
+  /** 给下一代 worker 的调整指令（`needs-human` 时为空）。 */
+  readonly retryMessage?: string;
+  readonly confidence: number;
+  /** 诊断输出是否被成功解析（false 时不会自动重试）。 */
+  readonly parsed: boolean;
+  /** 诊断本身失败 / 超时的原因。 */
+  readonly error?: string;
+}
+
+/** `retry.scheduled` 的正文：幂等键 `(retryKey, attempt)`，重放不会重复派工。 */
+export interface RetryScheduledPayload {
+  readonly worker: string;
+  readonly retryKey: string;
+  readonly note?: string;
+  readonly attempt: number;
+  readonly cause: string;
+  readonly adjust: readonly string[];
+  /** 被重派的那一代的 `timeout` 事件 seq。 */
+  readonly timeoutSeq?: number;
+}
+
+/** `retry.exhausted` 的正文：不再自动重试，转人工。 */
+export interface RetryExhaustedPayload {
+  readonly worker: string;
+  readonly retryKey: string;
+  readonly note?: string;
+  readonly attempts: number;
+  /** `exhausted`（到上限）/ `needs-human` / `no-diagnosis` / `spawn-failed`。 */
+  readonly reason: string;
 }
 
 /** `snapshot` 的正文：压缩点。 */

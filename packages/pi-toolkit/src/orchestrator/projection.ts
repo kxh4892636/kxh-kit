@@ -59,12 +59,41 @@ export interface ProjectedWorker {
   lastConsumedAt?: string;
   lastReport?: ProjectedReport;
   lastInput?: ProjectedInput;
+  /** 子 worker 的上级路由键（顶层 worker 不填）。 */
+  parent?: string;
+  /** 层级：0 = 编排方派的 worker，1 = 上层 worker 派的子 worker。 */
+  depth: number;
   /** 最近一次自动合并成功（`worker.merged`）；`at` 是合并时刻。 */
   merged?: { at: string; commit?: string };
   /** 最近一次自动合并失败（`worker.merge_blocked`）；成功合并会清掉它。 */
   mergeBlocked?: { at: string; reason: string; directory: string };
   /** 最近一次超时（`timeout`）；之后再派工或重试会清掉它。 */
   timedOut?: { readonly at: string; readonly elapsedMs: number };
+  /** 会话结束 / 崩溃但 **可恢复**（`worker.suspended`）：jsonl 还在。 */
+  suspended?: { at: string; reason: string };
+  /** 从孤儿恢复过（`worker.resumed`）。 */
+  resumedAt?: string;
+  /** 累计超时次数（`timeout` 事件）。 */
+  timeouts: number;
+  /** 最近一次诊断结论（`timeout.diagnosed`）。 */
+  lastDiagnosis?: {
+    readonly at: string;
+    readonly cause: string;
+    readonly adjust: readonly string[];
+    readonly confidence: number;
+    readonly parsed: boolean;
+  };
+}
+
+/** 一条重试键的累计状态（`note` 或其替代键）。 */
+export interface ProjectedRetry {
+  retryKey: string;
+  /** 已经自动重派过几次（`retry.scheduled` 条数，幂等后）。 */
+  attempts: number;
+  lastCause?: string;
+  lastAdjust: readonly string[];
+  /** 不再自动重试（`retry.exhausted`）：原因 + 时刻。 */
+  exhausted?: { at: string; reason: string };
 }
 
 /** 投影里的一条输入。 */
@@ -113,6 +142,8 @@ export interface ProjectionState {
   workers: Map<string, ProjectedWorker>;
   /** `plan（目录）→ 已放行的 note id`。 */
   released: Map<string, Set<string>>;
+  /** 重试键（通常就是 note id）→ 已重派次数与最近诊断。 */
+  retries: Map<string, ProjectedRetry>;
   /** 全部 report（`report.filed`），按 seq 升序；`read=false` 即未读。 */
   reports: ProjectedReport[];
   /** `` `${plan}::${note}` `` → 状态。 */
@@ -128,6 +159,7 @@ export interface ProjectionState {
 export const emptyState = (): ProjectionState => ({
   workers: new Map(),
   released: new Map(),
+  retries: new Map(),
   reports: [],
   notesStatus: new Map(),
   lastSeq: 0,
@@ -178,6 +210,8 @@ const ensureWorker = (
     status: patch.status ?? "live",
     inputs: 0,
     pending: [],
+    timeouts: 0,
+    depth: patch.depth ?? 0,
     ...patch,
   };
   state.workers.set(worker, created);
@@ -193,12 +227,18 @@ const ensureWorker = (
 export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean => {
   if (event.seq <= state.lastSeq) return false;
   state.lastSeq = event.seq;
+  // 幂等键对**所有**事件生效：重放 / 重复投递只算一次（`retry.scheduled` 靠它不重复派工）。
+  if (event.idem !== undefined) {
+    if (state.seenIdem.has(event.idem)) return true;
+    state.seenIdem.add(event.idem);
+  }
   const payload = event.payload;
   switch (event.type) {
     case "snapshot": {
       const restored = restoreState(payload["state"]);
       state.workers = restored.workers;
       state.released = restored.released;
+      state.retries = restored.retries;
       state.reports = restored.reports;
       state.notesStatus = restored.notesStatus;
       if (restored.interrupted === undefined) delete state.interrupted;
@@ -207,10 +247,6 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
       return true;
     }
     case "input.sent": {
-      if (event.idem !== undefined) {
-        if (state.seenIdem.has(event.idem)) return true;
-        state.seenIdem.add(event.idem);
-      }
       const worker = payloadString(payload, "worker");
       if (worker === undefined) return true;
       const planRef = payloadString(payload, "planRef");
@@ -306,12 +342,16 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
       const notes = payloadStrings(payload, "notes");
       const sessionPath = payloadString(payload, "sessionPath");
       const planRef = payloadString(payload, "planRef");
+      const parent = payloadString(payload, "parent");
+      const depth = payloadNumber(payload, "depth");
       const worktree = payload["worktree"];
       const entry = ensureWorker(state, worker, event.at, {
         ...(planRef === undefined ? {} : { planRef }),
         status: "live",
         ...(notes.length === 0 ? {} : { notes }),
         ...(sessionPath === undefined ? {} : { sessionPath }),
+        ...(parent === undefined ? {} : { parent }),
+        ...(depth === undefined ? {} : { depth }),
         ...(isRecord(worktree) &&
         typeof worktree["name"] === "string" &&
         typeof worktree["branch"] === "string" &&
@@ -326,6 +366,37 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
           : {}),
       });
       delete entry.exitReason;
+      delete entry.suspended;
+      return true;
+    }
+    case "worker.suspended": {
+      // 会话结束 / 崩溃：**不写 exit** —— jsonl 还在，`resume` 能接着跑。
+      const worker = payloadString(payload, "worker");
+      if (worker === undefined) return true;
+      const reason = payloadString(payload, "reason") ?? "suspended";
+      const planRef = payloadString(payload, "planRef");
+      const entry = ensureWorker(state, worker, event.at, planRef === undefined ? {} : { planRef });
+      entry.suspended = { at: event.at, reason };
+      const notes = payloadStrings(payload, "notes");
+      if (notes.length > 0 || isInterruption(reason)) {
+        const current = state.interrupted ?? { at: event.at, reason, plans: [], notes: [] };
+        current.at = event.at;
+        current.reason = reason;
+        if (!current.plans.includes(entry.planRef)) current.plans.push(entry.planRef);
+        for (const label of notes) {
+          if (!current.notes.includes(label)) current.notes.push(label);
+        }
+        state.interrupted = current;
+      }
+      return true;
+    }
+    case "worker.resumed": {
+      const worker = payloadString(payload, "worker");
+      if (worker === undefined) return true;
+      const entry = ensureWorker(state, worker, event.at, { status: "live" });
+      delete entry.suspended;
+      delete entry.exitReason;
+      entry.resumedAt = event.at;
       return true;
     }
     case "worker.exit": {
@@ -380,6 +451,53 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
       if (worker === undefined) return true;
       const entry = ensureWorker(state, worker, event.at);
       entry.timedOut = { at: event.at, elapsedMs: payloadNumber(payload, "elapsedMs") ?? 0 };
+      entry.timeouts += 1;
+      return true;
+    }
+    case "timeout.diagnosed": {
+      const worker = payloadString(payload, "worker");
+      const retryKey = payloadString(payload, "retryKey");
+      if (worker === undefined || retryKey === undefined) return true;
+      const cause = payloadString(payload, "cause") ?? "未知原因";
+      const adjust = payloadStrings(payload, "adjust");
+      const entry = ensureWorker(state, worker, event.at);
+      entry.lastDiagnosis = {
+        at: event.at,
+        cause,
+        adjust,
+        confidence: payloadNumber(payload, "confidence") ?? 0,
+        parsed: payload["parsed"] === true,
+      };
+      const retry = state.retries.get(retryKey) ?? { retryKey, attempts: 0, lastAdjust: [] };
+      retry.lastCause = cause;
+      retry.lastAdjust = adjust;
+      state.retries.set(retryKey, retry);
+      return true;
+    }
+    case "retry.scheduled": {
+      const retryKey = payloadString(payload, "retryKey");
+      if (retryKey === undefined) return true;
+      const retry = state.retries.get(retryKey) ?? { retryKey, attempts: 0, lastAdjust: [] };
+      // 幂等：同一 `(retryKey, attempt)` 只算一次（重放账本不重复派工）。
+      const attempt = payloadNumber(payload, "attempt") ?? retry.attempts + 1;
+      retry.attempts = Math.max(retry.attempts, attempt);
+      retry.lastAdjust = payloadStrings(payload, "adjust");
+      const cause = payloadString(payload, "cause");
+      if (cause !== undefined) retry.lastCause = cause;
+      delete retry.exhausted;
+      state.retries.set(retryKey, retry);
+      return true;
+    }
+    case "retry.exhausted": {
+      const retryKey = payloadString(payload, "retryKey");
+      if (retryKey === undefined) return true;
+      const retry = state.retries.get(retryKey) ?? { retryKey, attempts: 0, lastAdjust: [] };
+      retry.attempts = Math.max(
+        retry.attempts,
+        payloadNumber(payload, "attempts") ?? retry.attempts,
+      );
+      retry.exhausted = { at: event.at, reason: payloadString(payload, "reason") ?? "exhausted" };
+      state.retries.set(retryKey, retry);
       return true;
     }
     case "state.pulled": {
@@ -435,6 +553,7 @@ export const snapshotState = (state: ProjectionState): Record<string, unknown> =
   version: SNAPSHOT_VERSION,
   workers: [...state.workers.values()],
   released: [...state.released].map(([plan, notes]) => [plan, [...notes]]),
+  retries: [...state.retries.values()],
   reports: state.reports,
   notesStatus: [...state.notesStatus],
   ...(state.interrupted === undefined ? {} : { interrupted: state.interrupted }),
@@ -455,7 +574,14 @@ export const restoreState = (raw: unknown): ProjectionState => {
     for (const item of workers) {
       if (!isRecord(item) || typeof item["worker"] !== "string") continue;
       const worker = item as unknown as ProjectedWorker;
-      state.workers.set(worker.worker, { ...worker, pending: [...(worker.pending ?? [])] });
+      state.workers.set(worker.worker, {
+        ...worker,
+        pending: [...(worker.pending ?? [])],
+        // 旧的快照里没有这两个计数：缺就补 0，免得后面 `+= 1` 变成 NaN。
+        inputs: typeof worker.inputs === "number" ? worker.inputs : 0,
+        timeouts: typeof worker.timeouts === "number" ? worker.timeouts : 0,
+        depth: typeof worker.depth === "number" ? worker.depth : 0,
+      });
     }
   }
   const released = raw["released"];
@@ -473,6 +599,31 @@ export const restoreState = (raw: unknown): ProjectionState => {
     for (const item of reports) {
       if (!isRecord(item) || typeof item["seq"] !== "number") continue;
       state.reports.push(item as unknown as ProjectedReport);
+    }
+  }
+  const retries = raw["retries"];
+  if (Array.isArray(retries)) {
+    for (const item of retries) {
+      if (!isRecord(item) || typeof item["retryKey"] !== "string") continue;
+      state.retries.set(item["retryKey"], {
+        retryKey: item["retryKey"],
+        attempts: typeof item["attempts"] === "number" ? item["attempts"] : 0,
+        lastAdjust: Array.isArray(item["lastAdjust"])
+          ? item["lastAdjust"].filter((value): value is string => typeof value === "string")
+          : [],
+        ...(typeof item["lastCause"] === "string" ? { lastCause: item["lastCause"] } : {}),
+        ...(isRecord(item["exhausted"])
+          ? {
+              exhausted: {
+                at: typeof item["exhausted"]["at"] === "string" ? item["exhausted"]["at"] : "",
+                reason:
+                  typeof item["exhausted"]["reason"] === "string"
+                    ? item["exhausted"]["reason"]
+                    : "exhausted",
+              },
+            }
+          : {}),
+      });
     }
   }
   const notesStatus = raw["notesStatus"];

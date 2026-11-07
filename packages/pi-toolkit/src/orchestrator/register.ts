@@ -46,6 +46,15 @@ import {
   nextTempSeq,
   rememberWorkerSession,
 } from "./worker-sessions.ts";
+import {
+  buildRetryMessage,
+  buildTimeoutEvidence,
+  decideRetry,
+  diagnosisFromReports,
+  diagnosisPrompt,
+  type Diagnosis,
+  type TimeoutEvidencePack,
+} from "./diagnose.ts";
 import { INPUT_KINDS, type InputKind, type WorkerReport } from "./types.ts";
 import { assetsSkillsRoot, readPromptText } from "./assets.ts";
 import { createAskQuestionsTool } from "./ask.ts";
@@ -180,6 +189,12 @@ export interface OrchestratorDeps {
   readonly stateDir?: () => string;
   /** worktree 操作；缺省真的跑 git + pnpm，测试可整体替换。 */
   readonly worktree?: WorktreeHooks;
+  /**
+   * 重要推送的合并窗口（毫秒）；缺省 5 秒。
+   *
+   * 测试给 0 让推送变同步，否则要等 5 秒才能断言“推了 / 没推”。
+   */
+  readonly digestWindowMs?: number;
 }
 
 /** 返回给入口的句柄：配置加载完成后启动，切换开关后同步。 */
@@ -273,6 +288,52 @@ const formatAgo = (at: number, now: number): string => {
   if (minutes < 60) return `${minutes} 分钟前`;
   return `${Math.round(minutes / 60)} 小时前`;
 };
+
+/**
+ * 需要人知晓 / 确认的上报结果：只有这些推送并开回合。
+ *
+ * 普通 `done` 只留在账本里：它是进展播报，推送只会把编排方的上下文灌满。
+ */
+const IMPORTANT_OUTCOMES: ReadonlySet<string> = new Set([
+  "needs_review",
+  "needs_answer",
+  "blocked",
+  "failed",
+]);
+
+/** 诊断 worker 自己的兑底超时：一次诊断不应比一个 worker 还费时间。 */
+const DIAGNOSIS_TIMEOUT_MS = 5 * 60_000;
+
+/**
+ * 超时那一刻的现场：句柄已经摘掉，但诊断与重派都还需要这些字段。
+ *
+ * 全部在 `timeoutWorker` 里先拷出来（`entry` 随后会被 dispose）。
+ */
+interface TimedOutWorker {
+  readonly key: string;
+  readonly planRef: string;
+  readonly kind: "plan" | "temp";
+  readonly notes: readonly string[];
+  readonly note?: string;
+  readonly sessionPath?: string;
+  readonly cwd: string;
+  readonly workspace: string;
+  readonly plan?: PlanRef;
+  readonly worktree?: {
+    readonly name: string;
+    readonly directory: string;
+    readonly branch: string;
+  };
+  readonly lastReport?: {
+    readonly note: string;
+    readonly outcome: string;
+    readonly summary: string;
+  };
+  readonly elapsedMs: number;
+  readonly lastProgressAt: string;
+  /** 被中止那一代的 `timeout` 事件 seq（重试事件带它，方便回查）。 */
+  readonly timeoutSeq: number;
+}
 
 /**
  * worker 终态后自动合并它的 worktree（代码执行，不经模型）。
@@ -574,6 +635,10 @@ const createCommandTool = (
           ...(plan === undefined ? { kind: "temp" as const } : {}),
           ...(targetNotes.length === 0 ? {} : { notes: targetNotes }),
           ...(spawned.sessionPath === undefined ? {} : { sessionPath: spawned.sessionPath }),
+          // 诊断与重派都要用这三项，而它们几十分钟后才用得到：派工时就得存下来。
+          cwd: worktree?.directory ?? workspace,
+          workspace,
+          ...(plan === undefined ? {} : { plan }),
           ...(worktree === undefined
             ? {}
             : {
@@ -885,10 +950,40 @@ const createStateTool = (
                 ? " · 已合并"
                 : ` · 已合并 ${worker.merged.commit.slice(0, 8)}`;
         const pending = stallOfProjection(worker, now, deps.settings().orchestrator.softStallMs);
+        // 超时 / 诊断：一眼看出“它已经卡过一次、下一步还会不会再自动重试”。
+        const timeoutMark = worker.timeouts === 0 ? "" : ` · 超时 ${worker.timeouts} 次`;
+        const diagnosisMark =
+          worker.lastDiagnosis === undefined
+            ? ""
+            : ` · 诊断 ${worker.lastDiagnosis.cause}${
+                worker.lastDiagnosis.adjust.length === 0
+                  ? ""
+                  : `（${worker.lastDiagnosis.adjust.join("+")}）`
+              }`;
         lines.push(
-          `  ${worker.planRef} · ${group}${worker.kind === "temp" ? "temp" : "plan"} · ${minutes} 分钟 · 输入 ${worker.inputs} 次 · ${pendingLabelOf(pending)} · ${report} · 最近输入 ${lastInput}${worktreeMark}${mergeMark}`,
+          `  ${worker.planRef} · ${group}${worker.kind === "temp" ? "temp" : "plan"} · ${minutes} 分钟 · 输入 ${worker.inputs} 次 · ${pendingLabelOf(pending)} · ${report} · 最近输入 ${lastInput}${worktreeMark}${mergeMark}${timeoutMark}${diagnosisMark}`,
         );
       }
+    }
+    // 超时 / 重试记录：worker 已经不在 live 清单里时（放弃重试、等人工）仍然看得到。
+    const retryLimit = deps.settings().orchestrator.retryLimit;
+    const retried = [...state.retries.values()].filter(
+      (retry) => retry.attempts > 0 || retry.exhausted !== undefined,
+    );
+    for (const retry of retried.slice(-10)) {
+      const last =
+        retry.lastCause === undefined
+          ? ""
+          : ` · 最近诊断 ${retry.lastCause}${
+              retry.lastAdjust.length === 0 ? "" : `（${retry.lastAdjust.join("+")}）`
+            }`;
+      const next =
+        retry.exhausted === undefined
+          ? ` · 下次仍会自动重试（上限 ${retryLimit}）`
+          : ` · ✗ 不再自动重试（${retry.exhausted.reason}）`;
+      lines.push(
+        `重试记录：${retry.retryKey} · 已自动重派 ${retry.attempts}/${retryLimit} 次${last}${next}`,
+      );
     }
     for (const report of unread.slice(-10)) {
       const question = report.question === undefined ? "" : ` · 问题: ${report.question}`;
@@ -940,6 +1035,25 @@ const createStateTool = (
             ? []
             : [{ worker: worker.worker, ...worker.mergeBlocked }],
         ),
+        // 超时 / 重试也进 details：验收与测试不用拆文本。
+        timeouts: live.flatMap((worker) =>
+          worker.timeouts === 0
+            ? []
+            : [
+                {
+                  worker: worker.worker,
+                  timeouts: worker.timeouts,
+                  ...(worker.lastDiagnosis === undefined
+                    ? {}
+                    : {
+                        cause: worker.lastDiagnosis.cause,
+                        adjust: worker.lastDiagnosis.adjust,
+                        confidence: worker.lastDiagnosis.confidence,
+                      }),
+                },
+              ],
+        ),
+        retries: [...state.retries.values()],
       },
     };
   },
@@ -1069,24 +1183,50 @@ export const registerOrchestrator = (
     events: { subscribe: (listener) => projectionOf().subscribe(listener) },
   });
 
-  /** 编排方是否正在跑一轮；只用于可选的“叫醒”注入（默认关闭）。 */
+  /** 编排方是否正在跑一轮；只影响推送落到哪条投递分支。 */
   let busy = false;
 
-  /**
-   * 可选的“叫醒”注入：默认关闭。账本上线后模型**不再被推送**，需要摘要时自己调
-   * `orchestrator_state`；这里只给“希望被叫醒”的用法留一个开关，失败也不重试（账本是真相）。
-   * @param text - 一行摘要。
-   */
-  const wake = (text: string): void => {
-    if (!deps.settings().orchestrator.wakeOnReport) return;
+  /** 推送合并窗口（毫秒）：5 秒内的多条重要报告并成一条 digest（测试可注入 0）。 */
+  const digestWindowMs = deps.digestWindowMs ?? 5_000;
+  let digestLines: string[] = [];
+  let digestTimer: ReturnType<typeof setTimeout> | undefined;
+
+  /** 把积累的 digest 推给编排方（`triggerTurn` 开一轮；忙时排队）。 */
+  const flushDigest = (): void => {
+    if (digestTimer !== undefined) {
+      clearTimeout(digestTimer);
+      digestTimer = undefined;
+    }
+    if (digestLines.length === 0) return;
+    const content = digestLines.join("\n");
+    digestLines = [];
     try {
       pi.sendMessage(
-        { customType: "orchestrator-wake", content: text, display: true },
+        { customType: "orchestrator-important", content, display: true },
         busy ? { deliverAs: "followUp" } : { triggerTurn: true, deliverAs: "steer" },
       );
     } catch {
-      // 会话正在关闭之类：丢一条提醒不影响账本。
+      // 会话正在关闭之类：丢一条提醒不影响账本（账本才是真相）。
     }
+  };
+
+  /**
+   * 推一条**需要人知晓 / 确认**的消息；普通进展（`done`）不进这里。
+   *
+   * 5 秒窗口内的多条合并成一条 digest：同一轮里 note 的 report + 超时 + 放弃重试
+   * 应该是一句话，而不是三条打断。注入失败不重试（账本里都有）。
+   * @param kind - 事件种类，仅用于行首标记。
+   * @param text - 一行正文。
+   */
+  const notifyImportant = (kind: string, text: string): void => {
+    digestLines.push(`[${kind}] ${text}`);
+    if (digestWindowMs <= 0) {
+      flushDigest();
+      return;
+    }
+    if (digestTimer !== undefined) return;
+    digestTimer = setTimeout(flushDigest, digestWindowMs);
+    digestTimer.unref?.();
   };
 
   /**
@@ -1138,10 +1278,11 @@ export const registerOrchestrator = (
   };
 
   /**
-   * 卡死检测（纯代码，扫投影）：中止 worker、摘句柄、落 `timeout` 与 `worker.exit`。
+   * 卡死检测（纯代码，扫投影）：中止 worker、摘句柄、落 `timeout` 与 `worker.exit`，
+   * 然后把现场交给「诊断 → 重试」。
    *
    * 唯一判据：距最后进展超过 `workerTimeoutMs`。进展 = `input.consumed` / `report.filed`，
-   * 所以“输入推给了它但一直没被消费”和“干到一半没了”都会纳进来：两者部同样意味着
+   * 所以“输入推给了它但一直没被消费”和“干到一半没了”都会纳进来：两者都同样意味着
    * 账本里久了没有任何属于它的活迹。`softStallMs` 只影响 `state` 的 ⚠ 标记，不杀。
    *
    * 不看模型回合：定时器自己扫。只对一个 job 生效一次（`job.notified`），**不代写 note 状态**。
@@ -1150,10 +1291,34 @@ export const registerOrchestrator = (
     if (entry.job !== job || job.notified) return;
     job.notified = true;
     const threshold = deps.settings().orchestrator.workerTimeoutMs;
-    const lastProgressAt = new Date(
-      lastProgressOf(entry, projectionOf().state().workers.get(entry.planDirectory)),
-    ).toISOString();
-    const lastReport = projectionOf().state().workers.get(entry.planDirectory)?.lastReport;
+    const key = entry.planDirectory;
+    const projected = projectionOf().state().workers.get(key);
+    const lastProgressAt = new Date(lastProgressOf(entry, projected)).toISOString();
+    const lastReport = projected?.lastReport;
+    /** 句柄摘掉后仍要用的现场（诊断证据包与重派都靠它）。 */
+    const scene: Omit<TimedOutWorker, "timeoutSeq"> = {
+      key,
+      planRef: entry.planRef,
+      kind: entry.kind ?? "plan",
+      notes: entry.notes ?? [],
+      ...(job.note === undefined ? {} : { note: job.note }),
+      ...(entry.sessionPath === undefined ? {} : { sessionPath: entry.sessionPath }),
+      cwd: entry.cwd ?? entry.worktree?.directory ?? entry.workspace ?? process.cwd(),
+      workspace: entry.workspace ?? process.cwd(),
+      ...(entry.plan === undefined ? {} : { plan: entry.plan }),
+      ...(entry.worktree === undefined ? {} : { worktree: entry.worktree }),
+      ...(lastReport === undefined
+        ? {}
+        : {
+            lastReport: {
+              note: lastReport.note,
+              outcome: lastReport.outcome,
+              summary: lastReport.summary,
+            },
+          }),
+      elapsedMs: Math.max(0, Math.round(elapsedMs)),
+      lastProgressAt,
+    };
     void (async () => {
       try {
         await entry.session.abort();
@@ -1161,13 +1326,13 @@ export const registerOrchestrator = (
         // 已经结束的 session 会拒绝 abort；收尾时忽略。
       }
       await disposeEntry(entry);
-      registry.remove(entry.planDirectory);
+      registry.remove(key);
       // 中止即作废：这个键（plan/组或 temp id）不再复用那时的上下文，重启也不复活。
-      markWorkerSessionAborted(stateDir(), entry.planDirectory, "timeout");
-      ledgerOf().append({
+      markWorkerSessionAborted(stateDir(), key, "timeout");
+      const timeoutEvent = ledgerOf().append({
         type: "timeout",
         payload: {
-          worker: entry.planDirectory,
+          worker: key,
           lastProgressAt,
           threshold,
           ...(lastReport === undefined
@@ -1179,16 +1344,18 @@ export const registerOrchestrator = (
                   summary: lastReport.summary,
                 },
               }),
-          elapsedMs: Math.max(0, Math.round(elapsedMs)),
+          elapsedMs: scene.elapsedMs,
         },
       });
       ledgerOf().append({
         type: "worker.exit",
-        payload: { worker: entry.planDirectory, reason: "timeout" },
+        payload: { worker: key, reason: "timeout" },
       });
-      wake(
+      notifyImportant(
+        "timeout",
         `[worker] 超时：${entry.planRef} ${Math.round(elapsedMs / 60_000)} 分钟没有进展，已中止（note 状态未改动）。`,
       );
+      await diagnoseTimeout({ ...scene, timeoutSeq: timeoutEvent.seq });
     })();
   };
 
@@ -1269,7 +1436,304 @@ export const registerOrchestrator = (
         ...(report.evidence === undefined ? {} : { evidence: [...report.evidence] }),
       },
     });
-    wake(`[worker] ${report.outcome} · note ${report.note}: ${clipText(report.summary)}`);
+    // 普通 done 不推送：它在账本里，需要时用 orchestrator_state 拉。
+    if (IMPORTANT_OUTCOMES.has(report.outcome)) {
+      const where = matched?.planRef ?? directory ?? report.note;
+      const question = report.question === undefined ? "" : ` · 问题：${clipText(report.question)}`;
+      notifyImportant(
+        report.outcome,
+        `${where} · note ${report.note}: ${clipText(report.summary)}${question}`,
+      );
+    }
+  };
+
+  /** 出事那条 note 的文档（诊断要用状态与正文摘要）；读不到就不带。 */
+  const noteForDiagnosis = async (
+    scene: TimedOutWorker,
+  ): Promise<
+    | {
+        id: string;
+        title: string;
+        status: string;
+        needs?: string;
+        content: string;
+      }
+    | undefined
+  > => {
+    if (scene.plan === undefined || scene.note === undefined) return undefined;
+    try {
+      const document = await loadDocument(scene.plan.directory, deps.settings().orchestrator);
+      return document.notes.find((note) => note.id === scene.note);
+    } catch {
+      return undefined;
+    }
+  };
+
+  /**
+   * 起一个只读诊断 worker，拿回它的 report。
+   *
+   * 它是 `depth 1` 的临时会话（只有 `orchestrator_read` + `orchestrator_report`，**没有**
+   * `dispatch`），不落盘、跑完即弃；自己也有兑底超时，不给一个坏掉的诊断无限期占着。
+   * @param pack - 代码组装的证据包。
+   * @param cwd - 诊断会话的 cwd（与出事的 worker 一致）。
+   * @returns report 与可能的错误。
+   */
+  const runDiagnosis = async (
+    pack: TimeoutEvidencePack,
+    cwd: string,
+  ): Promise<{ reports: WorkerReport[]; error?: string }> => {
+    const reports: WorkerReport[] = [];
+    let spawned: SpawnedWorker;
+    try {
+      spawned = await (deps.spawn ?? spawnWorker)({
+        temp: `diag-${Date.now().toString(36)}`,
+        depth: 1,
+        cwd,
+        settings: deps.settings,
+        report: (report) => {
+          reports.push(report);
+        },
+        released: () => false,
+      });
+    } catch (error) {
+      return {
+        reports,
+        error: `诊断会话起不来：${error instanceof Error ? error.message : String(error)}`,
+      };
+    }
+    const timeoutMs = Math.min(deps.settings().orchestrator.workerTimeoutMs, DIAGNOSIS_TIMEOUT_MS);
+    let error: string | undefined;
+    try {
+      await Promise.race([
+        spawned.session.prompt(diagnosisPrompt(pack)),
+        new Promise<void>((resolve) => {
+          const timer = setTimeout(resolve, timeoutMs);
+          timer.unref?.();
+        }),
+      ]);
+    } catch (cause) {
+      error = `诊断会话失败：${cause instanceof Error ? cause.message : String(cause)}`;
+    } finally {
+      try {
+        spawned.dispose();
+      } catch {
+        // 已经收掉：忽略。
+      }
+    }
+    return { reports, ...(error === undefined ? {} : { error }) };
+  };
+
+  /**
+   * 重派下一代 worker：同一个键，新一代会话（不复用被中止的上下文）。
+   *
+   * 不走 `orchestrator_command` 的参数解析：现场（plan / cwd / worktree / notes）已经在
+   * `TimedOutWorker` 里了，再造一份参数只会多一处���能和派工侧走偏。
+   */
+  const redispatchWorker = async (
+    scene: TimedOutWorker,
+    diagnosis: Diagnosis,
+    attempt: number,
+    retryLimit: number,
+  ): Promise<void> => {
+    const key = scene.key;
+    // 作废登记已经把旧一代标掉了：会话键带作废时刻，于是这次是**新开**一份 jsonl。
+    const aborted = abortedWorkerSession(stateDir(), key);
+    const sessionKey = aborted === undefined ? key : `${key}#${aborted.at}`;
+    const message = buildRetryMessage({
+      diagnosis,
+      attempt,
+      retryLimit,
+      ...(scene.lastReport === undefined ? {} : { lastReport: scene.lastReport }),
+      elapsedMinutes: Math.max(1, Math.round(scene.elapsedMs / 60_000)),
+    });
+    const base = {
+      cwd: scene.cwd,
+      settings: deps.settings,
+      report: onReport,
+      released: (noteId: string) =>
+        scene.plan === undefined ? false : projectionOf().isReleased(scene.plan.directory, noteId),
+      workerKey: key,
+      sessionKey,
+    };
+    const spawned = await (deps.spawn ?? spawnWorker)(
+      scene.plan === undefined
+        ? { ...base, temp: key.replace(/^temp:/u, "") }
+        : { ...base, plan: scene.plan },
+    );
+    rememberWorkerSession(stateDir(), sessionKey, spawned.sessionPath ?? "");
+    const entry = registry.add({
+      planDirectory: key,
+      planRef: scene.planRef,
+      ...(scene.plan === undefined ? { kind: "temp" as const } : {}),
+      ...(scene.notes.length === 0 ? {} : { notes: scene.notes }),
+      ...(spawned.sessionPath === undefined ? {} : { sessionPath: spawned.sessionPath }),
+      cwd: scene.cwd,
+      workspace: scene.workspace,
+      ...(scene.plan === undefined ? {} : { plan: scene.plan }),
+      ...(scene.worktree === undefined ? {} : { worktree: scene.worktree }),
+      startedAt: Date.now(),
+      session: spawned.session,
+    });
+    ledgerOf().append({
+      type: "worker.spawned",
+      payload: {
+        worker: key,
+        planRef: scene.planRef,
+        kind: scene.plan === undefined ? "temp" : "plan",
+        ...(scene.notes.length === 0 ? {} : { notes: scene.notes }),
+        ...(spawned.sessionPath === undefined ? {} : { sessionPath: spawned.sessionPath }),
+        resumed: false,
+        retryOf: scene.timeoutSeq,
+        startedAt: new Date().toISOString(),
+        ...(scene.worktree === undefined
+          ? {}
+          : {
+              worktree: {
+                name: scene.worktree.name,
+                branch: scene.worktree.branch,
+                directory: scene.worktree.directory,
+              },
+            }),
+      },
+    });
+    const delivery = deliver(entry, "message", message, scene.note, "steer");
+    const now = Date.now();
+    const job: WorkerJob = {
+      kind: "message",
+      ...(scene.note === undefined ? {} : { note: scene.note }),
+      ...(scene.notes.length === 0 ? {} : { notes: scene.notes }),
+      startedAt: now,
+      progressAt: now,
+      settled: delivery.settled,
+      notified: false,
+    };
+    entry.job = job;
+    ledgerOf().append({
+      type: "input.sent",
+      payload: {
+        worker: key,
+        planRef: scene.planRef,
+        kind: "message",
+        delivery: "steer",
+        delivered: delivery.delivered,
+        text: clipText(message),
+        ...(scene.note === undefined ? {} : { note: scene.note }),
+        ...(scene.notes.length === 0 ? {} : { notes: scene.notes }),
+      },
+    });
+    const done = (): void => {
+      const harvested = harvest(entry, job);
+      if (harvested && entry.job === undefined) {
+        void mergeWorktreeOf({ entry, workspace: scene.workspace, deps, ledgerOf });
+      }
+    };
+    void delivery.settled.then(done, done);
+  };
+
+  /**
+   * 超时之后的自动化：组装证据 → 只读诊断 → 按建议重派（最多 `retryLimit` 次）。
+   *
+   * 三条路都不重试，而且都必须落账（`retry.exhausted`）：诊断不可解析、建议 `needs-human`、
+   * 已到上限。临时 worker 没有 note，不诊断也不重派（不存在“同一条 note 重几次”）。
+   * @param scene - 超时现场（含 timeout 事件 seq）。
+   */
+  const diagnoseTimeout = async (scene: TimedOutWorker): Promise<void> => {
+    if (scene.kind === "temp") return;
+    const retryLimit = deps.settings().orchestrator.retryLimit;
+    const retryKey = scene.note ?? scene.notes[0] ?? scene.planRef;
+    const attempts = projectionOf().state().retries.get(retryKey)?.attempts ?? 0;
+    const note = await noteForDiagnosis(scene);
+    const pack = buildTimeoutEvidence({
+      worker: scene.key,
+      planRef: scene.planRef,
+      kind: scene.kind,
+      ...(scene.note === undefined ? {} : { note: scene.note }),
+      ...(scene.notes.length === 0 ? {} : { notes: scene.notes }),
+      threshold: deps.settings().orchestrator.workerTimeoutMs,
+      elapsedMs: scene.elapsedMs,
+      lastProgressAt: scene.lastProgressAt,
+      ...(scene.lastReport === undefined ? {} : { lastReport: scene.lastReport }),
+      ...(note === undefined ? {} : { noteDocument: note }),
+      events: ledgerOf().events(),
+      ...(scene.sessionPath === undefined ? {} : { sessionPath: scene.sessionPath }),
+      cwd: scene.cwd,
+      ...(scene.worktree === undefined ? {} : { worktree: scene.worktree.name }),
+    });
+    const run = await runDiagnosis(pack, scene.cwd);
+    const diagnosis = diagnosisFromReports(run.reports);
+    ledgerOf().append({
+      type: "timeout.diagnosed",
+      payload: {
+        worker: scene.key,
+        retryKey,
+        ...(scene.note === undefined ? {} : { note: scene.note }),
+        cause: diagnosis?.cause ?? "诊断没有给出可解析的结论",
+        adjust: diagnosis?.suggestion.adjust ?? [],
+        ...(diagnosis === undefined || diagnosis.suggestion.retryMessage === ""
+          ? {}
+          : { retryMessage: diagnosis.suggestion.retryMessage }),
+        confidence: diagnosis?.confidence ?? 0,
+        parsed: diagnosis !== undefined,
+        ...(run.error === undefined ? {} : { error: run.error }),
+      },
+    });
+    const decision = decideRetry({ diagnosis, attempts, retryLimit });
+    if (!decision.retry || diagnosis === undefined) {
+      const reason = decision.retry ? "no-diagnosis" : decision.reason;
+      ledgerOf().append({
+        type: "retry.exhausted",
+        payload: {
+          worker: scene.key,
+          retryKey,
+          ...(scene.note === undefined ? {} : { note: scene.note }),
+          attempts,
+          reason,
+        },
+      });
+      const why =
+        reason === "needs-human"
+          ? "诊断建议人工介入"
+          : reason === "exhausted"
+            ? `已自动重试 ${attempts} 次（上限 ${retryLimit}）`
+            : "诊断没有给出可解析的结论";
+      notifyImportant(
+        "retry.exhausted",
+        `${scene.planRef}${scene.note === undefined ? "" : ` · note ${scene.note}`}：${why}，不再自动重试。`,
+      );
+      return;
+    }
+    // 先记重派（幂等键 = retryKey + 第几次），再真的派：重放账本不会多派一代。
+    ledgerOf().append({
+      type: "retry.scheduled",
+      idem: `retry:${retryKey}:${decision.attempt}`,
+      payload: {
+        worker: scene.key,
+        retryKey,
+        ...(scene.note === undefined ? {} : { note: scene.note }),
+        attempt: decision.attempt,
+        cause: diagnosis.cause,
+        adjust: [...diagnosis.suggestion.adjust],
+        timeoutSeq: scene.timeoutSeq,
+      },
+    });
+    try {
+      await redispatchWorker(scene, diagnosis, decision.attempt, retryLimit);
+    } catch (error) {
+      ledgerOf().append({
+        type: "retry.exhausted",
+        payload: {
+          worker: scene.key,
+          retryKey,
+          ...(scene.note === undefined ? {} : { note: scene.note }),
+          attempts: decision.attempt,
+          reason: `spawn-failed: ${error instanceof Error ? error.message : String(error)}`,
+        },
+      });
+      notifyImportant(
+        "retry.exhausted",
+        `${scene.planRef}：自动重派失败（${error instanceof Error ? error.message : String(error)}），转人工。`,
+      );
+    }
   };
 
   for (const tool of [

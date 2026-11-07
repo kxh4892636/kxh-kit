@@ -16,6 +16,7 @@
  */
 
 import type { InputKind, WorkerReport } from "./types.ts";
+import type { PlanRef } from "./plan.ts";
 
 /** 句柄表操作的 session 面（用最小接口以便测试替身）。 */
 export interface SessionLike {
@@ -103,6 +104,17 @@ export interface WorkerEntry {
   /** 该 worker 的模型名，仅用于展示。 */
   readonly model?: string;
   /**
+   * 这个 worker 的 cwd（worktree 目录，或主工作区）。
+   *
+   * 超时诊断要看它那里的 `git status`，重派也要用同一个 cwd；这些都是几小时后才用到的，
+   * 所以必须在派工时存下来。
+   */
+  readonly cwd?: string;
+  /** 主工作区（合并 worktree 用）。 */
+  readonly workspace?: string;
+  /** 绑定的 Plan 定位（临时 worker 不填）；重派时直接复用，不再解析字符串。 */
+  readonly plan?: PlanRef;
+  /**
    * 这个 worker 跑在哪个 worktree 里（没开 worktree 时不填）。
    *
    * 只做展示与回收线索：abort / 超时 **不删** worktree（现场留给合并或人工看），
@@ -119,6 +131,10 @@ export interface WorkerEntry {
   lastInput?: LastInput;
   /** 在途 job；入队时登记，收割时清掉。 */
   job?: WorkerJob;
+  /** 子 worker 的上级路由键（顶层 worker 不填）。 */
+  readonly parent?: string;
+  /** 层级：0 = 编排方派的 worker，1 = 上层 worker 派的子 worker。 */
+  readonly depth?: number;
 }
 
 /** 实际投递落到的分支：空闲开新一轮 / 排队等当前轮 / 插入当前运行。 */

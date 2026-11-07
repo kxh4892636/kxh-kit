@@ -46,12 +46,12 @@ export interface OrchestratorSettings {
    */
   readonly softStallMs: number;
   /**
-   * report / 超时到达时是否“叫醒”编排方（`pi.sendMessage` 注入一行）。
+   * 同一条 note 超时后最多自动重派几次（默认 2）。
    *
-   * 默认 **false**：账本上线后模型不再被推送，需要摘要时自己调 `orchestrator_state`。
-   * 打开它只是给“希望被叫醒”的用法留一个口子，注入失败也不重试（账本是真相）。
+   * 重派不是代码级盲重试：先让只读诊断 worker 给结论，再按建议派下一代；到上限就落
+   * `retry.exhausted` 转人工。
    */
-  readonly wakeOnReport: boolean;
+  readonly retryLimit: number;
 }
 
 /** 默认值：34/34/13 KB、144 字、13 行、89/89/13 KB、55 个 ADR、阈值 0.618。 */
@@ -68,7 +68,7 @@ export const DEFAULT_ORCHESTRATOR_SETTINGS: OrchestratorSettings = {
   rotateAt: 0.618,
   workerTimeoutMs: 30 * 60 * 1000,
   softStallMs: 15 * 60 * 1000,
-  wakeOnReport: false,
+  retryLimit: 2,
 };
 
 /** 需要是正整数的字段。 */
@@ -84,6 +84,7 @@ export const ORCHESTRATOR_INTEGER_KEYS = [
   "adrMaxCount",
   "workerTimeoutMs",
   "softStallMs",
+  "retryLimit",
 ] as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
@@ -116,15 +117,6 @@ export const parseOrchestratorSettings = (
       throw new Error(`Config orchestrator.${key} 必须是正整数，实际为 ${describe(value)}`);
     }
     result[key] = value;
-  }
-  const wakeOnReport = raw["wakeOnReport"];
-  if (wakeOnReport !== undefined) {
-    if (typeof wakeOnReport !== "boolean") {
-      throw new Error(
-        `Config orchestrator.wakeOnReport 必须是布尔值，实际为 ${describe(wakeOnReport)}`,
-      );
-    }
-    result["wakeOnReport"] = wakeOnReport;
   }
   const rotateAt = raw["rotateAt"];
   if (rotateAt !== undefined) {

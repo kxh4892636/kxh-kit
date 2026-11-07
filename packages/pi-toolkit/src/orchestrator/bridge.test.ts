@@ -335,6 +335,8 @@ describe("dispatch 与 workers 工具", () => {
       sessionPath?: string;
       /** worktree 操作替身（默认注入假的：默认开启 worktree 后真跑 git + pnpm 会把测试拖垮）。 */
       worktree?: import("./worktree.ts").WorktreeHooks;
+      /** 第 n 次诊断（从 1 起）返回的 report；返回 undefined 表示“诊断没给结论”。 */
+      diagnosis?: (call: number) => WorkerReport | undefined;
     } = {},
   ) => {
     const local: ToolkitSettings = {
@@ -375,6 +377,9 @@ describe("dispatch 与 workers 工具", () => {
     let failSend = options.failSendTimes ?? 0;
     const spawns: FakeSession[] = [];
     const reports: Array<(report: WorkerReport) => void> = [];
+    /** 诊断 worker 收到的提示词与调用次数。 */
+    const diagnosisPrompts: string[] = [];
+    let diagnosisCalls = 0;
     const spawnOptions: Array<{ plan?: unknown; temp?: string; sessionKey?: string }> = [];
     /** 每次 spawn 的 cwd（验 worktree 是否真的换了目录）。 */
     const spawnCwds: string[] = [];
@@ -392,7 +397,46 @@ describe("dispatch 与 workers 工具", () => {
       setAlways: () => undefined,
       stateDir: options.stateDir ?? (() => stateRoot),
       worktree,
+      // 推送合并窗口给 0：测试要断言“推了 / 没推”，不能等 5 秒。
+      digestWindowMs: 0,
       spawn: async (spawnOptionsInput) => {
+        // 诊断 worker（temp:diag-*）：不落盘、跑一遍就把结论 report 回来。
+        if ((spawnOptionsInput.temp ?? "").startsWith("diag-")) {
+          diagnosisCalls += 1;
+          const answer = options.diagnosis?.(diagnosisCalls);
+          const session = {
+            isIdle: true,
+            prompts: [] as string[],
+            followUps: [] as string[],
+            steers: [] as string[],
+            aborted: false,
+            disposed: false,
+            finish: undefined,
+            prompt(text: string) {
+              diagnosisPrompts.push(text);
+              session.prompts.push(text);
+              if (answer !== undefined) spawnOptionsInput.report(answer);
+              return Promise.resolve();
+            },
+            async steer() {
+              return "queued";
+            },
+            async followUp() {
+              return "queued";
+            },
+            async waitForIdle() {
+              return undefined;
+            },
+            async abort() {
+              session.aborted = true;
+            },
+            dispose() {
+              session.disposed = true;
+            },
+          };
+          created.push(session);
+          return { session, resumed: false, dispose: () => session.dispose() };
+        }
         spawnCwds.push(spawnOptionsInput.cwd);
         spawnOptions.push({
           ...(spawnOptionsInput.plan === undefined ? {} : { plan: spawnOptionsInput.plan }),
@@ -413,7 +457,18 @@ describe("dispatch 与 workers 工具", () => {
         };
       },
     });
-    return { tools, messages, spawns, reports, spawnOptions, spawnCwds, handlers, stateRoot };
+    return {
+      tools,
+      messages,
+      spawns,
+      reports,
+      spawnOptions,
+      spawnCwds,
+      handlers,
+      stateRoot,
+      diagnosisPrompts,
+      diagnosisCalls: () => diagnosisCalls,
+    };
   };
 
   const textOf = (result: unknown): string =>
@@ -1100,6 +1155,225 @@ describe("dispatch 与 workers 工具", () => {
     expect(listed).toContain("待消费 1");
   });
 
+  /** 诊断 worker 的标准输出：结论 JSON 塞在 evidence[0] 里。 */
+  const diagnosisAnswer = (
+    suggestion: { adjust: string[]; retryMessage: string },
+    cause = "卡在跑全量测试",
+  ): WorkerReport => ({
+    outcome: "done",
+    note: "diagnose",
+    summary: cause,
+    evidence: [
+      JSON.stringify({
+        cause,
+        evidence: ["最后一次 report 是 done", "jsonl 尾部停在 bash"],
+        suggestion,
+        confidence: 0.7,
+      }),
+    ],
+  });
+
+  it("超时后自动诊断并重派一代：timeout → timeout.diagnosed → retry.scheduled", async () => {
+    const sessions: FakeSession[] = [];
+    const { tools, stateRoot, spawnOptions, diagnosisPrompts } = await setup({
+      timeoutMs: 60,
+      diagnosis: (call) =>
+        call === 1
+          ? diagnosisAnswer({ adjust: ["change-strategy"], retryMessage: "先跑单元测试再收尾" })
+          : undefined,
+      makeSession: () => {
+        const session = fakeSession(true, false);
+        sessions.push(session);
+        return session;
+      },
+    });
+    const { root, ref } = await planWithNotes([note("01")]);
+    await tools
+      .get("orchestrator_command")
+      ?.execute(
+        "id",
+        { plan: ref, notes: ["01"], note: "01", message: "做 01" },
+        undefined,
+        undefined,
+        ctx(root),
+      );
+    // 证据包随诊断提示词一起发过去：note 摘要与阈值都在里面。
+    const scheduled = await waitForEvent(stateRoot, "retry.scheduled");
+    expect(scheduled).toBeDefined();
+    expect(diagnosisPrompts[0]).toContain("正文 01");
+    expect(diagnosisPrompts[0]).toContain('"threshold"');
+
+    const { openLedger } = await import("./ledger.ts");
+    const events = openLedger(stateRoot).events();
+    const order = events
+      .map((event) => event.type)
+      .filter(
+        (type) => type === "timeout" || type === "timeout.diagnosed" || type === "retry.scheduled",
+      );
+    expect(order).toEqual(["timeout", "timeout.diagnosed", "retry.scheduled"]);
+
+    const diagnosed = events.find((event) => event.type === "timeout.diagnosed");
+    expect(diagnosed?.payload).toMatchObject({
+      note: "01",
+      retryKey: "01",
+      cause: "卡在跑全量测试",
+      adjust: ["change-strategy"],
+      confidence: 0.7,
+      parsed: true,
+    });
+    expect(scheduled?.payload).toMatchObject({
+      note: "01",
+      retryKey: "01",
+      attempt: 1,
+      adjust: ["change-strategy"],
+    });
+
+    // 重派的是新一代会话（会话键带作废时刻），消息带上次原因与“不要重复”。
+    const planSpawns = spawnOptions.filter(
+      (option) => option.plan !== undefined || !(option.temp ?? "").startsWith("diag-"),
+    );
+    expect(planSpawns).toHaveLength(2);
+    expect(planSpawns[1]?.sessionKey).not.toBe(planSpawns[0]?.sessionKey);
+    const retried = sessions[sessions.length - 1];
+    const prompt = retried?.prompts[0] ?? "";
+    expect(prompt).toContain("[重试 1/2]");
+    expect(prompt).toContain("卡在跑全量测试");
+    expect(prompt).toContain("先跑单元测试再收尾");
+    expect(prompt).toContain("不要重复已经完成的部分");
+    retried?.finish?.();
+  });
+
+  it("连续两次超时后 retry.exhausted：不再重派，state 写明不再自动重试", async () => {
+    const sessions: FakeSession[] = [];
+    const { tools, stateRoot, spawnOptions } = await setup({
+      timeoutMs: 20,
+      diagnosis: () => diagnosisAnswer({ adjust: ["narrow-scope"], retryMessage: "只改 pi 包" }),
+      makeSession: () => {
+        const session = fakeSession(true, false);
+        sessions.push(session);
+        return session;
+      },
+    });
+    const { root, ref } = await planWithNotes([note("01")]);
+    await tools
+      .get("orchestrator_command")
+      ?.execute(
+        "id",
+        { plan: ref, notes: ["01"], note: "01", message: "做 01" },
+        undefined,
+        undefined,
+        ctx(root),
+      );
+    const exhausted = await waitForEvent(stateRoot, "retry.exhausted", 3_000);
+    expect(exhausted?.payload).toMatchObject({ note: "01", attempts: 2, reason: "exhausted" });
+
+    const { openLedger } = await import("./ledger.ts");
+    const events = openLedger(stateRoot).events();
+    expect(events.filter((event) => event.type === "timeout")).toHaveLength(3);
+    expect(events.filter((event) => event.type === "retry.scheduled")).toHaveLength(2);
+
+    const planSpawns = spawnOptions.filter(
+      (option) => option.plan !== undefined || !(option.temp ?? "").startsWith("diag-"),
+    );
+    expect(planSpawns).toHaveLength(3);
+    // 再等一会儿也不会冒出第 3 次重派。
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    expect(
+      openLedger(stateRoot)
+        .events()
+        .filter((event) => event.type === "retry.scheduled"),
+    ).toHaveLength(2);
+
+    const listed = textOf(
+      await tools
+        .get("orchestrator_state")
+        ?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
+    );
+    expect(listed).toContain("重试记录：01");
+    expect(listed).toContain("✗ 不再自动重试（exhausted）");
+  });
+
+  it("诊断建议 needs-human 时不自动重试，转人工", async () => {
+    const sessions: FakeSession[] = [];
+    const { tools, stateRoot, spawnOptions } = await setup({
+      timeoutMs: 20,
+      diagnosis: () => diagnosisAnswer({ adjust: ["needs-human"], retryMessage: "" }),
+      makeSession: () => {
+        const session = fakeSession(true, false);
+        sessions.push(session);
+        return session;
+      },
+    });
+    const { root, ref } = await planWithNotes([note("01")]);
+    await tools
+      .get("orchestrator_command")
+      ?.execute(
+        "id",
+        { plan: ref, notes: ["01"], note: "01", message: "做 01" },
+        undefined,
+        undefined,
+        ctx(root),
+      );
+    const exhausted = await waitForEvent(stateRoot, "retry.exhausted");
+    expect(exhausted?.payload).toMatchObject({ reason: "needs-human", attempts: 0 });
+    const { openLedger } = await import("./ledger.ts");
+    expect(
+      openLedger(stateRoot)
+        .events()
+        .filter((event) => event.type === "retry.scheduled"),
+    ).toHaveLength(0);
+    expect(spawnOptions.filter((option) => option.plan !== undefined)).toHaveLength(1);
+  });
+
+  it("诊断给不出可解析结论就不重试（parsed=false）", async () => {
+    const sessions: FakeSession[] = [];
+    const { tools, stateRoot } = await setup({
+      timeoutMs: 20,
+      diagnosis: () => ({ outcome: "done", note: "diagnose", summary: "大概是环境问题" }),
+      makeSession: () => {
+        const session = fakeSession(true, false);
+        sessions.push(session);
+        return session;
+      },
+    });
+    const { root, ref } = await planWithNotes([note("01")]);
+    await tools
+      .get("orchestrator_command")
+      ?.execute(
+        "id",
+        { plan: ref, notes: ["01"], note: "01", message: "做 01" },
+        undefined,
+        undefined,
+        ctx(root),
+      );
+    const exhausted = await waitForEvent(stateRoot, "retry.exhausted");
+    expect(exhausted?.payload).toMatchObject({ reason: "no-diagnosis" });
+    const { openLedger } = await import("./ledger.ts");
+    const diagnosed = openLedger(stateRoot)
+      .events()
+      .find((event) => event.type === "timeout.diagnosed");
+    expect(diagnosed?.payload).toMatchObject({ parsed: false, adjust: [] });
+  });
+
+  it("临时 worker 超时不做诊断也不重派（没有 note 可重试）", async () => {
+    const { tools, stateRoot, diagnosisCalls } = await setup({
+      timeoutMs: 10,
+      makeSession: () => fakeSession(true, false),
+    });
+    const { root } = await planArgs();
+    await tools
+      .get("orchestrator_command")
+      ?.execute("id", { message: "查一下 X" }, undefined, undefined, ctx(root));
+    await waitForEvent(stateRoot, "worker.exit");
+    expect(diagnosisCalls()).toBe(0);
+    const { openLedger } = await import("./ledger.ts");
+    const types = openLedger(stateRoot)
+      .events()
+      .map((event) => event.type);
+    expect(types).toContain("timeout");
+    expect(types).not.toContain("timeout.diagnosed");
+  });
+
   it("ack 由 agent_start 写进账本：待消费归零", async () => {
     // 真 worker 的 agent_start 钩子会 append input.consumed；这里用账本端口模拟同一步。
     const { tools, stateRoot } = await setup({ makeSession: () => fakeSession(true, false) });
@@ -1229,7 +1503,7 @@ describe("dispatch 与 workers 工具", () => {
 
   it("超时后摘除句柄：worker 清单不再列出，再次派工起新 session", async () => {
     const sessions: FakeSession[] = [];
-    const { tools, stateRoot, spawns } = await setup({
+    const { tools, stateRoot, spawns, spawnOptions, diagnosisCalls } = await setup({
       timeoutMs: 20,
       makeSession: () => {
         const session = fakeSession(true, false);
@@ -1243,10 +1517,12 @@ describe("dispatch 与 workers 工具", () => {
     await dispatch?.execute("id", { plan: ref, message: "做 01" }, undefined, undefined, ctx(root));
     expect(spawns).toHaveLength(1);
 
-    await new Promise((resolve) => setTimeout(resolve, 60));
+    await new Promise((resolve) => setTimeout(resolve, 80));
     expect(await timeoutEvents(stateRoot)).toHaveLength(1);
     expect(sessions[0]?.aborted).toBe(true);
     expect(sessions[0]?.disposed).toBe(true);
+    // 超时后代码会起一个只读诊断 worker（temp:diag-*）；它不算 Plan worker。
+    expect(diagnosisCalls()).toBe(1);
 
     // 句柄已摘除：live 清单不再列出该 Plan。
     const listed = (await workers?.execute(
@@ -1268,10 +1544,14 @@ describe("dispatch 与 workers 工具", () => {
       undefined,
       ctx(root),
     );
-    expect(spawns).toHaveLength(2);
-    expect(spawns[1]?.prompts).toEqual(["重做 01"]);
-    expect(spawns[1]).not.toBe(sessions[0]);
-    sessions[1]?.finish?.();
+    const planSpawns = spawnOptions.filter(
+      (option) => option.plan !== undefined || !(option.temp ?? "").startsWith("diag-"),
+    );
+    expect(planSpawns).toHaveLength(2);
+    const redone = spawns[spawns.length - 1];
+    expect(redone?.prompts).toEqual(["重做 01"]);
+    expect(redone).not.toBe(sessions[0]);
+    redone?.finish?.();
   });
 
   it("没有 plan 时起临时 worker：键 temp:N，跑完即摘除", async () => {
@@ -1698,8 +1978,9 @@ describe("dispatch 与 workers 工具", () => {
       ?.execute("id", { plan: ref, message: "做 01" }, undefined, undefined, ctx(root));
 
     reports[0]?.({ outcome: "needs_review", note: "01", summary: "改完了", plan: planDirectory });
-    // 不再注入编排方会话（以前这里会有一条 sendMessage）。
-    expect(messages).toHaveLength(0);
+    // needs_review 是重要口径：推一条并开回合；未读计数仍然靠账本。
+    expect(messages).toHaveLength(1);
+    expect((messages[0] as { customType: string }).customType).toBe("orchestrator-important");
     const listed = textOf(
       await tools
         .get("orchestrator_state")
@@ -1726,13 +2007,8 @@ describe("dispatch 与 workers 工具", () => {
 });
 
 describe("report 落账本", () => {
-  const harness = async (options: { wakeOnReport?: boolean } = {}) => {
-    const local: ToolkitSettings = options.wakeOnReport
-      ? {
-          ...settings,
-          orchestrator: { ...settings.orchestrator, wakeOnReport: true },
-        }
-      : settings;
+  const harness = async () => {
+    const local: ToolkitSettings = settings;
     const tools = new Map<string, { execute: (...args: unknown[]) => Promise<unknown> }>();
     const messages: unknown[] = [];
     const pi = {
@@ -1761,6 +2037,7 @@ describe("report 落账本", () => {
       stateDir: () => stateRoot,
       // Plan 派工默认建 worktree，这里给替身（临时目录不是 git 仓库）。
       worktree: silentWorktree(),
+      digestWindowMs: 0,
       spawn: async (spawnOptions) => {
         captured.push(spawnOptions.report);
         return { session: fakeSession(), resumed: false, dispose: () => undefined };
@@ -1795,7 +2072,7 @@ describe("report 落账本", () => {
     return { tools, messages, captured, stateRoot, root, dir };
   };
 
-  it("worker 上报后不推送模型：账本里有 report.filed，摘要靠 state 拉", async () => {
+  it("重要上报推送并开回合：账本里仍有 report.filed，摘要也能用 state 拉", async () => {
     const { tools, messages, captured, stateRoot, root } = await harness();
     captured[0]?.({
       outcome: "needs_review",
@@ -1804,7 +2081,10 @@ describe("report 落账本", () => {
       evidence: ["npm test: 430 passed"],
       plan: `${root}/.agents/domains/etf/plans/active/2026-11-07-示例`,
     } as WorkerReport);
-    expect(messages).toHaveLength(0);
+    // needs_review 是重要口径：推一条 digest 并开回合。
+    expect(messages).toHaveLength(1);
+    expect((messages[0] as { customType: string }).customType).toBe("orchestrator-important");
+    expect((messages[0] as { content: string }).content).toContain("改完了");
 
     const { openLedger } = await import("./ledger.ts");
     const filed = openLedger(stateRoot)
@@ -1828,16 +2108,20 @@ describe("report 落账本", () => {
     expect(summary).toContain("改完了");
   });
 
-  it("wakeOnReport 打开时才注入一行（默认关闭）", async () => {
-    const { messages, captured, root } = await harness({ wakeOnReport: true });
+  it("普通 done 零推送：不渲染、不进上下文，只留账本", async () => {
+    const { messages, captured, stateRoot, root } = await harness();
     captured[0]?.({
       outcome: "done",
       note: "01",
       summary: "还在跑",
       plan: `${root}/.agents/domains/etf/plans/active/2026-11-07-示例`,
     });
-    expect(messages).toHaveLength(1);
-    expect((messages[0] as { customType: string }).customType).toBe("orchestrator-wake");
-    expect((messages[0] as { content: string }).content).toContain("还在跑");
+    expect(messages).toHaveLength(0);
+    const { openLedger } = await import("./ledger.ts");
+    expect(
+      openLedger(stateRoot)
+        .events()
+        .map((event) => event.type),
+    ).toContain("report.filed");
   });
 });
