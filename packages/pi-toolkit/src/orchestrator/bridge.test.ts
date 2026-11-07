@@ -1147,7 +1147,69 @@ describe("dispatch 与 workers 工具", () => {
     for (const session of spawns) session.finish?.();
   });
 
-  it("pass 按 note 路由到含它的组，找不到就报错", async () => {
+  it("已有别的组时，未分组的 note 直接 pass 也单独成组（原“不知道投给哪一组”的坑）", async () => {
+    const { tools, spawns } = await setup();
+    // 01 已经成组；07 从未分组（就是 note 34 / 37 那种 plan 级 worker 跑出来的 note）。
+    const { root, ref } = await planWithNotes([note("01"), note("07")]);
+    const dispatch = tools.get("orchestrator_dispatch");
+    await dispatch?.execute(
+      "id",
+      { plan: ref, notes: ["01"], message: "做 01" },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+    const passed = textOf(
+      await dispatch?.execute(
+        "id",
+        { plan: ref, kind: "pass", note: "07", message: "" },
+        undefined,
+        undefined,
+        ctx(root),
+      ),
+    );
+    expect(passed).toContain(`已起 worker 接手 ${ref} 的组 [07]`);
+    expect(passed).toContain("原本不属于任何组，已单独成组");
+    expect(spawns).toHaveLength(2);
+    // 原来的 01 组没被打扰，pass 落到新建的 07 组。
+    expect(spawns[0]?.followUps).toHaveLength(0);
+    expect(spawns[1]?.prompts[0]).toContain("[pass] note 07");
+
+    // 再次 pass 同一个 note：复用 07 组，不再新建会话。
+    const again = textOf(
+      await dispatch?.execute(
+        "id",
+        { plan: ref, kind: "pass", note: "07", message: "" },
+        undefined,
+        undefined,
+        ctx(root),
+      ),
+    );
+    expect(again).toContain(`已投递给 ${ref} 的 worker（组 [07]）`);
+    expect(spawns).toHaveLength(2);
+    for (const session of spawns) session.finish?.();
+  });
+
+  it("显式给 notes 时不拆成单 note 组", async () => {
+    const { tools, spawns } = await setup();
+    const { root, ref } = await planWithNotes([note("01"), note("02")]);
+    const dispatch = tools.get("orchestrator_dispatch");
+    const result = textOf(
+      await dispatch?.execute(
+        "id",
+        { plan: ref, notes: ["01", "02"], kind: "pass", note: "02", message: "" },
+        undefined,
+        undefined,
+        ctx(root),
+      ),
+    );
+    expect(result).toContain(`已起 worker 接手 ${ref} 的组 [01, 02]`);
+    expect(result).not.toContain("已单独成组");
+    expect(spawns).toHaveLength(1);
+    for (const session of spawns) session.finish?.();
+  });
+
+  it("pass 按 note 路由到含它的组；note 本身不存在才报错", async () => {
     const { tools, spawns } = await setup({ makeSession: () => fakeSession(true, false) });
     const { root, ref } = await planWithNotes([note("01"), note("02")]);
     const dispatch = tools.get("orchestrator_dispatch");

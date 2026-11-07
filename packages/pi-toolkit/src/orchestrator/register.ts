@@ -302,7 +302,7 @@ const createDispatchTool = (
       "一组无依赖 note 一个 worker：用 notes 显式给出这一组；组内不得互相 blocked_by。",
       "需要真隔离（两个 worker 可能改同一批文件）时给 worktree: true 或一个名字；worker 的 cwd 就是 .worktrees/<名字>，Plan 仍锚定主工作区。",
       "worktree 的 worker 完成前必须自己 rebase 到主分支最新提交，并在 report 里写明可以 --ff-only 合并；rebase 冲突就报 blocked 并保留现场。合并成功后派一条回收指令（git merge --ff-only + 删 worktree 与分支）。",
-      "pass / rework / answer 带 note 时路由到包含它的组；找不到就报错，不要自己猜。",
+      "pass / rework / answer 带 note 时路由到包含它的组；该 note 不属于任何组就自动以 [note] 单独成组投递（组键可复用，不会每次都新建会话）。只有 note 本身不在 Plan 里才报错。",
       "默认 delivery=queue，不打断 worker 当前这轮；只有方向错了或要叫停某步才用 steer（插话），硬停整个 worker 用 orchestrator_workers 的 abort。",
       "用户的明确决定才可下发 pass / rework；不要把推断当放行。",
     ],
@@ -383,7 +383,8 @@ const createDispatchTool = (
       // 不再报“不知道投给哪一组”。只有 note 本身不在 Plan 里才报错（下面校验）。
       const noteRouting = plan !== undefined && note !== undefined && kind !== "message";
       const groupedByNote = noteRouting ? findByNote(registry, plan.directory, note) : undefined;
-      const autoGroup = noteRouting && groupedByNote === undefined;
+      // 显式给了 notes 就以那组为准（不再拆成单 note 组）；只有既没组也没命中的 note 才自动成组。
+      const autoGroup = noteRouting && groupNotes.length === 0 && groupedByNote === undefined;
       /** 本次真正落到哪个组：note 路由命中的组 / 自动成组的 [note] / 参数给的组。 */
       const targetNotes = groupedByNote?.notes ?? (autoGroup ? [note as string] : groupNotes);
       if (autoGroup && plan !== undefined) {
@@ -434,7 +435,7 @@ const createDispatchTool = (
         const hooks = deps.worktree ?? DEFAULT_WORKTREE_HOOKS;
         const name =
           requestedWorktree === true
-            ? autoWorktreeName(groupNotes)
+            ? autoWorktreeName(targetNotes)
             : sanitizeWorktreeName(requestedWorktree);
         worktree = await hooks.ensure({ workspace, name });
         worktreeCreated = worktree.created;
