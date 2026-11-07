@@ -315,9 +315,12 @@ While a session runs Orchestrator:
   back under its own group.
 
   **Line spacing is carried by the tree connectors, not by blank rows**: no empty line between groups or
-  between notes; only between two Plans. Styling is colour-only — running rows use `accent`, everything
-  else is default/bold. There is deliberately **no `dim`** anywhere in the list: a terminal has no font
-  size, so dimming would be faking a smaller font rather than expressing hierarchy.
+  between notes; only between two Plans and before the temp block. Styling carries **one** bit of colour:
+  rows with a live worker are drawn in `accent`, everything else uses the default colour (headings stay
+  bold). `已完成` / `待开工` / `阻塞` are told apart by the status word at the start of the row, not by a
+  colour of their own — there is deliberately **no `dim`** anywhere in the list, because a terminal has no
+  font size and a dimmed row reads as "smaller font", which is exactly what was ruled out; stacking a
+  second colour semantics on top would also fight with the accent-means-running rule.
 
   Clicking a note opens the detail card: a `warning`-framed box headed `◇ note <id> · <状态>` carrying
   the snapshot (description, blocking reason, group, Plan) and, while a worker holds that note, a

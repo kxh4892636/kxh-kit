@@ -10,8 +10,10 @@
  * 2. main screen（`regular`）里 overlay 合成在 transcript 的行上，那些行一旦滚进 scrollback
  *    就再也重绘不到 → 可能留残影。因此侧栏与图标**只在 `tui.mode === "fullscreen"`** 显示，
  *    不做“仅提示”的折中。
- * 3. 窄终端：侧栏固定 32 列，终端窄于 `SIDEBAR_MIN_COLUMNS`（100）时整块隐藏（会盖住正文）。
- *    图标保留（否则没有任何入口），点它会收到一条 notify 说明“为什么看不到侧栏”—— 不静默。
+ * 3. 窄终端：侧栏固定 `SIDEBAR_WIDTH`（40）列，终端窄于 `SIDEBAR_MIN_COLUMNS`（110）时整块隐藏
+ *    （会盖住正文）。阈值随宽度上调：40 列 + 左右 margin 占 42 屏幕列，仍用 100 就只剩 58 列给正文，
+ *    110 列保住 68 列，与旧 32/100 的比例一致。图标保留（否则没有任何入口），点它会收到一条 notify
+ *    说明“为什么看不到侧栏”—— 不静默。
  *
  * `Esc` 只有一层：详情开着时关掉详情，**不动侧栏**（侧栏只由右上角 `▤` 图标切换）。
  * 详情浮层是 `nonCapturing` 且只占卡片矩形（外部真透明，见 `detail-overlay.ts`），
@@ -444,8 +446,11 @@ export const buildSidebarView = (
 };
 
 /**
- * 行样式：只靠颜色区分「在跑」（accent）与其余，**不用 `dim` 弱化**去假装字号变小。
- * 层级已经由树形接续符表达。
+ * 行样式：**只用颜色区分「在跑」**（`accent`），其余一律默认色；**刻意不用 `dim`**。
+ *
+ * 为什么不用 `dim` / 缩进等手法表达“完成 / 待开工”：终端没有字号，弱化色会被读成“小一号字体”，
+ * 而这正是用户明确不要的（见 note 43 追加口径 5）。已完成 / 待开工 / 阻塞之间的区别由**行首的状态
+ * 中文名**（`已完成` / `待开工` / `阻塞`）自己承担，不再叠一层颜色语义；层级则完全由树形接续符表达。
  */
 const renderRow = (row: SidebarRow, width: number, theme: Theme): string => {
   switch (row.kind) {
@@ -458,7 +463,11 @@ const renderRow = (row: SidebarRow, width: number, theme: Theme): string => {
         "…",
       );
     case "note":
-      return truncateToWidth(row.running === true ? theme.fg("accent", row.text) : row.text, width);
+      return truncateToWidth(
+        row.running === true ? theme.fg("accent", row.text) : row.text,
+        width,
+        "…",
+      );
     case "fold":
       return truncateToWidth(row.text, width, "…");
     case "temp-group":

@@ -361,18 +361,46 @@ describe("侧边栏列表", () => {
     expect(visibleWidth(noteLine)).toBe(SIDEBAR_WIDTH);
   });
 
-  it("样式：不用 dim 弱化假装小字号，只有 running 用 accent", () => {
+  it("样式：不用 dim；已完成 / 待开工不加颜色，只靠行首状态名", () => {
     const colorTheme = {
       fg: (color: string, text: string) => `<${color}>${text}</>`,
       bold: (text: string) => `<b>${text}</b>`,
     };
-    const text = renderSidebarLines(
-      buildSidebarView(demoPlans()),
+    const view = buildSidebarView(demoPlans());
+    const lines = renderSidebarLines(view, SIDEBAR_WIDTH, colorTheme as never);
+    const text = lines.join("\n");
+    // 全帧没有任何 dim：终端没字号，弱化色会被读成“小一号字体”。
+    expect(text).not.toContain("<dim>");
+    // 只有 running 的行用 accent。
+    expect(text).toContain("<accent>");
+
+    // 逐行对齐 rows：左右竖线各贡献 1 个 accent，所以非 running 的 note 行恰好 2 个，
+    // running 的那行会多出 1 个（整行 accent）——「只有在跑的才有颜色」就是这么落地的。
+    const accents = (line: string): number => (line.match(/<accent>/gu) ?? []).length;
+    const noteLines = lines
+      .slice(SIDEBAR_HEADER_ROWS, SIDEBAR_HEADER_ROWS + view.rows.length)
+      .map((line, index) => ({ line, row: view.rows[index] }))
+      .filter((item) => item.row?.kind === "note");
+    const idle = noteLines.filter((item) => item.row?.running !== true);
+    const running = noteLines.filter((item) => item.row?.running === true);
+    expect(idle.length).toBeGreaterThan(0);
+    expect(running.length).toBeGreaterThan(0);
+    for (const { line } of idle) {
+      expect(accents(line)).toBe(2);
+      expect(line).not.toContain("<dim>");
+    }
+    for (const { line } of running) expect(accents(line)).toBe(3);
+    // 状态名自己承担区分：待开工 / 阻塞 直接写在行里，已完成由折叠行与展开后的行承担。
+    expect(text).toContain("待开工 · 01 待办");
+    expect(text).toContain("阻塞 · 05 卡住");
+    expect(text).toContain("已完成 1 条 ▸");
+    const expanded = renderSidebarLines(
+      buildSidebarView(demoPlans(), ["pi/active/2026-01-01-demo"]),
       SIDEBAR_WIDTH,
       colorTheme as never,
     ).join("\n");
-    expect(text).not.toContain("<dim>");
-    expect(text).toContain("<accent>");
+    expect(expanded).toContain("已完成 · 06 完成");
+    expect(expanded).not.toContain("<dim>");
   });
 
   it("上边框就是第一行（无汇总行），行与 rows 一一对应，且每行不超 40 列", () => {
