@@ -17,6 +17,7 @@ import {
   installCrashGuard,
   readInterrupted,
   stateDirectory,
+  writeInterrupted,
 } from "./errors.ts";
 import {
   createRegistry,
@@ -26,6 +27,7 @@ import {
   entryKeyOf,
   harvest,
   keyBelongsToPlan,
+  planDirectoryOf,
   renew,
   type WorkerEntry,
   type WorkerJob,
@@ -74,6 +76,75 @@ export const ORCHESTRATOR_TOOL_NAMES = [
 ] as const;
 
 const ORCHESTRATOR_TOOL_SET: ReadonlySet<string> = new Set(ORCHESTRATOR_TOOL_NAMES);
+
+/**
+ * 宿主内置工具的默认集合：`defaultTools` 没设置时 pi 用的就是这四个（`docs/settings.md`）。
+ *
+ * 不从 pi 包里 import `DEFAULT_TOOL_NAMES`：它没从包根导出，而扩展在运行时是 bundle 进来的。
+ */
+const HOST_DEFAULT_TOOL_NAMES = ["read", "bash", "edit", "write"] as const;
+
+/**
+ * 会话 entry：本会话**首次收敛之前**的活跃工具集合。
+ *
+ * pi 会把工具装载记进 transcript（`toolsAdded` / `toolsRemoved`），`/reload` 与恢复会话都会
+ * 重现上一次的装载。`orchestrator-baseline` 记的是收敛之前的值，reload 之后从这里读回来，
+ * 而不是再快照一次（再快照拿到的只会是收敛后的六个）。
+ */
+export const BASELINE_ENTRY = "orchestrator-baseline";
+
+/** `+name` / `-name` 形式的条目：叠加在默认集上，而不是替换它。 */
+const isToolModifier = (entry: string): boolean => entry.startsWith("+") || entry.startsWith("-");
+
+/**
+ * 配置层的默认工具集合，与 `defaultTools` / `--tools` 同语义：纯名字列表替换默认集，只有
+ * `+name` / `-name` 时叠加在默认集上。
+ *
+ * 这是「模式关掉之后宿主该有哪些工具」的**配置层**来源。不能用运行时 `getActiveTools()` 当基线：
+ * 收敛过的集合会被 pi 记进 transcript 并在 `/reload`、恢复会话时重现，于是“基线”就是收敛结果，
+ * 宿主工具再也回不来（note 30 首次真机验证就是这个现象）。
+ *
+ * 已知缺口：`--tools` / `--exclude-tools` 的 CLI 覆写不进设置，扩展读不到；那种启动方式下
+ * 由 `BASELINE_ENTRY` 记下的启动集合兜底。
+ * @param pi - 扩展 API（取生效设置）。
+ * @returns 默认工具名，配置层顺序。
+ */
+const configToolDefaults = (pi: ExtensionAPI): string[] => {
+  let configured: string[] | undefined;
+  try {
+    const value = (pi.getSettings() as { defaultTools?: unknown }).defaultTools;
+    if (Array.isArray(value)) {
+      configured = value.filter((item): item is string => typeof item === "string");
+    }
+  } catch {
+    configured = undefined;
+  }
+  const replace = configured !== undefined && !configured.some(isToolModifier);
+  const names: string[] = replace ? [...(configured ?? [])] : [...HOST_DEFAULT_TOOL_NAMES];
+  for (const entry of configured ?? []) {
+    if (!isToolModifier(entry)) continue;
+    const name = entry.slice(1);
+    if (entry.startsWith("+")) {
+      if (!names.includes(name)) names.push(name);
+      continue;
+    }
+    const at = names.indexOf(name);
+    if (at >= 0) names.splice(at, 1);
+  }
+  return names;
+};
+
+/** 分支上最后一次记下的启动活跃集合；没有返回 undefined。 */
+const baselineEntryOf = (entries: readonly BranchEntryLike[]): string[] | undefined => {
+  for (let index = entries.length - 1; index >= 0; index -= 1) {
+    const entry = entries[index];
+    if (entry?.type !== "custom" || entry.customType !== BASELINE_ENTRY) continue;
+    const names = (entry.data as { names?: unknown } | undefined)?.names;
+    if (!Array.isArray(names)) continue;
+    return names.filter((item): item is string => typeof item === "string");
+  }
+  return undefined;
+};
 
 /** 宿主入口提供的依赖。 */
 export interface OrchestratorDeps {
@@ -446,34 +517,47 @@ export const registerOrchestrator = (
   };
 
   /**
-   * 模式关闭时该恢复的活跃工具集合。**只在 `start()` 快照一次**：若在 `sync()` 里
-   * 重取，第二次拿到的就是收敛后的集合，关掉模式后宿主工具再也回不来。
+   * 模式关闭时该恢复的活跃工具集合，三个来源取并集（全部排掉本插件的工具）：
+   *
+   * 1. 配置层默认集（`defaultTools` / `--tools` 语义）：唯一能救回**已经被收敛污染**的会话的
+   *    来源 —— 那时运行时活跃集只剩六个，再快照毫无意义；
+   * 2. 会话里的 `BASELINE_ENTRY`：保住启动时由别的开关打开的工具（`/toolkit` 的 web 工具），
+   *    配置层看不到它们；
+   * 3. 当前活跃集合：收敛期间被别的开关重新打开的工具不能丢。
+   * @param ctx - 扩展上下文（读分支）。
+   * @returns 待恢复的工具名，按上述顺序去重。
    */
-  let baseline: readonly string[] | undefined;
+  const restoreToolNames = (ctx: ExtensionContext): string[] => {
+    const names: string[] = [];
+    const push = (name: string): void => {
+      if (ORCHESTRATOR_TOOL_SET.has(name) || names.includes(name)) return;
+      names.push(name);
+    };
+    for (const name of configToolDefaults(pi)) push(name);
+    for (const name of baselineEntryOf(branchOf(ctx)) ?? []) push(name);
+    for (const name of pi.getActiveTools()) push(name);
+    return names;
+  };
 
   /**
    * 严格白名单：模式开 → 活跃工具就 `ORCHESTRATOR_TOOL_NAMES` 这六个（宿主的
    * `read` / `bash` / `edit` / `write` / web 全部收掉 —— 靠提示词自觉已被证伪）；
-   * 模式关 → 恢复基线。
+   * 模式关 → 恢复 `restoreToolNames`。
    *
-   * 关闭时的集合是「当前活跃集合去掉本插件的工具，再补回基线里缺的」：基线只是
-   * 快照，web 这类由别的开关管的工具可能在快照之后被 `/toolkit` 改过，直接用基线
-   * 覆盖会把它们的开关状态一起抹掉。
-   *
-   * 基线还没快照（`start()` 之前）时不动：宁可维持现状，也不把半收敛的集合当基线。
+   * 关模式只在**真收敛过**时动手：活跃集合里还有本插件的工具（它们注册时是
+   * `defaultActive: false`，只有本插件会激活），或本进程收敛过。否则一律不动 —— 例如
+   * `pi --tools grep` 起的新会话从没进过模式，不该被我们补上宿主默认工具。
+   * @param ctx - 扩展上下文（读分支拿基线）。
    * @param enabled - 是否处于 Orchestrator 模式。
    */
-  const setTools = (enabled: boolean): void => {
-    if (baseline === undefined) return;
+  const setTools = (ctx: ExtensionContext, enabled: boolean): void => {
     const active = pi.getActiveTools();
-    let next: string[] = [];
+    let next: string[];
     if (enabled) {
       next = [...ORCHESTRATOR_TOOL_NAMES];
     } else {
-      next = [...baseline];
-      for (const name of active) {
-        if (!ORCHESTRATOR_TOOL_SET.has(name) && !next.includes(name)) next.push(name);
-      }
+      if (!active.some((name) => ORCHESTRATOR_TOOL_SET.has(name))) return;
+      next = restoreToolNames(ctx);
     }
     const unchanged =
       next.length === active.length && next.every((name, index) => name === active[index]);
@@ -481,7 +565,7 @@ export const registerOrchestrator = (
   };
 
   const sync = (ctx: ExtensionContext): void => {
-    setTools(modeOn(ctx));
+    setTools(ctx, modeOn(ctx));
   };
 
   /** 状态目录：崩溃凭据落在这里。 */
@@ -620,8 +704,12 @@ export const registerOrchestrator = (
 
   const start = (ctx: ExtensionContext): void => {
     resetPending = false;
-    // 基线只在这里取一次：此处活跃集合还是宿主给的原始值，没被本插件收敛过。
-    baseline ??= pi.getActiveTools();
+    // 首次进入本会话就把启动活跃集记进分支：reload / 恢复会话会重现上次的装载（pi 把工具装载
+    // 记进 transcript），收敛之后再取就只剩六个。已被污染且没有记录的老会话里，这里记下的虽然
+    // 也是六个，但 `restoreToolNames` 会把它滤掉并用配置层默认集兜底。
+    if (baselineEntryOf(branchOf(ctx)) === undefined) {
+      pi.appendEntry(BASELINE_ENTRY, { names: pi.getActiveTools() });
+    }
     if (
       deps.settings().tools.orchestrator &&
       pi.getFlag("orchestrator") === true &&
@@ -632,14 +720,59 @@ export const registerOrchestrator = (
     sync(ctx);
   };
 
+  /**
+   * 摘掉 worker 之前，先把「哪条 note 会被留在 `in_progress`」记进中断凭据。
+   *
+   * worker 随会话退出而消失，note 却还停在 `in_progress`：没有这条记录，人下次只看到一条悬空的
+   * note，看不出它是被中断的。这里**只记录不改状态**（`status=blocked` 会改业务域文档），
+   * 改状态是人的决定；凭据由 `/orchestrator status` 展示后清除。
+   * @param reason - 写进凭据的原因。
+   */
+  const recordInterruptedNotes = async (reason: string): Promise<void> => {
+    const entries = registry.list();
+    if (entries.length === 0) return;
+    const plans: string[] = [];
+    const notes: string[] = [];
+    for (const entry of entries) {
+      if (!plans.includes(entry.planRef)) plans.push(entry.planRef);
+      if (entry.kind === "temp") continue;
+      try {
+        const document = await loadDocument(
+          planDirectoryOf(entry.planDirectory),
+          deps.settings().orchestrator,
+        );
+        for (const note of document.notes) {
+          if (note.status !== "in_progress") continue;
+          const label = `${entry.planRef} · note ${note.id}`;
+          if (!notes.includes(label)) notes.push(label);
+        }
+      } catch {
+        // 读不到 notes.json 时只留 plan 记录；凭据本身不能因此不落盘。
+      }
+    }
+    try {
+      writeInterrupted(stateDir(), {
+        at: new Date().toISOString(),
+        reason,
+        plans,
+        ...(notes.length === 0 ? {} : { notes }),
+      });
+    } catch {
+      // 会话正在退出，落盘失败没有更好的选择。
+    }
+  };
+
   // 进程级兜底：记录中断凭据后干净退出；凭据等人显式查询时才展示并被移除。
   installCrashGuard({
     directory: stateDir,
     plans: () => registry.list().map((entry) => entry.planRef),
   });
 
-  // 退出收尾：abort 并 dispose 全部 worker，避免留下无人读 stdout 的会话。
+  // 退出收尾：先留痕再把 worker 全摘掉，避免“worker 静默消失、note 悬空”。
   pi.on("session_shutdown", async () => {
+    await recordInterruptedNotes(
+      "session_shutdown: worker 随会话退出，相关 note 可能停在 in_progress",
+    );
     await disposeAll(registry);
   });
 
@@ -730,6 +863,9 @@ export const registerOrchestrator = (
       lines.push(
         `  仍在跑: ${crashed.plans.length === 0 ? "（无记录）" : crashed.plans.join(", ")}`,
       );
+      if (crashed.notes !== undefined && crashed.notes.length > 0) {
+        lines.push(`  可能悬空: ${crashed.notes.join(", ")}`);
+      }
       interrupted.clear();
     }
     return lines.join("\n");

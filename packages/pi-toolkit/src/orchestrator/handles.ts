@@ -115,6 +115,12 @@ export const keyBelongsToPlan = (key: string, planDirectory: string): boolean =>
   return key.startsWith(`${planDirectory}${KEY_SEPARATOR}`);
 };
 
+/** 把一条路由键还原成 Plan 目录：`<目录>::<组标识>` → `<目录>`；临时键原样返回。 */
+export const planDirectoryOf = (key: string): string => {
+  const at = key.indexOf(KEY_SEPARATOR);
+  return at < 0 ? key : key.slice(0, at);
+};
+
 /** 句柄表。 */
 export interface WorkerRegistry {
   /** 按路由键取一条；不存在返回 undefined。 */

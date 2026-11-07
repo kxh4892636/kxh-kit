@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_SETTINGS, DEFAULT_TOOLS, type ToolkitSettings } from "../settings.ts";
+import type { NoteNode } from "./dag.ts";
 import {
   createRegistry,
   deliver,
@@ -96,8 +97,13 @@ const entry = (
 });
 
 const created: FakeSession[] = [];
-afterEach(() => {
+const createdDirs: string[] = [];
+afterEach(async () => {
   created.splice(0);
+  const fs = await import("node:fs/promises");
+  await Promise.all(
+    createdDirs.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })),
+  );
 });
 
 describe("句柄表与输入投递", () => {
@@ -290,7 +296,7 @@ describe("dispatch 与 workers 工具", () => {
         return { session, dispose: () => session.dispose() };
       },
     });
-    return { tools, messages, spawns, reports, spawnOptions };
+    return { tools, messages, spawns, reports, spawnOptions, handlers };
   };
 
   const textOf = (result: unknown): string =>
@@ -319,11 +325,15 @@ describe("dispatch 与 workers 工具", () => {
   };
 
   /** 一条最小 note。 */
-  const note = (id: string, blockedBy: readonly string[] = []) => ({
+  const note = (
+    id: string,
+    blockedBy: readonly string[] = [],
+    status: NoteNode["status"] = "pending",
+  ) => ({
     id,
     title: `note ${id}`,
     description: `摘要 ${id}`,
-    status: "pending" as const,
+    status,
     blocked_by: [...blockedBy],
     evidence: [],
     updated_at: "2026-11-07T00:00:00.000Z",
@@ -427,6 +437,41 @@ describe("dispatch 与 workers 工具", () => {
     // 再等一会儿也不会重复提醒。
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(timeouts(messages)).toHaveLength(1);
+  });
+
+  it("退出收尾前把 in_progress 的 note 记进中断凭据", async () => {
+    // worker 随会话退出而消失，note 却还停在 in_progress：先留痕再摘句柄，note 不悬空。
+    const fs = await import("node:fs/promises");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const { readInterrupted, stateDirectory } = await import("./errors.ts");
+    const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-bridge-shutdown-"));
+    createdDirs.push(agentDir);
+    const previous = process.env["PI_CODING_AGENT_DIR"];
+    process.env["PI_CODING_AGENT_DIR"] = agentDir;
+    try {
+      const { tools, handlers } = await setup({ makeSession: () => fakeSession(true, false) });
+      const { root, ref } = await planWithNotes([note("01", [], "in_progress"), note("02")]);
+      await tools
+        .get("orchestrator_dispatch")
+        ?.execute(
+          "id",
+          { plan: ref, message: "做 01", note: "01" },
+          undefined,
+          undefined,
+          ctx(root),
+        );
+      for (const handler of handlers.get("session_shutdown") ?? []) {
+        await handler({ reason: "quit" });
+      }
+      const state = readInterrupted(stateDirectory(agentDir));
+      expect(state?.plans).toEqual([ref]);
+      expect(state?.notes).toEqual([`${ref} · note 01`]);
+      expect(state?.reason).toContain("session_shutdown");
+    } finally {
+      if (previous === undefined) delete process.env["PI_CODING_AGENT_DIR"];
+      else process.env["PI_CODING_AGENT_DIR"] = previous;
+    }
   });
 
   it("worker 正常结束即收割，不会误报超时", async () => {

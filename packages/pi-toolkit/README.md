@@ -236,11 +236,17 @@ While a session runs Orchestrator:
   move), `orchestrator_check` (plan / workspace / limits), `orchestrator_dispatch` (start or message the
   worker of one plan) and `orchestrator_workers` (list or abort live workers) are the **entire** active
   tool set, together with `ask_questions`. The host's `read` / `bash` / `edit` / `write` / web tools are
-  switched off in that session, so evidence has to come from a worker. `session_start` snapshots the
-  incoming active set once as the baseline; leaving the mode (`/orchestrator 关`, `always: false`, or the
-  `/toolkit` switch off) restores it, keeping tools owned by other switches (web tools). The snapshot
-  is never retaken, otherwise the converged set would become the baseline and the host tools would be
-  lost.
+  switched off in that session, so evidence has to come from a worker. Leaving the mode (`/orchestrator
+关`, `always: false`, or the `/toolkit` switch off) restores the **config-layer** default set: the
+  `defaultTools` setting with `--tools` semantics (plain names replace it, `+name` / `-name` apply on top),
+  unioned with the active set recorded in the `orchestrator-baseline` session entry before the first
+  convergence and with whatever another switch has (re)activated, e.g. web tools. It never snapshots
+  `getActiveTools()` at restore time: pi records the tool loadout in the transcript and `/reload` plus
+  resumed sessions replay it, so a snapshot taken after converging is the converged set itself and the
+  host tools would never come back. The `orchestrator-baseline` entry is written once per branch and read
+  back after a reload. `disposeAll` (session shutdown / reload) writes the plans it kills and their
+  `in_progress` notes into the interrupted.json record before dropping the workers, so no note is left
+  silently dangling.
 - `status` takes `pending / in_progress / waiting / blocked`; `waiting` must say what it waits for via
   `needs: "answer" | "review"`, and `complete` only accepts `waiting` + `needs=review`. Old
   `awaiting_verification` documents are read as `waiting` + `needs=review`.

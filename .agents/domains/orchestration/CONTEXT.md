@@ -20,7 +20,7 @@ _Avoid_: 编排日志、审计流水
 _Avoid_: 需求分类、意图识别
 
 **编排方职责**:
-只做三件事：判定归属（并入 / 新建 Plan）、派工与转达（message / pass / rework / answer / fact）、呈现 worker 结论并收集用户确认；代码调研、方案对比、实现、跑测试、复核一律外移给 worker。白名单只有 `orchestrator_read` / `orchestrator_write` / `orchestrator_check` / `orchestrator_dispatch` / `orchestrator_workers` / `ask_questions`；这不是“靠自觉”的约定，而是启用时把活跃工具集收敛成这六个，宿主的 `read` / `bash` / `edit` / `write` / web 在编排方会话里不可调用（模式关后恢复启动时的基线快照）。
+只做三件事：判定归属（并入 / 新建 Plan）、派工与转达（message / pass / rework / answer / fact）、呈现 worker 结论并收集用户确认；代码调研、方案对比、实现、跑测试、复核一律外移给 worker。白名单只有 `orchestrator_read` / `orchestrator_write` / `orchestrator_check` / `orchestrator_dispatch` / `orchestrator_workers` / `ask_questions`；这不是“靠自觉”的约定，而是启用时把活跃工具集收敛成这六个，宿主的 `read` / `bash` / `edit` / `write` / web 在编排方会话里不可调用（模式关后恢复到配置层默认集：`defaultTools` / `--tools` 语义与首次收敛前记下的活跃集的并集，不是运行时快照）。
 _Avoid_: 编排方顺手调研、编排方代为验证
 
 **提交**:

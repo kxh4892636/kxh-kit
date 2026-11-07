@@ -7,7 +7,7 @@ import { DEFAULT_SETTINGS, DEFAULT_TOOLS, type ToolkitSettings } from "../settin
 import { assetsSkillsRoot } from "./assets.ts";
 import { readInterrupted, stateDirectory, writeInterrupted } from "./errors.ts";
 import { MODE_ENTRY, RESET_ENTRY, type BranchEntryLike } from "./mode.ts";
-import { ORCHESTRATOR_TOOL_NAMES, registerOrchestrator } from "./register.ts";
+import { BASELINE_ENTRY, ORCHESTRATOR_TOOL_NAMES, registerOrchestrator } from "./register.ts";
 
 type Handler = (event: unknown, ctx: ExtensionContext) => unknown;
 
@@ -25,6 +25,10 @@ interface Harness {
   readonly flags: Map<string, boolean | string>;
   readonly sent: Array<{ customType?: string; content: string }>;
   current: ToolkitSettings;
+  /** 直接改宿主活跃集，模拟 /toolkit 之类别的开关或 reload。 */
+  setActive(names: string[]): void;
+  /** 改宿主设置（`defaultTools`）。 */
+  setPiSettings(next: { defaultTools?: string[] }): void;
   start(ctx: ExtensionContext): void;
   fire(event: string, ctx: ExtensionContext, payload?: unknown): Promise<unknown[]>;
   command(args: string, ctx: ExtensionContext): Promise<void>;
@@ -57,6 +61,8 @@ const setup = (settings: ToolkitSettings): Harness => {
   const sent: Array<{ customType?: string; content: string }> = [];
   const tools: FakeTool[] = [];
   let active = ["read", "bash"];
+  // 宿主设置：`defaultTools` 是配置层默认集的来源。测试里可改。
+  let piSettings: { defaultTools?: string[] } = {};
   const commands = new Map<string, Handler>();
   const pi = {
     registerTool: (tool: FakeTool) => {
@@ -87,6 +93,7 @@ const setup = (settings: ToolkitSettings): Harness => {
     setActiveTools: (names: string[]) => {
       active = [...names];
     },
+    getSettings: () => ({ ...piSettings }),
   } as unknown as ExtensionAPI;
   const harness: Harness = {
     pi,
@@ -97,6 +104,12 @@ const setup = (settings: ToolkitSettings): Harness => {
     flags,
     sent,
     current: settings,
+    setActive(names) {
+      active = [...names];
+    },
+    setPiSettings(next) {
+      piSettings = next;
+    },
     async fire(event, ctx, payload) {
       const results: unknown[] = [];
       for (const handler of handlers.get(event) ?? []) {
@@ -195,7 +208,7 @@ describe("registerOrchestrator", () => {
     expect(discovered[0]?.skillPaths?.[0]).toBe(assetsSkillsRoot());
   });
 
-  it("restores the host baseline after the mode turns off, without re-snapshotting it", async () => {
+  it("restores the configured default tools after the mode turns off, without re-snapshotting it", async () => {
     const harness = setup(settingsWith({ always: true }));
     const ctx = makeCtx(harness.branch, harness.notifications, await tempDir());
     harness.start(ctx);
@@ -208,18 +221,72 @@ describe("registerOrchestrator", () => {
 
     harness.current = settingsWith({ always: false });
     await harness.fire("session_tree", ctx);
-    expect(harness.active()).toEqual(["read", "bash"]);
+    // 恢复的是配置层默认集（`defaultTools` 未设置时就是宿主那四个），不是收敛后的六个。
+    expect(harness.active()).toEqual(["read", "bash", "edit", "write"]);
+  });
+
+  it("restores the config default set when the active tools were already converged", async () => {
+    // 真机回归：pi 把工具装载记进 transcript，reload / 恢复会话会重现收敛后的六个。
+    // 于是“基线”只能是配置层来源，否则关掉模式后 bash 永远回不来。
+    const harness = setup(settingsWith({ always: false }));
+    const ctx = makeCtx(harness.branch, harness.notifications, await tempDir());
+    harness.setActive([...ORCHESTRATOR_TOOL_NAMES]);
+    harness.start(ctx);
+    expect(harness.active()).toEqual(["read", "bash", "edit", "write"]);
+    expect(harness.active()).toContain("bash");
+  });
+
+  it("applies defaultTools modifiers when it restores", async () => {
+    const harness = setup(settingsWith({ always: false }));
+    const ctx = makeCtx(harness.branch, harness.notifications, await tempDir());
+    harness.setPiSettings({ defaultTools: ["+codemode", "-write"] });
+    harness.setActive([...ORCHESTRATOR_TOOL_NAMES]);
+    harness.start(ctx);
+    expect(harness.active()).toEqual(["read", "bash", "edit", "codemode"]);
+  });
+
+  it("replaces the default set when defaultTools is a plain list", async () => {
+    const harness = setup(settingsWith({ always: false }));
+    const ctx = makeCtx(harness.branch, harness.notifications, await tempDir());
+    harness.setPiSettings({ defaultTools: ["read", "grep"] });
+    harness.setActive([...ORCHESTRATOR_TOOL_NAMES]);
+    harness.start(ctx);
+    expect(harness.active()).toEqual(["read", "grep"]);
+  });
+
+  it("leaves a session that never converged alone", async () => {
+    // `pi --tools grep` 这类启动方式下，宿主的选择不能被我们补成默认四个。
+    const harness = setup(settingsWith({ always: false }));
+    const ctx = makeCtx(harness.branch, harness.notifications, await tempDir());
+    harness.setActive(["grep"]);
+    harness.start(ctx);
+    expect(harness.active()).toEqual(["grep"]);
+  });
+
+  it("records the pre-convergence tool set once, so a reload can read it back", async () => {
+    const harness = setup(settingsWith({ always: true }));
+    harness.setActive(["read", "bash", "web_search"]);
+    const ctx = makeCtx(harness.branch, harness.notifications, await tempDir());
+    harness.start(ctx);
+    expect(harness.active()).toEqual([...ORCHESTRATOR_TOOL_NAMES]);
+    expect(harness.branch.filter((entry) => entry.customType === BASELINE_ENTRY)).toHaveLength(1);
+    harness.start(ctx);
+    // 收敛之后再 start 不得重记：那会把收敛结果写成“基线”。
+    expect(harness.branch.filter((entry) => entry.customType === BASELINE_ENTRY)).toHaveLength(1);
+    harness.current = settingsWith({ always: false });
+    await harness.fire("session_tree", ctx);
+    expect(harness.active()).toEqual(["read", "bash", "edit", "write", "web_search"]);
   });
 
   it("keeps tools owned by another switch when it restores", async () => {
     const harness = setup(settingsWith({ always: true }));
     const ctx = makeCtx(harness.branch, harness.notifications, await tempDir());
     harness.start(ctx);
-    // 快照之后由 /toolkit 激活的 web 工具不属于本插件的基线，恢复时不能抹掉。
-    harness.pi.setActiveTools([...ORCHESTRATOR_TOOL_NAMES, "web_search"]);
+    // 收敛期间由 /toolkit 重新激活的 web 工具不属于本插件的基线，恢复时不能抹掉。
+    harness.setActive([...ORCHESTRATOR_TOOL_NAMES, "web_search"]);
     harness.current = settingsWith({ always: false });
     await harness.fire("session_tree", ctx);
-    expect(harness.active()).toEqual(["read", "bash", "web_search"]);
+    expect(harness.active()).toEqual(["read", "bash", "edit", "write", "web_search"]);
   });
 
   it("lets a session override turn always-on back off", async () => {
@@ -272,7 +339,8 @@ describe("registerOrchestrator", () => {
     );
     await harness.command("", offCtx);
     expect(harness.alwaysCalls).toEqual([false]);
-    expect(harness.active()).toEqual(["read", "bash"]);
+    // 关模式回到配置层默认集（不再是启动快照）。
+    expect(harness.active()).toEqual(["read", "bash", "edit", "write"]);
     expect(harness.branch.at(-1)).toMatchObject({ data: { enabled: false } });
   });
 

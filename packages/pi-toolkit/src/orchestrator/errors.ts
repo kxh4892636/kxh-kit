@@ -20,6 +20,8 @@ export interface InterruptedState {
   readonly reason: string;
   /** 崩溃时仍 live 的 plan 引用。 */
   readonly plans: readonly string[];
+  /** 被摘掉的 worker 可能留在 `in_progress` 的 note（`<plan 引用> · note <id>`）；没有就省略。 */
+  readonly notes?: readonly string[];
 }
 
 /**
@@ -53,7 +55,15 @@ export const readInterrupted = (directory: string): InterruptedState | undefined
     const plans = Array.isArray(record["plans"])
       ? record["plans"].filter((item): item is string => typeof item === "string")
       : [];
-    return { at: record["at"], reason: record["reason"], plans };
+    const notes = Array.isArray(record["notes"])
+      ? record["notes"].filter((item): item is string => typeof item === "string")
+      : [];
+    return {
+      at: record["at"],
+      reason: record["reason"],
+      plans,
+      ...(notes.length === 0 ? {} : { notes }),
+    };
   } catch {
     return undefined;
   }
