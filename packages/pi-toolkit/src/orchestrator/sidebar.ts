@@ -286,11 +286,25 @@ export interface SidebarView {
 
 /**
  * note 状态的展示名（中文）：`waiting` 再按 `needs` 分「待回答 / 待验收」。
- * @param note - 带 `status` / `needs` 的 note。
+ *
+ * **「待开工」也要看运行态**：只要账本投影说这条 note 有 live worker（`worker.spawned`
+ * 覆盖它），`pending` 一律显示「执行中」。worker 顺手改 `in_progress` 这一步经常被忘，只看
+ * `notes.json` 会把“正在跑”说成“待开工”（note 45 开工时就是这么被误读的）。
+ * `waiting` / `blocked` / `completed` 仍按业务状态显示 —— 那是 worker 报上来的结论，
+ * 不是“还没开始”。
+ * @param note - 带 `status` / `needs`，可带 `running` 的 note。
  * @returns `执行中` / `待回答` / `待验收` / `阻塞` / `待开工` / `已完成`。
  */
-export const noteStatusText = (note: Pick<SidebarNote, "status" | "needs">): string =>
-  note.status === "waiting" && note.needs === "answer" ? "待回答" : STATUS_LABELS[note.status];
+export const noteStatusText = (note: {
+  readonly status: NoteStatus;
+  readonly needs?: NoteNeeds;
+  readonly running?: boolean;
+}): string => {
+  if (note.running === true && note.status === "pending") return STATUS_LABELS.in_progress;
+  return note.status === "waiting" && note.needs === "answer"
+    ? "待回答"
+    : STATUS_LABELS[note.status];
+};
 
 /**
  * note 行的文本：`{状态中文名} · {序号} {名称}`，不含概述（概述只在详情卡片里）。

@@ -508,6 +508,18 @@ describe("temp workers 分组", () => {
   });
 });
 
+describe("status 文案", () => {
+  it("有 live worker 时 pending 显示执行中（不依赖 worker 改 in_progress）", () => {
+    expect(noteStatusText({ status: "pending", running: true })).toBe("执行中");
+    expect(noteStatusText({ status: "pending" })).toBe("待开工");
+    // 业务结论不被覆盖：等验收 / 阻塞 / 完成照旧。
+    expect(noteStatusText({ status: "waiting", needs: "review", running: true })).toBe("待验收");
+    expect(noteStatusText({ status: "waiting", needs: "answer" })).toBe("待回答");
+    expect(noteStatusText({ status: "blocked", running: true })).toBe("阻塞");
+    expect(noteStatusText({ status: "completed", running: true })).toBe("已完成");
+  });
+});
+
 describe("结构快照（追加口径锁定）", () => {
   const plans = (): SidebarPlan[] => [
     {
@@ -829,6 +841,60 @@ describe("侧边栏控制器", () => {
     expect(text).toContain("执行中 · 07 侧边栏实现");
     // 没有汇总行。
     expect(text).not.toContain("执行 ·");
+    sidebar.dispose();
+  });
+
+  it("账本一变就刷新（同进程 <50ms），3s 定时器只做跨进程兜底", async () => {
+    const { root, directory } = await tempPlan("demo", "2026-01-01-live", [
+      { ...(runningNote("07", "侧栏实现") as Record<string, unknown>), status: "pending" },
+    ]);
+    const registry = createRegistry();
+    registry.add(workerEntry(directory, ["07"]));
+    const listeners: Array<() => void> = [];
+    const sidebar = createSidebar({
+      registry,
+      limits: () => DEFAULT_ORCHESTRATOR_SETTINGS,
+      events: {
+        subscribe: (listener) => {
+          listeners.push(listener);
+          return () => undefined;
+        },
+      },
+    });
+    const { ctx, widgets } = createFakeCtx(root);
+    const { tui, overlays } = createFakeTui();
+    sidebar.sync(ctx, true);
+    mountWidget(widgets, tui);
+    expect(SIDEBAR_REFRESH_MS).toBeGreaterThanOrEqual(3_000);
+    await wait(30);
+    const textOf = (): string => (overlays[1]?.component.render(SIDEBAR_WIDTH) ?? []).join("\n");
+    // notes.json 里还是 pending，但投影说这条 note 有 live worker ⇒ 执行中。
+    expect(textOf()).toContain("执行中 · 07 侧栏实现");
+
+    // 模拟 worker 报完 waiting/review（改 notes.json），随后账本 append 触发订阅。
+    const document = parseDocument(
+      {
+        version: 1,
+        index: [],
+        notes: [
+          {
+            ...(runningNote("07", "侧栏实现") as Record<string, unknown>),
+            status: "waiting",
+            needs: "review",
+          },
+        ],
+      },
+      DEFAULT_ORCHESTRATOR_SETTINGS,
+    );
+    await writeFile(join(directory, "notes.json"), serializeDocument(document), "utf8");
+
+    const started = Date.now();
+    for (const listener of listeners) listener();
+    while (!textOf().includes("待验收 · 07") && Date.now() - started < 500) await wait(2);
+    const elapsed = Date.now() - started;
+    expect(textOf()).toContain("待验收 · 07");
+    // 同进程订阅：远快于 3s 轮询。
+    expect(elapsed).toBeLessThan(50);
     sidebar.dispose();
   });
 
