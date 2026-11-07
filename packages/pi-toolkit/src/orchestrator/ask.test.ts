@@ -45,7 +45,7 @@ type FakeFactory = (
   done: (result: unknown) => void,
 ) => FakeComponent;
 
-/** 在 tui 模式下跑一次提问：拦下自定义组件（可多次进入）、渲一帧、再按脚本送按键。 */
+/** 在 tui 模式下跑一次提问：拦下自定义组件（可多次进入）、记下每帧、按脚本送按键。 */
 const runTui = async (
   questions: unknown,
   steps: readonly (readonly string[])[],
@@ -54,11 +54,13 @@ const runTui = async (
   readonly text: string;
   readonly rendered: readonly string[];
   readonly renders: readonly (readonly string[])[];
+  readonly frames: readonly (readonly string[])[];
   readonly details: Record<string, unknown>;
 }> => {
   const pending = [...inputs];
   const scripts = steps.map((step) => [...step]);
-  const renders: string[][] = [];
+  const starts: string[][] = [];
+  const frames: string[][] = [];
   const ctx = {
     mode: "tui",
     ui: {
@@ -78,9 +80,14 @@ const runTui = async (
             done,
           );
           const keys = scripts.shift() ?? [];
-          renders.push(component.render(60));
-          for (const key of keys) component.handleInput(key);
-          done(undefined);
+          starts.push(component.render(60));
+          frames.push(component.render(60));
+          for (const key of keys) {
+            component.handleInput(key);
+            frames.push(component.render(60));
+          }
+          // 脚本没结束时补一个 Esc，让 ask() 拿到组件真实状态的取消终态。
+          if (!settled) component.handleInput("\u001b");
         }),
       input: async () => pending.shift(),
     },
@@ -94,8 +101,9 @@ const runTui = async (
   )) as { content: { text: string }[]; details: Record<string, unknown> };
   return {
     text: result.content[0]?.text ?? "",
-    rendered: renders[0] ?? [],
-    renders,
+    rendered: starts[0] ?? [],
+    renders: starts,
+    frames,
     details: result.details,
   };
 };
@@ -249,6 +257,63 @@ describe("TUI 状态机", () => {
   });
 });
 
+describe("TUI 「提交」拦截未答", () => {
+  const twoQuestions = [
+    { question: "第一题", options: [{ label: "A" }, { label: "B" }] },
+    { question: "第二题", options: [{ label: "C" }, { label: "D" }] },
+  ];
+  // 每题候选项：预设项 + ✎ 自定义回答 + 跳过 + 提交。
+  const Q2_SUBMIT = ["\u001b[B", "\u001b[B", "\u001b[B", "\u001b[B"];
+
+  it("还有未答题时提交被拒并指出是哪几题", async () => {
+    const { text, renders, frames, details } = await runTui(twoQuestions, [
+      ["\r", ...Q2_SUBMIT, "\r"],
+    ]);
+    // 被拦下：组件没有退出（只进入过一次），最后一帧给出未答清单。
+    expect(renders).toHaveLength(1);
+    expect((frames.at(-1) ?? []).join("\n")).toContain("还有 Q2 未作答");
+    // 没交出去就是取消（脚本耗尽后的兜底），已答的 Q1 保留。
+    expect(text).toContain("A1: A");
+    expect(text).not.toContain("A2");
+    expect(details["cancelled"]).toBe(true);
+  });
+
+  it("拦下后补答再提交就通过，且光标停在首个未答题", async () => {
+    const { text, frames, details } = await runTui(twoQuestions, [
+      // Q1 确认前进 → Q2 选到「提交」→ 被拦（光标回 Q2、提示）→ 选 D → 提交。
+      ["\r", ...Q2_SUBMIT, "\r", "\u001b[B", "\u001b[B", "\r"],
+    ]);
+    expect((frames.at(-1) ?? []).join("\n")).toContain("问题 2/2");
+    expect(text).toContain("A1: A");
+    expect(text).toContain("A2: D");
+    expect(details["cancelled"]).toBe(false);
+  });
+
+  it("跳题后停在首题按「提交」也被拦下，并指出跳过的题", async () => {
+    const { text, frames } = await runTui(twoQuestions, [
+      // Q1 直接选到「提交」（↓×4）并回车。
+      [...Q2_SUBMIT, "\r"],
+    ]);
+    const last = (frames.at(-1) ?? []).join("\n");
+    expect(last).toContain("还有 Q1、Q2 未作答");
+    expect(last).toContain("问题 1/2");
+    expect(text).toContain("取消了后续问题");
+  });
+
+  it("显式跳过不算未作答，提交通过，details 能区分跳过与未答", async () => {
+    const { text, details } = await runTui(twoQuestions, [
+      // Q1 选「跳过」（↓↓↓）→ 自动前进 → Q2 选 C → 末题 Enter 提交。
+      ["\u001b[B", "\u001b[B", "\u001b[B", "\r", "\r"],
+    ]);
+    expect(text).toContain("A1: （跳过）");
+    expect(text).toContain("A2: C");
+    const answers = details["answers"] as { skipped: boolean; answer: string }[];
+    expect(answers).toHaveLength(2);
+    expect(answers[0]).toMatchObject({ skipped: true, answer: "" });
+    expect(answers[1]).toMatchObject({ skipped: false, answer: "C" });
+  });
+});
+
 describe("TUI 自定义回答", () => {
   it("跳出组件输入后回到同一题，且此前答案不丢", async () => {
     const { text, renders } = await runTui(
@@ -380,12 +445,21 @@ describe("TUI 自定义组件", () => {
     expect(text).toContain("A1: B");
   });
 
-  it("k/j 也能移动，↑ 从首项环绕到末项", async () => {
+  it("k/j 也能移动，↑ 从首项环绕到末项（提交）", async () => {
     const { text } = await runTui(question, [["j", "\r"]]);
     expect(text).toContain("A1: B");
     const wrapped = await runTui(question, [["\u001b[A", "\r"]]);
-    // 首项向上环绕到末项（跳过）。
-    expect(wrapped.text).toContain("A1: （跳过）");
+    // 首项向上环绕到末项「提交」；单题未作答时提交被拦下。
+    expect(wrapped.text).toContain("取消了后续问题");
+    expect((wrapped.frames.at(-1) ?? []).join("\n")).toContain("还有 Q1 未作答");
+  });
+
+  it("末尾固定项依次是 自定义 / 跳过 / 提交", async () => {
+    const { rendered } = await runTui(question, [["\r"]]);
+    const text = rendered.join("\n");
+    expect(text).toContain("3. ✎ 自定义回答");
+    expect(text).toContain("4. 跳过");
+    expect(text).toContain("5. 提交");
   });
 
   it("Esc 取消并保留已完成答案", async () => {

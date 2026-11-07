@@ -7,7 +7,9 @@
  * 也没有空行；这里每项两行（`→ 1. label` + 缩进概述），项间 `Spacer(1)`。
  *
  * TUI 下由**一个组件管全部题目**：`←/→`（或 Tab/Shift+Tab）切题，切回去恢复该题原来的
- * 选中位置，末题 Enter 提交。选中「自定义回答」时组件先退出，外层用 `ctx.ui.input` 取文本，
+ * 选中位置，末题 Enter 或选中「提交」项才结束提问；还有题未作答（既未作答也未显式跳过）时
+ * 提交被拦下，光标跳到第一道未答题并提示是哪几题。
+ * 选中「自定义回答」时组件先退出，外层用 `ctx.ui.input` 取文本，
  * 再带着同一份草稿重新进入组件并停在同一题 —— 之前的答案不会丢。
  *
  * rpc / print 没有自定义组件，退回 `ctx.ui.select` 顺序问答（不能回退），把概述拼进 label
@@ -70,6 +72,8 @@ export interface AskResult {
 export const CUSTOM_LABEL = "✎ 自定义回答";
 /** 末尾追加的「跳过」项。 */
 export const SKIP_LABEL = "跳过";
+/** 末尾追加的「提交」项：多题时方便提前结束提问。 */
+export const SUBMIT_LABEL = "提交";
 
 /** 渲染与选择共用的候选项：预设项在前，自定义 / 跳过在后。 */
 export interface AskEntry {
@@ -145,6 +149,10 @@ export const askEntries = (question: AskQuestion): readonly AskEntry[] => {
 /** 概述相对选项头部的缩进：`→ 1. ` 占 5 列。 */
 const DESCRIPTION_INDENT = " ".repeat(5);
 
+/** 未作答提示：显式跳过不算未作答。 */
+export const unansweredNotice = (missing: readonly number[]): string =>
+  `还有 ${missing.map((at) => `Q${at + 1}`).join("、")} 未作答：请作答或显式跳过`;
+
 /**
  * 渲染一道题的候选项：每项一行头部，有概述时紧跟一行缩进概述；**没有概述就只占一行**。
  *
@@ -179,21 +187,22 @@ const withDescription = (label: string, description?: string): string =>
 const fallbackLabels = (entries: readonly AskEntry[]): string[] =>
   entries.map((entry) => withDescription(entry.label, entry.description));
 
-/** 每题最终的候选：该题已有自定义答案时，把它挂在「自定义回答」项下方。 */
+/** 每题最终的候选：该题已有自定义答案时，把它挂在「自定义回答」项下方；末尾追加「提交」。 */
 const entriesFor = (question: AskQuestion, answer: AskAnswer | undefined): readonly AskEntry[] => {
-  const entries = askEntries(question);
-  if (answer === undefined || !answer.custom || answer.skipped) return entries;
-  return entries.map((entry) =>
-    entry.value === CUSTOM_LABEL ? { ...entry, description: `已填：${answer.answer}` } : entry,
+  const described = askEntries(question).map((entry) =>
+    answer !== undefined && answer.custom && !answer.skipped && entry.value === CUSTOM_LABEL
+      ? { ...entry, description: `已填：${answer.answer}` }
+      : entry,
   );
+  return [...described, { value: SUBMIT_LABEL, label: SUBMIT_LABEL }];
 };
 
-/** 底部键位提示；多题时顺带报已答进度。 */
+/** 底部键位提示；多题时顺带报已答进度与「提交」项。 */
 const hintText = (total: number, answered: number): string => {
   const confirm = keyText("tui.select.confirm");
   const cancel = keyText("tui.select.cancel");
   const progress = total > 1 ? `已答 ${answered}/${total} · ` : "";
-  const next = total > 1 ? "并下一题 / 末题提交" : "";
+  const next = total > 1 ? "并下一题 / 末题提交 · 「提交」提前结束" : "";
   return `  ${progress}←/→ 或 Tab/Shift+Tab 切题 · ↑/↓ 或 k/j 移动 · 数字 1-9 直选 · ${confirm} 确认${next} · ${cancel} 取消`;
 };
 
@@ -213,10 +222,12 @@ const askInTui = async (
     const total = questions.length;
     const container = new Container();
     let index = Math.min(Math.max(draft.index, 0), total - 1);
+    /** 提交被拦下时的提示；下一次按键先清掉。 */
+    let warning: string | undefined;
     const selection: number[] = [];
     const answers: (AskAnswer | undefined)[] = [];
     for (let at = 0; at < total; at += 1) {
-      const count = askEntries(questions[at] as AskQuestion).length;
+      const count = entriesFor(questions[at] as AskQuestion, draft.answers[at]).length;
       const picked = draft.selection[at] ?? 0;
       selection[at] = picked >= 0 && picked < count ? picked : 0;
       answers[at] = draft.answers[at];
@@ -233,6 +244,26 @@ const askInTui = async (
 
     const answered = (): number => answers.filter((answer) => answer !== undefined).length;
 
+    /** 未作答的题：显式跳过（`skipped`）算已处理。 */
+    const unanswered = (): number[] => {
+      const missing: number[] = [];
+      answers.forEach((answer, at) => {
+        if (answer === undefined) missing.push(at);
+      });
+      return missing;
+    };
+
+    /** 提交：还有未作答的题就拦下，把光标带到第一道未答题并提示。 */
+    const attemptSubmit = (): AskEvent | undefined => {
+      const missing = unanswered();
+      if (missing.length > 0) {
+        warning = unansweredNotice(missing);
+        index = missing[0] as number;
+        return undefined;
+      }
+      return { kind: "submit", draft: snapshot() };
+    };
+
     const draw = (): void => {
       const entries = entriesAt();
       container.clear();
@@ -248,14 +279,19 @@ const askInTui = async (
         container.addChild(new Text(lines.join("\n"), 0, 0));
         container.addChild(new Spacer(1));
       }
+      if (warning !== undefined) {
+        container.addChild(new Text(theme.fg("warning", warning), 0, 0));
+        container.addChild(new Spacer(1));
+      }
       container.addChild(new Text(theme.fg("dim", hintText(total, answered())), 0, 0));
       container.addChild(new DynamicBorder((text) => theme.fg("accent", text)));
     };
 
-    /** 确认当前题：末题提交，否则内部前进（返回 undefined 表示还要继续渲染）。 */
+    /** 确认当前题：选中「提交」或停在末题时提交（要过未答拦截），否则内部前进。 */
     const commit = (): AskEvent | undefined => {
       const question = questions[index] as AskQuestion;
       const entry = entriesAt()[selection[index] ?? 0];
+      if (entry?.value === SUBMIT_LABEL) return attemptSubmit();
       if (entry !== undefined) {
         if (entry.value === CUSTOM_LABEL) {
           // 已有自定义答案时 Enter 表示「采用它」，不再重复弹输入。
@@ -279,7 +315,7 @@ const askInTui = async (
                 };
         }
       }
-      if (index >= total - 1) return { kind: "submit", draft: snapshot() };
+      if (index >= total - 1) return attemptSubmit();
       index += 1;
       return undefined;
     };
@@ -302,6 +338,7 @@ const askInTui = async (
         container.invalidate();
       },
       handleInput(data: string): void {
+        warning = undefined;
         if (keybindings.matches(data, "tui.select.cancel")) {
           done({ kind: "cancel", draft: snapshot() });
           return;
@@ -531,7 +568,7 @@ export const createAskQuestionsTool = (): ToolDefinition => ({
   name: "ask_questions",
   label: "Ask Questions",
   description:
-    "向用户提出一个或多个问题，逐题等待回答。每题最多 3 个预设选项（每个选项建议配一句话概述），也可自定义回答或跳过；用于 Orchestrator 的 ask 循环与其他需要用户决策的场景。TUI 下可用 ←/→ 或 Tab/Shift+Tab 在题目间来回切换并回改答案（末题 Enter 提交）；rpc / print 为顺序问答，不支持回退。",
+    "向用户提出一个或多个问题，逐题等待回答。每题最多 3 个预设选项（每个选项建议配一句话概述），也可自定义回答或跳过；用于 Orchestrator 的 ask 循环与其他需要用户决策的场景。TUI 下可用 ←/→ 或 Tab/Shift+Tab 在题目间来回切换并回改答案，另有「提交」项可提前结束提问；有题未作答（既未作答也未显式跳过）时提交会被拦下并提示是哪几题。rpc / print 为顺序问答，不支持回退。",
   promptSnippet: "Ask the user one or more questions and wait for answers.",
   promptGuidelines: [
     "ask_questions 会阻塞直到用户作答；一次可提任意数量的问题，每题都能自定义回答或跳过。",
