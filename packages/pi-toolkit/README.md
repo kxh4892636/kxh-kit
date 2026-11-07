@@ -246,7 +246,9 @@ While a session runs Orchestrator:
   host tools would never come back. The `orchestrator-baseline` entry is written once per branch and read
   back after a reload. `disposeAll` (session shutdown / reload) writes the plans it kills and their
   `in_progress` notes into the interrupted.json record before dropping the workers, so no note is left
-  silently dangling.
+  silently dangling. The tool set is re-aligned on every `before_agent_start` as well, before the mode
+  check: a reload or resume path that does not replay `session_start` is then corrected by the next
+  request instead of leaving the session converged with the host tools missing.
 - `status` takes `pending / in_progress / waiting / blocked`; `waiting` must say what it waits for via
   `needs: "answer" | "review"`, and `complete` only accepts `waiting` + `needs=review`. Old
   `awaiting_verification` documents are read as `waiting` + `needs=review`.
@@ -320,4 +322,8 @@ a summary or drops an index entry on its own; those are semantic choices for the
 pnpm --filter @kxh4892636/pi-toolkit test
 pnpm --filter @kxh4892636/pi-toolkit test:coverage
 pnpm --filter @kxh4892636/pi-toolkit check
+
+# 宿主运行时自检（需要 pi 的模型凭据）：关模式后 read/bash/edit/write 是否回来。
+# 走的是 /reload 与 before_agent_start 在 pi 里的真实实现，单测的假 pi 覆盖不到。
+cd packages/pi-toolkit && node scripts/reload-check.mjs
 ```

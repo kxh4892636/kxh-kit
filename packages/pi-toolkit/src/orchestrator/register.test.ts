@@ -24,6 +24,8 @@ interface Harness {
   readonly alwaysCalls: boolean[];
   readonly flags: Map<string, boolean | string>;
   readonly sent: Array<{ customType?: string; content: string }>;
+  /** `setActiveTools` 的调用记录：模式关时必须真的调它，而不是早退。 */
+  readonly toolCalls: string[][];
   current: ToolkitSettings;
   /** 直接改宿主活跃集，模拟 /toolkit 之类别的开关或 reload。 */
   setActive(names: string[]): void;
@@ -59,6 +61,7 @@ const setup = (settings: ToolkitSettings): Harness => {
   const flags = new Map<string, boolean | string>();
   const branch: BranchEntryLike[] = [];
   const sent: Array<{ customType?: string; content: string }> = [];
+  const toolCalls: string[][] = [];
   const tools: FakeTool[] = [];
   let active = ["read", "bash"];
   // 宿主设置：`defaultTools` 是配置层默认集的来源。测试里可改。
@@ -91,6 +94,7 @@ const setup = (settings: ToolkitSettings): Harness => {
     },
     getActiveTools: () => [...active],
     setActiveTools: (names: string[]) => {
+      toolCalls.push([...names]);
       active = [...names];
     },
     getSettings: () => ({ ...piSettings }),
@@ -103,6 +107,7 @@ const setup = (settings: ToolkitSettings): Harness => {
     alwaysCalls,
     flags,
     sent,
+    toolCalls,
     current: settings,
     setActive(names) {
       active = [...names];
@@ -276,6 +281,32 @@ describe("registerOrchestrator", () => {
     harness.current = settingsWith({ always: false });
     await harness.fire("session_tree", ctx);
     expect(harness.active()).toEqual(["read", "bash", "edit", "write", "web_search"]);
+  });
+
+  it("realigns the tool set on every before_agent_start even when the mode is off", async () => {
+    // 真机回归：关模式后的恢复不能只靠 `session_start`（宿主不一定重放它）。
+    // 只要有一次请求前的钩子，就必须真的调 `setActiveTools`，而不是因为模式关就早退。
+    const harness = setup(settingsWith({ always: false }));
+    const ctx = makeCtx(harness.branch, harness.notifications, await tempDir());
+    harness.setActive([...ORCHESTRATOR_TOOL_NAMES]);
+    const event = { systemPromptOptions: { sections: {} as Record<string, string> } };
+    await harness.fire("before_agent_start", ctx, event);
+    expect(harness.toolCalls.at(-1)).toEqual(["read", "bash", "edit", "write"]);
+    expect(harness.active()).toContain("bash");
+    // 模式关时不得往系统提示词里塞 orchestrator 段。
+    expect(event.systemPromptOptions.sections["orchestrator"]).toBeUndefined();
+  });
+
+  it("does not add host defaults on before_agent_start for a session that never converged", async () => {
+    // 同一个钩子在未收敛会话里必须保持幂等：`pi --tools grep` 不该被补成默认四个。
+    const harness = setup(settingsWith({ always: false }));
+    const ctx = makeCtx(harness.branch, harness.notifications, await tempDir());
+    harness.setActive(["grep"]);
+    await harness.fire("before_agent_start", ctx, {
+      systemPromptOptions: { sections: {} as Record<string, string> },
+    });
+    expect(harness.toolCalls).toEqual([]);
+    expect(harness.active()).toEqual(["grep"]);
   });
 
   it("keeps tools owned by another switch when it restores", async () => {

@@ -781,6 +781,11 @@ export const registerOrchestrator = (
   });
 
   pi.on("before_agent_start", (event, ctx) => {
+    // 工具面在每次请求前按当前模式对齐一次：模式开 → 收敛，模式关 → 恢复。这一步放在
+    // 早退之前，所以「关掉模式却还停在收敛集合」不会被 `before_agent_start` 的早退掩盖 ——
+    // 任何没走到 `sync` 的路径（宿主不重放 `session_start` 的 reload、恢复会话等）都会在
+    // 下一轮请求之前被这次对齐纠正。模式关时它同样幂等：没进过模式的会话原样不动。
+    sync(ctx);
     if (!modeOn(ctx)) return;
     const text = prompt();
     if (text === undefined) {
@@ -791,7 +796,6 @@ export const registerOrchestrator = (
       return;
     }
     event.systemPromptOptions.sections["orchestrator"] = text;
-    sync(ctx);
   });
 
   // Orchestrator 生效时关闭 pi 的自动压缩：上下文清空由本插件接管。
