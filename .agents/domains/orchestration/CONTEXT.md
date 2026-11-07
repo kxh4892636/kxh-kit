@@ -45,6 +45,10 @@ _Avoid_: 分配、ticket、工单、一个 Plan 只能一个 worker
 一次派工覆盖的一批 note，组内互相无 `blocked_by` 依赖；组标识由 note id 排序串稳定生成，参与句柄键（`<plan 目录>::<组标识>`）。`blocked_by` 是硬判据，“触及文件不重叠”只是软建议，由 worker 自行遵守并上报冲突。
 _Avoid_: 批次、分片、一条 note 一个 worker
 
+**插话**:
+`orchestrator_dispatch` 的 `delivery` 参数，与 `kind` 正交：`queue`（默认）追加成 `followUp`，worker 当前轮跑完再消化；`steer` 走 `session.steer()` 插入当前运行，worker 下一次 LLM 调用前就换方向；worker 空闲时没有可插入的运行，`steer` 退化为 `prompt()` 并在返回值里标成 `delivered: "prompt"`。不使用 `nextTurn`（不落盘、进程退出即丢）。每个 worker 的 `WorkerEntry.lastInput` 记下最近一次输入（种类 / 方式 / 摘要 / 时刻），`orchestrator_workers` 逐行展示；收到插话的 worker 必须把“谁说的 / 为什么改”写进对应 note 的执行检查点。要硬停整个 worker 用 `orchestrator_workers` 的 abort，不把中止混进 dispatch。
+_Avoid_: 打断、抢占、nextTurn
+
 **临时 worker**:
 没有 Plan 的一次性 worker：只在 `plan` 与 `lockedPlan` 都缺失时起，工具面 = 宿主工具 + 只读 `orchestrator_read` + `orchestrator_report`（无写工具、无 `orchestrator_check`），句柄键 `temp:<id>`，一轮 settle 后立即 `disposeEntry` + 摘除。用于一次性/探索性提问，结论由编排方转呈；建 Plan 需用户明确同意。
 _Avoid_: 聊天模式、无上下文会话、随手派个临时工

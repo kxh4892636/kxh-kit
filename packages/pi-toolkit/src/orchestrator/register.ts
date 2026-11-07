@@ -21,6 +21,7 @@ import {
 } from "./errors.ts";
 import {
   createRegistry,
+  DELIVERY_MODES,
   deliver,
   disposeAll,
   disposeEntry,
@@ -29,6 +30,7 @@ import {
   keyBelongsToPlan,
   planDirectoryOf,
   renew,
+  type DeliveryMode,
   type WorkerEntry,
   type WorkerJob,
   type WorkerRegistry,
@@ -249,6 +251,15 @@ const hasGroups = (registry: WorkerRegistry, planDirectory: string): boolean => 
     );
 };
 
+/** 相对时刻：清单里只需要“多久之前”，不需要绝对时间。 */
+const formatAgo = (at: number, now: number): string => {
+  const seconds = Math.max(0, Math.round((now - at) / 1000));
+  if (seconds < 60) return "刚刚";
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} 分钟前`;
+  return `${Math.round(minutes / 60)} 小时前`;
+};
+
 /**
  * `orchestrator_dispatch`：起一个 worker 或向它投递输入。
  *
@@ -258,7 +269,8 @@ const hasGroups = (registry: WorkerRegistry, planDirectory: string): boolean => 
  * 放行集合，worker 才能写 `completed`。
  *
  * **入队即返回**：`deliver` 只给出那条输入的终态 promise，不等整轮；终态由
- * `settled` 收割，超时交给后台 watchdog。
+ * `settled` 收割，超时交给后台 watchdog。`delivery` 与 `kind` 正交：默认 `queue`
+ * （排到当前轮之后），`steer` 插入当前运行；空闲时 `steer` 退化为直接开新一轮。
  */
 const createDispatchTool = (
   runtime: ToolRuntime,
@@ -273,12 +285,13 @@ const createDispatchTool = (
     name: "orchestrator_dispatch",
     label: "Dispatch",
     description:
-      "把一项工作交给 worker：给了 plan + notes 就按组分派（一组无依赖 note 一个 worker），只给 plan 走 Plan 级派工，都没给则起临时 worker（无 Plan、只读 + report、跑完即弃）。kind 为 message（默认，派活或追加）、pass（放行某条 note 置 completed）、rework、answer、fact。",
+      "把一项工作交给 worker：给了 plan + notes 就按组分派（一组无依赖 note 一个 worker），只给 plan 走 Plan 级派工，都没给则起临时 worker（无 Plan、只读 + report、跑完即弃）。kind 为 message（默认，派活或追加）、pass（放行某条 note 置 completed）、rework、answer、fact。delivery 为 queue（默认，排到 worker 当前轮之后）或 steer（插入当前运行，下一次 LLM 调用前生效）。",
     promptSnippet:
       "Dispatch work to a plan's worker group, a plan-wide worker, or a temporary worker.",
     promptGuidelines: [
       "一组无依赖 note 一个 worker：用 notes 显式给出这一组；组内不得互相 blocked_by。",
       "pass / rework / answer 带 note 时路由到包含它的组；找不到就报错，不要自己猜。",
+      "默认 delivery=queue，不打断 worker 当前这轮；只有方向错了或要叫停某步才用 steer（插话），硬停整个 worker 用 orchestrator_workers 的 abort。",
       "用户的明确决定才可下发 pass / rework；不要把推断当放行。",
     ],
     parameters: Type.Unsafe<Record<string, unknown>>({
@@ -294,6 +307,12 @@ const createDispatchTool = (
           type: "string",
           enum: [...INPUT_KINDS],
           description: "输入种类，默认 message",
+        },
+        delivery: {
+          type: "string",
+          enum: [...DELIVERY_MODES],
+          description:
+            "投递方式：queue（默认，追加到当前轮之后，不打断）| steer（插入当前运行，下一次 LLM 调用前生效；worker 空闲时退化为直接开新一轮）",
         },
         note: { type: "string", description: "kind=pass / rework / answer 时针对的 note id" },
         notes: {
@@ -311,6 +330,10 @@ const createDispatchTool = (
       const kind = (optionalString(args, "kind") ?? "message") as InputKind;
       if (!(INPUT_KINDS as readonly string[]).includes(kind)) {
         throw new Error(`kind 必须是 ${INPUT_KINDS.join(" | ")}`);
+      }
+      const deliveryMode = (optionalString(args, "delivery") ?? "queue") as DeliveryMode;
+      if (!(DELIVERY_MODES as readonly string[]).includes(deliveryMode)) {
+        throw new Error(`delivery 必须是 ${DELIVERY_MODES.join(" | ")}`);
       }
       const note = optionalString(args, "note");
       const message = optionalString(args, "message") ?? "";
@@ -367,7 +390,7 @@ const createDispatchTool = (
       if (kind === "pass" && note !== undefined) entry.released.add(note);
       const target = entry;
       const timeoutMs = deps.settings().orchestrator.workerTimeoutMs;
-      const delivery = deliver(target, kind, message, note);
+      const delivery = deliver(target, kind, message, note, deliveryMode);
       // 新一代 job 接管：先把上一条的清掉，免得定时器滞留到超时后才消失。
       harvest(target);
       const now = Date.now();
@@ -400,12 +423,21 @@ const createDispatchTool = (
             ? `已起 worker 接手 ${planRef} 的组 [${groupNotes.join(", ")}]`
             : `已起 worker 接手 ${planRef}`
         : `已投递给 ${planRef} 的 worker${groupNotes.length > 0 ? `（组 [${groupNotes.join(", ")}]）` : ""}`;
+      const deliverLine =
+        delivery.delivered === "steered"
+          ? "worker 正在跑，已插话：下一次 LLM 调用前生效。"
+          : delivery.delivered === "queued"
+            ? "worker 正在跑，输入已排队：当前轮做完再消化。"
+            : deliveryMode === "steer"
+              ? "worker 空闲，插话退化为直接开新一轮。"
+              : "worker 已开始处理。";
       return {
         content: textBlocks(
           [
             head,
             `kind: ${kind}${note === undefined ? "" : ` · note ${note}`}`,
-            delivery.queued ? "worker 正在跑，输入已排队。" : "worker 已开始处理。",
+            `delivery: ${deliveryMode} → ${delivery.delivered}`,
+            deliverLine,
             "完成后会有 report 推回；用 orchestrator_workers 查 live 清单。",
           ].join("\n"),
         ),
@@ -413,6 +445,8 @@ const createDispatchTool = (
           plan: planRef,
           started,
           queued: delivery.queued,
+          delivery: deliveryMode,
+          delivered: delivery.delivered,
           kind,
           ...(groupNotes.length === 0 ? {} : { notes: groupNotes }),
           ...(plan === undefined ? { temp: true } : {}),
@@ -428,7 +462,7 @@ const createWorkersTool = (registry: WorkerRegistry): OrchestratorTool => ({
   name: "orchestrator_workers",
   label: "Workers",
   description:
-    "列出当前 live worker（plan 或 temp:<id>、形态、起始时刻、最近上报），或中止其中一个 / 全部。",
+    "列出当前 live worker（plan 或 temp:<id>、形态、起始时刻、最近上报、最近一次输入），或中止其中一个 / 全部。",
   promptSnippet: "List or abort live worker sessions.",
   parameters: Type.Unsafe<Record<string, unknown>>({
     type: "object",
@@ -468,14 +502,19 @@ const createWorkersTool = (registry: WorkerRegistry): OrchestratorTool => ({
     }
     const lines = [`live worker（${entries.length}）:`];
     for (const entry of entries) {
-      const minutes = Math.round((Date.now() - entry.startedAt) / 60_000);
+      const now = Date.now();
+      const minutes = Math.round((now - entry.startedAt) / 60_000);
       const report =
         entry.lastReport === undefined
           ? "尚无上报"
           : `${entry.lastReport.outcome} · note ${entry.lastReport.note}`;
       const group = entry.notes === undefined ? "" : `notes: ${entry.notes.join(",")} · `;
+      const lastInput =
+        entry.lastInput === undefined
+          ? "尚无输入"
+          : `${formatAgo(entry.lastInput.at, now)} [${entry.lastInput.kind}/${entry.lastInput.delivery}] ${entry.lastInput.text}`;
       lines.push(
-        `  ${entry.planRef} · ${group}${entry.kind === "temp" ? "temp" : "plan"} · ${minutes} 分钟 · 输入 ${entry.inputs} 次 · ${report}`,
+        `  ${entry.planRef} · ${group}${entry.kind === "temp" ? "temp" : "plan"} · ${minutes} 分钟 · 输入 ${entry.inputs} 次 · ${report} · 最近输入 ${lastInput}`,
       );
     }
     return { content: textBlocks(lines.join("\n")), details: { count: entries.length } };

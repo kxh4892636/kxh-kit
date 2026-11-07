@@ -7,6 +7,7 @@ import {
   deliver,
   disposeAll,
   harvest,
+  LAST_INPUT_SUMMARY_MAX,
   renew,
   renderInput,
   type WorkerEntry,
@@ -23,6 +24,7 @@ interface FakeSession {
   isIdle: boolean;
   readonly prompts: string[];
   readonly followUps: string[];
+  readonly steers: string[];
   aborted: boolean;
   disposed: boolean;
   /** 解掉 `prompt()` 的终态；测试用它模拟“worker 还在跑”。 */
@@ -46,6 +48,7 @@ const fakeSession = (isIdle = true, autoFinish = true): FakeSession => {
     isIdle,
     prompts: [],
     followUps: [],
+    steers: [],
     aborted: false,
     disposed: false,
     finish: undefined,
@@ -63,7 +66,8 @@ const fakeSession = (isIdle = true, autoFinish = true): FakeSession => {
         };
       });
     },
-    async steer() {
+    async steer(text) {
+      session.steers.push(text);
       return "queued";
     },
     async followUp(text) {
@@ -128,6 +132,51 @@ describe("句柄表与输入投递", () => {
     expect(busyDelivery.queued).toBe(true);
     expect(busy.followUps[0]).toContain("[pass] note 05");
     await busyDelivery.settled;
+  });
+
+  it("忙时 queue 走 followUp、steer 走 steer；空闲时 steer 退化为 prompt", async () => {
+    const busyQueue = fakeSession(false);
+    const queuedDelivery = deliver(entry(busyQueue), "message", "顺手把 02 也做了");
+    expect(queuedDelivery).toMatchObject({ queued: true, mode: "queue", delivered: "queued" });
+    expect(busyQueue.followUps).toEqual(["顺手把 02 也做了"]);
+    expect(busyQueue.steers).toHaveLength(0);
+    await queuedDelivery.settled;
+
+    const busySteer = fakeSession(false);
+    const steered = deliver(entry(busySteer), "message", "别动 register.ts", undefined, "steer");
+    expect(steered).toMatchObject({ queued: true, mode: "steer", delivered: "steered" });
+    expect(busySteer.steers).toEqual(["别动 register.ts"]);
+    expect(busySteer.followUps).toHaveLength(0);
+    await steered.settled;
+
+    const idleSteer = fakeSession(true);
+    const degenerated = deliver(entry(idleSteer), "message", "换方向", undefined, "steer");
+    expect(degenerated).toMatchObject({ queued: false, mode: "steer", delivered: "prompt" });
+    expect(idleSteer.prompts).toEqual(["换方向"]);
+    expect(idleSteer.steers).toHaveLength(0);
+    await degenerated.settled;
+  });
+
+  it("每次投递在 lastInput 留下摘要与时刻", () => {
+    const target = entry(fakeSession(false));
+    deliver(target, "pass", "", "05");
+    expect(target.lastInput).toMatchObject({ kind: "pass", delivery: "queue" });
+    expect(target.lastInput?.text).toContain("[pass] note 05");
+    expect(typeof target.lastInput?.at).toBe("number");
+
+    deliver(target, "message", "长".repeat(200), undefined, "steer");
+    expect(target.lastInput?.delivery).toBe("steer");
+    expect(target.lastInput?.text).toHaveLength(LAST_INPUT_SUMMARY_MAX + 1);
+    expect(target.lastInput?.text.endsWith("…")).toBe(true);
+  });
+
+  it("投递只用 prompt / followUp / steer，不碰 nextTurn", async () => {
+    const fs = await import("node:fs/promises");
+    const { fileURLToPath } = await import("node:url");
+    for (const file of ["handles.ts", "register.ts", "subdispatch.ts"]) {
+      const source = await fs.readFile(fileURLToPath(new URL(file, import.meta.url)), "utf8");
+      expect(source).not.toContain("nextTurn(");
+    }
   });
 
   it("入队不等整轮：prompt 未 settle 也立刻返回", async () => {
@@ -379,6 +428,103 @@ describe("dispatch 与 workers 工具", () => {
     // worker 还没跑完（终态开关未触发），dispatch 已经返回。
     expect(sessions[0]?.finish).toBeDefined();
     sessions[0]?.finish?.();
+  });
+
+  it("delivery 默认 queue；steer 插话到忙着的 worker，空闲时退化", async () => {
+    const busySessions: FakeSession[] = [];
+    const busy = await setup({
+      makeSession: () => {
+        const session = fakeSession(false);
+        busySessions.push(session);
+        return session;
+      },
+    });
+    const { root, ref } = await planArgs();
+    const dispatch = busy.tools.get("orchestrator_dispatch");
+
+    // 默认 delivery=queue：追加为 followUp，不插话。
+    const queued = await dispatch?.execute(
+      "id",
+      { plan: ref, message: "做 01" },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+    expect(textOf(queued)).toContain("delivery: queue → queued");
+    expect(textOf(queued)).toContain("输入已排队：当前轮做完再消化");
+    expect((queued as { details: Record<string, unknown> }).details).toMatchObject({
+      delivery: "queue",
+      delivered: "queued",
+      queued: true,
+    });
+    expect(busySessions[0]?.followUps).toEqual(["做 01"]);
+    expect(busySessions[0]?.steers).toHaveLength(0);
+
+    // delivery=steer：走 steer，不 followUp。
+    const steered = await dispatch?.execute(
+      "id",
+      { plan: ref, message: "别动 register.ts", delivery: "steer" },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+    expect(textOf(steered)).toContain("delivery: steer → steered");
+    expect(textOf(steered)).toContain("已插话：下一次 LLM 调用前生效");
+    expect((steered as { details: Record<string, unknown> }).details).toMatchObject({
+      delivery: "steer",
+      delivered: "steered",
+    });
+    expect(busySessions[0]?.steers).toEqual(["别动 register.ts"]);
+    expect(busySessions[0]?.followUps).toEqual(["做 01"]);
+
+    await expect(
+      dispatch?.execute(
+        "id",
+        { plan: ref, message: "x", delivery: "abort" },
+        undefined,
+        undefined,
+        ctx(root),
+      ),
+    ).rejects.toThrow(/delivery 必须是 queue \| steer/);
+
+    // 空闲时 steer 退化为直接开新一轮，返回值里注明。
+    const idle = await setup({ makeSession: () => fakeSession(true) });
+    const { root: idleRoot, ref: idleRef } = await planArgs("2026-11-07-空闲");
+    const degenerate = await idle.tools
+      .get("orchestrator_dispatch")
+      ?.execute(
+        "id",
+        { plan: idleRef, message: "换方向", delivery: "steer" },
+        undefined,
+        undefined,
+        ctx(idleRoot),
+      );
+    expect(textOf(degenerate)).toContain("delivery: steer → prompt");
+    expect(textOf(degenerate)).toContain("插话退化为直接开新一轮");
+    expect(idle.spawns[0]?.prompts).toEqual(["换方向"]);
+    expect(idle.spawns[0]?.steers).toHaveLength(0);
+  });
+
+  it("workers 清单展示每个 worker 最近一次输入", async () => {
+    const { tools, spawns } = await setup({ makeSession: () => fakeSession(false) });
+    const { root, ref } = await planArgs();
+    const dispatch = tools.get("orchestrator_dispatch");
+    await dispatch?.execute("id", { plan: ref, message: "做 01" }, undefined, undefined, ctx(root));
+    await dispatch?.execute(
+      "id",
+      { plan: ref, message: "  别动\nregister.ts  ", delivery: "steer" },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+    const listed = textOf(
+      await tools
+        .get("orchestrator_workers")
+        ?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
+    );
+    // 最近一次输入：摘要（换行被折叠）+ 时刻 + 种类/方式。
+    expect(listed).toContain("最近输入 刚刚 [message/steer] 别动 register.ts");
+    expect(spawns[0]?.steers).toEqual(["  别动\nregister.ts  "]);
   });
 
   it("两个 Plan 连续派工，第二个不被第一个阻塞", async () => {

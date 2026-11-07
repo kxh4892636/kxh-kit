@@ -52,6 +52,33 @@ export interface WorkerJob {
 /** worker 形态：绑定 Plan，或没有 Plan 的一次性临时 worker。 */
 export type WorkerKind = "plan" | "temp";
 
+/**
+ * 投递方式，与输入种类正交：
+ *
+ * - `queue`（默认）：追加成 `followUp`，当前轮跑完再消化；
+ * - `steer`：插入当前运行，worker 下一次 LLM 调用前就换上新的方向。
+ *
+ * worker 空闲时 `steer` 没有可插入的运行，退化为直接开新一轮（`prompt`），
+ * 返回值里的 `delivered` 会标成 `prompt`。
+ */
+export const DELIVERY_MODES = ["queue", "steer"] as const;
+
+/** 投递方式类型。 */
+export type DeliveryMode = (typeof DELIVERY_MODES)[number];
+
+/** 最近一次输入的摘要长度上限：清单要能一眼看完，长文留在消息正文里。 */
+export const LAST_INPUT_SUMMARY_MAX = 60;
+
+/** 一条输入的留痕：谁在什么时候、以什么方式说了什么（只有摘要）。 */
+export interface LastInput {
+  readonly kind: InputKind;
+  readonly delivery: DeliveryMode;
+  /** 渲染后正文的摘要（折叠换行、超长截断）。 */
+  readonly text: string;
+  /** 投递时刻（毫秒）。 */
+  readonly at: number;
+}
+
 /** 表里的一条 worker。 */
 export interface WorkerEntry {
   /** 路由键，也是键：plan 目录绝对路径，或临时 worker 的 `temp:<id>`。 */
@@ -70,14 +97,23 @@ export interface WorkerEntry {
   /** 该 worker 的模型名，仅用于展示。 */
   readonly model?: string;
   lastReport?: WorkerReport;
+  /** 最近一次投递给它的输入（摘要 + 时刻），供编排方判断该不该插话。 */
+  lastInput?: LastInput;
   inputs: number;
   /** 在途 job；入队时登记，收割时清掉。 */
   job?: WorkerJob;
 }
 
-/** 投递结果：`queued` 表示 session 正在跑，消息已排队。 */
+/** 实际投递落到的分支：空闲开新一轮 / 排队等当前轮 / 插入当前运行。 */
+export type DeliveredAs = "prompt" | "queued" | "steered";
+
+/** 投递结果：`queued` 表示 session 正在跑，消息没有立刻开新一轮。 */
 export interface Delivery {
   readonly queued: boolean;
+  /** 编排方要求的投递方式。 */
+  readonly mode: DeliveryMode;
+  /** 实际落到哪条分支；`steer` 在空闲时退化为 `prompt`。 */
+  readonly delivered: DeliveredAs;
   /** 这条输入的终态（worker 整轮 settle）。编排方不等它，只用来挂收割。 */
   readonly settled: Promise<void>;
 }
@@ -178,30 +214,53 @@ export const renderInput = (kind: InputKind, text: string, note?: string): strin
 };
 
 /**
- * 投递一条输入：空闲就开新一轮，正在跑就排队成 followUp。**不 await 整轮**。
+ * 把一条输入压成一句话摘要：折叠换行与连续空白，超长截断，供清单展示。
+ * @param text - 任意正文。
+ * @returns 一行摘要。
+ */
+export const summarizeInput = (text: string): string => {
+  const flat = text.replace(/\s+/g, " ").trim();
+  return flat.length <= LAST_INPUT_SUMMARY_MAX ? flat : `${flat.slice(0, LAST_INPUT_SUMMARY_MAX)}…`;
+};
+
+/**
+ * 投递一条输入：空闲就开新一轮；正在跑时按 `delivery` 排队（`followUp`）或插话
+ * （`steer`）。**不 await 整轮**。
  *
- * 两种分支的终态都化成同一个 promise：空闲分支就是 `prompt()`（SDK 内部要等
- * `_startRun` 整轮 settle 才 resolve），忙分支是 `followUp()` 之后 `waitForIdle()`
- * —— 排队的输入在同一轮里被消化，所以回到空闲即那条输入的终点。
+ * 三条分支的终态都化成同一个 promise：空闲分支就是 `prompt()`（SDK 内部要等
+ * `_startRun` 整轮 settle 才 resolve）；忙分支是 `followUp()` / `steer()` 之后
+ * `waitForIdle()` —— 排队的输入在同一轮里被消化，插话的输入在当前轮生效，所以
+ * 回到空闲即那条输入的终点。
+ *
+ * `steer` 面向的是流式中的运行，空闲时没有可插入的位置，因此退化为 `prompt()`
+ * 并在返回值里标成 `delivered: "prompt"`。`nextTurn` 不落盘、进程退出即丢，不用。
  * @param entry - 目标 worker。
  * @param kind - 输入种类。
  * @param text - 正文。
  * @param note - 针对的 note id。
- * @returns 是否排队与该输入的终态。
+ * @param mode - 投递方式，默认 `queue`（不打断当前轮）。
+ * @returns 是否排队、实际分支与该输入的终态。
  */
 export const deliver = (
   entry: WorkerEntry,
   kind: InputKind,
   text: string,
   note?: string,
+  mode: DeliveryMode = "queue",
 ): Delivery => {
   const rendered = renderInput(kind, text, note);
   entry.inputs += 1;
-  const queued = !entry.session.isIdle;
-  const settled = queued
-    ? entry.session.followUp(rendered).then(() => entry.session.waitForIdle())
-    : entry.session.prompt(rendered);
-  return { queued, settled };
+  entry.lastInput = { kind, delivery: mode, text: summarizeInput(rendered), at: Date.now() };
+  const busy = !entry.session.isIdle;
+  if (!busy) {
+    return { queued: false, mode, delivered: "prompt", settled: entry.session.prompt(rendered) };
+  }
+  if (mode === "steer") {
+    const settled = entry.session.steer(rendered).then(() => entry.session.waitForIdle());
+    return { queued: true, mode, delivered: "steered", settled };
+  }
+  const settled = entry.session.followUp(rendered).then(() => entry.session.waitForIdle());
+  return { queued: true, mode, delivered: "queued", settled };
 };
 
 /**

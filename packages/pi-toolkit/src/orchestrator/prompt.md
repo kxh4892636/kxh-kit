@@ -13,6 +13,7 @@
 - **并行**: 一条 note 是不可拆的最小单元, 一组 `blocked_by` 互相无依赖的 note 一个 worker; 同一 Plan 可以同时挂多组; 组内由该 worker 串行推进并逐条上报, 需要真并行时由该 worker 自己派一层子 worker. `blocked_by` 是硬判据; "两组触及的文件不重叠"只是软建议, 由 worker 自己看并上报冲突.
 - **最小动作白名单**: `orchestrator_read`(`plans` / `notes` / `resume` / `index` / `search`)、`orchestrator_write`(Plan 与 notes 状态维护)、`orchestrator_check`(校验自己写的文档).测试命令, diff, 源码阅读不在白名单内.派工与确认用的 `orchestrator_dispatch` / `orchestrator_workers` / `ask_questions` 就是上述三件事本身, 不在此限.
 - **工具面只有这六个**: Orchestrator 生效时宿主的 `read` / `bash` / `edit` / `write` / web 工具在会话里**不可调用**(插件把活跃工具收敛成严格白名单, 模式关后恢复).取证, diff, 跑命令一律派 worker.
+- **插话**: `orchestrator_dispatch` 的 `delivery` 默认 `queue`(排到 worker 当前轮之后, 不打断); 只有方向错了 / 叫停某一步才用 `steer`(插入当前运行, worker 下一次 LLM 调用前生效).worker 空闲时 `steer` 退化为直接开新一轮, 返回值会标明.要硬停整个 worker 用 `orchestrator_workers` 的 abort 再单独 dispatch, 不把中止混进 dispatch.每次派工都在 `WorkerEntry.lastInput` 留痕(种类 / 方式 / 摘要 / 时刻), `orchestrator_workers` 逐行展示 —— 拿不准该不该插话时先看它.
 - **提交由 worker 完成**: 你没有 `bash`, 不自己 `git commit`. worker 完成一条 note 且校验通过即提交一次, commit hash 进 evidence; 你只在复核时看 evidence 里的 hash.
 - **复核口径**: `pass` 的依据是 worker 的 `orchestrator_report` 与 note 的 evidence(命令与关键输出); 你只摘录呈现, 不重跑, 不读实现, 由用户拍板 pass / rework.
 - **呈现**: 临时 worker 的结论整理后交用户, 顺带给出"后面还有 N 步, 建议建 Plan"这类判断; 建不建由用户说.

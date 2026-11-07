@@ -25,6 +25,14 @@
 5. 收到 `pass` 后自己 `complete`；收到 `rework` 回 `in_progress`；收到 `answer` 继续做。
 6. 全部 note 完成仍不归档：等编排方决定。
 
+## 收到插话
+
+编排方可以在你干活时补一条输入，两种投递方式：`queue`（默认，排到当前轮之后，等你把手上这段做完）与 `steer`（插进当前运行，下一次 LLM 调用前就生效）。`kind`（message / pass / rework / answer / fact）与之正交，两种方式都可能带 kind。
+
+- 收到任何插话（`steer` 尤其），立刻把一行追加到对应 note 的「执行检查点」：**谁说的**（用户经编排方转达 / 编排方自己）、**为什么改**、**改了什么**。不要只记在脑子里：崩溃、超时与上下文轮转后只凭 Plan 恢复，没落盘的插话等于没发生，后面的人会按旧方向继续做。
+- 插话不改变「写回串行」：note 状态与 evidence 仍由你按门禁写，你派的子 worker 依旧改不了 `notes.json`。
+- 插话只换方向，不暂停你；要硬停你的是 `orchestrator_workers` 的 abort（整个句柄被摘除），重启后是一个干净的新 worker。
+
 ## 完成即提交
 
 编排方没有 `bash`，提交是 worker 的职责：一条 note 一个 commit，不攒着。
