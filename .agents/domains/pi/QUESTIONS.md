@@ -24,10 +24,18 @@
 - 验证：单测覆盖请求/响应/错误/超时；本机 `pi -p` 实测 Search 返回 `Sources:`、Fetch 返回 `URL:`/`Title:`/正文；见 Plan `2026-10-17-DeepSeek官方搜索接口`。
 - 来源：官方 [Search & Fetch 指南](https://api-docs.deepseek.com/zh-cn/guides/search)、[Search API](https://api-docs.deepseek.com/zh-cn/api/search)、[Fetch API](https://api-docs.deepseek.com/zh-cn/api/fetch)；本域 ADR-0003。
 
-## web_search 如何暴露官方请求体、搜索语法与响应
+## web_search 如何暴露搜索语法与来源
 
-- 适用条件与现象：模型需要按官方能力使用搜索语法，或需要读取除标题/链接外的摘要、正文、评分、权威性等字段。
-- 原因：`web_search` 的工具 schema 与 `details` 若不覆盖官方字段，模型只能使用被裁剪的子集，无法表达 `need_content`、`ori_question` 等意图。
-- 解决方法：参数暴露 `query`、`count`、`ori_question`、`localization`、`need_content`；`query` 描述列出 `site:`、`-site:`、`-`、`-"..."`、`"..."`、`lang:`、`after:`、`before:`；`details` 返回 `{ count, results }`，保留官方全部字段；文本投影展示摘要/片段、评分、权威性、站点、日期，`need_content: true` 时追加 `Content:`。
-- 验证：`src/index.test.ts` 断言 schema 与字段透传；真机会话 jsonl 中 toolCall 含 `ori_question`/`need_content`，toolResult 含评分与 `Content:`。
-- 来源：官方 Search 请求/响应字段与搜索语法；`packages/pi-toolkit/src/web/register.ts`、`search.ts`、`format.ts`。
+- 适用条件与现象：模型需要按官方能力使用搜索语法，并读取每条来源的摘要、日期与链接。
+- 原因：工具 schema 只暴露 `queries`，把条数上限、摘要长度、超时等部署策略留在 JSON；若把 `count`、`need_content`、`ori_question` 暴露给模型，模型可越过部署策略，也增加参数选择成本。
+- 解决方法：模型参数只有 `queries: string[]`（至少一条、至多 `searchMaxQueries`、去重）；每次请求发送 `count = min(searchCount, searchMaxResults)`、`need_content: false`，并把当前会话最新的用户消息折叠为 `ori_question`（≤128 字）；`details` 为 `{ content?, sources[], truncated }`，来源投影为 `{ url, title?, snippet?, summary?, publishedAt? }`；文本用 `summary`（退化到 `snippet`）加发布日期。
+- 验证：`packages/pi-toolkit/src/web/register.test.ts` 断言 schema 只有 `queries` 且请求携带 `count`/`need_content`/`ori_question`；`search.test.ts` 覆盖合并、去重、封顶与摘要截断；`format.test.ts` 覆盖文本投影。
+- 来源：官方 [Search & Fetch 指南](https://api-docs.deepseek.com/zh-cn/guides/search)；本域 ADR-0003；`packages/pi-toolkit/src/web/{register,search,format}.ts`。
+
+## pi-toolkit 怎么启停能力，开关什么时候生效
+
+- 适用条件与现象：安装后 `web_search` 不存在、`$` 不补全、嵌套 skill 不出现、会话不自动命名；或在 `/toolkit` 打开开关后行为没有完全变化。
+- 原因：三个开关默认全关；`session_start` 才加载 `pi-toolkit.json`；嵌套发现走 `resources_discover`（启动与 `/reload` 才扫描），其余能力在 `input` 或补全请求时读取开关。
+- 解决方法：`/toolkit` 提供 `Web tools`、`Nested skills`、`Session naming` 三行开关；`Web tools` 切换即增删活动工具，命名与 `$` 补全/展开下一次输入生效，嵌套发现需再执行 `/reload`。
+- 验证：`panel.test.ts` 断言 3 行与非 TUI 提示；`index.test.ts` 断言默认关闭、开启后激活与写回；真机 `pi install` + 启动。
+- 来源：本域 ADR-0004；Plan `2026-11-07-pi-toolkit插件合并`；`packages/pi-toolkit/src/{panel,index,settings}.ts`。
