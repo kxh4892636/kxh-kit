@@ -1,7 +1,8 @@
 /**
  * Plugin configuration: locate the DeepSeek API key, official API base and tool
  * limits from user/project JSON files, then resolve them into one fully
- * defaulted value the tools can use.
+ * defaulted value the tools can use. Every tunable lives in JSON; the model
+ * never supplies a limit.
  *
  * Precedence (low to high): `getAgentDir()/pi-deepseek-web.json`,
  * `<cwd>/.pi/pi-deepseek-web.json`, `$PI_DEEPSEEK_WEB_CONFIG`. The API key is
@@ -24,16 +25,25 @@ export const DEFAULT_API_KEY_ENV = "DEEPSEEK_API_KEY";
 /** DeepSeek's official API root; `/v1/tools/...` is appended by the clients. */
 export const DEFAULT_BASE_URL = "https://api.deepseek.com";
 
-/** Default number of search results when the tool omits `count`. */
+/** Results requested per Search request; the service default. */
 export const DEFAULT_SEARCH_COUNT = 10;
 
-/** Default cap on characters returned by one fetch. */
-export const DEFAULT_FETCH_MAX_CONTENT_CHARS = 100_000;
+/** Upper bound on queries accepted by one `web_search` call. */
+export const DEFAULT_SEARCH_MAX_QUERIES = 10;
+
+/** Upper bound on merged sources returned by one `web_search` call. */
+export const DEFAULT_SEARCH_MAX_RESULTS = 10;
+
+/** Upper end of the official 600–800 character summary range. */
+export const DEFAULT_SEARCH_SUMMARY_MAX_CHARS = 800;
+
+/** Default cap on the complete rendered `web_fetch` output. */
+export const DEFAULT_FETCH_MAX_OUTPUT_CHARS = 200_000;
 
 /** Default timeout in milliseconds for one Search or Fetch request. */
 export const DEFAULT_TIMEOUT_MS = 30_000;
 
-/** Minimum and maximum accepted `count` values from the official Search API. */
+/** Minimum and maximum accepted `searchCount` values from the official Search API. */
 const SEARCH_COUNT_MIN = 1;
 const SEARCH_COUNT_MAX = 50;
 
@@ -42,9 +52,20 @@ export interface DeepSeekWebConfig {
   readonly apiKey: string | undefined;
   readonly apiKeyEnv: string;
   readonly baseURL: string;
+  /** Results requested per Search request, 1–50. */
   readonly searchCount: number;
-  readonly fetchMaxContentChars: number;
-  readonly timeoutMs: number;
+  /** Most queries accepted by one `web_search` call. */
+  readonly searchMaxQueries: number;
+  /** Most sources returned by one `web_search` call after merging. */
+  readonly searchMaxResults: number;
+  /** Per-source summary cap in characters. */
+  readonly searchSummaryMaxChars: number;
+  /** Timeout for one Search request. */
+  readonly searchTimeoutMs: number;
+  /** Timeout for one Fetch request. */
+  readonly fetchTimeoutMs: number;
+  /** Cap on the complete rendered `web_fetch` output. */
+  readonly fetchMaxOutputChars: number;
 }
 
 /** Resolved config plus the candidate paths it was merged from. */
@@ -118,6 +139,8 @@ export const loadConfig = (options: LoadConfigOptions): LoadedConfig => {
   const apiKeyEnv = nonEmptyString(merged["apiKeyEnv"]) ?? DEFAULT_API_KEY_ENV;
   const literalKey = nonEmptyString(merged["apiKey"]);
   const envKey = nonEmptyString(env[apiKeyEnv]);
+  // `timeoutMs` is the pre-0.3 single budget; it still feeds both tool budgets.
+  const legacyTimeout = merged["timeoutMs"];
   const config: DeepSeekWebConfig = {
     apiKey: literalKey ?? envKey,
     apiKeyEnv,
@@ -130,13 +153,43 @@ export const loadConfig = (options: LoadConfigOptions): LoadedConfig => {
       SEARCH_COUNT_MAX,
       paths,
     ),
-    fetchMaxContentChars: positiveInteger(
-      merged["fetchMaxContentChars"],
-      DEFAULT_FETCH_MAX_CONTENT_CHARS,
-      "fetchMaxContentChars",
+    searchMaxQueries: positiveInteger(
+      merged["searchMaxQueries"],
+      DEFAULT_SEARCH_MAX_QUERIES,
+      "searchMaxQueries",
       paths,
     ),
-    timeoutMs: positiveInteger(merged["timeoutMs"], DEFAULT_TIMEOUT_MS, "timeoutMs", paths),
+    searchMaxResults: positiveInteger(
+      merged["searchMaxResults"],
+      DEFAULT_SEARCH_MAX_RESULTS,
+      "searchMaxResults",
+      paths,
+    ),
+    searchSummaryMaxChars: positiveInteger(
+      merged["searchSummaryMaxChars"],
+      DEFAULT_SEARCH_SUMMARY_MAX_CHARS,
+      "searchSummaryMaxChars",
+      paths,
+    ),
+    searchTimeoutMs: positiveInteger(
+      merged["searchTimeoutMs"] ?? legacyTimeout,
+      DEFAULT_TIMEOUT_MS,
+      "searchTimeoutMs",
+      paths,
+    ),
+    fetchTimeoutMs: positiveInteger(
+      merged["fetchTimeoutMs"] ?? legacyTimeout,
+      DEFAULT_TIMEOUT_MS,
+      "fetchTimeoutMs",
+      paths,
+    ),
+    // `fetchMaxContentChars` is the pre-0.3 name; still honored as a fallback.
+    fetchMaxOutputChars: positiveInteger(
+      merged["fetchMaxOutputChars"] ?? merged["fetchMaxContentChars"],
+      DEFAULT_FETCH_MAX_OUTPUT_CHARS,
+      "fetchMaxOutputChars",
+      paths,
+    ),
   };
   return { config, configPaths: paths };
 };

@@ -25,7 +25,7 @@ interface ApiErrorBody {
 }
 
 /** Attribution header; keep in sync with the package version. */
-const USER_AGENT = "pi-deepseek-web/0.2.0";
+const USER_AGENT = "pi-deepseek-web/0.3.0";
 
 /**
  * Build one official tool endpoint.

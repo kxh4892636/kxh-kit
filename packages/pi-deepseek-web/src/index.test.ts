@@ -7,6 +7,7 @@ import piDeepSeekWeb, { type DeepSeekWebOptions } from "./index.ts";
 
 interface RegisteredTool {
   name: string;
+  description: string;
   parameters: {
     type?: string;
     properties?: Record<string, unknown>;
@@ -17,8 +18,14 @@ interface RegisteredTool {
     params: Record<string, unknown>,
     signal: AbortSignal | undefined,
     onUpdate: undefined,
-    ctx: { cwd: string; isProjectTrusted: () => boolean },
+    ctx: FakeContext,
   ) => Promise<{ content: Array<{ type: string; text: string }>; details: unknown }>;
+}
+
+interface FakeContext {
+  cwd: string;
+  isProjectTrusted: () => boolean;
+  sessionManager: { getBranch: () => unknown[] };
 }
 
 const created: string[] = [];
@@ -54,9 +61,20 @@ const useProjectConfig = (dir: string, config: Record<string, unknown>): void =>
   writeFileSync(join(dir, ".pi", "pi-deepseek-web.json"), JSON.stringify(config));
 };
 
-const contextFor = (cwd: string): { cwd: string; isProjectTrusted: () => boolean } => ({
+const contextFor = (cwd: string, userText?: string): FakeContext => ({
   cwd,
   isProjectTrusted: () => true,
+  sessionManager: {
+    getBranch: () =>
+      userText === undefined
+        ? []
+        : [
+            {
+              type: "message",
+              message: { role: "user", content: [{ type: "text", text: userText }] },
+            },
+          ],
+  },
 });
 
 const jsonResponse = (body: unknown, status = 200): Response =>
@@ -65,125 +83,116 @@ const jsonResponse = (body: unknown, status = 200): Response =>
     headers: { "content-type": "application/json" },
   });
 
+const result = (url: string): Record<string, unknown> => ({
+  url,
+  title: `T ${url}`,
+  snippet: `S ${url}`,
+  date: null,
+});
+
+const bodyOf = (call: unknown): Record<string, unknown> => {
+  const init = (call as [string, RequestInit?])[1];
+  return JSON.parse(typeof init?.body === "string" ? init.body : "{}");
+};
+
 afterEach(() => {
   for (const dir of created.splice(0)) rmSync(dir, { recursive: true, force: true });
   vi.unstubAllGlobals();
 });
 
 describe("piDeepSeekWeb", () => {
-  it("registers web_search and web_fetch with the official request schemas", () => {
+  it("registers the harness tool schemas", () => {
     const tools = register();
     expect(tools.map((tool) => tool.name).sort()).toEqual(["web_fetch", "web_search"]);
     const search = toolNamed(tools, "web_search");
-    expect(search.parameters.properties).toHaveProperty("query");
-    expect(search.parameters.properties).toHaveProperty("count");
-    expect(search.parameters.properties).toHaveProperty("ori_question");
-    expect(search.parameters.properties).toHaveProperty("localization");
-    expect(search.parameters.properties).toHaveProperty("need_content");
-    expect(search.parameters.required).toEqual(["query"]);
-    expect(toolNamed(tools, "web_fetch").parameters.properties).toHaveProperty("url");
+    expect(Object.keys(search.parameters.properties ?? {})).toEqual(["queries"]);
+    expect(search.parameters.required).toEqual(["queries"]);
+    const fetch = toolNamed(tools, "web_fetch");
+    expect(Object.keys(fetch.parameters.properties ?? {})).toEqual(["url"]);
+    expect(fetch.parameters.required).toEqual(["url"]);
   });
 
-  it("executes web_search and exposes the complete official response", async () => {
+  it("merges multiple queries, caps sources, and injects the user question", async () => {
     const dir = tempDir();
-    useProjectConfig(dir, { apiKey: "k" });
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        jsonResponse({
-          results: [
-            {
-              rerank_score: 2.4,
-              authority: 3,
-              title: "A",
-              url: "https://a.example",
-              snippet: "short A",
-              summary: "summary A",
-              content: "body A",
-              site_name: "Site A",
-              site_icon: "https://a.example/icon.ico",
-              date: "2026-01-01",
-            },
-          ],
-        }),
-      ),
-    );
-
-    const result = await toolNamed(register(), "web_search").execute(
-      "id",
-      { query: "pi", need_content: true },
-      undefined,
-      undefined,
-      contextFor(dir),
-    );
-
-    expect(result.content[0]?.text).toContain("Sources:");
-    expect(result.content[0]?.text).toContain("https://a.example");
-    expect(result.content[0]?.text).toContain("score 2.4");
-    expect(result.content[0]?.text).toContain("authority 3");
-    expect(result.content[0]?.text).toContain("Content:\nbody A");
-    expect(result.details).toEqual({
-      count: 10,
-      results: [
-        {
-          rerank_score: 2.4,
-          authority: 3,
-          title: "A",
-          url: "https://a.example",
-          snippet: "short A",
-          summary: "summary A",
-          content: "body A",
-          site_name: "Site A",
-          site_icon: "https://a.example/icon.ico",
-          date: "2026-01-01",
-        },
-      ],
+    useProjectConfig(dir, {
+      apiKey: "k",
+      searchCount: 10,
+      searchMaxResults: 2,
+      searchMaxQueries: 5,
     });
-  });
-
-  it("passes every official request field through to the Search API", async () => {
-    const dir = tempDir();
-    useProjectConfig(dir, { apiKey: "k", searchCount: 10 });
-    const fetchImpl = vi.fn<typeof fetch>(async () => jsonResponse({ results: [] }));
+    const fetchImpl = vi.fn<typeof fetch>(async (_url, init) => {
+      const body = JSON.parse(typeof init?.body === "string" ? init.body : "{}") as {
+        query: string;
+      };
+      if (body.query === "a") {
+        return jsonResponse({
+          results: [result("https://a1.example"), result("https://a2.example")],
+        });
+      }
+      return jsonResponse({
+        results: [result("https://b1.example"), result("https://a2.example")],
+      });
+    });
     vi.stubGlobal("fetch", fetchImpl);
 
-    await toolNamed(register(), "web_search").execute(
+    const response = await toolNamed(register(), "web_search").execute(
       "id",
-      {
-        query: "pi",
-        count: 3,
-        ori_question: "what is pi",
-        localization: "1.2.3.4",
-        need_content: true,
-      },
+      { queries: ["a", "b"] },
       undefined,
       undefined,
-      contextFor(dir),
+      contextFor(dir, "what is pi?"),
     );
 
-    const body = JSON.parse(
-      typeof fetchImpl.mock.calls[0]?.[1]?.body === "string"
-        ? fetchImpl.mock.calls[0][1].body
-        : "{}",
-    );
-    expect(body).toEqual({
-      query: "pi",
-      count: 3,
-      ori_question: "what is pi",
-      localization: "1.2.3.4",
-      need_content: true,
+    expect(response.content[0]?.text).toContain("Sources:");
+    expect(response.content[0]?.text).toContain("https://a1.example");
+    expect(response.content[0]?.text).toContain("Showing the first 2 sources");
+    expect(response.details).toEqual({
+      sources: [
+        {
+          url: "https://a1.example",
+          title: "T https://a1.example",
+          snippet: "S https://a1.example",
+        },
+        {
+          url: "https://b1.example",
+          title: "T https://b1.example",
+          snippet: "S https://b1.example",
+        },
+      ],
+      truncated: true,
     });
+    for (const call of fetchImpl.mock.calls) {
+      expect(bodyOf(call)).toMatchObject({
+        count: 2,
+        need_content: false,
+        ori_question: "what is pi?",
+      });
+    }
   });
 
-  it("executes web_fetch and exposes title and content", async () => {
+  it("enforces searchMaxQueries from the JSON config", async () => {
     const dir = tempDir();
-    useProjectConfig(dir, { apiKey: "k" });
+    useProjectConfig(dir, { apiKey: "k", searchMaxQueries: 2 });
+    await expect(
+      toolNamed(register(), "web_search").execute(
+        "id",
+        { queries: ["a", "b", "c"] },
+        undefined,
+        undefined,
+        contextFor(dir),
+      ),
+    ).rejects.toThrow(/at most 2/u);
+  });
+
+  it("executes web_fetch with the harness result shape", async () => {
+    const dir = tempDir();
+    useProjectConfig(dir, { apiKey: "k", fetchMaxOutputChars: 1_000 });
     const fetchImpl = vi.fn<typeof fetch>(async () =>
       jsonResponse({ title: "Hi", content: "# Hi" }),
     );
     vi.stubGlobal("fetch", fetchImpl);
 
-    const result = await toolNamed(register(), "web_fetch").execute(
+    const response = await toolNamed(register(), "web_fetch").execute(
       "id",
       { url: "https://example.com" },
       undefined,
@@ -191,12 +200,12 @@ describe("piDeepSeekWeb", () => {
       contextFor(dir),
     );
 
-    expect(result.content[0]?.text).toContain("Title: Hi");
-    expect(result.content[0]?.text).toContain("# Hi");
-    expect(result.details).toEqual({
+    expect(response.content[0]?.text).toContain("Fetched https://example.com/ (HTTP 200)");
+    expect(response.content[0]?.text).toContain("# Hi");
+    expect(response.details).toEqual({
       url: "https://example.com/",
-      title: "Hi",
-      content: "# Hi",
+      statusCode: 200,
+      body: { kind: "text", content: "# Hi" },
       truncated: false,
     });
     expect(fetchImpl.mock.calls[0]?.[0]).toBe("https://api.deepseek.com/v1/tools/fetch");
@@ -209,7 +218,7 @@ describe("piDeepSeekWeb", () => {
     await expect(
       toolNamed(tools, "web_search").execute(
         "id",
-        { query: "pi" },
+        { queries: ["pi"] },
         undefined,
         undefined,
         contextFor(dir),
@@ -230,8 +239,8 @@ describe("piDeepSeekWeb", () => {
     const dir = tempDir();
     useProjectConfig(dir, { apiKey: "attacker" });
     await expect(
-      toolNamed(register(), "web_search").execute("id", { query: "pi" }, undefined, undefined, {
-        cwd: dir,
+      toolNamed(register(), "web_search").execute("id", { queries: ["pi"] }, undefined, undefined, {
+        ...contextFor(dir),
         isProjectTrusted: () => false,
       }),
     ).rejects.toThrow(/no API key/u);

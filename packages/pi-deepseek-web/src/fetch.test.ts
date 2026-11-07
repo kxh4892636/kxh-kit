@@ -3,8 +3,7 @@ import { fetchPage, validateUrl } from "./fetch.ts";
 
 const config = {
   baseURL: "https://api.example",
-  fetchMaxContentChars: 1_000,
-  timeoutMs: 1_000,
+  fetchTimeoutMs: 1_000,
 };
 
 const jsonResponse = (body: unknown, status = 200): Response =>
@@ -31,7 +30,7 @@ describe("validateUrl", () => {
 });
 
 describe("fetchPage", () => {
-  it("posts the URL and maps the title and Markdown content", async () => {
+  it("posts the URL and returns the harness result shape", async () => {
     const fetchImpl = vi.fn<typeof fetch>(async () =>
       jsonResponse({ title: "  Example  ", content: "# Hello" }),
     );
@@ -44,8 +43,8 @@ describe("fetchPage", () => {
 
     expect(page).toEqual({
       url: "https://example.com/",
-      title: "Example",
-      content: "# Hello",
+      statusCode: 200,
+      body: { kind: "text", content: "# Hello" },
       truncated: false,
     });
     const call = fetchImpl.mock.calls[0];
@@ -54,29 +53,20 @@ describe("fetchPage", () => {
     expect(body).toEqual({ url: "https://example.com/" });
   });
 
-  it("truncates content at the configured character cap", async () => {
-    const fetchImpl = vi.fn<typeof fetch>(async () =>
-      jsonResponse({ title: "T", content: "0123456789" }),
-    );
-    const page = await fetchPage({
-      url: "https://example.com",
-      apiKey: "k",
-      config: { ...config, fetchMaxContentChars: 5 },
-      fetchImpl,
-    });
-    expect(page.content).toBe("01234");
-    expect(page.truncated).toBe(true);
-  });
-
-  it("omits a blank title and allows an empty body", async () => {
-    const fetchImpl = vi.fn<typeof fetch>(async () => jsonResponse({ title: "   ", content: "" }));
+  it("allows an empty body and ignores the response title", async () => {
+    const fetchImpl = vi.fn<typeof fetch>(async () => jsonResponse({ title: "T", content: "" }));
     const page = await fetchPage({
       url: "https://example.com",
       apiKey: "k",
       config,
       fetchImpl,
     });
-    expect(page).toEqual({ url: "https://example.com/", content: "", truncated: false });
+    expect(page).toEqual({
+      url: "https://example.com/",
+      statusCode: 200,
+      body: { kind: "text", content: "" },
+      truncated: false,
+    });
   });
 
   it("rejects a response without string content", async () => {

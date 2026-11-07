@@ -1,178 +1,314 @@
 /**
- * DeepSeek official Search API client. A search is a single JSON request that
- * returns ranked, structured results; no model turn or server tool is involved.
- * The request and response shapes mirror the official guide so the model can
- * use search operators and read every documented result field.
+ * DeepSeek official Search API client, normalized to the DeepSeek Harness web
+ * contract: one request per query, sources projected to the portable
+ * `{ url, title?, snippet?, summary?, publishedAt? }` shape, and multi-query
+ * results merged round-robin, deduplicated by URL, and capped.
+ *
+ * Limits are deployment policy from the JSON config, never model arguments:
+ * each request sends `count = min(searchCount, searchMaxResults)`,
+ * `need_content: false`, and the session's triggering question as
+ * `ori_question`.
  */
 
 import type { DeepSeekWebConfig } from "./config.ts";
 import { postJson, toolEndpoint } from "./http.ts";
 
-/** One result from `POST /v1/tools/search`, using the official field names. */
-export interface SearchApiResult {
-  rerank_score?: number;
-  title?: string;
-  url?: string;
-  snippet?: string;
-  summary?: string;
-  content?: string;
-  site_name?: string | null;
-  site_icon?: string | null;
-  date?: string | null;
-  authority?: number;
+/** Most `ori_question` characters the Search API accepts. */
+const ORIGINAL_QUESTION_MAX_CHARS = 128;
+
+/** One citeable source in the portable web vocabulary. */
+export interface WebSearchSource {
+  readonly url: string;
+  readonly title?: string;
+  readonly snippet?: string;
+  readonly summary?: string;
+  readonly publishedAt?: string;
 }
 
-/** The official Search API response envelope. */
-export interface SearchApiResponse {
-  results?: SearchApiResult[];
-}
-
-/** Normalized search outcome. */
+/** Normalized search outcome; `content` is provider-generated answer text. */
 export interface WebSearchResult {
-  /** Number of results requested from the API. */
-  count: number;
-  /** Complete result objects, deduplicated by URL. */
-  results: SearchApiResult[];
+  readonly content?: string;
+  readonly sources: WebSearchSource[];
+  readonly truncated: boolean;
 }
 
-/** One search request; field names match the official request body. */
+/** Official Search API request fields; the response carries the rest. */
+interface SearchApiRequest {
+  readonly query: string;
+  readonly count: number;
+  readonly ori_question?: string;
+  readonly need_content: false;
+}
+
+/** One Search request; limits come from {@link DeepSeekWebConfig}. */
 export interface SearchRequest {
-  query: string;
-  /** Overrides `config.searchCount`; must be an integer in 1..50. */
-  count?: number;
-  /** Original user question, 1–128 characters, used to understand intent. */
-  ori_question?: string;
-  /** IP address used to prefer localized results. */
-  localization?: string;
-  /** Ask the API to populate each result's `content` field. */
-  need_content?: boolean;
-  apiKey: string;
-  config: Pick<DeepSeekWebConfig, "baseURL" | "searchCount" | "timeoutMs">;
-  signal?: AbortSignal;
-  fetchImpl?: typeof fetch;
+  readonly query: string;
+  readonly oriQuestion?: string;
+  readonly apiKey: string;
+  readonly config: Pick<
+    DeepSeekWebConfig,
+    "baseURL" | "searchCount" | "searchMaxResults" | "searchTimeoutMs"
+  >;
+  readonly signal?: AbortSignal;
+  readonly fetchImpl?: typeof fetch;
 }
 
-/** Maximum Unicode code points accepted for `query` and `ori_question`. */
-const MAX_QUERY_LENGTH = 128;
+/** One batch of queries plus the deployment limits applied to all of them. */
+export interface SearchBatchRequest {
+  readonly queries: readonly string[];
+  readonly maxResults: number;
+  readonly oriQuestion?: string;
+  readonly apiKey: string;
+  readonly config: Pick<
+    DeepSeekWebConfig,
+    "baseURL" | "searchCount" | "searchMaxResults" | "searchTimeoutMs"
+  >;
+  readonly signal?: AbortSignal;
+  readonly fetchImpl?: typeof fetch;
+}
 
-/** Official authority range; `-1` means unknown. */
-const AUTHORITY_MIN = -1;
-const AUTHORITY_MAX = 4;
+/** True because JSON has no distinct record type. */
+const isRecord = (value: unknown): value is Record<string, unknown> => {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+};
 
 /**
- * Map the official response to deduplicated results.
+ * Validate the model-facing `web_search` arguments the schema cannot express.
+ * Exact duplicate strings are collapsed after the count check.
  *
- * @param response - parsed Search API body; `unknown` because HTTP data is
- *   untrusted and a successful status does not guarantee the documented shape.
- * @returns results in API order, first URL wins, preserving every documented
- *   field; empty strings and invalid optional fields are omitted.
- * @throws when the body or its `results` field is not the documented shape.
+ * @param args - the schema-validated arguments.
+ * @param maxQueries - the deployment's query cap.
+ * @returns the accepted queries in first-occurrence order.
+ * @throws when the list is empty, over the cap, or contains a blank entry.
  */
-export const mapSearchResponse = (response: unknown): SearchApiResult[] => {
-  if (response === null || typeof response !== "object") {
+export const parseSearchArgs = (
+  args: { queries: readonly string[] },
+  maxQueries: number,
+): string[] => {
+  const queries = args.queries;
+  if (!Array.isArray(queries) || queries.length === 0) {
+    throw new Error("queries must contain at least one query");
+  }
+  if (queries.length > maxQueries) {
+    throw new Error(
+      `queries must contain at most ${maxQueries} ${maxQueries === 1 ? "query" : "queries"}`,
+    );
+  }
+  if (queries.some((query) => typeof query !== "string" || query.trim().length === 0)) {
+    throw new Error("each query must be a non-empty string");
+  }
+  return [...new Set(queries)];
+};
+
+/**
+ * Bound the triggering user question to what `ori_question` accepts:
+ * whitespace collapses to single spaces and the first 128 characters remain.
+ *
+ * @param question - the latest user message, when one exists.
+ * @returns the bounded question, or `undefined` when nothing remains.
+ */
+export const boundQuestion = (question: string | undefined): string | undefined => {
+  const collapsed = question?.replace(/\s+/gu, " ").trim() ?? "";
+  if (collapsed.length === 0) return undefined;
+  return Array.from(collapsed).slice(0, ORIGINAL_QUESTION_MAX_CHARS).join("");
+};
+
+/**
+ * Map the official response to the portable source vocabulary. Mirrors the
+ * harness provider: `title`, `url`, and `snippet` are required strings; `date`
+ * is a string or null; ranking-only fields are dropped.
+ *
+ * @param response - parsed Search API body, treated as untrusted.
+ * @returns sources in provider order with every present optional field.
+ * @throws when the body or any result does not match the documented shape.
+ */
+export const mapSearchResponse = (response: unknown): WebSearchSource[] => {
+  if (!isRecord(response) || !Array.isArray(response["results"])) {
     throw new Error("DeepSeek Search API returned an unreadable results list");
   }
-  const rawResults = (response as SearchApiResponse).results;
-  if (!Array.isArray(rawResults)) {
-    throw new Error("DeepSeek Search API returned an unreadable results list");
-  }
-
-  const seen = new Set<string>();
-  const results: SearchApiResult[] = [];
-  for (const item of rawResults) {
-    if (item === null || typeof item !== "object") continue;
-    const url = trimmed(item.url);
-    if (url === undefined || seen.has(url)) continue;
-    seen.add(url);
-
-    const result: SearchApiResult = { url };
-    const title = trimmed(item.title);
-    const snippet = trimmed(item.snippet);
-    const summary = trimmed(item.summary);
-    const content = trimmed(item.content);
-    const siteName = nullableString(item.site_name);
-    const siteIcon = nullableString(item.site_icon);
-    const date = nullableString(item.date);
-    if (title !== undefined) result.title = title;
-    if (snippet !== undefined) result.snippet = snippet;
-    if (summary !== undefined) result.summary = summary;
-    if (content !== undefined) result.content = content;
-    if (siteName !== undefined) result.site_name = siteName;
-    if (siteIcon !== undefined) result.site_icon = siteIcon;
-    if (date !== undefined) result.date = date;
+  return response["results"].map((item) => {
     if (
-      typeof item.authority === "number" &&
-      Number.isInteger(item.authority) &&
-      item.authority >= AUTHORITY_MIN &&
-      item.authority <= AUTHORITY_MAX
+      !isRecord(item) ||
+      typeof item["url"] !== "string" ||
+      item["url"].length === 0 ||
+      typeof item["title"] !== "string" ||
+      typeof item["snippet"] !== "string" ||
+      (item["summary"] !== undefined && typeof item["summary"] !== "string") ||
+      (item["date"] !== null && typeof item["date"] !== "string")
     ) {
-      result.authority = item.authority;
+      throw new Error("DeepSeek Search API returned an unreadable results list");
     }
-    if (typeof item.rerank_score === "number" && Number.isFinite(item.rerank_score)) {
-      result.rerank_score = item.rerank_score;
-    }
-    results.push(result);
-  }
-  return results;
+    const url = item["url"];
+    const title = item["title"].length > 0 ? item["title"] : undefined;
+    const snippet = item["snippet"].length > 0 ? item["snippet"] : undefined;
+    const summary =
+      typeof item["summary"] === "string" && item["summary"].length > 0
+        ? item["summary"]
+        : undefined;
+    const publishedAt =
+      typeof item["date"] === "string" && item["date"].length > 0 ? item["date"] : undefined;
+    return {
+      url,
+      ...(title !== undefined ? { title } : {}),
+      ...(snippet !== undefined ? { snippet } : {}),
+      ...(summary !== undefined ? { summary } : {}),
+      ...(publishedAt !== undefined ? { publishedAt } : {}),
+    };
+  });
 };
 
 /**
  * Run one official DeepSeek web search.
  *
- * @param request - query, optional official request fields, key and config.
- * @returns the requested count and complete normalized results.
- * @throws on invalid input, network failure, timeout, abort, non-2xx response,
- *   unreadable body, or a response without a `results` array.
+ * @param request - query, triggering question, key, and deployment limits.
+ * @returns the normalized result, capped to `searchMaxResults`.
+ * @throws on network failure, timeout, abort, non-2xx response, or an
+ *   unreadable body.
  */
 export const deepSeekSearch = async (request: SearchRequest): Promise<WebSearchResult> => {
-  const query = validateText(request.query, "query");
-  const count = request.count ?? request.config.searchCount;
-  if (!Number.isInteger(count) || count < 1 || count > 50) {
-    throw new Error("web_search count must be an integer between 1 and 50");
-  }
-  const oriQuestion =
-    request.ori_question === undefined
-      ? undefined
-      : validateText(request.ori_question, "ori_question");
-  const localization = request.localization === undefined ? undefined : request.localization.trim();
-  if (request.need_content !== undefined && typeof request.need_content !== "boolean") {
-    throw new Error("web_search need_content must be a boolean");
-  }
+  const count = Math.min(request.config.searchCount, request.config.searchMaxResults);
+  const body: SearchApiRequest = {
+    query: request.query,
+    count,
+    need_content: false,
+    ...(request.oriQuestion !== undefined && request.oriQuestion.length > 0
+      ? { ori_question: request.oriQuestion }
+      : {}),
+  };
 
-  const body: Record<string, unknown> = { query, count };
-  if (oriQuestion !== undefined) body["ori_question"] = oriQuestion;
-  if (localization !== undefined && localization.length > 0) body["localization"] = localization;
-  if (request.need_content !== undefined) body["need_content"] = request.need_content;
-
-  const payload = await postJson<unknown>({
+  const response = await postJson<unknown>({
     endpoint: toolEndpoint(request.config.baseURL, "search"),
     apiKey: request.apiKey,
     body,
     label: "DeepSeek web search",
-    timeoutMs: request.config.timeoutMs,
+    timeoutMs: request.config.searchTimeoutMs,
     ...(request.signal !== undefined ? { signal: request.signal } : {}),
     ...(request.fetchImpl !== undefined ? { fetchImpl: request.fetchImpl } : {}),
   });
 
-  return { count, results: mapSearchResponse(payload) };
+  return capResult(
+    { sources: mapSearchResponse(response), truncated: false },
+    request.config.searchMaxResults,
+  );
 };
 
-/** Validate a 1–128 Unicode-character, non-blank text field. */
-const validateText = (value: string, name: string): string => {
-  const text = value.trim();
-  if (text.length === 0 || Array.from(text).length > MAX_QUERY_LENGTH) {
-    throw new Error(`web_search ${name} must be 1-${MAX_QUERY_LENGTH} characters and not blank`);
+/**
+ * Run one or more searches and merge the results. A single query keeps the
+ * provider's exact sources; multiple queries run concurrently and are merged
+ * round-robin, deduplicated by URL, and capped. A failed search aborts its
+ * siblings; the first failure is rethrown after every search settles.
+ *
+ * @param request - validated queries and the deployment limits.
+ * @returns the combined normalized result.
+ */
+export const runSearchQueries = async (request: SearchBatchRequest): Promise<WebSearchResult> => {
+  if (request.queries.length === 1) {
+    return deepSeekSearch({
+      query: request.queries[0] ?? "",
+      ...(request.oriQuestion !== undefined ? { oriQuestion: request.oriQuestion } : {}),
+      apiKey: request.apiKey,
+      config: request.config,
+      ...(request.signal !== undefined ? { signal: request.signal } : {}),
+      ...(request.fetchImpl !== undefined ? { fetchImpl: request.fetchImpl } : {}),
+    });
   }
-  return text;
+
+  const controller = new AbortController();
+  const batchSignal =
+    request.signal === undefined
+      ? controller.signal
+      : AbortSignal.any([request.signal, controller.signal]);
+  let firstFailure: { error: unknown } | undefined;
+  const results: Array<WebSearchResult | undefined> = [];
+
+  const searches = request.queries.map(async (query, index) => {
+    try {
+      results[index] = await deepSeekSearch({
+        query,
+        ...(request.oriQuestion !== undefined ? { oriQuestion: request.oriQuestion } : {}),
+        apiKey: request.apiKey,
+        config: request.config,
+        signal: batchSignal,
+        ...(request.fetchImpl !== undefined ? { fetchImpl: request.fetchImpl } : {}),
+      });
+    } catch (error) {
+      if (firstFailure === undefined) firstFailure = { error };
+      controller.abort(error);
+      throw error;
+    }
+  });
+  await Promise.allSettled(searches);
+  if (firstFailure !== undefined) throw firstFailure.error;
+
+  const settled = results.filter((result): result is WebSearchResult => result !== undefined);
+  return mergeSearchResults(request.queries, settled, request.maxResults);
 };
 
-const trimmed = (value: unknown): string | undefined => {
-  if (typeof value !== "string") return undefined;
-  const text = value.trim();
-  return text.length > 0 ? text : undefined;
+/** Cap one provider result at the deployment's source bound. */
+const capResult = (result: WebSearchResult, maxResults: number): WebSearchResult => ({
+  ...(result.content !== undefined ? { content: result.content } : {}),
+  sources: result.sources.slice(0, maxResults),
+  truncated: result.truncated || result.sources.length > maxResults,
+});
+
+/** Merge per-query results into one deduplicated, round-robin, capped result. */
+export const mergeSearchResults = (
+  queries: readonly string[],
+  results: readonly WebSearchResult[],
+  maxResults: number,
+): WebSearchResult => {
+  const seen = new Set<string>();
+  const sources: WebSearchSource[] = [];
+  let sourceRanks = 0;
+  for (const result of results) sourceRanks = Math.max(sourceRanks, result.sources.length);
+  let droppedSource = false;
+
+  merge: for (let rank = 0; rank < sourceRanks; rank += 1) {
+    for (const result of results) {
+      const source = result.sources[rank];
+      if (source === undefined || seen.has(source.url)) continue;
+      seen.add(source.url);
+      if (sources.length === maxResults) {
+        droppedSource = true;
+        break merge;
+      }
+      sources.push(source);
+    }
+  }
+
+  const contents = results.flatMap((result, index) => {
+    if (result.content === undefined || result.content.length === 0) return [];
+    return [`### ${queries[index] ?? ""}\n\n${result.content}`];
+  });
+
+  return {
+    ...(contents.length > 0 ? { content: contents.join("\n\n") } : {}),
+    sources,
+    truncated: results.some((result) => result.truncated) || droppedSource,
+  };
 };
 
-const nullableString = (value: unknown): string | null | undefined => {
-  if (value === null) return null;
-  return trimmed(value);
+/**
+ * Project sources for the model: collapse whitespace in each summary and cap
+ * it at `summaryMaxChars` including the ellipsis.
+ *
+ * @param sources - normalized sources.
+ * @param summaryMaxChars - the deployment's per-source summary cap.
+ * @returns the sources with bounded summaries.
+ */
+export const boundSources = (
+  sources: readonly WebSearchSource[],
+  summaryMaxChars: number,
+): WebSearchSource[] => {
+  return sources.map((source) => {
+    const summary = source.summary?.replace(/\s+/gu, " ").trim() ?? "";
+    if (summary.length === 0) return source;
+    const bounded =
+      summary.length <= summaryMaxChars
+        ? summary
+        : `${Array.from(summary)
+            .slice(0, summaryMaxChars - 1)
+            .join("")}…`;
+    return { ...source, summary: bounded };
+  });
 };

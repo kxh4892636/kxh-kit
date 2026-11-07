@@ -2,6 +2,10 @@
   "apiKey": "sk-your-deepseek-api-key",
   "baseURL": "https://api.deepseek.com",
   "searchCount": 10,
-  "fetchMaxContentChars": 100000,
-  "timeoutMs": 30000
+  "searchMaxQueries": 10,
+  "searchMaxResults": 10,
+  "searchSummaryMaxChars": 800,
+  "searchTimeoutMs": 30000,
+  "fetchTimeoutMs": 30000,
+  "fetchMaxOutputChars": 200000
 }

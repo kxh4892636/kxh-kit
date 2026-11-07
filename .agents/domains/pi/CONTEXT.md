@@ -35,15 +35,19 @@ _避免使用_：嵌套优先
 ### Web 能力
 
 **搜索结果**：
-DeepSeek 官方 Search API 返回的结构化条目（`rerank_score`、`title`、`url`、`snippet`、`summary`、`content`、`site_name`、`site_icon`、`date`、`authority`）；插件按 URL 去重后保留全部字段，文本投影选用摘要/片段、评分、权威性、站点、日期与可选正文。
-_避免使用_：搜索问答、answer、总结
+DeepSeek 官方 Search API 返回的结构化条目，投影为 Harness 的便携形态 `{ url, title?, snippet?, summary?, publishedAt? }`；排序专用字段（`rerank_score`、`authority`、`site_name`、`site_icon`）不模型可见。多查询结果按轮转合并、按 URL 去重并封顶，摘要折叠空白后截断。
+_避免使用_：搜索问答、answer、全字段透传
 
 **web 工具**：
-本域 `pi-deepseek-web` 注册的两个模型工具：`web_search`（DeepSeek 官方 Search API，`POST /v1/tools/search`）与 `web_fetch`（DeepSeek 官方 Fetch API，`POST /v1/tools/fetch`，返回标题与 Markdown 正文）。
+本域 `pi-deepseek-web` 注册的两个模型工具：`web_search`（DeepSeek 官方 Search API，`POST /v1/tools/search`，唯一模型参数为 `queries: string[]`）与 `web_fetch`（DeepSeek 官方 Fetch API，`POST /v1/tools/fetch`，唯一模型参数为 `url`，返回 `{ url, statusCode, body, truncated }`）。
 _避免使用_：Anthropic web_search server tool、直连抓取、MCP 工具、web seam
 
+**部署策略**：
+不属于模型参数、只由 JSON 配置决定的检索策略：每次 Search 的 `count`、`need_content`（恒 false）、`localization`（不发送）、`ori_question`（由会话自动注入）、查询/结果/摘要/输出上限与超时。
+_避免使用_：模型参数、提示词约束、硬编码常量
+
 **插件配置**：
-`~/.pi/agent/pi-deepseek-web.json`（项目 `.pi/` 可覆盖，`PI_DEEPSEEK_WEB_CONFIG` 指定绝对路径最高优先）承载 DeepSeek 凭据、官方 API 根地址与搜索/抓取限额的独立配置文件。
+`~/.pi/agent/pi-deepseek-web.json`（项目 `.pi/` 可覆盖，`PI_DEEPSEEK_WEB_CONFIG` 指定绝对路径最高优先）承载 DeepSeek 凭据、官方 API 根地址与全部部署策略的独立配置文件；旧键 `timeoutMs`、`fetchMaxContentChars` 作为回退仍被接受。
 _避免使用_：settings、环境变量、dotenv
 
 **凭据回退**：

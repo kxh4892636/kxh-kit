@@ -1,33 +1,35 @@
 /**
- * DeepSeek official Fetch API client. The service fetches the page and returns
- * its title plus Markdown content; the plugin only validates the URL, applies a
- * character cap, and classifies the response as untrusted external text.
+ * DeepSeek official Fetch API client, normalized to the DeepSeek Harness web
+ * contract: `{ url, statusCode, body: { kind: "text", content }, truncated }`.
+ * The API reports neither the target's status nor a final URL, and it fails
+ * when the target yields no usable content, so a success is the requested page
+ * retrieved with HTTP 200.
  */
 
 import type { DeepSeekWebConfig } from "./config.ts";
 import { postJson, toolEndpoint } from "./http.ts";
 
-/** One fetched and truncated page. */
-export interface FetchedPage {
-  url: string;
-  title?: string;
-  content: string;
-  truncated: boolean;
+/** One decoded fetch body. The DeepSeek Fetch API returns Markdown text. */
+export interface WebFetchBody {
+  readonly kind: "text";
+  readonly content: string;
 }
 
-/** The official Fetch API response envelope. */
-export interface FetchApiResponse {
-  title?: string;
-  content?: string;
+/** Normalized fetch outcome. */
+export interface WebFetchResult {
+  readonly url: string;
+  readonly statusCode: number;
+  readonly body: WebFetchBody;
+  readonly truncated: boolean;
 }
 
 /** One fetch request. `fetchImpl` is injectable for tests. */
 export interface FetchPageRequest {
-  url: string;
-  apiKey: string;
-  config: Pick<DeepSeekWebConfig, "baseURL" | "fetchMaxContentChars" | "timeoutMs">;
-  signal?: AbortSignal;
-  fetchImpl?: typeof fetch;
+  readonly url: string;
+  readonly apiKey: string;
+  readonly config: Pick<DeepSeekWebConfig, "baseURL" | "fetchTimeoutMs">;
+  readonly signal?: AbortSignal;
+  readonly fetchImpl?: typeof fetch;
 }
 
 /** Maximum URL length accepted by the official Fetch API. */
@@ -64,21 +66,23 @@ export const validateUrl = (raw: string): URL => {
 };
 
 /**
- * Fetch, truncate, and normalize one URL through the official Fetch API.
+ * Fetch and normalize one URL through the official Fetch API. The provider
+ * never caps the body; the render layer applies `fetchMaxOutputChars`.
  *
- * @param request - URL, key, config and optional cancellation.
- * @returns the page title (when present), Markdown content and truncation flag.
- * @throws on an invalid URL, network failure, timeout, abort, non-2xx response,
- *   unreadable body, or a response without string `content`.
+ * @param request - URL, key, and timeout budget.
+ * @returns the requested URL, HTTP 200, the Markdown body, and provider
+ *   truncation (always false for this API).
+ * @throws on an invalid URL, network failure, timeout, abort, non-2xx
+ *   response, or a response without string `content`.
  */
-export const fetchPage = async (request: FetchPageRequest): Promise<FetchedPage> => {
+export const fetchPage = async (request: FetchPageRequest): Promise<WebFetchResult> => {
   const target = validateUrl(request.url);
   const payload = await postJson<unknown>({
     endpoint: toolEndpoint(request.config.baseURL, "fetch"),
     apiKey: request.apiKey,
     body: { url: target.toString() },
     label: "DeepSeek web fetch",
-    timeoutMs: request.config.timeoutMs,
+    timeoutMs: request.config.fetchTimeoutMs,
     ...(request.signal !== undefined ? { signal: request.signal } : {}),
     ...(request.fetchImpl !== undefined ? { fetchImpl: request.fetchImpl } : {}),
   });
@@ -86,18 +90,15 @@ export const fetchPage = async (request: FetchPageRequest): Promise<FetchedPage>
   if (payload === null || typeof payload !== "object") {
     throw new Error("DeepSeek Fetch API returned no readable content");
   }
-  const response = payload as FetchApiResponse;
+  const response = payload as { content?: unknown };
   if (typeof response.content !== "string") {
     throw new Error("DeepSeek Fetch API returned no readable content");
   }
 
-  const limit = request.config.fetchMaxContentChars;
-  const truncated = response.content.length > limit;
-  const title = typeof response.title === "string" ? response.title.trim() : "";
   return {
     url: target.toString(),
-    ...(title.length > 0 ? { title } : {}),
-    content: truncated ? response.content.slice(0, limit) : response.content,
-    truncated,
+    statusCode: 200,
+    body: { kind: "text", content: response.content },
+    truncated: false,
   };
 };

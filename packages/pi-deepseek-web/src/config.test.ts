@@ -7,8 +7,11 @@ import {
   CONFIG_PATH_ENV,
   DEFAULT_API_KEY_ENV,
   DEFAULT_BASE_URL,
-  DEFAULT_FETCH_MAX_CONTENT_CHARS,
+  DEFAULT_FETCH_MAX_OUTPUT_CHARS,
   DEFAULT_SEARCH_COUNT,
+  DEFAULT_SEARCH_MAX_QUERIES,
+  DEFAULT_SEARCH_MAX_RESULTS,
+  DEFAULT_SEARCH_SUMMARY_MAX_CHARS,
   DEFAULT_TIMEOUT_MS,
   configPaths,
   loadConfig,
@@ -67,12 +70,16 @@ describe("readConfigFile", () => {
 });
 
 describe("loadConfig", () => {
-  it("applies defaults when no file exists", () => {
+  it("applies the harness defaults when no file exists", () => {
     const { config } = loadConfig({ cwd: tempDir(), agentDir: tempDir(), env: {} });
     expect(config.baseURL).toBe(DEFAULT_BASE_URL);
     expect(config.searchCount).toBe(DEFAULT_SEARCH_COUNT);
-    expect(config.fetchMaxContentChars).toBe(DEFAULT_FETCH_MAX_CONTENT_CHARS);
-    expect(config.timeoutMs).toBe(DEFAULT_TIMEOUT_MS);
+    expect(config.searchMaxQueries).toBe(DEFAULT_SEARCH_MAX_QUERIES);
+    expect(config.searchMaxResults).toBe(DEFAULT_SEARCH_MAX_RESULTS);
+    expect(config.searchSummaryMaxChars).toBe(DEFAULT_SEARCH_SUMMARY_MAX_CHARS);
+    expect(config.fetchMaxOutputChars).toBe(DEFAULT_FETCH_MAX_OUTPUT_CHARS);
+    expect(config.searchTimeoutMs).toBe(DEFAULT_TIMEOUT_MS);
+    expect(config.fetchTimeoutMs).toBe(DEFAULT_TIMEOUT_MS);
     expect(config.apiKeyEnv).toBe(DEFAULT_API_KEY_ENV);
     expect(config.apiKey).toBeUndefined();
   });
@@ -80,11 +87,11 @@ describe("loadConfig", () => {
   it("lets project config override global config", () => {
     const cwd = tempDir();
     const agentDir = tempDir();
-    writeConfig(agentDir, { searchCount: 3, fetchMaxContentChars: 2_000 });
+    writeConfig(agentDir, { searchCount: 3, fetchMaxOutputChars: 2_000 });
     writeProjectConfig(cwd, { searchCount: 5 });
     const { config } = loadConfig({ cwd, agentDir, env: {} });
     expect(config.searchCount).toBe(5);
-    expect(config.fetchMaxContentChars).toBe(2_000);
+    expect(config.fetchMaxOutputChars).toBe(2_000);
   });
 
   it("prefers apiKey over the environment fallback", () => {
@@ -112,17 +119,40 @@ describe("loadConfig", () => {
     }
   });
 
-  it("rejects invalid fetch and timeout limits", () => {
+  it("rejects invalid search and fetch limits", () => {
     const cwd = tempDir();
+    const names = [
+      "searchMaxQueries",
+      "searchMaxResults",
+      "searchSummaryMaxChars",
+      "fetchMaxOutputChars",
+      "searchTimeoutMs",
+      "fetchTimeoutMs",
+    ];
+    for (const name of names) {
+      for (const value of [0, 1.5, "x"]) {
+        const agentDir = tempDir();
+        writeConfig(agentDir, { [name]: value });
+        expect(() => loadConfig({ cwd, agentDir, env: {} })).toThrow(new RegExp(name, "u"));
+      }
+    }
+  });
+
+  it("keeps pre-0.3 timeout and fetch-cap keys working as fallbacks", () => {
     const agentDir = tempDir();
-    for (const value of [0, 1.5, "x"]) {
-      writeConfig(agentDir, { fetchMaxContentChars: value });
-      expect(() => loadConfig({ cwd, agentDir, env: {} })).toThrow(/fetchMaxContentChars/u);
-    }
-    for (const value of [0, 1.5, "x"]) {
-      writeConfig(agentDir, { timeoutMs: value });
-      expect(() => loadConfig({ cwd, agentDir, env: {} })).toThrow(/timeoutMs/u);
-    }
+    writeConfig(agentDir, { timeoutMs: 1_500, fetchMaxContentChars: 4_000 });
+    const { config } = loadConfig({ cwd: tempDir(), agentDir, env: {} });
+    expect(config.searchTimeoutMs).toBe(1_500);
+    expect(config.fetchTimeoutMs).toBe(1_500);
+    expect(config.fetchMaxOutputChars).toBe(4_000);
+  });
+
+  it("prefers the split timeout keys over the legacy timeoutMs", () => {
+    const agentDir = tempDir();
+    writeConfig(agentDir, { timeoutMs: 1_500, searchTimeoutMs: 2_500, fetchTimeoutMs: 3_500 });
+    const { config } = loadConfig({ cwd: tempDir(), agentDir, env: {} });
+    expect(config.searchTimeoutMs).toBe(2_500);
+    expect(config.fetchTimeoutMs).toBe(3_500);
   });
 
   it("ignores fields from the retired Anthropic client", () => {
