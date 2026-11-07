@@ -576,6 +576,11 @@ export interface SidebarDeps {
   readonly limits: () => OrchestratorSettings;
   /** 领域根，默认 `.agents/domains`。 */
   readonly domainsPath?: string;
+  /**
+   * 变化源（账本投影的订阅）：一变就立刻刷新，这是**主路径**（同进程 append 后毫秒级）。
+   * 省略时退回定时器轮询（跨进程兜底 / 测试）。
+   */
+  readonly events?: { subscribe(listener: () => void): () => void };
 }
 
 /**
@@ -718,6 +723,7 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
     | { readonly kind: "temp"; readonly id: string }
     | undefined;
   let removeInputListener: (() => void) | undefined;
+  let unsubscribe: (() => void) | undefined;
   let timer: ReturnType<typeof setInterval> | undefined;
   let mounted = false;
   let listVisible = true;
@@ -948,6 +954,22 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
       .filter((entry) => planDirectoryOf(entry.planDirectory) === directory)
       .map((entry) => ({ notes: entry.notes ?? [], running: true }));
 
+  /**
+   * 账本一变就排一次刷新。
+   *
+   * 合并同一轮的多次事件（`setTimeout(0)` 把同一 tick 的事件并成一帧），但仍远快于
+   * `SIDEBAR_REFRESH_MS`（3s）—— 定时器只剩跨进程兜底的作用。
+   */
+  let refreshQueued = false;
+  const scheduleRefresh = (): void => {
+    if (refreshQueued) return;
+    refreshQueued = true;
+    setTimeout(() => {
+      refreshQueued = false;
+      void refresh();
+    }, 0).unref?.();
+  };
+
   const refresh = async (): Promise<void> => {
     const localCtx = ctx;
     if (!mounted || localCtx === undefined) return;
@@ -1012,6 +1034,8 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
       clearInterval(timer);
       timer = undefined;
     }
+    unsubscribe?.();
+    unsubscribe = undefined;
     removeInputListener?.();
     removeInputListener = undefined;
     closeDetail();
@@ -1057,6 +1081,9 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
         },
         { placement: "belowEditor" },
       );
+      // 主路径：账本投影一变就刷新（同进程毫秒级）。
+      unsubscribe ??= deps.events?.subscribe(scheduleRefresh);
+      // 兜底：跨进程写入（另一个 pi 实例）不一定能收到同进程通知，3s 轮询兜住。
       if (timer === undefined) {
         timer = setInterval(() => {
           void refresh();

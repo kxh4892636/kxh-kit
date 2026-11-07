@@ -95,12 +95,11 @@ describe("中断凭据", () => {
 });
 
 describe("进程兜底", () => {
-  it("崩溃时落盘 live plan 并以非零码退出", async () => {
-    const dir = await tempDir();
+  it("崩溃时落凭据并以非零码退出", () => {
     const exits: number[] = [];
-    const uninstall = installCrashGuard(
-      { directory: () => dir, plans: () => ["etf/active/x", "music/active/y"] },
-      (code) => exits.push(code),
+    const reasons: string[] = [];
+    const uninstall = installCrashGuard({ record: (reason) => reasons.push(reason) }, (code) =>
+      exits.push(code),
     );
     try {
       process.emit("uncaughtException", new Error("worker 炸了"));
@@ -108,32 +107,22 @@ describe("进程兜底", () => {
       uninstall();
     }
     expect(exits).toEqual([1]);
-    const state = readInterrupted(dir);
-    expect(state?.reason).toContain("worker 炸了");
-    expect(state?.plans).toEqual(["etf/active/x", "music/active/y"]);
+    expect(reasons).toHaveLength(1);
+    expect(reasons[0]).toContain("worker 炸了");
   });
 
   it("卸载后摘掉监听", async () => {
-    const dir = await tempDir();
     const before = process.listenerCount("unhandledRejection");
-    const uninstall = installCrashGuard({ directory: () => dir, plans: () => [] }, () => undefined);
+    const uninstall = installCrashGuard({ record: () => undefined }, () => undefined);
     expect(process.listenerCount("unhandledRejection")).toBe(before + 1);
     uninstall();
     expect(process.listenerCount("unhandledRejection")).toBe(before);
   });
 
   it("多个来源共享同一份监听", async () => {
-    const first = await tempDir();
-    const second = await tempDir();
     const before = process.listenerCount("uncaughtException");
-    const offFirst = installCrashGuard(
-      { directory: () => first, plans: () => ["a"] },
-      () => undefined,
-    );
-    const offSecond = installCrashGuard(
-      { directory: () => second, plans: () => ["b"] },
-      () => undefined,
-    );
+    const offFirst = installCrashGuard({ record: () => undefined }, () => undefined);
+    const offSecond = installCrashGuard({ record: () => undefined }, () => undefined);
     expect(process.listenerCount("uncaughtException")).toBe(before + 1);
     offFirst();
     offSecond();

@@ -153,7 +153,7 @@ describe("worker 侧子派工", () => {
     expect(harness.spawns[0]?.plan).toBeUndefined();
     expect(harness.spawns[0]?.temp).toBeUndefined();
     expect(harness.spawns[0]?.cwd).toBe("/w");
-    expect(harness.spawns[0]?.released.size).toBe(0);
+    expect(harness.spawns[0]?.released("01")).toBe(false);
     expect(harness.sessions[0]?.prompts).toEqual(["查一下 X"]);
 
     // 不复用：第二次就是 sub:2。

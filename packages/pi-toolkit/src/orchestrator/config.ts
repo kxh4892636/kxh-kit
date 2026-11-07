@@ -32,8 +32,15 @@ export interface OrchestratorSettings {
   readonly adrMaxCount: number;
   /** 上下文占用达到该比例后清空并恢复 Plan（0–1）。 */
   readonly rotateAt: number;
-  /** 单个 worker 一轮跑多久算超时（毫秒）；超时会被中止并提示。 */
+  /** 单个 worker 一轮跑多久算超时（毫秒）；超时会被中止并写入账本。 */
   readonly workerTimeoutMs: number;
+  /**
+   * report / 超时到达时是否“叫醒”编排方（`pi.sendMessage` 注入一行）。
+   *
+   * 默认 **false**：账本上线后模型不再被推送，需要摘要时自己调 `orchestrator_state`。
+   * 打开它只是给“希望被叫醒”的用法留一个口子，注入失败也不重试（账本是真相）。
+   */
+  readonly wakeOnReport: boolean;
 }
 
 /** 默认值：34/34/13 KB、144 字、13 行、89/89/13 KB、55 个 ADR、阈值 0.618。 */
@@ -49,6 +56,7 @@ export const DEFAULT_ORCHESTRATOR_SETTINGS: OrchestratorSettings = {
   adrMaxCount: 55,
   rotateAt: 0.618,
   workerTimeoutMs: 30 * 60 * 1000,
+  wakeOnReport: false,
 };
 
 /** 需要是正整数的字段。 */
@@ -87,7 +95,7 @@ export const parseOrchestratorSettings = (
   base: OrchestratorSettings = DEFAULT_ORCHESTRATOR_SETTINGS,
 ): OrchestratorSettings => {
   if (!isRecord(raw)) throw new Error("Config orchestrator 必须是 JSON 对象");
-  const result: Record<string, number> = { ...base };
+  const result: Record<string, number | boolean> = { ...base };
   for (const key of ORCHESTRATOR_INTEGER_KEYS) {
     const value = raw[key];
     if (value === undefined) continue;
@@ -95,6 +103,15 @@ export const parseOrchestratorSettings = (
       throw new Error(`Config orchestrator.${key} 必须是正整数，实际为 ${describe(value)}`);
     }
     result[key] = value;
+  }
+  const wakeOnReport = raw["wakeOnReport"];
+  if (wakeOnReport !== undefined) {
+    if (typeof wakeOnReport !== "boolean") {
+      throw new Error(
+        `Config orchestrator.wakeOnReport 必须是布尔值，实际为 ${describe(wakeOnReport)}`,
+      );
+    }
+    result["wakeOnReport"] = wakeOnReport;
   }
   const rotateAt = raw["rotateAt"];
   if (rotateAt !== undefined) {

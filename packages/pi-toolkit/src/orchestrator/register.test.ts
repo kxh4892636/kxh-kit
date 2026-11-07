@@ -5,7 +5,9 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { DEFAULT_SETTINGS, DEFAULT_TOOLS, type ToolkitSettings } from "../settings.ts";
 import { assetsSkillsRoot } from "./assets.ts";
-import { readInterrupted, stateDirectory, writeInterrupted } from "./errors.ts";
+import { stateDirectory } from "./errors.ts";
+import { openLedger, resetLedgers } from "./ledger.ts";
+import { resetProjections } from "./projection.ts";
 import { MODE_ENTRY, RESET_ENTRY, type BranchEntryLike } from "./mode.ts";
 import { BASELINE_ENTRY, ORCHESTRATOR_TOOL_NAMES, registerOrchestrator } from "./register.ts";
 
@@ -477,7 +479,7 @@ describe("registerOrchestrator", () => {
     expect(message).toContain("active Plan: 无");
   });
 
-  it("shows crash credentials in /orchestrator status, then clears the whole record", async () => {
+  it("shows crash credentials from the ledger in /orchestrator status, then clears them", async () => {
     const agentDir = await tempDir();
     const previous = process.env["PI_CODING_AGENT_DIR"];
     process.env["PI_CODING_AGENT_DIR"] = agentDir;
@@ -487,21 +489,30 @@ describe("registerOrchestrator", () => {
         mode: "print",
       });
       const directory = stateDirectory(agentDir);
-      writeInterrupted(directory, {
+      // 崩溃凭据现在是账本事件（worker.exit），不再是 interrupted.json。
+      const ledger = openLedger(directory);
+      ledger.append({
+        type: "worker.spawned",
         at: "2026-11-07T00:00:00.000Z",
-        reason: "uncaughtException: worker 炸了",
-        plans: ["demo/active/x", "demo/active/y"],
+        payload: { worker: "/w/demo/active/x::", planRef: "demo/active/x", kind: "plan" },
+      });
+      ledger.append({
+        type: "worker.exit",
+        at: "2026-11-07T00:00:00.000Z",
+        payload: { worker: "/w/demo/active/x::", reason: "uncaughtException: worker 炸了" },
       });
       harness.start(ctx);
-      // 启动不读也不写凭据。
-      expect(readInterrupted(directory)?.plans).toEqual(["demo/active/x", "demo/active/y"]);
+      expect(openLedger(directory).events()).toHaveLength(2);
       await harness.command("status", ctx);
       const message = harness.notifications.at(-1)?.message ?? "";
-      expect(message).toContain(
-        "上次崩溃: 2026-11-07T00:00:00.000Z · uncaughtException: worker 炸了",
-      );
-      expect(message).toContain("仍在跑: demo/active/x, demo/active/y");
-      expect(readInterrupted(directory)).toBeUndefined();
+      expect(message).toContain("上次崩溃: 2026-11-07T00:00:00.000Z");
+      expect(message).toContain("uncaughtException: worker 炸了");
+      expect(message).toContain("仍在跑: demo/active/x");
+      // 展示后落一条 interrupted.cleared，投影里不再有凭据。
+      expect(ledger.events().map((event) => event.type)).toContain("interrupted.cleared");
+      resetProjections();
+      resetLedgers();
+      expect(openLedger(directory).events().at(-1)?.type).toBe("interrupted.cleared");
     } finally {
       if (previous === undefined) delete process.env["PI_CODING_AGENT_DIR"];
       else process.env["PI_CODING_AGENT_DIR"] = previous;

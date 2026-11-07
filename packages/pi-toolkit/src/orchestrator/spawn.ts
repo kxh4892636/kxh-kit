@@ -45,8 +45,8 @@ export interface SpawnWorkerOptions {
   readonly settings: () => ToolkitSettings;
   /** 上报入口。 */
   readonly report: (report: WorkerReport) => void;
-  /** 编排方已放行的 note id。 */
-  readonly released: Set<string>;
+  /** 放行判定：账本里的 `note.pass` 重放出来的（不是内存集合）。 */
+  readonly released: (noteId: string) => boolean;
   /**
    * 落盘会话的工作键（`<plan 目录>::<组>` 或 `temp:<id>`）；同一键重启后能续上。
    * 子 worker 省略：它不续、不落盘，仍用内存会话。

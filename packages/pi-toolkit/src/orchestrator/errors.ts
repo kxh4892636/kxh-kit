@@ -106,10 +106,10 @@ export const describeError = (label: string, error: unknown): string => {
   return `${label}: ${message}`;
 };
 
-/** 崩溃兜底的数据来源：状态目录与当时的 live plan。 */
+/** 崩溃兜底的数据来源：把当时 live 的 worker 记进账本（`worker.exit`）。 */
 export interface CrashGuardSource {
-  readonly directory: () => string;
-  readonly plans: () => readonly string[];
+  /** 落一条崩溃凭据；实现方负责追加 `worker.exit` 事件。 */
+  readonly record: (reason: string) => void;
 }
 
 const sources = new Set<CrashGuardSource>();
@@ -118,25 +118,12 @@ let detach: (() => void) | undefined;
 const attach = (exit: (code: number) => void): (() => void) => {
   const handle = (reason: string, error: unknown): void => {
     const detail = error instanceof Error ? error.message : String(error);
-    const plans = new Set<string>();
-    let directory: string | undefined;
+    const label = `${reason}: ${detail}`;
     for (const source of sources) {
       try {
-        directory ??= source.directory();
-        for (const plan of source.plans()) plans.add(plan);
+        source.record(label);
       } catch {
         // 单个来源失败不影响其它来源。
-      }
-    }
-    if (directory !== undefined) {
-      try {
-        writeInterrupted(directory, {
-          at: new Date().toISOString(),
-          reason: `${reason}: ${detail}`,
-          plans: [...plans],
-        });
-      } catch {
-        // 连落盘都失败时没有更好的选择，直接退出。
       }
     }
     exit(1);

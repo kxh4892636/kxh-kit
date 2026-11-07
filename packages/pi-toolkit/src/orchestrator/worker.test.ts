@@ -131,7 +131,7 @@ const setup = async (): Promise<Harness> => {
     plan,
     report: (report) => reports.push(report),
     settings: () => settings,
-    released,
+    released: (noteId: string) => released.has(noteId),
   });
   await factory(pi);
 
@@ -179,7 +179,7 @@ describe("worker 扩展工厂", () => {
       plan,
       report: (r) => reports.push(r),
       settings: () => settings,
-      released,
+      released: (noteId: string) => released.has(noteId),
     })(pi);
     const write = tools.get("orchestrator_write");
     // 放行只解开「印」这一层：note 还没到 waiting 时仍拒绝。
@@ -243,7 +243,7 @@ describe("worker 扩展工厂", () => {
       depth: 1,
       report: (report) => reports.push(report),
       settings: () => settings,
-      released: new Set<string>(),
+      released: () => false,
     })(pi);
     for (const handler of handlers.get("before_agent_start") ?? []) {
       handler({ systemPromptOptions: { sections } });
@@ -292,7 +292,7 @@ describe("worker 扩展工厂", () => {
       temp: "1",
       report: (report) => reports.push(report),
       settings: () => settings,
-      released: new Set<string>(),
+      released: () => false,
     })(pi);
     for (const handler of handlers.get("before_agent_start") ?? []) {
       handler({ systemPromptOptions: { sections } });

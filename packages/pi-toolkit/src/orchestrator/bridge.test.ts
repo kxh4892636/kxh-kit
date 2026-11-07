@@ -95,7 +95,6 @@ const entry = (
   planDirectory: plan,
   planRef: "x/active/p",
   startedAt: 1,
-  released: new Set<string>(),
   session,
   inputs: 0,
 });
@@ -104,6 +103,10 @@ const created: FakeSession[] = [];
 const createdDirs: string[] = [];
 afterEach(async () => {
   created.splice(0);
+  const { resetProjections } = await import("./projection.ts");
+  const { resetLedgers } = await import("./ledger.ts");
+  resetProjections();
+  resetLedgers();
   const fs = await import("node:fs/promises");
   await Promise.all(
     createdDirs.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })),
@@ -391,11 +394,21 @@ describe("dispatch 与 workers 工具", () => {
 
   const ctx = (cwd: string) => ({ cwd }) as unknown as ExtensionContext;
 
-  const timeouts = (messages: unknown[]): unknown[] =>
-    messages.filter(
-      (message) =>
-        (message as { customType?: string }).customType === "orchestrator-worker-timeout",
-    );
+  /** 账本里的超时事件（取代旧的“注入一条超时消息”）。 */
+  const timeoutEvents = async (stateRoot: string) => {
+    const { openLedger } = await import("./ledger.ts");
+    return openLedger(stateRoot)
+      .events()
+      .filter((event) => event.type === "timeout");
+  };
+
+  /** 账本里的退出事件。 */
+  const exitEvents = async (stateRoot: string) => {
+    const { openLedger } = await import("./ledger.ts");
+    return openLedger(stateRoot)
+      .events()
+      .filter((event) => event.type === "worker.exit");
+  };
 
   /** 造一个最小可解析的 Plan 目录（同一 root 下可建多个）。 */
   const planArgs = async (name = "2026-11-07-示例", existingRoot?: string) => {
@@ -481,7 +494,7 @@ describe("dispatch 与 workers 工具", () => {
     const { root, ref } = await planWithNotes([note("01")]);
     const text = textOf(
       await tools
-        .get("orchestrator_dispatch")
+        .get("orchestrator_command")
         ?.execute(
           "id",
           { plan: ref, notes: ["01"], worktree: true, message: "做 01" },
@@ -498,13 +511,13 @@ describe("dispatch 与 workers 工具", () => {
     // workers 清单展示 worktree 与分支。
     const list = textOf(
       await tools
-        .get("orchestrator_workers")
+        .get("orchestrator_state")
         ?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
     );
     expect(list).toContain("worktree note-01（wt/note-01）");
     // abort 不删 worktree：现场留给合并或人工看。
     await tools
-      .get("orchestrator_workers")
+      .get("orchestrator_state")
       ?.execute("id", { op: "abort" }, undefined, undefined, ctx(root));
     expect(worktree.removed).toEqual([]);
   });
@@ -515,7 +528,7 @@ describe("dispatch 与 workers 工具", () => {
     const { root, ref } = await planWithNotes([note("02")]);
     const text = textOf(
       await tools
-        .get("orchestrator_dispatch")
+        .get("orchestrator_command")
         ?.execute(
           "id",
           { plan: ref, notes: ["02"], worktree: "复用名" },
@@ -534,7 +547,7 @@ describe("dispatch 与 workers 工具", () => {
     const { root, ref } = await planWithNotes([note("03")]);
     await expect(
       tools
-        .get("orchestrator_dispatch")
+        .get("orchestrator_command")
         ?.execute(
           "id",
           { plan: ref, notes: ["03"], worktree: true },
@@ -553,7 +566,7 @@ describe("dispatch 与 workers 工具", () => {
     const { root } = await planArgs();
     await expect(
       tools
-        .get("orchestrator_dispatch")
+        .get("orchestrator_command")
         ?.execute("id", { worktree: true, message: "临时活" }, undefined, undefined, ctx(root)),
     ).rejects.toThrow(/worktree 只用于 Plan 派工/u);
     expect(worktree.installed).toEqual([]);
@@ -571,12 +584,14 @@ describe("dispatch 与 workers 工具", () => {
     const { root, ref } = await planArgs();
     const text = textOf(
       await tools
-        .get("orchestrator_dispatch")
+        .get("orchestrator_command")
         ?.execute("id", { plan: ref, message: "做 01" }, undefined, undefined, ctx(root)),
     );
     expect(text).toContain(`已起 worker 接手 ${ref}`);
     expect(text).toContain("kind: message");
-    expect(text).toContain("完成后会有 report 推回；用 orchestrator_workers 查 live 清单。");
+    expect(text).toContain(
+      "已记入账本：seq 2（事件账本不再推送 report，用 orchestrator_state 拉摘要）",
+    );
     // worker 还没跑完（终态开关未触发），dispatch 已经返回。
     expect(sessions[0]?.finish).toBeDefined();
     sessions[0]?.finish?.();
@@ -592,7 +607,7 @@ describe("dispatch 与 workers 工具", () => {
       },
     });
     const { root, ref } = await planArgs();
-    const dispatch = busy.tools.get("orchestrator_dispatch");
+    const dispatch = busy.tools.get("orchestrator_command");
 
     // 不传 delivery：默认 steer，插话进当前运行，不 followUp。
     const steered = await dispatch?.execute(
@@ -644,7 +659,7 @@ describe("dispatch 与 workers 工具", () => {
     const idle = await setup({ makeSession: () => fakeSession(true) });
     const { root: idleRoot, ref: idleRef } = await planArgs("2026-11-07-空闲");
     const degenerate = await idle.tools
-      .get("orchestrator_dispatch")
+      .get("orchestrator_command")
       ?.execute("id", { plan: idleRef, message: "换方向" }, undefined, undefined, ctx(idleRoot));
     expect(textOf(degenerate)).toContain("delivery: steer → prompt");
     expect(textOf(degenerate)).toContain("插话退化为直接开新一轮");
@@ -655,7 +670,7 @@ describe("dispatch 与 workers 工具", () => {
   it("workers 清单展示每个 worker 最近一次输入", async () => {
     const { tools, spawns } = await setup({ makeSession: () => fakeSession(false) });
     const { root, ref } = await planArgs();
-    const dispatch = tools.get("orchestrator_dispatch");
+    const dispatch = tools.get("orchestrator_command");
     await dispatch?.execute(
       "id",
       { plan: ref, message: "做 01", delivery: "queue" },
@@ -673,7 +688,7 @@ describe("dispatch 与 workers 工具", () => {
     );
     const listed = textOf(
       await tools
-        .get("orchestrator_workers")
+        .get("orchestrator_state")
         ?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
     );
     // 最近一次输入：摘要（换行被折叠）+ 时刻 + 种类/方式。
@@ -687,8 +702,8 @@ describe("dispatch 与 workers 工具", () => {
       makeSession: () => fakeSession(true, false),
     });
     const { root } = await planArgs();
-    const dispatch = tools.get("orchestrator_dispatch");
-    const workers = tools.get("orchestrator_workers");
+    const dispatch = tools.get("orchestrator_command");
+    const workers = tools.get("orchestrator_state");
 
     await dispatch?.execute(
       "id",
@@ -735,8 +750,8 @@ describe("dispatch 与 workers 工具", () => {
       makeSession: () => fakeSession(true, false),
     });
     const { root, ref } = await planArgs();
-    const dispatch = tools.get("orchestrator_dispatch");
-    const workers = tools.get("orchestrator_workers");
+    const dispatch = tools.get("orchestrator_command");
+    const workers = tools.get("orchestrator_state");
 
     await dispatch?.execute("id", { plan: ref, message: "做 01" }, undefined, undefined, ctx(root));
     expect(spawnOptions[0]?.sessionKey).not.toContain("#");
@@ -761,7 +776,7 @@ describe("dispatch 与 workers 工具", () => {
     });
     const { root, ref } = await planArgs();
     const result = await tools
-      .get("orchestrator_dispatch")
+      .get("orchestrator_command")
       ?.execute("id", { plan: ref, message: "做 01" }, undefined, undefined, ctx(root));
     expect(textOf(result)).toContain("会话：新建 jsonl /tmp/sessions/worker-abc.jsonl");
     expect((result as { details: Record<string, unknown> }).details).toMatchObject({
@@ -781,7 +796,7 @@ describe("dispatch 与 workers 工具", () => {
     });
     const first = await planArgs();
     const second = await planArgs("2026-11-07-另一个", first.root);
-    const dispatch = tools.get("orchestrator_dispatch");
+    const dispatch = tools.get("orchestrator_command");
     const order: string[] = [];
     const run = async (ref: string): Promise<void> => {
       const result = await dispatch?.execute(
@@ -802,9 +817,9 @@ describe("dispatch 与 workers 工具", () => {
     for (const session of sessions) session.finish?.();
   });
 
-  it("超时由后台 watchdog abort 并只注入一条超时消息", async () => {
+  it("超时由后台 watchdog abort，并落一条 timeout 与 worker.exit", async () => {
     const sessions: FakeSession[] = [];
-    const { tools, messages } = await setup({
+    const { tools, stateRoot } = await setup({
       timeoutMs: 10,
       makeSession: () => {
         const session = fakeSession(true, false);
@@ -814,26 +829,27 @@ describe("dispatch 与 workers 工具", () => {
     });
     const { root, ref } = await planArgs();
     await tools
-      .get("orchestrator_dispatch")
+      .get("orchestrator_command")
       ?.execute("id", { plan: ref, message: "做 01", note: "01" }, undefined, undefined, ctx(root));
     await new Promise((resolve) => setTimeout(resolve, 40));
-    expect(timeouts(messages)).toHaveLength(1);
-    const message = timeouts(messages)[0] as { content: string; details: { timedOut?: boolean } };
-    expect(message.content).toContain("超时");
-    expect(message.content).toContain("note 状态未改动");
-    expect(message.details.timedOut).toBe(true);
+    const timeouts = await timeoutEvents(stateRoot);
+    expect(timeouts).toHaveLength(1);
+    expect(timeouts[0]?.payload).toMatchObject({ cause: "idle" });
     expect(sessions[0]?.aborted).toBe(true);
-    // 再等一会儿也不会重复提醒。
+    expect((await exitEvents(stateRoot)).map((event) => event.payload["reason"])).toContain(
+      "timeout",
+    );
+    // 再等一会儿也不会重复落账。
     await new Promise((resolve) => setTimeout(resolve, 30));
-    expect(timeouts(messages)).toHaveLength(1);
+    expect(await timeoutEvents(stateRoot)).toHaveLength(1);
   });
 
-  it("退出收尾前把 in_progress 的 note 记进中断凭据", async () => {
+  it("退出收尾前把 in_progress 的 note 记进账本（worker.exit）", async () => {
     // worker 随会话退出而消失，note 却还停在 in_progress：先留痕再摘句柄，note 不悬空。
     const fs = await import("node:fs/promises");
     const os = await import("node:os");
     const path = await import("node:path");
-    const { readInterrupted, stateDirectory } = await import("./errors.ts");
+    const { stateDirectory } = await import("./errors.ts");
     const agentDir = await fs.mkdtemp(path.join(os.tmpdir(), "pi-bridge-shutdown-"));
     createdDirs.push(agentDir);
     const previous = process.env["PI_CODING_AGENT_DIR"];
@@ -845,7 +861,7 @@ describe("dispatch 与 workers 工具", () => {
       });
       const { root, ref } = await planWithNotes([note("01", [], "in_progress"), note("02")]);
       await tools
-        .get("orchestrator_dispatch")
+        .get("orchestrator_command")
         ?.execute(
           "id",
           { plan: ref, message: "做 01", note: "01" },
@@ -856,10 +872,20 @@ describe("dispatch 与 workers 工具", () => {
       for (const handler of handlers.get("session_shutdown") ?? []) {
         await handler({ reason: "quit" });
       }
-      const state = readInterrupted(stateDirectory(agentDir));
-      expect(state?.plans).toEqual([ref]);
-      expect(state?.notes).toEqual([`${ref} · note 01`]);
-      expect(state?.reason).toContain("session_shutdown");
+      const { openLedger } = await import("./ledger.ts");
+      const exits = openLedger(stateDirectory(agentDir))
+        .events()
+        .filter((event) => event.type === "worker.exit");
+      expect(exits).toHaveLength(1);
+      expect(exits[0]?.payload["reason"]).toContain("session_shutdown");
+      expect(exits[0]?.payload["notes"]).toEqual([`${ref} · note 01`]);
+      const { openProjection } = await import("./projection.ts");
+      expect(
+        openProjection(openLedger(stateDirectory(agentDir))).state().interrupted,
+      ).toMatchObject({
+        plans: [ref],
+        notes: [`${ref} · note 01`],
+      });
     } finally {
       if (previous === undefined) delete process.env["PI_CODING_AGENT_DIR"];
       else process.env["PI_CODING_AGENT_DIR"] = previous;
@@ -868,7 +894,7 @@ describe("dispatch 与 workers 工具", () => {
 
   it("worker 正常结束即收割，不会误报超时", async () => {
     const sessions: FakeSession[] = [];
-    const { tools, messages } = await setup({
+    const { tools, stateRoot } = await setup({
       timeoutMs: 10,
       makeSession: () => {
         const session = fakeSession();
@@ -878,16 +904,16 @@ describe("dispatch 与 workers 工具", () => {
     });
     const { root, ref } = await planArgs();
     await tools
-      .get("orchestrator_dispatch")
+      .get("orchestrator_command")
       ?.execute("id", { plan: ref, message: "做 01" }, undefined, undefined, ctx(root));
     await new Promise((resolve) => setTimeout(resolve, 40));
-    expect(timeouts(messages)).toHaveLength(0);
+    expect(await timeoutEvents(stateRoot)).toHaveLength(0);
     expect(sessions[0]?.aborted).toBe(false);
   });
 
   it("上报即续期：窗口内报过进展就不 abort，随后静默到点才中止", async () => {
     const sessions: FakeSession[] = [];
-    const { tools, messages, reports } = await setup({
+    const { tools, stateRoot, reports } = await setup({
       timeoutMs: 60,
       makeSession: () => {
         const session = fakeSession(true, false);
@@ -897,7 +923,7 @@ describe("dispatch 与 workers 工具", () => {
     });
     const { root, ref } = await planArgs();
     await tools
-      .get("orchestrator_dispatch")
+      .get("orchestrator_command")
       ?.execute("id", { plan: ref, message: "做 01", note: "01" }, undefined, undefined, ctx(root));
     const planDirectory = (await import("node:path")).resolve(
       root,
@@ -914,18 +940,18 @@ describe("dispatch 与 workers 工具", () => {
     reports[0]?.({ outcome: "done", note: "01", summary: "还在跑", plan: planDirectory });
     // 原定超时点已过，但因为续期了仍然活着。
     await new Promise((resolve) => setTimeout(resolve, 45));
-    expect(timeouts(messages)).toHaveLength(0);
+    expect(await timeoutEvents(stateRoot)).toHaveLength(0);
     expect(sessions[0]?.aborted).toBe(false);
 
     // 此后不再上报：续期后的窗口到点才中止。
     await new Promise((resolve) => setTimeout(resolve, 60));
-    expect(timeouts(messages)).toHaveLength(1);
+    expect(await timeoutEvents(stateRoot)).toHaveLength(1);
     expect(sessions[0]?.aborted).toBe(true);
   });
 
   it("超时后摘除句柄：worker 清单不再列出，再次派工起新 session", async () => {
     const sessions: FakeSession[] = [];
-    const { tools, messages, spawns } = await setup({
+    const { tools, stateRoot, spawns } = await setup({
       timeoutMs: 20,
       makeSession: () => {
         const session = fakeSession(true, false);
@@ -934,13 +960,13 @@ describe("dispatch 与 workers 工具", () => {
       },
     });
     const { root, ref } = await planArgs();
-    const dispatch = tools.get("orchestrator_dispatch");
-    const workers = tools.get("orchestrator_workers");
+    const dispatch = tools.get("orchestrator_command");
+    const workers = tools.get("orchestrator_state");
     await dispatch?.execute("id", { plan: ref, message: "做 01" }, undefined, undefined, ctx(root));
     expect(spawns).toHaveLength(1);
 
     await new Promise((resolve) => setTimeout(resolve, 60));
-    expect(timeouts(messages)).toHaveLength(1);
+    expect(await timeoutEvents(stateRoot)).toHaveLength(1);
     expect(sessions[0]?.aborted).toBe(true);
     expect(sessions[0]?.disposed).toBe(true);
 
@@ -973,7 +999,7 @@ describe("dispatch 与 workers 工具", () => {
   it("没有 plan 时起临时 worker：键 temp:N，跑完即摘除", async () => {
     const { tools, spawns, spawnOptions } = await setup();
     const { root } = await planArgs();
-    const dispatch = tools.get("orchestrator_dispatch");
+    const dispatch = tools.get("orchestrator_command");
     const text = textOf(
       await dispatch?.execute("id", { message: "查一下 X" }, undefined, undefined, ctx(root)),
     );
@@ -987,7 +1013,7 @@ describe("dispatch 与 workers 工具", () => {
     await new Promise((resolve) => setTimeout(resolve, 10));
     expect(spawns[0]?.disposed).toBe(true);
     const listed = (await tools
-      .get("orchestrator_workers")
+      .get("orchestrator_state")
       ?.execute("id", { op: "list" }, undefined, undefined, ctx(root))) as {
       content: { text: string }[];
     };
@@ -999,21 +1025,22 @@ describe("dispatch 与 workers 工具", () => {
   });
 
   it("临时 worker 超时同样 abort 并摘除句柄", async () => {
-    const { tools, messages, spawns } = await setup({
+    const { tools, stateRoot, spawns } = await setup({
       timeoutMs: 10,
       makeSession: () => fakeSession(true, false),
     });
     const { root } = await planArgs();
     await tools
-      .get("orchestrator_dispatch")
+      .get("orchestrator_command")
       ?.execute("id", { message: "查一下 X" }, undefined, undefined, ctx(root));
     await new Promise((resolve) => setTimeout(resolve, 40));
-    expect(timeouts(messages)).toHaveLength(1);
-    expect((timeouts(messages)[0] as { content: string }).content).toContain("temp:1");
+    const timeouts = await timeoutEvents(stateRoot);
+    expect(timeouts).toHaveLength(1);
+    expect(timeouts[0]?.payload).toMatchObject({ worker: "temp:1" });
     expect(spawns[0]?.aborted).toBe(true);
     expect(spawns[0]?.disposed).toBe(true);
     const listed = (await tools
-      .get("orchestrator_workers")
+      .get("orchestrator_state")
       ?.execute("id", { op: "list" }, undefined, undefined, ctx(root))) as {
       content: { text: string }[];
     };
@@ -1026,17 +1053,17 @@ describe("dispatch 与 workers 工具", () => {
     });
     const { root } = await planArgs();
     await tools
-      .get("orchestrator_dispatch")
+      .get("orchestrator_command")
       ?.execute("id", { message: "查一下 X" }, undefined, undefined, ctx(root));
     const listed = (await tools
-      .get("orchestrator_workers")
+      .get("orchestrator_state")
       ?.execute("id", { op: "list" }, undefined, undefined, ctx(root))) as {
       content: { text: string }[];
     };
     expect(listed.content[0]?.text).toContain("temp:1 · temp ·");
 
     await tools
-      .get("orchestrator_workers")
+      .get("orchestrator_state")
       ?.execute("id", { op: "abort", plan: "temp:1" }, undefined, undefined, ctx(root));
     expect(spawns[0]?.aborted).toBe(true);
     expect(spawns[0]?.disposed).toBe(true);
@@ -1045,7 +1072,7 @@ describe("dispatch 与 workers 工具", () => {
   it("同一 Plan 两组同时派工，第二个不等第一个", async () => {
     const { tools, spawns } = await setup({ makeSession: () => fakeSession(true, false) });
     const { root, ref } = await planWithNotes([note("01"), note("02")]);
-    const dispatch = tools.get("orchestrator_dispatch");
+    const dispatch = tools.get("orchestrator_command");
     const first = textOf(
       await dispatch?.execute(
         "id",
@@ -1084,7 +1111,7 @@ describe("dispatch 与 workers 工具", () => {
 
     const listed = textOf(
       await tools
-        .get("orchestrator_workers")
+        .get("orchestrator_state")
         ?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
     );
     expect(listed).toContain("notes: 01 ·");
@@ -1095,7 +1122,7 @@ describe("dispatch 与 workers 工具", () => {
   it("未分组的 note 直接 pass：自动以该 note 单独成组", async () => {
     const { tools, spawns } = await setup();
     const { root, ref } = await planWithNotes([note("07", [], "in_progress")]);
-    const dispatch = tools.get("orchestrator_dispatch");
+    const dispatch = tools.get("orchestrator_command");
     const first = textOf(
       await dispatch?.execute(
         "id",
@@ -1127,7 +1154,7 @@ describe("dispatch 与 workers 工具", () => {
     // 组已经出现在 live 清单里，后续 rework / answer 也能路由到它。
     const listed = textOf(
       await tools
-        .get("orchestrator_workers")
+        .get("orchestrator_state")
         ?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
     );
     expect(listed).toContain("notes: 07");
@@ -1154,7 +1181,7 @@ describe("dispatch 与 workers 工具", () => {
     const { tools, spawns } = await setup();
     // 01 已经成组；07 从未分组（就是 note 34 / 37 那种 plan 级 worker 跑出来的 note）。
     const { root, ref } = await planWithNotes([note("01"), note("07")]);
-    const dispatch = tools.get("orchestrator_dispatch");
+    const dispatch = tools.get("orchestrator_command");
     await dispatch?.execute(
       "id",
       { plan: ref, notes: ["01"], message: "做 01" },
@@ -1196,7 +1223,7 @@ describe("dispatch 与 workers 工具", () => {
   it("显式给 notes 时不拆成单 note 组", async () => {
     const { tools, spawns } = await setup();
     const { root, ref } = await planWithNotes([note("01"), note("02")]);
-    const dispatch = tools.get("orchestrator_dispatch");
+    const dispatch = tools.get("orchestrator_command");
     const result = textOf(
       await dispatch?.execute(
         "id",
@@ -1215,7 +1242,7 @@ describe("dispatch 与 workers 工具", () => {
   it("pass 按 note 路由到含它的组；note 本身不存在才报错", async () => {
     const { tools, spawns } = await setup({ makeSession: () => fakeSession(true, false) });
     const { root, ref } = await planWithNotes([note("01"), note("02")]);
-    const dispatch = tools.get("orchestrator_dispatch");
+    const dispatch = tools.get("orchestrator_command");
     await dispatch?.execute(
       "id",
       { plan: ref, notes: ["01"], message: "做 01" },
@@ -1257,7 +1284,7 @@ describe("dispatch 与 workers 工具", () => {
   it("组内有 blocked_by 依赖或 note 不存在时拒绝派工", async () => {
     const { tools, spawns } = await setup();
     const { root, ref } = await planWithNotes([note("01"), note("02", ["01"])]);
-    const dispatch = tools.get("orchestrator_dispatch");
+    const dispatch = tools.get("orchestrator_command");
     await expect(
       dispatch?.execute(
         "id",
@@ -1280,7 +1307,7 @@ describe("dispatch 与 workers 工具", () => {
   });
 
   it("report 按 note 只续期它所在的组", async () => {
-    const { tools, messages, reports } = await setup({
+    const { tools, stateRoot, reports } = await setup({
       timeoutMs: 60,
       makeSession: () => fakeSession(true, false),
     });
@@ -1295,7 +1322,7 @@ describe("dispatch 与 workers 工具", () => {
       "active",
       "2026-11-07-分组",
     );
-    const dispatch = tools.get("orchestrator_dispatch");
+    const dispatch = tools.get("orchestrator_command");
     for (const id of ["01", "02"]) {
       await dispatch?.execute(
         "id",
@@ -1310,16 +1337,17 @@ describe("dispatch 与 workers 工具", () => {
     reports[0]?.({ outcome: "done", note: "01", summary: "还在跑", plan: planDirectory });
     await new Promise((resolve) => setTimeout(resolve, 45));
     // 01 组续期后仍活着，02 组静默到点被中止。
-    expect(timeouts(messages)).toHaveLength(1);
-    expect((timeouts(messages)[0] as { content: string }).content).toContain("notes 02");
+    const first = await timeoutEvents(stateRoot);
+    expect(first).toHaveLength(1);
+    expect(first[0]?.payload["worker"]).toContain("02");
     await new Promise((resolve) => setTimeout(resolve, 60));
-    expect(timeouts(messages)).toHaveLength(2);
+    expect(await timeoutEvents(stateRoot)).toHaveLength(2);
   });
 
   it("重复 dispatch 复用同一个 worker", async () => {
     const { tools, spawns } = await setup();
     const { root, ref } = await planArgs();
-    const dispatch = tools.get("orchestrator_dispatch");
+    const dispatch = tools.get("orchestrator_command");
     await dispatch?.execute("id", { plan: ref, message: "做 01" }, undefined, undefined, ctx(root));
     await dispatch?.execute(
       "id",
@@ -1331,7 +1359,7 @@ describe("dispatch 与 workers 工具", () => {
     expect(spawns).toHaveLength(1);
     expect(spawns[0]?.prompts).toEqual(["做 01", "再做 02"]);
 
-    const workers = tools.get("orchestrator_workers");
+    const workers = tools.get("orchestrator_state");
     const listed = (await workers?.execute(
       "id",
       { op: "list" },
@@ -1347,7 +1375,7 @@ describe("dispatch 与 workers 工具", () => {
   it("pass 先放行再投递，abort 清空句柄表", async () => {
     const { tools, spawns } = await setup();
     const { root, ref } = await planWithNotes([note("01")], "2026-11-07-示例");
-    const dispatch = tools.get("orchestrator_dispatch");
+    const dispatch = tools.get("orchestrator_command");
     await dispatch?.execute(
       "id",
       { plan: ref, kind: "pass", note: "01", message: "" },
@@ -1357,7 +1385,7 @@ describe("dispatch 与 workers 工具", () => {
     );
     expect(spawns[0]?.prompts[0]).toContain("[pass] note 01");
 
-    const workers = tools.get("orchestrator_workers");
+    const workers = tools.get("orchestrator_state");
     await workers?.execute("id", { op: "abort", plan: ref }, undefined, undefined, ctx(root));
     expect(spawns[0]?.aborted).toBe(true);
     const listed = (await workers?.execute(
@@ -1372,10 +1400,9 @@ describe("dispatch 与 workers 工具", () => {
     expect(listed.content[0]?.text).toContain("没有 live worker");
   });
 
-  it("report 注入失败不静默丢：计数可见，下一次钩子重试送达", async () => {
-    const { tools, reports, handlers } = await setup({
+  it("report 只落账本、不注入；state 读一次即把未读清掉", async () => {
+    const { tools, messages, reports, stateRoot } = await setup({
       makeSession: () => fakeSession(true, false),
-      failSendTimes: 1,
     });
     const { root, ref } = await planArgs();
     const path = await import("node:path");
@@ -1389,35 +1416,47 @@ describe("dispatch 与 workers 工具", () => {
       "2026-11-07-示例",
     );
     await tools
-      .get("orchestrator_dispatch")
+      .get("orchestrator_command")
       ?.execute("id", { plan: ref, message: "做 01" }, undefined, undefined, ctx(root));
 
-    // 注入失败：不崩、消息没进会话，但积压可见。
     reports[0]?.({ outcome: "needs_review", note: "01", summary: "改完了", plan: planDirectory });
+    // 不再注入编排方会话（以前这里会有一条 sendMessage）。
+    expect(messages).toHaveLength(0);
     const listed = textOf(
       await tools
-        .get("orchestrator_workers")
+        .get("orchestrator_state")
         ?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
     );
-    expect(listed).toContain("未送达 1 条");
-    expect(listed).toContain("最近失败: 会话正在关闭");
+    expect(listed).toContain("未读 report 1");
+    expect(listed).toContain("未读 report：");
+    expect(listed).toContain("改完了");
 
-    // 下一次钩子（agent_settled）重试：真的送出去了，积压归零。
-    for (const handler of handlers.get("agent_settled") ?? []) await handler({});
-    const after = textOf(
+    // 读一次就把未读消费掉（落 state.pulled），跨重启仍然成立。
+    const again = textOf(
       await tools
-        .get("orchestrator_workers")
+        .get("orchestrator_state")
         ?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
     );
-    expect(after).not.toContain("未送达");
+    expect(again).toContain("未读 report 0");
+    const { openLedger } = await import("./ledger.ts");
+    expect(
+      openLedger(stateRoot)
+        .events()
+        .map((event) => event.type),
+    ).toContain("state.pulled");
   });
 });
 
-describe("report 注入", () => {
-  it("worker 上报后编排方收到一条消息", async () => {
-    let failSend = 0;
-    const messages: unknown[] = [];
+describe("report 落账本", () => {
+  const harness = async (options: { wakeOnReport?: boolean } = {}) => {
+    const local: ToolkitSettings = options.wakeOnReport
+      ? {
+          ...settings,
+          orchestrator: { ...settings.orchestrator, wakeOnReport: true },
+        }
+      : settings;
     const tools = new Map<string, { execute: (...args: unknown[]) => Promise<unknown> }>();
+    const messages: unknown[] = [];
     const pi = {
       registerTool: (tool: { name: string }) => tools.set(tool.name, tool as never),
       registerFlag: () => undefined,
@@ -1426,44 +1465,46 @@ describe("report 注入", () => {
       appendEntry: () => undefined,
       getActiveTools: () => ["read"],
       setActiveTools: () => undefined,
-      sendMessage: (message: unknown) => {
-        if (failSend > 0) {
-          failSend -= 1;
-          throw new Error("会话正在关闭");
-        }
-        messages.push(message);
-      },
+      sendMessage: (message: unknown) => messages.push(message),
       on: () => undefined,
     } as unknown as ExtensionAPI;
-    const { registerOrchestrator } = await import("./register.ts");
     const captured: Array<(report: WorkerReport) => void> = [];
     const stateFs = await import("node:fs/promises");
     const stateOs = await import("node:os");
     const statePath = await import("node:path");
     const stateRoot = await stateFs.mkdtemp(statePath.join(stateOs.tmpdir(), "pi-bridge-state-"));
     createdDirs.push(stateRoot);
+    const root = await stateFs.mkdtemp(statePath.join(stateOs.tmpdir(), "pi-bridge-report-"));
+    createdDirs.push(root);
+    const { registerOrchestrator } = await import("./register.ts");
     registerOrchestrator(pi, {
-      settings: () => settings,
+      settings: () => local,
       setAlways: () => undefined,
       stateDir: () => stateRoot,
-      spawn: async (options) => {
-        captured.push(options.report);
+      spawn: async (spawnOptions) => {
+        captured.push(spawnOptions.report);
         return { session: fakeSession(), resumed: false, dispose: () => undefined };
       },
     });
-
-    const fs = await import("node:fs/promises");
-    const os = await import("node:os");
-    const path = await import("node:path");
     const { emptyDocument, serializeDocument } = await import("./dag.ts");
     const { NOTES_FILE } = await import("./store.ts");
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "pi-bridge-report-"));
-    const dir = path.join(root, ".agents", "domains", "etf", "plans", "active", "2026-11-07-示例");
-    await fs.mkdir(dir, { recursive: true });
-    await fs.writeFile(path.join(dir, NOTES_FILE), serializeDocument(emptyDocument()), "utf8");
-
+    const dir = statePath.join(
+      root,
+      ".agents",
+      "domains",
+      "etf",
+      "plans",
+      "active",
+      "2026-11-07-示例",
+    );
+    await stateFs.mkdir(dir, { recursive: true });
+    await stateFs.writeFile(
+      statePath.join(dir, NOTES_FILE),
+      serializeDocument(emptyDocument()),
+      "utf8",
+    );
     await tools
-      .get("orchestrator_dispatch")
+      .get("orchestrator_command")
       ?.execute(
         "id",
         { plan: "etf/active/2026-11-07-示例", message: "做 01" },
@@ -1471,17 +1512,52 @@ describe("report 注入", () => {
         undefined,
         { cwd: root } as unknown as ExtensionContext,
       );
+    return { tools, messages, captured, stateRoot, root, dir };
+  };
 
+  it("worker 上报后不推送模型：账本里有 report.filed，摘要靠 state 拉", async () => {
+    const { tools, messages, captured, stateRoot, root } = await harness();
     captured[0]?.({
       outcome: "needs_review",
       note: "01",
       summary: "改完了",
-      plan: dir,
+      evidence: ["npm test: 430 passed"],
+      plan: `${root}/.agents/domains/etf/plans/active/2026-11-07-示例`,
+    } as WorkerReport);
+    expect(messages).toHaveLength(0);
+
+    const { openLedger } = await import("./ledger.ts");
+    const filed = openLedger(stateRoot)
+      .events()
+      .filter((event) => event.type === "report.filed");
+    expect(filed).toHaveLength(1);
+    expect(filed[0]?.payload).toMatchObject({
+      note: "01",
+      outcome: "needs_review",
+      summary: "改完了",
+      evidence: ["npm test: 430 passed"],
+    });
+
+    const listed = (await tools
+      .get("orchestrator_state")
+      ?.execute("id", { op: "list" }, undefined, undefined, {
+        cwd: root,
+      } as ExtensionContext)) as { content: { text: string }[] } | undefined;
+    const summary = listed?.content[0]?.text ?? "";
+    expect(summary).toContain("needs_review · note 01");
+    expect(summary).toContain("改完了");
+  });
+
+  it("wakeOnReport 打开时才注入一行（默认关闭）", async () => {
+    const { messages, captured, root } = await harness({ wakeOnReport: true });
+    captured[0]?.({
+      outcome: "done",
+      note: "01",
+      summary: "还在跑",
+      plan: `${root}/.agents/domains/etf/plans/active/2026-11-07-示例`,
     });
     expect(messages).toHaveLength(1);
-    const message = messages[0] as { content: string; customType: string };
-    expect(message.customType).toBe("orchestrator-report");
-    expect(message.content).toContain("needs_review");
-    expect(message.content).toContain("改完了");
+    expect((messages[0] as { customType: string }).customType).toBe("orchestrator-wake");
+    expect((messages[0] as { content: string }).content).toContain("还在跑");
   });
 });

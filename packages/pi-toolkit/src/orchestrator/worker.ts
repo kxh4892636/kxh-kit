@@ -45,8 +45,8 @@ export interface WorkerExtensionOptions {
   readonly report: (report: WorkerReport) => void;
   /** 当前设置；每次读取。 */
   readonly settings: () => ToolkitSettings;
-  /** 已被编排方放行的 note id（收到 `pass` 后加入）。 */
-  readonly released: Set<string>;
+  /** 放行判定：账本里的 `note.pass` 重放出来的。 */
+  readonly released: (noteId: string) => boolean;
   /** 起 session 的接缝；只给子派工用，测试注入替身。 */
   readonly spawn?: typeof spawnWorker;
 }
@@ -127,7 +127,7 @@ export const createWorkerExtension = (options: WorkerExtensionOptions): Extensio
     domainRoot: DEFAULT_DOMAIN_ROOT,
     role: "worker",
     ...(planDirectory === undefined ? {} : { lockedPlan: planDirectory }),
-    released: (noteId) => options.released.has(noteId),
+    released: (noteId) => options.released(noteId),
   });
 
   return (pi: ExtensionAPI): void => {

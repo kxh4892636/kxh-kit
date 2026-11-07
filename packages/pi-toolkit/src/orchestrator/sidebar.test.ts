@@ -774,7 +774,6 @@ const workerEntry = (directory: string, notes: string[]): WorkerEntry => ({
   planRef: `demo/active/${directory.split(/[\\/]/u).at(-1) ?? ""}`,
   notes,
   startedAt: Date.now(),
-  released: new Set<string>(),
   inputs: 0,
   session: fakeSession(),
 });
@@ -991,7 +990,6 @@ describe("侧边栏控制器", () => {
       planRef: "temp:5",
       kind: "temp",
       startedAt: Date.now(),
-      released: new Set<string>(),
       inputs: 1,
       session: fakeSession(),
       job: {
@@ -1011,7 +1009,6 @@ describe("侧边栏控制器", () => {
       planRef: "temp:6",
       kind: "temp",
       startedAt: Date.now(),
-      released: new Set<string>(),
       inputs: 1,
       session: fakeSession(),
       lastReport: {
@@ -1045,7 +1042,6 @@ describe("侧边栏控制器", () => {
       planRef: "temp:5",
       kind: "temp",
       startedAt: Date.now(),
-      released: new Set<string>(),
       inputs: 1,
       session: fakeSession(),
       lastReport: {

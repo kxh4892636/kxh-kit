@@ -139,8 +139,6 @@ export interface WorkerEntry {
   readonly notes?: readonly string[];
   /** 起点时刻（毫秒）。 */
   readonly startedAt: number;
-  /** 编排方已放行的 note id，worker 的 `complete` 依赖它。 */
-  readonly released: Set<string>;
   readonly session: SessionLike;
   /** 会话文件路径（jsonl）；子 worker 与老路径可能没有。 */
   readonly sessionPath?: string;

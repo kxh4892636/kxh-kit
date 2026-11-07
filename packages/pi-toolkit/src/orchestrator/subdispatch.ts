@@ -157,7 +157,6 @@ export const createSubDispatchTool = (options: SubDispatchOptions): Orchestrator
       }
       seq += 1;
       const key = `${options.parentRoute}/sub:${seq}`;
-      const released = new Set<string>();
       const spawned = await (options.spawn ?? spawnWorker)({
         sub: { parentRef: options.parentRef, index: seq },
         depth,
@@ -167,13 +166,13 @@ export const createSubDispatchTool = (options: SubDispatchOptions): Orchestrator
           const entry = registry.get(key);
           if (entry !== undefined) onReport(entry, report);
         },
-        released,
+        // 子 worker 改不了 notes：放行判定对它没有意义。
+        released: () => false,
       });
       const entry = registry.add({
         planDirectory: key,
         planRef: key,
         startedAt: Date.now(),
-        released,
         session: spawned.session,
         inputs: 0,
       });

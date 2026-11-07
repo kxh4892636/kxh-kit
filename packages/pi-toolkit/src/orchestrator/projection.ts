@@ -127,6 +127,10 @@ export const emptyState = (): ProjectionState => ({
   seenIdem: new Set(),
 });
 
+/** 退出原因是不是“中断”（崩溃 / 会话退出）：这类才值得留凭据。 */
+export const isInterruption = (reason: string): boolean =>
+  /crash|shutdown|uncaught|unhandled/iu.test(reason);
+
 /** 撞到已存在的 worker 条目时取它，否则建一个（`worker.spawned` 之前也可能先来输入）。 */
 const ensureWorker = (
   state: ProjectionState,
@@ -274,11 +278,24 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
       const notes = payloadStrings(payload, "notes");
       const sessionPath = payloadString(payload, "sessionPath");
       const planRef = payloadString(payload, "planRef");
+      const worktree = payload["worktree"];
       const entry = ensureWorker(state, worker, event.at, {
         ...(planRef === undefined ? {} : { planRef }),
         status: "live",
         ...(notes.length === 0 ? {} : { notes }),
         ...(sessionPath === undefined ? {} : { sessionPath }),
+        ...(isRecord(worktree) &&
+        typeof worktree["name"] === "string" &&
+        typeof worktree["branch"] === "string" &&
+        typeof worktree["directory"] === "string"
+          ? {
+              worktree: {
+                name: worktree["name"],
+                branch: worktree["branch"],
+                directory: worktree["directory"],
+              },
+            }
+          : {}),
       });
       delete entry.exitReason;
       return true;
@@ -292,7 +309,7 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
       entry.exitReason = reason;
       // 崩溃 / 会话退出：把可能悬着的 in_progress 记进凭据（取代 interrupted.json）。
       const notes = payloadStrings(payload, "notes");
-      if (notes.length > 0 || /crash|shutdown/u.test(reason)) {
+      if (notes.length > 0 || isInterruption(reason)) {
         const current = state.interrupted ?? { at: event.at, reason, plans: [], notes: [] };
         current.at = event.at;
         current.reason = reason;
