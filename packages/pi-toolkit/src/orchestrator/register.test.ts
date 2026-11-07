@@ -5,6 +5,7 @@ import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-a
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { DEFAULT_SETTINGS, DEFAULT_TOOLS, type ToolkitSettings } from "../settings.ts";
 import { assetsSkillsRoot } from "./assets.ts";
+import { readInterrupted, stateDirectory, writeInterrupted } from "./errors.ts";
 import { MODE_ENTRY, RESET_ENTRY, type BranchEntryLike } from "./mode.ts";
 import { ORCHESTRATOR_TOOL_NAMES, registerOrchestrator } from "./register.ts";
 
@@ -22,6 +23,7 @@ interface Harness {
   readonly notifications: Array<{ message: string; level: string | undefined }>;
   readonly alwaysCalls: boolean[];
   readonly flags: Map<string, boolean | string>;
+  readonly sent: Array<{ customType?: string; content: string }>;
   current: ToolkitSettings;
   start(ctx: ExtensionContext): void;
   fire(event: string, ctx: ExtensionContext, payload?: unknown): Promise<unknown[]>;
@@ -52,6 +54,7 @@ const setup = (settings: ToolkitSettings): Harness => {
   const alwaysCalls: boolean[] = [];
   const flags = new Map<string, boolean | string>();
   const branch: BranchEntryLike[] = [];
+  const sent: Array<{ customType?: string; content: string }> = [];
   const tools: FakeTool[] = [];
   let active = ["read", "bash"];
   const commands = new Map<string, Handler>();
@@ -74,6 +77,12 @@ const setup = (settings: ToolkitSettings): Harness => {
       list.push(handler);
       handlers.set(event, list);
     },
+    sendMessage: (message: { customType?: string; content: string }) => {
+      sent.push({
+        content: String(message.content),
+        ...(message.customType === undefined ? {} : { customType: message.customType }),
+      });
+    },
     getActiveTools: () => [...active],
     setActiveTools: (names: string[]) => {
       active = [...names];
@@ -86,6 +95,7 @@ const setup = (settings: ToolkitSettings): Harness => {
     notifications,
     alwaysCalls,
     flags,
+    sent,
     current: settings,
     async fire(event, ctx, payload) {
       const results: unknown[] = [];
@@ -200,6 +210,9 @@ describe("registerOrchestrator", () => {
       data: { enabled: true },
     });
     expect(harness.active()).toContain("orchestrator_read");
+    // 启动不再自动对账：不注入任何消息，不强制跑一轮模型。
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(harness.sent.filter((item) => item.customType === "orchestrator-reconcile")).toEqual([]);
   });
 
   it("changes the session mode and persists the default separately", async () => {
@@ -311,6 +324,37 @@ describe("registerOrchestrator", () => {
     const message = harness.notifications.at(-1)?.message ?? "";
     expect(message).toContain("Orchestrator: 开");
     expect(message).toContain("active Plan: 无");
+  });
+
+  it("shows crash credentials in /orchestrator status, then clears the whole record", async () => {
+    const agentDir = await tempDir();
+    const previous = process.env["PI_CODING_AGENT_DIR"];
+    process.env["PI_CODING_AGENT_DIR"] = agentDir;
+    try {
+      const harness = setup(settingsWith({ always: true }));
+      const ctx = makeCtx(harness.branch, harness.notifications, await tempDir(), {
+        mode: "print",
+      });
+      const directory = stateDirectory(agentDir);
+      writeInterrupted(directory, {
+        at: "2026-11-07T00:00:00.000Z",
+        reason: "uncaughtException: worker 炸了",
+        plans: ["demo/active/x", "demo/active/y"],
+      });
+      harness.start(ctx);
+      // 启动不读也不写凭据。
+      expect(readInterrupted(directory)?.plans).toEqual(["demo/active/x", "demo/active/y"]);
+      await harness.command("status", ctx);
+      const message = harness.notifications.at(-1)?.message ?? "";
+      expect(message).toContain(
+        "上次崩溃: 2026-11-07T00:00:00.000Z · uncaughtException: worker 炸了",
+      );
+      expect(message).toContain("仍在跑: demo/active/x, demo/active/y");
+      expect(readInterrupted(directory)).toBeUndefined();
+    } finally {
+      if (previous === undefined) delete process.env["PI_CODING_AGENT_DIR"];
+      else process.env["PI_CODING_AGENT_DIR"] = previous;
+    }
   });
 
   it("sets the default through the save action", async () => {

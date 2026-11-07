@@ -3,7 +3,7 @@
  *
  * in-process `createAgentSession` + `DefaultResourceLoader`，只注入 worker 那套
  * 扩展工厂（`noExtensions: true`），因此 worker 看不到编排方的工具、句柄表与
- * 启动对账，也不会递归加载宿主扩展。
+ * 崩溃凭据，也不会递归加载宿主扩展。
  * @module @kxh4892636/pi-toolkit/orchestrator/spawn
  */
 

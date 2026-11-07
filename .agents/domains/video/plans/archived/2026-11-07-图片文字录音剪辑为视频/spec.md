@@ -38,8 +38,8 @@
 ## 当前进度
 
 - 已完成: 域与 Plan 初始化; 工作区取证; 两轮拷问与定案 (含 BGM、竖构图、全图使用、字号四次修订); 工程与分镜; 混音; 渲染; 成片验收; BGM 换为 Carefree 并重渲染; **BGM 音量下调 4dB (-30 LUFS) 并 remux**。
-- 成品: `.temp/video/out/museum.mp4` (1080×1920, 30fps, 27.307s, 28.7MB, Carefree 版); 镜像在 `C:\Users\kxh\Pictures\kxr\museum.mp4`。
-- 待办: 用户确认后可把 Plan 迁到 reference; 如需改字/改图/换曲, 改 `src/data.ts` 或混音脚本后重渲染。
+- 成品: `C:\Users\kxh\Pictures\kxr\museum.mp4` (1080×1920, 30fps, 27.307s, 28.4MiB, Carefree 版); 旧 BGM 版 `museum-suk.mp4` 同目录。
+- 待办: 无。2026-11-07 用户确认归档到 `archived`；同时按用户指示删除工程目录 `.temp/video`（Remotion 工程、`src/`、`public/`、混音与颗粒脚本），仅留成品 mp4。
 
 ## 排版与实现约束
 
@@ -50,10 +50,12 @@
 
 ## 恢复入口
 
-- Plan 目录: `.agents/domains/video/plans/active/2026-11-07-图片文字录音剪辑为视频/`
-- 先读本 spec, 再读 note 01 (拷问与定案) 与 note 02 (工程与分镜)。
-- 恢复时确认: 渲染是否完成, `out/museum.mp4` 是否存在且通过验收。
+> 工程已删除：`.temp/video` 于 2026-11-07 清掉，本 spec 里「改 `src/data.ts` 后重渲染」的承诺随之失效，需要重跑时只能从本 spec 重建工程。
+
+- Plan 目录: `.agents/domains/video/plans/archived/2026-11-07-图片文字录音剪辑为视频/`
+- 再读 note 01 (拷问与定案) 与 note 02 (工程与分镜) 了解当时的实现选择。
+- 成品: `C:\Users\kxh\Pictures\kxr\museum.mp4` 与 `museum-suk.mp4`。
 
 ## 待定
 
-- 无; 如用户要调整某句字幕/某张图的停留, 改 `src/data.ts` 后重渲染。
+- 无。素材源与录音仍在 `C:\Users\kxh\Pictures\kxr`，但渲染工程与脚本已删除。

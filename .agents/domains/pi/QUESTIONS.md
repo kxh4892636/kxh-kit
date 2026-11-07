@@ -67,7 +67,7 @@
 ## 关掉 pi 再打开，怎么知道哪些 Plan 被打断
 
 - 适用条件与现象：worker 跑到一半关掉终端，下次启动不知道从哪接。
-- 原因：句柄表在进程内，退出即丢；notes 与 `interrupted.json` 留在磁盘上。
-- 解决方法：`session_start` 在模式生效时跑启动对账，按 `in_progress`（被打断）、`waiting`（等人回答/验收）、全 `completed`（可归档）、其它（未知）四类列出 Plan 并注入一条 `orchestrator-reconcile` 消息；只提示，不重派、不归档。进程崩溃时 `installCrashGuard` 先写 `interrupted.json` 再以 1 退出，凭据参与下次对账。
-- 验证：`reconcile.test.ts` 覆盖四类分流与凭据补充；`errors.test.ts` 覆盖凭据读写与崩溃落盘；真机在含 `in_progress` note 的工作区启动，session JSONL 出现 `customType: orchestrator-reconcile`。
-- 来源：本域 ADR-0007；Plan `2026-11-07-pi多plan编排`；`packages/pi-toolkit/src/orchestrator/{reconcile,errors,register}.ts`。
+- 原因：句柄表在进程内，退出即丢；notes 与 `interrupted.json` 留在磁盘上。而会话一打开就自动播报会强制花掉一轮模型与一段上下文，多 Plan 并行时全量通报也不对应用户此刻关心哪个 Plan。
+- 解决方法：启动不读写凭据、不播报。恢复走显式入口：`orchestrator_read` 的 `resume <plan>` 既"选中"这个 Plan 也给出恢复包（状态行、关键索引、可推进队列、待回答/待验证、阻塞）；该 Plan 命中 `interrupted.json` 的 `plans` 时多一行 `上次崩溃: <at> · <reason>`，展示后只移除本 Plan 条目（剩余条目重写，空则删文件）。`/orchestrator status` 保留全局视图：所有 active Plan 状态行 + 整档凭据，展示后清空。进程崩溃时 `installCrashGuard` 先写凭据再以 1 退出。
+- 验证：`tools.test.ts` 覆盖 resume 命中（展示崩溃行 + 只移除本条目）与未命中（不读不移除）；`errors.test.ts` 覆盖按 plan 移除条目、最后一条移除后删档、未命中不写文件；`register.test.ts` 覆盖启动不注入 `orchestrator-reconcile` 消息与 `/orchestrator status` 展示凭据后整档删除；真机确认新会话（模式开）的 session JSONL 不再出现 `customType: orchestrator-reconcile`。
+- 来源：本域 ADR-0007、ADR-0008；Plan `2026-11-07-pi多plan编排`；`packages/pi-toolkit/src/orchestrator/{errors,register,tools/read,tools/shared}.ts`。

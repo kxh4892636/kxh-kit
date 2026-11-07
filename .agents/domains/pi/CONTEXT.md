@@ -1,6 +1,6 @@
 # Pi
 
-pi 扩展业务域：以单个 pi package（`@kxh4892636/pi-toolkit`）扩展宿主能力——按开关提供嵌套 skill 发现、`$` 引用插入与展开、经 DeepSeek 官方 Search/Fetch API 的 web 搜索与抓取、会话自动命名，以及从 DSH 迁入并与多 Plan 编排合并成单一能力的 `orchestrator`（Plan/notes DAG 交付流程 + 派工、放行与启动对账）。与 pi 本体解耦，经 `pi install` 安装。
+pi 扩展业务域：以单个 pi package（`@kxh4892636/pi-toolkit`）扩展宿主能力——按开关提供嵌套 skill 发现、`$` 引用插入与展开、经 DeepSeek 官方 Search/Fetch API 的 web 搜索与抓取、会话自动命名，以及从 DSH 迁入并与多 Plan 编排合并成单一能力的 `orchestrator`（Plan/notes DAG 交付流程 + 派工、放行与按 Plan 恢复）。与 pi 本体解耦，经 `pi install` 安装。
 
 ## Language
 
@@ -103,13 +103,17 @@ _避免使用_：自动开工、自动执行 note
 ### 编排
 
 **派工**：
-`orchestrator_dispatch` 把一个 Plan 交给一个 worker session；同一 Plan 同一时刻只有一个 worker，重复派工复用既有会话，`kind=pass` 先记放行再投递。
+`orchestrator_dispatch` 把一个 Plan 交给一个 worker session；同一 Plan 同一时刻只有一个 worker，重复派工复用既有会话，`kind=pass` 先记放行再投递。入队即返回，不等 worker 跑完 —— 终态由 promise 收剑，超时由后台 watchdog abort 并注入一条消息。
 
 **放行**：
 编排方下发 `pass` 后 worker 才可把 note 置 `completed`；判断在编排方，落盘在 worker。
 
-**启动对账**：
-`session_start` 时按 `in_progress` / `waiting` / 全 `completed` / 其它四类列出需要人处理的 Plan，只提示不行动。
+**按 Plan 恢复**：
+恢复是显式动作，不在会话启动时自动跑：`orchestrator_read` 的 `resume <plan>` 既"选中"某个 Plan，也给出它的状态行、可推进队列、待回答/待验证与阻塞；`/orchestrator status` 是全局视图。
+_避免使用_：启动对账、自动播报
+
+**崩溃凭据**：
+进程崩在未捕获异常上时落下 `interrupted.json`（`at` / `reason` / `plans[]`）后退出；它只在显式查询时展示 —— `resume <plan>` 命中本 Plan 就多一行 `上次崩溃` 并只移除该条目，`status` 列出整档后清空。
 
 **刹车**：
 不设并发上限的替代：`orchestrator_workers` 列 live 清单、按 Plan 或全部中止、退出时自动收尾。

@@ -17,4 +17,4 @@
 
 - 旧 `pi-toolkit.json` 的 `tools.nanoFlow` / `nanoFlow` 在加载时自动折进新名，两者并存时新名优先。
 - session entry 改名后，改名前的会话模式不生效，回落到 `orchestrator.always`。
-- 编排方对业务域零写权限；worker 若不写 `completed`，Plan 会停在 `waiting(needs=review)`，由启动对账摆到人面前。
+- 编排方对业务域零写权限；worker 若不写 `completed`，Plan 会停在 `waiting(needs=review)`，只能由人显式查询（`resume <plan>` 或 `/orchestrator status`）时摆到面前。

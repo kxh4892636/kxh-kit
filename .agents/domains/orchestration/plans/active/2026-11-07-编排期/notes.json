@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "index": [],
+  "notes": [
+    {
+      "id": "01",
+      "title": "编排期待办：pi 域放行与并发派工",
+      "description": "编排期 2026-11-07 的未结事项：pi 域 note 14 待放行、note 15 待定案（worker 派工阻塞编排方）。",
+      "status": "pending",
+      "blocked_by": [],
+      "evidence": [],
+      "updated_at": "2026-11-07T11:32:18.614Z",
+      "content": "# 编排期待办（2026-11-07）\n\n## 追踪中\n\n- `pi/active/2026-11-07-pi多plan编排`\n  - note 13 / 14 / 15 / 16 全部 completed，Plan 13 条 note 结清。\n  - 用户 2026-11-07 决定：**暂留 active**（不迁 reference / archived），下次有改动继续在此 Plan 加 note。\n  - 内容：启动对账移除（改为 `resume` / `status` 显式呈现崩溃凭据）+ 派工异步化（入队即返回、promise 作终态、后台 watchdog）。测试 270 通过。\n\n## 本编排期\n\n- 用户 2026-11-07 决定：**暂留 active**，等新任务开新编排期时一并处理。\n- 本次改动以单条提交落库（代码 + 域文档 + ADR + video 归档移动）。\n\n## 待回答\n\n- 无。\n\n## 执行检查点\n\n- 2026-11-07 建立本编排期 Plan；复核过 note 14、note 16 的实际改动与测试，不只信 worker 自述。\n- 已归档并清理 video：Plan 迁 `video/archived/`，工程目录 `.temp/video` 删除，成品 mp4 保留在 `C:\\Users\\kxh\\Pictures\\kxr`。\n\n## 下一步\n\n- 无未结事项；下一条输入若指向新目标，按归属判定决定是并入某个 active Plan 还是新开 Plan。\n"
+    }
+  ]
+}

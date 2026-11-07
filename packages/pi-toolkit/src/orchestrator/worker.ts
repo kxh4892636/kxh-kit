@@ -4,7 +4,7 @@
  * 一个 worker session 只服务于一个已授权的 Plan：它拿到的是受限的
  * `orchestrator_read` / `orchestrator_write`（无 `init`、无 `move`、`completed`
  * 需放行）、外加 `orchestrator_report`。它没有 `ask_questions`，也没有句柄表与
- * 启动对账 —— 那些属于编排方，两套工厂必须彻底分开。
+ * 崩溃凭据 —— 那些属于编排方，两套工厂必须彻底分开。
  * @module @kxh4892636/pi-toolkit/orchestrator/worker
  */
 
@@ -46,8 +46,8 @@ const isReportOutcome = (value: unknown): value is ReportOutcome =>
 /**
  * 构造 worker 的扩展工厂。
  *
- * 只注册工具与提示词；桥接状态（句柄表、对账）全部留在编排方，避免同一进程内
- * 模块被多个 session 共享时互相干扰。
+ * 只注册工具与提示词；桥接状态（句柄表、崩溃凭据）全部留在编排方，避免同一进程
+ * 内模块被多个 session 共享时互相干扰。
  * @param options - Plan、上报入口、设置读取与放行集合。
  * @returns 交给 `DefaultResourceLoader` 的 inline extension。
  */

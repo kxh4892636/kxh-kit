@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import { DEFAULT_ORCHESTRATOR_SETTINGS } from "./config.ts";
+import { forgetInterruptedPlan, readInterrupted, writeInterrupted } from "./errors.ts";
 import { createCheckTool } from "./tools/check.ts";
 import { createReadTool } from "./tools/read.ts";
 import { createToolRuntime, type ToolRuntime } from "./tools/shared.ts";
@@ -66,6 +67,16 @@ const setup = (
   };
 };
 
+/** 只把 `resume` 用到的凭据口换成内存桩，其余仍走真实运行期。 */
+const withInterrupted = (interrupted: ToolRuntime["interrupted"]): RunnableTool => {
+  const runtime = createToolRuntime({
+    limits: () => DEFAULT_ORCHESTRATOR_SETTINGS,
+    domainRoot: ".agents/domains",
+    ...(interrupted === undefined ? {} : { interrupted }),
+  });
+  return createReadTool(runtime) as unknown as RunnableTool;
+};
+
 const run = async (
   tool: RunnableTool,
   args: Record<string, unknown>,
@@ -122,6 +133,8 @@ describe("orchestrator_write / orchestrator_read", () => {
     );
     const resume = await run(tools.read, { op: "resume", plan: PLAN }, cwd);
     expect(resume).toContain("等待验证（1）");
+    // 没有注入凭据口（worker 侧）时，resume 不展示也不碰崩溃凭据。
+    expect(resume).not.toContain("上次崩溃");
 
     const completed = await run(
       tools.write,
@@ -440,5 +453,74 @@ describe("invalid document repair", () => {
     await expect(
       run(tools.write, { op: "repair", plan, notes: [{ note: "99", description: "x" }] }, cwd),
     ).rejects.toThrow(/没有 note 99/u);
+  });
+});
+
+describe("resume 消费崩溃凭据", () => {
+  it("命中时展示崩溃行并只移除本 Plan 的条目", async () => {
+    const cwd = await makeWorkspace();
+    const tools = setup();
+    await run(tools.write, { op: "init", domain: "demo", name: "2026-11-08-测试计划" }, cwd);
+    const forgotten: string[] = [];
+    const read = withInterrupted({
+      read: () => ({
+        at: "2026-11-07T00:00:00.000Z",
+        reason: "uncaughtException: worker 炸了",
+        plans: [PLAN, "demo/active/另一个计划"],
+      }),
+      forget: (planRef) => forgotten.push(planRef),
+      clear: () => {
+        throw new Error("resume 不该清整档");
+      },
+    });
+    const text = await run(read, { op: "resume", plan: PLAN }, cwd);
+    expect(text).toContain("上次崩溃: 2026-11-07T00:00:00.000Z · uncaughtException: worker 炸了");
+    expect(text).toContain("已移除本 Plan 条目");
+    expect(forgotten).toEqual([PLAN]);
+  });
+
+  it("未命中时不展示也不移除凭据", async () => {
+    const cwd = await makeWorkspace();
+    const tools = setup();
+    await run(tools.write, { op: "init", domain: "demo", name: "2026-11-08-测试计划" }, cwd);
+    const read = withInterrupted({
+      read: () => ({
+        at: "2026-11-07T00:00:00.000Z",
+        reason: "boom",
+        plans: ["demo/active/另一个计划"],
+      }),
+      forget: () => {
+        throw new Error("未命中时不该移除凭据");
+      },
+      clear: () => {
+        throw new Error("未命中时不该清凭据");
+      },
+    });
+    const text = await run(read, { op: "resume", plan: PLAN }, cwd);
+    expect(text).not.toContain("上次崩溃");
+    expect(text).not.toContain("已移除本 Plan 条目");
+  });
+});
+
+describe("resume 与真实凭据文件", () => {
+  it("只移除本 Plan 条目，其它条目留在文件里", async () => {
+    const cwd = await makeWorkspace();
+    const tools = setup();
+    await run(tools.write, { op: "init", domain: "demo", name: "2026-11-08-测试计划" }, cwd);
+    const stateDir = await tempDir();
+    writeInterrupted(stateDir, {
+      at: "2026-11-07T00:00:00.000Z",
+      reason: "uncaughtException: worker 炸了",
+      plans: [PLAN, "demo/active/另一个计划"],
+    });
+    // 与 register.ts 注入编排方的三个入口同形。
+    const read = withInterrupted({
+      read: () => readInterrupted(stateDir),
+      forget: (planRef) => forgetInterruptedPlan(stateDir, planRef),
+      clear: () => undefined,
+    });
+    const text = await run(read, { op: "resume", plan: PLAN }, cwd);
+    expect(text).toContain("上次崩溃: 2026-11-07T00:00:00.000Z · uncaughtException: worker 炸了");
+    expect(readInterrupted(stateDir)?.plans).toEqual(["demo/active/另一个计划"]);
   });
 });

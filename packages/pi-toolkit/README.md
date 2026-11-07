@@ -250,7 +250,12 @@ the same set it may write. The orchestrator's `op: "workspace"` covers every dom
 
 `orchestrator_dispatch` starts one worker per plan with the SDK's `createAgentSession` (in process, no
 extension discovery, only the worker extension). A plan has at most one live worker at a time; a second
-dispatch reuses it and queues the message as a follow-up. The worker can do every note-level action but
+dispatch reuses it and queues the message as a follow-up. Dispatch does **not** wait for the run: it
+returns a `plan` / `kind` / `note` / `started` / `queued` summary as soon as the input is enqueued, so
+several plans can be dispatched back to back. The turn's terminal state is the enqueued input's promise
+(`prompt()`, or `followUp()` then `waitForIdle()`), which harvests the job; a background watchdog aborts
+on `orchestrator.workerTimeoutMs` and injects one `orchestrator-worker-timeout` message, without touching
+note state. The worker can do every note-level action but
 cannot `init` a plan, cannot `move` it, and cannot write `completed` — it reports the note as
 `waiting(needs=review)` with `orchestrator_report`, and only after the orchestrator sends `pass` may it
 complete. The worker has no `ask_questions`: a question becomes `orchestrator_report(needs_answer)`.
@@ -258,11 +263,12 @@ complete. The worker has no `ask_questions`: a question becomes `orchestrator_re
 `orchestrator_report` arrives in the orchestrator session as an `orchestrator-report` message. Reports
 are notifications; the notes on disk are the truth.
 
-On `session_start` the plugin reconciles the disk with what it remembers: `in_progress` (worker gone),
-`waiting` (needs `answer` or `review`), all `completed` (ready to archive) and anything else (unknown)
-are reported in one `orchestrator-reconcile` message. It only reports; dispatch, archive and status
-changes stay with the person. A crash writes `interrupted.json` under the agent dir and exits, so the
-next start reports those plans instead of losing them. There is no concurrency cap: use
+The plugin never reconciles on `session_start`: opening a session neither injects a message nor spends a
+turn. Recovery is explicit — `orchestrator_read` with `op: "resume"` is the one place that selects a plan
+and reports where it stands (status line, index, ready queue, waiting for answer/review, blocked). A crash
+writes `interrupted.json` under the agent dir and exits; `resume <plan>` shows `上次崩溃: <at> · <reason>`
+when that plan is in the record and then drops only that plan's entry, while `/orchestrator status` lists
+every active plan plus the whole record and clears it. There is no concurrency cap: use
 `orchestrator_workers` to see live workers and abort them, individually or all.
 
 When a plan cannot pass validation, `orchestrator_read` with `op: "inspect"` returns the raw notes and

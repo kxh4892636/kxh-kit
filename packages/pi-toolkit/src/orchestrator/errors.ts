@@ -3,7 +3,8 @@
  *
  * 单进程里所有 worker session 与编排方共享一个事件循环，所以原则是：**单个
  * worker 的问题不许外抛**，进程级的意外只做一件事 —— 落下"哪些 plan 被打断"
- * 的凭据，然后干净退出，交给下次 `session_start` 的对账接手。
+ * 的凭据，然后干净退出；凭据由人显式查询（`resume <plan>` 或 `/orchestrator
+ * status`）时展示并移除，启动流程不读写它。
  * @module @kxh4892636/pi-toolkit/orchestrator/errors
  */
 
@@ -59,11 +60,29 @@ export const readInterrupted = (directory: string): InterruptedState | undefined
 };
 
 /**
- * 清掉中断凭据（对账报告之后调用）。
+ * 清掉整档中断凭据（`/orchestrator status` 展示之后调用）。
  * @param directory - 状态目录。
  */
 export const clearInterrupted = (directory: string): void => {
   rmSync(join(directory, INTERRUPTED_FILE), { force: true });
+};
+
+/**
+ * 只移除某个 plan 的条目：剩余条目重写回文件，没有剩余就删掉整档。
+ *
+ * 单个 plan 的恢复报告只清自己那条，不能顺手丢掉其它 plan 的中断记录。
+ * @param directory - 状态目录。
+ * @param planRef - `<domain>/<lifecycle>/<name>`。
+ */
+export const forgetInterruptedPlan = (directory: string, planRef: string): void => {
+  const state = readInterrupted(directory);
+  if (state === undefined || !state.plans.includes(planRef)) return;
+  const remaining = state.plans.filter((item) => item !== planRef);
+  if (remaining.length === 0) {
+    clearInterrupted(directory);
+    return;
+  }
+  writeInterrupted(directory, { ...state, plans: remaining });
 };
 
 /**
@@ -125,8 +144,9 @@ const attach = (exit: (code: number) => void): (() => void) => {
 /**
  * 进程级兜底：记录中断凭据后退出。
  *
- * 状态不确定时继续比退出更危险 —— 退出后由 `session_start` 的对账把中断的 plan
- * 摆到人面前，是唯一不会静默半死的选择。同一进程只挂一次监听，多个来源
+ * 状态不确定时继续比退出更危险 —— 退出后凭据留在磁盘上，等用户 `resume <plan>`
+ * 或 `/orchestrator status` 时才被摆到面前，是唯一不会静默半死的选择。
+ * 同一进程只挂一次监听，多个来源
  * （多个编排方 session）共享它。
  * @param source - 状态目录与 live plan 读取器。
  * @param exit - 退出方式，测试可替换。
@@ -145,33 +165,6 @@ export const installCrashGuard = (
       detach = undefined;
     }
   };
-};
-
-/**
- * 给一个 promise 套超时；超时后先执行收尾再返回。
- * @param work - 待等待的工作。
- * @param ms - 超时毫秒。
- * @param onTimeout - 超时收尾（通常是 abort）。
- * @returns `"timeout"` 或工作结果。
- */
-export const withTimeout = async <T>(
-  work: Promise<T>,
-  ms: number,
-  onTimeout: () => Promise<void> | void,
-): Promise<T | "timeout"> => {
-  let timer: NodeJS.Timeout | undefined;
-  const timeout = new Promise<"timeout">((resolve) => {
-    timer = setTimeout(() => {
-      void Promise.resolve(onTimeout()).catch(() => undefined);
-      resolve("timeout");
-    }, ms);
-    timer.unref?.();
-  });
-  try {
-    return await Promise.race([work, timeout]);
-  } finally {
-    if (timer !== undefined) clearTimeout(timer);
-  }
 };
 
 /** 目录名辅助：拼状态文件路径。 */

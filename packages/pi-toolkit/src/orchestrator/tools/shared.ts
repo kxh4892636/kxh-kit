@@ -7,10 +7,24 @@ import type { ExtensionToolContext, ToolDefinition } from "@earendil-works/pi-co
 import { assetsCheckScript } from "../assets.ts";
 import type { OrchestratorSettings } from "../config.ts";
 import type { NoteNode, PlanDocument } from "../dag.ts";
+import type { InterruptedState } from "../errors.ts";
 import type { PlanRef } from "../plan.ts";
 
 /** 调用方角色：编排方拥有 plan 级动作，worker 只拥有 note 级动作。 */
 export type OrchestratorRole = "orchestrator" | "worker";
+
+/**
+ * 崩溃凭据的读写口。只有编排方注入：worker 不碰凭据，`resume` 在 worker 侧
+ * 不会读写状态文件。
+ */
+export interface InterruptedAccess {
+  /** 读整档凭据；没有或损坏时为 undefined。 */
+  read(): InterruptedState | undefined;
+  /** 移除某个 plan 的条目；剩余条目重写，无剩余则删文件。 */
+  forget(planRef: string): void;
+  /** 清空整档。 */
+  clear(): void;
+}
 
 /** 工具共享的运行期依赖。 */
 export interface ToolRuntime {
@@ -32,6 +46,8 @@ export interface ToolRuntime {
    * 也要等编排方下发 `pass` 后本谓词才为真。
    */
   readonly released?: (noteId: string) => boolean;
+  /** 崩溃凭据读写口；只有编排方注入，worker 留空。 */
+  readonly interrupted?: InterruptedAccess;
 }
 
 /** 工具执行结果里的一段模型可见文本。 */
@@ -141,6 +157,7 @@ export const createToolRuntime = (options: {
   role?: OrchestratorRole;
   lockedPlan?: string;
   released?: (noteId: string) => boolean;
+  interrupted?: InterruptedAccess;
 }): ToolRuntime => {
   return {
     limits: options.limits,
@@ -148,6 +165,7 @@ export const createToolRuntime = (options: {
     ...(options.role === undefined ? {} : { role: options.role }),
     ...(options.lockedPlan === undefined ? {} : { lockedPlan: options.lockedPlan }),
     ...(options.released === undefined ? {} : { released: options.released }),
+    ...(options.interrupted === undefined ? {} : { interrupted: options.interrupted }),
     workspace(ctx: ExtensionToolContext): string {
       return ctx.cwd;
     },

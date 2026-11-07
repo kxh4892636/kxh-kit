@@ -5,10 +5,10 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import {
   clearInterrupted,
   describeError,
+  forgetInterruptedPlan,
   installCrashGuard,
   readInterrupted,
   stateDirectory,
-  withTimeout,
   writeInterrupted,
 } from "./errors.ts";
 
@@ -40,6 +40,45 @@ describe("中断凭据", () => {
     });
     clearInterrupted(dir);
     expect(readInterrupted(dir)).toBeUndefined();
+  });
+
+  it("按 plan 移除条目：剩下的重写回文件", async () => {
+    const dir = await tempDir();
+    writeInterrupted(dir, {
+      at: "2026-11-07T00:00:00.000Z",
+      reason: "boom",
+      plans: ["etf/active/x", "music/active/y"],
+    });
+    forgetInterruptedPlan(dir, "etf/active/x");
+    expect(readInterrupted(dir)).toEqual({
+      at: "2026-11-07T00:00:00.000Z",
+      reason: "boom",
+      plans: ["music/active/y"],
+    });
+  });
+
+  it("按 plan 移除最后一条时删掉整档", async () => {
+    const dir = await tempDir();
+    writeInterrupted(dir, {
+      at: "2026-11-07T00:00:00.000Z",
+      reason: "boom",
+      plans: ["etf/active/x"],
+    });
+    forgetInterruptedPlan(dir, "etf/active/x");
+    expect(readInterrupted(dir)).toBeUndefined();
+  });
+
+  it("未命中或没有凭据时不写文件", async () => {
+    const dir = await tempDir();
+    forgetInterruptedPlan(dir, "etf/active/x");
+    expect(readInterrupted(dir)).toBeUndefined();
+    writeInterrupted(dir, {
+      at: "2026-11-07T00:00:00.000Z",
+      reason: "boom",
+      plans: ["etf/active/x"],
+    });
+    forgetInterruptedPlan(dir, "music/active/y");
+    expect(readInterrupted(dir)?.plans).toEqual(["etf/active/x"]);
   });
 
   it("损坏的文件当作没有", async () => {
@@ -102,21 +141,7 @@ describe("进程兜底", () => {
   });
 });
 
-describe("超时与错误文本", () => {
-  it("超时先收尾再返回 timeout", async () => {
-    let aborted = false;
-    const never = new Promise<string>(() => undefined);
-    const result = await withTimeout(never, 5, () => {
-      aborted = true;
-    });
-    expect(result).toBe("timeout");
-    expect(aborted).toBe(true);
-  });
-
-  it("未超时返回原结果", async () => {
-    expect(await withTimeout(Promise.resolve(7), 1_000, () => undefined)).toBe(7);
-  });
-
+describe("错误文本", () => {
   it("describeError 只给一行文本", () => {
     expect(describeError("spawn", new Error("no model"))).toBe("spawn: no model");
     expect(describeError("spawn", "boom")).toBe("spawn: boom");

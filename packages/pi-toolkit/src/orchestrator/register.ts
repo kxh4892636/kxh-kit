@@ -13,13 +13,20 @@ import { Type } from "typebox";
 import type { ToolkitSettings } from "../settings.ts";
 import {
   clearInterrupted,
+  forgetInterruptedPlan,
   installCrashGuard,
   readInterrupted,
   stateDirectory,
-  withTimeout,
 } from "./errors.ts";
-import { createRegistry, deliver, disposeAll, type WorkerRegistry } from "./handles.ts";
-import { formatReconcile, reconcile, type PlanSnapshot } from "./reconcile.ts";
+import {
+  createRegistry,
+  deliver,
+  disposeAll,
+  disposeEntry,
+  harvest,
+  type WorkerJob,
+  type WorkerRegistry,
+} from "./handles.ts";
 import { spawnWorker, type SpawnWorkerOptions, type SpawnedWorker } from "./spawn.ts";
 import { INPUT_KINDS, type InputKind, type WorkerReport } from "./types.ts";
 import { assetsSkillsRoot, readPromptText } from "./assets.ts";
@@ -45,6 +52,7 @@ import {
   optionalString,
   statusLine,
   textBlocks,
+  type InterruptedAccess,
   type OrchestratorTool,
   type ToolRuntime,
 } from "./tools/shared.ts";
@@ -116,12 +124,16 @@ const referencesNotesFile = (toolName: string, input: unknown): boolean => {
  *
  * 同一 plan 已有 live worker 时复用，绝不起第二个 —— `worker:plan` 同时 1:1
  * 由句柄表保证。`kind=pass` 先把 note 记进放行集合，worker 才能写 `completed`。
+ *
+ * **入队即返回**：`deliver` 只给出那条输入的终态 promise，不等整轮；终态由
+ * `settled` 收割，超时交给后台 watchdog。
  */
 const createDispatchTool = (
   runtime: ToolRuntime,
   registry: WorkerRegistry,
   deps: OrchestratorDeps,
   onReport: (report: WorkerReport) => void,
+  sendTimeout: (planRef: string, job: WorkerJob, timeoutMs: number) => void,
 ): OrchestratorTool => ({
   name: "orchestrator_dispatch",
   label: "Dispatch",
@@ -188,20 +200,26 @@ const createDispatchTool = (
     if (kind === "pass" && note !== undefined) entry.released.add(note);
     const target = entry;
     const timeoutMs = deps.settings().orchestrator.workerTimeoutMs;
-    const delivery = await withTimeout(deliver(target, kind, message, note), timeoutMs, () =>
-      target.session.abort(),
-    );
-    if (delivery === "timeout") {
-      return {
-        content: textBlocks(
-          [
-            `${planRefOf(plan)} 的 worker 超过 ${Math.round(timeoutMs / 60000)} 分钟没有结束，已中止。`,
-            "用 orchestrator_read 看 note 的落盘状态，再决定是否重新派工。",
-          ].join("\n"),
-        ),
-        details: { plan: planRefOf(plan), timedOut: true },
-      };
-    }
+    const delivery = deliver(target, kind, message, note);
+    // 新一代 job 接管：先把上一条的清掉，免得定时器滞留到超时后才消失。
+    harvest(target);
+    const job: WorkerJob = {
+      kind,
+      ...(note === undefined ? {} : { note }),
+      startedAt: Date.now(),
+      settled: delivery.settled,
+      notified: false,
+    };
+    target.job = job;
+    const timer = setTimeout(() => sendTimeout(planRefOf(plan), job, timeoutMs), timeoutMs);
+    timer.unref?.();
+    job.timer = timer;
+    // 终态到了就收割：清定时器、摘 job。reject 也走到这里，不让它变成未处理拒绝。
+    const done = (): void => {
+      harvest(target, job);
+    };
+    void delivery.settled.then(done, done);
+
     const head = started
       ? `已起 worker 接手 ${planRefOf(plan)}`
       : `已投递给 ${planRefOf(plan)} 的 worker`;
@@ -211,9 +229,16 @@ const createDispatchTool = (
           head,
           `kind: ${kind}${note === undefined ? "" : ` · note ${note}`}`,
           delivery.queued ? "worker 正在跑，输入已排队。" : "worker 已开始处理。",
+          "完成后会有 report 推回；用 orchestrator_workers 查 live 清单。",
         ].join("\n"),
       ),
-      details: { plan: planRefOf(plan), started, queued: delivery.queued },
+      details: {
+        plan: planRefOf(plan),
+        started,
+        queued: delivery.queued,
+        kind,
+        ...(note === undefined ? {} : { note }),
+      },
     };
   },
 });
@@ -246,12 +271,7 @@ const createWorkersTool = (registry: WorkerRegistry): OrchestratorTool => ({
       if (entries.length === 0) throw new Error(`没有在跑的 worker: ${plan}`);
       for (const entry of entries) {
         registry.remove(entry.planDirectory);
-        try {
-          await entry.session.abort();
-        } catch {
-          // 已结束的 session 拒绝 abort；中止是幂等的。
-        }
-        entry.session.dispose();
+        await disposeEntry(entry);
       }
       return {
         content: textBlocks(`已中止 ${plan} 的 worker。`),
@@ -326,9 +346,20 @@ export const registerOrchestrator = (
     setTools(modeOn(ctx));
   };
 
+  /** 状态目录：崩溃凭据落在这里。 */
+  const stateDir = (): string => stateDirectory(getAgentDir());
+
+  /** 崩溃凭据的读写口；只给编排方，worker 拿不到。 */
+  const interrupted: InterruptedAccess = {
+    read: () => readInterrupted(stateDir()),
+    forget: (planRef) => forgetInterruptedPlan(stateDir(), planRef),
+    clear: () => clearInterrupted(stateDir()),
+  };
+
   const runtime = createToolRuntime({
     limits: () => deps.settings().orchestrator,
     domainRoot: DEFAULT_DOMAIN_ROOT,
+    interrupted,
   });
 
   /** 进程内的 worker 句柄表；闭包持有，不做模块级单例。 */
@@ -362,12 +393,49 @@ export const registerOrchestrator = (
     }
   };
 
+  /**
+   * 后台 watchdog 到点：中止这条派工的 worker，并向编排方注入一条超时消息。
+   *
+   * 只对同一次派工发一次（`job.notified`），stale timer 或已收割的 job 直接返回；
+   * **不代写 note 状态** —— 编排方对业务域只读，重新派工还是改派由人决定。
+   */
+  const sendTimeout = (planRef: string, job: WorkerJob, timeoutMs: number): void => {
+    const entry = registry.list().find((candidate) => candidate.planRef === planRef);
+    if (entry === undefined || entry.job !== job || job.notified) return;
+    job.notified = true;
+    void entry.session.abort().catch(() => undefined);
+    const target = job.note === undefined ? "" : ` · note ${job.note}`;
+    const minutes = Math.round(timeoutMs / 60_000);
+    try {
+      pi.sendMessage(
+        {
+          customType: "orchestrator-worker-timeout",
+          content: [
+            `[worker] 超时：${planRef} 的 worker 超过 ${minutes} 分钟没有结束，已中止（kind: ${job.kind}${target}）。`,
+            "note 状态未改动：按磁盘上的 notes 决定重新派工还是改派。",
+            "用 orchestrator_workers 查 live 清单。",
+          ].join("\n"),
+          display: true,
+          details: {
+            plan: planRef,
+            kind: job.kind,
+            timedOut: true,
+            ...(job.note === undefined ? {} : { note: job.note }),
+          },
+        },
+        { triggerTurn: true, deliverAs: "followUp" },
+      );
+    } catch {
+      // 会话正在关闭时无法注入；abort 已经发生。
+    }
+  };
+
   for (const tool of [
     createReadTool(runtime),
     createWriteTool(runtime),
     createCheckTool(runtime),
     createAskQuestionsTool(),
-    createDispatchTool(runtime, registry, deps, onReport),
+    createDispatchTool(runtime, registry, deps, onReport, sendTimeout),
     createWorkersTool(registry),
   ]) {
     pi.registerTool({ ...tool, defaultActive: false });
@@ -384,38 +452,6 @@ export const registerOrchestrator = (
     return { skillPaths: [assetsSkillsRoot()] };
   });
 
-  /** 状态目录：崩溃凭据落在这里。 */
-  const stateDir = (): string => stateDirectory(getAgentDir());
-
-  /**
-   * 启动对账：把磁盘上的事实摆到编排方面前。
-   * 只发一条消息，不重派、不归档、不改状态。
-   */
-  const runReconcile = async (ctx: ExtensionContext): Promise<void> => {
-    const directory = stateDir();
-    const snapshots: PlanSnapshot[] = [];
-    for (const plan of activePlans(await listPlans(ctx.cwd, DEFAULT_DOMAIN_ROOT))) {
-      try {
-        const document = await loadDocument(plan.directory, deps.settings().orchestrator);
-        snapshots.push({ planRef: planRefOf(plan), notes: document.notes });
-      } catch {
-        // 读不出来的 Plan 交给 orchestrator_check 报错，不阻断对账。
-      }
-    }
-    const interrupted = readInterrupted(directory);
-    const text = formatReconcile(reconcile(snapshots, interrupted));
-    if (interrupted !== undefined) clearInterrupted(directory);
-    if (text === undefined) return;
-    try {
-      pi.sendMessage(
-        { customType: "orchestrator-reconcile", content: text, display: true },
-        { triggerTurn: true, deliverAs: "followUp" },
-      );
-    } catch {
-      // 会话正在关闭时无法注入。
-    }
-  };
-
   const start = (ctx: ExtensionContext): void => {
     resetPending = false;
     if (
@@ -426,10 +462,9 @@ export const registerOrchestrator = (
       pi.appendEntry(MODE_ENTRY, { enabled: true });
     }
     sync(ctx);
-    if (modeOn(ctx)) void runReconcile(ctx).catch(() => undefined);
   };
 
-  // 进程级兜底：记录中断凭据后干净退出，交给下次启动的对账。
+  // 进程级兜底：记录中断凭据后干净退出；凭据等人显式查询时才展示并被移除。
   installCrashGuard({
     directory: stateDir,
     plans: () => registry.list().map((entry) => entry.planRef),
@@ -508,17 +543,26 @@ export const registerOrchestrator = (
     const lines = [`Orchestrator: ${modeOn(ctx) ? "开" : "关"}`];
     if (plans.length === 0) {
       lines.push(`active Plan: 无（域根 ${DEFAULT_DOMAIN_ROOT}）`);
-      return lines.join("\n");
-    }
-    for (const plan of plans) {
-      try {
-        const document = await loadDocument(plan.directory, deps.settings().orchestrator);
-        lines.push(`${planRefOf(plan)} · ${statusLine(document)}`);
-      } catch (error) {
-        lines.push(
-          `${planRefOf(plan)} · 读取失败: ${error instanceof Error ? error.message : String(error)}`,
-        );
+    } else {
+      for (const plan of plans) {
+        try {
+          const document = await loadDocument(plan.directory, deps.settings().orchestrator);
+          lines.push(`${planRefOf(plan)} · ${statusLine(document)}`);
+        } catch (error) {
+          lines.push(
+            `${planRefOf(plan)} · 读取失败: ${error instanceof Error ? error.message : String(error)}`,
+          );
+        }
       }
+    }
+    // 全局视图连崩溃凭据一起展示，展示后整档清除。
+    const crashed = interrupted.read();
+    if (crashed !== undefined) {
+      lines.push(`上次崩溃: ${crashed.at} · ${crashed.reason}`);
+      lines.push(
+        `  仍在跑: ${crashed.plans.length === 0 ? "（无记录）" : crashed.plans.join(", ")}`,
+      );
+      interrupted.clear();
     }
     return lines.join("\n");
   };

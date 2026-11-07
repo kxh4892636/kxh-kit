@@ -236,10 +236,16 @@ const executeRead = async (
       const blocked = document.notes.filter((note) => note.status === "blocked");
       const storyBytes = await describeBytes(plan, "story.md");
       const specBytes = await describeBytes(plan, "spec.md");
+      const planRef = planRefOf(plan);
+      // 崩溃凭据只在本 plan 命中时读；移除也只移除本 plan 的条目。
+      const interrupted = runtime.interrupted?.read();
+      const crashed =
+        interrupted !== undefined && interrupted.plans.includes(planRef) ? interrupted : undefined;
       const lines = [
-        `Plan: ${planRefOf(plan)}`,
+        `Plan: ${planRef}`,
         `目录: ${plan.directory}`,
         `状态: ${statusLine(document)} · ${planStatusOf(document.notes)}`,
+        ...(crashed === undefined ? [] : [`上次崩溃: ${crashed.at} · ${crashed.reason}`]),
         `story.md: ${storyBytes} · spec.md: ${specBytes}`,
         `关键索引（${document.index.length}）:`,
       ];
@@ -270,6 +276,10 @@ const executeRead = async (
       lines.push(
         "下一步: 读 spec.md 与 story.md，只读报告进度与可推进队列；恢复报告后等用户第一条消息放行再执行，需要澄清则进入 ask。",
       );
+      if (crashed !== undefined) {
+        runtime.interrupted?.forget(planRef);
+        lines.push("崩溃凭据: 已移除本 Plan 条目（其它 Plan 的条目保留）。");
+      }
       return lines.join("\n");
     }
     default:
@@ -286,7 +296,7 @@ export const createReadTool = (runtime: ToolRuntime): ToolDefinition => ({
   name: "orchestrator_read",
   label: "Orchestrator Read",
   description:
-    "只读 Orchestrator 的 Plan 与 notes DAG。plans 列工作区里的 Plan；notes 列某个 Plan 的 note 摘要；get 取正文；ready 取未完成 notes 的依赖分组列表；graph 查直接与传递依赖；index 看关键索引；search 检索；resume 取恢复包（路径、大小、索引、可推进、等待验证、阻塞）；inspect 在文档无法通过校验时给出原始视图，供 orchestrator_write 的 repair 使用。",
+    "只读 Orchestrator 的 Plan 与 notes DAG。plans 列工作区里的 Plan；notes 列某个 Plan 的 note 摘要；get 取正文；ready 取未完成 notes 的依赖分组列表；graph 查直接与传递依赖；index 看关键索引；search 检索；resume 取恢复包（路径、大小、索引、可推进、等待验证、阻塞；命中崩溃凭据时一并展示并移除该条）；inspect 在文档无法通过校验时给出原始视图，供 orchestrator_write 的 repair 使用。",
   promptSnippet: "Read Orchestrator plans, notes DAG and resume packages.",
   parameters: Type.Unsafe<Record<string, unknown>>({
     type: "object",

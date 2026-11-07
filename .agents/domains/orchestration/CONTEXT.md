@@ -26,8 +26,12 @@ _Avoid_: 需求分类、意图识别
 _Avoid_: 批准、通过审核
 
 **派工**:
-用 `orchestrator_dispatch` 把一个业务域 Plan 交给一个 worker session。同一 Plan 同一时刻只有一个 worker（`worker:plan` 同时 1:1），重复派工复用既有会话。
+用 `orchestrator_dispatch` 把一个业务域 Plan 交给一个 worker session。同一 Plan 同一时刻只有一个 worker（`worker:plan` 同时 1:1），重复派工复用既有会话。入队即返回（拒绝串行阻塞），完成后由 `orchestrator_report` 推回。
 _Avoid_: 分配、ticket、工单
+
+**超时**:
+后台 watchdog 按 `workerTimeoutMs` 计时，到点 abort 并注入一条 `orchestrator-worker-timeout`；只提醒一次，不代写 note 状态。
+_Avoid_: 前台等待、轮询 jobId
 
 **刹车**:
 不设并发上限时的替代手段：`orchestrator_workers` 列 live 清单、按 Plan 或全部中止、退出时自动收尾。
@@ -35,6 +39,9 @@ _Avoid_: 限流、配额
 
 ### 恢复
 
-**启动对账**:
-`session_start` 时把磁盘事实重新摆到编排方面前，分四类：被打断（`in_progress`）、在等人（`waiting` + `needs`）、可归档（全 `completed`）、未知（无 note 或只有 `pending`）。只提示，不采取行动。
-_Avoid_: 自愈、自动恢复
+**按 Plan 恢复**:
+传入 `resume <plan>` 时才算"选中"这个 Plan，输出它的状态行、可推进队列、待回答/待验证与阻塞；会话启动不自动播报、不自动跑一轮模型。
+_Avoid_: 启动对账、自愈、自动恢复
+
+**崩溃凭据**:
+`interrupted.json`（`at` / `reason` / `plans[]`）记下崩溃时仍有 live worker 的 Plan；`resume <plan>` 只在本 Plan 命中时展示并移除本条目，`status` 展示整档后清空。

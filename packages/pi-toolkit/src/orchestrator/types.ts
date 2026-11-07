@@ -1,6 +1,6 @@
 /**
- * 编排层的数据契约：worker 上报的报告、编排方下发的输入、句柄表的条目与
- * 启动对账的分流结果。这里只有类型，没有行为，便于两侧共享而不引入循环依赖。
+ * 编排层的数据契约：worker 上报的报告、编排方下发的输入与句柄表的条目。
+ * 这里只有类型，没有行为，便于两侧共享而不引入循环依赖。
  * @module @kxh4892636/pi-toolkit/orchestrator/types
  */
 
@@ -59,14 +59,4 @@ export interface WorkerHandle {
   readonly lastReport?: WorkerReport;
   /** 下发的次数，用于状态展示。 */
   readonly inputs: number;
-}
-
-/** 启动对账的分流结果。 */
-export interface ReconcileItem {
-  readonly kind: "interrupted" | "waiting" | "archive_ready" | "unknown";
-  readonly planRef: string;
-  /** `waiting` 时为等人回答还是等验收。 */
-  readonly needs?: "answer" | "review";
-  readonly note?: string;
-  readonly detail: string;
 }
