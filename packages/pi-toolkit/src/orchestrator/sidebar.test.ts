@@ -399,7 +399,6 @@ describe("temp workers 分组", () => {
     id,
     status: "in_progress",
     summary: "正在核对侧栏渲染",
-    pending: 0,
     ...extra,
   });
 
@@ -424,27 +423,25 @@ describe("temp workers 分组", () => {
     expect(view.rows.at(-1)).toMatchObject({ temp: "temp:6", status: "pending" });
   });
 
-  it("行文本：状态 · temp id · 摘要 · 待消费 N，只截摘要", () => {
-    const full = tempRowText(temp("temp:5", { summary: "读完了", pending: 2 }), 60);
-    expect(full).toBe("执行中 · temp:5 · 读完了 · 待消费 2");
+  it("行文本：状态 · temp id · 摘要，不出现待消费", () => {
+    const full = tempRowText(temp("temp:5", { summary: "读完了" }), 60);
+    expect(full).toBe("执行中 · temp:5 · 读完了");
 
-    // 宽度不够：摘要让位，状态 / id / 待消费 保持完整。
-    const squeezed = stripTerminalSequences(tempRowText(temp("temp:5", { pending: 2 }), 30));
-    expect(squeezed).toBe("执行中 · temp:5 · 待消费 2");
-    expect(visibleWidth(squeezed)).toBeLessThanOrEqual(30);
-
-    // 待消费为 0 时不显示那一段（没有信息量），把列让给摘要。
-    expect(stripTerminalSequences(tempRowText(temp("temp:5", { summary: "看一下侧栏" }), 30))).toBe(
-      "执行中 · temp:5 · 看一下侧栏",
-    );
-
-    // 有点余量：摘要被截并补省略号。
+    // 40 列侧栏里 temp 行只有 30 列：摘要被截并补省略号。
     const partial = stripTerminalSequences(
-      tempRowText(temp("temp:5", { summary: "正在核对侧栏渲染与临时分组", pending: 1 }), 34),
+      tempRowText(temp("temp:5", { summary: "正在核对侧栏渲染与临时分组" }), 30),
     );
-    expect(partial.startsWith("执行中 · temp:5 · ")).toBe(true);
-    expect(partial.endsWith("· 待消费 1")).toBe(true);
-    expect(visibleWidth(partial)).toBeLessThanOrEqual(34);
+    expect(partial.startsWith("执行中 · temp:5 · 正在核对")).toBe(true);
+    expect(partial.endsWith("…")).toBe(true);
+    expect(visibleWidth(partial)).toBeLessThanOrEqual(30);
+
+    // 一点余量都没有：只留状态与 id，不留孤零零的省略号。
+    expect(stripTerminalSequences(tempRowText(temp("temp:5"), 18))).toBe("执行中 · temp:5");
+
+    // 任何宽度下都不出现「待消费」。
+    for (const width of [18, 24, 30, 60]) {
+      expect(tempRowText(temp("temp:5"), width)).not.toContain("待消费");
+    }
   });
 
   it("状态：在跑 → 执行中；空闲有上报 → 已完成；都没有 → 待开工", () => {
@@ -874,7 +871,7 @@ describe("侧边栏控制器", () => {
     sidebar.dispose();
   });
 
-  it("临时 worker（temp:*）单独成组：状态 · id · 摘要 / 待消费", async () => {
+  it("临时 worker（temp:*）单独成组：状态 · id · 摘要（不含待消费）", async () => {
     const root = await tempWorkspace([]);
     const registry = createRegistry();
     registry.add({
@@ -921,7 +918,7 @@ describe("侧边栏控制器", () => {
     const text = (overlays[1]?.component.render(SIDEBAR_WIDTH) ?? []).join("\n");
     expect(text).toContain(TEMP_SECTION_LABEL);
     // 有排队：待消费优先，摘要让位。
-    expect(text).toContain("执行中 · temp:5 · 待消费 1");
+    expect(text).toContain("执行中 · temp:5 · 看一下侧栏");
     // 没有排队：把列让给摘要。
     expect(text).toContain("已完成 · temp:6 · 侧栏渲染核");
     expect(text).not.toContain("待消费 0");
@@ -959,7 +956,8 @@ describe("侧边栏控制器", () => {
     const card = (detail?.component.render(DETAIL_WIDTH) ?? []).join("\n");
     expect(card).toContain("◇ temp:5 · 已完成");
     expect(card).toContain("侧栏渲染核对完毕");
-    expect(card).toContain("待消费 0");
+    // 卡片也不放待消费：诊断信息只在 orchestrator_workers 里。
+    expect(card).not.toContain("待消费");
     // Esc 只关卡片。
     expect([...listeners][0]?.("")).toEqual({ consume: true });
     expect(detail?.hidden).toBe(true);

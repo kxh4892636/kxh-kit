@@ -293,18 +293,18 @@ While a session runs Orchestrator:
   └─ 已完成 3 条 ▸
 
   └─ temp workers
-     ├─ 执行中 · temp:5 · 待消费 1
+     ├─ 执行中 · temp:5 · 看一下侧栏
      └─ 已完成 · temp:6 · 侧栏渲染核…
   ```
 
-  A row is `{状态} · {temp id} · {summary} · 待消费 N`, where the status reuses the note wording
-  (`执行中` while a job is in flight, `已完成` once it has reported, `待开工` before that) and the
-  summary is the newer of `lastInput` and `lastReport`, collapsed to one line (`尚无上报` when there is
-  neither). Width is tight — the 40-column panel leaves 30 columns under the tree prefix — so the
-  priority is: status and id first, then `待消费 N` (hidden entirely when it is 0, since a constant
-  `0` carries no information), then whatever is left goes to the summary, truncated with `…`. Clicking
-  a temp row opens the same detail card (snapshot + live stream while the job runs). The block is
-  omitted entirely when no temp worker is alive.
+  A row is `{状态} · {temp id} · {summary}`, where the status reuses the note wording (`执行中` while a
+  job is in flight, `已完成` once it has reported, `待开工` before that) and the summary is the newer of
+  `lastInput` and `lastReport`, collapsed to one line (`尚无上报` when there is neither). Only the
+  summary is truncated (`…`) when the 30 columns under the tree prefix run out — status and id stay
+  whole. The row deliberately carries **no** `待消费 N`: that queue depth is a stuck-worker diagnostic
+  and belongs to `orchestrator_workers`' output, not to the panel. Clicking a temp row opens the same
+  detail card (snapshot + live stream while the job runs). The block is omitted entirely when no temp
+  worker is alive.
 
   Group labels come from the registry entry: `worker: notes 38,42` when the worker holds specific notes
   (one row per group, so a Plan with several workers lists several groups), `worker: plan` for a

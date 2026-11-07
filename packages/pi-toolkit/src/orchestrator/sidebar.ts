@@ -43,7 +43,6 @@ import {
 } from "./detail-overlay.ts";
 import {
   findEntryByNote,
-  pendingInputs,
   planDirectoryOf,
   runningNotesOf,
   type WorkerRegistry,
@@ -209,8 +208,6 @@ export interface SidebarTemp {
   readonly status: NoteStatus;
   /** 最近一次输入或上报的摘要（一行）；没有就 `TEMP_NO_REPORT`。 */
   readonly summary: string;
-  /** 待消费输入条数。 */
-  readonly pending: number;
 }
 
 /** 临时 worker 分组标题：放在列表最下方，与 Plan 并列但一眼看得出不是 Plan。 */
@@ -230,14 +227,10 @@ export const tempStatusOf = (source: {
 }): NoteStatus => (source.running ? "in_progress" : source.hasReport ? "completed" : "pending");
 
 /**
- * 临时 worker 的行文本：`{状态中文名} · {temp id} · {摘要} · 待消费 N`。
+ * 临时 worker 的行文本：`{状态中文名} · {temp id} · {摘要}`。
  *
- * 40 列侧栏给这一行的只有 30 列（扣掉 `   └─ ` 前缀），而 `执行中 · temp:5 · ` 18 列 +
- * ` · 待消费 1` 11 列之后只剩 1 列 —— 正好放不下摘要。所以按信息量排优先级：
- *
- * 1. 状态、`temp:<id>` 永远完整（定位用）；
- * 2. `待消费 0` 没有信息量，**为 0 时整段不显示**；`> 0` 时优先于摘要（有排队才是要紧事）；
- * 3. 剩下的列全给摘要，超出补 `…`；一列都挤不出时摘要让位。
+ * 侧栏不放 `待消费 N`：那是排查卡死用的诊断信息，只留在 `orchestrator_workers` 的输出里，
+ * 不占版面。宽度不够时**只截摘要**（`…`），状态与 `temp:<id>` 保持完整。
  * @param temp - 临时条目。
  * @param maxWidth - 可用列数；省略时不截。
  * @returns 行文本，可见宽度不超过 `maxWidth`。
@@ -247,14 +240,11 @@ export const tempRowText = (
   maxWidth: number = Number.POSITIVE_INFINITY,
 ): string => {
   const head = `${noteStatusText(temp)} · ${temp.id} · `;
-  const tail = temp.pending === 0 ? "" : ` · 待消费 ${temp.pending}`;
-  const room = maxWidth - visibleWidth(head) - visibleWidth(tail);
-  if (room >= visibleWidth(temp.summary)) return `${head}${temp.summary}${tail}`;
-  if (room < 2) {
-    // 摘要一点地方都没有：宁可少一段，也不要只剩一个孤零零的省略号。
-    return tail === "" ? head.slice(0, -3) : `${head.slice(0, -3)}${tail}`;
-  }
-  return `${head}${truncateToWidth(temp.summary, room, "…")}${tail}`;
+  const room = maxWidth - visibleWidth(head);
+  if (room >= visibleWidth(temp.summary)) return `${head}${temp.summary}`;
+  // 一列都挤不出时连分隔符一起收掉，别留个孤零零的省略号。
+  if (room < 2) return head.slice(0, -3);
+  return `${head}${truncateToWidth(temp.summary, room, "…")}`;
 };
 
 /** 临时 worker 摘要的来源：最近一次输入或上报（含时刻，用来挑更新的那条）。 */
@@ -808,7 +798,6 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
             ? {}
             : { inputText: entry.lastInput.text, inputAt: entry.lastInput.at }),
         }),
-        pending: pendingInputs(entry).length,
       }));
 
   /** 临时 worker 的详情卡片：快照 + 正在执行的实时流；`×` / `Esc` 关。 */
@@ -843,7 +832,6 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
           `最近输入：${current.lastInput.kind} · ${current.lastInput.delivery} · ${current.lastInput.text}`,
         );
       }
-      body.push("", `待消费 ${pendingInputs(current).length}`);
       if (current.model !== undefined) body.push(`模型：${current.model}`);
       if (current.worktree !== undefined) body.push(`worktree：${current.worktree.name}`);
       return {
