@@ -278,6 +278,12 @@ While a session runs Orchestrator:
   200ms-throttled live stream of its text deltas and tool calls. The list itself re-reads the plans every 5s (only when the rows actually change
   is a render requested) — the stream keeps its own 200ms cadence.
 
+  Both layers are framed and visually distinct: the sidebar is a 32-column box in the `accent` colour with the
+  title `▤ Note 状态` and a 1-column/1-row gap to the terminal edges (`margin: 1`, so it occupies 34 screen
+  columns), while the detail card is framed in `warning` and headed `◇ note <id>` — neither uses the body
+  text colour, so it is obvious which layer you are looking at. The 32 is the _component_ width handed to
+  `render()`: the host adds no frame of its own, so borders and padding live inside those 32 columns.
+
   Three things were verified rather than assumed: a `nonCapturing` overlay **does** receive mouse clicks
   (hit-testing is geometric; only focus acquisition respects the flag), so the sidebar neither steals
   focus nor needs a keyboard fallback; mouse input only exists in fullscreen (alt-screen) mode, and in
@@ -330,7 +336,17 @@ and cleanup are a separate dispatch (`git merge --ff-only wt/<名字>`, then
 `git -c core.longpaths=true worktree remove` with an `rm -rf` fallback and `worktree prune`, then delete the
 branch) — `abort` and timeouts never delete a worktree. Each worker
 records its most recent input (`WorkerEntry.lastInput`: kind, delivery, summary, time), which
-`orchestrator_workers` prints per line next to the start time and the last report. `pass` / `rework` / `answer` with a `note` route to the group
+`orchestrator_workers` prints per line next to the start time and the last report. Every delivery also lands in
+a 20-entry ledger (`WorkerEntry.inputLog`), so the list separates **still pending** from **already consumed**:
+`输入 N 次` stays a cumulative counter (it only grows), while `待消费 N（最老 X）` is the queue.
+Consumption is inferred from session events, not from the model: `queue_update` reports the follow-up / steering
+queues, and a shrinking queue means the host spliced that message into the running turn — exact, because both
+queues are FIFO, so the oldest unconsumed record of that branch is the one consumed. An idle delivery
+(`prompt` / degenerate `steer`) is consumed at `agent_start`. If a session never emits `queue_update` (older
+session object, or no `subscribe`), the ledger degrades to "one `agent_start` consumes the oldest unconsumed
+record", which is an **approximation** — it keeps the count right but cannot tell which input was consumed.
+`待消费` older than a fixed 10 minutes (`INPUT_STUCK_MS`, independent of `workerTimeoutMs`) adds
+`⚠ 可能卡住`. `pass` / `rework` / `answer` with a `note` route to the group
 that owns it; a note no group owns is an error, never a guess. `notes.json` writes are serialized per path
 inside the process (workers and the orchestrator share one pi process); two pi instances writing the same
 plan are out of scope. The turn's terminal state is the enqueued input's promise

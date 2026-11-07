@@ -22,6 +22,7 @@ import type { ExtensionContext, Theme } from "@earendil-works/pi-coding-agent";
 import {
   matchesKey,
   truncateToWidth,
+  visibleWidth,
   type Component,
   type OverlayHandle,
   type TUI,
@@ -59,8 +60,12 @@ export const ICON_OPEN = "▤";
 export const ICON_CLOSED = "▥";
 /** 图标 overlay 宽度。 */
 export const ICON_WIDTH = 3;
-/** 列表顶部的固定行数：汇总 + 空行；鼠标 `y` 减去它才是行下标。 */
+/** 列表顶部的固定行数：上边框（含标题）+ 汇总行；鼠标 `y` 减去它才是行下标。 */
 export const SIDEBAR_HEADER_ROWS = 2;
+/** 侧栏外框标题：与详情卡片的 `◇ note …` 一眼区分开。 */
+export const SIDEBAR_TITLE = "▤ Note 状态";
+/** 侧栏外框留白：overlay 的四边 margin（列/行各 1），不贴终端边缘。 */
+export const SIDEBAR_MARGIN = 1;
 /** 折叠行文案里的“已完成”前缀。 */
 export const COMPLETED_LABEL = "已完成";
 
@@ -158,7 +163,7 @@ export const sidebarTotals = (plans: readonly SidebarPlan[]): SidebarTotals => {
 /** 汇总行文案。 */
 export const headerText = (totals: SidebarTotals): string => {
   const blocked = totals.blocked === 0 ? "" : ` · ${totals.blocked} 阻塞`;
-  return `${ICON_OPEN} ${totals.running} 执行 · ${totals.waiting} 待确认${blocked}`;
+  return `${totals.running} 执行 · ${totals.waiting} 待确认${blocked} · ${totals.notes} 条`;
 };
 
 const noteRow = (plan: SidebarPlan, note: SidebarNote): SidebarRow => ({
@@ -239,9 +244,25 @@ export const renderSidebarLines = (
   width: number,
   theme: Theme,
 ): readonly string[] => {
-  const lines = [truncateToWidth(theme.bold(theme.fg("accent", view.header)), width), ""];
-  for (const row of view.rows) lines.push(renderRow(row, width, theme));
+  const boxWidth = Math.max(8, width);
+  const innerWidth = boxWidth - 2;
+  const textWidth = Math.max(1, innerWidth - 2);
+  const border = (text: string): string => theme.fg("accent", text);
+  const title = ` ${SIDEBAR_TITLE} `;
+  const fill = "─".repeat(Math.max(0, innerWidth - visibleWidth(title)));
+  const inner = (text: string): string => border("│") + ` ${padTo(text, textWidth)} ` + border("│");
+  const lines: string[] = [border(`┌${title}${fill}┐`)];
+  lines.push(inner(theme.bold(theme.fg("accent", view.header))));
+  for (const row of view.rows) lines.push(inner(renderRow(row, textWidth, theme)));
+  lines.push(border(`└${"─".repeat(innerWidth)}┘`));
   return lines;
+};
+
+/** 按可见宽度补空格到 `width` 列（中英混排也对齐右竖线）。 */
+const padTo = (text: string, width: number): string => {
+  const clipped = truncateToWidth(text, width, "");
+  const gap = width - visibleWidth(clipped);
+  return gap > 0 ? `${clipped}${" ".repeat(gap)}` : clipped;
 };
 
 /** 鼠标事件里属于“点了一下”的那类；其余返回 false。 */
@@ -370,7 +391,7 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
       }
       body.push("", `Plan: ${planRef}`);
       return {
-        heading: `note ${current.id} · ${noteStatusLabel(current)}`,
+        heading: `◇ note ${current.id} · ${noteStatusLabel(current)}`,
         body,
         live: feed?.lines() ?? [],
         running: current.running,
@@ -440,7 +461,8 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
         anchor: "right-center",
         width: SIDEBAR_WIDTH,
         maxHeight: "100%",
-        margin: 0,
+        // 四周各留 1 列/1 行：不贴终端边缘（窄终端本来整块隐藏，不受影响）。
+        margin: SIDEBAR_MARGIN,
         nonCapturing: true,
         visible: (width) => {
           lastColumns = width;

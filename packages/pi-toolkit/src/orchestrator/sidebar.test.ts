@@ -17,8 +17,10 @@ import {
   noteStatusLabel,
   renderSidebarLines,
   SIDEBAR_HEADER_ROWS,
+  SIDEBAR_MARGIN,
   SIDEBAR_MIN_COLUMNS,
   SIDEBAR_REFRESH_MS,
+  SIDEBAR_TITLE,
   SIDEBAR_WIDTH,
   SIDEBAR_WIDGET_KEY,
   shortPlanName,
@@ -194,14 +196,22 @@ describe("侧边栏列表", () => {
     expect(shortPlanName("2026-11-07-pi多plan编排")).toBe("pi多plan编排");
   });
 
-  it("渲染行与 rows 一一对应，且每行不超 32 列", () => {
+  it("外框 + 行与 rows 一一对应，且每行不超 32 列", () => {
     const view = buildSidebarView(demoPlans());
     const lines = renderSidebarLines(view, SIDEBAR_WIDTH, fakeTheme as never);
-    expect(lines).toHaveLength(SIDEBAR_HEADER_ROWS + view.rows.length);
-    expect(lines[0]).toContain(ICON_OPEN);
+    // 上边框（含标题）+ 汇总行 + rows + 下边框
+    expect(lines).toHaveLength(SIDEBAR_HEADER_ROWS + view.rows.length + 1);
+    expect(lines[0]).toContain(SIDEBAR_TITLE);
+    expect(lines[0]?.startsWith("┌")).toBe(true);
+    expect(lines.at(-1)?.startsWith("└")).toBe(true);
     for (const line of lines) expect(visibleWidth(line)).toBeLessThanOrEqual(SIDEBAR_WIDTH);
+    // 每行都被左右竖线包住（宽度对齐）
+    for (const line of lines.slice(1, -1)) {
+      expect(line.startsWith("│")).toBe(true);
+      expect(line.endsWith("│")).toBe(true);
+    }
     // 第 i 行（0 起）的文本就是 rows[i]
-    expect(lines[SIDEBAR_HEADER_ROWS]?.trimEnd()).toContain("▾ demo");
+    expect(lines[SIDEBAR_HEADER_ROWS]?.replaceAll("│", "").trim()).toContain("▾ demo");
   });
 });
 
@@ -319,7 +329,8 @@ describe("侧边栏控制器", () => {
       anchor: "right-center",
       width: SIDEBAR_WIDTH,
       maxHeight: "100%",
-      margin: 0,
+      // 四周各留 1 列/1 行：32 是组件内容宽，屏幕上占 34 列。
+      margin: SIDEBAR_MARGIN,
       nonCapturing: true,
     });
     await wait(20);

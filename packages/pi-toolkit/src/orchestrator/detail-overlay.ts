@@ -241,16 +241,24 @@ const padTo = (text: string, width: number): string => {
  * @param area - 可用列数与行数。
  * @returns 逐行文本与卡片矩形。
  */
-export const frameDetailCard = (body: readonly string[], area: DetailArea): DetailFrame => {
+export const frameDetailCard = (
+  body: readonly string[],
+  area: DetailArea,
+  /**
+   * 边框上色回调（默认原样）：调用方传 `theme.fg("warning", …)` 等，
+   * 让详情卡片的框与侧栏外框（`accent`）一眼分得开。
+   */
+  border: (text: string) => string = (text) => text,
+): DetailFrame => {
   const columns = Math.max(8, area.columns);
   const rows = Math.max(3, area.rows);
   const cardWidth = Math.max(20, Math.min(DETAIL_WIDTH, columns - DETAIL_CARD_MARGIN * 2));
   const contentWidth = Math.max(1, cardWidth - 4);
   const innerWidth = cardWidth - 2;
   const framed = [
-    `┌${"─".repeat(innerWidth)}┐`,
-    ...body.map((line) => `│ ${padTo(line, contentWidth)} │`),
-    `└${"─".repeat(innerWidth)}┘`,
+    border(`┌${"─".repeat(innerWidth)}┐`),
+    ...body.map((line) => `${border("│")} ${padTo(line, contentWidth)} ${border("│")}`),
+    border(`└${"─".repeat(innerWidth)}┘`),
   ].slice(0, rows);
   const top = Math.max(0, Math.floor((rows - framed.length) / 2));
   const left = Math.max(0, Math.floor((columns - cardWidth) / 2));
@@ -284,7 +292,7 @@ export const createDetailComponent = (
       const columns = Math.max(8, area.columns);
       const cardWidth = Math.max(20, Math.min(DETAIL_WIDTH, columns - DETAIL_CARD_MARGIN * 2));
       const body = renderDetailLines(options.content(), Math.max(1, cardWidth - 4), theme);
-      const frame = frameDetailCard(body, area);
+      const frame = frameDetailCard(body, area, (text) => theme.fg("warning", text));
       card = frame.card;
       return [...frame.lines];
     },

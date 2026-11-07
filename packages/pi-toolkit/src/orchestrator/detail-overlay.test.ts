@@ -189,6 +189,16 @@ describe("frameDetailCard", () => {
     for (const line of frame.lines) expect(visibleWidth(line)).toBeLessThanOrEqual(60);
   });
 
+  it("边框可上色：只有框线被包色，内容不受影响", () => {
+    const frame = frameDetailCard(["内容"], { columns: 40, rows: 8 }, (text) => `<w>${text}</w>`);
+    const text = frame.lines.join("\n");
+    expect(text).toContain("<w>┌");
+    expect(text).toContain("<w>│");
+    expect(text).toContain("<w>└");
+    // 内容行不被上色包住（只被竖线包住）。
+    expect(text).toContain("<w>│</w> 内容");
+  });
+
   it("窄终端时卡片跟着收窄，仍然放得下", () => {
     const frame = frameDetailCard(["x"], { columns: 30, rows: 6 });
     expect(frame.card.right - frame.card.left).toBe(30 - DETAIL_CARD_MARGIN * 2);
@@ -209,6 +219,23 @@ describe("createDetailComponent", () => {
     });
     return { component, closed: () => closed, lines: component.render(area.columns) };
   };
+
+  it("详情卡片外框用 warning 色（与侧栏 accent 不同）", () => {
+    const component = createDetailComponent(
+      {
+        fg: (color: string, text: string) => `<${color}>${text}</>`,
+        bold: (text: string) => text,
+      } as never,
+      {
+        content: () => ({ heading: "◇ note 01", body: ["摘要"], live: [], running: false }),
+        onClose: () => undefined,
+        area: () => area,
+      },
+    );
+    const text = component.render(area.columns).join("\n");
+    expect(text).toContain("<warning>┌");
+    expect(text).toContain("<warning>│");
+  });
 
   it("Esc 关闭，其它键不关", () => {
     const { component, closed, lines } = setup();
