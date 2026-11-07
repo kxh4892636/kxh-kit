@@ -138,23 +138,6 @@ describe("loadConfig", () => {
     }
   });
 
-  it("keeps pre-0.3 timeout and fetch-cap keys working as fallbacks", () => {
-    const agentDir = tempDir();
-    writeConfig(agentDir, { timeoutMs: 1_500, fetchMaxContentChars: 4_000 });
-    const { config } = loadConfig({ cwd: tempDir(), agentDir, env: {} });
-    expect(config.searchTimeoutMs).toBe(1_500);
-    expect(config.fetchTimeoutMs).toBe(1_500);
-    expect(config.fetchMaxOutputChars).toBe(4_000);
-  });
-
-  it("prefers the split timeout keys over the legacy timeoutMs", () => {
-    const agentDir = tempDir();
-    writeConfig(agentDir, { timeoutMs: 1_500, searchTimeoutMs: 2_500, fetchTimeoutMs: 3_500 });
-    const { config } = loadConfig({ cwd: tempDir(), agentDir, env: {} });
-    expect(config.searchTimeoutMs).toBe(2_500);
-    expect(config.fetchTimeoutMs).toBe(3_500);
-  });
-
   it("ignores fields from the retired Anthropic client", () => {
     const cwd = tempDir();
     const agentDir = tempDir();

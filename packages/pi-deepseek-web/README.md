@@ -63,8 +63,7 @@ The API key resolution order is `apiKey` > the environment variable named by `ap
 `baseURL` must be an absolute `http(s)` URL without query/fragment. The legacy Anthropic endpoint
 (`.../anthropic/v1`) is rejected with an actionable error; point `baseURL` at the API root instead.
 
-Legacy keys are still honored as fallbacks: `timeoutMs` feeds both timeouts, and
-`fetchMaxContentChars` feeds `fetchMaxOutputChars`. New keys win when both are present.
+Unknown keys are ignored so a stale field never breaks a launch.
 
 ## Search behaviour
 
@@ -121,19 +120,6 @@ The DeepSeek Fetch API reports neither the target status nor a title, so a succe
 HTTP 200 and the requested URL. Model text is headed by `Fetched <url> (HTTP 200)` plus the
 untrusted-content notice; when the complete output would exceed `fetchMaxOutputChars`, it is cut and
 ends with `(Content truncated. Fetch a more specific URL or section for the full text.)`.
-
-## Migrating from 0.2.x
-
-- `web_search` now takes `queries: string[]` instead of `query: string`. `count`, `ori_question`,
-  `localization` and `need_content` are no longer model arguments; they are deployment policy in
-  the JSON config (or, for `ori_question`, injected from the session).
-- `web_search` `details` changed from `{ count, results }` to `{ content?, sources, truncated }`,
-  with sources projected to `{ url, title?, snippet?, summary?, publishedAt? }`.
-- `web_fetch` `details` changed from `{ url, title?, content, truncated }` to
-  `{ url, statusCode, body, truncated }`; the response title is no longer returned.
-- Config keys `timeoutMs` and `fetchMaxContentChars` still work as fallbacks for
-  `searchTimeoutMs`/`fetchTimeoutMs` and `fetchMaxOutputChars`.
-- Remove `model`, `apiVersion`, `maxTokens` and `maxUses`; they are no longer read.
 
 ## API limits and billing
 

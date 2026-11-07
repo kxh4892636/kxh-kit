@@ -47,7 +47,7 @@ _避免使用_：Anthropic web_search server tool、直连抓取、MCP 工具、
 _避免使用_：模型参数、提示词约束、硬编码常量
 
 **插件配置**：
-`~/.pi/agent/pi-deepseek-web.json`（项目 `.pi/` 可覆盖，`PI_DEEPSEEK_WEB_CONFIG` 指定绝对路径最高优先）承载 DeepSeek 凭据、官方 API 根地址与全部部署策略的独立配置文件；旧键 `timeoutMs`、`fetchMaxContentChars` 作为回退仍被接受。
+`~/.pi/agent/pi-deepseek-web.json`（项目 `.pi/` 可覆盖，`PI_DEEPSEEK_WEB_CONFIG` 指定绝对路径最高优先）承载 DeepSeek 凭据、官方 API 根地址与全部部署策略的独立配置文件。
 _避免使用_：settings、环境变量、dotenv
 
 **凭据回退**：

@@ -139,8 +139,6 @@ export const loadConfig = (options: LoadConfigOptions): LoadedConfig => {
   const apiKeyEnv = nonEmptyString(merged["apiKeyEnv"]) ?? DEFAULT_API_KEY_ENV;
   const literalKey = nonEmptyString(merged["apiKey"]);
   const envKey = nonEmptyString(env[apiKeyEnv]);
-  // `timeoutMs` is the pre-0.3 single budget; it still feeds both tool budgets.
-  const legacyTimeout = merged["timeoutMs"];
   const config: DeepSeekWebConfig = {
     apiKey: literalKey ?? envKey,
     apiKeyEnv,
@@ -172,20 +170,19 @@ export const loadConfig = (options: LoadConfigOptions): LoadedConfig => {
       paths,
     ),
     searchTimeoutMs: positiveInteger(
-      merged["searchTimeoutMs"] ?? legacyTimeout,
+      merged["searchTimeoutMs"],
       DEFAULT_TIMEOUT_MS,
       "searchTimeoutMs",
       paths,
     ),
     fetchTimeoutMs: positiveInteger(
-      merged["fetchTimeoutMs"] ?? legacyTimeout,
+      merged["fetchTimeoutMs"],
       DEFAULT_TIMEOUT_MS,
       "fetchTimeoutMs",
       paths,
     ),
-    // `fetchMaxContentChars` is the pre-0.3 name; still honored as a fallback.
     fetchMaxOutputChars: positiveInteger(
-      merged["fetchMaxOutputChars"] ?? merged["fetchMaxContentChars"],
+      merged["fetchMaxOutputChars"],
       DEFAULT_FETCH_MAX_OUTPUT_CHARS,
       "fetchMaxOutputChars",
       paths,
