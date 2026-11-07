@@ -104,6 +104,17 @@ export interface WorkerEntry {
   readonly sessionPath?: string;
   /** 该 worker 的模型名，仅用于展示。 */
   readonly model?: string;
+  /**
+   * 这个 worker 跑在哪个 worktree 里（没开 worktree 时不填）。
+   *
+   * 只做展示与回收线索：abort / 超时 **不删** worktree（现场留给合并或人工看），
+   * 删除只发生在合并成功后的显式回收。
+   */
+  readonly worktree?: {
+    readonly name: string;
+    readonly directory: string;
+    readonly branch: string;
+  };
   lastReport?: WorkerReport;
   /** 最近一次投递给它的输入（摘要 + 时刻），供编排方判断该不该插话。 */
   lastInput?: LastInput;

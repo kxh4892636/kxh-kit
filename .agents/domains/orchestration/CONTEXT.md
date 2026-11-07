@@ -65,6 +65,10 @@ _Avoid_: subagent、子任务、第二层 worker、worktree 分身
 `workerTimeoutMs` 衡量的是「连续无进展」而非单轮总时长：worker 每次 `orchestrator_report` 即续期（实际实现只有 `renew` 一处登记 watchdog），到点 `abort` → 摘除句柄 → `dispose` → 注入一条 `orchestrator-worker-timeout`；只提醒一次，不代写 note 状态，下次派工是干净的新会话。
 _Avoid_: 前台等待、轮询 jobId、按任务总量计时的超时
 
+**worktree 派工**:
+`orchestrator_dispatch` 带 `worktree: true`(自动命名 `note-<id>` / `grp-<id-id>` / `plan`)或一个名字时，worker 的 cwd 变成 `.worktrees/<名字>`、分支 `wt/<名字>`，派工前在该目录各自 `pnpm install`（装不上就中止派工，worker 不许跳过测试）。Plan 仍锚定主工作区绝对路径，`notes.json` 只有主工作区一份。worker 完成前自己 rebase 到主分支最新提交并在 report 里写明可 `--ff-only` 合并；合并由编排方派工执行，成功后删 worktree 与分支，abort / 超时**不删**（现场留给合并或人工看）。
+_Avoid_: 真左右分栏式隔离、共享 node_modules、worker 自行删 worktree、rebase 冲突时硬推
+
 **刹车**:
 不设并发上限时的替代手段：`orchestrator_workers` 列 live 清单、按 Plan 或全部中止、退出时自动收尾。
 _Avoid_: 限流、配额

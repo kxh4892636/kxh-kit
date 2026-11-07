@@ -60,6 +60,14 @@ import {
 import { activePlans, listPlans, planRefOf, resolvePlan, type PlanRef } from "./plan.ts";
 import { pickMode } from "./selector.ts";
 import { createSidebar } from "./sidebar.ts";
+import {
+  autoWorktreeName,
+  DEFAULT_WORKTREE_HOOKS,
+  sanitizeWorktreeName,
+  type InstallOutcome,
+  type WorktreeHooks,
+  type WorktreeInfo,
+} from "./worktree.ts";
 import { loadDocument, NOTES_FILE } from "./store.ts";
 import { createCheckTool } from "./tools/check.ts";
 import { createReadTool } from "./tools/read.ts";
@@ -167,6 +175,8 @@ export interface OrchestratorDeps {
   readonly spawn?: (options: SpawnWorkerOptions) => Promise<SpawnedWorker>;
   /** 状态目录（崩溃凭据、worker 会话索引）；缺省 `<agentDir>/orchestrator`，测试可覆盖。 */
   readonly stateDir?: () => string;
+  /** worktree 操作；缺省真的跑 git + pnpm，测试可整体替换。 */
+  readonly worktree?: WorktreeHooks;
 }
 
 /** 返回给入口的句柄：配置加载完成后启动，切换开关后同步。 */
@@ -295,11 +305,13 @@ const createDispatchTool = (
     name: "orchestrator_dispatch",
     label: "Dispatch",
     description:
-      "把一项工作交给 worker：给了 plan + notes 就按组分派（一组无依赖 note 一个 worker），只给 plan 走 Plan 级派工，都没给则起临时 worker（无 Plan、只读 + report、跑完即弃）。kind 为 message（默认，派活或追加）、pass（放行某条 note 置 completed）、rework、answer、fact。delivery 为 queue（默认，排到 worker 当前轮之后）或 steer（插入当前运行，下一次 LLM 调用前生效）。",
+      "把一项工作交给 worker：给了 plan + notes 就按组分派（一组无依赖 note 一个 worker），只给 plan 走 Plan 级派工，都没给则起临时 worker（无 Plan、只读 + report、跑完即弃）。worktree 为 true（自动命名）或一个名字时，先把 worker 放进 .worktrees/<名字>（分支 wt/<名字>）并在那里 pnpm install，隔离并行改动。kind 为 message（默认，派活或追加）、pass（放行某条 note 置 completed）、rework、answer、fact。delivery 为 queue（默认，排到 worker 当前轮之后）或 steer（插入当前运行，下一次 LLM 调用前生效）。",
     promptSnippet:
-      "Dispatch work to a plan's worker group, a plan-wide worker, or a temporary worker.",
+      "Dispatch work to a plan's worker group, a plan-wide worker, a temporary worker, optionally inside a git worktree.",
     promptGuidelines: [
       "一组无依赖 note 一个 worker：用 notes 显式给出这一组；组内不得互相 blocked_by。",
+      "需要真隔离（两个 worker 可能改同一批文件）时给 worktree: true 或一个名字；worker 的 cwd 就是 .worktrees/<名字>，Plan 仍锚定主工作区。",
+      "worktree 的 worker 完成前必须自己 rebase 到主分支最新提交，并在 report 里写明可以 --ff-only 合并；rebase 冲突就报 blocked 并保留现场。合并成功后派一条回收指令（git merge --ff-only + 删 worktree 与分支）。",
       "pass / rework / answer 带 note 时路由到包含它的组；找不到就报错，不要自己猜。",
       "默认 delivery=queue，不打断 worker 当前这轮；只有方向错了或要叫停某步才用 steer（插话），硬停整个 worker 用 orchestrator_workers 的 abort。",
       "用户的明确决定才可下发 pass / rework；不要把推断当放行。",
@@ -332,6 +344,11 @@ const createDispatchTool = (
             "组派工：这一组 note（互相不得有 blocked_by 依赖）；省略则走 Plan 级派工（老行为）",
         },
         message: { type: "string", description: "派活正文或追加说明" },
+        worktree: {
+          type: ["boolean", "string"],
+          description:
+            "true → 自动命名（单 note 为 note-<id>，组为 grp-<id-id>，Plan 级为 plan）；给名字 → 复用或新建 .worktrees/<名字>（分支 wt/<名字>，基线 HEAD），并先在该目录 pnpm install。仅 Plan 派工可用。",
+        },
         worker: {
           type: "string",
           description:
@@ -389,6 +406,44 @@ const createDispatchTool = (
         await assertParallelGroup(plan, groupNotes, runtime);
       }
 
+      // worktree：先把目录与依赖备好，再起 worker；装不上就中止派工（不许静默跳测试）。
+      const requestedWorktree = args["worktree"];
+      if (
+        requestedWorktree !== undefined &&
+        typeof requestedWorktree !== "boolean" &&
+        typeof requestedWorktree !== "string"
+      ) {
+        throw new Error("worktree 必须是 true 或一个名字");
+      }
+      let worktree: WorktreeInfo | undefined;
+      /** 本次是否新建（复用已有 worktree 时不再装依赖）。 */
+      let worktreeCreated = false;
+      let worktreeInstall: InstallOutcome | undefined;
+      if (requestedWorktree !== undefined && requestedWorktree !== false) {
+        if (plan === undefined) {
+          throw new Error(
+            "worktree 只用于 Plan 派工：临时 worker 不绑 Plan，没有可锚定的 Plan 目录",
+          );
+        }
+        const hooks = deps.worktree ?? DEFAULT_WORKTREE_HOOKS;
+        const name =
+          requestedWorktree === true
+            ? autoWorktreeName(groupNotes)
+            : sanitizeWorktreeName(requestedWorktree);
+        worktree = await hooks.ensure({ workspace, name });
+        worktreeCreated = worktree.created;
+        // 复用已有 worktree 时依赖已装完（上次派工装的），不重复花 13s。
+        worktreeInstall = worktree.created
+          ? await hooks.install(worktree.directory)
+          : { ok: true, command: "（复用已有 worktree，跳过 install）", durationMs: 0 };
+        if (!worktreeInstall.ok) {
+          throw new Error(
+            `worktree ${name} 的依赖安装失败（${worktreeInstall.command}，${worktreeInstall.durationMs}ms）：${worktreeInstall.reason ?? "未知原因"}。` +
+              `worker 在那里跑不了测试，已中止派工；工作区保留在 ${worktree.directory}，可手工修后重派或删掉。`,
+          );
+        }
+      }
+
       // pass / rework / answer 只看 note 落在哪个组；Plan 已经分组却找不到匹配时直接报错。
       const routeByNote =
         plan !== undefined && note !== undefined && kind !== "message"
@@ -410,7 +465,8 @@ const createDispatchTool = (
       if (entry === undefined) {
         const released = new Set<string>();
         const base = {
-          cwd: workspace,
+          // 有 worktree 时 worker 的 cwd 就是隔离目录；Plan 仍用主工作区的绝对路径（`lockedPlan`）。
+          cwd: worktree?.directory ?? workspace,
           settings: deps.settings,
           report: onReport,
           released,
@@ -428,6 +484,15 @@ const createDispatchTool = (
           ...(plan === undefined ? { kind: "temp" as const } : {}),
           ...(groupNotes.length === 0 ? {} : { notes: groupNotes }),
           ...(spawned.sessionPath === undefined ? {} : { sessionPath: spawned.sessionPath }),
+          ...(worktree === undefined
+            ? {}
+            : {
+                worktree: {
+                  name: worktree.name,
+                  directory: worktree.directory,
+                  branch: worktree.branch,
+                },
+              }),
           startedAt: Date.now(),
           released,
           session: spawned.session,
@@ -482,6 +547,10 @@ const createDispatchTool = (
             : deliveryMode === "steer"
               ? "worker 空闲，插话退化为直接开新一轮。"
               : "worker 已开始处理。";
+      const worktreeLine =
+        target.worktree === undefined
+          ? undefined
+          : `worktree: ${target.worktree.name}（${target.worktree.branch}）· ${worktreeCreated ? "新建" : "复用"}${worktreeInstall === undefined ? "" : ` · 依赖 ${worktreeInstall.durationMs}ms`}`;
       return {
         content: textBlocks(
           [
@@ -490,6 +559,12 @@ const createDispatchTool = (
             `delivery: ${deliveryMode} → ${delivery.delivered}`,
             deliverLine,
             ...(sessionLine === undefined ? [] : [sessionLine]),
+            ...(worktreeLine === undefined ? [] : [worktreeLine]),
+            ...(target.worktree === undefined
+              ? []
+              : [
+                  `worker 的 cwd 是 ${target.worktree.directory}；Plan 仍锚定主工作区。完成前先 rebase 到主分支最新提交，再 report 里写“可 --ff-only 合并”。`,
+                ]),
             "完成后会有 report 推回；用 orchestrator_workers 查 live 清单。",
           ].join("\n"),
         ),
@@ -505,6 +580,14 @@ const createDispatchTool = (
           ...(plan === undefined ? { temp: true, worker: key } : {}),
           ...(target.sessionPath === undefined ? {} : { sessionPath: target.sessionPath }),
           ...(note === undefined ? {} : { note }),
+          ...(target.worktree === undefined
+            ? {}
+            : {
+                worktree: target.worktree.name,
+                branch: target.worktree.branch,
+                worktreePath: target.worktree.directory,
+              }),
+          ...(worktreeInstall === undefined ? {} : { worktreeInstall }),
         },
       };
     },
@@ -577,8 +660,12 @@ const createWorkersTool = (
           : `${formatAgo(entry.lastInput.at, now)} [${entry.lastInput.kind}/${entry.lastInput.delivery}] ${entry.lastInput.text}`;
       const unsent = outbox.countFor(entry.planRef);
       const unsentMark = unsent === 0 ? "" : ` · 未送达 ${unsent} 条`;
+      const worktreeMark =
+        entry.worktree === undefined
+          ? ""
+          : ` · worktree ${entry.worktree.name}（${entry.worktree.branch}）`;
       lines.push(
-        `  ${entry.planRef} · ${group}${entry.kind === "temp" ? "temp" : "plan"} · ${minutes} 分钟 · 输入 ${entry.inputs} 次 · ${report} · 最近输入 ${lastInput}${unsentMark}`,
+        `  ${entry.planRef} · ${group}${entry.kind === "temp" ? "temp" : "plan"} · ${minutes} 分钟 · 输入 ${entry.inputs} 次 · ${report} · 最近输入 ${lastInput}${worktreeMark}${unsentMark}`,
       );
     }
     const unsent = outbox.count();

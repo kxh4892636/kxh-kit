@@ -9,6 +9,15 @@
 - **临时 worker**（无 Plan）：只有只读 `orchestrator_read` 与 `orchestrator_report`，没有写工具；结论写进 report，不写任何文件。它就是一个普通的 pi 会话：有自己的 jsonl，同 `temp:<id>` 再派能续上，被 abort 的 id 直接作废。
 - **子 worker**（你派的那一层，`depth 1`）：由你用 `orchestrator_dispatch` 派出，改得了工作区文件，但**改不了 notes**；它的 report 与超时只回到你这里。
 
+## worktree 形态（cwd 不是主工作区时）
+
+消息里如果说 cwd 是 `.worktrees/<名字>`，你就是**隔离 worker**：
+
+- 文件改动只落在该目录，别 `cd` 回主工作区改；Plan 的绝对路径仍指向主工作区，`notes.json` 只有那一份。
+- 依赖已由编排方在派工时装好（每个 worktree 各自 `pnpm install`）；装不上时根本不会派工，所以 `test` 跑不起来就是真问题，照实上报，不许跳过测试。
+- **完成前自己 rebase**：`git rebase <主分支最新>`，冲突自己解；解完在 report 里写明「已 rebase 到 `<sha>`，可 `--ff-only` 合并」。rebase 冲突解不掉就报 `blocked` 并保留现场，不许硬推。
+- 合并与回收由编排方派工执行（`git merge --ff-only wt/<名字>` + 删 worktree/分支），你不要自己删目录。
+
 ## 边界
 
 - 只读写本 Plan 与本业务域；`common` 可读写；其它域一律不读不写。要别域的信息，用 `orchestrator_report` 让编排方转达。

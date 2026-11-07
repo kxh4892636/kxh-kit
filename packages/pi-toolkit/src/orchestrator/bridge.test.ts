@@ -306,6 +306,8 @@ describe("dispatch 与 workers 工具", () => {
       failSendTimes?: number;
       /** 假 spawn 报出的会话文件路径。 */
       sessionPath?: string;
+      /** worktree 操作替身（默认不传：真实 git + pnpm）。 */
+      worktree?: import("./worktree.ts").WorktreeHooks;
     } = {},
   ) => {
     const local: ToolkitSettings =
@@ -346,6 +348,8 @@ describe("dispatch 与 workers 工具", () => {
     const spawns: FakeSession[] = [];
     const reports: Array<(report: WorkerReport) => void> = [];
     const spawnOptions: Array<{ plan?: unknown; temp?: string; sessionKey?: string }> = [];
+    /** 每次 spawn 的 cwd（验 worktree 是否真的换了目录）。 */
+    const spawnCwds: string[] = [];
     // 状态目录（worker 会话索引 / 作废登记）落在临时目录：测试不能写真实的 ~/.pi。
     const fs = await import("node:fs/promises");
     const os = await import("node:os");
@@ -357,7 +361,9 @@ describe("dispatch 与 workers 工具", () => {
       settings: () => local,
       setAlways: () => undefined,
       stateDir: options.stateDir ?? (() => stateRoot),
+      ...(options.worktree === undefined ? {} : { worktree: options.worktree }),
       spawn: async (spawnOptionsInput) => {
+        spawnCwds.push(spawnOptionsInput.cwd);
         spawnOptions.push({
           ...(spawnOptionsInput.plan === undefined ? {} : { plan: spawnOptionsInput.plan }),
           ...(spawnOptionsInput.temp === undefined ? {} : { temp: spawnOptionsInput.temp }),
@@ -377,7 +383,7 @@ describe("dispatch 与 workers 工具", () => {
         };
       },
     });
-    return { tools, messages, spawns, reports, spawnOptions, handlers, stateRoot };
+    return { tools, messages, spawns, reports, spawnOptions, spawnCwds, handlers, stateRoot };
   };
 
   const textOf = (result: unknown): string =>
@@ -438,6 +444,120 @@ describe("dispatch 与 workers 工具", () => {
     );
     return { root, ref: `etf/active/${name}` };
   };
+
+  /** worktree 替身：记录 install / remove 调用，不碰真 git 与 pnpm。 */
+  const fakeWorktree = (options: { created?: boolean; installOk?: boolean } = {}) => {
+    const installed: string[] = [];
+    const removed: string[] = [];
+    const hooks: import("./worktree.ts").WorktreeHooks = {
+      ensure: async ({ workspace, name }) => ({
+        name,
+        directory: `${workspace}/.worktrees/${name}`,
+        branch: `wt/${name}`,
+        created: options.created ?? true,
+      }),
+      install: async (directory) => {
+        installed.push(directory);
+        return options.installOk === false
+          ? {
+              ok: false,
+              command: "pnpm install --prefer-offline",
+              durationMs: 1200,
+              reason: "ERR_PNPM_WORKSPACE_PKG_NOT_FOUND",
+            }
+          : { ok: true, command: "pnpm install --prefer-offline", durationMs: 13_500 };
+      },
+      remove: async ({ name }) => {
+        removed.push(name);
+        return { removed: true, branchDeleted: true, leftover: false, note: "已清理" };
+      },
+    };
+    return { hooks, installed, removed };
+  };
+
+  it("worktree: true 把 worker 放进 .worktrees 并先装依赖", async () => {
+    const worktree = fakeWorktree();
+    const { tools, spawnCwds } = await setup({ worktree: worktree.hooks });
+    const { root, ref } = await planWithNotes([note("01")]);
+    const text = textOf(
+      await tools
+        .get("orchestrator_dispatch")
+        ?.execute(
+          "id",
+          { plan: ref, notes: ["01"], worktree: true, message: "做 01" },
+          undefined,
+          undefined,
+          ctx(root),
+        ),
+    );
+    expect(text).toContain("worktree: note-01（wt/note-01）· 新建 · 依赖 13500ms");
+    expect(text).toContain(`worker 的 cwd 是 ${root}/.worktrees/note-01`);
+    expect(worktree.installed).toEqual([`${root}/.worktrees/note-01`]);
+    // worker 的 cwd 真的是 worktree，Plan 仍是主工作区的绝对路径（由 lockedPlan/plan 决定）。
+    expect(spawnCwds).toEqual([`${root}/.worktrees/note-01`]);
+    // workers 清单展示 worktree 与分支。
+    const list = textOf(
+      await tools
+        .get("orchestrator_workers")
+        ?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
+    );
+    expect(list).toContain("worktree note-01（wt/note-01）");
+    // abort 不删 worktree：现场留给合并或人工看。
+    await tools
+      .get("orchestrator_workers")
+      ?.execute("id", { op: "abort" }, undefined, undefined, ctx(root));
+    expect(worktree.removed).toEqual([]);
+  });
+
+  it("复用已有 worktree 时跳过 install", async () => {
+    const worktree = fakeWorktree({ created: false });
+    const { tools } = await setup({ worktree: worktree.hooks });
+    const { root, ref } = await planWithNotes([note("02")]);
+    const text = textOf(
+      await tools
+        .get("orchestrator_dispatch")
+        ?.execute(
+          "id",
+          { plan: ref, notes: ["02"], worktree: "复用名" },
+          undefined,
+          undefined,
+          ctx(root),
+        ),
+    );
+    expect(text).toContain("worktree: 复用名（wt/复用名）· 复用");
+    expect(worktree.installed).toEqual([]);
+  });
+
+  it("依赖装不上就中止派工，并把原因说清楚", async () => {
+    const worktree = fakeWorktree({ installOk: false });
+    const { tools, spawnCwds } = await setup({ worktree: worktree.hooks });
+    const { root, ref } = await planWithNotes([note("03")]);
+    await expect(
+      tools
+        .get("orchestrator_dispatch")
+        ?.execute(
+          "id",
+          { plan: ref, notes: ["03"], worktree: true },
+          undefined,
+          undefined,
+          ctx(root),
+        ),
+    ).rejects.toThrow(/依赖安装失败.*ERR_PNPM_WORKSPACE_PKG_NOT_FOUND/u);
+    // 没有起 worker：不许静默跳过测试。
+    expect(spawnCwds).toEqual([]);
+  });
+
+  it("临时 worker 不能用 worktree", async () => {
+    const worktree = fakeWorktree();
+    const { tools } = await setup({ worktree: worktree.hooks });
+    const { root } = await planArgs();
+    await expect(
+      tools
+        .get("orchestrator_dispatch")
+        ?.execute("id", { worktree: true, message: "临时活" }, undefined, undefined, ctx(root)),
+    ).rejects.toThrow(/worktree 只用于 Plan 派工/u);
+    expect(worktree.installed).toEqual([]);
+  });
 
   it("worker 运行中 dispatch 立即返回摘要，不等整轮", async () => {
     const sessions: FakeSession[] = [];

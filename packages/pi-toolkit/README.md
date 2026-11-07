@@ -314,7 +314,19 @@ turn, while `steer` calls `session.steer()` so the new direction is in place bef
 call — use it for "wrong direction" or "don't touch that file", not for ordinary messages. `steer` on an
 idle worker has no running turn to steer into and degrades to `prompt()`; the result then reports
 `delivered: "prompt"`. `nextTurn` is never used (it is not persisted and dies with the process). There is no
-`abort` argument: to hard-stop a worker use `orchestrator_workers`'s abort and dispatch again. Each worker
+`abort` argument: to hard-stop a worker use `orchestrator_workers`'s abort and dispatch again.
+
+**Worktrees** (`worktree.ts`): `worktree: true` (auto name `note-<id>` / `grp-<id-id>` / `plan`) or a name
+puts the worker's cwd in `.worktrees/<名字>` on branch `wt/<名字>` and runs `pnpm install --prefer-offline`
+there first — one install per worktree, as measured on Windows with a warm store: worktree add ≈1.5s /
+98 MB, install ≈13.5s, `node_modules` 894 MB nominal but ≈183 MB of real disk (pnpm hardlinks its store),
+and `pnpm test` then runs in 3.8s (372 tests). A failed install aborts the dispatch with the reason instead
+of letting the worker skip tests. The plan stays anchored to the main workspace (absolute path), so
+`notes.json` still has exactly one writer. The worker must rebase onto the latest main commit and report
+"ready for `--ff-only` merge"; a conflicting rebase becomes `blocked` with the scene left intact. Merging
+and cleanup are a separate dispatch (`git merge --ff-only wt/<名字>`, then
+`git -c core.longpaths=true worktree remove` with an `rm -rf` fallback and `worktree prune`, then delete the
+branch) — `abort` and timeouts never delete a worktree. Each worker
 records its most recent input (`WorkerEntry.lastInput`: kind, delivery, summary, time), which
 `orchestrator_workers` prints per line next to the start time and the last report. `pass` / `rework` / `answer` with a `note` route to the group
 that owns it; a note no group owns is an error, never a guess. `notes.json` writes are serialized per path
