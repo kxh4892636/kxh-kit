@@ -1,6 +1,6 @@
 ---
 name: do
-description: 把一条 note 推进到可验收完成时使用; 按 do 循环走门禁,执行,验证与 evidence.
+description: 用户已放行且有可推进的 note 时使用; 逐条走门禁, 执行, 验证, 写 evidence 与检查点, 完成后看下一条.
 ---
 
 # Do
