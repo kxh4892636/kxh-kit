@@ -19,6 +19,7 @@ import {
   disposeAll,
   disposeEntry,
   entryKeyOf,
+  groupKeyOf,
   harvest,
   keyBelongsToPlan,
   planDirectoryOf,
@@ -41,12 +42,7 @@ import {
   type ProjectedWorker,
   type Projection,
 } from "./projection.ts";
-import {
-  abortedWorkerSession,
-  markWorkerSessionAborted,
-  nextTempSeq,
-  rememberWorkerSession,
-} from "./worker-sessions.ts";
+import { nextTempSeq, rememberWorkerSession } from "./worker-sessions.ts";
 import {
   buildRetryMessage,
   buildTimeoutEvidence,
@@ -83,9 +79,8 @@ import {
 import { pickMode } from "./selector.ts";
 import { createSidebar } from "./sidebar.ts";
 import {
-  autoWorktreeName,
   DEFAULT_WORKTREE_HOOKS,
-  sanitizeWorktreeName,
+  groupWorktreeName,
   type InstallOutcome,
   type MergeOutcome,
   type WorktreeHooks,
@@ -379,25 +374,72 @@ interface TimedOutWorker {
 }
 
 /**
- * worker 终态后自动合并它的 worktree（代码执行，不经模型）。
+ * 让一代 worker 收工：落 `worker.exit`、摘句柄、dispose。
+ *
+ * 两种情形用它：临时 worker 终态（`settled`），组完成后现场已回收（`merged`）——
+ * 后者的 cwd 已经不在了，继续留着句柄只会让下一次投递落在死目录里。
+ * @param input - 句柄表、账本、目标 worker 与原因。
+ */
+const retireWorker = (input: {
+  readonly registry: WorkerRegistry;
+  readonly ledgerOf: () => ReturnType<typeof openLedger>;
+  readonly entry: WorkerEntry;
+  readonly reason: string;
+}): void => {
+  const { entry } = input;
+  if (input.registry.get(entry.planDirectory) !== entry) return;
+  input.ledgerOf().append({
+    type: "worker.exit",
+    payload: { worker: entry.planDirectory, reason: input.reason },
+  });
+  input.registry.remove(entry.planDirectory);
+  void disposeEntry(entry);
+};
+
+/**
+ * 组内 note 是否全部 completed（真相在 `notes.json`）。
+ *
+ * 现场属于**组**：只有整组干完才回收，否则下一代 worker（rework / 追加 / 重派）还要用它。
+ * @param entry - 目标 worker。
+ * @param deps - 设置读取器。
+ * @returns 组内每条 note 都 completed 返回 true；读不到文档 / 没有组 / 有未完成的返回 false。
+ */
+const groupCompleted = async (entry: WorkerEntry, deps: OrchestratorDeps): Promise<boolean> => {
+  const notes = entry.notes ?? [];
+  if (entry.plan === undefined || notes.length === 0) return false;
+  try {
+    const document = await loadDocument(entry.plan.directory, deps.settings().orchestrator);
+    return notes.every(
+      (id) => document.notes.find((note) => note.id === id)?.status === "completed",
+    );
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * 组内 note 全 completed 后回收现场：`--ff-only` 合并回主工作区（代码执行，不经模型）。
  *
  * 为什么不让编排方派一条“回收指令”：合并是收工信号的最后一跳，再排一个 LLM 回合去
  * 跑两条 git 命令既慢又容易忘。这里只在主分支能 fast-forward 时合并 —— 分叉的现场
- * （目录 + 分支）一律保留，rework 和人看都还要它。
+ * （目录 + 分支）一律保留并落一条 error（`worker.merge_blocked`），等人工处理。
  *
- * 只写账本：成功 `worker.merged`、失败 `worker.merge_blocked`；不写任何 json 文件、
- * 不碰 `released`。
+ * 账本：成功 `worktree.merged` + `worktree.removed`，失败 `worker.merge_blocked`。
+ * 合并成功后 worker 也收工：它的 cwd 已经不存在，下次同组再派工是干净的新 worker + 新现场。
  * @param input - 目标 worker、主工作区、依赖与账本。
  */
-const mergeWorktreeOf = async (input: {
+const finishGroupOf = async (input: {
   readonly entry: WorkerEntry;
   readonly workspace: string;
   readonly deps: OrchestratorDeps;
   readonly ledgerOf: () => ReturnType<typeof openLedger>;
+  readonly onRetire: (entry: WorkerEntry, reason: string) => void;
 }): Promise<void> => {
   const worktree = input.entry.worktree;
   if (worktree === undefined) return;
+  if (!(await groupCompleted(input.entry, input.deps))) return;
   const hooks = input.deps.worktree ?? DEFAULT_WORKTREE_HOOKS;
+  const worker = input.entry.planDirectory;
   let outcome: MergeOutcome;
   try {
     outcome = await hooks.merge({
@@ -414,32 +456,37 @@ const mergeWorktreeOf = async (input: {
       reason: error instanceof Error ? error.message : String(error),
     };
   }
-  const worker = input.entry.planDirectory;
-  if (outcome.merged) {
+  if (!outcome.merged) {
     input.ledgerOf().append({
-      type: "worker.merged",
+      type: "worker.merge_blocked",
       payload: {
         worker,
         worktree: worktree.name,
         branch: worktree.branch,
-        ...(outcome.commit === undefined ? {} : { commit: outcome.commit }),
-        ...(outcome.cleanup === undefined ? {} : { cleanup: outcome.cleanup }),
+        directory: outcome.directory,
+        reason: outcome.reason ?? "未知原因",
       },
     });
-    // 目录已回收：条目上不再挂 worktree，否则同一键再派会拿一个不存在的目录。
-    if (input.entry.worktree?.name === worktree.name) delete input.entry.worktree;
     return;
   }
   input.ledgerOf().append({
-    type: "worker.merge_blocked",
+    type: "worktree.merged",
     payload: {
-      worker,
-      worktree: worktree.name,
+      key: worktree.name,
       branch: worktree.branch,
-      directory: outcome.directory,
-      reason: outcome.reason ?? "未知原因",
+      worker,
+      ...(outcome.commit === undefined ? {} : { commit: outcome.commit }),
+      ...(outcome.cleanup === undefined ? {} : { cleanup: outcome.cleanup }),
     },
   });
+  input.ledgerOf().append({
+    type: "worktree.removed",
+    payload: { key: worktree.name, branch: worktree.branch, reason: "merged", worker },
+  });
+  // 现场已经没了：条目上的 worktree 一并删掉，否则同一键再派会拿一个不存在的目录。
+  delete input.entry.worktree;
+  // 它的 cwd 已经不存在：让这一代收工，下一次派工是干净的新 worker。
+  input.onRetire(input.entry, "merged");
 };
 
 /**
@@ -465,19 +512,32 @@ const createCommandTool = (
   projectionOf: () => Projection,
   onReport: (report: WorkerReport) => void,
 ): OrchestratorTool => {
+  /**
+   * 让一代 worker 收工：落 `worker.exit`、摘句柄、dispose。
+   *
+   * 两种情形用它：临时 worker 终态（`settled`），组完成后现场已回收（`merged`）——
+   * 后者的 cwd 已经不在了，继续留着句柄只会让下一次投递落在死目录里。
+   * @param target - 目标 worker。
+   * @param reason - 写进 `worker.exit` 的原因。
+   */
+  const onRetire = (target: WorkerEntry, reason: string): void => {
+    retireWorker({ registry, ledgerOf, entry: target, reason });
+  };
+
   return {
     name: "orchestrator_command",
     label: "Command",
     description:
-      "编排方对 worker 的统一命令入口：op=dispatch（默认，派工或追加输入）/ pass / rework / answer / fact / abort。给了 plan + notes 就按组分派（一组无依赖 note 一个 worker），只给 plan 走 Plan 级派工，都没给则起临时 worker（无 Plan、只读 + report、跑完即弃）。**只有 kind=message（要干活）的 Plan 派工**默认先在 .worktrees/<名字>（分支 wt/<名字>）里隔离并在那里 pnpm install；pass / rework / answer / fact 是纯控制指令，复用主工作区、不建也不装依赖；临时 worker 默认不建。显式 worktree: true / 一个名字会覆盖默认（任何 kind 都尊重），false 保证不建。worker 终态后代码自动做 --ff-only 合并并回收（可 ff-only 才合，否则保留现场）。delivery 为 steer（默认，插入当前运行）或 queue（排到 worker 当前轮之后）。每个命令都写进事件账本。",
+      "编排方对 worker 的统一命令入口：op=dispatch（默认，派工或追加输入）/ pass / rework / answer / fact / abort。给了 plan + notes 就按组分派（一组无依赖 note 一个 worker），只给 plan 走 Plan 级派工，都没给则起临时 worker（无 Plan、只读 + report、跑完即弃）。**现场按组建**：一个组一个 `.worktrees/<组键>`（单 note 为 `note-<id>`，组为 `grp-<id-id>`，分支 `wt/<组键>`），第一次派工该组时建一次 + `pnpm install` 一次，之后同组所有代 worker（abort 后重派 / rework / resume / 追加）共用；组内 note 全 completed 且 `--ff-only` 合并成功才删现场与分支，合并失败保留现场并落一条 error。Plan 级派工与临时 worker 没有现场。delivery 为 steer（默认，插入当前运行）或 queue（排到 worker 当前轮之后）。每个命令都写进事件账本。",
     promptSnippet:
       "Send commands to workers (dispatch / pass / rework / answer / abort); every command is an event in the ledger.",
     promptGuidelines: [
       "一组无依赖 note 一个 worker：用 notes 显式给出这一组；组内不得互相 blocked_by。",
-      "只有 kind=message 的 Plan 派工默认在 .worktrees/<名字> 隔离（单 note 为 note-<id>，组为 grp-<id-id>，Plan 级为 plan），worker 的 cwd 就是那个目录，Plan 仍锚定主工作区；pass / rework / answer / fact 复用主工作区，不建也不装依赖。临时 worker 默认不建；需要隔离时显式给 worktree: true 或一个名字（任何 kind 都尊重），不想隔离用 worktree: false。",
-      "worktree 的 worker 完成前必须自己 rebase 到主分支最新提交并在 report 里写明；合并由代码自动做（可 ff-only 就合 + 回收，否则保留现场），不要再派回收指令。",
+      "现场属于组：第一次派工该组时建 `.worktrees/<组键>`（单 note 为 note-<id>，组为 grp-<id-id>，分支 wt/<组键>）并装一次依赖，之后同组任何一代 worker 都落回同一个目录；Plan 级派工（无 notes）与临时 worker 没有现场。没有开关可改，要隔离就换组。",
+      "组内 note 全 completed 后代码自动做 --ff-only 合并且成功即删现场；不能 ff-only 就不合并、保留现场并落一条 error（`orchestrator_state` 里带 ✗）。不要派“回收现场”的指令。",
+      "dispatch 只认**进程内的 live 句柄**：句柄不在就新建一个 worker（旧 jsonl 只当历史，不接管）。续跑落盘会话的唯一入口是 orchestrator_state 的 op=resume。",
       "pass / rework / answer 带 note 时路由到包含它的组；该 note 不属于任何组就自动以 [note] 单独成组投递。只有 note 本身不在 Plan 里才报错。",
-      "默认 delivery=steer：追加口径在本轮生效；批量派活或不希望打断时显式 delivery=queue。硬停整个 worker 用 op=abort。",
+      "默认 delivery=steer：追加口径在本轮生效；批量派活或不希望打断时显式 delivery=queue。硬停整个 worker 用 op=abort（abort 不动现场）。",
       "用户的明确决定才可下发 pass / rework；不要把推断当放行。worker 的 report 不再自动推给你，需要时用 orchestrator_state 拉摘要。",
     ],
     parameters: Type.Unsafe<Record<string, unknown>>({
@@ -513,11 +573,6 @@ const createCommandTool = (
           description: "组派工：这一组 note（互相不得有 blocked_by 依赖）；省略则走 Plan 级派工",
         },
         message: { type: "string", description: "派活正文或追加说明" },
-        worktree: {
-          type: ["boolean", "string"],
-          description:
-            "省略时：kind=message 的 Plan 派工默认建（true → 自动命名：单 note 为 note-<id>，组为 grp-<id-id>，Plan 级为 plan），pass / rework / answer / fact 与临时 worker 默认不建。给 true 或名字 → 任何 kind 都建 / 复用 .worktrees/<名字>（分支 wt/<名字>，基线 HEAD），并先在该目录 pnpm install；false → 不建。",
-        },
         worker: {
           type: "string",
           description:
@@ -533,7 +588,7 @@ const createCommandTool = (
     async execute(_toolCallId, raw, _signal, _onUpdate, exec) {
       const args = asArguments(raw);
       const op = optionalString(args, "op") ?? "dispatch";
-      if (op === "abort") return abortWorker(args, registry, stateDir, ledgerOf);
+      if (op === "abort") return abortWorker(args, registry, ledgerOf);
       if (!["dispatch", "pass", "rework", "answer", "fact"].includes(op)) {
         throw new Error("op 必须是 dispatch | pass | rework | answer | fact | abort");
       }
@@ -589,69 +644,61 @@ const createCommandTool = (
           ? `temp:${tempId}`
           : (groupedByNote?.planDirectory ?? entryKeyOf(plan.directory, targetNotes));
       const planRef = plan === undefined ? key : planRefOf(plan);
-      // 作废登记是落盘的：被 abort / 超时的会话不再复用那时的上下文，连重启也不复活。
-      // 临时 id 直接报错（id 本身就是地址，得换一个）；Plan/组的键必须能重派，所以换一代
-      // 会话（id 与作废时刻绑定），旧 jsonl 当作历史留在盘上。
-      const aborted = abortedWorkerSession(stateDir(), key);
-      if (aborted !== undefined && plan === undefined) {
-        throw new Error(
-          `${key} 的 worker 会话已于 ${aborted.at} 作废（${aborted.reason}）：换一个 id（worker=temp:<新 id>）或重新分组再派`,
-        );
-      }
-      const sessionKey = aborted === undefined ? key : `${key}#${aborted.at}`;
+      // 会话键：dispatch **只认进程内的 live 句柄**，句柄不在就新建一个 worker。
+      // 同一键的上一代 jsonl 只当历史（不接管）—— 续跑落盘会话的唯一入口是 `op=resume`，
+      // 所以这里给每次新建一个不重名的键（`<键>` / `<键>#2` / `<键>#3`…，代数从账本数）。
+      const spawnsBefore = ledgerOf()
+        .events()
+        .filter((event) => {
+          return event.type === "worker.spawned" && event.payload["worker"] === key;
+        }).length;
+      const sessionKey = spawnsBefore === 0 ? key : `${key}#${spawnsBefore + 1}`;
 
       if (plan !== undefined && groupNotes.length > 0) {
         await assertParallelGroup(plan, groupNotes, runtime);
       }
 
-      // worktree：先把目录与依赖备好，再起 worker；装不上就中止派工（不许静默跳测试）。
-      const requestedWorktree = args["worktree"];
-      if (
-        requestedWorktree !== undefined &&
-        typeof requestedWorktree !== "boolean" &&
-        typeof requestedWorktree !== "string"
-      ) {
-        throw new Error("worktree 必须是 true 或一个名字");
-      }
-      // 只有**要干活**的派工（`kind: message`）才默认建 worktree：两个 worker 改同一批文件时
-      // 不靠“文件不重叠”的自觉。`pass` / `rework` / `answer` / `fact` 是纯控制指令，不产生代码
-      // 改动，建 + 装依赖只是白花十几秒；临时 worker 同样默认不建（一次性活不值得）。
-      // 显式 `worktree: true | "<名字>"` 仍然覆盖默认（任何 kind 都尊重），`false` 保证不建。
-      const wantsWorktree =
-        requestedWorktree === undefined
-          ? plan !== undefined && kind === "message"
-          : requestedWorktree !== false;
+      // 现场属于**组**：组键即目录名与分支名（`note-<id>` / `grp-<id-id>`），
+      // 第一次派工该组时建一次 + 装一次依赖，之后同组所有代 worker 共用；
+      // Plan 级派工（无 notes）与临时 worker 没有现场。没有开关，看有没有组键就够了。
       let entry = registry.get(key);
       const started = entry === undefined;
       let worktree: WorktreeInfo | undefined;
-      /** 本次是否新建（复用已有 worktree 时不再装依赖）。 */
+      /** 本次是否新建（复用已有现场时不再装依赖）。 */
       let worktreeCreated = false;
       let worktreeInstall: InstallOutcome | undefined;
-      if (wantsWorktree) {
+      const siteName = groupWorktreeName(targetNotes);
+      if (siteName !== undefined) {
         const hooks = deps.worktree ?? DEFAULT_WORKTREE_HOOKS;
-        const name =
-          typeof requestedWorktree === "string"
-            ? sanitizeWorktreeName(requestedWorktree)
-            : (entry?.worktree?.name ?? autoWorktreeName(targetNotes));
-        // 合并成功会在条目上摘掉 worktree；同一键再派（rework / answer）时目录已经没了，
-        // 这里重新 ensure + install 并写回条目 —— 复用同一个会话，不重开会话。
-        worktree = await hooks.ensure({ workspace, name });
-        worktreeCreated = worktree.created;
-        // 复用已有 worktree 时依赖已装完（上次派工装的），不重复花 13s。
-        worktreeInstall = worktree.created
-          ? await hooks.install(worktree.directory)
-          : { ok: true, command: "（复用已有 worktree，跳过 install）", durationMs: 0 };
-        if (!worktreeInstall.ok) {
-          throw new Error(
-            `worktree ${name} 的依赖安装失败（${worktreeInstall.command}，${worktreeInstall.durationMs}ms）：${worktreeInstall.reason ?? "未知原因"}。` +
-              `worker 在那里跑不了测试，已中止派工；工作区保留在 ${worktree.directory}，可手工修后重派或删掉。`,
-          );
+        // 已有现场且目录还在 → 直接复用；目录不在（合并回收过）→ 重新建 + 装一次。
+        const ensured = await hooks.ensure({ workspace, name: siteName });
+        worktreeCreated = ensured.created;
+        worktree = ensured;
+        if (worktreeCreated) {
+          worktreeInstall = await hooks.install(ensured.directory);
+          if (!worktreeInstall.ok) {
+            throw new Error(
+              `worktree ${siteName} 的依赖安装失败（${worktreeInstall.command}，${worktreeInstall.durationMs}ms）：${worktreeInstall.reason ?? "未知原因"}。` +
+                `worker 在那里跑不了测试，已中止派工；工作区保留在 ${ensured.directory}，可手工修后重派或删掉。`,
+            );
+          }
+          ledgerOf().append({
+            type: "worktree.created",
+            payload: {
+              key: siteName,
+              branch: ensured.branch,
+              directory: ensured.directory,
+              worker: key,
+              created: true,
+              installMs: worktreeInstall.durationMs,
+            },
+          });
         }
         if (entry !== undefined) {
           entry.worktree = {
-            name: worktree.name,
-            directory: worktree.directory,
-            branch: worktree.branch,
+            name: ensured.name,
+            directory: ensured.directory,
+            branch: ensured.branch,
           };
         }
       }
@@ -763,26 +810,27 @@ const createCommandTool = (
       // 临时 worker 是一次性的：终态即摘除句柄并 dispose，会话文件留在盘上等同 id 再派。
       const done = (): void => {
         const harvested = harvest(target, job);
-        // 自动合并只在“正常终态”做：
+        // 组完成才回收现场（只算“正常终态”）：
         // - 已有更新的一代 job 排着（`target.job !== undefined`）：等它的终态，否则会把别人还没改完的分支合掉；
         // - abort / 超时已经提前收割了 job（`harvest` 返回 false）：半成品不合入主分支，现场保留。
         if (harvested && target.job === undefined) {
-          void mergeWorktreeOf({ entry: target, workspace, deps, ledgerOf });
+          void finishGroupOf({
+            entry: target,
+            workspace,
+            deps,
+            ledgerOf,
+            onRetire,
+          });
         }
         if (target.kind === "temp") {
-          ledgerOf().append({
-            type: "worker.exit",
-            payload: { worker: target.planDirectory, reason: "settled" },
-          });
-          registry.remove(target.planDirectory);
-          void disposeEntry(target);
+          onRetire(target, "settled");
         }
       };
       void delivery.settled.then(done, done);
 
       const head = started
         ? plan === undefined
-          ? `已起临时 worker ${planRef}（无 Plan，跑完即弃；同 id 再派可续上它）`
+          ? `已起临时 worker ${planRef}（无 Plan，跑完即弃；同一个 id 再派会新建一个 worker）`
           : targetNotes.length > 0
             ? `已起 worker 接手 ${planRef} 的组 [${targetNotes.join(", ")}]${autoGroup ? "（该 note 原本不属于任何组，已单独成组）" : ""}`
             : `已起 worker 接手 ${planRef}`
@@ -802,7 +850,7 @@ const createCommandTool = (
       const worktreeLine =
         target.worktree === undefined
           ? undefined
-          : `worktree: ${target.worktree.name}（${target.worktree.branch}）· ${worktreeCreated ? "新建" : "复用"}${worktreeInstall === undefined ? "" : ` · 依赖 ${worktreeInstall.durationMs}ms`}`;
+          : `worktree: ${target.worktree.name}（${target.worktree.branch}）· ${worktreeCreated ? `新建 · 依赖 ${worktreeInstall?.durationMs ?? 0}ms` : "复用现有现场"}`;
       return {
         content: textBlocks(
           [
@@ -848,38 +896,59 @@ const createCommandTool = (
   };
 };
 
-/** `abort` 命令：中止一个 / 一批 / 全部 worker，并落 `worker.exit` 事件（会话同时作废）。 */
+/**
+ * `abort` 命令：按**句柄 / 组 / Plan** 粒度中止，并落 `worker.exit`（现场一律不动）。
+ *
+ * 粒度的来由：现场属于组，abort 的粒度必须跟着它 —— 带 `notes` 只摘那一组，别组的 worker
+ * 与现场原样跑；`plan` 不带 `notes` 才摘该 Plan 的全部组；都不给才摘全部。
+ * 摘句柄只有一条路径：按路由键从表里删掉（组键就在键里），**不碰目录**。
+ * @param args - `worker`（精确键）/ `plan` / `notes`（组）。
+ * @param registry - 句柄表。
+ * @param ledgerOf - 账本访问器。
+ */
 const abortWorker = async (
   args: Record<string, unknown>,
   registry: WorkerRegistry,
-  stateDir: () => string,
   ledgerOf: () => ReturnType<typeof openLedger>,
 ): Promise<{ content: ReturnType<typeof textBlocks>; details: Record<string, unknown> }> => {
-  const target = optionalString(args, "plan") ?? optionalString(args, "worker");
-  const exiting = (key: string): void => {
-    ledgerOf().append({ type: "worker.exit", payload: { worker: key, reason: "abort" } });
+  const worker = optionalString(args, "worker");
+  const plan = optionalString(args, "plan");
+  const notes = optionalStringArray(args, "notes") ?? [];
+  const group = groupKeyOf(notes);
+  /** 精确给 `worker` 就只认它；否则按 Plan（+ 组）筛。 */
+  const matches = (entry: WorkerEntry): boolean => {
+    if (worker !== undefined) return entry.planDirectory === worker || entry.planRef === worker;
+    const samePlan =
+      plan === undefined ||
+      entry.planRef === plan ||
+      entry.planDirectory === plan ||
+      planDirectoryOf(entry.planDirectory) === plan;
+    if (!samePlan) return false;
+    // 给了 notes 就只摘那一组：组标识是 note id 排序拼接，与句柄键里那段一致。
+    return notes.length === 0 || groupKeyOf(entry.notes ?? []) === group;
   };
-  if (target === undefined) {
-    for (const entry of registry.list()) {
-      markWorkerSessionAborted(stateDir(), entry.planDirectory, "abort");
-      exiting(entry.planDirectory);
+  const label =
+    worker ?? (notes.length === 0 ? (plan ?? "全部") : `${plan ?? ""} 的组 [${notes.join(", ")}]`);
+  const entries = registry.list().filter(matches);
+  if (entries.length === 0) {
+    if (worker === undefined && plan === undefined && notes.length === 0) {
+      return { content: textBlocks("当前没有 live worker。"), details: { count: 0 } };
     }
-    const count = await disposeAll(registry);
-    return { content: textBlocks(`已中止 ${count} 个 worker。`), details: { count } };
+    throw new Error(`没有在跑的 worker: ${label}`);
   }
-  const entries = registry
-    .list()
-    .filter((entry) => entry.planRef === target || entry.planDirectory === target);
-  if (entries.length === 0) throw new Error(`没有在跑的 worker: ${target}`);
   for (const entry of entries) {
-    markWorkerSessionAborted(stateDir(), entry.planDirectory, "abort");
-    exiting(entry.planDirectory);
+    ledgerOf().append({
+      type: "worker.exit",
+      payload: { worker: entry.planDirectory, reason: "abort" },
+    });
     registry.remove(entry.planDirectory);
     await disposeEntry(entry);
   }
   return {
-    content: textBlocks(`已中止 ${target} 的 worker（会话作废：同 id / 同组再派会报错）。`),
-    details: { count: entries.length },
+    content: textBlocks(
+      `已中止 ${label} 的 worker（${entries.length} 个）。现场不动：现场由组持有，同组再派会落回同一个目录、不再装依赖。`,
+    ),
+    details: { count: entries.length, workers: entries.map((entry) => entry.planDirectory) },
   };
 };
 
@@ -928,7 +997,6 @@ const createStateTool = (
   runtime: ToolRuntime,
   registry: WorkerRegistry,
   deps: OrchestratorDeps,
-  stateDir: () => string,
   ledgerOf: () => ReturnType<typeof openLedger>,
   projectionOf: () => Projection,
   /** op=resume 的实现：起新一代、复用 jsonl、落 `worker.resumed`。 */
@@ -940,7 +1008,7 @@ const createStateTool = (
   name: "orchestrator_state",
   label: "State",
   description:
-    "拉取编排摘要：live worker（含待消费输入、最后 report、worktree、超时与重试）、子 worker 层级、未读 report、待确认 note、⚠ 卡死项、可恢复的孤儿与上次中断凭据。读一次即把未读 report 标成已读（账本里的 state.pulled）。op=abort 中止一个 plan / temp worker（省略 plan 中止全部）；op=resume 恢复孤儿 worker（复用 jsonl，极短续跑消息）。",
+    "拉取编排摘要：live worker（含待消费输入、最后 report、worktree、超时与重试）、子 worker 层级、未读 report、待确认 note、⚠ 卡死项、可恢复的孤儿与上次中断凭据。读一次即把未读 report 标成已读（账本里的 state.pulled）。op=abort 按句柄 / 组 / Plan 粒度中止：给 notes 只摘该组（现场不动），给 plan 摘该 Plan 的全部组，都不给才摘全部；op=resume 恢复孤儿 worker（复用 jsonl，极短续跑消息）。",
   promptSnippet:
     "Pull the orchestrator state summary from the event ledger (workers, hierarchy, unread reports, stuck workers, resumable orphans); or abort / resume workers.",
   promptGuidelines: [
@@ -961,6 +1029,12 @@ const createStateTool = (
         type: "string",
         description: "op=abort 时的 plan 引用或 `temp:<id>`；op=resume 时只恢复这个 Plan 的孤儿",
       },
+      notes: {
+        type: "array",
+        items: { type: "string" },
+        description:
+          "op=abort 时只摘这一组（note id 列表，与派工时的组一致）；不给则摘该 plan 的全部组，连 plan 都不给才摘全部",
+      },
     },
     required: [],
   }),
@@ -968,7 +1042,7 @@ const createStateTool = (
     const args = asArguments(raw);
     const op = optionalString(args, "op") ?? "list";
     if (op === "abort") {
-      return abortWorker(args, registry, stateDir, ledgerOf);
+      return abortWorker(args, registry, ledgerOf);
     }
     if (op === "resume") {
       return resumeOrphans(optionalString(args, "plan"), runtime.workspace(exec));
@@ -1011,10 +1085,22 @@ const createStateTool = (
           worker.lastInput === undefined
             ? "尚无输入"
             : `${formatAgo(Date.parse(worker.lastInput.at), now)} [${worker.lastInput.kind}/${worker.lastInput.delivery}] ${worker.lastInput.text}`;
-        const worktreeMark =
-          worker.worktree === undefined
-            ? ""
-            : ` · worktree ${worker.worktree.name}（${worker.worktree.branch}）`;
+        // 组键 + 现场：一行里就能看出“这个 worker 属于哪个组、对应哪个目录”，
+        // 组级 abort 前确认没误杀、没杀错组靠的就是它们。
+        const siteKey = groupWorktreeName(worker.notes);
+        const site = siteKey === undefined ? undefined : state.worktrees.get(siteKey);
+        const siteMark =
+          siteKey === undefined
+            ? " · 无现场（无组）"
+            : site === undefined
+              ? ` · 组键 ${siteKey} · 现场 无记录`
+              : ` · 组键 ${siteKey} · 现场 ${site.directory === "" ? site.branch : site.directory}（${
+                  site.phase === "created"
+                    ? "存在"
+                    : site.phase === "merged"
+                      ? `已合并${site.commit === undefined ? "" : ` ${site.commit.slice(0, 8)}`}`
+                      : `已回收${site.reason === undefined ? "" : `（${site.reason}）`}`
+                }）`;
         // 合并结论：成功报 commit 前 8 位；失败用 ✗ 醒目地把现场路径带出来。
         const mergeMark =
           worker.mergeBlocked !== undefined
@@ -1041,8 +1127,27 @@ const createStateTool = (
                   : `（${worker.lastDiagnosis.adjust.join("+")}）`
               }`;
         lines.push(
-          `${indent}${worker.planRef} · ${group}${shape} · ${minutes} 分钟 · 输入 ${worker.inputs} 次 · ${pendingLabelOf(pending)} · ${report} · 最近输入 ${lastInput}${worktreeMark}${mergeMark}${orphanMark}${timeoutMark}${diagnosisMark}`,
+          `${indent}${worker.planRef} · ${group}${shape} · ${minutes} 分钟 · 输入 ${worker.inputs} 次 · ${pendingLabelOf(pending)} · ${report} · 最近输入 ${lastInput}${siteMark}${mergeMark}${orphanMark}${timeoutMark}${diagnosisMark}`,
         );
+      }
+    }
+    // 现场：一个组一个（`.worktrees/<组键>`）。从账本投影出来，所以“旧现场”与
+    // “当前 live worker”是两行事实，不会糊成一件事。
+    const sites = [...state.worktrees.values()].sort(
+      (left, right) => Date.parse(left.at) - Date.parse(right.at),
+    );
+    if (sites.length > 0) {
+      lines.push(`现场（${sites.length}，一个组一个）:`);
+      for (const site of sites.slice(-10)) {
+        const phase =
+          site.phase === "created"
+            ? "存在"
+            : site.phase === "merged"
+              ? `已合并${site.commit === undefined ? "" : ` ${site.commit.slice(0, 8)}`}`
+              : `已回收${site.reason === undefined ? "" : `（${site.reason}）`}`;
+        const install = site.installMs === undefined ? "" : ` · 依赖 ${site.installMs}ms`;
+        const owner = site.worker === undefined ? "" : ` · ${site.worker}`;
+        lines.push(`${site.key} · ${site.branch} · ${phase}${install}${owner}`);
       }
     }
     if (orphans.length > 0) {
@@ -1118,6 +1223,8 @@ const createStateTool = (
         unread: unread.length,
         waiting: waiting.length,
         seq: state.lastSeq,
+        // 现场（组键 → 存在 / 已合并 / 已回收）也进 details：验收与测试不用拆文本。
+        worktrees: [...state.worktrees.values()],
         // 合并结论也进 details：汇报与测试不必去拆文本行。
         merged: live.flatMap((worker) =>
           worker.merged === undefined ? [] : [{ worker: worker.worker, ...worker.merged }],
@@ -1442,8 +1549,7 @@ export const registerOrchestrator = (
       }
       await disposeEntry(entry);
       registry.remove(key);
-      // 中止即作废：这个键（plan/组或 temp id）不再复用那时的上下文，重启也不复活。
-      markWorkerSessionAborted(stateDir(), key, "timeout");
+      // 现场不动：现场属于组，不属于这一代 worker（同组重派会落回同一个目录）。
       const timeoutEvent = ledgerOf().append({
         type: "timeout",
         payload: {
@@ -1747,7 +1853,13 @@ export const registerOrchestrator = (
     const done = (): void => {
       const harvested = harvest(entry, job);
       if (harvested && entry.job === undefined) {
-        void mergeWorktreeOf({ entry, workspace: input.workspace, deps, ledgerOf });
+        void finishGroupOf({
+          entry,
+          workspace: input.workspace,
+          deps,
+          ledgerOf,
+          onRetire: (target, reason) => retireWorker({ registry, ledgerOf, entry: target, reason }),
+        });
       }
     };
     void delivery.settled.then(done, done);
@@ -1766,9 +1878,14 @@ export const registerOrchestrator = (
     attempt: number,
     retryLimit: number,
   ): Promise<void> => {
-    // 作废登记已经把旧一代标掉了：会话键带作废时刻，于是这次是**新开**一份 jsonl。
-    const aborted = abortedWorkerSession(stateDir(), scene.key);
-    const sessionKey = aborted === undefined ? scene.key : `${scene.key}#${aborted.at}`;
+    // 上一代已中止：这次**新开**一份 jsonl（dispatch 不接管旧会话），
+    // 现场仍是同一个（现场属于组）。
+    const spawnsBefore = ledgerOf()
+      .events()
+      .filter((event) => {
+        return event.type === "worker.spawned" && event.payload["worker"] === scene.key;
+      }).length;
+    const sessionKey = spawnsBefore === 0 ? scene.key : `${scene.key}#${spawnsBefore + 1}`;
     const message = buildRetryMessage({
       diagnosis,
       attempt,
@@ -1908,6 +2025,35 @@ export const registerOrchestrator = (
   };
 
   /**
+   * reload / 重启后把本会话当前 Plan 的孤儿 worker 拉回来。
+   *
+   * 与 `orchestrator_state op=resume` 是**同一个实现**，只是不需要人手点一次：宿主 reload 确实会
+   * 发 `session_start`，而以前那次恢复没有任何触发点，于是「`worker.suspended` + 待消费输入」
+   * 一直悬着。范围只限会话记录过的**当前 Plan** —— 没有记录就什么都不做（不猜 Plan、不做全局
+   * 对账，保住“启动不自动对账”的定案）。幂等靠两条：已有 live 句柄的 worker 不算孤儿，账本里
+   * 恢复过的那一代带幂等键。
+   * @param ctx - 宿主上下文（只读会话分支与 cwd）。
+   */
+  const autoResumeOrphans = async (ctx: ExtensionContext): Promise<void> => {
+    if (!modeOn(ctx)) return;
+    const current = currentPlanOf(branchOf(ctx)) ?? recordedPlanDirectory;
+    if (current === undefined) return;
+    try {
+      const result = await resumeOrphans(current, mainWorkspaceOf(ctx.cwd));
+      const details = result.details as { resumed?: readonly unknown[] };
+      const count = details.resumed?.length ?? 0;
+      if (count > 0) {
+        ctx.ui.notify(
+          `Orchestrator：reload 后自动恢复 ${count} 个 worker（同一份 jsonl；先 git status 核对）。`,
+          "info",
+        );
+      }
+    } catch {
+      // 恢复失败不挡启动：state 里仍列着可恢复项，可手动 op=resume。
+    }
+  };
+
+  /**
    * 超时之后的自动化：组装证据 → 只读诊断 → 按建议重派（最多 `retryLimit` 次）。
    *
    * 三条路都不重试，而且都必须落账（`retry.exhausted`）：诊断不可解析、建议 `needs-human`、
@@ -2019,7 +2165,7 @@ export const registerOrchestrator = (
     createCheckTool(runtime),
     createAskQuestionsTool(),
     createCommandTool(runtime, registry, deps, stateDir, ledgerOf, projectionOf, onReport),
-    createStateTool(runtime, registry, deps, stateDir, ledgerOf, projectionOf, resumeOrphans),
+    createStateTool(runtime, registry, deps, ledgerOf, projectionOf, resumeOrphans),
   ]) {
     pi.registerTool({ ...tool, defaultActive: false });
   }
@@ -2062,6 +2208,8 @@ export const registerOrchestrator = (
       pi.appendEntry(MODE_ENTRY, { enabled: true });
     }
     sync(ctx);
+    // reload / 重启：把当前 Plan 的孤儿接回来（与 op=resume 同一实现；没有当前 Plan 就不动）。
+    void autoResumeOrphans(ctx);
   };
 
   /**

@@ -1,9 +1,13 @@
 /**
- * worktree 派工：把一个 worker 放进 `.worktrees/<名字>`，分支 `wt/<名字>`。
+ * worktree 现场：**一个组一个现场**，放在 `.worktrees/<组键>`，分支 `wt/<组键>`。
  *
- * 为什么这么做：并行的两个 worker 改同一批文件时，靠“文件不重叠”就只是自觉；worktree
+ * 为什么这么做：并行的两个组改同一批文件时，靠“文件不重叠”就只是自觉；worktree
  * 给出真正的隔离 —— 改动只落在自己的目录，Plan（`notes.json`）仍由主工作区锚定，
  * 所以不会出现第二份真相。
+ *
+ * 现场的生命周期跟着**组**，不跟着某一代 worker：第一次派工该组时建一次、装一次依赖，
+ * 之后 `abort` / `rework` / `resume` / 追加 `steer` 都共用同一现场；组内 note 全部
+ * completed 后代码 `--ff-only` 合并成功才删现场与分支。`abort` / 超时**不动**现场。
  *
  * 依赖（用户 2026-11-07 口径）：**每个 worktree 自己 `pnpm install`**。实测（Windows，
  * 热 store）：`git worktree add` ≈ 1.5s / 98 MB；`pnpm install --prefer-offline` ≈ 13.5s，
@@ -15,9 +19,9 @@
  * （node_modules 深路径），加 `-c core.longpaths=true` 后返回 0 但仍可能留几 MB 残留，
  * 所以这里**一定**再检查目录是否真的没了，必要时自己删，然后 `worktree prune`。
  *
- * 合并（`mergeWorktree`）：worker 终态后由代码直接做 `--ff-only` 合并，不经模型 ——
+ * 合并（`mergeWorktree`）：组内 note 全 completed 后由代码直接做 `--ff-only` 合并，不经模型 ——
  * 收工信号的最后一跳不该再排队等一个 LLM 回合。只在主分支可 fast-forward 时合并，
- * 分叉 / 冲突 / 主工作区脏一律不合并，现场（目录 + 分支）原样保留。
+ * 分叉 / 冲突 / 主工作区脏一律不合并，现场（目录 + 分支）原样保留等人工。
  * @module @kxh4892636/pi-toolkit/orchestrator/worktree
  */
 
@@ -111,13 +115,16 @@ export const sanitizeWorktreeName = (raw: string): string => {
 };
 
 /**
- * 自动命名：单 note → `note-<id>`，组 → `grp-<id-id>`，Plan 级 → `plan`。
+ * 组键 = 现场名字：单 note 组 → `note-<id>`，多 note 组 → `grp-<id-id>`。
+ *
+ * 没有组（Plan 级派工 / 临时 worker）就没有现场，所以空数组返回 undefined —— 这样
+ * 调用方不必再判断“该不该建”，只看有没有名字。
  * @param notes - 这一组的 note id。
- * @returns worktree 名字。
+ * @returns worktree 名字；空组 undefined。
  */
-export const autoWorktreeName = (notes: readonly string[]): string => {
-  const ids = notes.map((note) => sanitizeWorktreeName(note));
-  if (ids.length === 0) return "plan";
+export const groupWorktreeName = (notes: readonly string[]): string | undefined => {
+  const ids = [...new Set(notes)].map((note) => sanitizeWorktreeName(note));
+  if (ids.length === 0) return undefined;
   if (ids.length === 1) return `note-${ids[0] as string}`;
   return `grp-${ids.join("-")}`;
 };
@@ -132,9 +139,10 @@ export const branchOfWorktree = (name: string): string => `${WORKTREE_BRANCH_PRE
 /**
  * 建或复用 `.worktrees/<名字>`（分支 `wt/<名字>`，基线当前 HEAD）。
  *
- * 目录已存在就当复用：并行派同一组时不该互相删目录。
+ * 目录已存在就当复用：现场属于**组**，同组的后续派工（abort 后重派 / rework / resume）
+ * 必须落回同一个目录，不能互相删。
  * @param input - 工作区根与名字。
- * @returns 定位信息；`created` 说明是否新建。
+ * @returns 定位信息；`created` 说明是否新建（只有新建才装依赖）。
  */
 export const ensureWorktree = async (input: {
   readonly workspace: string;
@@ -357,7 +365,7 @@ export interface WorktreeHooks {
   install(directory: string): Promise<InstallOutcome>;
   remove(input: { readonly workspace: string; readonly name: string }): Promise<RemoveOutcome>;
   /**
-   * worker 终态后自动合并回主工作区（代码执行，不经模型）。
+   * 组内 note 全 completed 后自动合并回主工作区（代码执行，不经模型）。
    *
    * 失败只返回 `merged: false` + 原因：**不删** worktree、**不删**分支，现场留给 rework 或人。
    */

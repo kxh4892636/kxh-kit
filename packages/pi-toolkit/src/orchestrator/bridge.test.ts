@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_SETTINGS, DEFAULT_TOOLS, type ToolkitSettings } from "../settings.ts";
 import type { NoteNode } from "./dag.ts";
+import { CURRENT_PLAN_ENTRY, MODE_ENTRY } from "./mode.ts";
 import {
   createRegistry,
   deliver,
@@ -396,7 +397,7 @@ describe("dispatch 与 workers 工具", () => {
     const { registerOrchestrator } = await import("./register.ts");
     // 不传就注入假钩子：Plan 派工默认建 worktree，真跑 git + pnpm 会把测试拖成分钟级。
     const worktree = options.worktree ?? fakeWorktree().hooks;
-    registerOrchestrator(pi, {
+    const handle = registerOrchestrator(pi, {
       settings: () => local,
       setAlways: () => undefined,
       stateDir: options.stateDir ?? (() => stateRoot),
@@ -465,6 +466,7 @@ describe("dispatch 与 workers 工具", () => {
       tools,
       messages,
       entries,
+      handle,
       spawns,
       reports,
       spawnOptions,
@@ -480,6 +482,32 @@ describe("dispatch 与 workers 工具", () => {
     (result as { content: { text: string }[] }).content[0]?.text ?? "";
 
   const ctx = (cwd: string) => ({ cwd }) as unknown as ExtensionContext;
+
+  /** `start`（真实 `session_start` 的入口）要的上下文：会话分支 + UI 替身。 */
+  const sessionCtx = (cwd: string, branch: unknown[]) =>
+    ({
+      cwd,
+      mode: "tui",
+      hasUI: true,
+      sessionManager: { getBranch: () => branch },
+      getContextUsage: () => undefined,
+      ui: {
+        notify: () => undefined,
+        setWidget: () => undefined,
+        addAutocompleteProvider: () => undefined,
+        select: async () => undefined,
+        confirm: async () => false,
+        custom: undefined,
+      },
+    }) as unknown as ExtensionContext;
+
+  /** 等异步恢复落定（start 里的自动恢复到下一跳才起会话）。 */
+  const waitUntil = async (predicate: () => boolean, timeoutMs = 1_000): Promise<void> => {
+    const started = Date.now();
+    while (!predicate() && Date.now() - started < timeoutMs) {
+      await new Promise((resolve) => setTimeout(resolve, 5));
+    }
+  };
 
   /** 账本里的超时事件（取代旧的“注入一条超时消息”）。 */
   const timeoutEvents = async (stateRoot: string) => {
@@ -536,7 +564,7 @@ describe("dispatch 与 workers 工具", () => {
     description: `摘要 ${id}`,
     status,
     blocked_by: [...blockedBy],
-    evidence: [],
+    evidence: status === "completed" ? [`测试用 evidence ${id}`] : [],
     updated_at: "2026-11-07T00:00:00.000Z",
     content: `正文 ${id}`,
   });
@@ -572,14 +600,18 @@ describe("dispatch 与 workers 工具", () => {
     const installed: string[] = [];
     const removed: string[] = [];
     const merges: Array<{ name: string; branch: string }> = [];
+    /** 已经存在的现场（真实实现里就是目录在不在）：决定本次是否“新建 + 装依赖”。 */
+    const seen = new Set<string>();
     const hooks: import("./worktree.ts").WorktreeHooks = {
       ensure: async ({ workspace, name }) => {
         ensured.push(name);
+        const created = options.created ?? !seen.has(name);
+        seen.add(name);
         return {
           name,
           directory: `${workspace}/.worktrees/${name}`,
           branch: `wt/${name}`,
-          created: options.created ?? true,
+          created,
         };
       },
       install: async (directory) => {
@@ -595,6 +627,7 @@ describe("dispatch 与 workers 工具", () => {
       },
       remove: async ({ name }) => {
         removed.push(name);
+        seen.delete(name);
         return { removed: true, branchDeleted: true, leftover: false, note: "已清理" };
       },
       merge: async ({ workspace, name, branch }) => {
@@ -610,13 +643,14 @@ describe("dispatch 与 workers 工具", () => {
         }
         // 真实实现合并成功会顺手回收目录与分支，替身同样记账。
         removed.push(name);
+        seen.delete(name);
         return { merged: true, branch, directory, commit: "deadbeef", cleanup: "已清理" };
       },
     };
     return { hooks, ensured, installed, removed, merges };
   };
 
-  it("worktree: true 把 worker 放进 .worktrees 并先装依赖", async () => {
+  it("组派工把 worker 放进 .worktrees/<组键> 并先装依赖", async () => {
     const worktree = fakeWorktree();
     // worker 保持在跑：abort 不合并、也不删 worktree（现场留给人工看）。
     const { tools, spawnCwds } = await setup({
@@ -629,7 +663,7 @@ describe("dispatch 与 workers 工具", () => {
         .get("orchestrator_command")
         ?.execute(
           "id",
-          { plan: ref, notes: ["01"], worktree: true, message: "做 01" },
+          { plan: ref, notes: ["01"], message: "做 01" },
           undefined,
           undefined,
           ctx(root),
@@ -646,7 +680,7 @@ describe("dispatch 与 workers 工具", () => {
         .get("orchestrator_state")
         ?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
     );
-    expect(list).toContain("worktree note-01（wt/note-01）");
+    expect(list).toContain(`组键 note-01 · 现场 ${root}/.worktrees/note-01（存在）`);
     // abort 不删 worktree：现场留给合并或人工看。
     await tools
       .get("orchestrator_state")
@@ -654,22 +688,16 @@ describe("dispatch 与 workers 工具", () => {
     expect(worktree.removed).toEqual([]);
   });
 
-  it("复用已有 worktree 时跳过 install", async () => {
+  it("复用已有现场时跳过 install", async () => {
     const worktree = fakeWorktree({ created: false });
     const { tools } = await setup({ worktree: worktree.hooks });
     const { root, ref } = await planWithNotes([note("02")]);
     const text = textOf(
       await tools
         .get("orchestrator_command")
-        ?.execute(
-          "id",
-          { plan: ref, notes: ["02"], worktree: "复用名" },
-          undefined,
-          undefined,
-          ctx(root),
-        ),
+        ?.execute("id", { plan: ref, notes: ["02"] }, undefined, undefined, ctx(root)),
     );
-    expect(text).toContain("worktree: 复用名（wt/复用名）· 复用");
+    expect(text).toContain("worktree: note-02（wt/note-02）· 复用现有现场");
     expect(worktree.installed).toEqual([]);
   });
 
@@ -692,7 +720,7 @@ describe("dispatch 与 workers 工具", () => {
     expect(spawnCwds).toEqual([]);
   });
 
-  it("临时 worker 默认不建 worktree；显式 worktree 才建", async () => {
+  it("临时 worker 没有现场（worktree 开关已删）", async () => {
     const worktree = fakeWorktree();
     const { tools, spawnCwds } = await setup({ worktree: worktree.hooks });
     const { root } = await planArgs();
@@ -702,27 +730,13 @@ describe("dispatch 与 workers 工具", () => {
       await dispatch?.execute("id", { message: "临时活" }, undefined, undefined, ctx(root)),
     );
     expect(plain).not.toContain("worktree:");
+    // 临时 worker 没有 notes → 没有组键 → 不建现场、不装依赖。
     expect(worktree.ensured).toEqual([]);
     expect(worktree.installed).toEqual([]);
     expect(spawnCwds).toEqual([root]);
-
-    // 显式要求才隔离：true 自动命名，临时 worker 没有 note 组，所以叫 plan。
-    const isolated = textOf(
-      await dispatch?.execute(
-        "id",
-        { message: "隔离做", worktree: true },
-        undefined,
-        undefined,
-        ctx(root),
-      ),
-    );
-    expect(isolated).toContain("worktree: plan（wt/plan）· 新建");
-    expect(isolated).toContain(`worker 的 cwd 是 ${root}/.worktrees/plan`);
-    expect(worktree.ensured).toEqual(["plan"]);
-    expect(spawnCwds[1]).toBe(`${root}/.worktrees/plan`);
   });
 
-  it("Plan 派工不传 worktree 也默认隔离：单 note / 组 / Plan 级各自自动命名", async () => {
+  it("现场按组键命名：单 note / 组各自一个；Plan 级没有现场", async () => {
     const worktree = fakeWorktree();
     const { tools, spawnCwds, stateRoot } = await setup({ worktree: worktree.hooks });
     const { root, ref } = await planWithNotes([note("01"), note("02")]);
@@ -733,24 +747,22 @@ describe("dispatch 与 workers 工具", () => {
     const single = await send({ plan: ref, notes: ["01"], message: "做 01" });
     expect(single).toContain("worktree: note-01（wt/note-01）· 新建");
     await send({ plan: ref, notes: ["01", "02"], message: "做整组" });
-    await send({ plan: ref, message: "Plan 级活" });
+    const planLevel = await send({ plan: ref, message: "Plan 级活" });
 
-    expect(worktree.ensured).toEqual(["note-01", "grp-01-02", "plan"]);
-    expect(spawnCwds).toEqual([
-      `${root}/.worktrees/note-01`,
-      `${root}/.worktrees/grp-01-02`,
-      `${root}/.worktrees/plan`,
-    ]);
+    expect(worktree.ensured).toEqual(["note-01", "grp-01-02"]);
+    // Plan 级派工没有 notes → 没有组键 → 不建现场，仍在主工作区。
+    expect(planLevel).not.toContain("worktree:");
+    expect(spawnCwds).toEqual([`${root}/.worktrees/note-01`, `${root}/.worktrees/grp-01-02`, root]);
     // 账本里的 worker.spawned 也带上 worktree（投影 / 摘要靠它）。
     const { openLedger } = await import("./ledger.ts");
     const names = openLedger(stateRoot)
       .events()
       .filter((event) => event.type === "worker.spawned")
       .map((event) => (event.payload["worktree"] as { name?: string } | undefined)?.name);
-    expect(names).toEqual(["note-01", "grp-01-02", "plan"]);
+    expect(names).toEqual(["note-01", "grp-01-02", undefined]);
   });
 
-  it("pass / rework / answer / fact 不建 worktree，只有要干活的 message 才建", async () => {
+  it("同组共用现场：一次建、后续投递不重装", async () => {
     const worktree = fakeWorktree();
     const { tools, spawnCwds, spawnOptions } = await setup({
       worktree: worktree.hooks,
@@ -761,15 +773,14 @@ describe("dispatch 与 workers 工具", () => {
     const send = async (args: Record<string, unknown>): Promise<string> =>
       textOf(await dispatch?.execute("id", args, undefined, undefined, ctx(root)));
 
-    // 未分组的 note 直接 pass：新起一个 worker，但它是纯控制指令，不进 worktree。
+    // 未分组的 note 第一次投递 → 自动成为单 note 组 [01] → 建现场 + 装依赖。
     const passed = await send({ plan: ref, kind: "pass", note: "01", message: "" });
-    expect(passed).not.toContain("worktree:");
-    expect(worktree.ensured).toEqual([]);
-    expect(worktree.installed).toEqual([]);
-    expect(spawnCwds).toEqual([root]);
+    expect(passed).toContain("worktree: note-01（wt/note-01）· 新建 · 依赖 13500ms");
+    expect(worktree.installed).toEqual([`${root}/.worktrees/note-01`]);
+    expect(spawnCwds).toEqual([`${root}/.worktrees/note-01`]);
     expect(spawnOptions[0]?.sessionKey).toBeDefined();
 
-    // 同一组再来 rework / answer / fact：复用主工作区的会话，仍然不建。
+    // 同一组再来 rework / answer / fact：落回同一个目录，不再 install。
     const requests: Record<string, unknown>[] = [
       { plan: ref, kind: "rework", note: "01", message: "改一下" },
       { plan: ref, kind: "answer", note: "01", message: "按 A 做" },
@@ -777,67 +788,134 @@ describe("dispatch 与 workers 工具", () => {
     ];
     for (const args of requests) {
       const text = await send({ ...args });
-      expect(text).not.toContain("worktree:");
+      expect(text).toContain("worktree: note-01（wt/note-01）· 复用现有现场");
       expect(text).toContain(`已投递给 ${ref} 的 worker（组 [01]）`);
     }
-    expect(worktree.ensured).toEqual([]);
-    expect(worktree.installed).toEqual([]);
-    expect(spawnCwds).toEqual([root]);
+    expect(worktree.installed).toEqual([`${root}/.worktrees/note-01`]);
+    expect(spawnCwds).toEqual([`${root}/.worktrees/note-01`]);
 
-    // 要干活的 message 仍然默认隔离。
+    // 另一组（note 02）是另一个现场，各装一次。
     const worked = await send({ plan: ref, notes: ["02"], message: "做 02" });
     expect(worked).toContain("worktree: note-02（wt/note-02）· 新建");
-    expect(worktree.ensured).toEqual(["note-02"]);
+    expect(worktree.installed).toEqual([
+      `${root}/.worktrees/note-01`,
+      `${root}/.worktrees/note-02`,
+    ]);
     expect(spawnCwds[1]).toBe(`${root}/.worktrees/note-02`);
   });
 
-  it("显式 worktree: true 对 pass 也生效（尊重覆盖）", async () => {
+  it("abort 按组键：只摘目标组，别组继续跑、现场不动", async () => {
     const worktree = fakeWorktree();
-    const { tools, spawnCwds } = await setup({
+    const { tools, stateRoot } = await setup({
       worktree: worktree.hooks,
       makeSession: () => fakeSession(true, false),
     });
-    const { root, ref } = await planWithNotes([note("01", [], "in_progress")]);
-    const text = textOf(
-      await tools
-        .get("orchestrator_command")
-        ?.execute(
-          "id",
-          { plan: ref, kind: "pass", note: "01", message: "", worktree: true },
-          undefined,
-          undefined,
-          ctx(root),
-        ),
+    const { root, ref } = await planWithNotes([note("01"), note("02")]);
+    const path = await import("node:path");
+    const directory = path.join(
+      root,
+      ".agents",
+      "domains",
+      "etf",
+      "plans",
+      "active",
+      "2026-11-07-分组",
     );
-    expect(text).toContain("worktree: note-01（wt/note-01）· 新建");
-    expect(worktree.ensured).toEqual(["note-01"]);
-    expect(spawnCwds).toEqual([`${root}/.worktrees/note-01`]);
+    const dispatch = tools.get("orchestrator_command");
+    const workers = tools.get("orchestrator_state");
+    await dispatch?.execute(
+      "id",
+      { plan: ref, notes: ["01"], message: "做 01" },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+    await dispatch?.execute(
+      "id",
+      { plan: ref, notes: ["02"], message: "做 02" },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+
+    // 两组各自一个现场。
+    expect(worktree.installed).toEqual([
+      `${root}/.worktrees/note-01`,
+      `${root}/.worktrees/note-02`,
+    ]);
+
+    const aborted = textOf(
+      await workers?.execute(
+        "id",
+        { op: "abort", plan: ref, notes: ["01"] },
+        undefined,
+        undefined,
+        ctx(root),
+      ),
+    );
+    expect(aborted).toContain("的组 [01] 的 worker（1 个）");
+    expect(aborted).toContain("现场不动");
+
+    // 账本里只有组 A 的 exit（组粒度的硬证据）。
+    const { openLedger } = await import("./ledger.ts");
+    const exits = openLedger(stateRoot)
+      .events()
+      .filter((event) => event.type === "worker.exit")
+      .map((event) => event.payload["worker"]);
+    expect(exits).toEqual([`${directory}::01`]);
+
+    // 组 B 仍在跑，且现场没被动过。
+    const listed = textOf(
+      await workers?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
+    );
+    expect(listed).toContain("notes: 02");
+    expect(listed).not.toContain("notes: 01");
+    expect(listed).toContain(`组键 note-02 · 现场 ${root}/.worktrees/note-02（存在）`);
+    expect(worktree.removed).toEqual([]);
   });
 
-  it("worktree: false 在 Plan 派工里也不建", async () => {
+  it("abort 后同组再派：开新会话，现场目录不变、不再 install", async () => {
     const worktree = fakeWorktree();
-    const { tools, spawnCwds } = await setup({ worktree: worktree.hooks });
-    const { root, ref } = await planWithNotes([note("04")]);
-    const text = textOf(
-      await tools
-        .get("orchestrator_command")
-        ?.execute(
-          "id",
-          { plan: ref, notes: ["04"], worktree: false, message: "不隔离" },
-          undefined,
-          undefined,
-          ctx(root),
-        ),
+    const { tools, spawnOptions } = await setup({
+      worktree: worktree.hooks,
+      makeSession: () => fakeSession(true, false),
+    });
+    const { root, ref } = await planWithNotes([note("01")]);
+    const dispatch = tools.get("orchestrator_command");
+    const workers = tools.get("orchestrator_state");
+    await dispatch?.execute(
+      "id",
+      { plan: ref, notes: ["01"], message: "做 01" },
+      undefined,
+      undefined,
+      ctx(root),
     );
-    expect(text).not.toContain("worktree:");
-    expect(worktree.ensured).toEqual([]);
-    expect(spawnCwds).toEqual([root]);
+    expect(spawnOptions[0]?.sessionKey).not.toContain("#");
+
+    await workers?.execute(
+      "id",
+      { op: "abort", plan: ref, notes: ["01"] },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+    await dispatch?.execute(
+      "id",
+      { plan: ref, notes: ["01"], message: "接着做 01" },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+    // 新一代是**新**会话（旧上下文不接管），现场仍是同一个（只建过一次、只装过一次）。
+    expect(spawnOptions[1]?.sessionKey).toContain("#");
+    expect(worktree.ensured).toEqual(["note-01", "note-01"]);
+    expect(worktree.installed).toEqual([`${root}/.worktrees/note-01`]);
   });
 
-  it("settle 后代码自动 ff-only 合并并回收 worktree；同一键再派会重建目录", async () => {
+  it("settle 后代码自动 ff-only 合并并回收现场（组内 note 全 completed）", async () => {
     const worktree = fakeWorktree();
     const { tools, spawns, stateRoot } = await setup({ worktree: worktree.hooks });
-    const { root, ref } = await planWithNotes([note("05")]);
+    const { root, ref } = await planWithNotes([note("05", [], "completed")]);
     const dispatch = tools.get("orchestrator_command");
     const workers = tools.get("orchestrator_state");
     await dispatch?.execute(
@@ -848,22 +926,24 @@ describe("dispatch 与 workers 工具", () => {
       ctx(root),
     );
 
-    const merged = await waitForEvent(stateRoot, "worker.merged");
+    const merged = await waitForEvent(stateRoot, "worktree.merged");
     expect(merged).toBeDefined();
     expect(merged?.payload).toMatchObject({
-      worktree: "note-05",
+      key: "note-05",
       branch: "wt/note-05",
       commit: "deadbeef",
       cleanup: "已清理",
     });
-    expect(String(merged?.payload["worker"])).toContain("::05");
-    // 合并成功 = 目录被回收。
+    // 合并成功 = 目录与分支被回收，账本另落一条 removed。
+    const removedEvent = await waitForEvent(stateRoot, "worktree.removed");
+    expect(removedEvent?.payload).toMatchObject({ key: "note-05", reason: "merged" });
     expect(worktree.removed).toEqual(["note-05"]);
 
     const listed = textOf(
       await workers?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
     );
-    expect(listed).toContain("已合并 deadbeef");
+    // 合并成功 = 句柄收工，但现场那一行留在账本投影里（已回收，带上合并的 commit）。
+    expect(listed).toContain("note-05 · wt/note-05 · 已回收（merged）");
     expect(listed).not.toContain("✗ 未合并");
     const details = (await workers?.execute(
       "id",
@@ -871,14 +951,16 @@ describe("dispatch 与 workers 工具", () => {
       undefined,
       undefined,
       ctx(root),
-    )) as { details: { merged: Array<{ worker: string; commit?: string }> } };
-    expect(details.details.merged[0]?.commit).toBe("deadbeef");
+    )) as {
+      details: { worktrees: Array<{ key: string; phase: string; commit?: string }> };
+    };
+    const site = details.details.worktrees.find((item) => item.key === "note-05");
+    expect(site).toMatchObject({ phase: "removed", commit: "deadbeef" });
 
-    // 合并后目录没了：同一键再派（rework 要改代码，显式 worktree: true）重新 ensure + install，
-    // 复用同一个会话 —— 纯控制指令默认不再建目录，所以这里必须显式要求。
+    // 合并后现场被回收、句柄也收工（cwd 已不存在）：同一组再派 = 新 worker + 新现场。
     await dispatch?.execute(
       "id",
-      { plan: ref, notes: ["05"], kind: "rework", message: "再改", worktree: true },
+      { plan: ref, notes: ["05"], kind: "rework", message: "再改" },
       undefined,
       undefined,
       ctx(root),
@@ -888,13 +970,13 @@ describe("dispatch 与 workers 工具", () => {
       `${root}/.worktrees/note-05`,
       `${root}/.worktrees/note-05`,
     ]);
-    expect(spawns).toHaveLength(1);
+    expect(spawns).toHaveLength(2);
   });
 
   it("不能 ff-only 时不合并、保留现场，摘要里标 ✗ 并给出原因", async () => {
     const worktree = fakeWorktree({ merged: false });
     const { tools, stateRoot } = await setup({ worktree: worktree.hooks });
-    const { root, ref } = await planWithNotes([note("06")]);
+    const { root, ref } = await planWithNotes([note("06", [], "completed")]);
     await tools
       .get("orchestrator_command")
       ?.execute(
@@ -1049,7 +1131,7 @@ describe("dispatch 与 workers 工具", () => {
     expect(spawns[0]?.followUps).toEqual(["做 01"]);
   });
 
-  it("临时派工用 worker=temp:<id> 寻址：同 id 复用，作废后再派报错", async () => {
+  it("临时 worker 只认 live 句柄：同 id 在跑就追加，abort 后再派是新 worker", async () => {
     const { tools, spawns, spawnOptions } = await setup({
       makeSession: () => fakeSession(true, false),
     });
@@ -1066,7 +1148,7 @@ describe("dispatch 与 workers 工具", () => {
     );
     expect(spawnOptions[0]).toMatchObject({ temp: "7", sessionKey: "temp:7" });
 
-    // 同 id 再派：复用同一个 worker，不再起新会话。
+    // 同 id 再派：句柄还在跑 → 追加给它，不再起新会话。
     await dispatch?.execute(
       "id",
       { message: "再看 Y", worker: "temp:7" },
@@ -1076,28 +1158,20 @@ describe("dispatch 与 workers 工具", () => {
     );
     expect(spawns).toHaveLength(1);
 
-    // abort 即作废：同 id 再派直接报错，换一个 id 才行。
+    // abort 后句柄没了：同 id 再派**不报错、不接管旧会话**，新建一个（会话键换一代）。
     await workers?.execute("id", { op: "abort", plan: "temp:7" }, undefined, undefined, ctx(root));
-    await expect(
-      dispatch?.execute(
-        "id",
-        { message: "再来", worker: "temp:7" },
-        undefined,
-        undefined,
-        ctx(root),
-      ),
-    ).rejects.toThrow(/作废/);
     await dispatch?.execute(
       "id",
-      { message: "再来", worker: "temp:8" },
+      { message: "再来", worker: "temp:7" },
       undefined,
       undefined,
       ctx(root),
     );
-    expect(spawnOptions[1]).toMatchObject({ temp: "8" });
+    expect(spawns).toHaveLength(2);
+    expect(spawnOptions[1]).toMatchObject({ temp: "7", sessionKey: "temp:7#2" });
   });
 
-  it("Plan 组被作废后仍可重派：换一代会话，不把组锁死", async () => {
+  it("同一个组键重派：上一代会话只当历史，换一代新开（不接管）", async () => {
     const { tools, spawns, spawnOptions } = await setup({
       makeSession: () => fakeSession(true, false),
     });
@@ -1117,7 +1191,7 @@ describe("dispatch 与 workers 工具", () => {
       ctx(root),
     );
     expect(spawns).toHaveLength(2);
-    // 作废后的会话 id 与作废时刻绑定：旧上下文不再续上，旧 jsonl 还在。
+    // 上一代会话只当历史（disk 上的 jsonl 不接管）：会话键换一代。
     expect(spawnOptions[1]?.sessionKey).toContain("#");
   });
 
@@ -1667,19 +1741,23 @@ describe("dispatch 与 workers 工具", () => {
     expect(second.spawnOptions).toHaveLength(before);
   });
 
-  it("resume 不带回 plan 目录：没有 worktree 的 worker 起在主工作区（否则它认不出 Plan）", async () => {
-    const first = await setup({ makeSession: () => fakeSession(true, false) });
+  it("resume 的 cwd：有现场回现场目录，Plan 级（无现场）回主工作区", async () => {
+    const worktree = fakeWorktree({ created: false });
+    const first = await setup({
+      worktree: worktree.hooks,
+      makeSession: () => fakeSession(true, false),
+    });
     const { root, ref } = await planWithNotes([note("01")]);
     await first.tools
       .get("orchestrator_command")
       ?.execute(
         "id",
-        { plan: ref, notes: ["01"], note: "01", message: "做 01", worktree: false },
+        { plan: ref, notes: ["01"], note: "01", message: "做 01" },
         undefined,
         undefined,
         ctx(root),
       );
-    expect(first.spawnCwds).toEqual([root]);
+    expect(first.spawnCwds).toEqual([`${root}/.worktrees/note-01`]);
     for (const handler of first.handlers.get("session_shutdown") ?? []) {
       await handler({ reason: "quit" });
     }
@@ -1694,8 +1772,86 @@ describe("dispatch 与 workers 工具", () => {
         ?.execute("id", { op: "resume", plan: ref }, undefined, undefined, ctx(root)),
     );
     expect(text).toContain("已恢复");
-    // cwd 是主工作区（root），不是 plan 目录：worker 侧的 workspace 由此推出。
-    expect(second.spawnCwds).toEqual([root]);
+    // 有现场就回现场目录：隔离继续生效，Plan 仍锚定主工作区。
+    expect(second.spawnCwds).toEqual([`${root}/.worktrees/note-01`]);
+  });
+
+  it("session_start（reload）自动恢复当前 Plan 的孤儿：无当前 Plan 不动、重复触发新增", async () => {
+    // 一代：派工后会话退出 → 账本留下 worker.suspended。
+    const first = await setup({
+      worktree: fakeWorktree().hooks,
+      makeSession: () => fakeSession(true, false),
+    });
+    const { root, ref } = await planWithNotes([note("01")]);
+    await first.tools
+      .get("orchestrator_command")
+      ?.execute(
+        "id",
+        { plan: ref, notes: ["01"], message: "做 01" },
+        undefined,
+        undefined,
+        ctx(root),
+      );
+    for (const handler of first.handlers.get("session_shutdown") ?? []) {
+      await handler({ reason: "reload" });
+    }
+    const path = await import("node:path");
+    const directory = path.join(
+      root,
+      ".agents",
+      "domains",
+      "etf",
+      "plans",
+      "active",
+      "2026-11-07-分组",
+    );
+    const mode = { type: "custom", customType: MODE_ENTRY, data: { enabled: true } };
+    const current = { type: "custom", customType: CURRENT_PLAN_ENTRY, data: { directory } };
+
+    // 没有当前 Plan 记录：不猜 Plan、不做全局对账 —— 一个都不拉，仍列为手动可恢复。
+    const blind = await setup({
+      stateDir: () => first.stateRoot,
+      worktree: fakeWorktree().hooks,
+      makeSession: () => fakeSession(true, false),
+    });
+    blind.handle.start(sessionCtx(root, [mode]));
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(blind.spawnOptions).toEqual([]);
+    const stillOrphan = textOf(
+      await blind.tools
+        .get("orchestrator_state")
+        ?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
+    );
+    expect(stillOrphan).toContain("可恢复 worker");
+
+    // reload 发 session_start：与 op=resume 同一个实现，自动把当前 Plan 的孤儿接回来。
+    const revived = await setup({
+      stateDir: () => first.stateRoot,
+      worktree: fakeWorktree().hooks,
+      makeSession: () => fakeSession(true, false),
+    });
+    revived.handle.start(sessionCtx(root, [mode, current]));
+    await waitUntil(() => revived.spawnOptions.length > 0);
+    expect(revived.spawnOptions).toHaveLength(1);
+    // 同一份 jsonl（会话键没换一代），消息还是最短的“继续 + 先 git status 核对”。
+    expect(revived.spawnOptions[0]?.sessionKey).toBe(first.spawnOptions[0]?.sessionKey);
+    expect(revived.spawns[0]?.prompts[0]).toContain("git status");
+    const listed = textOf(
+      await revived.tools
+        .get("orchestrator_state")
+        ?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
+    );
+    expect(listed).not.toContain("可恢复 worker");
+
+    // 再触发一次 session_start：已有 live 句柄 → 幂等，不新增会话、不重复落账。
+    revived.handle.start(sessionCtx(root, [mode, current]));
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(revived.spawnOptions).toHaveLength(1);
+    const { openLedger } = await import("./ledger.ts");
+    const resumedEvents = openLedger(first.stateRoot)
+      .events()
+      .filter((event) => event.type === "worker.resumed");
+    expect(resumedEvents).toHaveLength(1);
   });
 
   it("resume 幂等键：同一代已经恢复过就跳过，不再起会话", async () => {

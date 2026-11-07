@@ -1,14 +1,17 @@
 /**
- * worker 会话的落盘、按工作键恢复与作废登记。
+ * worker 会话的落盘与按工作键恢复。
  *
  * 两种 worker（Plan worker 与临时 worker）都有 jsonl 会话文件：Plan worker 由编排方按
  * `plan 目录::组` 维护，临时 worker 就是一个普通 pi 会话、按 `temp:<id>` 寻址。会话 id
  * 由**工作键**哈希得到，所以"哪个键对应哪个会话文件"不依赖内存：重启后同一个键算出的
  * id 相同，`SessionManager.findById` 就能把文件找回来。
  *
- * 状态目录里还留一份小索引（`workers.json`）：它记下已知的键与最近的会话路径，并登记
- * 被中止的键。索引可以丢 —— 丢了只是路径要靠 `findById` 重扫、临时 id 计数从头开始；
- * 会话文件本身不受影响。
+ * 状态目录里还留一份小索引（`workers.json`）：它记下已知的键与最近的会话路径。索引可以
+ * 丢 —— 丢了只是路径要靠 `findById` 重扫、临时 id 计数从头开始；会话文件本身不受影响。
+ *
+ * **没有作废登记**：dispatch 只认进程内的 live 句柄，被 abort 的键再派就是新一代会话
+ * （会话键带 `#N`），旧 jsonl 只当历史。续跑落盘会话的唯一入口是 `orchestrator_state` 的
+ * `op=resume`。
  *
  * 子 worker 不走这里：它不续、不落盘，仍在内存会话里跑（见 `spawn.ts`）。
  * @module @kxh4892636/pi-toolkit/orchestrator/worker-sessions
@@ -32,16 +35,9 @@ export interface WorkerSessionRecord {
   readonly at: string;
 }
 
-/** 被中止的键：同键再派要报错，不复用那个上下文。 */
-export interface AbortedRecord {
-  readonly at: string;
-  readonly reason: string;
-}
-
 /** `workers.json` 的内容。 */
 export interface WorkerSessionIndex {
   readonly sessions: Record<string, WorkerSessionRecord>;
-  readonly aborted: Record<string, AbortedRecord>;
 }
 
 /** 打开或新建出来的会话。 */
@@ -72,12 +68,13 @@ export const workerSessionId = (key: string): string => {
  */
 export const readWorkerSessionIndex = (stateDir: string): WorkerSessionIndex => {
   const file = join(stateDir, WORKERS_FILE);
-  if (!existsSync(file)) return { sessions: {}, aborted: {} };
+  if (!existsSync(file)) return { sessions: {} };
   try {
     const parsed = JSON.parse(readFileSync(file, "utf8")) as Partial<WorkerSessionIndex>;
-    return { sessions: parsed.sessions ?? {}, aborted: parsed.aborted ?? {} };
+    // 旧索引里可能有 `aborted`（作废登记已删）：读入时直接忽略，不迁移、不重写。
+    return { sessions: parsed.sessions ?? {} };
   } catch {
-    return { sessions: {}, aborted: {} };
+    return { sessions: {} };
   }
 };
 
@@ -109,31 +106,6 @@ export const rememberWorkerSession = (stateDir: string, key: string, path?: stri
     // 状态目录不可写时只影响"重启后能否秒找回"，不阻断派工。
   }
 };
-
-/**
- * 登记一个被中止的键。同键再派会直接报错，不复用被 abort 的上下文。
- * @param stateDir - 状态目录。
- * @param key - 工作键。
- * @param reason - `abort`（编排方刹车）或 `timeout`（watchdog）。
- */
-export const markWorkerSessionAborted = (stateDir: string, key: string, reason: string): void => {
-  const index = readWorkerSessionIndex(stateDir);
-  const record: AbortedRecord = { at: new Date().toISOString(), reason };
-  try {
-    writeWorkerSessionIndex(stateDir, { ...index, aborted: { ...index.aborted, [key]: record } });
-  } catch {
-    // 同上：登记失败不该让刹车本身失败。
-  }
-};
-
-/**
- * 查一个键是否已被作废。
- * @param stateDir - 状态目录。
- * @param key - 工作键。
- * @returns 作废记录；没有则 undefined。
- */
-export const abortedWorkerSession = (stateDir: string, key: string): AbortedRecord | undefined =>
-  readWorkerSessionIndex(stateDir).aborted[key];
 
 /**
  * 下一个可用的临时 worker 序号。

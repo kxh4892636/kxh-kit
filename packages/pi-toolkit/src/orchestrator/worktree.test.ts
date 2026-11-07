@@ -6,7 +6,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import {
-  autoWorktreeName,
+  groupWorktreeName,
   branchOfWorktree,
   ensureWorktree,
   installDependencies,
@@ -68,10 +68,10 @@ describe("worktree 命名", () => {
     expect(() => sanitizeWorktreeName("///")).toThrow(/名字无效/u);
   });
 
-  it("自动命名：单 note / 组 / Plan 级", () => {
-    expect(autoWorktreeName([])).toBe("plan");
-    expect(autoWorktreeName(["07"])).toBe("note-07");
-    expect(autoWorktreeName(["07", "08"])).toBe("grp-07-08");
+  it("组键即现场名：单 note / 多 note / 无组（没有现场）", () => {
+    expect(groupWorktreeName([])).toBeUndefined();
+    expect(groupWorktreeName(["07"])).toBe("note-07");
+    expect(groupWorktreeName(["08", "07", "08"])).toBe("grp-08-07");
     expect(branchOfWorktree("note-07")).toBe("wt/note-07");
   });
 });

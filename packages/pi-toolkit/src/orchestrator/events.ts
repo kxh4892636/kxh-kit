@@ -23,8 +23,13 @@ export const EVENT_TYPES = [
   "worker.exit",
   "worker.suspended",
   "worker.resumed",
+  /** 遗留：合并结果现在落 `worktree.merged`；旧账本里还有这两类，读入仍然生效。 */
   "worker.merged",
   "worker.merge_blocked",
+  /** 现场（一个组一个）：建一次 / 合并成功 / 合并后回收。 */
+  "worktree.created",
+  "worktree.merged",
+  "worktree.removed",
   "timeout",
   "timeout.diagnosed",
   "retry.scheduled",
@@ -224,9 +229,9 @@ export interface WorkerResumedPayload {
 }
 
 /**
- * `worker.merged` 的正文：worker 终态后代码自动把 worktree ff-only 合并回主工作区。
+ * `worker.merged` 的正文（**遗留**）：新写入用 `worktree.merged`（现场属于组，不属于某一代 worker）。
  *
- * 只写账本（不写任何 json 文件、不写内存 released）：合并结论属于运行态事实。
+ * 旧账本里还有这一型，读入仍然生效（投影把它折成 worker 的 `merged` 结论）。
  */
 export interface WorkerMergedPayload {
   readonly worker: string;
@@ -240,7 +245,7 @@ export interface WorkerMergedPayload {
   readonly cleanup?: string;
 }
 
-/** `worker.merge_blocked` 的正文：不能 ff-only 时现场保留，记下原因与目录。 */
+/** `worker.merge_blocked` 的正文：不能 ff-only 时现场保留，记下原因与目录（一条 error 待人工）。 */
 export interface WorkerMergeBlockedPayload {
   readonly worker: string;
   readonly worktree: string;
@@ -248,6 +253,45 @@ export interface WorkerMergeBlockedPayload {
   /** worktree 目录（现场保留下来给人看）。 */
   readonly directory: string;
   readonly reason: string;
+}
+
+/**
+ * `worktree.created` 的正文：一个组的现场建出来了（同组后续派工复用，不再建、不再装）。
+ *
+ * `key` 既是组键也是目录名与分支名的后缀：`.worktrees/<key>` / `wt/<key>`；
+ * `pnpm install` 只在 `created: true` 时做一次。
+ */
+export interface WorktreeCreatedPayload {
+  /** 组键，也是 worktree 名字：`note-<id>` / `grp-<id-id>`。 */
+  readonly key: string;
+  readonly branch: string;
+  readonly directory: string;
+  /** 建出这个现场的那一代 worker 的路由键。 */
+  readonly worker: string;
+  /** 本次是否新建（复用已有现场时为 false）。 */
+  readonly created: boolean;
+  /** `pnpm install` 花的时间（毫秒）；复用时不填。 */
+  readonly installMs?: number;
+}
+
+/** `worktree.merged` 的正文：组内 note 全 completed，代码 ff-only 合并成功并回收了现场。 */
+export interface WorktreeMergedPayload {
+  readonly key: string;
+  readonly branch: string;
+  /** 合并后的主分支 HEAD；拿不到 `rev-parse` 时不填。 */
+  readonly commit?: string;
+  /** 回收说明（目录残留补删、分支删除等）。 */
+  readonly cleanup?: string;
+  readonly worker: string;
+}
+
+/** `worktree.removed` 的正文：现场目录与分支被回收（目前只有合并成功这一条路）。 */
+export interface WorktreeRemovedPayload {
+  readonly key: string;
+  readonly branch: string;
+  /** `merged`（合并成功后回收）。 */
+  readonly reason: string;
+  readonly worker?: string;
 }
 
 /** `timeout` 的正文：判活只看账本，这里是当时能拿到的事实。 */

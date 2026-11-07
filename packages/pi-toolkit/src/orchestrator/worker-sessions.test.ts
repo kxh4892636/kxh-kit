@@ -4,8 +4,6 @@ import { existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  abortedWorkerSession,
-  markWorkerSessionAborted,
   nextTempSeq,
   openWorkerSession,
   readWorkerSessionIndex,
@@ -90,21 +88,11 @@ describe("worker 会话落盘与按需恢复", () => {
     expect(nextTempSeq(stateDir)).toBe(4);
   });
 
-  it("作废登记读得回来，且不影响别的键", async () => {
-    const stateDir = await tempDir("pi-session-state-");
-    expect(abortedWorkerSession(stateDir, "temp:2")).toBeUndefined();
-    markWorkerSessionAborted(stateDir, "temp:2", "abort");
-    const record = abortedWorkerSession(stateDir, "temp:2");
-    expect(record?.reason).toBe("abort");
-    expect(typeof record?.at).toBe("string");
-    expect(abortedWorkerSession(stateDir, "temp:3")).toBeUndefined();
-  });
-
   it("索引损坏时不抛错，按空索引处理", async () => {
     const stateDir = await tempDir("pi-session-state-");
     const { writeFile } = await import("node:fs/promises");
     await writeFile(join(stateDir, WORKERS_FILE), "{ not json", "utf8");
-    expect(readWorkerSessionIndex(stateDir)).toEqual({ sessions: {}, aborted: {} });
+    expect(readWorkerSessionIndex(stateDir)).toEqual({ sessions: {} });
     expect(nextTempSeq(stateDir)).toBe(1);
   });
 });

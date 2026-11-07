@@ -37,6 +37,7 @@ import {
 } from "./ledger.ts";
 import type { InputKind, ReportOutcome } from "./types.ts";
 import type { DeliveredAs, DeliveryMode } from "./handles.ts";
+import { branchOfWorktree } from "./worktree.ts";
 
 /** 投影里的一个 worker。 */
 export interface ProjectedWorker {
@@ -139,9 +140,30 @@ export interface ProjectedNoteStatus {
   at: string;
 }
 
+/** 投影里的一个现场（一个组一个）。`phase` 只剩三步：建好 / 合并成功 / 已回收。 */
+export interface ProjectedWorktree {
+  /** 组键，也是 worktree 名字：`note-<id>` / `grp-<id-id>`。 */
+  readonly key: string;
+  readonly branch: string;
+  readonly directory: string;
+  readonly phase: "created" | "merged" | "removed";
+  /** 建出 / 合并 / 回收的时刻（ISO）。 */
+  readonly at: string;
+  /** 建出现场的那一代 worker 的路由键。 */
+  worker?: string;
+  /** 合并后的主分支 HEAD（`worktree.merged` 才有）。 */
+  commit?: string;
+  /** 回收原因（`worktree.removed`）。 */
+  reason?: string;
+  /** `pnpm install` 花的时间（毫秒）。 */
+  installMs?: number;
+}
+
 /** 投影状态。 */
 export interface ProjectionState {
   workers: Map<string, ProjectedWorker>;
+  /** 组键 → 现场（`.worktrees/<组键>`）；`state` 与侧栏靠它区分“当前worker”与“旧现场”。 */
+  worktrees: Map<string, ProjectedWorktree>;
   /** `plan（目录）→ 已放行的 note id`。 */
   released: Map<string, Set<string>>;
   /** 重试键（通常就是 note id）→ 已重派次数与最近诊断。 */
@@ -160,6 +182,7 @@ export interface ProjectionState {
 /** 空投影。 */
 export const emptyState = (): ProjectionState => ({
   workers: new Map(),
+  worktrees: new Map(),
   released: new Map(),
   retries: new Map(),
   reports: [],
@@ -239,6 +262,7 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
     case "snapshot": {
       const restored = restoreState(payload["state"]);
       state.workers = restored.workers;
+      state.worktrees = restored.worktrees;
       state.released = restored.released;
       state.retries = restored.retries;
       state.reports = restored.reports;
@@ -439,6 +463,68 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
       delete entry.mergeBlocked;
       return true;
     }
+    case "worktree.created": {
+      const key = payloadString(payload, "key");
+      if (key === undefined) return true;
+      const worker = payloadString(payload, "worker");
+      const installMs = payloadNumber(payload, "installMs");
+      state.worktrees.set(key, {
+        key,
+        branch: payloadString(payload, "branch") ?? branchOfWorktree(key),
+        directory: payloadString(payload, "directory") ?? "",
+        phase: "created",
+        at: event.at,
+        ...(worker === undefined ? {} : { worker }),
+        ...(installMs === undefined ? {} : { installMs }),
+      });
+      return true;
+    }
+    case "worktree.merged": {
+      const key = payloadString(payload, "key");
+      if (key === undefined) return true;
+      const worker = payloadString(payload, "worker");
+      const commit = payloadString(payload, "commit");
+      const previous = state.worktrees.get(key);
+      state.worktrees.set(key, {
+        key,
+        branch: payloadString(payload, "branch") ?? previous?.branch ?? branchOfWorktree(key),
+        directory: previous?.directory ?? "",
+        phase: "merged",
+        at: event.at,
+        ...(worker === undefined
+          ? previous?.worker === undefined
+            ? {}
+            : { worker: previous.worker }
+          : { worker }),
+        ...(commit === undefined ? {} : { commit }),
+        ...(previous?.installMs === undefined ? {} : { installMs: previous.installMs }),
+      });
+      // worker 维度的结论照旧看得见（`state` 里那一行 `已合并 <sha>`）。
+      if (worker !== undefined) {
+        const entry = ensureWorker(state, worker, event.at);
+        entry.merged = { at: event.at, ...(commit === undefined ? {} : { commit }) };
+        delete entry.mergeBlocked;
+      }
+      return true;
+    }
+    case "worktree.removed": {
+      const key = payloadString(payload, "key");
+      if (key === undefined) return true;
+      const previous = state.worktrees.get(key);
+      state.worktrees.set(key, {
+        key,
+        branch: payloadString(payload, "branch") ?? previous?.branch ?? branchOfWorktree(key),
+        directory: previous?.directory ?? "",
+        phase: "removed",
+        at: event.at,
+        ...(previous?.worker === undefined ? {} : { worker: previous.worker }),
+        ...(previous?.commit === undefined ? {} : { commit: previous.commit }),
+        ...(payloadString(payload, "reason") === undefined
+          ? {}
+          : { reason: payloadString(payload, "reason") as string }),
+      });
+      return true;
+    }
     case "worker.merge_blocked": {
       const worker = payloadString(payload, "worker");
       if (worker === undefined) return true;
@@ -556,6 +642,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 export const snapshotState = (state: ProjectionState): Record<string, unknown> => ({
   version: SNAPSHOT_VERSION,
   workers: [...state.workers.values()],
+  worktrees: [...state.worktrees.values()],
   released: [...state.released].map(([plan, notes]) => [plan, [...notes]]),
   retries: [...state.retries.values()],
   reports: state.reports,
@@ -585,6 +672,17 @@ export const restoreState = (raw: unknown): ProjectionState => {
         inputs: typeof worker.inputs === "number" ? worker.inputs : 0,
         timeouts: typeof worker.timeouts === "number" ? worker.timeouts : 0,
         depth: typeof worker.depth === "number" ? worker.depth : 0,
+      });
+    }
+  }
+  const worktrees = raw["worktrees"];
+  if (Array.isArray(worktrees)) {
+    for (const item of worktrees) {
+      if (!isRecord(item) || typeof item["key"] !== "string") continue;
+      const site = item as unknown as ProjectedWorktree;
+      state.worktrees.set(site.key, {
+        ...site,
+        phase: site.phase === "merged" || site.phase === "removed" ? site.phase : "created",
       });
     }
   }
