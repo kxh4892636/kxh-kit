@@ -1,8 +1,15 @@
 /**
  * note 详情浮层：快照 + 正在执行时的实时流。
  *
- * 浮层是 **capturing** 的（不传 `nonCapturing`）：只有拿到焦点才收得到 `Esc`，而 `Esc` 是
- * 关闭详情的唯一入口。打开它不往主会话插入任何内容 —— 纯覆盖层。
+ * 浮层**只占卡片那块矩形**（`width: DETAIL_WIDTH`、`anchor: "center"`），卡片以外一个像素都不写，
+ * 因此外部区域是**真透明**的（底层正文与侧栏照常可见）。这不是省事，是宿主语义逼出来的：
+ * `compositeTuiLine` 对 overlay 矩形内的每一行都会写满 `overlayWidth` 列（`""` 被 `overlayPad`
+ * 补成等宽空格），所以「返回空行」= **清空该行**，不是透明；只有把矩形本身缩到卡片才真透明。
+ *
+ * 代价与取舍：矩形外的点击落到底层组件（宿主 `dispatchMouseToOverlay` 纯几何命中），因此
+ * **不能点外部关闭**，改由卡片右上角的 `×` 或 `Esc` 关闭。浮层同时是 `nonCapturing`：不抢焦点，
+ * `Esc` 由侧栏的 `addInputListener` 消费（见 `sidebar.ts`），编辑器焦点不丢。打开它不往主会话插入
+ * 任何内容 —— 纯覆盖层。
  *
  * 实时流来自 worker 会话的 `subscribe`：`message_update` 里 `text_delta` 追加文本，
  * `tool_execution_start` 记一行工具名。文本累积到一个有上限的尾巴里，重绘按
@@ -13,7 +20,6 @@
 
 import type { Theme } from "@earendil-works/pi-coding-agent";
 import {
-  matchesKey,
   sliceByColumn,
   truncateToWidth,
   visibleWidth,
@@ -27,10 +33,12 @@ export const STREAM_THROTTLE_MS = 200;
 export const STREAM_MAX_LINES = 3;
 /** 文本尾巴最多留多少字符：只用来显示最近几行。 */
 export const STREAM_TAIL_CHARS = 600;
-/** 详情卡片的最大宽度（终端更窄时按 `columns - 2 * DETAIL_CARD_MARGIN` 收）。 */
+/** 详情卡片宽度（终端更窄时宿主 `resolveOverlayLayout` 会把它 clamp 到可用宽度）。 */
 export const DETAIL_WIDTH = 48;
-/** 卡片与终端边缘的留白。 */
-export const DETAIL_CARD_MARGIN = 2;
+/** 卡片高度上限：占终端高度的比例，超出由宿主按 `maxHeight` 裁。 */
+export const DETAIL_MAX_HEIGHT = "80%";
+/** 卡片右上角的关闭按钮。 */
+export const DETAIL_CLOSE_GLYPH = "×";
 
 /** 一段流式内容：助手文本增量，或一个工具调用标记。 */
 export interface StreamChunk {
@@ -200,29 +208,9 @@ export const renderDetailLines = (
     }
   }
   lines.push("");
-  lines.push(theme.fg("dim", "点击外部或 Esc 关闭"));
+  lines.push(theme.fg("dim", `Esc 或点 ${DETAIL_CLOSE_GLYPH} 关闭`));
   return lines;
 };
-
-/** 浮层可用区域（终端列/行）。 */
-export interface DetailArea {
-  readonly columns: number;
-  readonly rows: number;
-}
-
-/** 卡片矩形：左闭右开（`x < right && y < bottom` 即在卡内）。 */
-export interface DetailCardRect {
-  readonly left: number;
-  readonly right: number;
-  readonly top: number;
-  readonly bottom: number;
-}
-
-/** 一帧渲染：铺满可用区域的行 + 卡片矩形（供点击命中判定）。 */
-export interface DetailFrame {
-  readonly lines: readonly string[];
-  readonly card: DetailCardRect;
-}
 
 /** 按可见宽度补空格到 `width` 列。 */
 const padTo = (text: string, width: number): string => {
@@ -232,84 +220,56 @@ const padTo = (text: string, width: number): string => {
 };
 
 /**
- * 把详情内容排成“铺满可用区域、内部居中一张带边框的卡片”。
- *
- * 为什么要铺满：宿主 `OverlayOptions` **没有**“点击外部关闭”这类字段（只有
- * width/minWidth/maxHeight/anchor/offset/margin/visible/nonCapturing），所以点击外部
- * 必须由组件自己判定 —— 组件得先占住那块区域才收得到点击。
+ * 渲染**只有卡片本体**的那几行（不铺满、不居中）：宿主把这几行贴在 `anchor: "center"` 的位置，
+ * 上边框右上角带一个 `×` 关闭位。
  * @param body - 已按内容宽度渲染好的卡片内容行。
- * @param area - 可用列数与行数。
- * @returns 逐行文本与卡片矩形。
+ * @param width - 卡片总宽（含边框）。
+ * @param border - 边框上色回调（调用方传 `theme.fg("warning", …)`，与侧栏的 `accent` 分开）。
+ * @returns 逐行文本，宽度正好是 `width`。
  */
-export const frameDetailCard = (
+export const renderDetailCard = (
   body: readonly string[],
-  area: DetailArea,
-  /**
-   * 边框上色回调（默认原样）：调用方传 `theme.fg("warning", …)` 等，
-   * 让详情卡片的框与侧栏外框（`accent`）一眼分得开。
-   */
+  width: number,
   border: (text: string) => string = (text) => text,
-): DetailFrame => {
-  const columns = Math.max(8, area.columns);
-  const rows = Math.max(3, area.rows);
-  const cardWidth = Math.max(20, Math.min(DETAIL_WIDTH, columns - DETAIL_CARD_MARGIN * 2));
-  const contentWidth = Math.max(1, cardWidth - 4);
+): readonly string[] => {
+  const cardWidth = Math.max(8, width);
   const innerWidth = cardWidth - 2;
-  const framed = [
-    border(`┌${"─".repeat(innerWidth)}┐`),
+  const contentWidth = Math.max(1, cardWidth - 4);
+  // 上边框末列放 `×`：`┌` + 横线(innerWidth-1) + `×` + `┐` = cardWidth。
+  const top = `${"┌"}${"─".repeat(Math.max(0, innerWidth - 1))}${DETAIL_CLOSE_GLYPH}┐`;
+  return [
+    border(top),
     ...body.map((line) => `${border("│")} ${padTo(line, contentWidth)} ${border("│")}`),
     border(`└${"─".repeat(innerWidth)}┘`),
-  ].slice(0, rows);
-  const top = Math.max(0, Math.floor((rows - framed.length) / 2));
-  const left = Math.max(0, Math.floor((columns - cardWidth) / 2));
-  const lines: string[] = [];
-  for (let row = 0; row < rows; row += 1) {
-    const cardLine = framed[row - top];
-    lines.push(cardLine === undefined ? "" : `${" ".repeat(left)}${cardLine}`);
-  }
-  return {
-    lines,
-    card: { left, right: left + cardWidth, top, bottom: top + framed.length },
-  };
+  ];
 };
 
 /**
- * 详情浮层组件：铺满可用区域 + 居中卡片；`Esc` 或**点击卡片外部**关闭。
+ * 详情浮层组件：只返回卡片本体那几行；`×` 关闭，`Esc` 由侧栏的输入监听消费。
+ *
+ * `handleMouse` 只在卡片矩形内收到事件（宿主按 overlay 矩形命中），所以这里**没有**“点外部关闭”
+ * 分支：那正是透明浮层的代价，写进 README 与 note。
  * @param theme - 主题。
- * @param options - 内容来源、关闭回调与可用区域。
+ * @param options - 内容来源与关闭回调。
  * @returns 组件。
  */
 export const createDetailComponent = (
   theme: Theme,
-  options: { content: () => DetailContent; onClose: () => void; area?: () => DetailArea },
+  options: { content: () => DetailContent; onClose: () => void },
 ): Component => {
-  let card: DetailCardRect | undefined;
-  const areaOf = (width: number): DetailArea =>
-    options.area?.() ?? { columns: width, rows: Math.max(6, options.content().live.length + 12) };
+  let cardWidth = DETAIL_WIDTH;
   return {
     render(width: number): string[] {
-      const area = areaOf(width);
-      const columns = Math.max(8, area.columns);
-      const cardWidth = Math.max(20, Math.min(DETAIL_WIDTH, columns - DETAIL_CARD_MARGIN * 2));
+      cardWidth = Math.max(8, width);
       const body = renderDetailLines(options.content(), Math.max(1, cardWidth - 4), theme);
-      const frame = frameDetailCard(body, area, (text) => theme.fg("warning", text));
-      card = frame.card;
-      return [...frame.lines];
+      return [...renderDetailCard(body, cardWidth, (text) => theme.fg("warning", text))];
     },
     handleMouse(event): { handled: boolean } {
-      const rect = card;
-      if (event.type !== "click" || rect === undefined) return { handled: true };
-      const inside =
-        event.x >= rect.left &&
-        event.x < rect.right &&
-        event.y >= rect.top &&
-        event.y < rect.bottom;
-      // 只关详情浮层：侧栏的显示状态不在这里动。
-      if (!inside) options.onClose();
+      // press / release 也接住：宿主靠它们记住 pressed target，click 才会派回来。
+      if (event.type !== "click") return { handled: true };
+      // `×` 吃右上角一小段（上边框最后三格），命中就关；卡片内其它位置不做事。
+      if (event.y === 0 && event.x >= cardWidth - 3) options.onClose();
       return { handled: true };
-    },
-    handleInput(data: string): void {
-      if (matchesKey(data, "escape")) options.onClose();
     },
     invalidate(): void {
       // 没有缓存。

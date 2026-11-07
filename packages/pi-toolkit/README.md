@@ -267,17 +267,32 @@ While a session runs Orchestrator:
   replaces the conversation with a resume seed plus that input; the Plan on disk is the state.
 - Non-`orchestrator_*` tools are blocked from touching `notes.json` (policy, not a security boundary).
 - **Sidebar (TUI only).** While the mode is on, a `▤` icon sits in the top-right corner and toggles a
-  32-column right-anchored overlay (`sidebar.ts`). It lists every active Plan, one row per note with a
-  status mark (`·` pending, `●` running, `◆` waiting for review, `?` waiting for an answer, `⊘` blocked,
-  `✓` done) and a running marker `▶`; completed notes are folded into one `已完成 N 条 ▸` row per Plan
-  (click it, or the note row, to expand / open). Clicking a note opens a detail overlay — the host's
-  `OverlayOptions` has no "close on click outside", so the overlay covers the whole area and paints a
-  centered bordered card inside it (the background is blanked, i.e. a modal); clicking outside the card
-  closes only the detail, and so does `Esc`, while a second `Esc` collapses the sidebar. It shows the
-  snapshot (title, status, needs, description, blocking reason) and, while a worker holds that note, a
-  200ms-throttled live stream of its text deltas and tool calls. The list itself re-reads the plans every
-  3s (only when the rows actually change is a render requested) — the stream keeps its own, independent
-  200ms cadence.
+  32-column right-anchored overlay (`sidebar.ts`). The list is **three levels — Plan → worker group →
+  note** — with no summary line at the top: each active Plan (except plans in the `orchestration`
+  domain, see below) is a bold row, each worker group from the registry is an indented `▾ 组 38,42`
+  row (one row per group, so a Plan with several workers lists several groups), and notes nobody holds
+  live fall under `▾ 未分组`. A note row is `待验收 · 42 下行 ack` — the Chinese status name
+  (`执行中` / `待回答` / `待验收` / `阻塞` / `待开工` / `已完成`) plus id and title, never the description;
+  the description lives in the detail card only. Completed notes are folded into one `已完成 N 条 ▸`
+  row per Plan (click it to expand).
+
+  Clicking a note opens the detail card: a `warning`-framed box headed `◇ note <id> · <状态>` carrying
+  the snapshot (description, blocking reason, group, Plan) and, while a worker holds that note, a
+  200ms-throttled live stream of its text deltas and tool calls. **The card is the whole overlay** —
+  `width: DETAIL_WIDTH`, `anchor: "center"`, `nonCapturing` — so everything outside it is genuinely
+  transparent (the transcript and the sidebar stay visible). That is a host constraint, not a
+  preference: `compositeTuiLine` writes `overlayWidth` columns for _every_ rendered overlay line, so a
+  returned `""` blanks that row rather than leaving it alone; only shrinking the overlay rectangle to
+  the card leaves the rest untouched. The price is that clicks outside the card reach the components
+  underneath, so there is no click-outside-to-dismiss: close with the `×` in the card's top-right
+  corner or with `Esc`. `Esc` is consumed by the sidebar's `addInputListener` (the card never takes
+  keyboard focus) and closes **only** the detail — the sidebar stays until you click `▤` again. The
+  list itself re-reads the plans every 3s (only when the rows actually change is a render requested) —
+  the stream keeps its own, independent 200ms cadence.
+
+  Plans are filtered by **domain**, not by "has a live worker": `orchestration` is skipped because that
+  Plan is the orchestrator's own progress board and never produces worker deliverables, whereas a
+  "live worker" test would make whole Plans flicker in and out as workers start and finish.
 
   Both layers are framed and visually distinct: the sidebar is a 32-column box in the `accent` colour with
   the title `▤ Note 状态`, pinned to the **top-right** corner (`anchor: "top-right"`, margin 1 on the right

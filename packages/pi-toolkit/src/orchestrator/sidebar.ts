@@ -1,5 +1,5 @@
 /**
- * Orchestrator 的 TUI 侧边栏：右上角图标 + 右侧常驻列表（按 Plan 分组）+ note 详情浮层。
+ * Orchestrator 的 TUI 侧边栏：右上角图标 + 右侧常驻列表（Plan → worker 组 → note）+ note 详情浮层。
  *
  * 形态是 **overlay**，不是真分栏（宿主布局纯竖直）。三个实测结论：
  *
@@ -13,8 +13,9 @@
  * 3. 窄终端：侧栏固定 32 列，终端窄于 `SIDEBAR_MIN_COLUMNS`（100）时整块隐藏（会盖住正文）。
  *    图标保留（否则没有任何入口），点它会收到一条 notify 说明“为什么看不到侧栏”—— 不静默。
  *
- * `Esc` 分两层：详情浮层是 capturing 的，`Esc` 关掉它；紧接着的再一个 `Esc` 收起侧栏
- * （由 `addInputListener` 的“armed”状态消费，平时不抢编辑器的 `Esc`）。
+ * `Esc` 只有一层：详情开着时关掉详情，**不动侧栏**（侧栏只由右上角 `▤` 图标切换）。
+ * 详情浮层是 `nonCapturing` 且只占卡片矩形（外部真透明，见 `detail-overlay.ts`），
+ * 所以 `Esc` 由本文件的 `addInputListener` 统一消费，编辑器焦点不丢。
  * @module @kxh4892636/pi-toolkit/orchestrator/sidebar
  */
 
@@ -35,10 +36,17 @@ import type { NoteNeeds, NoteStatus } from "./dag.ts";
 import {
   createLiveFeed,
   createDetailComponent,
+  DETAIL_MAX_HEIGHT,
+  DETAIL_WIDTH,
   type DetailContent,
   type LiveFeed,
 } from "./detail-overlay.ts";
-import { findEntryByNote, runningNotesOf, type WorkerRegistry } from "./handles.ts";
+import {
+  findEntryByNote,
+  planDirectoryOf,
+  runningNotesOf,
+  type WorkerRegistry,
+} from "./handles.ts";
 import { activePlans, listPlans, planRefOf, type PlanRef } from "./plan.ts";
 import { loadDocument } from "./store.ts";
 
@@ -63,8 +71,11 @@ export const ICON_CLOSED = "▥";
 export const ICON_WIDTH = 3;
 /** 图标 overlay 占的行数（一行）。 */
 export const ICON_ROWS = 1;
-/** 列表顶部的固定行数：上边框（含标题）+ 汇总行；鼠标 `y` 减去它才是行下标。 */
-export const SIDEBAR_HEADER_ROWS = 2;
+/**
+ * 列表顶部的固定行数：只有上边框（含标题）那一行，没有汇总行。
+ * 鼠标 `y` 减去它才是行下标。
+ */
+export const SIDEBAR_HEADER_ROWS = 1;
 /** 侧栏外框标题：与详情卡片的 `◇ note …` 一眼区分开。 */
 export const SIDEBAR_TITLE = "▤ Note 状态";
 /** 侧栏/图标与终端右边缘的留白（列），也是两者右对齐的基准。 */
@@ -114,14 +125,15 @@ export const iconMargin = (): OverlayMargin => ({
 });
 /** 折叠行文案里的“已完成”前缀。 */
 export const COMPLETED_LABEL = "已完成";
-
-/** 状态符号：单列，尽量不与终端宽字符冲突。 */
-export const STATUS_MARKS: Readonly<Record<NoteStatus, string>> = {
-  pending: "·",
-  in_progress: "●",
-  waiting: "◆",
-  blocked: "⊘",
-  completed: "✓",
+/** 没有 worker 组归属的历史 note 放在这个组下。 */
+export const UNGROUPED_LABEL = "未分组";
+/** 状态中文名：note 行左侧就用它（例：`执行中 · 38 侧栏改版…`）。 */
+export const STATUS_LABELS: Readonly<Record<NoteStatus, string>> = {
+  pending: "待开工",
+  in_progress: "执行中",
+  waiting: "待验收",
+  blocked: "阻塞",
+  completed: "已完成",
 };
 
 /** 列表里的一条 note。 */
@@ -136,18 +148,31 @@ export interface SidebarNote {
   readonly running: boolean;
 }
 
-/** 一个 Plan 分组。 */
+/**
+ * 一个 worker 组：`registry` 里一条 worker 条目所领的 note（`entry.notes`）。
+ *
+ * `key` 是组的稳定标识：组内 note id 排序后 `,` 连接（`未分组` 用 `UNGROUPED_LABEL`）。
+ */
+export interface SidebarGroup {
+  readonly key: string;
+  readonly label: string;
+  /** 该组有 live worker（界面上高亮）。 */
+  readonly running: boolean;
+  readonly notes: readonly SidebarNote[];
+}
+
+/** 一个 Plan：由若干 worker 组构成。 */
 export interface SidebarPlan {
   /** `<domain>/<lifecycle>/<name>`。 */
   readonly ref: string;
   /** 目录名（去掉日期前缀后展示）。 */
   readonly name: string;
-  readonly notes: readonly SidebarNote[];
+  readonly groups: readonly SidebarGroup[];
 }
 
 /** 列表的一行；点击行为由 `kind` 决定。 */
 export interface SidebarRow {
-  readonly kind: "plan" | "note" | "fold" | "spacer";
+  readonly kind: "plan" | "group" | "note" | "fold" | "spacer";
   readonly text: string;
   readonly plan?: string;
   readonly note?: string;
@@ -155,27 +180,22 @@ export interface SidebarRow {
   readonly running?: boolean;
 }
 
-/** 一帧列表：汇总行 + 行数组。 */
+/** 一帧列表：只有行（顶部没有汇总行，标题在上边框里）。 */
 export interface SidebarView {
-  readonly header: string;
   readonly rows: readonly SidebarRow[];
 }
 
-/** 汇总：执行中 / 待确认 / 阻塞 / 总数。 */
-export interface SidebarTotals {
-  readonly running: number;
-  readonly waiting: number;
-  readonly blocked: number;
-  readonly notes: number;
-}
+/**
+ * note 状态的展示名（中文）：`waiting` 再按 `needs` 分「待回答 / 待验收」。
+ * @param note - 带 `status` / `needs` 的 note。
+ * @returns `执行中` / `待回答` / `待验收` / `阻塞` / `待开工` / `已完成`。
+ */
+export const noteStatusText = (note: Pick<SidebarNote, "status" | "needs">): string =>
+  note.status === "waiting" && note.needs === "answer" ? "待回答" : STATUS_LABELS[note.status];
 
-/** note 的状态符号；`waiting` 按 `needs` 再分一档（等人回答 `?`）。 */
-export const noteMark = (note: Pick<SidebarNote, "status" | "needs">): string =>
-  note.status === "waiting" && note.needs === "answer" ? "?" : STATUS_MARKS[note.status];
-
-/** note 状态的展示名：`waiting` 带上 `needs`。 */
-export const noteStatusLabel = (note: Pick<SidebarNote, "status" | "needs">): string =>
-  note.status === "waiting" ? `waiting/${note.needs ?? "review"}` : note.status;
+/** note 行的文本：`{状态中文名} · {序号} {名称}`，不包含概述（描述进详情卡片）。 */
+export const noteRowText = (note: Pick<SidebarNote, "id" | "title" | "status" | "needs">): string =>
+  `${noteStatusText(note)} · ${note.id} ${note.title}`;
 
 /** Plan 目录名去掉 `YYYY-MM-DD-` 前缀，32 列里才放得下。 */
 export const shortPlanName = (name: string): string => name.replace(/^\d{4}-\d{2}-\d{2}-/u, "");
@@ -189,32 +209,23 @@ const STATUS_ORDER: Readonly<Record<NoteStatus, number>> = {
   completed: 4,
 };
 
-/** 汇总一行里要的数。 */
-export const sidebarTotals = (plans: readonly SidebarPlan[]): SidebarTotals => {
-  let running = 0;
-  let waiting = 0;
-  let blocked = 0;
-  let notes = 0;
-  for (const plan of plans) {
-    for (const note of plan.notes) {
-      notes += 1;
-      if (note.running) running += 1;
-      if (note.status === "waiting") waiting += 1;
-      if (note.status === "blocked") blocked += 1;
-    }
-  }
-  return { running, waiting, blocked, notes };
-};
+/** 一个组内未完成的 note：按状态再按 id 排序。 */
+const undoneOf = (notes: readonly SidebarNote[]): readonly SidebarNote[] =>
+  notes
+    .filter((note) => note.status !== "completed")
+    .sort(
+      (left, right) =>
+        STATUS_ORDER[left.status] - STATUS_ORDER[right.status] || left.id.localeCompare(right.id),
+    );
 
-/** 汇总行文案。 */
-export const headerText = (totals: SidebarTotals): string => {
-  const blocked = totals.blocked === 0 ? "" : ` · ${totals.blocked} 阻塞`;
-  return `${totals.running} 执行 · ${totals.waiting} 待确认${blocked} · ${totals.notes} 条`;
-};
+/** 列表里的缩进：Plan 顶层 0 格，组 1 格，note 2 格（三级一眼能分）。 */
+export const GROUP_INDENT = " ";
+/** note 行相对 Plan 标题的缩进。 */
+export const NOTE_INDENT = "  ";
 
 const noteRow = (plan: SidebarPlan, note: SidebarNote): SidebarRow => ({
   kind: "note",
-  text: `${note.running ? "▶" : noteMark(note)} ${note.id} ${note.title}`,
+  text: `${NOTE_INDENT}${noteRowText(note)}`,
   plan: plan.ref,
   note: note.id,
   status: note.status,
@@ -222,10 +233,13 @@ const noteRow = (plan: SidebarPlan, note: SidebarNote): SidebarRow => ({
 });
 
 /**
- * 构建一帧列表：按 Plan 分组，未完成的按状态排，已完成的默认折叠成一行。
- * @param plans - 各 Plan 的 note（只含 active Plan）。
+ * 构建一帧列表：**Plan → worker 组 → note** 三级，已完成的在每个 Plan 下沉成一行折叠。
+ *
+ * 为什么不把已完成也摆进组：worker 条目在收尾后就从 `registry` 里消失，已完成 note 会集体掉进
+ * `未分组`，翻出来也多是一堆散条；折叠成一行更可读（展开后平铺在 Plan 下）。
+ * @param plans - 各 Plan 的组（只含 active、且已过滤编排期域）。
  * @param expanded - 已展开“已完成”的 Plan ref 集合。
- * @returns 汇总与行。
+ * @returns 行数组（下标 = 鼠标 `y` - `SIDEBAR_HEADER_ROWS`）。
  */
 export const buildSidebarView = (
   plans: readonly SidebarPlan[],
@@ -236,32 +250,44 @@ export const buildSidebarView = (
   for (const plan of plans) {
     if (rows.length > 0) rows.push({ kind: "spacer", text: "" });
     rows.push({ kind: "plan", text: `▾ ${shortPlanName(plan.name)}`, plan: plan.ref });
-    const undone = plan.notes
-      .filter((note) => note.status !== "completed")
-      .sort(
-        (left, right) =>
-          STATUS_ORDER[left.status] - STATUS_ORDER[right.status] || left.id.localeCompare(right.id),
-      );
-    for (const note of undone) rows.push(noteRow(plan, note));
-    const done = plan.notes
-      .filter((note) => note.status === "completed")
-      .sort((left, right) => left.id.localeCompare(right.id));
+    const done: SidebarNote[] = [];
+    for (const group of plan.groups) {
+      const undone = undoneOf(group.notes);
+      done.push(...group.notes.filter((note) => note.status === "completed"));
+      if (undone.length === 0) continue;
+      rows.push({
+        kind: "group",
+        text: `${GROUP_INDENT}▾ ${group.label}`,
+        plan: plan.ref,
+        ...(group.running ? { running: true } : {}),
+      });
+      for (const note of undone) rows.push(noteRow(plan, note));
+    }
     if (done.length === 0) continue;
     const isOpen = open.has(plan.ref);
     rows.push({
       kind: "fold",
-      text: `${COMPLETED_LABEL} ${done.length} 条 ${isOpen ? "▾" : "▸"}`,
+      text: `${GROUP_INDENT}${COMPLETED_LABEL} ${done.length} 条 ${isOpen ? "▾" : "▸"}`,
       plan: plan.ref,
     });
-    if (isOpen) for (const note of done) rows.push(noteRow(plan, note));
+    if (isOpen) {
+      for (const note of [...done].sort((left, right) => left.id.localeCompare(right.id))) {
+        rows.push(noteRow(plan, note));
+      }
+    }
   }
-  return { header: headerText(sidebarTotals(plans)), rows };
+  return { rows };
 };
 
 const renderRow = (row: SidebarRow, width: number, theme: Theme): string => {
   switch (row.kind) {
     case "plan":
       return truncateToWidth(theme.bold(row.text), width);
+    case "group":
+      return truncateToWidth(
+        row.running === true ? theme.fg("accent", row.text) : theme.fg("dim", theme.bold(row.text)),
+        width,
+      );
     case "note":
       return truncateToWidth(
         row.running === true
@@ -280,6 +306,7 @@ const renderRow = (row: SidebarRow, width: number, theme: Theme): string => {
 
 /**
  * 渲染一帧列表；行与 `view.rows` 一一对应（下标 = 鼠标 `y` - `SIDEBAR_HEADER_ROWS`）。
+ * 顶部没有汇总行：第一行就是上边框，标题写在其中。
  * @param view - 一帧列表。
  * @param width - 可用列数。
  * @param theme - 主题。
@@ -298,7 +325,6 @@ export const renderSidebarLines = (
   const fill = "─".repeat(Math.max(0, innerWidth - visibleWidth(title)));
   const inner = (text: string): string => border("│") + ` ${padTo(text, textWidth)} ` + border("│");
   const lines: string[] = [border(`┌${title}${fill}┐`)];
-  lines.push(inner(theme.bold(theme.fg("accent", view.header))));
   for (const row of view.rows) lines.push(inner(renderRow(row, textWidth, theme)));
   lines.push(border(`└${"─".repeat(innerWidth)}┘`));
   return lines;
@@ -374,6 +400,101 @@ export interface SidebarDeps {
 }
 
 /**
+ * 三级结构下没有扁平的 note 列表：从 Plan 的各个组里找一条 note。
+ * @param plans - 当前帧的 Plan（含组）。
+ * @param planRef - Plan 标识。
+ * @param noteId - note id。
+ * @returns 找到的 note（带最新状态）；不存在时 undefined。
+ */
+export const findSidebarNote = (
+  plans: readonly SidebarPlan[],
+  planRef: string,
+  noteId: string,
+): SidebarNote | undefined => {
+  for (const group of plans.find((plan) => plan.ref === planRef)?.groups ?? []) {
+    const found = group.notes.find((note) => note.id === noteId);
+    if (found !== undefined) return found;
+  }
+  return undefined;
+};
+
+/**
+ * 一条 note 所属组的展示名（详情卡片里用）。
+ * @param plans - 当前帧的 Plan（含组）。
+ * @param planRef - Plan 标识。
+ * @param noteId - note id。
+ * @returns 组名；没找到时 undefined。
+ */
+export const groupLabelOfNote = (
+  plans: readonly SidebarPlan[],
+  planRef: string,
+  noteId: string,
+): string | undefined => {
+  for (const group of plans.find((plan) => plan.ref === planRef)?.groups ?? []) {
+    if (group.notes.some((note) => note.id === noteId)) return group.label;
+  }
+  return undefined;
+};
+
+/** 侧栏不展示的域。 */
+export const SIDEBAR_EXCLUDED_DOMAINS: readonly string[] = ["orchestration"];
+
+/**
+ * 该 Plan 是否进侧栏。
+ *
+ * 判据选**按 domain 过滤**（不选“只显示存在 live worker 的 Plan”）：编排期 Plan 是编排方自己的
+ * 进度板，不产生 worker 交付物；而“有没有 live worker”会随着派工/收尾不断变化，列表会闪烁，
+ * 且 worker 空闲时整个 Plan 会凭空消失。
+ * @param plan - 只要带 `domain`。
+ * @returns 进侧栏则 true。
+ */
+export const planVisibleInSidebar = (plan: Pick<PlanRef, "domain">): boolean =>
+  !SIDEBAR_EXCLUDED_DOMAINS.includes(plan.domain);
+
+/** 一组 worker 领的 note id（来自 `registry` 条目）+ 是否有 live worker。 */
+export interface WorkerGroupSpec {
+  readonly notes: readonly string[];
+  readonly running: boolean;
+}
+
+/**
+ * 把 note 按 worker 组分桶：每个 `registry` 条目一个组（同一个 Plan 下多组分别列出），
+ * 不属于任何组的（历史遗留、已完成）落到 `未分组`。
+ * @param notes - 该 Plan 的全部 note。
+ * @param groups - 该 Plan 的 worker 组（按句柄表顺序）。
+ * @returns 组列表：有 live worker 的组在前，`未分组` 总在最后；空组不列出。
+ */
+export const groupSidebarNotes = (
+  notes: readonly SidebarNote[],
+  groups: readonly WorkerGroupSpec[],
+): readonly SidebarGroup[] => {
+  const byId = new Map(notes.map((note) => [note.id, note]));
+  const assigned = new Set<string>();
+  const result: SidebarGroup[] = [];
+  for (const group of groups) {
+    const members = group.notes
+      .map((id) => byId.get(id))
+      .filter((note): note is SidebarNote => note !== undefined)
+      // 组内按 id 排序：组的 key/label 本来就按 id 排，成员顺序也跟着定下来。
+      .sort((left, right) => left.id.localeCompare(right.id));
+    if (members.length === 0) continue;
+    for (const note of members) assigned.add(note.id);
+    const ids = members.map((note) => note.id);
+    result.push({
+      key: ids.join(","),
+      label: `组 ${ids.join(",")}`,
+      running: group.running,
+      notes: members,
+    });
+  }
+  const rest = notes.filter((note) => !assigned.has(note.id));
+  if (rest.length > 0) {
+    result.push({ key: UNGROUPED_LABEL, label: UNGROUPED_LABEL, running: false, notes: rest });
+  }
+  return result;
+};
+
+/**
  * 建一个侧栏控制器。同一时刻只挂一份 overlay；模式关、会话退出、reload 都走 `dispose`。
  * @param deps - 句柄表与设置来源。
  * @returns 控制器。
@@ -382,10 +503,7 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
   const expanded = new Set<string>();
   const plansByRef = new Map<string, PlanRef>();
   let plans: readonly SidebarPlan[] = [];
-  let view: SidebarView = {
-    header: headerText({ running: 0, waiting: 0, blocked: 0, notes: 0 }),
-    rows: [],
-  };
+  let view: SidebarView = { rows: [] };
   let ctx: ExtensionContext | undefined;
   let tui: TUI | undefined;
   let theme: Theme | undefined;
@@ -399,7 +517,6 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
   let timer: ReturnType<typeof setInterval> | undefined;
   let mounted = false;
   let listVisible = true;
-  let escArmed = false;
   let lastColumns = 0;
 
   const requestRender = (): void => {
@@ -415,29 +532,30 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
     feed = undefined;
   };
 
-  /** 详情浮层：快照 + 实时流；capturing 才有 `Esc`。 */
+  /** 详情浮层：只占卡片矩形（外部真透明），快照 + 实时流；`×` 或 `Esc` 关。 */
   const openDetail = (planRef: string, noteId: string): void => {
     const localTui = tui;
     const localTheme = theme;
-    const plan = plansByRef.get(planRef);
-    if (localTui === undefined || localTheme === undefined || plan === undefined) return;
-    const snapshot = plans.find((item) => item.ref === planRef)?.notes.find((n) => n.id === noteId);
+    if (localTui === undefined || localTheme === undefined) return;
+    if (!plansByRef.has(planRef)) return;
+    const snapshot = findSidebarNote(plans, planRef, noteId);
     if (snapshot === undefined) return;
     closeDetail();
     detailTarget = { plan: planRef, note: noteId };
-    const entry = findEntryByNote(deps.registry, plan.directory, noteId);
+    const entry = findEntryByNote(deps.registry, plansByRef.get(planRef)?.directory ?? "", noteId);
     if (entry !== undefined) feed = createLiveFeed(entry.session, requestRender);
-    const note = (): SidebarNote =>
-      plans.find((item) => item.ref === planRef)?.notes.find((n) => n.id === noteId) ?? snapshot;
+    const note = (): SidebarNote => findSidebarNote(plans, planRef, noteId) ?? snapshot;
     detailContent = (): DetailContent => {
       const current = note();
       const body = [current.description];
       if (current.status === "blocked" && current.blockedReason !== undefined) {
         body.push("", `阻塞：${current.blockedReason}`);
       }
+      const group = groupLabelOfNote(plans, planRef, noteId);
+      if (group !== undefined) body.push("", `组：${group}`);
       body.push("", `Plan: ${planRef}`);
       return {
-        heading: `◇ note ${current.id} · ${noteStatusLabel(current)}`,
+        heading: `◇ note ${current.id} · ${noteStatusText(current)}`,
         body,
         live: feed?.lines() ?? [],
         running: current.running,
@@ -448,15 +566,19 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
       createDetailComponent(localTheme, {
         content: () =>
           detailContent?.() ?? { heading: `note ${noteId}`, body: [], live: [], running: false },
-        // 铺满可用区域才收得到“卡片外部”的点击：宿主 OverlayOptions 没有点击外部关闭的字段。
-        area: () => ({ columns: localTui.terminal.columns, rows: localTui.terminal.rows }),
         onClose: () => {
           closeDetail();
-          escArmed = true;
           requestRender();
         },
       }),
-      { anchor: "top-left", width: "100%", maxHeight: "100%", margin: 0, row: 0, col: 0 },
+      // 宽度 = 卡片宽（窄终端由宿主 clamp）；矩形外的行列一个像素都不写 ⇒ 真透明。
+      {
+        anchor: "center",
+        width: DETAIL_WIDTH,
+        maxHeight: DETAIL_MAX_HEIGHT,
+        margin: 1,
+        nonCapturing: true,
+      },
     );
     requestRender();
   };
@@ -518,15 +640,22 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
       },
     );
     removeInputListener = localTui.addInputListener((data) => {
-      // 只在“刚从详情层退出”时消费一个 Esc：平时不抢编辑器的 Esc。
-      if (!escArmed) return undefined;
-      escArmed = false;
-      if (!matchesKey(data, "escape") || !listVisible) return undefined;
-      listVisible = false;
+      // 详情没开：一个键都不碰（不抢编辑器的 Esc）。
+      if (detailHandle === undefined) return undefined;
+      if (!matchesKey(data, "escape")) return undefined;
+      // 只关详情卡片：侧栏的显示状态不在这里动（侧栏只由 `▤` 图标切换）。
+      closeDetail();
       requestRender();
       return { consume: true };
     });
   };
+
+  /** 一个 Plan 的 worker 组（句柄表顺序 = 起始时刻升序）。 */
+  const groupsOfPlan = (directory: string): readonly WorkerGroupSpec[] =>
+    deps.registry
+      .list()
+      .filter((entry) => planDirectoryOf(entry.planDirectory) === directory)
+      .map((entry) => ({ notes: entry.notes ?? [], running: true }));
 
   const refresh = async (): Promise<void> => {
     const localCtx = ctx;
@@ -534,7 +663,7 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
     try {
       const discovered = activePlans(
         await listPlans(localCtx.cwd, deps.domainsPath ?? DEFAULT_DOMAIN_ROOT),
-      );
+      ).filter(planVisibleInSidebar);
       plansByRef.clear();
       const next: SidebarPlan[] = [];
       for (const plan of discovered) {
@@ -547,18 +676,19 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
           continue;
         }
         const running = runningNotesOf(deps.registry, plan.directory);
+        const notes: SidebarNote[] = document.notes.map((note) => ({
+          id: note.id,
+          title: note.title,
+          description: note.description,
+          status: note.status,
+          ...(note.needs === undefined ? {} : { needs: note.needs }),
+          ...(note.blocked_reason === undefined ? {} : { blockedReason: note.blocked_reason }),
+          running: running.has(note.id),
+        }));
         next.push({
           ref,
           name: plan.name,
-          notes: document.notes.map((note) => ({
-            id: note.id,
-            title: note.title,
-            description: note.description,
-            status: note.status,
-            ...(note.needs === undefined ? {} : { needs: note.needs }),
-            ...(note.blocked_reason === undefined ? {} : { blockedReason: note.blocked_reason }),
-            running: running.has(note.id),
-          })),
+          groups: groupSidebarNotes(notes, groupsOfPlan(plan.directory)),
         });
       }
       plans = next;
@@ -570,9 +700,7 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
       if (feed !== undefined && detailTarget !== undefined) {
         // worker 结束就退订阅；浮层留着显示最终状态。
         const target = detailTarget;
-        const stillRunning = next
-          .find((plan) => plan.ref === target.plan)
-          ?.notes.some((note) => note.id === target.note && note.running);
+        const stillRunning = findSidebarNote(next, target.plan, target.note)?.running;
         if (stillRunning !== true) {
           feed.stop();
           feed = undefined;
@@ -599,11 +727,10 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
     iconHandle = undefined;
     tui = undefined;
     theme = undefined;
-    escArmed = false;
     listVisible = true;
     plans = [];
     plansByRef.clear();
-    view = { header: headerText({ running: 0, waiting: 0, blocked: 0, notes: 0 }), rows: [] };
+    view = { rows: [] };
   };
 
   return {
