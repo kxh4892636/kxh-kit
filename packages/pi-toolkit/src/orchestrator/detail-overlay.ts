@@ -27,8 +27,10 @@ export const STREAM_THROTTLE_MS = 200;
 export const STREAM_MAX_LINES = 3;
 /** 文本尾巴最多留多少字符：只用来显示最近几行。 */
 export const STREAM_TAIL_CHARS = 600;
-/** 详情浮层宽度。 */
+/** 详情卡片的最大宽度（终端更窄时按 `columns - 2 * DETAIL_CARD_MARGIN` 收）。 */
 export const DETAIL_WIDTH = 48;
+/** 卡片与终端边缘的留白。 */
+export const DETAIL_CARD_MARGIN = 2;
 
 /** 一段流式内容：助手文本增量，或一个工具调用标记。 */
 export interface StreamChunk {
@@ -198,27 +200,111 @@ export const renderDetailLines = (
     }
   }
   lines.push("");
-  lines.push(theme.fg("dim", "Esc 关闭详情"));
+  lines.push(theme.fg("dim", "点击外部或 Esc 关闭"));
   return lines;
 };
 
+/** 浮层可用区域（终端列/行）。 */
+export interface DetailArea {
+  readonly columns: number;
+  readonly rows: number;
+}
+
+/** 卡片矩形：左闭右开（`x < right && y < bottom` 即在卡内）。 */
+export interface DetailCardRect {
+  readonly left: number;
+  readonly right: number;
+  readonly top: number;
+  readonly bottom: number;
+}
+
+/** 一帧渲染：铺满可用区域的行 + 卡片矩形（供点击命中判定）。 */
+export interface DetailFrame {
+  readonly lines: readonly string[];
+  readonly card: DetailCardRect;
+}
+
+/** 按可见宽度补空格到 `width` 列。 */
+const padTo = (text: string, width: number): string => {
+  const clipped = truncateToWidth(text, width, "");
+  const gap = width - visibleWidth(clipped);
+  return gap > 0 ? `${clipped}${" ".repeat(gap)}` : clipped;
+};
+
 /**
- * 详情浮层组件：只处理 `Esc`（关闭），渲染交给 `renderDetailLines`。
+ * 把详情内容排成“铺满可用区域、内部居中一张带边框的卡片”。
+ *
+ * 为什么要铺满：宿主 `OverlayOptions` **没有**“点击外部关闭”这类字段（只有
+ * width/minWidth/maxHeight/anchor/offset/margin/visible/nonCapturing），所以点击外部
+ * 必须由组件自己判定 —— 组件得先占住那块区域才收得到点击。
+ * @param body - 已按内容宽度渲染好的卡片内容行。
+ * @param area - 可用列数与行数。
+ * @returns 逐行文本与卡片矩形。
+ */
+export const frameDetailCard = (body: readonly string[], area: DetailArea): DetailFrame => {
+  const columns = Math.max(8, area.columns);
+  const rows = Math.max(3, area.rows);
+  const cardWidth = Math.max(20, Math.min(DETAIL_WIDTH, columns - DETAIL_CARD_MARGIN * 2));
+  const contentWidth = Math.max(1, cardWidth - 4);
+  const innerWidth = cardWidth - 2;
+  const framed = [
+    `┌${"─".repeat(innerWidth)}┐`,
+    ...body.map((line) => `│ ${padTo(line, contentWidth)} │`),
+    `└${"─".repeat(innerWidth)}┘`,
+  ].slice(0, rows);
+  const top = Math.max(0, Math.floor((rows - framed.length) / 2));
+  const left = Math.max(0, Math.floor((columns - cardWidth) / 2));
+  const lines: string[] = [];
+  for (let row = 0; row < rows; row += 1) {
+    const cardLine = framed[row - top];
+    lines.push(cardLine === undefined ? "" : `${" ".repeat(left)}${cardLine}`);
+  }
+  return {
+    lines,
+    card: { left, right: left + cardWidth, top, bottom: top + framed.length },
+  };
+};
+
+/**
+ * 详情浮层组件：铺满可用区域 + 居中卡片；`Esc` 或**点击卡片外部**关闭。
  * @param theme - 主题。
- * @param options - 内容来源与关闭回调。
+ * @param options - 内容来源、关闭回调与可用区域。
  * @returns 组件。
  */
 export const createDetailComponent = (
   theme: Theme,
-  options: { content: () => DetailContent; onClose: () => void; width?: number },
-): Component => ({
-  render(width: number): string[] {
-    return [...renderDetailLines(options.content(), options.width ?? width, theme)];
-  },
-  handleInput(data: string): void {
-    if (matchesKey(data, "escape")) options.onClose();
-  },
-  invalidate(): void {
-    // 没有缓存。
-  },
-});
+  options: { content: () => DetailContent; onClose: () => void; area?: () => DetailArea },
+): Component => {
+  let card: DetailCardRect | undefined;
+  const areaOf = (width: number): DetailArea =>
+    options.area?.() ?? { columns: width, rows: Math.max(6, options.content().live.length + 12) };
+  return {
+    render(width: number): string[] {
+      const area = areaOf(width);
+      const columns = Math.max(8, area.columns);
+      const cardWidth = Math.max(20, Math.min(DETAIL_WIDTH, columns - DETAIL_CARD_MARGIN * 2));
+      const body = renderDetailLines(options.content(), Math.max(1, cardWidth - 4), theme);
+      const frame = frameDetailCard(body, area);
+      card = frame.card;
+      return [...frame.lines];
+    },
+    handleMouse(event): { handled: boolean } {
+      const rect = card;
+      if (event.type !== "click" || rect === undefined) return { handled: true };
+      const inside =
+        event.x >= rect.left &&
+        event.x < rect.right &&
+        event.y >= rect.top &&
+        event.y < rect.bottom;
+      // 只关详情浮层：侧栏的显示状态不在这里动。
+      if (!inside) options.onClose();
+      return { handled: true };
+    },
+    handleInput(data: string): void {
+      if (matchesKey(data, "escape")) options.onClose();
+    },
+    invalidate(): void {
+      // 没有缓存。
+    },
+  };
+};

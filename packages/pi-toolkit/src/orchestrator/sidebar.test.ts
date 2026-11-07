@@ -64,10 +64,13 @@ interface FakeOverlay {
 }
 
 /** 最小 TUI 替身：记录 overlay、输入监听与重绘次数。 */
-const createFakeTui = (init: { mode?: "regular" | "fullscreen"; columns?: number } = {}) => {
+const createFakeTui = (
+  init: { mode?: "regular" | "fullscreen"; columns?: number; rows?: number } = {},
+) => {
   const state = {
     mode: init.mode ?? "fullscreen",
     columns: init.columns ?? 140,
+    rows: init.rows ?? 40,
     renders: 0,
   };
   const overlays: FakeOverlay[] = [];
@@ -79,6 +82,9 @@ const createFakeTui = (init: { mode?: "regular" | "fullscreen"; columns?: number
     terminal: {
       get columns() {
         return state.columns;
+      },
+      get rows() {
+        return state.rows;
       },
     },
     showOverlay(component: Component, options?: OverlayOptions) {
@@ -397,6 +403,31 @@ describe("侧边栏控制器", () => {
     expect(overlays[1]?.options.visible?.(140, 40)).toBe(false);
     // 无关按键不再被消费
     expect(consume?.("x")).toBeUndefined();
+    sidebar.dispose();
+  });
+
+  it("点击详情卡片外部只关详情，侧栏仍开着", async () => {
+    const root = await tempWorkspace([runningNote("07", "侧边栏实现")]);
+    const sidebar = createSidebar({
+      registry: createRegistry(),
+      limits: () => DEFAULT_ORCHESTRATOR_SETTINGS,
+    });
+    const { ctx, widgets } = createFakeCtx(root);
+    const { tui, overlays, listeners } = createFakeTui();
+    sidebar.sync(ctx, true);
+    mountWidget(widgets, tui);
+    await wait(20);
+    overlays[1]?.component.handleMouse?.(click(SIDEBAR_HEADER_ROWS + 1));
+    const detail = overlays[2];
+    const lines = detail?.component.render(140) ?? [];
+    // 卡片第一行之前是空白：点它就只关详情。
+    expect(lines[0]).toBe("");
+    detail?.component.handleMouse?.(click(0));
+    expect(detail?.hidden).toBe(true);
+    // 侧栏没被顺手关掉：visible 仍为 true，输入监听还在。
+    expect(overlays[1]?.hidden).toBe(false);
+    expect(overlays[1]?.options.visible?.(140, 40)).toBe(true);
+    expect(listeners.size).toBe(1);
     sidebar.dispose();
   });
 

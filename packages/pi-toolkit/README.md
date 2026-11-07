@@ -270,10 +270,12 @@ While a session runs Orchestrator:
   32-column right-anchored overlay (`sidebar.ts`). It lists every active Plan, one row per note with a
   status mark (`·` pending, `●` running, `◆` waiting for review, `?` waiting for an answer, `⊘` blocked,
   `✓` done) and a running marker `▶`; completed notes are folded into one `已完成 N 条 ▸` row per Plan
-  (click it, or the note row, to expand / open). Clicking a note opens a centered detail overlay with the
+  (click it, or the note row, to expand / open). Clicking a note opens a detail overlay — the host's
+  `OverlayOptions` has no "close on click outside", so the overlay covers the whole area and paints a
+  centered bordered card inside it (the background is blanked, i.e. a modal); clicking outside the card
+  closes only the detail, and so does `Esc`, while a second `Esc` collapses the sidebar. It shows the
   snapshot (title, status, needs, description, blocking reason) and, while a worker holds that note, a
-  200ms-throttled live stream of its text deltas and tool calls; `Esc` closes the detail, a second `Esc`
-  collapses the sidebar. The list itself re-reads the plans every 5s (only when the rows actually change
+  200ms-throttled live stream of its text deltas and tool calls. The list itself re-reads the plans every 5s (only when the rows actually change
   is a render requested) — the stream keeps its own 200ms cadence.
 
   Three things were verified rather than assumed: a `nonCapturing` overlay **does** receive mouse clicks

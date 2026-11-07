@@ -1,8 +1,10 @@
 import { visibleWidth } from "@earendil-works/pi-tui";
 import { describe, expect, it } from "vite-plus/test";
 import {
-  createLiveFeed,
   createDetailComponent,
+  createLiveFeed,
+  DETAIL_CARD_MARGIN,
+  frameDetailCard,
   renderDetailLines,
   STREAM_MAX_LINES,
   streamChunkOf,
@@ -154,7 +156,7 @@ describe("renderDetailLines", () => {
     expect(text).toContain("note 07 · in_progress");
     expect(text).toContain("一句话摘要");
     expect(text).toContain("实时流");
-    expect(text).toContain("Esc 关闭详情");
+    expect(text).toContain("点击外部或 Esc 关闭");
     for (const line of lines) expect(visibleWidth(line)).toBeLessThanOrEqual(30);
   });
 
@@ -168,19 +170,83 @@ describe("renderDetailLines", () => {
   });
 });
 
+describe("frameDetailCard", () => {
+  it("铺满可用区域，卡片居中并带边框", () => {
+    const frame = frameDetailCard(["标题", "正文"], { columns: 60, rows: 12 });
+    // 行数等于终端行数：铺满才收得到卡片外的点击。
+    expect(frame.lines).toHaveLength(12);
+    const { card } = frame;
+    expect(card.left).toBeGreaterThan(0);
+    expect(card.right - card.left).toBeLessThanOrEqual(60);
+    // 垂直居中。
+    expect(card.top).toBe(Math.max(0, Math.floor((12 - (card.bottom - card.top)) / 2)));
+    const text = frame.lines.join("\n");
+    expect(text).toContain("┌");
+    expect(text).toContain("标题");
+    expect(text).toContain("└");
+    // 卡片外是空白行。
+    expect(frame.lines[0]).toBe("");
+    for (const line of frame.lines) expect(visibleWidth(line)).toBeLessThanOrEqual(60);
+  });
+
+  it("窄终端时卡片跟着收窄，仍然放得下", () => {
+    const frame = frameDetailCard(["x"], { columns: 30, rows: 6 });
+    expect(frame.card.right - frame.card.left).toBe(30 - DETAIL_CARD_MARGIN * 2);
+    for (const line of frame.lines) expect(visibleWidth(line)).toBeLessThanOrEqual(30);
+  });
+});
+
 describe("createDetailComponent", () => {
-  it("Esc 关闭，其它键不关", () => {
+  const area = { columns: 60, rows: 16 };
+  const setup = () => {
     let closed = 0;
     const component = createDetailComponent(fakeTheme as never, {
-      content: () => ({ heading: "note 01", body: [], live: [], running: false }),
+      content: () => ({ heading: "note 01", body: ["一句话摘要"], live: [], running: false }),
       onClose: () => {
         closed += 1;
       },
+      area: () => area,
     });
+    return { component, closed: () => closed, lines: component.render(area.columns) };
+  };
+
+  it("Esc 关闭，其它键不关", () => {
+    const { component, closed, lines } = setup();
+    expect(lines.join("\n")).toContain("note 01");
+    expect(lines.join("\n")).toContain("点击外部或 Esc 关闭");
     component.handleInput?.("a");
-    expect(closed).toBe(0);
+    expect(closed()).toBe(0);
     component.handleInput?.("\u001b");
-    expect(closed).toBe(1);
-    expect(component.render(40).join("\n")).toContain("note 01");
+    expect(closed()).toBe(1);
+  });
+
+  it("点击卡片内部不关闭，点击卡片外部关闭", () => {
+    const first = setup();
+    // 第一行在卡片外（卡片垂直居中），点它只关详情浮层。
+    expect(first.lines[0]).toBe("");
+    first.component.handleMouse?.({ type: "press", x: 1, y: 0 } as never);
+    expect(first.closed()).toBe(0);
+    first.component.handleMouse?.({ type: "click", x: 1, y: 0 } as never);
+    expect(first.closed()).toBe(1);
+
+    // 卡片正中：不关。
+    const second = setup();
+    second.component.handleMouse?.({
+      type: "click",
+      x: Math.floor(area.columns / 2),
+      y: Math.floor(area.rows / 2),
+    } as never);
+    expect(second.closed()).toBe(0);
+
+    // 卡片左侧的空白列：关。
+    const third = setup();
+    const frame = frameDetailCard(["（占位）"], area);
+    expect(frame.card.left).toBeGreaterThan(0);
+    third.component.handleMouse?.({
+      type: "click",
+      x: frame.card.left - 1,
+      y: Math.floor(area.rows / 2),
+    } as never);
+    expect(third.closed()).toBe(1);
   });
 });

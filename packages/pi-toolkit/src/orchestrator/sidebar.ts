@@ -33,7 +33,6 @@ import type { NoteNeeds, NoteStatus } from "./dag.ts";
 import {
   createLiveFeed,
   createDetailComponent,
-  DETAIL_WIDTH,
   type DetailContent,
   type LiveFeed,
 } from "./detail-overlay.ts";
@@ -382,13 +381,15 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
       createDetailComponent(localTheme, {
         content: () =>
           detailContent?.() ?? { heading: `note ${noteId}`, body: [], live: [], running: false },
+        // 铺满可用区域才收得到“卡片外部”的点击：宿主 OverlayOptions 没有点击外部关闭的字段。
+        area: () => ({ columns: localTui.terminal.columns, rows: localTui.terminal.rows }),
         onClose: () => {
           closeDetail();
           escArmed = true;
           requestRender();
         },
       }),
-      { anchor: "center", width: DETAIL_WIDTH, maxHeight: "80%", margin: 1 },
+      { anchor: "top-left", width: "100%", maxHeight: "100%", margin: 0, row: 0, col: 0 },
     );
     requestRender();
   };
