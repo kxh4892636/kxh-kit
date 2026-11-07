@@ -158,6 +158,7 @@ const makeCtx = (
   cwd: string,
   options: CtxOptions = {},
 ): ExtensionContext => {
+  const widgets = new Map<string, unknown>();
   return {
     cwd,
     mode: options.mode ?? "tui",
@@ -170,12 +171,18 @@ const makeCtx = (
       getSessionFile: () => undefined,
     },
     getContextUsage: () => options.usage ?? { tokens: 10, contextWindow: 100, percent: 10 },
+    __widgets: widgets,
     ui: {
       notify: (message: string, level?: string) => notifications.push({ message, level }),
       select: options.select ?? (async () => undefined),
       confirm: options.confirm ?? (async () => false),
       custom: undefined,
       addAutocompleteProvider: () => undefined,
+      // 侧边栏会在模式开的时候挂 widget；这里只记录，不当真渲染。
+      setWidget: (key: string, content: unknown) => {
+        if (content === undefined) widgets.delete(key);
+        else widgets.set(key, content);
+      },
     },
   } as unknown as ExtensionContext;
 };
@@ -193,6 +200,20 @@ describe("registerOrchestrator", () => {
     expect(await harness.fire("resources_discover", ctx)).toEqual([undefined]);
     // 开关关闭时连“收敛”这一步都不做：active 集合原样留着。
     expect(harness.active()).toEqual(["read", "bash"]);
+  });
+
+  it("mounts the sidebar widget without registering tools or sending messages", async () => {
+    const harness = setup(settingsWith({ always: true }));
+    const ctx = makeCtx(harness.branch, harness.notifications, await tempDir());
+    harness.start(ctx);
+    const widgets = (ctx as unknown as { __widgets: Map<string, unknown> }).__widgets;
+    expect([...widgets.keys()]).toEqual(["orchestrator-sidebar"]);
+    // 纯界面：不增工具、不发消息、不追回合。
+    expect(harness.active()).toEqual([...ORCHESTRATOR_TOOL_NAMES]);
+    expect(harness.sent).toHaveLength(0);
+    // 退出时收干净（overlay 与 widget 都不留）。
+    await harness.fire("session_shutdown", ctx);
+    expect(widgets.size).toBe(0);
   });
 
   it("converges the live tools to the whitelist and injects the fixed prompt when always-on", async () => {

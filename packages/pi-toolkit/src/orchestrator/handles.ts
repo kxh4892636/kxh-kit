@@ -27,6 +27,12 @@ export interface SessionLike {
   waitForIdle(): Promise<void>;
   abort(): Promise<void>;
   dispose(): void;
+  /**
+   * 订阅会话事件（侧边栏的实时流用）；返回退订阅函数。
+   *
+   * 可选：测试替身与老路径的 session 不一定实现，读不到就不展示流。
+   */
+  subscribe?(listener: (event: unknown) => void): () => void;
 }
 
 /** 在途 job：一次派工的终态与看门狗状态。 */
@@ -343,4 +349,46 @@ export const disposeAll = async (registry: WorkerRegistry): Promise<number> => {
     await disposeEntry(entry);
   }
   return entries.length;
+};
+
+/**
+ * 找一个 Plan 下覆盖某条 note 的 worker。
+ *
+ * 一个 Plan 可以挂多个 worker（一组一个），所以只能按 `planDirectoryOf(key)` + `notes`
+ * 扫一遍，不能直接 `get`。侧边栏用它把 note 行连到正在跑的会话。
+ * @param registry - 句柄表。
+ * @param planDirectory - Plan 目录的绝对路径。
+ * @param note - note id。
+ * @returns 找到的条目；没有 worker 领它时返回 undefined。
+ */
+export const findEntryByNote = (
+  registry: WorkerRegistry,
+  planDirectory: string,
+  note: string,
+): WorkerEntry | undefined => {
+  return registry
+    .list()
+    .find(
+      (entry) =>
+        planDirectoryOf(entry.planDirectory) === planDirectory &&
+        (entry.notes?.includes(note) ?? false),
+    );
+};
+
+/**
+ * 一个 Plan 下有哪些 note 正被 worker 领着。
+ * @param registry - 句柄表。
+ * @param planDirectory - Plan 目录的绝对路径。
+ * @returns note id 集合。
+ */
+export const runningNotesOf = (
+  registry: WorkerRegistry,
+  planDirectory: string,
+): ReadonlySet<string> => {
+  const notes = new Set<string>();
+  for (const entry of registry.list()) {
+    if (planDirectoryOf(entry.planDirectory) !== planDirectory) continue;
+    for (const note of entry.notes ?? []) notes.add(note);
+  }
+  return notes;
 };

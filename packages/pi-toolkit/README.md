@@ -266,6 +266,24 @@ While a session runs Orchestrator:
 - pi's automatic compaction is disabled. When context usage reaches `rotateAt`, the next input
   replaces the conversation with a resume seed plus that input; the Plan on disk is the state.
 - Non-`orchestrator_*` tools are blocked from touching `notes.json` (policy, not a security boundary).
+- **Sidebar (TUI only).** While the mode is on, a `▤` icon sits in the top-right corner and toggles a
+  32-column right-anchored overlay (`sidebar.ts`). It lists every active Plan, one row per note with a
+  status mark (`·` pending, `●` running, `◆` waiting for review, `?` waiting for an answer, `⊘` blocked,
+  `✓` done) and a running marker `▶`; completed notes are folded into one `已完成 N 条 ▸` row per Plan
+  (click it, or the note row, to expand / open). Clicking a note opens a centered detail overlay with the
+  snapshot (title, status, needs, description, blocking reason) and, while a worker holds that note, a
+  200ms-throttled live stream of its text deltas and tool calls; `Esc` closes the detail, a second `Esc`
+  collapses the sidebar. The list itself re-reads the plans every 5s (only when the rows actually change
+  is a render requested) — the stream keeps its own 200ms cadence.
+
+  Three things were verified rather than assumed: a `nonCapturing` overlay **does** receive mouse clicks
+  (hit-testing is geometric; only focus acquisition respects the flag), so the sidebar neither steals
+  focus nor needs a keyboard fallback; mouse input only exists in fullscreen (alt-screen) mode, and in
+  `regular` mode an overlay's rows can scroll into the scrollback where they can no longer be repainted —
+  so both the icon and the sidebar are shown **only when `tui.mode === "fullscreen"`** (pi's default);
+  below 100 columns the sidebar hides itself (32 columns would cover the transcript) while the icon stays
+  put and answers a click with a notification explaining the width requirement.
+
 - The bundled skills (`ask`, `do`, `code-spec`, `kaizen`, `learning`, `to-skill`) are contributed
   through `resources_discover` when the switch is on; `/reload` makes them visible.
 

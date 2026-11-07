@@ -59,6 +59,7 @@ import {
 } from "./mode.ts";
 import { activePlans, listPlans, planRefOf, resolvePlan, type PlanRef } from "./plan.ts";
 import { pickMode } from "./selector.ts";
+import { createSidebar } from "./sidebar.ts";
 import { loadDocument, NOTES_FILE } from "./store.ts";
 import { createCheckTool } from "./tools/check.ts";
 import { createReadTool } from "./tools/read.ts";
@@ -674,7 +675,10 @@ export const registerOrchestrator = (
   };
 
   const sync = (ctx: ExtensionContext): void => {
-    setTools(ctx, modeOn(ctx));
+    const enabled = modeOn(ctx);
+    setTools(ctx, enabled);
+    // 侧边栏跟着模式走：开且是 tui → 挂 overlay 与 1s 刷新；否则清定时器与 overlay。
+    sidebar.sync(ctx, enabled);
   };
 
   /** 状态目录：崩溃凭据与 worker 会话索引落在这里。 */
@@ -695,6 +699,15 @@ export const registerOrchestrator = (
 
   /** 进程内的 worker 句柄表；闭包持有，不做模块级单例。 */
   const registry: WorkerRegistry = createRegistry();
+
+  /**
+   * TUI 侧边栏（纯界面）：只读 `plan.ts` / `store.ts` 与句柄表，不注册工具、不发起回合。
+   * 定时器 `unref` 过，且跟着 `sync` 开关，所以模式关 / 退出 / reload 都不会留下东西。
+   */
+  const sidebar = createSidebar({
+    registry,
+    limits: () => deps.settings().orchestrator,
+  });
 
   /**
    * 编排方会话的通知队列（report / 超时）。pi 的 `sendMessage` 是即发即忘的，失败不会
@@ -895,6 +908,7 @@ export const registerOrchestrator = (
 
   // 退出收尾：先留痕再把 worker 全摘掉，避免“worker 静默消失、note 悬空”。
   pi.on("session_shutdown", async () => {
+    sidebar.dispose();
     await recordInterruptedNotes(
       "session_shutdown: worker 随会话退出，相关 note 可能停在 in_progress",
     );
