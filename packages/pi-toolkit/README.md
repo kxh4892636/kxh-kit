@@ -252,11 +252,15 @@ While a session runs Orchestrator:
 - `status` takes `pending / in_progress / waiting / blocked`; `waiting` must say what it waits for via
   `needs: "answer" | "review"`, and `complete` only accepts `waiting` + `needs=review`. Old
   `awaiting_verification` documents are read as `waiting` + `needs=review`.
-- `ask_questions` asks any number of questions; each one offers model-provided options (each with an
-  optional one-line description) plus a custom answer and a skip action. In the TUI it renders its own
-  list — two lines per option, a blank line between options — because the host `SelectList` keeps the
-  description on the same line and has no item gap; `rpc` / `print` fall back to `ctx.ui.select` with the
-  description appended to the label.
+- `ask_questions` asks any number of questions; each one offers at most 3 model-provided options (each
+  with an optional one-line description), a custom answer and a skip. In the TUI one component drives
+  **all** questions: `←/→` (or `Tab/Shift+Tab`) moves between them and each question keeps its own
+  selection, so going back re-opens the earlier answer for editing; `Enter` advances and submits on the
+  last question. Picking a custom answer leaves the component for `ctx.ui.input` and re-enters on the same
+  question with the earlier answers intact. It renders its own list — two lines per option, a blank line
+  between options — because the host `SelectList` keeps the description on the same line and has no item
+  gap; `rpc` / `print` fall back to `ctx.ui.select`, question after question, with the description
+  appended to the label (no back-navigation there).
 - pi's automatic compaction is disabled. When context usage reaches `rotateAt`, the next input
   replaces the conversation with a resume seed plus that input; the Plan on disk is the state.
 - Non-`orchestrator_*` tools are blocked from touching `notes.json` (policy, not a security boundary).

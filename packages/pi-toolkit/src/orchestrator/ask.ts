@@ -4,15 +4,24 @@
  * 结构化登记 `needs=answer`，由编排方转人工——worker 永远不能自己问人。
  *
  * TUI 走 `ctx.ui.custom` 自己渲染，因为宿主 `SelectList` 把概述渲染在同一行、项与项之间
- * 也没有空行；这里每项两行（`→ 1. label` + 缩进概述），项间 `Spacer(1)`。rpc / print
- * 没有自定义组件，退回 `ctx.ui.select`，把概述拼进 label —— 至少不让它丢掉。
+ * 也没有空行；这里每项两行（`→ 1. label` + 缩进概述），项间 `Spacer(1)`。
+ *
+ * TUI 下由**一个组件管全部题目**：`←/→`（或 Tab/Shift+Tab）切题，切回去恢复该题原来的
+ * 选中位置，末题 Enter 提交。选中「自定义回答」时组件先退出，外层用 `ctx.ui.input` 取文本，
+ * 再带着同一份草稿重新进入组件并停在同一题 —— 之前的答案不会丢。
+ *
+ * rpc / print 没有自定义组件，退回 `ctx.ui.select` 顺序问答（不能回退），把概述拼进 label
+ * —— 至少不让它丢掉。
  * @module @kxh4892636/pi-toolkit/orchestrator/ask
  */
 
 import type { ExtensionToolContext, Theme, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { DynamicBorder, keyText } from "@earendil-works/pi-coding-agent";
-import { Container, Spacer, Text } from "@earendil-works/pi-tui";
+import { Container, Spacer, Text, matchesKey } from "@earendil-works/pi-tui";
 import { Type } from "typebox";
+
+/** 每道题最多几个预设选项：选项要能一眼比较，给多了只是噪音。 */
+export const MAX_OPTIONS = 3;
 
 /** 一道问题的模型参数。 */
 export interface AskQuestion {
@@ -29,11 +38,32 @@ export interface AskOption {
 }
 
 /** 一道题的问答结果。 */
-interface AskAnswer {
+export interface AskAnswer {
   readonly question: string;
+  /** 第几题（0 起）：取消时可跳过未答的题，编号不能靠数组下标重排。 */
+  readonly questionIndex?: number;
   readonly answer: string;
   readonly skipped: boolean;
   readonly custom: boolean;
+}
+
+/** 多题共用的作答草稿：当前题、每题选中位置、每题答案。 */
+export interface AskDraft {
+  readonly index: number;
+  readonly selection: readonly number[];
+  readonly answers: readonly (AskAnswer | undefined)[];
+}
+
+/** 组件交回外层的意图：「自定义」要跳出组件去 `ctx.ui.input`。 */
+export type AskEvent =
+  | { readonly kind: "custom"; readonly draft: AskDraft }
+  | { readonly kind: "submit"; readonly draft: AskDraft }
+  | { readonly kind: "cancel"; readonly draft: AskDraft };
+
+/** 一轮提问的全部结果。 */
+export interface AskResult {
+  readonly answers: readonly AskAnswer[];
+  readonly cancelled: boolean;
 }
 
 /** 末尾追加的「自定义回答」项。 */
@@ -67,6 +97,11 @@ export const parseQuestions = (raw: unknown): AskQuestion[] => {
       throw new Error(`questions[${index}].question 必填`);
     }
     const rawOptions = record?.["options"];
+    if (Array.isArray(rawOptions) && rawOptions.length > MAX_OPTIONS) {
+      throw new Error(
+        `questions[${index}].options 最多 ${MAX_OPTIONS} 个（当前 ${rawOptions.length} 个）；最多 3 个，不足不必硬凑`,
+      );
+    }
     const options: AskOption[] = Array.isArray(rawOptions)
       ? rawOptions.map((entry, optionIndex) => {
           const option = asRecord(entry);
@@ -144,49 +179,118 @@ const withDescription = (label: string, description?: string): string =>
 const fallbackLabels = (entries: readonly AskEntry[]): string[] =>
   entries.map((entry) => withDescription(entry.label, entry.description));
 
-/** 底部键位提示。 */
-const hintText = (): string => {
+/** 每题最终的候选：该题已有自定义答案时，把它挂在「自定义回答」项下方。 */
+const entriesFor = (question: AskQuestion, answer: AskAnswer | undefined): readonly AskEntry[] => {
+  const entries = askEntries(question);
+  if (answer === undefined || !answer.custom || answer.skipped) return entries;
+  return entries.map((entry) =>
+    entry.value === CUSTOM_LABEL ? { ...entry, description: `已填：${answer.answer}` } : entry,
+  );
+};
+
+/** 底部键位提示；多题时顺带报已答进度。 */
+const hintText = (total: number, answered: number): string => {
   const confirm = keyText("tui.select.confirm");
   const cancel = keyText("tui.select.cancel");
-  return `  ↑/↓ 或 k/j 移动 · 数字 1-9 直选 · ${confirm} 确认 · ${cancel} 取消`;
+  const progress = total > 1 ? `已答 ${answered}/${total} · ` : "";
+  const next = total > 1 ? "并下一题 / 末题提交" : "";
+  return `  ${progress}←/→ 或 Tab/Shift+Tab 切题 · ↑/↓ 或 k/j 移动 · 数字 1-9 直选 · ${confirm} 确认${next} · ${cancel} 取消`;
 };
 
 /**
- * TUI：自定义组件，每项两行、项间空行。
+ * TUI：一个组件管全部题目，每项两行、项间空行，可来回切题。
  * @param ctx - 工具上下文。
- * @param question - 当前问题。
- * @param index - 第几题（0 起）。
- * @param total - 总题数。
- * @returns 选中项的值；取消为 undefined。
+ * @param questions - 全部问题。
+ * @param draft - 重新进入时的草稿（自定义回答后回到同一题）。
+ * @returns 组件的意图；自定义回答要由外层去 `ctx.ui.input`。
  */
-const pickInTui = async (
+const askInTui = async (
   ctx: ExtensionToolContext,
-  question: AskQuestion,
-  index: number,
-  total: number,
-): Promise<string | undefined> => {
-  const entries = askEntries(question);
-  return ctx.ui.custom<string | undefined>((tui, theme: Theme, keybindings, done) => {
+  questions: readonly AskQuestion[],
+  draft: AskDraft,
+): Promise<AskEvent> =>
+  ctx.ui.custom<AskEvent>((tui, theme: Theme, keybindings, done) => {
+    const total = questions.length;
     const container = new Container();
-    let selected = 0;
+    let index = Math.min(Math.max(draft.index, 0), total - 1);
+    const selection: number[] = [];
+    const answers: (AskAnswer | undefined)[] = [];
+    for (let at = 0; at < total; at += 1) {
+      const count = askEntries(questions[at] as AskQuestion).length;
+      const picked = draft.selection[at] ?? 0;
+      selection[at] = picked >= 0 && picked < count ? picked : 0;
+      answers[at] = draft.answers[at];
+    }
+
+    const snapshot = (): AskDraft => ({
+      index,
+      selection: [...selection],
+      answers: [...answers],
+    });
+
+    const entriesAt = (): readonly AskEntry[] =>
+      entriesFor(questions[index] as AskQuestion, answers[index]);
+
+    const answered = (): number => answers.filter((answer) => answer !== undefined).length;
 
     const draw = (): void => {
+      const entries = entriesAt();
       container.clear();
       container.addChild(new DynamicBorder((text) => theme.fg("accent", text)));
       container.addChild(new Spacer(1));
-      container.addChild(new Text(theme.bold(questionTitle(question, index, total)), 0, 0));
+      container.addChild(
+        new Text(theme.bold(questionTitle(questions[index] as AskQuestion, index, total)), 0, 0),
+      );
       container.addChild(new Spacer(1));
-      for (const lines of askEntryLines(entries, selected, (text) => theme.fg("dim", text))) {
+      for (const lines of askEntryLines(entries, selection[index] ?? 0, (text) =>
+        theme.fg("dim", text),
+      )) {
         container.addChild(new Text(lines.join("\n"), 0, 0));
         container.addChild(new Spacer(1));
       }
-      container.addChild(new Text(theme.fg("dim", hintText()), 0, 0));
+      container.addChild(new Text(theme.fg("dim", hintText(total, answered())), 0, 0));
       container.addChild(new DynamicBorder((text) => theme.fg("accent", text)));
     };
+
+    /** 确认当前题：末题提交，否则内部前进（返回 undefined 表示还要继续渲染）。 */
+    const commit = (): AskEvent | undefined => {
+      const question = questions[index] as AskQuestion;
+      const entry = entriesAt()[selection[index] ?? 0];
+      if (entry !== undefined) {
+        if (entry.value === CUSTOM_LABEL) {
+          // 已有自定义答案时 Enter 表示「采用它」，不再重复弹输入。
+          if (answers[index]?.custom !== true) return { kind: "custom", draft: snapshot() };
+        } else {
+          answers[index] =
+            entry.value === SKIP_LABEL
+              ? {
+                  question: question.question,
+                  questionIndex: index,
+                  answer: "",
+                  skipped: true,
+                  custom: false,
+                }
+              : {
+                  question: question.question,
+                  questionIndex: index,
+                  answer: entry.value,
+                  skipped: false,
+                  custom: false,
+                };
+        }
+      }
+      if (index >= total - 1) return { kind: "submit", draft: snapshot() };
+      index += 1;
+      return undefined;
+    };
+
     draw();
 
-    const finish = (value: string | undefined): void => {
-      done(value);
+    /** 切到另一题：保留每题自己的选中位置。 */
+    const moveTo = (offset: number): void => {
+      index = (index + offset + total) % total;
+      draw();
+      tui.requestRender();
     };
 
     return {
@@ -199,23 +303,46 @@ const pickInTui = async (
       },
       handleInput(data: string): void {
         if (keybindings.matches(data, "tui.select.cancel")) {
-          finish(undefined);
+          done({ kind: "cancel", draft: snapshot() });
           return;
         }
         if (keybindings.matches(data, "tui.select.confirm")) {
-          finish(entries[selected]?.value);
+          const event = commit();
+          if (event !== undefined) {
+            done(event);
+            return;
+          }
+          draw();
+          tui.requestRender();
           return;
         }
+        const entries = entriesAt();
+        const back = matchesKey(data, "left") || matchesKey(data, "shift+tab");
+        const forward = matchesKey(data, "right") || matchesKey(data, "tab");
+        if (back) {
+          if (total > 1) moveTo(-1);
+          return;
+        }
+        if (forward) {
+          if (total > 1) moveTo(1);
+          return;
+        }
+        if (entries.length === 0) return;
+        const at = selection[index] ?? 0;
         if (keybindings.matches(data, "tui.select.up") || data === "k") {
-          selected = (selected + entries.length - 1) % entries.length;
+          selection[index] = (at + entries.length - 1) % entries.length;
         } else if (keybindings.matches(data, "tui.select.down") || data === "j") {
-          selected = (selected + 1) % entries.length;
+          selection[index] = (at + 1) % entries.length;
         } else if (data.length === 1 && data >= "1" && data <= "9") {
           // 数字直选：按下就确认，省掉一次 Enter。
           const target = Number(data) - 1;
           if (target >= entries.length) return;
-          finish(entries[target]?.value);
-          return;
+          selection[index] = target;
+          const event = commit();
+          if (event !== undefined) {
+            done(event);
+            return;
+          }
         } else {
           return;
         }
@@ -224,23 +351,21 @@ const pickInTui = async (
       },
     };
   });
-};
 
 /**
- * 取一道题的答案：TUI 走自定义组件，其它交互式模式退回 `ctx.ui.select`。
+ * 非 TUI：一道题一次 `ctx.ui.select`，顺序问答、不能回退。
  * @param ctx - 工具上下文。
  * @param question - 当前问题。
  * @param index - 第几题（0 起）。
  * @param total - 总题数。
  * @returns 选中项的值；取消为 undefined。
  */
-const pickEntry = async (
+const pickSequential = async (
   ctx: ExtensionToolContext,
   question: AskQuestion,
   index: number,
   total: number,
 ): Promise<string | undefined> => {
-  if (ctx.mode === "tui") return pickInTui(ctx, question, index, total);
   const entries = askEntries(question);
   const labels = fallbackLabels(entries);
   const picked = await ctx.ui.select(questionTitle(question, index, total), labels);
@@ -249,34 +374,103 @@ const pickEntry = async (
   return at === -1 ? picked : entries[at]?.value;
 };
 
-/** 逐题询问；取消（Esc）时保留已完成答案并标记 cancelled。 */
-const ask = async (
+/** 把选中的值落成一条答案。 */
+const answerFrom = (question: AskQuestion, index: number, picked: string): AskAnswer =>
+  picked === SKIP_LABEL
+    ? {
+        question: question.question,
+        questionIndex: index,
+        answer: "",
+        skipped: true,
+        custom: false,
+      }
+    : {
+        question: question.question,
+        questionIndex: index,
+        answer: picked,
+        skipped: false,
+        custom: false,
+      };
+
+/** rpc / print：逐题询问；取消时保留已完成答案并标记 cancelled。 */
+const askSequential = async (
   ctx: ExtensionToolContext,
   questions: readonly AskQuestion[],
-): Promise<{ answers: AskAnswer[]; cancelled: boolean }> => {
+): Promise<AskResult> => {
   const answers: AskAnswer[] = [];
   for (const [index, item] of questions.entries()) {
-    const picked = await pickEntry(ctx, item, index, questions.length);
+    const picked = await pickSequential(ctx, item, index, questions.length);
     if (picked === undefined) return { answers, cancelled: true };
-    if (picked === SKIP_LABEL) {
-      answers.push({ question: item.question, answer: "", skipped: true, custom: false });
-      continue;
-    }
     if (picked === CUSTOM_LABEL) {
       const text = await ctx.ui.input(item.question, "输入回答");
       if (text === undefined) return { answers, cancelled: true };
       answers.push({
         question: item.question,
+        questionIndex: index,
         answer: text.trim(),
         skipped: text.trim() === "",
         custom: true,
       });
       continue;
     }
-    answers.push({ question: item.question, answer: picked, skipped: false, custom: false });
+    answers.push(answerFrom(item, index, picked));
   }
   return { answers, cancelled: false };
 };
+
+/**
+ * TUI：一个组件管全部题目，直到提交 / 取消；自定义回答跳出后回到同一题。
+ * @param ctx - 工具上下文。
+ * @param questions - 全部问题。
+ * @returns 答案与是否取消。
+ */
+const askInteractive = async (
+  ctx: ExtensionToolContext,
+  questions: readonly AskQuestion[],
+): Promise<AskResult> => {
+  let index = 0;
+  const selection: number[] = questions.map(() => 0);
+  const answers: (AskAnswer | undefined)[] = questions.map(() => undefined);
+  const collected = (): AskAnswer[] =>
+    answers.filter((answer): answer is AskAnswer => answer !== undefined);
+
+  for (;;) {
+    const event = await askInTui(ctx, questions, {
+      index,
+      selection: [...selection],
+      answers: [...answers],
+    });
+    // 组件里的切题与选中位置要带出来，重新进入时才能停在同一题。
+    index = event.draft.index;
+    event.draft.selection.forEach((picked, at) => {
+      selection[at] = picked;
+    });
+    event.draft.answers.forEach((answer, at) => {
+      answers[at] = answer;
+    });
+    if (event.kind === "cancel") return { answers: collected(), cancelled: true };
+    if (event.kind === "submit") return { answers: collected(), cancelled: false };
+
+    const question = questions[index] as AskQuestion;
+    const text = await ctx.ui.input(question.question, "输入回答");
+    if (text === undefined) return { answers: collected(), cancelled: true };
+    const trimmed = text.trim();
+    answers[index] = {
+      question: question.question,
+      questionIndex: index,
+      answer: trimmed,
+      skipped: trimmed === "",
+      custom: true,
+    };
+  }
+};
+
+/** 按运行模式选实现：TUI 可回退切题，rpc / print 顺序问答。 */
+const ask = async (
+  ctx: ExtensionToolContext,
+  questions: readonly AskQuestion[],
+): Promise<AskResult> =>
+  ctx.mode === "tui" ? askInteractive(ctx, questions) : askSequential(ctx, questions);
 
 /**
  * 无交互界面时的结构化登记：不阻塞、不报错，把问题交给上层转人工。
@@ -324,8 +518,9 @@ export const formatAnswers = (answers: readonly AskAnswer[], cancelled: boolean)
   answers.forEach((answer, index) => {
     const label = answer.skipped ? "（跳过）" : answer.answer;
     const suffix = answer.custom && !answer.skipped ? "（自定义）" : "";
-    lines.push(`Q${index + 1}: ${answer.question}`);
-    lines.push(`A${index + 1}: ${label}${suffix}`);
+    const number = (answer.questionIndex ?? index) + 1;
+    lines.push(`Q${number}: ${answer.question}`);
+    lines.push(`A${number}: ${label}${suffix}`);
   });
   if (cancelled) lines.push("（用户取消了后续问题）");
   return lines.length === 0 ? "（未提问）" : lines.join("\n");
@@ -336,11 +531,13 @@ export const createAskQuestionsTool = (): ToolDefinition => ({
   name: "ask_questions",
   label: "Ask Questions",
   description:
-    "向用户提出一个或多个问题，逐题等待回答。每题可给预设选项（每个选项建议配一句话概述），也可自定义回答或跳过；用于 Orchestrator 的 ask 循环与其他需要用户决策的场景。",
+    "向用户提出一个或多个问题，逐题等待回答。每题最多 3 个预设选项（每个选项建议配一句话概述），也可自定义回答或跳过；用于 Orchestrator 的 ask 循环与其他需要用户决策的场景。TUI 下可用 ←/→ 或 Tab/Shift+Tab 在题目间来回切换并回改答案（末题 Enter 提交）；rpc / print 为顺序问答，不支持回退。",
   promptSnippet: "Ask the user one or more questions and wait for answers.",
   promptGuidelines: [
     "ask_questions 会阻塞直到用户作答；一次可提任意数量的问题，每题都能自定义回答或跳过。",
+    "每题最多给 3 个预设选项：优先给满 3 个，但不要硬凑；凑不出就少给，用户仍可自定义回答或跳过。",
     "给预设选项时，为每个选项写一句话 description（取舍 / 代价 / 后果）；TUI 会把它展示在选项下方，建议 ≤ 60 字，字段可选。",
+    "多题可放进一次调用：TUI 下用户能来回切题、回改答案，所以每题都应能独立作答，不依赖上一题的选择。",
   ],
   executionMode: "sequential",
   parameters: Type.Unsafe<Record<string, unknown>>({
@@ -358,7 +555,8 @@ export const createAskQuestionsTool = (): ToolDefinition => ({
             question: { type: "string", description: "要问用户的问题" },
             options: {
               type: "array",
-              description: "预设选项；留空则只允许自定义回答或跳过",
+              maxItems: MAX_OPTIONS,
+              description: "预设选项；最多 3 个，优先给满但不要硬凑，留空则只允许自定义回答或跳过",
               items: {
                 type: "object",
                 additionalProperties: false,
