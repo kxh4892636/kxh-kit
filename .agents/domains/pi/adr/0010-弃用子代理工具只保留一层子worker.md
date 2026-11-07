@@ -18,3 +18,8 @@
 - 子 worker 不可被编排方直接刹车：`orchestrator_workers` 只列编排方派的 worker（带组），要停子 worker 得 abort 它的上级；子 worker 的句柄表在 worker 会话的闭包里。
 - 子 worker 改不了 `notes.json`（没有 `orchestrator_write`），note 状态与 evidence 仍由上级 worker 写；文件写权限保留，所以"撞文件"仍要靠 report 上报。
 - 恢复这条通道需要重装包（`pi install npm:@tintinweb/pi-subagents`）；若重开，需要先重新讨论观测与超时的归属，本篇的成功标准是"并行只有一条链路"。
+
+## 与其他 ADR 的关系
+
+- 本篇只管"并行通道只留一条"。子 worker 仍然**不续、不落盘**（内存会话），这是本篇的结论之一，不是疏漏。
+- worker（含临时 worker）自己的会话如何落盘与恢复另立一篇：`0011-worker会话落盘与按需恢复.md`。那篇只改变"worker 会话存哪、何时恢复"，不复活本篇否决的并行通道，也不给子 worker 加持久化。
