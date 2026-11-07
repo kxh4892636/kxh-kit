@@ -1662,6 +1662,37 @@ describe("dispatch 与 workers 工具", () => {
     expect(second.spawnOptions).toHaveLength(before);
   });
 
+  it("resume 不带回 plan 目录：没有 worktree 的 worker 起在主工作区（否则它认不出 Plan）", async () => {
+    const first = await setup({ makeSession: () => fakeSession(true, false) });
+    const { root, ref } = await planWithNotes([note("01")]);
+    await first.tools
+      .get("orchestrator_command")
+      ?.execute(
+        "id",
+        { plan: ref, notes: ["01"], note: "01", message: "做 01", worktree: false },
+        undefined,
+        undefined,
+        ctx(root),
+      );
+    expect(first.spawnCwds).toEqual([root]);
+    for (const handler of first.handlers.get("session_shutdown") ?? []) {
+      await handler({ reason: "quit" });
+    }
+
+    const second = await setup({
+      stateDir: () => first.stateRoot,
+      makeSession: () => fakeSession(true, false),
+    });
+    const text = textOf(
+      await second.tools
+        .get("orchestrator_state")
+        ?.execute("id", { op: "resume", plan: ref }, undefined, undefined, ctx(root)),
+    );
+    expect(text).toContain("已恢复");
+    // cwd 是主工作区（root），不是 plan 目录：worker 侧的 workspace 由此推出。
+    expect(second.spawnCwds).toEqual([root]);
+  });
+
   it("resume 幂等键：同一代已经恢复过就跳过，不再起会话", async () => {
     const { tools, stateRoot, spawnOptions } = await setup();
     const { root, ref } = await planWithNotes([note("01")]);

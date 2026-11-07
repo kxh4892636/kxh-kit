@@ -1823,8 +1823,10 @@ export const registerOrchestrator = (
           planRef: orphan.planRef,
           ...(plan === undefined ? {} : { plan }),
           notes: orphan.notes,
-          // 有 worktree 就回到那个目录：换回主工作区会看到“改了半截”的另一份树。
-          cwd: orphan.worktree?.directory ?? plan?.directory ?? workspace,
+          // 有 worktree 就回到那个目录；否则回**主工作区**，不能是 plan 目录 ——
+          // worker 的会话 cwd 就是 `runtime.workspace(exec)`，起在 plan 目录里会让它自己的
+          // `orchestrator_read` / `write` / `check` 把 workspace 算成 plan 目录，认不出任何 Plan。
+          cwd: orphan.worktree?.directory ?? workspace,
           workspace,
           ...(orphan.worktree === undefined ? {} : { worktree: orphan.worktree }),
           sessionKey,
