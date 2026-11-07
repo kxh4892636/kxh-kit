@@ -112,9 +112,9 @@ story / spec / note 正文结构自定; 四个锚点固定: spec 必须有"当�
 - 讨论,调查与计划类 note 以可检查的结论或方案为交付物; 执行类 note 以可验证的用户能力为交付物.
 - 删除或合并有下游的 note 前, 先用 `link` 改指承接产物, 或 `merge` 合并; 清空依赖传 `[]`.
 
-### 自动修复
+### 修复校验失败
 
-读取,写入与校验 Plan 时, 会先自动修复能机械判定的问题: note 摘要超过上限按上限截断; `updated_at` 缺失补当前时间; `index` 去重, 丢弃不存在的 note, 裁剪到 `indexMaxRows`. 其余问题(正文超限, 缺 evidence, 依赖错误或环, Markdown 链接缺失)不会自动修复, 仍按校验结果处理.
+文档无法通过校验时, 不要用文件工具直接改 `notes.json`. 先用 `nano_flow_read` 的 `inspect` 看原始 note 与校验错误, 再由你判断如何重写, 用 `nano_flow_write` 的 `repair` 提交 `notes`(按 id 给 title/description/content)与 `index`. 插件不会自动截断摘要, 也不会自动删除索引项; 这些取舍必须由你给出.
 
 ### Plan 文档规则
 

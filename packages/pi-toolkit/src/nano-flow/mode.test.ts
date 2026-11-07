@@ -75,8 +75,23 @@ describe("buildSeed", () => {
     expect(seed).toContain("nano_flow_read");
   });
 
-  it("falls back to asking which plan when there are zero or several", async () => {
+  it("tells the model to init a plan when there is none", async () => {
     const root = await tempDir();
+    const seed = await buildSeed(root, ".agents/domains");
+    expect(seed).toContain("没有 active Plan");
+    expect(seed).toContain("init");
+  });
+
+  it("asks which plan when several are active", async () => {
+    const root = await tempDir();
+    for (const name of ["2026-11-08-甲", "2026-11-08-乙"]) {
+      const plan = join(root, `.agents/domains/demo/plans/active/${name}`);
+      await mkdir(plan, { recursive: true });
+      await writeFile(
+        join(plan, "notes.json"),
+        JSON.stringify({ version: 1, index: [], notes: [] }),
+      );
+    }
     expect(await buildSeed(root, ".agents/domains")).toContain("先问用户");
   });
 });

@@ -5,9 +5,16 @@ import { dirname, isAbsolute, join } from "node:path";
 import { Type } from "typebox";
 import type { ExtensionToolContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { formatIssues, runCheck } from "../check-runner.js";
-import { emptyDocument, nextNoteId, nowIso, type NoteNode, type PlanDocument } from "../dag.js";
+import {
+  emptyDocument,
+  nextNoteId,
+  nowIso,
+  parseDocument,
+  type NoteNode,
+  type PlanDocument,
+} from "../dag.js";
 import { isPlanLifecycle, planRefOf, resolvePlan, type PlanRef } from "../plan.js";
-import { commitDocument, openDocument } from "../store.js";
+import { commitDocument, loadDocument, NOTES_FILE } from "../store.js";
 import {
   asArguments,
   optionalString,
@@ -31,7 +38,11 @@ const WRITE_OPS = [
   "merge",
   "delete",
   "move",
+  "repair",
 ] as const;
+
+const messageOf = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
 
 const PLAN_NAME = /^(\d{4}-\d{2}-\d{2})-(.+)$/;
 const HAN = /\p{Script=Han}/u;
@@ -252,6 +263,89 @@ const mergeNotes = async (
   return `已合并 ${from.id} → ${into.id}；${statusLine(committed)}`;
 };
 
+/** `repair` 的一条 note 修正；值由模型判断，脚本不做截断或删除。 */
+interface NoteRepair {
+  readonly note: string;
+  readonly title?: string;
+  readonly description?: string;
+  readonly content?: string;
+}
+
+const parseNoteRepairs = (value: unknown): NoteRepair[] => {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new Error("notes 必须是数组");
+  return value.map((item, index) => {
+    if (typeof item !== "object" || item === null || Array.isArray(item)) {
+      throw new Error(`notes[${index}] 必须是对象`);
+    }
+    const record = item as Record<string, unknown>;
+    const note = record["note"];
+    if (typeof note !== "string" || note === "") throw new Error(`notes[${index}].note 必填`);
+    const fields: { -readonly [K in keyof NoteRepair]?: NoteRepair[K] } = { note };
+    for (const key of ["title", "description", "content"] as const) {
+      const candidate = record[key];
+      if (candidate === undefined) continue;
+      if (typeof candidate !== "string") throw new Error(`notes[${index}].${key} 必须是字符串`);
+      fields[key] = candidate;
+    }
+    if (
+      fields.title === undefined &&
+      fields.description === undefined &&
+      fields.content === undefined
+    ) {
+      throw new Error(`notes[${index}] 至少需要 title / description / content 之一`);
+    }
+    return fields as NoteRepair;
+  });
+};
+
+/**
+ * 用模型给出的值修复一个无法通过校验的文档。
+ * 脚本不自动截断摘要、不自动删除索引项，只应用显式传入的替换并重新校验。
+ */
+const repairPlan = async (
+  runtime: ToolRuntime,
+  plan: PlanRef,
+  args: Record<string, unknown>,
+): Promise<string> => {
+  const repairs = parseNoteRepairs(args["notes"]);
+  const index = optionalStringArray(args, "index");
+  if (repairs.length === 0 && index === undefined) {
+    throw new Error("repair 至少需要 notes 或 index");
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(await readFile(join(plan.directory, NOTES_FILE), "utf8"));
+  } catch (error) {
+    throw new Error(`读取 ${NOTES_FILE} 失败（仅合法 JSON 才能修复）: ${messageOf(error)}`);
+  }
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new Error(`${NOTES_FILE} 根必须是对象`);
+  }
+  const root = raw as Record<string, unknown>;
+  const notes = root["notes"];
+  if (!Array.isArray(notes)) throw new Error(`${NOTES_FILE} 的 notes 必须是数组`);
+  for (const repair of repairs) {
+    const target = notes.find(
+      (note) =>
+        typeof note === "object" && note !== null && (note as { id?: unknown }).id === repair.note,
+    );
+    if (target === undefined) throw new Error(`没有 note ${repair.note}`);
+    Object.assign(target as Record<string, unknown>, {
+      ...(repair.title === undefined ? {} : { title: repair.title }),
+      ...(repair.description === undefined ? {} : { description: repair.description }),
+      ...(repair.content === undefined ? {} : { content: repair.content }),
+    });
+  }
+  if (index !== undefined) root["index"] = index;
+  const document = parseDocument(root, runtime.limits());
+  const committed = await commitDocument(plan.directory, document, runtime.limits());
+  return `已修复：${repairs.map((item) => item.note).join(", ") || "无 note"}${
+    index === undefined ? "" : `；索引 ${index.length} 项`
+  }
+${statusLine(committed)}`;
+};
+
 const executeWrite = async (
   runtime: ToolRuntime,
   args: Record<string, unknown>,
@@ -264,7 +358,8 @@ const executeWrite = async (
   if (op === "move") return movePlan(runtime, workspace, args);
 
   const plan = await resolvePlan(workspace, runtime.domainRoot, optionalString(args, "plan"));
-  const { document } = await openDocument(plan.directory, runtime.limits());
+  if (op === "repair") return repairPlan(runtime, plan, args);
+  const document = await loadDocument(plan.directory, runtime.limits());
 
   switch (op) {
     case "create": {
@@ -391,7 +486,7 @@ export const createWriteTool = (runtime: ToolRuntime): ToolDefinition => ({
   name: "nano_flow_write",
   label: "Nano Flow Write",
   description:
-    "写 Nano Flow 的 Plan 与 notes DAG。init 建 Plan；create / update 维护 note；link 改依赖；status 设 pending / in_progress / awaiting_verification / blocked；complete 只接受 awaiting_verification 的 note，写 evidence 并通过 Plan 校验后置 completed；set_index 维护关键索引；merge / delete 合并删除；move 迁移生命周期。completed 只能由 complete 设置。",
+    "写 Nano Flow 的 Plan 与 notes DAG。init 建 Plan；create / update 维护 note；link 改依赖；status 设 pending / in_progress / awaiting_verification / blocked；complete 只接受 awaiting_verification 的 note，写 evidence 并通过 Plan 校验后置 completed；set_index 维护关键索引；merge / delete 合并删除；move 迁移生命周期；repair 用模型给出的 title/description/content 与 index 修复无法通过校验的文档（脚本不自作主张截断或删除）。completed 只能由 complete 设置。",
   promptSnippet: "Create and maintain Nano Flow plans and their notes DAG.",
   parameters: Type.Unsafe<Record<string, unknown>>({
     type: "object",
@@ -401,7 +496,7 @@ export const createWriteTool = (runtime: ToolRuntime): ToolDefinition => ({
         type: "string",
         enum: [...WRITE_OPS],
         description:
-          "init | create | update | link | status | complete | set_index | merge | delete | move",
+          "init | create | update | link | status | complete | set_index | merge | delete | move | repair",
       },
       plan: {
         type: "string",
@@ -447,6 +542,21 @@ export const createWriteTool = (runtime: ToolRuntime): ToolDefinition => ({
       },
       into: { type: "string", description: "merge 保留的 note id" },
       from: { type: "string", description: "merge 被并入并删除的 note id" },
+      notes: {
+        type: "array",
+        description: "repair 的模型修正：按 note id 替换 title/description/content",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            note: { type: "string", description: "note id" },
+            title: { type: "string" },
+            description: { type: "string", description: "模型重写后的一句话摘要" },
+            content: { type: "string", description: "模型重写后的正文" },
+          },
+          required: ["note"],
+        },
+      },
     },
     required: ["op"],
   }),

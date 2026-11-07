@@ -51,7 +51,7 @@
 ## nano_flow_read 报 `notes.json` 无效怎么办
 
 - 适用条件与现象：`nano_flow_read plans` 或 `notes` 报「`notes.json` 无效：notes[0].description 超过 N 字」等错误，文档读不出来。
-- 原因：校验会拒绝整个文档，而 `nano_flow_write` 需要先加载文档；坏文档在工具路径里无法自助修复。
-- 解决方法：`nano_flow_read` / `nano_flow_write` / `nano_flow_check` 现在共用 `openDocument`，先修复机械问题并落盘：摘要超长按 `noteDescriptionMaxChars` 截断、`updated_at` 缺失补当前时间、`index` 去重/丢弃不存在/裁剪到 `indexMaxRows`。语义问题（正文超限、缺 evidence、依赖/环、链接）仍会失败，需要人工或模型修。
-- 验证：`repair.test.ts` 覆盖机械修复与不可修复项；`tools.test.ts` 覆盖 check/read 时自动修复并写回；`nano_flow_check` 输出顶部列出「已自动修复」。
-- 来源：本域 ADR-0006；`packages/pi-toolkit/src/nano-flow/repair.ts`、`store.ts`、`tools/check.ts`。
+- 原因：校验会拒绝整个文档，而 `nano_flow_write` 需要先加载文档；插件不应替模型做摘要压缩或索引增删，所以不能脚本化自动修。
+- 解决方法：先用 `nano_flow_read` 的 `inspect` 拿到原始 note 与错误，由模型判断如何重写；再用 `nano_flow_write` 的 `repair` 提交 `notes`（按 id 给 title/description/content）与 `index`，工具重新校验后写回。`repair` 只应用显式传入的值，不自动截断或删除。
+- 验证：`tools.test.ts` 覆盖 inspect 原始视图、repair 应用模型值、无改动/未知 note 报错；`mode.test.ts` 覆盖无 active Plan 时的恢复种子。
+- 来源：本域 ADR-0006；`packages/pi-toolkit/src/nano-flow/tools/{read,write}.ts`。

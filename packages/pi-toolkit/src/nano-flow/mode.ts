@@ -66,17 +66,21 @@ export const isNanoFlowActive = (
  */
 export const buildSeed = async (workspace: string, domainRoot: string): Promise<string> => {
   let planReference: string | undefined;
+  let planCount = 0;
   try {
     const plans = activePlans(await listPlans(workspace, domainRoot));
+    planCount = plans.length;
     const only = plans[0];
     if (plans.length === 1 && only !== undefined) planReference = planRefOf(only);
   } catch {
-    planReference = undefined;
+    planCount = 0;
   }
   const head =
-    planReference === undefined
-      ? "恢复当前 Plan：先按 CONTEXT-MAP 定位本会话的业务域，工作区里有多个 active 的 Plan 时先问用户是哪个"
-      : `恢复当前 Plan：${planReference}`;
+    planReference !== undefined
+      ? `恢复当前 Plan：${planReference}`
+      : planCount === 0
+        ? "当前没有 active Plan：先按 CONTEXT-MAP 定位业务域；没有就新建，然后用 nano_flow_write 的 init 建 Plan 并 create 首条 note（拷问与定案记录）"
+        : "工作区有多个 active 的 Plan：先问用户是哪个";
   return [
     "（上下文已达阈值并清空；Plan 在磁盘上，状态不丢。）",
     `${head}。`,

@@ -1,4 +1,4 @@
-import { stat } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import type { ExtensionToolContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
@@ -16,9 +16,19 @@ import {
 } from "./shared.js";
 import { graphOf, planStatusOf, readyNotes, searchNotes, todoGroups } from "../dag.js";
 import { listPlans, planRefOf, resolvePlan, type PlanRef } from "../plan.js";
-import { openDocument } from "../store.js";
+import { loadDocument, NOTES_FILE } from "../store.js";
 
-const READ_OPS = ["plans", "notes", "get", "ready", "graph", "index", "search", "resume"] as const;
+const READ_OPS = [
+  "plans",
+  "notes",
+  "get",
+  "ready",
+  "graph",
+  "index",
+  "search",
+  "resume",
+  "inspect",
+] as const;
 
 const describeBytes = async (plan: PlanRef, fileName: string): Promise<string> => {
   try {
@@ -41,7 +51,7 @@ const formatPlans = async (runtime: ToolRuntime, workspace: string): Promise<str
   ];
   for (const plan of plans) {
     try {
-      const { document } = await openDocument(plan.directory, runtime.limits());
+      const document = await loadDocument(plan.directory, runtime.limits());
       lines.push(
         `  ${planRefOf(plan)} · ${statusLine(document)} · ${planStatusOf(document.notes)}`,
       );
@@ -49,6 +59,49 @@ const formatPlans = async (runtime: ToolRuntime, workspace: string): Promise<str
       const message = error instanceof Error ? error.message : String(error);
       lines.push(`  ${planRefOf(plan)} · 读取失败: ${message.split("\n")[0] ?? message}`);
     }
+  }
+  return lines.join("\n");
+};
+
+/**
+ * 原始文档视图：文档无法通过校验时，给模型看 id/title/description/content，
+ * 由模型决定如何重写，再交给 nano_flow_write 的 repair。
+ */
+const asText = (value: unknown): string => (typeof value === "string" ? value : "");
+
+const inspectRaw = async (plan: PlanRef): Promise<string> => {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(await readFile(join(plan.directory, NOTES_FILE), "utf8"));
+  } catch (error) {
+    throw new Error(
+      `读取 ${NOTES_FILE} 失败: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new Error(`${NOTES_FILE} 根必须是对象`);
+  }
+  const root = raw as Record<string, unknown>;
+  const notes = Array.isArray(root["notes"]) ? root["notes"] : [];
+  const index = Array.isArray(root["index"]) ? root["index"] : [];
+  const lines = [
+    `Plan: ${planRefOf(plan)}（原始视图，未通过校验）`,
+    `index: ${index.length === 0 ? "（空）" : index.join(", ")}`,
+    "用 nano_flow_write 的 repair 提交模型判断后的 title/description/content 与 index。",
+  ];
+  for (const note of notes) {
+    if (typeof note !== "object" || note === null) continue;
+    const record = note as Record<string, unknown>;
+    lines.push(
+      "",
+      `## ${asText(record["id"])} ${asText(record["title"])}`,
+      `状态: ${asText(record["status"])} · 依赖: ${
+        Array.isArray(record["blocked_by"]) ? record["blocked_by"].join(", ") : "—"
+      }`,
+      `摘要: ${asText(record["description"])}`,
+      "正文:",
+      asText(record["content"]),
+    );
   }
   return lines.join("\n");
 };
@@ -64,7 +117,8 @@ const executeRead = async (
   if (op === "plans") return formatPlans(runtime, workspace);
 
   const plan = await resolvePlan(workspace, runtime.domainRoot, planArgument);
-  const { document } = await openDocument(plan.directory, runtime.limits());
+  if (op === "inspect") return inspectRaw(plan);
+  const document = await loadDocument(plan.directory, runtime.limits());
 
   switch (op) {
     case "notes": {
@@ -212,7 +266,7 @@ export const createReadTool = (runtime: ToolRuntime): ToolDefinition => ({
   name: "nano_flow_read",
   label: "Nano Flow Read",
   description:
-    "只读 Nano Flow 的 Plan 与 notes DAG。plans 列工作区里的 Plan；notes 列某个 Plan 的 note 摘要；get 取正文；ready 取未完成 notes 的依赖分组列表；graph 查直接与传递依赖；index 看关键索引；search 检索；resume 取恢复包（路径、大小、索引、可推进、等待验证、阻塞）。",
+    "只读 Nano Flow 的 Plan 与 notes DAG。plans 列工作区里的 Plan；notes 列某个 Plan 的 note 摘要；get 取正文；ready 取未完成 notes 的依赖分组列表；graph 查直接与传递依赖；index 看关键索引；search 检索；resume 取恢复包（路径、大小、索引、可推进、等待验证、阻塞）；inspect 在文档无法通过校验时给出原始视图，供 nano_flow_write 的 repair 使用。",
   promptSnippet: "Read Nano Flow plans, notes DAG and resume packages.",
   parameters: Type.Unsafe<Record<string, unknown>>({
     type: "object",
@@ -221,7 +275,7 @@ export const createReadTool = (runtime: ToolRuntime): ToolDefinition => ({
       op: {
         type: "string",
         enum: [...READ_OPS],
-        description: "plans | notes | get | ready | graph | index | search | resume",
+        description: "plans | notes | get | ready | graph | index | search | resume | inspect",
       },
       plan: {
         type: "string",

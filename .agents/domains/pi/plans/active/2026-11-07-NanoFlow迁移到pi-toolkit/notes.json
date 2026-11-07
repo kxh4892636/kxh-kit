@@ -21,8 +21,8 @@
     },
     {
       "id": "02",
-      "title": "Plan 机械问题自动修复",
-      "description": "notes DAG 的摘要超长、updated_at 缺失、index 重复/越界/引用不存在在读取、写入、校验时自动修复并落盘；语义问题仍失败。",
+      "title": "Plan 自动修复尝试（已取代）",
+      "description": "历史：曾脚本化自动修复摘要与 index，因需模型语义判断被 note 03 取代。",
       "status": "completed",
       "blocked_by": [],
       "evidence": [
@@ -32,8 +32,26 @@
         "`repair.test.ts` 覆盖摘要截断/updated_at/index/不可修复项；`tools.test.ts` 覆盖 check/read 自动修复并写回",
         "`pi/reference/2026-11-07-pi-toolkit插件合并` 摘要 217→144，`check-domain.mjs` 校验通过"
       ],
-      "updated_at": "2026-11-07T08:12:13.710Z",
-      "content": "## 交付\n\n新增 `src/nano-flow/repair.ts` 与 `store.openDocument()`：读取、写入、校验 Plan 时先修复可机械判定的问题并原子写回，`nano_flow_check` 在输出顶部列出「已自动修复」项。\n\n## 修复范围\n\n- note 摘要超过 `noteDescriptionMaxChars`：按 Unicode 码点截断，末尾 `…`\n- `updated_at` 缺失或为空：补当前 ISO 时间\n- `index`：去重、丢弃不存在的 note id、裁剪到 `indexMaxRows`\n\n不修复：正文超限、缺 evidence、依赖错误/环、Markdown 链接、ADR 数量等语义问题。\n\n## 验收\n\n- [x] `nano_flow_read` / `nano_flow_write` 遇到可修复文档时加载成功并写回\n- [x] `nano_flow_check` 对 plan/workspace 先修复，输出列出修复项后继续校验\n- [x] 不可修复问题仍按原错误失败\n- [x] `pi/reference/2026-11-07-pi-toolkit插件合并` 的摘要 217 → 144，域校验通过\n- [x] 单测覆盖摘要截断、updated_at、index 规范化、不可修复项、check/read 自动修复\n- [x] `test`、`test:coverage`、`check` 通过\n\n## 决策\n\n- 共用 `openDocument` 而不是只在 check 修复：读与写路径同样会遇到坏文档，只在 check 修复无法自助恢复。\n- 只修机械问题：截断正文、补 evidence、改依赖都会编造事实。\n- 读操作可能写文件，这是「自动解决」的必要代价；修复一次后文档已规范化。\n\n## 证据\n\n- `packages/pi-toolkit/src/nano-flow/repair.ts`、`store.ts`（`openDocument`）、`tools/check.ts`、`tools/read.ts`、`tools/write.ts`\n- `repair.test.ts`、`tools.test.ts` 的 automatic repair 用例\n- ADR-0006、README、prompt.md、域 CONTEXT/QUESTIONS\n"
+      "updated_at": "2026-11-07T08:16:58.255Z",
+      "content": "## 历史（已被 note 03 取代）\n\n曾实现「脚本自动修复」：读取/写入/校验时自动截断超长摘要、补 updated_at、去重/裁剪/丢弃 index 项。用户指出摘要与 index 的拆建需要模型语义判断，不允许脚本化直接移除，因此该实现已删除。\n\n## 遗留\n\n- `repair.ts`、`openDocument` 与自动修复测试已移除。\n- 原目标「check 发现的问题要能解决」由 note 03 的 `nano_flow_read inspect` + `nano_flow_write repair` 承接。\n"
+    },
+    {
+      "id": "03",
+      "title": "校验修复改为模型判断",
+      "description": "校验失败不自动改写；inspect 给出原始 note，repair 应用模型给出的 title/description/content 与 index 后重校验。",
+      "status": "completed",
+      "blocked_by": [
+        "02"
+      ],
+      "evidence": [
+        "`pnpm --filter @kxh4892636/pi-toolkit test`：21 个测试文件、235 个用例通过",
+        "`test:coverage`：statements 91.04 / branches 80.21 / functions 94.5 / lines 94.01（阈值 80）",
+        "`pnpm --filter @kxh4892636/pi-toolkit check`：格式、lint、类型通过",
+        "`tools.test.ts` 覆盖 inspect 原始视图、repair 应用模型值、无改动/未知 note 报错；`mode.test.ts` 覆盖无 active Plan 的恢复种子",
+        "ADR-0006 记录「不做脚本化摘要截断/索引删除」的决策与备选"
+      ],
+      "updated_at": "2026-11-07T08:17:19.385Z",
+      "content": "## 交付\n\n移除脚本化自动修复，改为模型判断修复：\n\n- `nano_flow_read` 新增 `op: \"inspect\"`：文档无法通过校验时返回原始 note（id/title/status/description/content）与 index，并提示用 repair。\n- `nano_flow_write` 新增 `op: \"repair\"`：接受显式 `notes`（按 id 给 title/description/content）与 `index`，应用到原始 JSON 后重新严格校验并原子写回；脚本只执行模型给出的值。\n- `nano_flow_check` 只报告问题，不再修复。\n- 收口只检查路径/命令字段，源码内容与 grep 检索词不误伤。\n\n## 验收\n\n- [x] 坏文档 `notes`/`get` 仍报错；`inspect` 可读取原始内容\n- [x] `repair` 一次修正多条 note 与 index 后通过校验并写回\n- [x] `repair` 拒绝无改动、未知 note id、非法 JSON\n- [x] `check` 不修改文件，只报告问题\n- [x] 无 active Plan 时的恢复种子提示 init 并 create 首条 note\n- [x] `test`、`test:coverage`、`check` 通过\n\n## 决策\n\n- 摘要压缩与索引增删属于语义判断，脚本不做；保留作者/模型的显式选择。\n- 用 `inspect` 解决「坏文档读不出来就无法修」的死锁，而不是放宽校验。\n- `repair` 与其它写操作一样先严格校验再写，避免产生新的坏文档。\n\n## 证据\n\n- `packages/pi-toolkit/src/nano-flow/tools/read.ts`（inspect）\n- `packages/pi-toolkit/src/nano-flow/tools/write.ts`（repair）\n- `packages/pi-toolkit/src/nano-flow/mode.ts`（无 Plan 种子）\n- `tools.test.ts`、`mode.test.ts`；ADR-0006\n"
     }
   ]
 }

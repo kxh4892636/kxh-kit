@@ -92,9 +92,9 @@ _避免使用_：轮转、换会话、物理删除
 随 Nano Flow 激活的模型工具，逐题询问用户，支持预设选项、自定义回答与跳过，问题数量不设上限。
 _避免使用_：ask_user_question、questionnaire
 
-**机械修复**：
-读取、写入或校验 Plan 时，工具自动修复可机械判定的 `notes.json` 问题：note 摘要超长按上限截断、`updated_at` 缺失补当前时间、`index` 去重并丢弃不存在的 note、裁剪到 `indexMaxRows`；语义问题（正文超限、缺 evidence、依赖错误/环、Markdown 链接）仍按校验失败处理。
-_避免使用_：自动改写正文、自动补 evidence、自动改依赖
+**模型修复**：
+Plan 无法通过校验时，先用 `nano_flow_read` 的 `inspect` 看原始 note 与错误，再由模型判断如何重写，用 `nano_flow_write` 的 `repair` 提交 `notes`（title/description/content）与 `index`；插件不会自动截断摘要、不会自动删除索引项。
+_避免使用_：脚本化截断、自动去索引、自动改依赖
 
 **只读恢复**：
 用户说「恢复」「继续」且会话尚未加载 Plan 时，只允许 `nano_flow_read`、读文件与取证命令；报告进度后等用户第一条消息放行。

@@ -367,73 +367,75 @@ ${"中".repeat(12000)}`,
   });
 });
 
-describe("automatic repair", () => {
+describe("invalid document repair", () => {
+  const plan = "demo/active/2026-11-08-待修复";
+  const file = (cwd: string): string =>
+    join(cwd, ".agents/domains/demo/plans/active/2026-11-08-待修复", "notes.json");
+
+  const seed = async (cwd: string) => {
+    const tools = setup();
+    await run(tools.write, { op: "init", domain: "demo", name: "2026-11-08-待修复" }, cwd);
+    await run(
+      tools.write,
+      { op: "create", plan, title: "A", description: "A", content: "A 正文" },
+      cwd,
+    );
+    return tools;
+  };
+
   const corrupt = async (cwd: string): Promise<string> => {
-    const file = join(cwd, ".agents/domains/demo/plans/active/2026-11-08-自动修复", "notes.json");
-    const document = JSON.parse(await readFile(file, "utf8")) as {
+    const path = file(cwd);
+    const document = JSON.parse(await readFile(path, "utf8")) as {
       index: string[];
       notes: { description: string }[];
     };
     document.notes[0]!.description = "长".repeat(200);
     document.index = ["01", "01", "99"];
-    await writeFile(file, JSON.stringify(document), "utf8");
-    return file;
+    await writeFile(path, JSON.stringify(document), "utf8");
+    return path;
   };
 
-  it("repairs a plan during nano_flow_check and reports it", async () => {
+  it("inspect shows the raw view while the document stays invalid", async () => {
     const cwd = await makeWorkspace();
-    const tools = setup();
-    await run(tools.write, { op: "init", domain: "demo", name: "2026-11-08-自动修复" }, cwd);
-    await run(
+    const tools = await seed(cwd);
+    await corrupt(cwd);
+    const text = await run(tools.read, { op: "inspect", plan }, cwd);
+    expect(text).toContain("原始视图");
+    expect(text).toContain("长".repeat(20));
+    await expect(run(tools.read, { op: "notes", plan }, cwd)).rejects.toThrow(/无效/u);
+  });
+
+  it("repair applies model-provided description and index", async () => {
+    const cwd = await makeWorkspace();
+    const tools = await seed(cwd);
+    const path = await corrupt(cwd);
+    const result = await run(
       tools.write,
       {
-        op: "create",
-        plan: "demo/active/2026-11-08-自动修复",
-        title: "A",
-        description: "A",
-        content: "A",
+        op: "repair",
+        plan,
+        notes: [{ note: "01", description: "模型重写的摘要" }],
+        index: ["01"],
       },
       cwd,
     );
-    const file = await corrupt(cwd);
-    const text = await run(
-      tools.check,
-      { op: "plan", plan: "demo/active/2026-11-08-自动修复" },
-      cwd,
-    );
-    expect(text).toContain("已自动修复");
-    expect(text).toContain("Plan 校验通过");
-    const fixed = JSON.parse(await readFile(file, "utf8")) as {
+    expect(result).toContain("已修复");
+    const fixed = JSON.parse(await readFile(path, "utf8")) as {
       index: string[];
       notes: { description: string }[];
     };
-    expect(Array.from(fixed.notes[0]!.description)).toHaveLength(144);
+    expect(fixed.notes[0]!.description).toBe("模型重写的摘要");
     expect(fixed.index).toEqual(["01"]);
+    expect(await run(tools.read, { op: "notes", plan }, cwd)).toContain("01 [pending] A");
   });
 
-  it("repairs a plan during nano_flow_read", async () => {
+  it("repair rejects calls without changes and unknown notes", async () => {
     const cwd = await makeWorkspace();
-    const tools = setup();
-    await run(tools.write, { op: "init", domain: "demo", name: "2026-11-08-自动修复" }, cwd);
-    await run(
-      tools.write,
-      {
-        op: "create",
-        plan: "demo/active/2026-11-08-自动修复",
-        title: "A",
-        description: "A",
-        content: "A",
-      },
-      cwd,
-    );
-    const file = await corrupt(cwd);
-    const text = await run(
-      tools.read,
-      { op: "notes", plan: "demo/active/2026-11-08-自动修复" },
-      cwd,
-    );
-    expect(text).toContain("01 [pending] A");
-    const fixed = JSON.parse(await readFile(file, "utf8")) as { notes: { description: string }[] };
-    expect(Array.from(fixed.notes[0]!.description)).toHaveLength(144);
+    const tools = await seed(cwd);
+    await corrupt(cwd);
+    await expect(run(tools.write, { op: "repair", plan }, cwd)).rejects.toThrow(/至少需要/u);
+    await expect(
+      run(tools.write, { op: "repair", plan, notes: [{ note: "99", description: "x" }] }, cwd),
+    ).rejects.toThrow(/没有 note 99/u);
   });
 });
