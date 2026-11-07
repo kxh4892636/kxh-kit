@@ -43,6 +43,7 @@ import {
 } from "./detail-overlay.ts";
 import {
   findEntryByNote,
+  pendingInputs,
   planDirectoryOf,
   runningNotesOf,
   type WorkerRegistry,
@@ -187,13 +188,104 @@ export interface SidebarPlan {
 
 /** 列表的一行；点击行为由 `kind` 决定。 */
 export interface SidebarRow {
-  readonly kind: "plan" | "group" | "note" | "fold" | "spacer";
+  readonly kind: "plan" | "group" | "note" | "fold" | "spacer" | "temp-group" | "temp";
   readonly text: string;
   readonly plan?: string;
   readonly note?: string;
+  /** 临时 worker 的路由键 `temp:<id>`。 */
+  readonly temp?: string;
   readonly status?: NoteStatus;
   readonly running?: boolean;
 }
+
+/**
+ * 一个 **临时 worker**（`temp:<id>`）的展示数据。
+ *
+ * 它不属于任何 Plan、也不在 `notes.json` 里，所以整块从 `registry` 来，不和 note 混在一起。
+ */
+export interface SidebarTemp {
+  /** 路由键 `temp:<id>`。 */
+  readonly id: string;
+  readonly status: NoteStatus;
+  /** 最近一次输入或上报的摘要（一行）；没有就 `TEMP_NO_REPORT`。 */
+  readonly summary: string;
+  /** 待消费输入条数。 */
+  readonly pending: number;
+}
+
+/** 临时 worker 分组标题：放在列表最下方，与 Plan 并列但一眼看得出不是 Plan。 */
+export const TEMP_SECTION_LABEL = "temp workers";
+/** 临时 worker 还没有任何输入/上报时的摘要占位。 */
+export const TEMP_NO_REPORT = "尚无上报";
+
+/**
+ * 临时 worker 的状态：job 在跑 → `in_progress`；空闲但有上报 → `completed`；否则 → `pending`。
+ * 复用 note 的中文状态名（执行中 / 已完成 / 待开工），列表里不用再记一套词。
+ * @param source - 是否有在途 job、是否已有上报。
+ * @returns 映射到 note 状态上的取值。
+ */
+export const tempStatusOf = (source: {
+  readonly running: boolean;
+  readonly hasReport: boolean;
+}): NoteStatus => (source.running ? "in_progress" : source.hasReport ? "completed" : "pending");
+
+/**
+ * 临时 worker 的行文本：`{状态中文名} · {temp id} · {摘要} · 待消费 N`。
+ *
+ * 40 列侧栏给这一行的只有 30 列（扣掉 `   └─ ` 前缀），而 `执行中 · temp:5 · ` 18 列 +
+ * ` · 待消费 1` 11 列之后只剩 1 列 —— 正好放不下摘要。所以按信息量排优先级：
+ *
+ * 1. 状态、`temp:<id>` 永远完整（定位用）；
+ * 2. `待消费 0` 没有信息量，**为 0 时整段不显示**；`> 0` 时优先于摘要（有排队才是要紧事）；
+ * 3. 剩下的列全给摘要，超出补 `…`；一列都挤不出时摘要让位。
+ * @param temp - 临时条目。
+ * @param maxWidth - 可用列数；省略时不截。
+ * @returns 行文本，可见宽度不超过 `maxWidth`。
+ */
+export const tempRowText = (
+  temp: SidebarTemp,
+  maxWidth: number = Number.POSITIVE_INFINITY,
+): string => {
+  const head = `${noteStatusText(temp)} · ${temp.id} · `;
+  const tail = temp.pending === 0 ? "" : ` · 待消费 ${temp.pending}`;
+  const room = maxWidth - visibleWidth(head) - visibleWidth(tail);
+  if (room >= visibleWidth(temp.summary)) return `${head}${temp.summary}${tail}`;
+  if (room < 2) {
+    // 摘要一点地方都没有：宁可少一段，也不要只剩一个孤零零的省略号。
+    return tail === "" ? head.slice(0, -3) : `${head.slice(0, -3)}${tail}`;
+  }
+  return `${head}${truncateToWidth(temp.summary, room, "…")}${tail}`;
+};
+
+/** 临时 worker 摘要的来源：最近一次输入或上报（含时刻，用来挑更新的那条）。 */
+export interface TempSummarySource {
+  readonly reportSummary?: string;
+  readonly reportAt?: string;
+  readonly inputText?: string;
+  readonly inputAt?: number;
+}
+
+/**
+ * 取临时 worker 的「最近一次输入或上报」摘要：按时刻选较新的一条，折叠成一行；都没有则
+ * `TEMP_NO_REPORT`。
+ * @param source - 上报/输入的文本与时刻。
+ * @returns 一行摘要。
+ */
+export const tempSummaryOf = (source: TempSummarySource): string => {
+  const report = source.reportSummary?.trim() ?? "";
+  const input = source.inputText?.trim() ?? "";
+  const reportAt =
+    source.reportAt === undefined ? Number.NEGATIVE_INFINITY : Date.parse(source.reportAt);
+  const inputAt = source.inputAt ?? Number.NEGATIVE_INFINITY;
+  const preferReport = report !== "" && (input === "" || inputAt <= reportAt);
+  const picked = preferReport ? report : input !== "" ? input : report;
+  const line =
+    picked
+      .split("\n")
+      .map((item) => item.trim())
+      .find((item) => item !== "") ?? "";
+  return line === "" ? TEMP_NO_REPORT : line;
+};
 
 /** 一帧列表：只有行（顶部没有汇总行，标题在上边框里）。 */
 export interface SidebarView {
@@ -284,14 +376,18 @@ type PlanChild =
  * 已完成默认在每个 Plan 下折成一支（`└─ 已完成 N 条 ▸`），展开后归入各自组内（组还在时）或
  * `未分组`，不再平铺到 Plan 下。
  * @param plans - 各 Plan 的组（只含 active、且已过滤编排期域）。
+ * 最下方还有一块 **`temp workers`**（仅当有 live 临时 worker）：它不属于任何 Plan，也不在
+ * `notes.json` 里，所以单独成组，作为最后一个顶层分支用 `└─`。
  * @param expanded - 已展开“已完成”的 Plan ref 集合。
- * @param textWidth - 行文本可用列数（默认 `SIDEBAR_TEXT_WIDTH`），用于只截名称。
+ * @param textWidth - 行文本可用列数（默认 `SIDEBAR_TEXT_WIDTH`），用于只截名称/摘要。
+ * @param temps - live 临时 worker（来自 `registry` 的 `temp:` 条目）；空数组则整块不显示。
  * @returns 行数组（下标 = 鼠标 `y` - `SIDEBAR_HEADER_ROWS`）。
  */
 export const buildSidebarView = (
   plans: readonly SidebarPlan[],
   expanded: Iterable<string> = [],
   textWidth: number = SIDEBAR_TEXT_WIDTH,
+  temps: readonly SidebarTemp[] = [],
 ): SidebarView => {
   const open = new Set(expanded);
   const rows: SidebarRow[] = [];
@@ -337,6 +433,23 @@ export const buildSidebarView = (
       });
     });
   });
+
+  if (temps.length > 0) {
+    if (rows.length > 0) rows.push({ kind: "spacer", text: "" });
+    // 最后一个顶层分支：`└─ temp workers`，与 Plan 并列但自称一块，一眼看得出不是 Plan。
+    rows.push({ kind: "temp-group", text: `${TREE_LAST}${TEMP_SECTION_LABEL}` });
+    const prefix = TREE_BLANK;
+    temps.forEach((temp, index) => {
+      const branch = branchOf(index, temps.length);
+      rows.push({
+        kind: "temp",
+        text: `${prefix}${branch}${tempRowText(temp, textWidth - visibleWidth(prefix) - visibleWidth(branch))}`,
+        temp: temp.id,
+        status: temp.status,
+        running: temp.status === "in_progress",
+      });
+    });
+  }
   return { rows };
 };
 
@@ -358,6 +471,14 @@ const renderRow = (row: SidebarRow, width: number, theme: Theme): string => {
       return truncateToWidth(row.running === true ? theme.fg("accent", row.text) : row.text, width);
     case "fold":
       return truncateToWidth(row.text, width, "…");
+    case "temp-group":
+      return truncateToWidth(theme.bold(row.text), width, "…");
+    case "temp":
+      return truncateToWidth(
+        row.running === true ? theme.fg("accent", row.text) : row.text,
+        width,
+        "…",
+      );
     case "spacer":
       return "";
   }
@@ -593,7 +714,10 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
   let detailHandle: OverlayHandle | undefined;
   let feed: LiveFeed | undefined;
   let detailContent: (() => DetailContent) | undefined;
-  let detailTarget: { readonly plan: string; readonly note: string } | undefined;
+  let detailTarget:
+    | { readonly kind: "note"; readonly plan: string; readonly note: string }
+    | { readonly kind: "temp"; readonly id: string }
+    | undefined;
   let removeInputListener: (() => void) | undefined;
   let timer: ReturnType<typeof setInterval> | undefined;
   let mounted = false;
@@ -622,7 +746,7 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
     const snapshot = findSidebarNote(plans, planRef, noteId);
     if (snapshot === undefined) return;
     closeDetail();
-    detailTarget = { plan: planRef, note: noteId };
+    detailTarget = { kind: "note", plan: planRef, note: noteId };
     const entry = findEntryByNote(deps.registry, plansByRef.get(planRef)?.directory ?? "", noteId);
     if (entry !== undefined) feed = createLiveFeed(entry.session, requestRender);
     const note = (): SidebarNote => findSidebarNote(plans, planRef, noteId) ?? snapshot;
@@ -664,12 +788,101 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
     requestRender();
   };
 
+  /** live 临时 worker（`temp:` 键）的行数据；**不读 notes.json**，整块来自句柄表。 */
+  const tempsOf = (): readonly SidebarTemp[] =>
+    deps.registry
+      .list()
+      .filter((entry) => entry.kind === "temp" || entry.planDirectory.startsWith("temp:"))
+      .map((entry) => ({
+        id: entry.planDirectory,
+        status: tempStatusOf({
+          running: entry.job !== undefined,
+          hasReport: entry.lastReport !== undefined,
+        }),
+        summary: tempSummaryOf({
+          ...(entry.lastReport?.summary === undefined
+            ? {}
+            : { reportSummary: entry.lastReport.summary }),
+          ...(entry.lastReport?.at === undefined ? {} : { reportAt: entry.lastReport.at }),
+          ...(entry.lastInput === undefined
+            ? {}
+            : { inputText: entry.lastInput.text, inputAt: entry.lastInput.at }),
+        }),
+        pending: pendingInputs(entry).length,
+      }));
+
+  /** 临时 worker 的详情卡片：快照 + 正在执行的实时流；`×` / `Esc` 关。 */
+  const openTempDetail = (id: string): void => {
+    const localTui = tui;
+    const localTheme = theme;
+    const snapshot = deps.registry.get(id);
+    if (localTui === undefined || localTheme === undefined || snapshot === undefined) return;
+    closeDetail();
+    detailTarget = { kind: "temp", id };
+    feed = createLiveFeed(snapshot.session, requestRender);
+    detailContent = (): DetailContent => {
+      const current = deps.registry.get(id) ?? snapshot;
+      const running = current.job !== undefined;
+      const status = tempStatusOf({
+        running,
+        hasReport: current.lastReport !== undefined,
+      });
+      const summary = tempSummaryOf({
+        ...(current.lastReport?.summary === undefined
+          ? {}
+          : { reportSummary: current.lastReport.summary }),
+        ...(current.lastReport?.at === undefined ? {} : { reportAt: current.lastReport.at }),
+        ...(current.lastInput === undefined
+          ? {}
+          : { inputText: current.lastInput.text, inputAt: current.lastInput.at }),
+      });
+      const body = [summary];
+      if (current.lastInput !== undefined) {
+        body.push(
+          "",
+          `最近输入：${current.lastInput.kind} · ${current.lastInput.delivery} · ${current.lastInput.text}`,
+        );
+      }
+      body.push("", `待消费 ${pendingInputs(current).length}`);
+      if (current.model !== undefined) body.push(`模型：${current.model}`);
+      if (current.worktree !== undefined) body.push(`worktree：${current.worktree.name}`);
+      return {
+        heading: `◇ ${id} · ${noteStatusText({ status })}`,
+        body,
+        live: feed?.lines() ?? [],
+        running,
+        ...(current.lastReport === undefined ? { notice: "这个临时 worker 还没有上报" } : {}),
+      };
+    };
+    detailHandle = localTui.showOverlay(
+      createDetailComponent(localTheme, {
+        content: () => detailContent?.() ?? { heading: id, body: [], live: [], running: false },
+        onClose: () => {
+          closeDetail();
+          requestRender();
+        },
+      }),
+      {
+        anchor: "center",
+        width: DETAIL_WIDTH,
+        maxHeight: DETAIL_MAX_HEIGHT,
+        margin: 1,
+        nonCapturing: true,
+      },
+    );
+    requestRender();
+  };
+
   const onRow = (row: SidebarRow): void => {
+    if (row.kind === "temp") {
+      if (row.temp !== undefined) openTempDetail(row.temp);
+      return;
+    }
     if (row.plan === undefined) return;
     if (row.kind === "fold") {
       if (expanded.has(row.plan)) expanded.delete(row.plan);
       else expanded.add(row.plan);
-      view = buildSidebarView(plans, expanded);
+      view = buildSidebarView(plans, expanded, SIDEBAR_TEXT_WIDTH, tempsOf());
       requestRender();
       return;
     }
@@ -773,7 +986,7 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
         });
       }
       plans = next;
-      const nextView = buildSidebarView(plans, expanded);
+      const nextView = buildSidebarView(plans, expanded, SIDEBAR_TEXT_WIDTH, tempsOf());
       if (JSON.stringify(nextView) !== JSON.stringify(view)) {
         view = nextView;
         requestRender();
@@ -781,7 +994,10 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
       if (feed !== undefined && detailTarget !== undefined) {
         // worker 结束就退订阅；浮层留着显示最终状态。
         const target = detailTarget;
-        const stillRunning = findSidebarNote(next, target.plan, target.note)?.running;
+        const stillRunning =
+          target.kind === "note"
+            ? findSidebarNote(next, target.plan, target.note)?.running
+            : deps.registry.get(target.id)?.job !== undefined;
         if (stillRunning !== true) {
           feed.stop();
           feed = undefined;

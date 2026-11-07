@@ -14,6 +14,12 @@ import { DETAIL_CLOSE_GLYPH, DETAIL_MAX_HEIGHT, DETAIL_WIDTH } from "./detail-ov
 import { createRegistry, type SessionLike, type WorkerEntry } from "./handles.ts";
 import {
   buildSidebarView,
+  TEMP_NO_REPORT,
+  TEMP_SECTION_LABEL,
+  tempRowText,
+  tempStatusOf,
+  tempSummaryOf,
+  type SidebarTemp,
   createIconComponent,
   createSidebar,
   createSidebarComponent,
@@ -385,6 +391,95 @@ describe("侧边栏列表", () => {
     }
     // 第 i 行（0 起）的文本就是 rows[i]：第一行内容就是 Plan 标题。
     expect(lines[SIDEBAR_HEADER_ROWS]?.replaceAll("│", "").trim()).toBe("demo");
+  });
+});
+
+describe("temp workers 分组", () => {
+  const temp = (id: string, extra: Partial<SidebarTemp> = {}): SidebarTemp => ({
+    id,
+    status: "in_progress",
+    summary: "正在核对侧栏渲染",
+    pending: 0,
+    ...extra,
+  });
+
+  it("没有 live 临时 worker 时整组不出现", () => {
+    const view = buildSidebarView(demoPlans());
+    expect(view.rows.some((row) => row.kind === "temp-group")).toBe(false);
+    expect(view.rows.some((row) => row.kind === "temp")).toBe(false);
+  });
+
+  it("作为最后一个顶层分支：└─ temp workers，条目是它的子支", () => {
+    const view = buildSidebarView(demoPlans(), [], SIDEBAR_TEXT_WIDTH, [
+      temp("temp:5"),
+      temp("temp:6", { status: "pending", summary: TEMP_NO_REPORT }),
+    ]);
+    const kinds = view.rows.map((row) => row.kind);
+    expect(kinds).toEqual([...kinds.slice(0, -4), "spacer", "temp-group", "temp", "temp"]);
+    const group = view.rows.at(-3);
+    expect(group).toMatchObject({ kind: "temp-group", text: `${TREE_LAST}${TEMP_SECTION_LABEL}` });
+    expect(view.rows.at(-2)).toMatchObject({ kind: "temp", temp: "temp:5", running: true });
+    expect(view.rows.at(-2)?.text.startsWith(`${TREE_BLANK}${TREE_BRANCH}`)).toBe(true);
+    expect(view.rows.at(-1)?.text.startsWith(`${TREE_BLANK}${TREE_LAST}`)).toBe(true);
+    expect(view.rows.at(-1)).toMatchObject({ temp: "temp:6", status: "pending" });
+  });
+
+  it("行文本：状态 · temp id · 摘要 · 待消费 N，只截摘要", () => {
+    const full = tempRowText(temp("temp:5", { summary: "读完了", pending: 2 }), 60);
+    expect(full).toBe("执行中 · temp:5 · 读完了 · 待消费 2");
+
+    // 宽度不够：摘要让位，状态 / id / 待消费 保持完整。
+    const squeezed = stripTerminalSequences(tempRowText(temp("temp:5", { pending: 2 }), 30));
+    expect(squeezed).toBe("执行中 · temp:5 · 待消费 2");
+    expect(visibleWidth(squeezed)).toBeLessThanOrEqual(30);
+
+    // 待消费为 0 时不显示那一段（没有信息量），把列让给摘要。
+    expect(stripTerminalSequences(tempRowText(temp("temp:5", { summary: "看一下侧栏" }), 30))).toBe(
+      "执行中 · temp:5 · 看一下侧栏",
+    );
+
+    // 有点余量：摘要被截并补省略号。
+    const partial = stripTerminalSequences(
+      tempRowText(temp("temp:5", { summary: "正在核对侧栏渲染与临时分组", pending: 1 }), 34),
+    );
+    expect(partial.startsWith("执行中 · temp:5 · ")).toBe(true);
+    expect(partial.endsWith("· 待消费 1")).toBe(true);
+    expect(visibleWidth(partial)).toBeLessThanOrEqual(34);
+  });
+
+  it("状态：在跑 → 执行中；空闲有上报 → 已完成；都没有 → 待开工", () => {
+    expect(tempStatusOf({ running: true, hasReport: false })).toBe("in_progress");
+    expect(tempStatusOf({ running: false, hasReport: true })).toBe("completed");
+    expect(tempStatusOf({ running: false, hasReport: false })).toBe("pending");
+  });
+
+  it("摘要取最近一次输入或上报；都没有写 尚无上报", () => {
+    // 只有上报。
+    expect(tempSummaryOf({ reportSummary: "做完了", reportAt: "2026-11-07T10:00:00.000Z" })).toBe(
+      "做完了",
+    );
+    // 输入比上报新 ⇒ 取输入。
+    expect(
+      tempSummaryOf({
+        reportSummary: "做完了",
+        reportAt: "2026-11-07T10:00:00.000Z",
+        inputText: "再补一条",
+        inputAt: Date.parse("2026-11-07T11:00:00.000Z"),
+      }),
+    ).toBe("再补一条");
+    // 上报比输入新 ⇒ 取上报。
+    expect(
+      tempSummaryOf({
+        reportSummary: "做完了",
+        reportAt: "2026-11-07T12:00:00.000Z",
+        inputText: "再补一条",
+        inputAt: Date.parse("2026-11-07T11:00:00.000Z"),
+      }),
+    ).toBe("做完了");
+    // 多行只留第一行；空串当没有。
+    expect(tempSummaryOf({ inputText: "\n  第一行 \n第二行" })).toBe("第一行");
+    expect(tempSummaryOf({})).toBe(TEMP_NO_REPORT);
+    expect(tempSummaryOf({ reportSummary: "   ", inputText: "" })).toBe(TEMP_NO_REPORT);
   });
 });
 
@@ -774,6 +869,99 @@ describe("侧边栏控制器", () => {
       x: DETAIL_WIDTH - 2,
       y: 0,
     } as never);
+    expect(detail?.hidden).toBe(true);
+    expect(overlays[1]?.options.visible?.(140, 40)).toBe(true);
+    sidebar.dispose();
+  });
+
+  it("临时 worker（temp:*）单独成组：状态 · id · 摘要 / 待消费", async () => {
+    const root = await tempWorkspace([]);
+    const registry = createRegistry();
+    registry.add({
+      planDirectory: "temp:5",
+      planRef: "temp:5",
+      kind: "temp",
+      startedAt: Date.now(),
+      released: new Set<string>(),
+      inputs: 1,
+      session: fakeSession(),
+      job: {
+        kind: "message",
+        startedAt: Date.now(),
+        progressAt: Date.now(),
+        settled: Promise.resolve(),
+        notified: false,
+      },
+      lastInput: { kind: "message", delivery: "queue", text: "看一下侧栏", at: Date.now() },
+      inputLog: [
+        { seq: 1, kind: "message", delivery: "queued", text: "看一下侧栏", sentAt: Date.now() },
+      ],
+    });
+    registry.add({
+      planDirectory: "temp:6",
+      planRef: "temp:6",
+      kind: "temp",
+      startedAt: Date.now(),
+      released: new Set<string>(),
+      inputs: 1,
+      session: fakeSession(),
+      lastReport: {
+        outcome: "needs_review",
+        note: "",
+        summary: "侧栏渲染核对完毕",
+        at: new Date().toISOString(),
+      },
+    });
+    const sidebar = createSidebar({ registry, limits: () => DEFAULT_ORCHESTRATOR_SETTINGS });
+    const { ctx, widgets } = createFakeCtx(root);
+    const { tui, overlays } = createFakeTui();
+    sidebar.sync(ctx, true);
+    mountWidget(widgets, tui);
+    await wait(20);
+    const text = (overlays[1]?.component.render(SIDEBAR_WIDTH) ?? []).join("\n");
+    expect(text).toContain(TEMP_SECTION_LABEL);
+    // 有排队：待消费优先，摘要让位。
+    expect(text).toContain("执行中 · temp:5 · 待消费 1");
+    // 没有排队：把列让给摘要。
+    expect(text).toContain("已完成 · temp:6 · 侧栏渲染核");
+    expect(text).not.toContain("待消费 0");
+    sidebar.dispose();
+  });
+
+  it("点临时条目开详情卡片：状态 + 摘要 + 待消费 + 实时流，Esc 只关卡片", async () => {
+    const root = await tempWorkspace([]);
+    const registry = createRegistry();
+    registry.add({
+      planDirectory: "temp:5",
+      planRef: "temp:5",
+      kind: "temp",
+      startedAt: Date.now(),
+      released: new Set<string>(),
+      inputs: 1,
+      session: fakeSession(),
+      lastReport: {
+        outcome: "needs_review",
+        note: "",
+        summary: "侧栏渲染核对完毕",
+        at: new Date().toISOString(),
+      },
+    });
+    const sidebar = createSidebar({ registry, limits: () => DEFAULT_ORCHESTRATOR_SETTINGS });
+    const { ctx, widgets } = createFakeCtx(root);
+    const { tui, overlays, listeners } = createFakeTui();
+    sidebar.sync(ctx, true);
+    mountWidget(widgets, tui);
+    await wait(20);
+    // 行：plan（无组）+ spacer + temp-group + temp 行。
+    overlays[1]?.component.handleMouse?.(click(SIDEBAR_HEADER_ROWS + 3));
+    const detail = overlays[2];
+    expect(detail).toBeDefined();
+    const card = (detail?.component.render(DETAIL_WIDTH) ?? []).join("\n");
+    expect(card).toContain("◇ temp:5 · 已完成");
+    expect(card).toContain("侧栏渲染核对完毕");
+    expect(card).toContain("待消费 0");
+    // Esc 只关卡片。
+    expect([...listeners][0]?.("")).toEqual({ consume: true });
     expect(detail?.hidden).toBe(true);
     expect(overlays[1]?.options.visible?.(140, 40)).toBe(true);
     sidebar.dispose();
