@@ -330,11 +330,14 @@ const formatAgo = (at: number, now: number): string => {
 };
 
 /**
- * 需要人知晓 / 确认的上报结果：只有这些推送并开回合。
+ * 推送并开回合的上报结果。
  *
- * 普通 `done` 只留在账本里：它是进展播报，推送只会把编排方的上下文灌满。
+ * `done` 也在里面：临时 worker 没有 Plan，唯一交付就是那份 `done` 报告，不推就等于让它
+ * 的结论永远静默（note 48 实证：两个只读临时 worker 跑完而编排方没被叫醒）。批量派工
+ * 的成本由 5 秒 digest 合并兼顾。
  */
 const IMPORTANT_OUTCOMES: ReadonlySet<string> = new Set([
+  "done",
   "needs_review",
   "needs_answer",
   "blocked",
@@ -1323,7 +1326,7 @@ export const registerOrchestrator = (
   };
 
   /**
-   * 推一条**需要人知晓 / 确认**的消息；普通进展（`done`）不进这里。
+   * 推一条**要编排方看到的**消息：含 `done`（临时 worker 的结论只有这一条）。
    *
    * 5 秒窗口内的多条合并成一条 digest：同一轮里 note 的 report + 超时 + 放弃重试
    * 应该是一句话，而不是三条打断。注入失败不重试（账本里都有）。
@@ -1552,7 +1555,7 @@ export const registerOrchestrator = (
           : {}),
       },
     });
-    // 普通 done 不推送：它在账本里，需要时用 orchestrator_state 拉。
+    // 所有 done 也推送（临时 worker 的结论只有这一条）；批量时靠 digest 窗口合并。
     if (IMPORTANT_OUTCOMES.has(report.outcome)) {
       const where = matched?.planRef ?? directory ?? report.note;
       const question = report.question === undefined ? "" : ` · 问题：${clipText(report.question)}`;

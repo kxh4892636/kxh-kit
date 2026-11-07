@@ -2360,10 +2360,12 @@ describe("dispatch 与 workers 工具", () => {
 });
 
 describe("report 落账本", () => {
-  const harness = async () => {
+  const harness = async (digestWindowMs = 0) => {
     const local: ToolkitSettings = settings;
     const tools = new Map<string, { execute: (...args: unknown[]) => Promise<unknown> }>();
     const messages: unknown[] = [];
+    /** 每次推送的 `sendMessage` 选项：验 `triggerTurn` / 投递方式。 */
+    const sends: unknown[] = [];
     const pi = {
       registerTool: (tool: { name: string }) => tools.set(tool.name, tool as never),
       registerFlag: () => undefined,
@@ -2372,7 +2374,10 @@ describe("report 落账本", () => {
       appendEntry: () => undefined,
       getActiveTools: () => ["read"],
       setActiveTools: () => undefined,
-      sendMessage: (message: unknown) => messages.push(message),
+      sendMessage: (message: unknown, options?: unknown) => {
+        messages.push(message);
+        sends.push(options);
+      },
       on: () => undefined,
     } as unknown as ExtensionAPI;
     const captured: Array<(report: WorkerReport) => void> = [];
@@ -2390,7 +2395,7 @@ describe("report 落账本", () => {
       stateDir: () => stateRoot,
       // Plan 派工默认建 worktree，这里给替身（临时目录不是 git 仓库）。
       worktree: silentWorktree(),
-      digestWindowMs: 0,
+      digestWindowMs,
       spawn: async (spawnOptions) => {
         captured.push(spawnOptions.report);
         return { session: fakeSession(), resumed: false, dispose: () => undefined };
@@ -2422,7 +2427,7 @@ describe("report 落账本", () => {
         undefined,
         { cwd: root } as unknown as ExtensionContext,
       );
-    return { tools, messages, captured, stateRoot, root, dir };
+    return { tools, messages, sends, captured, stateRoot, root, dir };
   };
 
   it("重要上报推送并开回合：账本里仍有 report.filed，摘要也能用 state 拉", async () => {
@@ -2503,20 +2508,44 @@ describe("report 落账本", () => {
     expect(filed?.payload["summaryLength"]).toBeUndefined();
   });
 
-  it("普通 done 零推送：不渲染、不进上下文，只留账本", async () => {
-    const { messages, captured, stateRoot, root } = await harness();
+  it("done 也推送并开回合（旧口径「done 零推送」已废弃）", async () => {
+    const { messages, sends, captured, stateRoot, root } = await harness();
     captured[0]?.({
       outcome: "done",
       note: "01",
-      summary: "还在跑",
+      summary: "临时 worker 查完了",
       plan: `${root}/.agents/domains/etf/plans/active/2026-11-07-示例`,
     });
-    expect(messages).toHaveLength(0);
+    // 临时 worker 没有 Plan，它的结论只有这一条 report：必须推到编排方。
+    expect(messages).toHaveLength(1);
+    expect((messages[0] as { customType: string }).customType).toBe("orchestrator-important");
+    expect((messages[0] as { content: string }).content).toContain("[done]");
+    expect((messages[0] as { content: string }).content).toContain("临时 worker 查完了");
+    expect(sends[0]).toMatchObject({ triggerTurn: true, deliverAs: "steer" });
     const { openLedger } = await import("./ledger.ts");
     expect(
       openLedger(stateRoot)
         .events()
         .map((event) => event.type),
     ).toContain("report.filed");
+  });
+
+  it("5 秒窗口内多条 report（含 done）合并成一条 digest", async () => {
+    const { messages, sends, captured, root } = await harness(40);
+    const plan = `${root}/.agents/domains/etf/plans/active/2026-11-07-示例`;
+    captured[0]?.({ outcome: "done", note: "01", summary: "A 段跑完", plan });
+    captured[0]?.({ outcome: "done", note: "02", summary: "B 段跑完", plan });
+    captured[0]?.({ outcome: "needs_review", note: "03", summary: "C 段待验", plan });
+    // 窗口内不推：批量派工的 done 不能把上下文刷满。
+    expect(messages).toHaveLength(0);
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(messages).toHaveLength(1);
+    const content = (messages[0] as { content: string }).content;
+    expect(content).toContain("[done]");
+    expect(content).toContain("A 段跑完");
+    expect(content).toContain("B 段跑完");
+    expect(content).toContain("[needs_review]");
+    expect(content.split(String.fromCharCode(10))).toHaveLength(3);
+    expect(sends[0]).toMatchObject({ triggerTurn: true, deliverAs: "steer" });
   });
 });

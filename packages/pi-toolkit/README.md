@@ -489,12 +489,12 @@ nothing is committed while tests or checks fail.
 `question?`, `evidence?` — all clipped so events stay small). `summary` is capped at 120 code units: a longer
 one is still truncated on write, but the tool now says so in its own return value and the event carries
 `summaryTruncated: true` + the original `summaryLength` (never the full text — long content belongs in the
-target note's `evidence`). **Only important outcomes are pushed**:
-`needs_review` / `needs_answer` / `blocked` / `failed` (plus `timeout` and `retry.exhausted`) inject one
-`orchestrator-important` message with `triggerTurn`, and anything arriving within 5 seconds merges into a
-single digest (one line per item: `plan · note · outcome · summary`). A plain `done` is **not** pushed, not
-rendered and never enters the orchestrator's context: it is a progress ping, and pinging the model on every
-one of them just fills its window. `orchestrator_state` still has everything (and its read appends
+target note's `evidence`). **Every report is pushed, including `done`**:
+`done` / `needs_review` / `needs_answer` / `blocked` / `failed` (plus `timeout` and `retry.exhausted`) inject
+one `orchestrator-important` message with `triggerTurn`, and anything arriving within 5 seconds merges into a
+single digest (one line per item: `plan · note · outcome · summary`). A temp worker has no Plan: its `done`
+report _is_ its deliverable, so staying silent meant its conclusion was never delivered. The digest window is
+what keeps batch dispatch from flooding the orchestrator. `orchestrator_state` still has everything (and its read appends
 `state.pulled`, marking reports read, so "unread report" survives a restart). The old outbox / retry
 machinery is gone: the ledger is the record, so nothing has to be re-delivered.
 

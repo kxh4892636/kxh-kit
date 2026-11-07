@@ -34,7 +34,7 @@
 1. `orchestrator_read` 的 `ready` 看可推进的 note；本次只动消息里给出的那组 note，其余 note 属于别的组。
 2. 执行并验证；完成一条就置 `waiting` + `needs=review`，写 evidence 草稿与"待验证"小节。调研, 方案对比, 实现与复核这些事都由你做, 编排方不碰; 调研类 note 的交付物是"可检查的结论 + 依据(命令, 文件, 输出片段)", 不是复述源码。收尾前用 `orchestrator_check` 自检：`op=plan` 校验本 Plan，`op=workspace` 覆盖 common 与你自己的域（别域由编排方校验）。
 3. **完成即提交**：测试与校验都通过后立刻 `git add -A && git commit` 一次，commit hash 写进该 note 的 evidence。
-4. 用 `orchestrator_report` 上报：`outcome` 取 `needs_review` / `needs_answer` / `blocked` / `failed`；`done` 只用于纯信息性进展。`summary` 只写一句话（**≤120 码元**，超出会被截断，工具会提示）：长内容（命令输出、diff、日志）写进目标 note 的 `evidence`，不要塞进 summary。`evidence` 必须写清命令与关键输出: 编排方据此放行, 不会重跑, 含糊的证据会被打回。
+4. 用 `orchestrator_report` 上报：`outcome` 取 `needs_review` / `needs_answer` / `blocked` / `failed`；`done` 用于纯信息性进展（它也会推送给编排方，只是不触发验收）。`summary` 只写一句话（**≤120 码元**，超出会被截断，工具会提示）：长内容（命令输出、diff、日志）写进目标 note 的 `evidence`，不要塞进 summary。`evidence` 必须写清命令与关键输出: 编排方据此放行, 不会重跑, 含糊的证据会被打回。
 5. 收到 `pass` 后自己 `complete`；收到 `rework` 回 `in_progress`；收到 `answer` 继续做。
 6. 全部 note 完成仍不归档：等编排方决定。
 
@@ -64,7 +64,7 @@
 ## 进展上报
 
 - 预计超过 15 分钟的任务，每 10–15 分钟用 `orchestrator_report` 以 `outcome=done` 报一句进展（一句话即可）。
-- report 落事件账本（`report.filed`）：**普通 `done` 不推送**，编排方自己调 `orchestrator_state` 拉摘要，所以不必为了“让它看见”而反复报；**重要口径**（`needs_review` / `needs_answer` / `blocked` / `failed`）会推送并开回合，5 秒内的多条合并成一条 digest —— 别把 `done` 当心跳用来触发编排方。
+- report 落事件账本（`report.filed`），**所有 `done` 也推送并开回合**（临时 worker 的结论只有这一条，静默就等于没交付）；5 秒内的多条合并成一条 digest，所以不必怕多报，但也别为了“提醒”而反复报同一条。
 - 卡死检测是纯代码的定时器：**只有两种东西算进展** —— 你开始处理输入（`agent_start` 写 `input.consumed`）与 `orchestrator_report`（`report.filed`）。距最后一次进展超过 `workerTimeoutMs`（30 分钟）就会被 abort 并落 `timeout` 事件；15 分钟只在你那一行标 `⚠ 疑似停滞`，不会杀。所以长任务要定期 report，这是唯一的续期方式。
 - 你消费输入的时机由代码记：每次 `agent_start` 会 append `input.consumed`，标掉最老一条输入，不需要你手工确认。
 - `needs_answer` / `needs_review` 只用于真正需要人处理的事，不要拿它当心跳。

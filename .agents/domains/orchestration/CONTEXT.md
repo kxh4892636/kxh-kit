@@ -91,8 +91,8 @@ worker 的 `orchestrator_report` 落账本事件 `report.filed`（`worker` / `no
 _Avoid_: 静默吞异常、把 report 当真相、重复投递阻塞编排方
 
 **推送口径**:
-`IMPORTANT = needs_review / needs_answer / blocked / failed / timeout / retry.exhausted` 才 `pi.sendMessage` 推送并 `triggerTurn`；**普通 `done` 不推送、不渲染、不进上下文**，只留账本。5 秒内的多条合并成一条 digest（`plan · note · outcome · summary`），避免同一轮里超时 + 报告 + 放弃重试三连打断。注入失败不重试（账本里都有）。
-_Avoid_: 每条 report 都打断编排方、把 done 当心跳推送、推送失败阻塞收尾
+`IMPORTANT = done / needs_review / needs_answer / blocked / failed / timeout / retry.exhausted` 都 `pi.sendMessage` 推送并 `triggerTurn`（含 `done`：临时 worker 没有 Plan，它的结论只有 report 这一条；旧口径“普通 done 不推送”于 note 48 废止）。5 秒内的多条合并成一条 digest（`plan · note · outcome · summary`），避免同一轮里超时 + 报告 + 放弃重试三连打断，也是批量派工唯一的成本缓解手段。注入失败不重试（账本里都有）。
+_Avoid_: 每条 report 单独开一轮、把 done 当心跳反复刷屏、推送失败阻塞收尾
 
 ### 恢复
 
