@@ -120,11 +120,11 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
 
 挂载后会话里多出三样东西:
 
-| 类别       | 内容                                                                                                                                                                                                                                  |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 固定提示词 | `nano-flow/prompt.md`: ask / do 两个循环, Plan 与领域文档规则, notes 切片, 长文档压缩与拆分                                                                                                                                           |
-| 工具       | `nano_flow_read`(plans / notes / get / ready / graph / index / search / resume),`nano_flow_write`(init / create / update / link / status / complete / set_index / merge / delete / move),`nano_flow_check`(plan / workspace / limits) |
-| skill      | `skills/` 目录动态发现: `ask`,`do`(可被模型触发, 也可 `/ask` `/do` 调用) 与 `to-skill`,`code-spec`,`learning`,`kaizen`(原样注入)                                                                                                      |
+| 类别       | 内容                                                                                                                                                                                                                                                     |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 固定提示词 | `nano-flow/prompt.md`: 模式判定与 skill 指针, 业务域, Plan 与领域文档规则, notes 状态 / 切片 / 两阶段约定, 恢复与轮转                                                                                                                                    |
+| 工具       | `nano_flow_read`(plans / notes / get / ready / graph / index / search / resume / inspect),`nano_flow_write`(init / create / update / link / status / complete / set_index / merge / delete / move / repair),`nano_flow_check`(plan / workspace / limits) |
+| skill      | `skills/` 目录动态发现: `ask`,`do`(各自承载循环的完整规格, 可被模型触发, 也可 `/ask` `/do` 调用) 与 `to-skill`,`code-spec`,`learning`,`kaizen`(原样注入)                                                                                                 |
 
 **会话与领域**
 
@@ -154,6 +154,13 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
 "等待回答/等待确认"); `complete` 只接受 `waiting` 且 `needs=review` 的 note, 用户回复后
 `status` 回 `in_progress` 或 `complete`, 内部仍先跑 Plan 校验. 旧文档的 `awaiting_verification`
 读入时折成 `waiting + needs=review`.
+
+文档无法通过校验时, 不要用文件工具直接改 `notes.json`: 先 `nano_flow_read` 的 `inspect` 看原始
+note 与问题, 再由模型判断, 用 `nano_flow_write` 的 `repair` 提交 `repairs`(按 id 的
+title/description/content)与 `ids`(新 index); 工具不自作主张截断摘要或删除索引项.
+
+一条 note 走两个阶段: 需要人拍板的先置 `waiting + needs=answer`, 用户答完把结论写进"定案",
+再回 `in_progress` 实施, 完成后 `waiting + needs=review` → `completed`; 定案与执行默认不拆成两条.
 
 **上限与轮转**
 

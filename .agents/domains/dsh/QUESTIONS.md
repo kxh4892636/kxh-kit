@@ -54,7 +54,7 @@
 - 原因：旧固定提示词把"继续"直接映射到 do 循环，"恢复与轮转"要求"从首个未完成步骤或可推进队列继续"；`nano_flow_read` 的 resume 文案与 `rotate.ts` 的轮转种子也写着"从可推进队列继续 / 继续执行当前 Plan"，四处口径叠加，恢复即执行。
 - 解决方法：模式循环区分"恢复已有 Plan"（只读）与"接续已报告过的 Plan"（do）；恢复轮严格只读——只允许 `nano_flow_read`、读文件与取证命令，不写 Plan、不动文件、不执行 note、不跑构建测试或安装；恢复报告之后用户第一条消息即放行（新澄清需求仍走 ask）。resume 文案与轮转种子同步改成只读口径。
 - 验证：`rotate.test` 断言种子含"只读报告"；241 项测试、`vp check`、`vp pack` 通过；desktop profile 装 0.4.2，安装目录的 `dist/index.mjs` 与 `dist/nano-flow/prompt.md` 均与仓库 dist 同哈希。重启宿主后的新会话行为待真机确认。
-- 来源：[2026-11-07-预设提示词评审](../../.agents/domains/dsh/plans/active/2026-11-07-预设提示词评审/spec.md) 的 note 09 / 10。
+- 来源：[2026-11-07-预设提示词评审](plans/archived/2026-11-07-预设提示词评审/spec.md) 的 note 09 / 10。
 
 ## 为什么 note 不能直接从 in_progress 标完成？
 
@@ -63,6 +63,14 @@
 - 解决方法：完成后置 `status=waiting` 并给 `needs`：`review` 时写「待验证」小节，`answer` 时写「待回答」小节；用户回复后 `complete`（只接受 `review`）或回 `in_progress`。`waiting` 仍算未完成，Plan 不能迁 reference；旧文档的 `awaiting_verification` 读入时折成 `waiting + needs=review`。
 - 验证：`runtime.test` 覆盖 complete 门槛（`in_progress`、`waiting/answer` 均拒绝）与 resume 的「等待回答 / 等待确认」分段；249+ 项测试、`vp check`、build 通过。
 - 来源：[2026-11-08-nano-flow等待确认状态](plans/active/2026-11-08-nano-flow等待确认状态/spec.md)、旧 Plan 的 note 11 / 12。
+
+## `notes.json` 校验失败、Plan 读不出来怎么办？
+
+- 适用条件与现象：`nano_flow_read` / `nano_flow_write` 报「description 超过 144 字」「note 正文超过 …」之类的校验错误，Plan 打不开。
+- 原因：`notes.json` 是唯一权威，工具读入即校验；工具不会自动截断摘要、也不会自动删索引项，超限字段的取舍必须由模型判断。
+- 解决方法：先 `nano_flow_read op=inspect` 看原始 note 与 index，再 `nano_flow_write op=repair` 提交 `repairs`（按 id 的 title/description/content）与 `ids`（新 index），工具重新校验后落盘。JSON 语法错误无法 repair，只能人工修文件（notes-guard 会拦常规文件工具）。
+- 验证：`runtime.test` 覆盖「坏摘要 → inspect → repair → resume」链路。
+- 来源：[2026-11-08-nano-flow等待确认状态](plans/active/2026-11-08-nano-flow等待确认状态/spec.md) 的 note 03。
 
 ## 为什么 `read` 读不到 Plan 的 `notes.json`？
 

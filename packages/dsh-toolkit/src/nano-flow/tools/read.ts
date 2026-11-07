@@ -14,10 +14,59 @@ import {
 } from "./shared.js";
 import { graphOf, planStatusOf, readyNotes, searchNotes, todoGroups } from "../dag.js";
 import { listPlans, planRefOf, resolvePlan, type PlanRef } from "../plan.js";
-import { loadDocument } from "../store.js";
+import { loadDocument, loadRawDocument, NOTES_FILE } from "../store.js";
 import type { ToolDefinitionLike, ToolExecContext } from "../services.js";
 
-const READ_OPS = ["plans", "notes", "get", "ready", "graph", "index", "search", "resume"] as const;
+const READ_OPS = [
+  "plans",
+  "notes",
+  "get",
+  "ready",
+  "graph",
+  "index",
+  "search",
+  "resume",
+  "inspect",
+] as const;
+
+const asText = (value: unknown): string => (typeof value === "string" ? value : "");
+
+/**
+ * 原始文档视图：notes.json 无法通过校验时，给模型看未归一化的字段，
+ * 由模型决定如何重写，再交给 nano_flow_write 的 repair。
+ * @param plan - 目标 Plan。
+ * @returns 供模型判断的原始视图。
+ */
+const inspectRaw = async (plan: PlanRef): Promise<string> => {
+  const raw = await loadRawDocument(plan.directory);
+  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+    throw new Error(`${NOTES_FILE} 根必须是对象`);
+  }
+  const root = raw as Record<string, unknown>;
+  const notes = Array.isArray(root["notes"]) ? root["notes"] : [];
+  const index = Array.isArray(root["index"]) ? root["index"] : [];
+  const lines = [
+    `Plan: ${planRefOf(plan)}（原始视图，可能未通过校验）`,
+    `index: ${index.length === 0 ? "（空）" : index.join(", ")}`,
+    "用 nano_flow_write 的 repair 提交模型判断后的 title/description/content 与 ids。",
+  ];
+  for (const note of notes) {
+    if (typeof note !== "object" || note === null) continue;
+    const record = note as Record<string, unknown>;
+    const dependencies = Array.isArray(record["blocked_by"])
+      ? record["blocked_by"].join(", ")
+      : "—";
+    lines.push(
+      "",
+      `## ${asText(record["id"])} ${asText(record["title"])}`,
+      `状态: ${asText(record["status"])} · 依赖: ${dependencies}`,
+      `摘要: ${asText(record["description"])}`,
+      "正文:",
+      asText(record["content"]),
+    );
+  }
+  return lines.join("\n");
+};
 
 const describeBytes = async (plan: PlanRef, fileName: string): Promise<string> => {
   try {
@@ -63,6 +112,7 @@ const executeRead = async (
   if (op === "plans") return formatPlans(runtime, workspace);
 
   const plan = await resolvePlan(workspace, runtime.domainRoot, planArgument);
+  if (op === "inspect") return inspectRaw(plan);
   const document = await loadDocument(plan.directory, runtime.limits());
 
   switch (op) {
@@ -216,7 +266,7 @@ const executeRead = async (
 export const createReadTool = (runtime: ToolRuntime): ToolDefinitionLike => ({
   name: "nano_flow_read",
   description:
-    "只读 Nano Flow 的 Plan 与 notes DAG。plans 列工作区里的 Plan；notes 列某个 Plan 的 note 摘要；get 取正文；ready 取未完成 notes 的依赖分组列表；graph 查直接与传递依赖；index 看关键索引；search 检索；resume 取恢复包（路径、大小、索引、可推进、等待回答/确认、阻塞）。",
+    "只读 Nano Flow 的 Plan 与 notes DAG。plans 列工作区里的 Plan；notes 列某个 Plan 的 note 摘要；get 取正文；ready 取未完成 notes 的依赖分组列表；graph 查直接与传递依赖；index 看关键索引；search 检索；resume 取恢复包（路径、大小、索引、可推进、等待回答/确认、阻塞）；inspect 在 notes.json 无法通过校验时给出原始视图，供 nano_flow_write 的 repair 使用。",
   parameters: {
     type: "object",
     additionalProperties: false,
@@ -224,7 +274,7 @@ export const createReadTool = (runtime: ToolRuntime): ToolDefinitionLike => ({
       op: {
         type: "string",
         enum: [...READ_OPS],
-        description: "plans | notes | get | ready | graph | index | search | resume",
+        description: "plans | notes | get | ready | graph | index | search | resume | inspect",
       },
       plan: {
         type: "string",

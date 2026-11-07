@@ -37,6 +37,26 @@ export const loadDocument = async (
 };
 
 /**
+ * 读取一个 Plan 的 notes 原始 JSON，不做结构校验。
+ * 供 `nano_flow_read` 的 inspect 与 `nano_flow_write` 的 repair 在文档不合法时使用。
+ * @param planDirectory - Plan 目录。
+ * @returns 解析后的原始 JSON。
+ */
+export const loadRawDocument = async (planDirectory: string): Promise<unknown> => {
+  let text: string;
+  try {
+    text = await readFile(join(planDirectory, NOTES_FILE), "utf8");
+  } catch (error) {
+    throw new Error(`读取 ${NOTES_FILE} 失败: ${describe(error)}`);
+  }
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new Error(`${NOTES_FILE} 不是合法 JSON: ${describe(error)}`);
+  }
+};
+
+/**
  * 校验并写回 notes 文档；先写临时文件再 rename，避免半截文件。
  * @param planDirectory - Plan 目录。
  * @param document - 待写入文档。

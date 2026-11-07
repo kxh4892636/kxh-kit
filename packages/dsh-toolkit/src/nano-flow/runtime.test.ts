@@ -215,7 +215,8 @@ describe("assets", () => {
     const doSkill = candidates.find((candidate) => candidate.name === "do");
     expect(doSkill?.invocation).toEqual({ modelInvocable: true, userInvocable: true });
     const definition = ask === undefined ? undefined : await provider.get(ask, {});
-    expect(definition?.content).toContain("ask 循环");
+    expect(definition?.content).toContain("Design tree");
+    expect(definition?.content).toContain("frontier");
   });
 });
 
@@ -369,6 +370,43 @@ describe("tools", () => {
     const readied = String(await tools.read.execute({ op: "ready" }, exec()));
     expect(readied).toContain("未完成（2）");
     expect(readied).toContain("01 [waiting/review] 等真机");
+  });
+
+  it("inspect + repair 修复无法通过校验的文档", async () => {
+    const workspace = await makeWorkspace();
+    const tools = createTools(workspace);
+    await tools.write.execute({ op: "init", domain: "demo", name: "2026-11-08-修复" }, exec());
+    await tools.write.execute(
+      { op: "create", title: "坏摘要", description: "摘要", content: "正文" },
+      exec(),
+    );
+    const planDirectory = join(workspace, ".agents/domains/demo/plans/active/2026-11-08-修复");
+    const raw = JSON.parse(await readFile(join(planDirectory, "notes.json"), "utf8")) as {
+      notes: { description: string }[];
+      index: string[];
+    };
+    raw.notes[0]!.description = "长".repeat(200);
+    raw.index = ["01"];
+    await writeFile(join(planDirectory, "notes.json"), JSON.stringify(raw), "utf8");
+
+    await expect(tools.read.execute({ op: "resume" }, exec())).rejects.toThrow(/description/);
+    const inspected = String(await tools.read.execute({ op: "inspect" }, exec()));
+    expect(inspected).toContain("原始视图");
+    expect(inspected).toContain("坏摘要");
+    expect(inspected).toContain("index: 01");
+
+    const repaired = String(
+      await tools.write.execute(
+        { op: "repair", repairs: [{ note: "01", description: "压回一句话" }], ids: ["01"] },
+        exec(),
+      ),
+    );
+    expect(repaired).toContain("已修复：01");
+    expect(repaired).toContain("索引 1 项");
+
+    const resumed = String(await tools.read.execute({ op: "resume" }, exec()));
+    expect(resumed).toContain("关键索引（1）");
+    expect(resumed).toContain("压回一句话");
   });
 
   it("move 在 active / reference / archived 之间迁移", async () => {
