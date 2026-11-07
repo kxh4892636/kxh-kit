@@ -1,7 +1,7 @@
 /**
  * Nested-skill discovery. pi's built-in scanner stops descending as soon as a
  * directory contains `SKILL.md`, so a `SKILL.md` under another skill directory
- * (for example `.agents/skills/nano-flow/references/skills/questing/SKILL.md`)
+ * (for example `.agents/skills/orchestrator/references/skills/questing/SKILL.md`)
  * is invisible. This module returns exactly those hidden skill directories so
  * `resources_discover` can hand them back to pi.
  */

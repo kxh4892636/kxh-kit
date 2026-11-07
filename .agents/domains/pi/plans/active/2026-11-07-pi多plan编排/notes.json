@@ -1,0 +1,153 @@
+{
+  "version": 1,
+  "index": [],
+  "notes": [
+    {
+      "id": "01",
+      "title": "拷问与定案：移除 ticket、orchestration 运行时 plan、SDK 起 worker",
+      "description": "12 轮设计讨论的定案：移除 ticket、worker:plan 同时 1:1、orchestration 有运行时 plan、SDK 单进程起 worker、并行不设上限。",
+      "status": "completed",
+      "blocked_by": [],
+      "evidence": [
+        "定案表 15 条与「被否决的备选」7 条已按 12 轮讨论如实记录；落地对照表把每条定案映射到具体 note",
+        "来源：dsh-superagent-prototype 的 docs/000-philosophy.md、docs/001-domain.md（Rejected concepts）、docs/007-architecture.md（工具表）",
+        "工作区事实：packages/pi-toolkit/src/orchestrator/（原 nano-flow/）、skills/do/SKILL.md 串行写决策、store.ts 无锁整体重写、dag.ts 与 scripts/check-domain.mjs 两份状态枚举"
+      ],
+      "updated_at": "2026-11-07T11:00:44.920Z",
+      "content": "# 拷问与定案记录\n\n本 Plan 的输入是 2026-11-07 与用户就 dsh-superagent-prototype 的 12 轮设计讨论。本节记结论与理由；落地细节见 [spec](../spec.md)。\n\n## 定案\n\n| 议题 | 结论 | 理由 |\n| --- | --- | --- |\n| 是否复刻 superagent | 只借设计，不搬代码 | 15.2k 行源码里约 2k 行（core）是独有价值，其余是产品外壳；面板是 pi 没有的 |\n| Ticket | **移除** | 六项职能中授权/幂等/多源归属在单用户场景退化为零，另两项被 plan 与 note 承担 |\n| worker:plan | **同时 1:1** | 严格 1:1 会重演 superagent 已否决的\"票据状态跟随 Session\"；会话可重建接管同一 plan |\n| worker 独立 plan | 是 | ticket 可能分属不同业务域，跨域无法合并；同域但相差很大也是不同 plan |\n| plan 归属判据 | 有 `blocked_by` 边，或共享同一验收物 | 前者可代码判定；后者由 orchestrator 判断，进 skill 准则 |\n| orchestration 运行时 plan | 要有 | 待归属输入、待答确认、追踪中 plan、归属理由四类状态无法从 worker plan 派生 |\n| orchestrator 归属域 | 新增 `orchestration` 域 | `common` 是共享术语/ADR 的域，装编排状态会污染它 |\n| 权限切分轴 | **按层级**，不按 op | plan 级（`init`/归档）归编排；note 级全归 worker；结束判定归放行 |\n| `awaiting_verification` | 改 `waiting` + `needs` | 状态是单一真相，`needs` 只回答\"等谁\"；枚举对齐 `person/answer` 与 `person/review` |\n| 并行 | 允许，不设上限 | worker 内可用 subagent 并行；写回仍由 worker 串行 |\n| worker 实现 | **in-process SDK `createAgentSession`** | 省掉 RPC 协议层与事件解析；崩溃由「退出 + 对账」接管 |\n| report 通道 | in-process 回调 | TUI 形态下 orchestrator 必然在场，无需 outbox |\n| orchestrator 形态 | 用户当前的 TUI 会话 | 不做 daemon、不做无人值守 |\n| 一切需用户确认的事 | 只在 orchestration | worker 无 UI 提问能力；\"有笔没印\" |\n| 命名 | **Nano Flow 与编排合并为 `orchestrator`**，工具名一并改前缀 | 只留一套词汇；与 dsh-superagent 的 `orchestrator_*` 一致 |\n\n## 被否决的备选\n\n- 复制 superagent 完整领域模型 + 面板：成本是 5.2k 行胶水 + 恢复路径，pi 无对应宿主\n- 保留 Ticket 作为授权对象：单用户下无信息量，却引入状态机与幂等负担\n- 保留第 5 个开关：`tools.orchestrator` 默认关闭已是足够 opt-in\n- 编排方保留跨 plan `move` 例外：破坏\"对业务域只读\"；孤儿 plan 由人工处理\n- 文件 outbox：TUI 形态下无收益，只增去重与唤醒复杂度\n- 并发上限：改为 live 清单 + 一键中止，因为风险来自单个 session 的资源而非数量\n- worker 注册 `ask_questions`：与 `orchestrator_report(needs_answer)` 同义，留两条路径只会分叉\n\n## 落地对照\n\n| 定案 | 落在哪里 |\n| --- | --- |\n| 合并命名 | note 06：目录/开关/命令/工具/配置节/entry 全改，旧配置名迁移 |\n| `waiting` + `needs` | note 08：dag + check-domain + write 三处，旧文档自动映射 |\n| 无 UI 时登记问题 | note 07：`registerQuestion()` |\n| worker 有笔没印 | note 09：`role` / `lockedPlan` / `released` 三层门禁 |\n| 派工与上报 | note 11：`handles.ts` + `spawn.ts` + `orchestrator_dispatch` / `_workers` |\n| 关掉 pi 能接着来 | note 12：`reconcile.ts` + `errors.ts` + `session_start` 对账 |\n| 领域文档与 ADR | note 10：`orchestration` 域 + ADR-0007 |\n\n## 证据\n\n- 来源仓库：`deepseek-ai/dsh-superagent-prototype`（`docs/000-philosophy.md`、`docs/001-domain.md` 的 Rejected concepts、`docs/007-architecture.md` 的工具表）\n- 工作区事实：`packages/pi-toolkit/src/orchestrator/`（由 `nano-flow/` 重命名）、`skills/do/SKILL.md` 的串行写决策、`store.ts` 的无锁整体重写、`dag.ts` 与 `scripts/check-domain.mjs` 的两份状态枚举\n- 探针：note 02 证实扩展内 `createAgentSession` 可行（43ms，无递归）\n"
+    },
+    {
+      "id": "02",
+      "title": "探针：扩展内 createAgentSession 可行性",
+      "description": "在 pi 扩展内用 createAgentSession 起 in-process session 的可行性探针；不通过则改回 RpcClient。",
+      "status": "completed",
+      "blocked_by": [],
+      "evidence": [
+        "探针扩展 %TEMP%/pi-probe/probe.ts；`pi -ne -e ./probe.ts -p \"say hi in three words\"` 退出码 0",
+        "result.json：createAgentSession ok in 43ms；prompt 返回 \"PROBE_OK\"；dispose ok；extensions=1（noExtensions 生效，无递归）",
+        "主进程 stdout 仅 `Hi there, friend.`，worker 事件未污染主输出"
+      ],
+      "updated_at": "2026-11-07T10:45:28.000Z",
+      "content": "# 探针：扩展内 createAgentSession\n\n## 结论\n\n**通过，走 SDK。** 探针扩展在 `session_start` 内 `await import` SDK、建 `DefaultResourceLoader({ noExtensions: true, extensionFactories: [...] })`、`createAgentSession` 并 `prompt`，全链路成功，主会话输出未被污染。\n\n## 实测（`pi -ne -e ./probe.ts -p \"say hi in three words\"`）\n\n```json\n{ \"steps\": [\n  \"session_start\",\n  \"import ok: createAgentSession=function DefaultResourceLoader=function\",\n  \"inline factory ran\",\n  \"loader.reload ok, extensions=1\",\n  \"createAgentSession ok in 43ms, isIdle=true\",\n  \"prompt done: \\\"PROBE_OK\\\"\",\n  \"dispose ok\" ], \"ok\": true }\n```\n\n主进程 stdout 只有 `Hi there, friend.`，worker 的事件不进主输出。\n\n## 四项观察\n\n- [x] 扩展内创建 session 并拿到回复\n- [x] `noExtensions: true` + `extensionFactories` 后只加载 1 个扩展，无递归、无重复注册\n- [x] 主会话输出干净\n- [x] 结论：SDK 路线成立，不需要 `RpcClient`\n\n## 遗留\n\n- 探针用 `--print` 跑；TUI 下 `prompt` 期间是否卡手需真机确认（note 12 的待验证项）\n- 探针放 `%TEMP%/pi-probe`，未落仓库\n\n## 下一步\n\n进入 note 06（重命名）。\n"
+    },
+    {
+      "id": "06",
+      "title": "合并为 orchestrator：重命名与配置迁移",
+      "description": "Nano Flow 与编排合并为 orchestrator：目录/开关/命令/工具/配置节/session entry 全部改名，旧配置键自动迁移。",
+      "status": "completed",
+      "blocked_by": [],
+      "evidence": [
+        "`git mv packages/pi-toolkit/src/nano-flow packages/pi-toolkit/src/orchestrator`；残留 grep 仅剩 settings.ts 的 adoptLegacyNames 迁移代码",
+        "`npx vp test --run`：21 文件 / 236 用例通过；`npx tsc --noEmit` 无错误",
+        "真实会话（PI_TOOLKIT_CONFIG 指向含 tools.orchestrator 的配置 + `--orchestrator`）：session JSONL 含 orchestrator_read / orchestrator_write / orchestrator_check / ask_questions 与 \"orchestrator\" prompt section",
+        "settings.test.ts 新增「adopts the pre-merge nanoFlow names and lets the new ones win」用例通过",
+        "本机 ~/.pi/agent/pi-toolkit.json：tools.orchestrator=true 与 orchestrator 节"
+      ],
+      "updated_at": "2026-11-07T10:47:10.281Z",
+      "content": "# 合并为 orchestrator：重命名与配置迁移\n\n## 交付\n\nNano Flow 与编排能力合并为单一能力 `orchestrator`，全部对外名称统一：\n\n| 面 | 旧 | 新 |\n| --- | --- | --- |\n| 源码目录 | `src/nano-flow/` | `src/orchestrator/`（`git mv`） |\n| 开关 | `tools.nanoFlow` | `tools.orchestrator` |\n| 配置节 | `nanoFlow` | `orchestrator` |\n| 命令 | `/nano-flow` | `/orchestrator` |\n| CLI flag | `--nano-flow` | `--orchestrator` |\n| 工具 | `nano_flow_read/write/check` | `orchestrator_read/write/check` |\n| 提示词 section | `nano_flow` | `orchestrator` |\n| session entry | `nano-flow-mode` / `nano-flow-reset` | `orchestrator-mode` / `orchestrator-reset` |\n| 面板行 | `Nano Flow` | `Orchestrator` |\n| 类型/常量 | `NanoFlowSettings` / `DEFAULT_NANO_FLOW_SETTINGS` / `registerNanoFlow` / `isNanoFlowActive` / `NanoFlowHandle` | `Orchestrator*` / `registerOrchestrator` / `isOrchestratorActive` / `OrchestratorHandle` |\n\n`settings.ts` 新增 `adoptLegacyNames()`：加载时把 `tools.nanoFlow` 与 `nanoFlow` 节折进新名，两者并存时新名优先，旧键从工作副本删除。README 与 `pi-toolkit.example.json` 同步。\n\n## 验收\n\n- [x] 全仓 `grep -r \"nano_flow_\\|nanoFlow\\|nano-flow\"` 只余迁移代码\n- [x] 旧 `pi-toolkit.json`（含 `tools.nanoFlow: true`）加载后 `tools.orchestrator === true`\n- [x] 面板第四行显示 `Orchestrator`；`/orchestrator` 与 `--orchestrator` 生效\n- [x] `test` / `check` 全绿\n\n## 待验证\n\n- [x] `npx vp test --run`：21 文件 / 236 用例通过（新增 1 条迁移用例）\n- [x] `npx tsc --noEmit`：无错误\n- [x] 真实会话（`PI_TOOLKIT_CONFIG` + `--orchestrator`）：session JSONL 含 `orchestrator_read/write/check`、`ask_questions` 与 `orchestrator` section\n- [x] 本机 `~/.pi/agent/pi-toolkit.json` 已迁到 `tools.orchestrator` 与 `orchestrator` 节\n\n## 下一步\n\n进入 note 07（ask_questions 分角色）。\n"
+    },
+    {
+      "id": "07",
+      "title": "ask_questions 分角色：无 UI 时返回结构化登记",
+      "description": "ask_questions 在无 UI 上下文改为返回结构化登记（needs=answer），交互会话行为不变。",
+      "status": "completed",
+      "blocked_by": [
+        "06"
+      ],
+      "evidence": [
+        "src/orchestrator/ask.ts：新增 registerQuestion()，execute() 先 parseQuestions 再按 ctx.mode 分流",
+        "`npx vp test --run src/orchestrator/ask.test.ts`：6 用例通过（含新用例 registers the question instead of failing when no UI is available）",
+        "`npx vp test --run`：21 文件 / 236 用例通过；`npx tsc --noEmit` 无错误"
+      ],
+      "updated_at": "2026-11-07T10:47:37.773Z",
+      "content": "# ask_questions 分角色\n\n## 交付\n\n`ask.ts` 新增 `registerQuestion(questions)`：无交互界面时不报错，返回结构化登记 `details = { needs: \"answer\", question, questions, options, allow_custom, allow_skip, cancelled: true, answers: [] }`，文本提示\"已登记为待答问题，交由编排方转人工\"。`execute()` 先 `parseQuestions` 再分流，tui/rpc 行为不变。\n\n## 验收\n\n- [x] 非 tui/rpc 模式返回 `details.needs === \"answer\"` 且文本含题面\n- [x] tui/rpc 模式仍走 `ui.select` / `ui.input`\n- [x] `ask.test.ts` 全绿，新增无 UI 用例\n\n## 待验证\n\n- [x] `npx vp test --run src/orchestrator/ask.test.ts`：6 用例通过\n- [x] `npx vp test --run`：21 文件 / 236 用例通过；`npx tsc --noEmit` 无错误\n\n## 下一步\n\n进入 note 08（waiting + needs 迁移）。\n"
+    },
+    {
+      "id": "08",
+      "title": "waiting + needs 迁移（含旧文档自动映射）",
+      "description": "note 状态 awaiting_verification 改为 waiting 并新增 needs（answer/review），旧文档自动映射，枚举两份副本同步。",
+      "status": "completed",
+      "blocked_by": [
+        "06"
+      ],
+      "evidence": [
+        "dag.ts：NOTE_STATUSES 含 waiting、NOTE_NEEDS、normalizeStatus()/resolvedNeeds()、NoteNode.needs、serializeDocument 输出 needs",
+        "check-domain.mjs：NOTE_STATUSES/NOTE_NEEDS/LEGACY_WAITING_STATUS 同步，waiting 缺 needs 报错",
+        "write.ts：status 接受 waiting+needs，awaiting_verification 明确报改名；complete 要求 waiting+needs=review",
+        "`npx vp test --run`：21 文件 / 238 用例通过，dag.test.ts 新增「waiting 缺 needs 拒绝」与「旧 awaiting_verification 折成 waiting+review」",
+        "`npx vp check`：67 文件格式、52 文件 lint 与类型通过",
+        "`orchestrator_check plan`：pi/active/2026-11-07-pi多plan编排 校验通过"
+      ],
+      "updated_at": "2026-11-07T10:49:30.148Z",
+      "content": "# waiting + needs 迁移\n\n## 交付\n\nnote 状态从 `awaiting_verification` 改为 `waiting`，并新增 `needs: \"answer\" | \"review\"`。旧文档读入时自动折成 `waiting + needs=review`，写回落新值。\n\n| 文件 | 改动 |\n| --- | --- |\n| `src/orchestrator/dag.ts` | `NOTE_STATUSES` 换 `waiting`；新增 `NOTE_NEEDS` / `NoteNeeds` / `LEGACY_WAITING_STATUS`；`NoteNode.needs`；`normalizeStatus()` / `resolvedNeeds()`；`parseDocument` 校验 `waiting` 必带 `needs`；`serializeDocument` 输出 `needs`；`STATUS_ORDER` / `STATUS_RANK` 档位改名 |\n| `src/orchestrator/scripts/check-domain.mjs` | 同步枚举 + `NOTE_NEEDS` + 旧值折算；`waiting` 缺 `needs` 报错 |\n| `src/orchestrator/tools/write.ts` | `status` 接受 `waiting` + `needs`（旧的 `awaiting_verification` 明确报改名）；`complete` 要求 `waiting` 且 `needs=review`；schema 增 `needs` |\n| `src/orchestrator/tools/shared.ts` | `statusLine` 用 `waiting`；`formatNoteLine` 显示 `[waiting/review]` |\n| `src/orchestrator/tools/read.ts` | `resume` 分列\"等待回答\"与\"等待验证\" |\n| `prompt.md` / `skills/do/SKILL.md` | 状态机与锚点改为 `waiting` + `needs` |\n\n## 验收\n\n- [x] 含 `awaiting_verification` 的旧文档可读，读出 `status = waiting`、`needs = review`\n- [x] `waiting` 缺 `needs` 时校验失败并给出可读原因；`needs` 取值受限\n- [x] `complete` 只接受 `waiting + needs=review`\n- [x] `dag.ts` 与 `check-domain.mjs` 枚举一致；`orchestrator_check` 通过\n- [x] 全部单测绿\n\n## 待验证\n\n- [x] `npx vp test --run`：21 文件 / 238 用例通过（dag 新增 2 条）\n- [x] `npx vp check`：67 文件格式、52 文件 lint 与类型通过\n- [x] `orchestrator_check` 的 `plan`：校验通过\n\n## 下一步\n\n进入 note 09（worker 扩展工厂）。\n"
+    },
+    {
+      "id": "09",
+      "title": "worker 扩展工厂与工具门禁",
+      "description": "worker 侧扩展工厂：受限 orchestrator_read/write（无 init、无 completed）+ orchestrator_report + worker 提示词。",
+      "status": "completed",
+      "blocked_by": [
+        "02",
+        "06"
+      ],
+      "evidence": [
+        "新增 src/orchestrator/{types.ts,worker.ts,worker.md} 与 worker.test.ts；tools/{shared,write,read,check}.ts 增加 role/lockedPlan/released 门禁",
+        "`npx vp test --run`：22 文件 / 242 用例通过（worker.test.ts 4 条覆盖工具集、init/move 拒绝、未放行 complete 拒绝、report schema）",
+        "`npx vp check`：71 文件格式、55 文件 lint 与类型通过，无 warning"
+      ],
+      "updated_at": "2026-11-07T10:51:34.050Z",
+      "content": "# worker 扩展工厂与工具门禁\n\n## 交付\n\n| 文件 | 内容 |\n| --- | --- |\n| `src/orchestrator/types.ts` | `REPORT_OUTCOMES` / `WorkerReport` / `INPUT_KINDS` / `InputMessage` / `WorkerHandle` / `ReconcileItem` |\n| `src/orchestrator/worker.ts` | `createWorkerExtension({ plan, report, settings, released })` 返回 `ExtensionFactory`；`WORKER_TOOL_NAMES`；`orchestrator_report` 工具 |\n| `src/orchestrator/worker.md` | worker 角色段提示词（有笔没印、不跨域、问题登记不提问、并行判据） |\n| `src/orchestrator/assets.ts` | `readWorkerPromptText()` |\n| `src/orchestrator/tools/shared.ts` | `ToolRuntime` 增加 `role` / `lockedPlan` / `released`；`createToolRuntime` 透传 |\n| `src/orchestrator/tools/write.ts` | `WORKER_REFUSALS` 拒 `init` / `move`；`planFor()` 让 worker 忽略 `plan` 参数；`completeNote` 在 worker 角色下要求 `released(note)` |\n| `src/orchestrator/tools/read.ts` | `plan` 参数同样被 `lockedPlan` 覆盖；`plans` 只列自己的 plan |\n| `src/orchestrator/tools/check.ts` | 同上 |\n\nworker session 的活动工具恰为 `orchestrator_read` / `orchestrator_write` / `orchestrator_check` / `orchestrator_report`；**不注册 `ask_questions`**——要人回答只能走 `orchestrator_report(needs_answer)`，避免两条同义路径。\n\n## 验收\n\n- [x] 工厂可装配；活动工具名恰为四个，无 `ask_questions`\n- [x] `orchestrator_write` 对 `init` / `move` 返回\"plan 级动作\"；对 `complete` 在未放行时返回\"尚未被放行\"，放行后仍要求 `waiting + needs=review`\n- [x] `orchestrator_report` 校验：`outcome` 枚举、`needs_answer` 必带 `question`；回调携带 `plan` 与 `at`\n- [x] 单测覆盖门禁与 schema\n\n## 待验证\n\n- [x] `npx vp test --run`：22 文件 / 242 用例通过（新增 `worker.test.ts` 4 条）\n- [x] `npx vp check`：71 文件格式、55 文件 lint 与类型通过（无 warning）\n\n## 下一步\n\n进入 note 11（bridge）。\n"
+    },
+    {
+      "id": "10",
+      "title": "orchestration 域与领域文档",
+      "description": "新增 orchestration 域（CONTEXT/QUESTIONS/plans），更新 pi 域术语与 CONTEXT-MAP。",
+      "status": "completed",
+      "blocked_by": [
+        "06"
+      ],
+      "evidence": [
+        "新增 .agents/domains/orchestration/{CONTEXT.md,QUESTIONS.md,plans/active/.gitkeep}；pi 域 CONTEXT 术语改 orchestrator 并新增编排四术语；QUESTIONS 新增两条、旧条目改名",
+        "新增 .agents/domains/pi/adr/0007-合并为orchestrator并让worker无印.md（含 Considered Options 与 Consequences）",
+        "CONTEXT-MAP.md 增加 orchestration 条目与「编排方只读各业务域」关系；README 补 dispatch/workers、waiting+needs、Workers 与启动对账两节",
+        "`orchestrator_check workspace`：工作区校验通过"
+      ],
+      "updated_at": "2026-11-07T11:00:22.426Z",
+      "content": "# orchestration 域与领域文档\n\n## 交付\n\n| 文件 | 内容 |\n| --- | --- |\n| `.agents/domains/orchestration/CONTEXT.md` | 域职责（判定归属 / 派工 / 汇总 / 放行 / 归档）+ 术语：编排期、编排待办、归属判定、放行、派工、刹车、启动对账 |\n| `.agents/domains/orchestration/QUESTIONS.md` | 「暂无已验证的重复问题」 |\n| `.agents/domains/orchestration/plans/active/.gitkeep` | 运行时\"编排待办\" Plan 的骨架 |\n| `.agents/domains/pi/CONTEXT.md` | 术语整体改为 `orchestrator`；新增\"编排\"小节（派工 / 放行 / 启动对账 / 刹车）；保留一行说明旧配置名迁移 |\n| `.agents/domains/pi/QUESTIONS.md` | 两条旧条目改用新名；新增两条：orchestrator 怎么起 worker 与边界、关掉 pi 后如何知道哪些 Plan 被打断 |\n| `.agents/domains/pi/adr/0007-合并为orchestrator并让worker无印.md` | 记录合并命名与\"worker 有笔没印\"的决策、备选与后果 |\n| `CONTEXT-MAP.md` | 增加 orchestration 条目；pi 条目补上 `orchestrator`；关系表增加\"编排方只读各业务域\" |\n| `packages/pi-toolkit/README.md` | 工具清单补 dispatch / workers；补 `waiting` + `needs` 状态与 Workers / 对账两节 |\n\n## 验收\n\n- [x] `orchestrator_check workspace` 通过\n- [x] `CONTEXT-MAP.md` 链接可打开\n- [x] pi 域 CONTEXT 不含旧术语（仅保留一行迁移说明）\n\n## 待验证\n\n- [x] `nano_flow_check` 的 `workspace`：工作区校验通过\n- [x] `npx vp check`：78 文件格式、62 文件 lint 通过（文档改动不影响代码门禁）\n\n## 下一步\n\n进入 note 01（定案记录）收尾，然后确认 move 到 reference。\n"
+    },
+    {
+      "id": "11",
+      "title": "bridge：spawn / report / Input / 句柄表",
+      "description": "SDK 起 worker 的桥接：句柄表、spawn、dispatch / workers 工具、report 回调注入 orchestrator。",
+      "status": "completed",
+      "blocked_by": [
+        "09"
+      ],
+      "evidence": [
+        "新增 src/orchestrator/{handles.ts,spawn.ts} 与 bridge.test.ts；register.ts 增加 orchestrator_dispatch / orchestrator_workers / onReport",
+        "`npx vp test --run`：23 文件 / 249 用例通过（bridge.test.ts 7 条覆盖幂等、prompt/followUp 路由、pass 渲染、disposeAll、workers list/abort、report 注入）",
+        "`npx vp check`：74 文件格式、58 文件 lint 与类型通过",
+        "真机冒烟（tsx 直调 spawnWorker，真实模型）：活动工具含四个 orchestrator_*；调用序列 orchestrator_read→orchestrator_write→orchestrator_report；report 带 outcome=needs_review / note 01 / evidence / plan / at；note 落盘 waiting+needs=review，未擅自 completed"
+      ],
+      "updated_at": "2026-11-07T10:57:02.134Z",
+      "content": "# bridge：spawn / report / Input / 句柄表\n\n## 交付\n\n| 文件 | 内容 |\n| --- | --- |\n| `src/orchestrator/handles.ts` | `createRegistry()`（幂等、闭包持有）、`deliver()`（空闲 `prompt` / 忙 `followUp`）、`renderInput()`（pass / rework / answer / fact 各自口径）、`disposeAll()` |\n| `src/orchestrator/spawn.ts` | `spawnWorker()`：`createAgentSession` + `DefaultResourceLoader({ noExtensions: true, additionalSkillPaths, extensionFactories: [worker] })`，session 命名 `worker:<domain>/<name>` |\n| `src/orchestrator/register.ts` | `orchestrator_dispatch`（起 worker / 投递输入，`kind=pass` 先记放行）、`orchestrator_workers`（list / abort）、`onReport()` 注入 `orchestrator-report` 消息 |\n| `src/orchestrator/types.ts` | `INPUT_KINDS` 增加 `message` |\n| `src/orchestrator/worker.ts` | 四个工具改为 `defaultActive: true`（worker session 只加载这一套，无需模式开关） |\n\n## 真机冒烟（`tsx` 直调 `spawnWorker`，真实模型真实会话）\n\n一次跑通：\n\n- 活动工具 = `read, bash, edit, write, orchestrator_read, orchestrator_write, orchestrator_check, orchestrator_report`\n- 调用序列 = `orchestrator_read` ×2 → `orchestrator_write` → `write`/`bash` 取证 → `orchestrator_write`（evidence）→ `orchestrator_report`\n- report：`{outcome: \"needs_review\", note: \"01\", summary: \"…待验收。\", evidence: [...], plan: \"<abs>\", at: \"2026-11-07T10:56:34.190Z\"}`\n- `smoke.txt` 已生成；note 落盘 `{status: \"waiting\", needs: \"review\"}`；未擅自 `completed`\n\n## 验收\n\n- [x] 同一 plan 重复 dispatch 不会起第二个 session\n- [x] report 到达后编排方收到一条消息（含 outcome / note / summary）\n- [x] `orchestrator_workers` 返回 live 清单；abort 后条目消失\n- [x] 单测覆盖幂等、输入路由、report 注入\n\n## 待验证\n\n- [x] `npx vp test --run`：23 文件 / 249 用例通过（新增 `bridge.test.ts` 7 条）\n- [x] `npx vp check`：74 文件格式、58 文件 lint 与类型通过\n- [x] 真机冒烟见上\n\n## 下一步\n\n进入 note 12（reconcile 与错误处理）。\n"
+    },
+    {
+      "id": "12",
+      "title": "reconcile 与错误处理、退出收尾",
+      "description": "reconcile 四步对账、safe 包裹与进程兜底、退出收尾、worker 超时中止。",
+      "status": "completed",
+      "blocked_by": [
+        "11"
+      ],
+      "evidence": [
+        "新增 src/orchestrator/{errors.ts,reconcile.ts} 与 errors.test.ts、reconcile.test.ts；register.ts 接入 session_start 对账、session_shutdown 收尾、dispatch 超时",
+        "`npx vp test --run`：25 文件 / 265 用例通过（errors 6 条、reconcile 7 条）",
+        "`npx vp check`：78 文件格式、62 文件 lint 与类型通过",
+        "真机（%TEMP%/rec-check，含 in_progress note，`pi --orchestrator -p`）：session JSONL 有 customType=orchestrator-reconcile、内容含 `[interrupted] etf/active/2026-11-07-对账 · note 01`；模型输出三选项且声明不自行处理"
+      ],
+      "updated_at": "2026-11-07T10:59:06.906Z",
+      "content": "# reconcile 与错误处理、退出收尾\n\n## 交付\n\n| 文件 | 内容 |\n| --- | --- |\n| `src/orchestrator/errors.ts` | `stateDirectory()`（`<agentDir>/orchestrator`）、`writeInterrupted` / `readInterrupted` / `clearInterrupted`、`describeError`、`installCrashGuard`（同进程只挂一次监听、多来源共享）、`withTimeout` |\n| `src/orchestrator/reconcile.ts` | 纯函数 `reconcile(snapshots, interrupted)` 四类分流 + `formatReconcile()`；只产出提示，不采取行动 |\n| `src/orchestrator/register.ts` | `session_start` 在模式生效时跑对账并注入 `orchestrator-reconcile` 消息；`session_shutdown` 时 `disposeAll(registry)`；`orchestrator_dispatch` 用 `workerTimeoutMs` 包 `deliver`，超时 abort 并提示 |\n| `src/orchestrator/config.ts` | 新增 `workerTimeoutMs`（默认 30 分钟，正整数校验） |\n\n四类分流：`in_progress` → interrupted；`waiting` → 按 `needs` 分 answer / review；全 `completed` → archive_ready；其余 → unknown。中断凭据里已不存在的 plan 也会列出。\n\n## 验收\n\n- [x] `reconcile` 纯函数用例覆盖四类分流与凭据补充\n- [x] 强杀进程后重启，`session_start` 能列出被中断的 plan\n- [x] 退出时所有 session 被 dispose（无残留句柄）\n- [x] 超时用例：不 settle 的 promise 被 abort 并返回 `timeout`\n\n## 待验证\n\n- [x] `npx vp test --run`：25 文件 / 265 用例通过（新增 `errors.test.ts` 6 条、`reconcile.test.ts` 7 条）\n- [x] `npx vp check`：78 文件格式、62 文件 lint 与类型通过\n- [x] 真机会话（临时工作区含一条 `in_progress` note，`pi --orchestrator -p`）：session JSONL 出现 `customType: \"orchestrator-reconcile\"`，内容为 `[interrupted] etf/active/2026-11-07-对账 · note 01`；编排方据此报告并明确\"我不会自行处理\"，给出重派 / 人工接手 / 归档三个选项\n\n## 下一步\n\n进入 note 10（orchestration 域与领域文档）。\n"
+    }
+  ]
+}

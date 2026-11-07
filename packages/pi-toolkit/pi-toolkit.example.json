@@ -3,7 +3,7 @@
     "webTools": false,
     "nestedSkills": false,
     "sessionName": false,
-    "nanoFlow": false
+    "orchestrator": false
   },
   "web": {
     "apiKey": "sk-your-deepseek-api-key",
@@ -24,7 +24,7 @@
     "timeoutMs": 5000,
     "maxTokens": 256
   },
-  "nanoFlow": {
+  "orchestrator": {
     "storyMaxBytes": 34816,
     "specMaxBytes": 34816,
     "noteMaxBytes": 13312,

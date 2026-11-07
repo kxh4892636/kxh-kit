@@ -1,0 +1,184 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { afterEach, describe, expect, it } from "vite-plus/test";
+import { DEFAULT_SETTINGS, DEFAULT_TOOLS, type ToolkitSettings } from "../settings.ts";
+import { emptyDocument, serializeDocument } from "./dag.ts";
+import { NOTES_FILE } from "./store.ts";
+import type { PlanRef } from "./plan.ts";
+import { createWorkerExtension, WORKER_TOOL_NAMES } from "./worker.ts";
+import type { WorkerReport } from "./types.ts";
+import { mkdir, writeFile } from "node:fs/promises";
+
+const created: string[] = [];
+
+afterEach(async () => {
+  await Promise.all(created.splice(0).map((dir) => rm(dir, { recursive: true, force: true })));
+});
+
+interface Tool {
+  name: string;
+  execute: (
+    id: string,
+    args: unknown,
+    signal?: unknown,
+    onUpdate?: unknown,
+    ctx?: unknown,
+  ) => Promise<{ content: { text: string }[]; details?: unknown }>;
+}
+
+interface Harness {
+  readonly workspace: string;
+  readonly tools: Map<string, Tool>;
+  readonly reports: WorkerReport[];
+  readonly sections: Record<string, string>;
+  readonly settings: ToolkitSettings;
+}
+
+const settings: ToolkitSettings = {
+  ...DEFAULT_SETTINGS,
+  tools: { ...DEFAULT_TOOLS, orchestrator: true },
+};
+
+/** 造一个工作区：`.agents/domains/orchestration/plans/active/<plan>`。 */
+const makePlan = async (): Promise<{ plan: PlanRef; workspace: string }> => {
+  const root = await mkdtemp(join(tmpdir(), "pi-worker-"));
+  created.push(root);
+  const directory = join(
+    root,
+    ".agents",
+    "domains",
+    "orchestration",
+    "plans",
+    "active",
+    "2026-11-07-示例",
+  );
+  await mkdir(directory, { recursive: true });
+  const document = {
+    ...emptyDocument(),
+    notes: [
+      {
+        id: "01",
+        title: "示例",
+        description: "一句话摘要",
+        status: "in_progress" as const,
+        blocked_by: [],
+        evidence: [],
+        updated_at: "2026-11-07T00:00:00.000Z",
+        content: "正文",
+      },
+    ],
+  };
+  await writeFile(join(directory, NOTES_FILE), serializeDocument(document), "utf8");
+  return {
+    plan: { domain: "orchestration", lifecycle: "active", name: "2026-11-07-示例", directory },
+    workspace: root,
+  };
+};
+
+const setup = async (): Promise<Harness> => {
+  const tools = new Map<string, Tool>();
+  const reports: WorkerReport[] = [];
+  const sections: Record<string, string> = {};
+  const handlers = new Map<string, ((event: unknown) => unknown)[]>();
+  const pi = {
+    registerTool: (tool: Tool) => tools.set(tool.name, tool),
+    on: (event: string, handler: (payload: unknown) => unknown) => {
+      const list = handlers.get(event) ?? [];
+      list.push(handler);
+      handlers.set(event, list);
+    },
+  } as unknown as ExtensionAPI;
+
+  const { plan, workspace } = await makePlan();
+  const released = new Set<string>();
+  const factory = createWorkerExtension({
+    plan,
+    report: (report) => reports.push(report),
+    settings: () => settings,
+    released,
+  });
+  await factory(pi);
+
+  for (const handler of handlers.get("before_agent_start") ?? []) {
+    handler({ systemPromptOptions: { sections } });
+  }
+  return { workspace, tools, reports, sections, settings };
+};
+
+const ctx = (cwd: string) => ({ cwd, mode: "print" });
+
+describe("worker 扩展工厂", () => {
+  it("只注册四个工具，且注入 worker 提示词", async () => {
+    const harness = await setup();
+    expect([...harness.tools.keys()].sort()).toEqual([...WORKER_TOOL_NAMES].sort());
+    expect(harness.tools.has("ask_questions")).toBe(false);
+    expect(harness.sections["orchestrator"]).toContain("你是 worker");
+  });
+
+  it("拒绝对 plan 级动作与未放行的 completed", async () => {
+    const harness = await setup();
+    const write = harness.tools.get("orchestrator_write");
+    const run = (args: Record<string, unknown>) =>
+      write?.execute("id", args, undefined, undefined, ctx(harness.workspace));
+
+    await expect(run({ op: "init", domain: "etl", name: "2026-11-07-新建" })).rejects.toThrow(
+      /plan 级动作/,
+    );
+    await expect(run({ op: "move", lifecycle: "archived" })).rejects.toThrow(/plan 级动作/);
+    await expect(run({ op: "complete", note: "01", evidence: ["x"] })).rejects.toThrow(
+      /尚未被放行/,
+    );
+  });
+
+  it("放行后可以 complete", async () => {
+    const tools = new Map<string, Tool>();
+    const reports: WorkerReport[] = [];
+    const pi = {
+      registerTool: (tool: Tool) => tools.set(tool.name, tool),
+      on: () => undefined,
+    } as unknown as ExtensionAPI;
+    const { plan, workspace } = await makePlan();
+    const released = new Set<string>(["01"]);
+    await createWorkerExtension({
+      plan,
+      report: (r) => reports.push(r),
+      settings: () => settings,
+      released,
+    })(pi);
+    const write = tools.get("orchestrator_write");
+    // 放行只解开「印」这一层：note 还没到 waiting 时仍拒绝。
+    await expect(
+      write?.execute(
+        "id",
+        { op: "complete", note: "01", evidence: ["x"] },
+        undefined,
+        undefined,
+        ctx(workspace),
+      ),
+    ).rejects.toThrow(/先 status=waiting/);
+  });
+
+  it("orchestrator_report 校验并回调编排方", async () => {
+    const harness = await setup();
+    const report = harness.tools.get("orchestrator_report");
+    await expect(
+      report?.execute("id", { outcome: "needs_answer", note: "01", summary: "s" }),
+    ).rejects.toThrow(/必须给 question/);
+
+    const result = await report?.execute("id", {
+      outcome: "needs_review",
+      note: "01",
+      summary: "改完了",
+      evidence: ["pnpm test"],
+    });
+    expect(result?.details).toMatchObject({
+      outcome: "needs_review",
+      note: "01",
+      plan: expect.any(String),
+    });
+    expect(harness.reports).toHaveLength(1);
+    expect(harness.reports[0]?.summary).toBe("改完了");
+  });
+});

@@ -17,10 +17,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 import {
-  DEFAULT_NANO_FLOW_SETTINGS,
-  parseNanoFlowSettings,
-  type NanoFlowSettings,
-} from "./nano-flow/config.ts";
+  DEFAULT_ORCHESTRATOR_SETTINGS,
+  parseOrchestratorSettings,
+  type OrchestratorSettings,
+} from "./orchestrator/config.ts";
 import { DEFAULT_EXCLUDED_DIRS } from "./skills/discover.ts";
 
 /** Config file name in the agent dir and the project `.pi` dir. */
@@ -64,7 +64,7 @@ export const DEFAULT_SESSION_NAME_MAX_TOKENS = 256;
 
 /**
  * One on/off switch per bundled tool. The four switches mirror the capabilities
- * the toolkit merged: web tools, nested skills, session naming, and Nano Flow.
+ * the toolkit merged: web tools, nested skills, session naming, and Orchestrator.
  * All default to `false`.
  */
 export interface ToolToggles {
@@ -74,12 +74,17 @@ export interface ToolToggles {
   readonly nestedSkills: boolean;
   /** Automatic session naming from the first user input. */
   readonly sessionName: boolean;
-  /** The Nano Flow Plan/DAG workflow: tools, fixed prompt, bundled skills. */
-  readonly nanoFlow: boolean;
+  /** The Orchestrator Plan/DAG workflow: tools, fixed prompt, bundled skills. */
+  readonly orchestrator: boolean;
 }
 
 /** Toggle order used by the `/toolkit` panel. */
-export const TOOL_TOGGLE_KEYS = ["webTools", "nestedSkills", "sessionName", "nanoFlow"] as const;
+export const TOOL_TOGGLE_KEYS = [
+  "webTools",
+  "nestedSkills",
+  "sessionName",
+  "orchestrator",
+] as const;
 
 /** One switch key. */
 export type ToolToggleKey = (typeof TOOL_TOGGLE_KEYS)[number];
@@ -114,9 +119,9 @@ export interface NestedSkillSettings {
   readonly excludedDirs: readonly string[];
 }
 
-/** Nano Flow limits plus its global default mode. */
-export interface NanoFlowConfig extends NanoFlowSettings {
-  /** New sessions start in Nano Flow when true (per-session overrides win). */
+/** Orchestrator limits plus its global default mode. */
+export interface OrchestratorConfig extends OrchestratorSettings {
+  /** New sessions start in Orchestrator when true (per-session overrides win). */
   readonly always: boolean;
 }
 
@@ -136,7 +141,7 @@ export interface ToolkitSettings {
   readonly web: WebSettings;
   readonly nestedSkill: NestedSkillSettings;
   readonly sessionName: SessionNameSettings;
-  readonly nanoFlow: NanoFlowConfig;
+  readonly orchestrator: OrchestratorConfig;
 }
 
 /** Every capability off: the toolkit does nothing until `/toolkit` enables it. */
@@ -144,7 +149,7 @@ export const DEFAULT_TOOLS: ToolToggles = {
   webTools: false,
   nestedSkills: false,
   sessionName: false,
-  nanoFlow: false,
+  orchestrator: false,
 };
 
 /** Defaults used for every field a config file leaves out. */
@@ -168,7 +173,7 @@ export const DEFAULT_SETTINGS: ToolkitSettings = {
     timeoutMs: DEFAULT_SESSION_NAME_TIMEOUT_MS,
     maxTokens: DEFAULT_SESSION_NAME_MAX_TOKENS,
   },
-  nanoFlow: { ...DEFAULT_NANO_FLOW_SETTINGS, always: false },
+  orchestrator: { ...DEFAULT_ORCHESTRATOR_SETTINGS, always: false },
 };
 
 /** Inputs for path resolution; injectable so tests never read the real home dir. */
@@ -294,16 +299,16 @@ export const saveToggles = (path: string, toggles: ToolToggles): void => {
 };
 
 /**
- * Persist the global Nano Flow default, preserving every other key in the file.
+ * Persist the global Orchestrator default, preserving every other key in the file.
  *
  * @param path - file returned as `writePath` by {@link loadSettings}.
- * @param always - whether new sessions start in Nano Flow.
+ * @param always - whether new sessions start in Orchestrator.
  * @throws when the existing file is invalid JSON or cannot be written.
  */
-export const saveNanoFlowAlways = (path: string, always: boolean): void => {
+export const saveOrchestratorAlways = (path: string, always: boolean): void => {
   const existing = readConfigFile(path) ?? {};
-  const current = existing["nanoFlow"];
-  existing["nanoFlow"] = { ...(isRecord(current) ? current : {}), always };
+  const current = existing["orchestrator"];
+  existing["orchestrator"] = { ...(isRecord(current) ? current : {}), always };
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${JSON.stringify(existing, null, 2)}\n`, "utf-8");
 };
@@ -334,17 +339,42 @@ const mergeInto = (target: Record<string, unknown>, source: Record<string, unkno
   }
 };
 
+/**
+ * Fold the pre-rename config names into their `orchestrator` equivalents.
+ *
+ * Nano Flow and the orchestration bridge merged into one capability, so an
+ * older `pi-toolkit.json` may still carry `tools.nanoFlow` or a `nanoFlow`
+ * section. The new names win whenever both are present; the legacy keys are
+ * dropped from the working copy so nothing downstream reads them.
+ *
+ * @param merged - the merged raw JSON, mutated in place.
+ */
+const adoptLegacyNames = (merged: Record<string, unknown>): void => {
+  const tools = merged["tools"];
+  if (isRecord(tools)) {
+    if (tools["orchestrator"] === undefined && tools["nanoFlow"] !== undefined) {
+      tools["orchestrator"] = tools["nanoFlow"];
+    }
+    delete tools["nanoFlow"];
+  }
+  if (merged["orchestrator"] === undefined && merged["nanoFlow"] !== undefined) {
+    merged["orchestrator"] = merged["nanoFlow"];
+  }
+  delete merged["nanoFlow"];
+};
+
 /** Turn the merged raw JSON into validated, fully defaulted settings. */
 const parseSettings = (
   merged: Record<string, unknown>,
   paths: readonly string[],
   env: NodeJS.ProcessEnv,
 ): ToolkitSettings => {
+  adoptLegacyNames(merged);
   const tools = section(merged, "tools", paths);
   const web = section(merged, "web", paths);
   const nestedSkill = section(merged, "nestedSkill", paths);
   const sessionName = section(merged, "sessionName", paths);
-  const nanoFlow = section(merged, "nanoFlow", paths);
+  const orchestrator = section(merged, "orchestrator", paths);
 
   const apiKeyEnv = nonEmptyString(web["apiKeyEnv"]) ?? DEFAULT_API_KEY_ENV;
   const literalKey = nonEmptyString(web["apiKey"]);
@@ -365,7 +395,12 @@ const parseSettings = (
         "tools.sessionName",
         paths,
       ),
-      nanoFlow: booleanOption(tools["nanoFlow"], DEFAULT_TOOLS.nanoFlow, "tools.nanoFlow", paths),
+      orchestrator: booleanOption(
+        tools["orchestrator"],
+        DEFAULT_TOOLS.orchestrator,
+        "tools.orchestrator",
+        paths,
+      ),
     },
     web: {
       apiKey: literalKey ?? envKey,
@@ -424,9 +459,9 @@ const parseSettings = (
         paths,
       ),
     },
-    nanoFlow: {
-      ...parseNanoFlowSettings(nanoFlow, DEFAULT_NANO_FLOW_SETTINGS),
-      always: booleanOption(nanoFlow["always"], false, "nanoFlow.always", paths),
+    orchestrator: {
+      ...parseOrchestratorSettings(orchestrator, DEFAULT_ORCHESTRATOR_SETTINGS),
+      always: booleanOption(orchestrator["always"], false, "orchestrator.always", paths),
     },
     sessionName: {
       maxLength: positiveInteger(

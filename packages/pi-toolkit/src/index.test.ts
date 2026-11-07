@@ -157,11 +157,11 @@ describe("piToolkit", () => {
     const harness = setup();
     const names = harness.tools.map((tool) => tool.name);
     expect(names).toEqual(
-      expect.arrayContaining(["web_search", "web_fetch", "nano_flow_read", "ask_questions"]),
+      expect.arrayContaining(["web_search", "web_fetch", "orchestrator_read", "ask_questions"]),
     );
     for (const tool of harness.tools) expect(tool.defaultActive).toBe(false);
     expect(harness.commands.get("toolkit")?.description).toMatch(/enable or disable/iu);
-    expect(harness.commands.get("nano-flow")?.description).toMatch(/nano flow/iu);
+    expect(harness.commands.get("orchestrator")?.description).toMatch(/orchestrator/iu);
     const search = harness.tools.find((tool) => tool.name === "web_search");
     expect(Object.keys(search?.parameters.properties ?? {})).toEqual(["queries"]);
   });

@@ -1,0 +1,72 @@
+/**
+ * 编排层的数据契约：worker 上报的报告、编排方下发的输入、句柄表的条目与
+ * 启动对账的分流结果。这里只有类型，没有行为，便于两侧共享而不引入循环依赖。
+ * @module @kxh4892636/pi-toolkit/orchestrator/types
+ */
+
+/** worker 上报的结论；`done` 只用于进展播报，不代表验收通过。 */
+export const REPORT_OUTCOMES = [
+  "done",
+  "needs_answer",
+  "needs_review",
+  "blocked",
+  "failed",
+] as const;
+
+/** worker 上报的结论类型。 */
+export type ReportOutcome = (typeof REPORT_OUTCOMES)[number];
+
+/** worker 的一次结构化上报。 */
+export interface WorkerReport {
+  readonly outcome: ReportOutcome;
+  /** 这条 report 针对的 note id。 */
+  readonly note: string;
+  /** 一句话摘要，直接给人看。 */
+  readonly summary: string;
+  /** `needs_answer` 时必填。 */
+  readonly question?: string;
+  /** 已产出的证据；`needs_review` 时建议给出。 */
+  readonly evidence?: readonly string[];
+  /** 由桥接层补齐：plan 的绝对路径。 */
+  readonly plan?: string;
+  /** 由桥接层补齐：上报时刻。 */
+  readonly at?: string;
+}
+
+/** 编排方下发给 worker 的输入种类。 */
+export const INPUT_KINDS = ["message", "pass", "rework", "answer", "fact"] as const;
+
+/** 输入种类类型。 */
+export type InputKind = (typeof INPUT_KINDS)[number];
+
+/** 一条下发给 worker 的输入；`message` 是首次派活或普通追加。 */
+export interface InputMessage {
+  readonly kind: InputKind;
+  /** `pass` / `rework` 针对的 note id。 */
+  readonly note?: string;
+  readonly text: string;
+}
+
+/** 句柄表里的一个 live worker。 */
+export interface WorkerHandle {
+  /** plan 目录绝对路径，也是句柄表的键。 */
+  readonly planDirectory: string;
+  /** `<domain>/<lifecycle>/<name>`。 */
+  readonly planRef: string;
+  /** 起点时刻（毫秒）。 */
+  readonly startedAt: number;
+  /** 最近一次上报。 */
+  readonly lastReport?: WorkerReport;
+  /** 下发的次数，用于状态展示。 */
+  readonly inputs: number;
+}
+
+/** 启动对账的分流结果。 */
+export interface ReconcileItem {
+  readonly kind: "interrupted" | "waiting" | "archive_ready" | "unknown";
+  readonly planRef: string;
+  /** `waiting` 时为等人回答还是等验收。 */
+  readonly needs?: "answer" | "review";
+  readonly note?: string;
+  readonly detail: string;
+}

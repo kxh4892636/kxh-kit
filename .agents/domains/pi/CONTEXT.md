@@ -1,6 +1,6 @@
 # Pi
 
-pi 扩展业务域：以单个 pi package（`@kxh4892636/pi-toolkit`）扩展宿主能力——按开关提供嵌套 skill 发现、`$` 引用插入与展开、经 DeepSeek 官方 Search/Fetch API 的 web 搜索与抓取、会话自动命名，以及从 DSH 迁入的 Nano Flow（Plan/notes DAG 交付流程）。与 pi 本体解耦，经 `pi install` 安装。
+pi 扩展业务域：以单个 pi package（`@kxh4892636/pi-toolkit`）扩展宿主能力——按开关提供嵌套 skill 发现、`$` 引用插入与展开、经 DeepSeek 官方 Search/Fetch API 的 web 搜索与抓取、会话自动命名，以及从 DSH 迁入并与多 Plan 编排合并成单一能力的 `orchestrator`（Plan/notes DAG 交付流程 + 派工、放行与启动对账）。与 pi 本体解耦，经 `pi install` 安装。
 
 ## Language
 
@@ -15,17 +15,17 @@ pi 对外公开、扩展可挂载的事件与方法面（如 `resources_discover
 _避免使用_：hook、provider、注册表
 
 **工具包（toolkit）**：
-本域唯一的 pi 插件 `@kxh4892636/pi-toolkit`：把 web 工具、嵌套 skill、`$` 引用、会话命名与 Nano Flow 收在一个包里，由 `/toolkit` 开关统一启停。
+本域唯一的 pi 插件 `@kxh4892636/pi-toolkit`：把 web 工具、嵌套 skill、`$` 引用、会话命名与 `orchestrator` 收在一个包里，由 `/toolkit` 开关统一启停。
 _避免使用_：插件集合、多个 pi 包
 
 ### 开关与配置
 
 **开关**：
-`/toolkit` 面板中的一行 on/off，对应 `pi-toolkit.json` 的 `tools.<key>`；面板现在四行，一个开关对应一个能力：`webTools`、`nestedSkills`、`sessionName`、`nanoFlow`，默认全部关闭。
+`/toolkit` 面板中的一行 on/off，对应 `pi-toolkit.json` 的 `tools.<key>`；面板现在四行，一个开关对应一个能力：`webTools`、`nestedSkills`、`sessionName`、`orchestrator`，默认全部关闭。
 _避免使用_：feature flag、环境变量开关
 
 **默认关闭**：
-未写配置或配置缺省时，所有开关均为 `false`；插件加载不激活工具、不发现嵌套 skill、不展开 `$`、不自动命名、不启用 Nano Flow，直到用户在 `/toolkit` 中显式打开。
+未写配置或配置缺省时，所有开关均为 `false`；插件加载不激活工具、不发现嵌套 skill、不展开 `$`、不自动命名、不启用 `orchestrator`，直到用户在 `/toolkit` 中显式打开。
 _避免使用_：默认全开、安装即可用
 
 **开关面板**：
@@ -78,24 +78,38 @@ _避免使用_：模型参数、提示词约束、硬编码常量
 首个用户输入到达时，用会话当前模型生成短标题并经 `pi.setSessionName()` 落库；生成前先剔除 skill 调用（`<skill>` 块与 `/skill:` 命令），失败时退化为输入的确定性截断。
 _避免使用_：重命名会话、总结会话
 
-### Nano Flow
+### Orchestrator
 
-**Nano Flow 模式**：
-`tools.nanoFlow` 打开后由 `/nano-flow` 选择的会话状态：列表只有 `开` / `关`，Enter 写当前分支的 `nano-flow-mode` entry，`Ctrl+S` 同时写全局默认 `nanoFlow.always`；生效值 = 开关 ∧（会话覆盖 ?? 全局默认）。
+**Orchestrator 模式**：
+`tools.orchestrator` 打开后由 `/orchestrator` 选择的会话状态：列表只有 `开` / `关`，Enter 写当前分支的 `orchestrator-mode` entry，`Ctrl+S` 同时写全局默认 `orchestrator.always`；生效值 = 开关 ∧（会话覆盖 ?? 全局默认）。旧的 `nanoFlow` / `nano-flow` 配置名与 entry 名已合并到 `orchestrator`，配置在加载时自动迁移。
 _避免使用_：预设、preset、agentPreset
 
 **上下文清空**：
-Nano Flow 生效时 pi 自动压缩被取消；占用率达到 `nanoFlow.rotateAt` 后追加 `nano-flow-reset` 标记，`context` 只保留标记之后的模型消息并前置"恢复当前 Plan"种子。不是新建会话、不是删除会话文件。
+`orchestrator` 生效时 pi 自动压缩被取消；占用率达到 `orchestrator.rotateAt` 后追加 `orchestrator-reset` 标记，`context` 只保留标记之后的模型消息并前置"恢复当前 Plan"种子。不是新建会话、不是删除会话文件。
 _避免使用_：轮转、换会话、物理删除
 
 **ask_questions**：
-随 Nano Flow 激活的模型工具，逐题询问用户，支持预设选项、自定义回答与跳过，问题数量不设上限。
+随 `orchestrator` 模式激活的模型工具，逐题询问用户，支持预设选项、自定义回答与跳过，问题数量不设上限。
 _避免使用_：ask_user_question、questionnaire
 
 **模型修复**：
-Plan 无法通过校验时，先用 `nano_flow_read` 的 `inspect` 看原始 note 与错误，再由模型判断如何重写，用 `nano_flow_write` 的 `repair` 提交 `notes`（title/description/content）与 `index`；插件不会自动截断摘要、不会自动删除索引项。
+Plan 无法通过校验时，先用 `orchestrator_read` 的 `inspect` 看原始 note 与错误，再由模型判断如何重写，用 `orchestrator_write` 的 `repair` 提交 `notes`（title/description/content）与 `index`；插件不会自动截断摘要、不会自动删除索引项。
 _避免使用_：脚本化截断、自动去索引、自动改依赖
 
 **只读恢复**：
-用户说「恢复」「继续」且会话尚未加载 Plan 时，只允许 `nano_flow_read`、读文件与取证命令；报告进度后等用户第一条消息放行。
+用户说「恢复」「继续」且会话尚未加载 Plan 时，只允许 `orchestrator_read`、读文件与取证命令；报告进度后等用户第一条消息放行。
 _避免使用_：自动开工、自动执行 note
+
+### 编排
+
+**派工**：
+`orchestrator_dispatch` 把一个 Plan 交给一个 worker session；同一 Plan 同一时刻只有一个 worker，重复派工复用既有会话，`kind=pass` 先记放行再投递。
+
+**放行**：
+编排方下发 `pass` 后 worker 才可把 note 置 `completed`；判断在编排方，落盘在 worker。
+
+**启动对账**：
+`session_start` 时按 `in_progress` / `waiting` / 全 `completed` / 其它四类列出需要人处理的 Plan，只提示不行动。
+
+**刹车**：
+不设并发上限的替代：`orchestrator_workers` 列 live 清单、按 Plan 或全部中止、退出时自动收尾。

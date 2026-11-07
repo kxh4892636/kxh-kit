@@ -37,10 +37,10 @@ export const TOGGLE_DESCRIPTORS: readonly ToggleDescriptor[] = [
     description: "Name each session from its first user input.",
   },
   {
-    id: "nanoFlow",
-    label: "Nano Flow",
+    id: "orchestrator",
+    label: "Orchestrator",
     description:
-      "Plan / notes DAG workflow with nano_flow_* tools and skills; run /nano-flow to pick its session mode.",
+      "Plan / notes DAG workflow with orchestrator_* tools and skills; run /orchestrator to pick its session mode.",
   },
 ];
 

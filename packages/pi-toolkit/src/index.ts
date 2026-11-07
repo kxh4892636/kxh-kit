@@ -13,13 +13,13 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
-import { registerNanoFlow } from "./nano-flow/register.ts";
+import { registerOrchestrator } from "./orchestrator/register.ts";
 import { registerSessionNaming } from "./naming/register.ts";
 import { openToolkitPanel } from "./panel.ts";
 import {
   DEFAULT_SETTINGS,
   loadSettings,
-  saveNanoFlowAlways,
+  saveOrchestratorAlways,
   saveToggles,
   type LoadedSettings,
   type ToolkitSettings,
@@ -62,12 +62,12 @@ const piToolkit = (pi: ExtensionAPI, options: ToolkitOptions = {}): void => {
     ...(options.homeDir !== undefined ? { homeDir: options.homeDir } : {}),
   });
   registerSessionNaming(pi, { settings: settingsAt });
-  const nanoFlow = registerNanoFlow(pi, {
+  const orchestrator = registerOrchestrator(pi, {
     settings: settingsAt,
     setAlways: (always: boolean) => {
-      settings = { ...settings, nanoFlow: { ...settings.nanoFlow, always } };
+      settings = { ...settings, orchestrator: { ...settings.orchestrator, always } };
       const target = loaded?.writePath;
-      if (target !== undefined) saveNanoFlowAlways(target, always);
+      if (target !== undefined) saveOrchestratorAlways(target, always);
     },
   });
 
@@ -87,7 +87,7 @@ const piToolkit = (pi: ExtensionAPI, options: ToolkitOptions = {}): void => {
         onToggle: (key: ToolToggleKey, enabled: boolean) => {
           settings = { ...settings, tools: { ...settings.tools, [key]: enabled } };
           applyWebToolActivation(pi, settings);
-          nanoFlow.sync(ctx);
+          orchestrator.sync(ctx);
           try {
             saveToggles(resolved.writePath, settings.tools);
           } catch (error) {
@@ -109,7 +109,7 @@ const piToolkit = (pi: ExtensionAPI, options: ToolkitOptions = {}): void => {
       return;
     }
     applyWebToolActivation(pi, settings);
-    nanoFlow.start(ctx);
+    orchestrator.start(ctx);
   });
 };
 

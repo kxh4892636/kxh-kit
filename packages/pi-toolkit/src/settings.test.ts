@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
-import { DEFAULT_NANO_FLOW_SETTINGS } from "./nano-flow/config.ts";
+import { DEFAULT_ORCHESTRATOR_SETTINGS } from "./orchestrator/config.ts";
 import { DEFAULT_EXCLUDED_DIRS } from "./skills/discover.ts";
 import {
   CONFIG_FILE_NAME,
@@ -22,7 +22,7 @@ import {
   loadSettings,
   readConfigFile,
   requireApiKey,
-  saveNanoFlowAlways,
+  saveOrchestratorAlways,
   saveToggles,
   writePathFor,
 } from "./settings.ts";
@@ -96,7 +96,7 @@ describe("loadSettings", () => {
       webTools: false,
       nestedSkills: false,
       sessionName: false,
-      nanoFlow: false,
+      orchestrator: false,
     });
     expect(settings.web.baseURL).toBe(DEFAULT_BASE_URL);
     expect(settings.web.apiKeyEnv).toBe(DEFAULT_API_KEY_ENV);
@@ -114,7 +114,7 @@ describe("loadSettings", () => {
       timeoutMs: DEFAULT_SESSION_NAME_TIMEOUT_MS,
       maxTokens: DEFAULT_SESSION_NAME_MAX_TOKENS,
     });
-    expect(settings.nanoFlow).toEqual({ ...DEFAULT_NANO_FLOW_SETTINGS, always: false });
+    expect(settings.orchestrator).toEqual({ ...DEFAULT_ORCHESTRATOR_SETTINGS, always: false });
     expect(writePath).toBe(join(agentDir, CONFIG_FILE_NAME));
   });
 
@@ -177,9 +177,11 @@ describe("loadSettings", () => {
       /nestedSkill\.excludedDirs/u,
     );
     expect(() => load({ sessionName: { maxLength: 0 } })).toThrow(/sessionName\.maxLength/u);
-    expect(() => load({ nanoFlow: { rotateAt: 1.5 } })).toThrow(/nanoFlow\.rotateAt/u);
-    expect(() => load({ nanoFlow: { noteMaxBytes: 0 } })).toThrow(/nanoFlow\.noteMaxBytes/u);
-    expect(() => load({ nanoFlow: { always: "yes" } })).toThrow(/nanoFlow\.always/u);
+    expect(() => load({ orchestrator: { rotateAt: 1.5 } })).toThrow(/orchestrator\.rotateAt/u);
+    expect(() => load({ orchestrator: { noteMaxBytes: 0 } })).toThrow(
+      /orchestrator\.noteMaxBytes/u,
+    );
+    expect(() => load({ orchestrator: { always: "yes" } })).toThrow(/orchestrator\.always/u);
   });
 
   it("rejects the retired Anthropic base URL", () => {
@@ -205,13 +207,18 @@ describe("writePathFor", () => {
 describe("saveToggles", () => {
   it("creates the file with only the switches", () => {
     const path = join(tempDir(), CONFIG_FILE_NAME);
-    saveToggles(path, { webTools: true, nestedSkills: false, sessionName: true, nanoFlow: false });
+    saveToggles(path, {
+      webTools: true,
+      nestedSkills: false,
+      sessionName: true,
+      orchestrator: false,
+    });
     const written = JSON.parse(readFileSync(path, "utf-8")) as Record<string, unknown>;
     expect(written["tools"]).toEqual({
       webTools: true,
       nestedSkills: false,
       sessionName: true,
-      nanoFlow: false,
+      orchestrator: false,
     });
   });
 
@@ -221,7 +228,12 @@ describe("saveToggles", () => {
       tools: { webTools: true, sessionName: true },
       web: { apiKey: "k", searchCount: 4 },
     });
-    saveToggles(path, { webTools: false, nestedSkills: false, sessionName: true, nanoFlow: false });
+    saveToggles(path, {
+      webTools: false,
+      nestedSkills: false,
+      sessionName: true,
+      orchestrator: false,
+    });
     const written = JSON.parse(readFileSync(path, "utf-8")) as {
       tools: Record<string, boolean>;
       web: Record<string, unknown>;
@@ -230,7 +242,7 @@ describe("saveToggles", () => {
       webTools: false,
       nestedSkills: false,
       sessionName: true,
-      nanoFlow: false,
+      orchestrator: false,
     });
     expect(written.web).toEqual({ apiKey: "k", searchCount: 4 });
   });
@@ -240,7 +252,12 @@ describe("saveToggles", () => {
     const path = join(dir, CONFIG_FILE_NAME);
     writeFileSync(path, "{ nope");
     expect(() =>
-      saveToggles(path, { webTools: true, nestedSkills: true, sessionName: true, nanoFlow: true }),
+      saveToggles(path, {
+        webTools: true,
+        nestedSkills: true,
+        sessionName: true,
+        orchestrator: true,
+      }),
     ).toThrow(/not valid JSON/u);
   });
 });
@@ -259,36 +276,58 @@ describe("requireApiKey", () => {
   });
 });
 
-describe("nanoFlow settings", () => {
+describe("orchestrator settings", () => {
   it("merges limits and the always flag from the JSON file", () => {
     const agentDir = tempDir();
     writeConfig(agentDir, {
-      tools: { nanoFlow: true },
-      nanoFlow: { noteMaxBytes: 2048, rotateAt: 0.5, always: true },
+      tools: { orchestrator: true },
+      orchestrator: { noteMaxBytes: 2048, rotateAt: 0.5, always: true },
     });
     const { settings } = loadSettings({ cwd: tempDir(), agentDir, env: {} });
-    expect(settings.tools.nanoFlow).toBe(true);
-    expect(settings.nanoFlow.noteMaxBytes).toBe(2048);
-    expect(settings.nanoFlow.rotateAt).toBe(0.5);
-    expect(settings.nanoFlow.always).toBe(true);
-    expect(settings.nanoFlow.storyMaxBytes).toBe(DEFAULT_NANO_FLOW_SETTINGS.storyMaxBytes);
+    expect(settings.tools.orchestrator).toBe(true);
+    expect(settings.orchestrator.noteMaxBytes).toBe(2048);
+    expect(settings.orchestrator.rotateAt).toBe(0.5);
+    expect(settings.orchestrator.always).toBe(true);
+    expect(settings.orchestrator.storyMaxBytes).toBe(DEFAULT_ORCHESTRATOR_SETTINGS.storyMaxBytes);
   });
 
   it("persists always while preserving every other key", () => {
     const dir = tempDir();
     const path = writeConfig(dir, {
-      tools: { nanoFlow: true },
-      nanoFlow: { noteMaxBytes: 2048 },
+      tools: { orchestrator: true },
+      orchestrator: { noteMaxBytes: 2048 },
       web: { apiKey: "k" },
     });
-    saveNanoFlowAlways(path, true);
+    saveOrchestratorAlways(path, true);
     const written = JSON.parse(readFileSync(path, "utf-8")) as {
       tools: Record<string, boolean>;
-      nanoFlow: Record<string, unknown>;
+      orchestrator: Record<string, unknown>;
       web: Record<string, unknown>;
     };
-    expect(written.nanoFlow).toEqual({ noteMaxBytes: 2048, always: true });
-    expect(written.tools).toEqual({ nanoFlow: true });
+    expect(written.orchestrator).toEqual({ noteMaxBytes: 2048, always: true });
+    expect(written.tools).toEqual({ orchestrator: true });
     expect(written.web).toEqual({ apiKey: "k" });
+  });
+
+  it("adopts the pre-merge nanoFlow names and lets the new ones win", () => {
+    const legacyDir = tempDir();
+    writeConfig(legacyDir, {
+      tools: { nanoFlow: true },
+      nanoFlow: { noteMaxBytes: 1024, always: true },
+    });
+    const legacy = loadSettings({ cwd: tempDir(), agentDir: legacyDir, env: {} });
+    expect(legacy.settings.tools.orchestrator).toBe(true);
+    expect(legacy.settings.orchestrator.noteMaxBytes).toBe(1024);
+    expect(legacy.settings.orchestrator.always).toBe(true);
+
+    const bothDir = tempDir();
+    writeConfig(bothDir, {
+      tools: { nanoFlow: true, orchestrator: false },
+      nanoFlow: { noteMaxBytes: 1024 },
+      orchestrator: { noteMaxBytes: 4096 },
+    });
+    const both = loadSettings({ cwd: tempDir(), agentDir: bothDir, env: {} });
+    expect(both.settings.tools.orchestrator).toBe(false);
+    expect(both.settings.orchestrator.noteMaxBytes).toBe(4096);
   });
 });

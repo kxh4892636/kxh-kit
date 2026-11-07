@@ -3,12 +3,12 @@
 One [pi](https://pi.dev) extension bundling this workspace's four pi capabilities, each behind a
 switch in a single JSON file:
 
-| Switch         | What it enables                                                                     |
-| -------------- | ----------------------------------------------------------------------------------- |
-| `webTools`     | The `web_search` and `web_fetch` model tools (DeepSeek official Search/Fetch APIs). |
-| `nestedSkills` | Nested `SKILL.md` discovery, `$skill-name` completion, and `$` reference expansion. |
-| `sessionName`  | Automatic session naming from the first user input.                                 |
-| `nanoFlow`     | The Nano Flow Plan/DAG workflow: fixed prompt, `nano_flow_*` tools, bundled skills. |
+| Switch         | What it enables                                                                           |
+| -------------- | ----------------------------------------------------------------------------------------- |
+| `webTools`     | The `web_search` and `web_fetch` model tools (DeepSeek official Search/Fetch APIs).       |
+| `nestedSkills` | Nested `SKILL.md` discovery, `$skill-name` completion, and `$` reference expansion.       |
+| `sessionName`  | Automatic session naming from the first user input.                                       |
+| `orchestrator` | The Orchestrator Plan/DAG workflow: fixed prompt, `orchestrator_*` tools, bundled skills. |
 
 **Every switch starts off.** Nothing is registered as active, discovered, expanded, or named until
 you turn it on.
@@ -32,7 +32,7 @@ Run `/toolkit` to open a switch panel modeled on pi's own `/settings` screen: a 
 - `sessionName` applies on the next input.
 - `nestedSkills` covers discovery, completion, and expansion. Completion and expansion apply on the
   next input; discovery runs at startup and on `/reload`, so turning it on takes effect there.
-- `nanoFlow` makes the Nano Flow command, tools and skills available; run `/nano-flow` to choose
+- `orchestrator` makes the Orchestrator command, tools and skills available; run `/orchestrator` to choose
   whether the current session (or every new session) runs it. Skill discovery needs `/reload`.
 
 Switch changes are written back to the config file named in the panel header (see precedence below),
@@ -49,7 +49,7 @@ screen for the values; edit the file.
     "webTools": false,
     "nestedSkills": false,
     "sessionName": false,
-    "nanoFlow": false
+    "orchestrator": false
   },
   "web": {
     "apiKey": "sk-...",
@@ -71,7 +71,7 @@ screen for the values; edit the file.
     "timeoutMs": 5000,
     "maxTokens": 256
   },
-  "nanoFlow": {
+  "orchestrator": {
     "storyMaxBytes": 34816,
     "specMaxBytes": 34816,
     "noteMaxBytes": 13312,
@@ -97,12 +97,12 @@ creates `~/.pi/agent/pi-toolkit.json`. `pi-toolkit.example.json` shows every fie
 
 ### `tools`
 
-| Key            | Default | Meaning                                                                                  |
-| -------------- | ------- | ---------------------------------------------------------------------------------------- |
-| `webTools`     | `false` | Enable the `web_search` and `web_fetch` tools.                                           |
-| `nestedSkills` | `false` | Discover hidden nested skills, complete `$skill-name`, and expand `$` references.        |
-| `sessionName`  | `false` | Name each session from its first input.                                                  |
-| `nanoFlow`     | `false` | Expose `/nano-flow`, the three `nano_flow_*` tools, `ask_questions`, and bundled skills. |
+| Key            | Default | Meaning                                                                                        |
+| -------------- | ------- | ---------------------------------------------------------------------------------------------- |
+| `webTools`     | `false` | Enable the `web_search` and `web_fetch` tools.                                                 |
+| `nestedSkills` | `false` | Discover hidden nested skills, complete `$skill-name`, and expand `$` references.              |
+| `sessionName`  | `false` | Name each session from its first input.                                                        |
+| `orchestrator` | `false` | Expose `/orchestrator`, the three `orchestrator_*` tools, `ask_questions`, and bundled skills. |
 
 ### `web`
 
@@ -138,7 +138,7 @@ The API key resolution order is `web.apiKey` > the environment variable named by
 | `timeoutMs` | `5000`  | Timeout for the naming model request.       |
 | `maxTokens` | `256`   | Token budget for the naming request.        |
 
-### `nanoFlow`
+### `orchestrator`
 
 | Field                     | Default | Meaning                                                             |
 | ------------------------- | ------- | ------------------------------------------------------------------- |
@@ -152,7 +152,7 @@ The API key resolution order is `web.apiKey` > the environment variable named by
 | `adrMaxBytes`             | `13312` | One ADR size cap.                                                   |
 | `adrMaxCount`             | `55`    | ADRs per domain.                                                    |
 | `rotateAt`                | `0.618` | Context-window ratio that clears the session and restores the Plan. |
-| `always`                  | `false` | New sessions start in Nano Flow (a per-session choice wins).        |
+| `always`                  | `false` | New sessions start in Orchestrator (a per-session choice wins).     |
 
 ## Web tools
 
@@ -189,7 +189,7 @@ returns 403 when the target is refused by the safety policy.
 ## Nested skills and `$` references
 
 pi's skill scanner stops descending as soon as a directory contains `SKILL.md`, so a `SKILL.md` under
-another skill directory (for example `.agents/skills/nano-flow/references/skills/questing/SKILL.md`)
+another skill directory (for example `.agents/skills/orchestrator/references/skills/questing/SKILL.md`)
 is invisible. With `nestedSkills` on, those hidden skills are contributed through
 `resources_discover`, scanning the agent skills dir, the user `~/.agents/skills` dir, project
 `.pi/skills` / `.agents/skills` (trusted projects only), and the directories of skills pi already
@@ -213,32 +213,56 @@ truncation of the filtered input. Names are cleaned of markdown markers, quotes,
 `input` handler returns immediately, and a name set manually while the model call is in flight is
 never overwritten.
 
-## Nano Flow
+## Orchestrator
 
-Turn on `nanoFlow`, then run `/nano-flow`. The selector mirrors `/thinking`: it lists only `开` and
+Turn on `orchestrator`, then run `/orchestrator`. The selector mirrors `/thinking`: it lists only `开` and
 `关` (the current session value is checked), Enter changes the current session, and `Ctrl+S` also
-sets the value as the default for new sessions (`nanoFlow.always`). The default entry is marked with
+sets the value as the default for new sessions (`orchestrator.always`). The default entry is marked with
 `· default`.
 
-`/nano-flow status` prints the current mode and every active Plan with its note counts. There is no
-panel; the tools and the command are the query surface. `--nano-flow` starts a session enabled.
+`/orchestrator status` prints the current mode and every active Plan with its note counts. There is no
+panel; the tools and the command are the query surface. `--orchestrator` starts a session enabled.
 
-While a session runs Nano Flow:
+While a session runs Orchestrator:
 
-- The fixed prompt in `prompt.md` is added as the `nano_flow` system-prompt section.
-- `nano_flow_read` (plans / notes / get / ready / graph / index / search / resume),
-  `nano_flow_write` (init / create / update / link / status / complete / set_index / merge / delete /
-  move), `nano_flow_check` (plan / workspace / limits) and `ask_questions` are active.
+- The fixed prompt in `prompt.md` is added as the `orchestrator` system-prompt section.
+- `orchestrator_read` (plans / notes / get / ready / graph / index / search / resume),
+  `orchestrator_write` (init / create / update / link / status / complete / set_index / merge / delete /
+  move), `orchestrator_check` (plan / workspace / limits), `orchestrator_dispatch` (start or message the
+  worker of one plan) and `orchestrator_workers` (list or abort live workers) are active, together with
+  `ask_questions`.
+- `status` takes `pending / in_progress / waiting / blocked`; `waiting` must say what it waits for via
+  `needs: "answer" | "review"`, and `complete` only accepts `waiting` + `needs=review`. Old
+  `awaiting_verification` documents are read as `waiting` + `needs=review`.
 - `ask_questions` asks any number of questions; each one offers model-provided options plus a custom
   answer and a skip action.
 - pi's automatic compaction is disabled. When context usage reaches `rotateAt`, the next input
   replaces the conversation with a resume seed plus that input; the Plan on disk is the state.
-- Non-`nano_flow_*` tools are blocked from touching `notes.json` (policy, not a security boundary).
+- Non-`orchestrator_*` tools are blocked from touching `notes.json` (policy, not a security boundary).
 - The bundled skills (`ask`, `do`, `code-spec`, `kaizen`, `learning`, `to-skill`) are contributed
   through `resources_discover` when the switch is on; `/reload` makes them visible.
 
-When a plan cannot pass validation, `nano_flow_read` with `op: "inspect"` returns the raw notes and
-the validation errors, and `nano_flow_write` with `op: "repair"` applies model-supplied
+### Workers
+
+`orchestrator_dispatch` starts one worker per plan with the SDK's `createAgentSession` (in process, no
+extension discovery, only the worker extension). A plan has at most one live worker at a time; a second
+dispatch reuses it and queues the message as a follow-up. The worker can do every note-level action but
+cannot `init` a plan, cannot `move` it, and cannot write `completed` — it reports the note as
+`waiting(needs=review)` with `orchestrator_report`, and only after the orchestrator sends `pass` may it
+complete. The worker has no `ask_questions`: a question becomes `orchestrator_report(needs_answer)`.
+
+`orchestrator_report` arrives in the orchestrator session as an `orchestrator-report` message. Reports
+are notifications; the notes on disk are the truth.
+
+On `session_start` the plugin reconciles the disk with what it remembers: `in_progress` (worker gone),
+`waiting` (needs `answer` or `review`), all `completed` (ready to archive) and anything else (unknown)
+are reported in one `orchestrator-reconcile` message. It only reports; dispatch, archive and status
+changes stay with the person. A crash writes `interrupted.json` under the agent dir and exits, so the
+next start reports those plans instead of losing them. There is no concurrency cap: use
+`orchestrator_workers` to see live workers and abort them, individually or all.
+
+When a plan cannot pass validation, `orchestrator_read` with `op: "inspect"` returns the raw notes and
+the validation errors, and `orchestrator_write` with `op: "repair"` applies model-supplied
 `title`/`description`/`content` and `index`, then re-validates and writes. The plugin never truncates
 a summary or drops an index entry on its own; those are semantic choices for the model.
 

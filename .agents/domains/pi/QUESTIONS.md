@@ -35,23 +35,39 @@
 ## pi-toolkit 怎么启停能力，开关什么时候生效
 
 - 适用条件与现象：安装后 `web_search` 不存在、`$` 不补全、嵌套 skill 不出现、会话不自动命名；或在 `/toolkit` 打开开关后行为没有完全变化。
-- 原因：四个开关默认全关；`session_start` 才加载 `pi-toolkit.json`；嵌套发现与 Nano Flow skill 走 `resources_discover`（启动与 `/reload` 才扫描），其余能力在 `input`、工具调用或补全请求时读取开关。
-- 解决方法：`/toolkit` 提供 `Web tools`、`Nested skills`、`Session naming`、`Nano Flow` 四行开关；`Web tools` 切换即增删活动工具，命名与 `$` 补全/展开下一次输入生效，嵌套发现与 Nano Flow skill 需再执行 `/reload`。
+- 原因：四个开关默认全关；`session_start` 才加载 `pi-toolkit.json`；嵌套发现与 Orchestrator skill 走 `resources_discover`（启动与 `/reload` 才扫描），其余能力在 `input`、工具调用或补全请求时读取开关。
+- 解决方法：`/toolkit` 提供 `Web tools`、`Nested skills`、`Session naming`、`Orchestrator` 四行开关；`Web tools` 切换即增删活动工具，命名与 `$` 补全/展开下一次输入生效，嵌套发现与 Orchestrator skill 需再执行 `/reload`。
 - 验证：`panel.test.ts` 断言 4 行与非 TUI 提示；`index.test.ts` 断言默认关闭、开启后激活与写回；真机 `pi install` + 启动。
 - 来源：本域 ADR-0004；Plan `2026-11-07-pi-toolkit插件合并`；`packages/pi-toolkit/src/{panel,index,settings}.ts`。
 
-## Nano Flow 在 pi-toolkit 里怎么启停与清空上下文
+## orchestrator 在 pi-toolkit 里怎么启停与清空上下文
 
 - 适用条件与现象：需要在 pi 里运行 Plan/story/spec/notes DAG 交付流程；或达到上下文阈值后期望继续同一 Plan 而不是新建会话。
 - 原因：pi 没有 agent preset 注册表，`ctx.newSession` 只在命令上下文可用，也没有删除会话的扩展 API；因此不能用 DSH 的预设与自动轮转。
-- 解决方法：`/toolkit` 打开 `Nano Flow` 开关，再执行 `/nano-flow` 选择 `开` / `关`（Enter 只改当前会话，`Ctrl+S` 同时写 `nanoFlow.always` 作为新会话默认）。模式生效时注入固定提示词、激活 `nano_flow_*` 与 `ask_questions`、取消 pi 压缩；`getContextUsage()` 达到 `rotateAt` 时追加 `nano-flow-reset`，`context` 只保留标记后的消息并前置恢复种子。查询用 `/nano-flow status` 与 `nano_flow_read`。
-- 验证：`register.test.ts` 覆盖开关、模式、flag、收口与清空；真实 pi 会话 JSONL 含 `nano_flow_*`、`ask_questions`、`nano_flow` section 与 `nano-flow-reset` entry。
-- 来源：本域 ADR-0005；Plan `2026-11-07-NanoFlow迁移到pi-toolkit`；`packages/pi-toolkit/src/nano-flow/`。
+- 解决方法：`/toolkit` 打开 `Orchestrator` 开关，再执行 `/orchestrator` 选择 `开` / `关`（Enter 只改当前会话，`Ctrl+S` 同时写 `orchestrator.always` 作为新会话默认）。模式生效时注入固定提示词、激活 `orchestrator_*` 与 `ask_questions`、取消 pi 压缩；`getContextUsage()` 达到 `rotateAt` 时追加 `orchestrator-reset`，`context` 只保留标记后的消息并前置恢复种子。查询用 `/orchestrator status` 与 `orchestrator_read`。
+- 验证：`register.test.ts` 覆盖开关、模式、flag、收口与清空；真实 pi 会话 JSONL 含 `orchestrator_*`、`ask_questions`、`orchestrator` section 与 `orchestrator-reset` entry。
+- 来源：本域 ADR-0005；Plan `2026-11-07-NanoFlow迁移到pi-toolkit`；`packages/pi-toolkit/src/orchestrator/`。
 
-## nano_flow_read 报 `notes.json` 无效怎么办
+## orchestrator_read 报 `notes.json` 无效怎么办
 
-- 适用条件与现象：`nano_flow_read plans` 或 `notes` 报「`notes.json` 无效：notes[0].description 超过 N 字」等错误，文档读不出来。
-- 原因：校验会拒绝整个文档，而 `nano_flow_write` 需要先加载文档；插件不应替模型做摘要压缩或索引增删，所以不能脚本化自动修。
-- 解决方法：先用 `nano_flow_read` 的 `inspect` 拿到原始 note 与错误，由模型判断如何重写；再用 `nano_flow_write` 的 `repair` 提交 `notes`（按 id 给 title/description/content）与 `index`，工具重新校验后写回。`repair` 只应用显式传入的值，不自动截断或删除。
+- 适用条件与现象：`orchestrator_read plans` 或 `notes` 报「`notes.json` 无效：notes[0].description 超过 N 字」等错误，文档读不出来。
+- 原因：校验会拒绝整个文档，而 `orchestrator_write` 需要先加载文档；插件不应替模型做摘要压缩或索引增删，所以不能脚本化自动修。
+- 解决方法：先用 `orchestrator_read` 的 `inspect` 拿到原始 note 与错误，由模型判断如何重写；再用 `orchestrator_write` 的 `repair` 提交 `notes`（按 id 给 title/description/content）与 `index`，工具重新校验后写回。`repair` 只应用显式传入的值，不自动截断或删除。
 - 验证：`tools.test.ts` 覆盖 inspect 原始视图、repair 应用模型值、无改动/未知 note 报错；`mode.test.ts` 覆盖无 active Plan 时的恢复种子。
-- 来源：本域 ADR-0006；`packages/pi-toolkit/src/nano-flow/tools/{read,write}.ts`。
+- 来源：本域 ADR-0006；`packages/pi-toolkit/src/orchestrator/tools/{read,write}.ts`。
+
+## orchestrator 怎么起 worker，worker 能做与不能做什么
+
+- 适用条件与现象：需要让一个 TUI 会话同时推进多个 Plan，又不希望 worker 占掉自己的上下文或擅自扩范围。
+- 原因：pi 会话之间没有共享上下文；把编排与执行放在同一会话里会让上下文爆炸，把授权放在 worker 里则会出现"自己给自己加活"。
+- 解决方法：编排方用 `orchestrator_dispatch` 起 in-process worker session（SDK `createAgentSession`，`noExtensions: true` + 只注入 worker 扩展工厂）。worker 只有 `orchestrator_read` / `orchestrator_write` / `orchestrator_check` / `orchestrator_report`：不能 `init`、不能 `move`、未收到 `pass` 不能写 `completed`，也没有 `ask_questions`——要人回答只能 `orchestrator_report(needs_answer)`。
+- 验证：`worker.test.ts` 覆盖工具集与三类拒绝；`bridge.test.ts` 覆盖幂等派工与 report 注入；真机冒烟确认调用序列为 `orchestrator_read → orchestrator_write → orchestrator_report`。
+- 来源：本域 ADR-0007；Plan `2026-11-07-pi多plan编排`；`packages/pi-toolkit/src/orchestrator/{worker,spawn,handles}.ts`。
+
+## 关掉 pi 再打开，怎么知道哪些 Plan 被打断
+
+- 适用条件与现象：worker 跑到一半关掉终端，下次启动不知道从哪接。
+- 原因：句柄表在进程内，退出即丢；notes 与 `interrupted.json` 留在磁盘上。
+- 解决方法：`session_start` 在模式生效时跑启动对账，按 `in_progress`（被打断）、`waiting`（等人回答/验收）、全 `completed`（可归档）、其它（未知）四类列出 Plan 并注入一条 `orchestrator-reconcile` 消息；只提示，不重派、不归档。进程崩溃时 `installCrashGuard` 先写 `interrupted.json` 再以 1 退出，凭据参与下次对账。
+- 验证：`reconcile.test.ts` 覆盖四类分流与凭据补充；`errors.test.ts` 覆盖凭据读写与崩溃落盘；真机在含 `in_progress` note 的工作区启动，session JSONL 出现 `customType: orchestrator-reconcile`。
+- 来源：本域 ADR-0007；Plan `2026-11-07-pi多plan编排`；`packages/pi-toolkit/src/orchestrator/{reconcile,errors,register}.ts`。

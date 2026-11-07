@@ -111,7 +111,7 @@ describe("panelItems", () => {
       "Web tools",
       "Nested skills",
       "Session naming",
-      "Nano Flow",
+      "Orchestrator",
     ]);
     for (const item of items) {
       expect(item.values).toEqual(["on", "off"]);
@@ -121,10 +121,10 @@ describe("panelItems", () => {
   });
 
   it("reflects enabled switches", () => {
-    const items = panelItems({ ...DEFAULT_TOOLS, webTools: true, nanoFlow: true });
+    const items = panelItems({ ...DEFAULT_TOOLS, webTools: true, orchestrator: true });
     const byId = new Map(items.map((item) => [item.id, item.currentValue]));
     expect(byId.get("webTools")).toBe("on");
-    expect(byId.get("nanoFlow")).toBe("on");
+    expect(byId.get("orchestrator")).toBe("on");
     expect(byId.get("nestedSkills")).toBe("off");
   });
 });
