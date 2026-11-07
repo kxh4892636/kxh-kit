@@ -130,9 +130,11 @@ story / spec / note 正文结构自定; 进度与队列由 `notes.json` 派生, 
 
 **状态**: `pending → in_progress → waiting → completed`; `waiting` 必须带 `needs`: `review`(等验收, 写"待验证"小节) 或 `answer`(等人回答, 写"待回答"小节), 验证/回答通过才能 `complete`, 否则回 `in_progress`; 受阻进 `blocked` 并写 `blocked_reason`, 解除后回 `in_progress`; `pending` 不能直接进 `waiting`; 旧文档的 `awaiting_verification` 读入时自动折成 `waiting + needs=review`;
 
+**一条 note 走完两个阶段**: 需要人拍板的先置 `waiting + needs=answer`, 用户答完把结论写进"定案"小节, 再回 `in_progress` 实施, 完成后 `waiting + needs=review` → `completed`; 即 `pending → in_progress → waiting/answer → in_progress → waiting/review → completed` 是常态路径, 定案与执行不单独拆 note. 只有当"定案与执行由不同角色承担"或"执行要拆成多个可独立验收的能力"时才拆成两条.
+
 - 直接依赖写进 `blocked_by`; 依赖必须存在,无环; 非 `pending` 的 note, 其直接依赖必须已完成.
 - 完成条件是验收满足且 evidence 写清; `complete` 只接受 `waiting` 且 `needs=review` 的 note, 置 `completed`.
-- 讨论,调查与计划类 note 以可检查的结论或方案为交付物; 执行类 note 以可验证的用户能力为交付物.
+- 讨论,调查与计划类 note 以可检查的结论或方案为交付物; 执行类 note 以可验证的用户能力为交付物; 同一条 note 先交结论再交能力时, 两段都写在同一篇里(见上条).
 - 删除或合并有下游的 note 前, 先用 `link` 改指承接产物, 或 `merge` 合并; 清空依赖传 `[]`.
 
 ### 修复校验失败
