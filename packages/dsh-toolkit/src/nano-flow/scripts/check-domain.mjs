@@ -13,10 +13,14 @@ export const CHECKED_LIFECYCLES = Object.freeze(["active"]);
 export const NOTE_STATUSES = Object.freeze([
   "pending",
   "in_progress",
-  "awaiting_verification",
+  "waiting",
   "blocked",
   "completed",
 ]);
+/** `waiting` 时在等什么；与 dag.ts 的 NOTE_NEEDS 保持一致。 */
+export const NOTE_NEEDS = Object.freeze(["answer", "review"]);
+/** 重命名前的状态名，读到即当作 waiting + needs: review。 */
+export const LEGACY_WAITING_STATUS = "awaiting_verification";
 
 export const LIMIT_KEYS = Object.freeze([
   "storyMaxBytes",
@@ -315,8 +319,18 @@ const checkNotesDocument = (planDir, limits, report) => {
     } else if ([...note.description].length > limits.noteDescriptionMaxChars) {
       report.push(at, "size", `description 超过 ${limits.noteDescriptionMaxChars} 字`);
     }
-    if (!NOTE_STATUSES.includes(note.status)) {
+    const status = note.status === LEGACY_WAITING_STATUS ? "waiting" : note.status;
+    if (!NOTE_STATUSES.includes(status)) {
       report.push(at, "notes", `status 必须是 ${NOTE_STATUSES.join(" | ")}`);
+    }
+    const needs =
+      note.needs === undefined && note.status === LEGACY_WAITING_STATUS ? "review" : note.needs;
+    if (status === "waiting" && needs === undefined) {
+      if (note.status !== LEGACY_WAITING_STATUS) {
+        report.push(at, "notes", `status 是 waiting 时必须给 needs（${NOTE_NEEDS.join(" | ")}）`);
+      }
+    } else if (needs !== undefined && !NOTE_NEEDS.includes(needs)) {
+      report.push(at, "notes", `needs 必须是 ${NOTE_NEEDS.join(" | ")}`);
     }
     if (!isStringArray(note.blocked_by)) {
       report.push(at, "notes", "blocked_by 必须是字符串数组");
@@ -342,7 +356,7 @@ const checkNotesDocument = (planDir, limits, report) => {
     }
     notes.push({
       id,
-      status: note.status,
+      status,
       blocked_by: isStringArray(note.blocked_by) ? note.blocked_by : [],
       evidence: isStringArray(note.evidence) ? note.evidence : [],
       blocked_reason: typeof note.blocked_reason === "string" ? note.blocked_reason : undefined,

@@ -58,11 +58,11 @@
 
 ## 为什么 note 不能直接从 in_progress 标完成？
 
-- 适用条件与现象：`nano_flow_write` 的 `complete` 在 `in_progress` 的 note 上报错，提示先 `status=awaiting_verification`。
-- 原因：代码或文档写完不等于验收通过；旧状态里「正在改」与「等真机确认」都留在 `in_progress`，界面无法区分，轮转与交接时也看不出卡在哪。
-- 解决方法：交付物完成后先 `status=awaiting_verification` 并写「待验证」小节；真机或用户确认后 `complete`；验证失败 `status=in_progress` 并记录差异。等待验证仍算未完成，Plan 不能迁 reference。
-- 验证：`runtime.test` 覆盖 complete 门槛与 resume 的等待验证段；249 项测试、`vp check`、build 通过；重启后把 note 08 置为等待验证，`resume` 显示「等待验证（1）」、`ready` 可推进 0（不列等待验证）。
-- 来源：[2026-11-07-预设提示词评审](../../.agents/domains/dsh/plans/active/2026-11-07-预设提示词评审/spec.md) 的 note 11 / 12。
+- 适用条件与现象：`nano_flow_write` 的 `complete` 在 `in_progress` 的 note 上报错，提示先 `status=waiting` 且 `needs=review`。
+- 原因：写完不等于用户确认；「正在改」与「等用户」都留在 `in_progress` 时界面分不清，轮转与交接也看不出卡在哪。等待分两种：等验收（`review`）与等用户回答（`answer`）。
+- 解决方法：完成后置 `status=waiting` 并给 `needs`：`review` 时写「待验证」小节，`answer` 时写「待回答」小节；用户回复后 `complete`（只接受 `review`）或回 `in_progress`。`waiting` 仍算未完成，Plan 不能迁 reference；旧文档的 `awaiting_verification` 读入时折成 `waiting + needs=review`。
+- 验证：`runtime.test` 覆盖 complete 门槛（`in_progress`、`waiting/answer` 均拒绝）与 resume 的「等待回答 / 等待确认」分段；249+ 项测试、`vp check`、build 通过。
+- 来源：[2026-11-08-nano-flow等待确认状态](plans/active/2026-11-08-nano-flow等待确认状态/spec.md)、旧 Plan 的 note 11 / 12。
 
 ## 为什么 `read` 读不到 Plan 的 `notes.json`？
 

@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "index": [],
+  "notes": [
+    {
+      "id": "01",
+      "title": "状态改名与 needs 定案",
+      "description": "定案：awaiting_verification → waiting（等待确认），带 needs answer/review，旧值读入兼容。",
+      "status": "completed",
+      "blocked_by": [],
+      "evidence": [
+        "用户确认（2026-11-08）：改 dsh-toolkit 的 nano-flow；照搬 pi 的 needs=answer|review",
+        "参照实现：packages/pi-toolkit/src/orchestrator/dag.ts 的 NOTE_NEEDS 与 LEGACY_WAITING_STATUS、write.ts 的 status/complete 门槛、read.ts 的等待回答/等待验证分段"
+      ],
+      "updated_at": "2026-11-07T18:34:47.292Z",
+      "content": "# 状态改名与 needs 定案\n\n## 拷问记录\n\n### 第 1 轮\n\n#### Q1 - 改哪个包\n\n- 问题: 改 `dsh-toolkit` 的 nano-flow，还是 `pi-toolkit` 的 orchestrator？\n- 前置问题: 无\n- 下游边界: 决定改动面与 Plan 归属。\n- 推荐答案及理由: 改 dsh——本会话提示词仍是 `awaiting_verification`；pi 侧已是 `waiting + needs`。\n- 处理结论: 用户选 dsh-toolkit 的 nano-flow；旧 dsh Plan 已归档，本 Plan 新建。\n\n#### Q2 - 是否照搬 needs\n\n- 问题: 只改状态名与含义，还是照搬 pi 的 `needs=answer|review`？\n- 前置问题: Q1\n- 下游边界: 影响 write / read / complete 门槛、面板展示与文档。\n- 推荐答案及理由: 照搬——「验证和提问都属于这个阶段」正好需要区分等回答与等验收。\n- 处理结论: 用户选照搬 `needs`。\n\n### 补充说明\n\n- 用户原话：`awaiting_verification` 名称修改为 `waiting`，含义为等待用户确认，验证和提问都属于这个阶段。\n\n## 定案\n\n- id `waiting`，显示名「等待确认」。\n- `waiting` 必须带 `needs`：`review`（等验收，写「待验证」）/ `answer`（等人回答，写「待回答」）。\n- `complete` 只接受 `waiting + needs=review`；`pending` 不能直接进 `waiting`。\n- 旧值 `awaiting_verification` 读入时折成 `waiting + needs=review`（只读兼容，新写入只用 `waiting`）。\n- `ready` 不列 `waiting`；依赖分组里排在可执行项之后、`blocked` 之前；`resume` 分「等待回答 / 等待确认」两段。\n"
+    },
+    {
+      "id": "02",
+      "title": "落地 waiting + needs",
+      "description": "把 awaiting_verification 改成 waiting+needs：dag/check-domain/工具/契约/面板/prompt/README/测试，装 0.4.4 后重启验证。",
+      "status": "awaiting_verification",
+      "blocked_by": [],
+      "evidence": [],
+      "updated_at": "2026-11-07T18:35:06.758Z",
+      "content": "# 落地 waiting + needs\n\n## 执行检查点（2026-11-08）\n\n- `dag.ts`：NOTE_STATUSES 含 `waiting`；NOTE_NEEDS、LEGACY_WAITING_STATUS、normalizeStatus、resolvedNeeds；NoteNode.needs；parse 要求 waiting 带 needs（旧值折 review）；serialize 与 STATUS_ORDER/STATUS_RANK 同步。\n- `check-domain.mjs`：状态与 needs 校验，旧值归一化后参与 DAG 规则。\n- `tools/write.ts`：status 支持 `waiting` + `needs`（`pending` 不能直接进；旧名报错提示改名）；`complete` 只接受 `waiting + needs=review`。\n- `tools/read.ts`：resume 分「等待回答（needs=answer）/ 等待确认（needs=review）」两段；`shared.ts`：statusLine 计 `waiting`，formatNoteLine 带 `/needs`。\n- `contract.ts`、`host/nano-flow-ready.ts`、`client/host-api.ts`、`client/ready-panel.ts`、`client/stylesheet.ts`：counts 改 `waiting`、透传 `needs`、面板文案「等待确认」与 glyph class。\n- `prompt.md`、README、`.agents/domains/dsh/CONTEXT.md` 词条、`QUESTIONS.md` FAQ 同步。\n- 测试：dag 旧值折映射 + waiting 必须 needs；runtime 门槛（in_progress 与 waiting/answer 都拒绝）；resume 两段；面板与 host payload。249 项通过；`vp check`、build 通过。\n- 版本 0.4.3 → 0.4.4，打包安装到 desktop profile。\n\n## 待验证\n\n- 重启后：`status=waiting` + needs 被接受；旧归档 Plan 的 `awaiting_verification` 读入正常；`resume` / `ready` / 面板显示「等待回答 / 等待确认」。\n- 验证后写 evidence 并 `complete`。\n\n## 验收\n\n- waiting 必须带 needs；complete 只接受 waiting/review；ready 不列 waiting；resume 分两段；面板计数与文案正确。\n"
+    }
+  ]
+}

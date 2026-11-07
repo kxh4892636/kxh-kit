@@ -182,9 +182,10 @@ const completeNote = async (
   const evidence = requiredStringArray(args, "evidence");
   const note = findNote(document, id);
   if (note.status === "completed") return `note ${id} 已经是 completed。`;
-  if (note.status !== "awaiting_verification") {
+  if (note.status !== "waiting" || note.needs !== "review") {
+    const waiting = note.needs === undefined ? "" : `/${note.needs}`;
     throw new Error(
-      `note ${id} 当前是 ${note.status}，不能直接 complete；先 status=awaiting_verification，验证通过后再 complete`,
+      `note ${id} 当前是 ${note.status}${waiting}，不能直接 complete；先 status=waiting 且 needs=review，用户确认后再 complete`,
     );
   }
   const result = await runCheck({
@@ -319,12 +320,19 @@ const executeWrite = async (
       const id = requiredString(args, "note");
       const status = requiredString(args, "status");
       if (status === "completed") throw new Error("completed 只能由 complete 动作设置");
-      if (!["pending", "in_progress", "awaiting_verification", "blocked"].includes(status)) {
-        throw new Error("status 必须是 pending | in_progress | awaiting_verification | blocked");
+      if (status === "awaiting_verification") {
+        throw new Error("awaiting_verification 已改名为 waiting；请用 status=waiting 并给 needs");
+      }
+      if (!["pending", "in_progress", "waiting", "blocked"].includes(status)) {
+        throw new Error("status 必须是 pending | in_progress | waiting | blocked");
       }
       const note = findNote(document, id);
-      if (status === "awaiting_verification" && note.status === "pending") {
-        throw new Error("pending 的 note 不能直接进 awaiting_verification；先 status=in_progress");
+      if (status === "waiting" && note.status === "pending") {
+        throw new Error("pending 的 note 不能直接进 waiting；先 status=in_progress");
+      }
+      const needs = optionalString(args, "needs");
+      if (status === "waiting" && needs !== "answer" && needs !== "review") {
+        throw new Error("status=waiting 必须给 needs=answer（等人回答）或 needs=review（等验收）");
       }
       const reason = optionalString(args, "reason");
       if (status === "blocked" && (reason === undefined || reason.trim() === "")) {
@@ -334,16 +342,20 @@ const executeWrite = async (
         id: note.id,
         title: note.title,
         description: note.description,
-        status: status as "pending" | "in_progress" | "awaiting_verification" | "blocked",
+        status: status as "pending" | "in_progress" | "waiting" | "blocked",
         blocked_by: note.blocked_by,
         evidence: note.evidence,
         updated_at: nowIso(),
         content: note.content,
       };
       const next: NoteNode =
-        status === "blocked" ? { ...base, blocked_reason: reason ?? "" } : base;
+        status === "blocked"
+          ? { ...base, blocked_reason: reason ?? "" }
+          : status === "waiting" && (needs === "answer" || needs === "review")
+            ? { ...base, needs }
+            : base;
       await commitDocument(plan.directory, replaceNote(document, next), runtime.limits());
-      return `note ${id} 状态 → ${status}`;
+      return `note ${id} 状态 → ${status}${next.needs === undefined ? "" : `/${next.needs}`}`;
     }
     case "complete":
       return completeNote(runtime, workspace, plan, document, args);
@@ -389,7 +401,7 @@ const executeWrite = async (
 export const createWriteTool = (runtime: ToolRuntime): ToolDefinitionLike => ({
   name: "nano_flow_write",
   description:
-    "写 Nano Flow 的 Plan 与 notes DAG。init 建 Plan；create / update 维护 note；link 改依赖；status 设 pending / in_progress / awaiting_verification / blocked；complete 只接受 awaiting_verification 的 note，写 evidence 并通过 Plan 校验后置 completed；set_index 维护关键索引；merge / delete 合并删除；move 迁移生命周期。completed 只能由 complete 设置。",
+    "写 Nano Flow 的 Plan 与 notes DAG。init 建 Plan；create / update 维护 note；link 改依赖；status 设 pending / in_progress / waiting（带 needs=answer|review）/ blocked；complete 只接受 waiting + needs=review 的 note，写 evidence 并通过 Plan 校验后置 completed；set_index 维护关键索引；merge / delete 合并删除；move 迁移生命周期。completed 只能由 complete 设置。",
   parameters: {
     type: "object",
     additionalProperties: false,
@@ -428,8 +440,13 @@ export const createWriteTool = (runtime: ToolRuntime): ToolDefinitionLike => ({
       },
       status: {
         type: "string",
-        enum: ["pending", "in_progress", "awaiting_verification", "blocked"],
+        enum: ["pending", "in_progress", "waiting", "blocked"],
         description: "status 动作的目标状态",
+      },
+      needs: {
+        type: "string",
+        enum: ["answer", "review"],
+        description: "status=waiting 时的等待目标：answer 等人回答，review 等验收",
       },
       reason: { type: "string", description: "status=blocked 时的障碍与解除条件" },
       evidence: {

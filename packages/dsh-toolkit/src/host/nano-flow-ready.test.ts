@@ -70,7 +70,7 @@ describe("readNanoFlowReady", () => {
     expect(ready.counts).toMatchObject({
       total: 2,
       pending: 2,
-      awaiting_verification: 0,
+      waiting: 0,
       completed: 0,
     });
     expect(ready.groups?.map((group) => group.notes.map((item) => item.id))).toEqual([
@@ -78,12 +78,12 @@ describe("readNanoFlowReady", () => {
     ]);
   });
 
-  it("counts awaiting_verification and keeps it in the dependency group", async () => {
+  it("counts waiting and keeps it in the dependency group", async () => {
     const workspace = await makeWorkspace([
       {
-        name: "2026-11-07-等待验证",
+        name: "2026-11-07-等待确认",
         notes: [
-          note("01", { status: "awaiting_verification" }),
+          note("01", { status: "waiting", needs: "review" }),
           note("02", { blocked_by: ["01"] }),
         ],
       },
@@ -97,7 +97,7 @@ describe("readNanoFlowReady", () => {
     expect(ready.counts).toMatchObject({
       total: 2,
       pending: 1,
-      awaiting_verification: 1,
+      waiting: 1,
       completed: 0,
     });
     expect(ready.groups?.map((group) => group.notes.map((item) => item.id))).toEqual([

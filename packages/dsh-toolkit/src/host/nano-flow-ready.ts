@@ -36,7 +36,7 @@ export const readNanoFlowReady = async (
       total: document.notes.length,
       pending: 0,
       in_progress: 0,
-      awaiting_verification: 0,
+      waiting: 0,
       blocked: 0,
       completed: 0,
     };
@@ -52,6 +52,7 @@ export const readNanoFlowReady = async (
           title: note.title,
           description: note.description,
           status: note.status,
+          ...(note.needs === undefined ? {} : { needs: note.needs }),
           blocked_by: note.blocked_by,
           ...(note.blocked_reason === undefined ? {} : { blocked_reason: note.blocked_reason }),
         })),

@@ -148,10 +148,12 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
 ```
 
 `notes.json` 的 `index` 取代旧的 spec `## Notes` 表;`evidence` 是完成凭据. note 状态为
-`pending → in_progress → awaiting_verification → completed`: `awaiting_verification` 表示代码
-完成、等真机或用户验收, 只能从 `in_progress` 进入, 仍是未完成(Plan 不迁 `reference`,
-`ready` 不列它, 面板与 `resume` 单列"等待验证"); `complete` 只接受 `awaiting_verification`
-的 note, 验证失败用 `status` 退回 `in_progress`, 内部仍先跑 Plan 校验.
+`pending → in_progress → waiting → completed`: `waiting` 表示交付物已完成、等用户一个人, 必须带
+`needs`: `review`(等验收, 写"待验证"小节) 或 `answer`(等人回答, 写"待回答"小节); 只能从
+`in_progress` 进入, 仍是未完成(Plan 不迁 `reference`, `ready` 不列它, 面板与 `resume` 单列
+"等待回答/等待确认"); `complete` 只接受 `waiting` 且 `needs=review` 的 note, 用户回复后
+`status` 回 `in_progress` 或 `complete`, 内部仍先跑 Plan 校验. 旧文档的 `awaiting_verification`
+读入时折成 `waiting + needs=review`.
 
 **上限与轮转**
 
@@ -207,8 +209,9 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
    正常,`nano_flow_read` / `nano_flow_write` 正常工作.
 8. 挂载诊断:`$DSH_HOME/toolkit/nano-flow-mount.json` 的 `stages` 应同时有 `entry`
    (`via: preset`)、`apply`、`ready` 与 `rotation`;缺哪个就说明哪一步没生效.
-9. 把一条 note 置 `awaiting_verification`:面板摘要出现"N 等待验证", `ready` 不列它,
-   `complete` 在 `in_progress` 时被拒并提示先置状态, 置等待验证后才能完成.
+9. 把一条 note 置 `waiting`(needs=review):面板摘要出现"N 等待确认", `ready` 不列它,
+   `complete` 在 `in_progress` 时被拒并提示先置 `waiting + needs=review`, 用户确认后才能完成;
+   置 `waiting`(needs=answer) 时 `resume` 单列"等待回答".
 
 ## 配置
 

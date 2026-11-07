@@ -98,15 +98,21 @@ describe("parseDocument", () => {
     );
   });
 
-  it("接受 awaiting_verification，且其直接依赖必须已完成", () => {
+  it("waiting 必须带 needs；旧 awaiting_verification 折成 waiting/review；依赖必须已完成", () => {
     expect(
-      parseDocument(raw([note({ status: "awaiting_verification" })]), limits).notes[0]?.status,
-    ).toBe("awaiting_verification");
+      parseDocument(raw([note({ status: "waiting", needs: "review" })]), limits).notes[0],
+    ).toMatchObject({ status: "waiting", needs: "review" });
+    expect(() => parseDocument(raw([note({ status: "waiting" })]), limits)).toThrow(/必须给 needs/);
+    const legacy = { ...note(), status: "awaiting_verification" } as unknown as NoteNode;
+    expect(parseDocument(raw([legacy]), limits).notes[0]).toMatchObject({
+      status: "waiting",
+      needs: "review",
+    });
     expect(() =>
       parseDocument(
         raw([
           note({ id: "01" }),
-          note({ id: "02", status: "awaiting_verification", blocked_by: ["01"] }),
+          note({ id: "02", status: "waiting", needs: "review", blocked_by: ["01"] }),
         ]),
         limits,
       ),
@@ -143,15 +149,15 @@ describe("查询", () => {
   it("readyNotes 只给依赖已完成的 pending", () => {
     expect(readyNotes(notes).map((item) => item.id)).toEqual(["02"]);
     expect(
-      readyNotes([note({ id: "01", status: "awaiting_verification" })]).map((item) => item.id),
+      readyNotes([note({ id: "01", status: "waiting", needs: "review" })]).map((item) => item.id),
     ).toEqual([]);
   });
 
-  it("todoGroups 把等待验证排在同层可执行项之后、blocked 之前", () => {
+  it("todoGroups 把等待确认排在同层可执行项之后、blocked 之前", () => {
     const grouped = [
       note({ id: "01", status: "completed", evidence: ["完成"] }),
       note({ id: "02", blocked_by: ["01"] }),
-      note({ id: "03", status: "awaiting_verification", blocked_by: ["01"] }),
+      note({ id: "03", status: "waiting", needs: "review", blocked_by: ["01"] }),
       note({ id: "04", status: "blocked", blocked_by: ["01"], blocked_reason: "等外部确认" }),
       note({ id: "05", blocked_by: ["02", "03", "04"] }),
     ];
@@ -196,15 +202,15 @@ describe("查询", () => {
     expect(todoGroups([note({ status: "completed", evidence: ["完成"] })])).toEqual([]);
   });
 
-  it("planStatusOf 按全部 note 派生，等待验证算未完成", () => {
+  it("planStatusOf 按全部 note 派生，等待确认算未完成", () => {
     expect(planStatusOf([])).toBe("pending");
     expect(planStatusOf([note()])).toBe("pending");
     expect(planStatusOf([note({ status: "completed" }), note({ id: "02" })])).toBe("in_progress");
-    expect(planStatusOf([note({ status: "awaiting_verification" })])).toBe("in_progress");
+    expect(planStatusOf([note({ status: "waiting", needs: "review" })])).toBe("in_progress");
     expect(
       planStatusOf([
         note({ id: "01", status: "completed", evidence: ["完成"] }),
-        note({ id: "02", status: "awaiting_verification" }),
+        note({ id: "02", status: "waiting", needs: "answer" }),
       ]),
     ).toBe("in_progress");
     expect(planStatusOf([note({ status: "completed" })])).toBe("completed");

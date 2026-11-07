@@ -110,7 +110,7 @@ describe("host api", () => {
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("api/toolkit/hidden");
   });
 
-  it("parses awaiting_verification in the ready payload", async () => {
+  it("parses waiting in the ready payload", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
@@ -121,7 +121,7 @@ describe("host api", () => {
             total: 1,
             pending: 0,
             in_progress: 0,
-            awaiting_verification: 1,
+            waiting: 1,
             blocked: 0,
             completed: 0,
           },
@@ -132,7 +132,8 @@ describe("host api", () => {
                   id: "01",
                   title: "等真机",
                   description: "代码已完成",
-                  status: "awaiting_verification",
+                  status: "waiting",
+                  needs: "review",
                   blocked_by: [],
                 },
               ],
@@ -142,8 +143,9 @@ describe("host api", () => {
       ),
     );
     const ready = await fetchNanoFlowReady("s1");
-    expect(ready.counts?.awaiting_verification).toBe(1);
-    expect(ready.groups?.[0]?.notes[0]?.status).toBe("awaiting_verification");
+    expect(ready.counts?.waiting).toBe(1);
+    expect(ready.groups?.[0]?.notes[0]?.status).toBe("waiting");
+    expect(ready.groups?.[0]?.notes[0]?.needs).toBe("review");
   });
 
   it("treats an unreachable hidden route as empty", async () => {

@@ -81,7 +81,7 @@ workflow 是脱离单次 Plan 仍可复用的业务域工作流, 沉淀在 `work
 - `spec.md`: 规格文档;
 - `notes.json`: 工作记录(垂直切片 + DAG 有向无环图);
 
-story / spec / note 正文结构自定; 四个锚点固定: spec 必须有"当前进度""恢复入口", 进行中的 note 必须有"执行检查点""下一步"; 等待验证的 note 必须写"待验证"小节.
+story / spec / note 正文结构自定; 四个锚点固定: spec 必须有"当前进度""恢复入口", 进行中的 note 必须有"执行检查点""下一步"; `waiting` 的 note 按 `needs` 写"待回答"或"待验证"小节.
 
 ### 何时建 Plan
 
@@ -105,10 +105,10 @@ story / spec / note 正文结构自定; 四个锚点固定: spec 必须有"当�
 
 **切片规则**: 垂直切片划分, 一条 note 对应一个可独立验收的用户结果, 贯穿它需要的所有层级; 降低后续交付难度的前置准备排最前;
 
-**状态**: `pending → in_progress → awaiting_verification → completed`; 代码完成但等验收(如真机)时进 `awaiting_verification` 并写"待验证"小节, 验证通过才能 `complete`, 失败回 `in_progress`; 受阻进 `blocked` 并写 `blocked_reason`, 解除后回 `in_progress`; `pending` 不能直接进 `awaiting_verification`;
+**状态**: `pending → in_progress → waiting → completed`; `waiting` 表示交付物已完成、等用户一个人: 必须带 `needs`: `review`(等验收, 写"待验证"小节) 或 `answer`(等人回答, 写"待回答"小节), 用户回复后 `complete` 或回 `in_progress`; 受阻进 `blocked` 并写 `blocked_reason`, 解除后回 `in_progress`; `pending` 不能直接进 `waiting`; 旧文档的 `awaiting_verification` 读入时折成 `waiting + needs=review`;
 
 - 直接依赖写进 `blocked_by`; 依赖必须存在,无环; 非 `pending` 的 note, 其直接依赖必须已完成.
-- 完成条件是验收满足且 evidence 写清; `complete` 只接受 `awaiting_verification` 的 note, 置 `completed`.
+- 完成条件是验收满足且 evidence 写清; `complete` 只接受 `waiting` 且 `needs=review` 的 note, 置 `completed`.
 - 讨论,调查与计划类 note 以可检查的结论或方案为交付物; 执行类 note 以可验证的用户能力为交付物.
 - 删除或合并有下游的 note 前, 先用 `link` 改指承接产物, 或 `merge` 合并; 清空依赖传 `[]`.
 
@@ -123,9 +123,9 @@ story,spec 与单条 note 都有体积上限.超过时先压缩:
 
 ### 恢复与轮转
 
-- 恢复已有 Plan(「恢复」「继续」且本会话还没加载它): 先按"业务域"确认业务域, 用 `plans` 找出该域 active 的 Plan(只有一个时可省略 `plan` 参数), 用 `resume` 拿恢复包(路径,story/spec 大小,关键索引,可推进队列,等待验证与阻塞项), 再读 `spec.md` 与 `story.md`, 核对已完成步骤与工作区事实; 本轮**严格只读**: 只允许 `nano_flow_read`, 读文件与取证命令, 不写 Plan(不经 `nano_flow_write`)、不动任何文件、不执行 note、不跑构建测试或安装; 报告目标, 进度, 可推进队列, 阻塞项与下一步候选后结束本轮.
+- 恢复已有 Plan(「恢复」「继续」且本会话还没加载它): 先按"业务域"确认业务域, 用 `plans` 找出该域 active 的 Plan(只有一个时可省略 `plan` 参数), 用 `resume` 拿恢复包(路径,story/spec 大小,关键索引,可推进队列,等待回答/确认与阻塞项), 再读 `spec.md` 与 `story.md`, 核对已完成步骤与工作区事实; 本轮**严格只读**: 只允许 `nano_flow_read`, 读文件与取证命令, 不写 Plan(不经 `nano_flow_write`)、不动任何文件、不执行 note、不跑构建测试或安装; 报告目标, 进度, 可推进队列, 阻塞项与下一步候选后结束本轮.
 - 放行: 恢复报告之后, 用户的第一条后续消息即放行, 按 do 循环继续; 若那条消息是新的澄清需求则按 ask.
-- 插件在每轮结束后检查上下文压力, 达到阈值会自动创建新会话,让它 `resume` 当前 Plan, 并物理删除旧会话.新会话只收到"只读恢复当前 Plan"这一条线索, 所以每轮结束前必须把检查点写回磁盘: spec 的"当前进度""恢复入口", note 的"执行检查点""下一步".仅凭 Plan 就能判断目标,理由,进度,证据,缺口和下一步, 才算可以安全轮转.
+- 插件在每轮结束后检查上下文压力, 达到阈值会自动创建新会话,让它 `resume` 当前 Plan, 并物理删除旧会话.新会话只收到"只读恢复当前 Plan"这一条线索, 所以每轮结束前必须把检查点写回磁盘: spec 的"当前进度""恢复入口", note 的"执行检查点""下一步", `waiting` 的 note 按 `needs` 写"待回答"或"待验证".仅凭 Plan 就能判断目标,理由,进度,证据,缺口和下一步, 才算可以安全轮转.
 
 ## ask 循环
 
@@ -164,7 +164,7 @@ story,spec 与单条 note 都有体积上限.超过时先压缩:
 2. **门禁**: 确认工作环境,执行契约与质量门禁.
 3. **执行**: 按交付物适用的规范完成全部产出;
 4. **验证**: 进行最小集合验收.
-5. **收尾**: 置 `awaiting_verification` 并写"待验证"小节; 验证通过后写 evidence 并 `complete`, 同步 spec 与相关领域文档, 然后回到 ready 看下一组.
+5. **收尾**: 置 `waiting`(needs=review 写"待验证"; 需要用户拍板时 needs=answer 写"待回答"); 用户确认后写 evidence 并 `complete`, 同步 spec 与相关领域文档, 然后回到 ready 看下一组.
 
 ### 并行执行
 
@@ -207,6 +207,6 @@ story,spec 与单条 note 都有体积上限.超过时先压缩:
 
 ### 完成与登记
 
-- 交付物可用且证据可回读后, 置 `awaiting_verification`, 把交付物与验证证据写进 evidence(命令与输出,文件,commit), 验证通过再 `complete`.
+- 交付物可用且证据可回读后, 置 `waiting`(needs=review 等验收, needs=answer 等用户回答), 把交付物与验证证据写进 evidence(命令与输出,文件,commit), 用户确认后再 `complete`.
 - 完成后同步受影响的 spec 章节与领域文档.
 - 暂停或切换上下文前更新检查点, 恢复时按 spec 的"恢复入口"继续.

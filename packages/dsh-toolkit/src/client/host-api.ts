@@ -116,13 +116,18 @@ const parseSettings = (body: unknown): NanoFlowSettings => {
 const NOTE_STATUSES: readonly NanoFlowNoteStatus[] = [
   "pending",
   "in_progress",
-  "awaiting_verification",
+  "waiting",
   "blocked",
   "completed",
 ];
 
+const NOTE_NEEDS: readonly ("answer" | "review")[] = ["answer", "review"];
+
 const isNoteStatus = (value: unknown): value is NanoFlowNoteStatus =>
   typeof value === "string" && (NOTE_STATUSES as readonly string[]).includes(value);
+
+const isNoteNeeds = (value: unknown): value is "answer" | "review" =>
+  typeof value === "string" && (NOTE_NEEDS as readonly string[]).includes(value);
 
 const isStringArray = (value: unknown): value is string[] =>
   Array.isArray(value) && value.every((item) => typeof item === "string");
@@ -149,6 +154,7 @@ const parseReadyNote = (value: unknown): NanoFlowReadyNote | undefined => {
     title: note.title,
     description: note.description,
     status: note.status,
+    ...(isNoteNeeds(note.needs) ? { needs: note.needs } : {}),
     blocked_by: note.blocked_by,
     ...(typeof note.blocked_reason === "string" ? { blocked_reason: note.blocked_reason } : {}),
   };
@@ -194,7 +200,7 @@ const parseReady = (body: unknown): NanoFlowReadyResponse | undefined => {
     "total",
     "pending",
     "in_progress",
-    "awaiting_verification",
+    "waiting",
     "blocked",
     "completed",
   ] as const) {

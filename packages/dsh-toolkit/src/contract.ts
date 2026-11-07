@@ -119,12 +119,10 @@ export const TOOLKIT_NANO_FLOW_PATH = "/api/toolkit/nano-flow";
 export const TOOLKIT_NANO_FLOW_READY_PATH = "/api/toolkit/nano-flow-ready";
 
 /** note 状态；与 `notes.json` 的 status 一致。 */
-export type NanoFlowNoteStatus =
-  | "pending"
-  | "in_progress"
-  | "awaiting_verification"
-  | "blocked"
-  | "completed";
+export type NanoFlowNoteStatus = "pending" | "in_progress" | "waiting" | "blocked" | "completed";
+
+/** `waiting` 时在等什么：answer 等人回答，review 等验收。 */
+export type NanoFlowNoteNeeds = "answer" | "review";
 
 /** ready 面板里的一条 note；不含正文。 */
 export interface NanoFlowReadyNote {
@@ -132,6 +130,7 @@ export interface NanoFlowReadyNote {
   readonly title: string;
   readonly description: string;
   readonly status: NanoFlowNoteStatus;
+  readonly needs?: NanoFlowNoteNeeds;
   readonly blocked_by: readonly string[];
   readonly blocked_reason?: string;
 }
@@ -146,7 +145,7 @@ export interface NanoFlowReadyCounts {
   readonly total: number;
   readonly pending: number;
   readonly in_progress: number;
-  readonly awaiting_verification: number;
+  readonly waiting: number;
   readonly blocked: number;
   readonly completed: number;
 }

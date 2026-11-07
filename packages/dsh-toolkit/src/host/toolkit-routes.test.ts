@@ -82,7 +82,7 @@ const setup = async () => {
       total: 1,
       pending: 1,
       in_progress: 0,
-      awaiting_verification: 0,
+      waiting: 0,
       blocked: 0,
       completed: 0,
     },

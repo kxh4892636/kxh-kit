@@ -3,19 +3,48 @@ import type { NanoFlowSettings } from "../contract.js";
 /**
  * note 的五个状态；流转见 `nano-flow/prompt.md` 的 notes 一节。
  *
- * `awaiting_verification` 表示交付物已完成但等验收（如真机验证）：仍是未完成，
- * 只允许由 `status` 进入，`complete` 只接受该状态。
+ * `waiting` 表示交付物已完成但等一个人：仍是未完成，`needs` 说明等的是回答
+ * 还是验收。只允许由 `status` 进入，`complete` 只接受 `waiting` + `needs=review`。
  */
-export const NOTE_STATUSES = [
-  "pending",
-  "in_progress",
-  "awaiting_verification",
-  "blocked",
-  "completed",
-] as const;
+export const NOTE_STATUSES = ["pending", "in_progress", "waiting", "blocked", "completed"] as const;
+
+/** `waiting` 时在等什么：`answer` 等人回答问题，`review` 等人验收。 */
+export const NOTE_NEEDS = ["answer", "review"] as const;
 
 /** note 状态类型。 */
 export type NoteStatus = (typeof NOTE_STATUSES)[number];
+
+/** `waiting` 的等待目标。 */
+export type NoteNeeds = (typeof NOTE_NEEDS)[number];
+
+/** 重命名前的状态名；读到即当作 `waiting` + `needs: review`。 */
+export const LEGACY_WAITING_STATUS = "awaiting_verification";
+
+/**
+ * 把重命名前的状态名折到当前枚举。
+ * @param value - 配置里的 status 原值。
+ * @returns 归一化后的值；未知值原样返回，由调用方报错。
+ */
+export const normalizeStatus = (value: unknown): unknown =>
+  value === LEGACY_WAITING_STATUS ? "waiting" : value;
+
+/**
+ * 决定一条 note 最终的 `needs`。
+ *
+ * 旧文档的 `awaiting_verification` 没有 `needs`，按「等验收」补齐；新文档里
+ * `waiting` 缺 `needs` 已被 parseDocument 记为问题，这里只是不丢字段。
+ */
+export const resolvedNeeds = (
+  status: unknown,
+  needs: unknown,
+  rawStatus: unknown,
+): { needs?: NoteNeeds } => {
+  if (typeof needs === "string" && (NOTE_NEEDS as readonly string[]).includes(needs)) {
+    return { needs: needs as NoteNeeds };
+  }
+  if (status === "waiting" && rawStatus === LEGACY_WAITING_STATUS) return { needs: "review" };
+  return {};
+};
 
 /** 一条实现记录（DAG 的节点）。 */
 export interface NoteNode {
@@ -24,6 +53,8 @@ export interface NoteNode {
   /** 一句话摘要：列表、搜索与恢复只看它。 */
   readonly description: string;
   readonly status: NoteStatus;
+  /** `status === "waiting"` 时必填：等的是回答还是验收。 */
+  readonly needs?: NoteNeeds;
   readonly blocked_by: readonly string[];
   /** 完成凭据；`completed` 时不能为空。 */
   readonly evidence: readonly string[];
@@ -98,9 +129,20 @@ export const parseDocument = (raw: unknown, limits: NanoFlowSettings): PlanDocum
         `${at}.description 超过 ${limits.noteDescriptionMaxChars} 字，请压到一句话摘要`,
       );
     }
-    const status = item["status"];
+    const status = normalizeStatus(item["status"]);
     if (typeof status !== "string" || !(NOTE_STATUSES as readonly string[]).includes(status)) {
       problems.push(`${at}.status 必须是 ${NOTE_STATUSES.join(" | ")}`);
+    }
+    const needs = item["needs"];
+    if (status === "waiting" && needs === undefined) {
+      if (item["status"] !== LEGACY_WAITING_STATUS) {
+        problems.push(`${at}.status 是 waiting 时必须给 needs（${NOTE_NEEDS.join(" | ")}）`);
+      }
+    } else if (
+      needs !== undefined &&
+      (typeof needs !== "string" || !(NOTE_NEEDS as readonly string[]).includes(needs))
+    ) {
+      problems.push(`${at}.needs 必须是 ${NOTE_NEEDS.join(" | ")}`);
     }
     const blockedBy = item["blocked_by"];
     if (!isStringArray(blockedBy)) problems.push(`${at}.blocked_by 必须是字符串数组`);
@@ -132,6 +174,7 @@ export const parseDocument = (raw: unknown, limits: NanoFlowSettings): PlanDocum
       status: (typeof status === "string" && (NOTE_STATUSES as readonly string[]).includes(status)
         ? status
         : "pending") as NoteStatus,
+      ...resolvedNeeds(status, needs, item["status"]),
       blocked_by: isStringArray(blockedBy) ? blockedBy : [],
       evidence: isStringArray(evidence) ? evidence : [],
       ...(typeof blockedReason === "string" ? { blocked_reason: blockedReason } : {}),
@@ -213,6 +256,7 @@ export const serializeDocument = (document: PlanDocument): string => {
     title: note.title,
     description: note.description,
     status: note.status,
+    ...(note.needs === undefined ? {} : { needs: note.needs }),
     blocked_by: note.blocked_by,
     evidence: note.evidence,
     ...(note.blocked_reason === undefined ? {} : { blocked_reason: note.blocked_reason }),
@@ -260,19 +304,19 @@ export interface TodoGroup {
 const STATUS_ORDER: Record<NoteStatus, number> = {
   in_progress: 0,
   pending: 1,
-  awaiting_verification: 2,
+  waiting: 2,
   blocked: 3,
   completed: 4,
 };
 
 /**
- * 同层排序档位：可执行项在前，等待验证次之，blocked 最后。
- * 档位先于影响面比较，保证等待验证不会插到同层可执行项之前。
+ * 同层排序档位：可执行项在前，等待确认次之，blocked 最后。
+ * 档位先于影响面比较，保证等待确认不会插到同层可执行项之前。
  */
 const STATUS_RANK: Record<NoteStatus, number> = {
   in_progress: 0,
   pending: 0,
-  awaiting_verification: 1,
+  waiting: 1,
   blocked: 2,
   completed: 2,
 };
@@ -281,7 +325,7 @@ const STATUS_RANK: Record<NoteStatus, number> = {
  * 把未完成的 note 按依赖关系分组，供 `ready` 输出 todo 式列表。
  *
  * 有依赖关系的 note 落在同一组（弱连通分量），组内按拓扑顺序排列：前置在前，
- * 同层可执行项优先（解锁的未完成下游数降序、状态、id），等待验证排在其后、blocked 之前；
+ * 同层可执行项优先（解锁的未完成下游数降序、状态、id），等待确认排在其后、blocked 之前；
  * 已完成的依赖不参与连边。组间按组内最小 id 排序。
  * @param notes - 全部 note。
  * @returns 按组排列的 note；全部完成时为空数组。

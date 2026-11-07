@@ -247,7 +247,7 @@ describe("tools", () => {
     await tools.write.execute({ op: "status", note: "01", status: "in_progress" }, exec());
     await tools.write.execute({ op: "set_index", ids: ["01"] }, exec());
     await tools.write.execute(
-      { op: "status", note: "01", status: "awaiting_verification" },
+      { op: "status", note: "01", status: "waiting", needs: "review" },
       exec(),
     );
     const completed = await tools.write.execute(
@@ -298,7 +298,7 @@ describe("tools", () => {
     expect(text).toContain("03 [in_progress]");
   });
 
-  it("complete 只接受 awaiting_verification 的 note", async () => {
+  it("complete 只接受 waiting + needs=review 的 note", async () => {
     const workspace = await makeWorkspace();
     const tools = createTools(workspace);
     await tools.write.execute({ op: "init", domain: "demo", name: "2026-11-07-完成门槛" }, exec());
@@ -307,18 +307,26 @@ describe("tools", () => {
       exec(),
     );
     await expect(
-      tools.write.execute({ op: "status", note: "01", status: "awaiting_verification" }, exec()),
+      tools.write.execute({ op: "status", note: "01", status: "waiting", needs: "review" }, exec()),
     ).rejects.toThrow(/pending/);
     await tools.write.execute({ op: "status", note: "01", status: "in_progress" }, exec());
     await expect(
       tools.write.execute({ op: "complete", note: "01", evidence: ["做完了"] }, exec()),
-    ).rejects.toThrow(/awaiting_verification/);
+    ).rejects.toThrow(/waiting/);
+    // waiting/answer 也不能完成
+    await tools.write.execute(
+      { op: "status", note: "01", status: "waiting", needs: "answer" },
+      exec(),
+    );
+    await expect(
+      tools.write.execute({ op: "complete", note: "01", evidence: ["做完了"] }, exec()),
+    ).rejects.toThrow(/review/);
     // 拒绝时不能落盘成 completed
     const listed = String(await tools.read.execute({ op: "notes" }, exec()));
-    expect(listed).toContain("[in_progress] 示例 note");
+    expect(listed).toContain("[waiting/answer] 示例 note");
 
     await tools.write.execute(
-      { op: "status", note: "01", status: "awaiting_verification" },
+      { op: "status", note: "01", status: "waiting", needs: "review" },
       exec(),
     );
     const completed = await tools.write.execute(
@@ -328,28 +336,39 @@ describe("tools", () => {
     expect(String(completed)).toContain("已完成 note 01");
   });
 
-  it("resume 单列等待验证，readyNotes 不列它", async () => {
+  it("resume 单列等待回答/等待确认，readyNotes 不列它", async () => {
     const workspace = await makeWorkspace();
     const tools = createTools(workspace);
-    await tools.write.execute({ op: "init", domain: "demo", name: "2026-11-07-等待验证" }, exec());
+    await tools.write.execute({ op: "init", domain: "demo", name: "2026-11-07-等待确认" }, exec());
     await tools.write.execute(
       { op: "create", title: "等真机", description: "代码好了", content: "正文" },
       exec(),
     );
+    await tools.write.execute(
+      { op: "create", title: "等拍板", description: "要选方案", content: "正文" },
+      exec(),
+    );
     await tools.write.execute({ op: "status", note: "01", status: "in_progress" }, exec());
     await tools.write.execute(
-      { op: "status", note: "01", status: "awaiting_verification" },
+      { op: "status", note: "01", status: "waiting", needs: "review" },
+      exec(),
+    );
+    await tools.write.execute({ op: "status", note: "02", status: "in_progress" }, exec());
+    await tools.write.execute(
+      { op: "status", note: "02", status: "waiting", needs: "answer" },
       exec(),
     );
 
     const resumed = String(await tools.read.execute({ op: "resume" }, exec()));
     expect(resumed).toContain("可推进（0）");
-    expect(resumed).toContain("等待验证（1）");
-    expect(resumed).toContain("01 [awaiting_verification] 等真机 — 代码好了");
+    expect(resumed).toContain("等待确认（1）");
+    expect(resumed).toContain("等待回答（1）");
+    expect(resumed).toContain("01 [waiting/review] 等真机 — 代码好了");
+    expect(resumed).toContain("02 [waiting/answer] 等拍板 — 要选方案");
 
     const readied = String(await tools.read.execute({ op: "ready" }, exec()));
-    expect(readied).toContain("未完成（1）");
-    expect(readied).toContain("01 [awaiting_verification] 等真机");
+    expect(readied).toContain("未完成（2）");
+    expect(readied).toContain("01 [waiting/review] 等真机");
   });
 
   it("move 在 active / reference / archived 之间迁移", async () => {
@@ -362,7 +381,7 @@ describe("tools", () => {
     );
     await tools.write.execute({ op: "status", note: "01", status: "in_progress" }, exec());
     await tools.write.execute(
-      { op: "status", note: "01", status: "awaiting_verification" },
+      { op: "status", note: "01", status: "waiting", needs: "review" },
       exec(),
     );
     await tools.write.execute({ op: "complete", note: "01", evidence: ["校验通过"] }, exec());
@@ -417,7 +436,7 @@ describe("tools", () => {
     await writeFile(join(planDirectory, "story.md"), `# 超长故事\n${"中".repeat(12000)}`, "utf8");
     await tools.write.execute({ op: "status", note: "01", status: "in_progress" }, exec());
     await tools.write.execute(
-      { op: "status", note: "01", status: "awaiting_verification" },
+      { op: "status", note: "01", status: "waiting", needs: "review" },
       exec(),
     );
     await expect(

@@ -79,9 +79,7 @@ export const statusLine = (document: PlanDocument): string => {
   const total = document.notes.length;
   return `notes ${total}（completed ${count("completed")} / in_progress ${count(
     "in_progress",
-  )} / awaiting_verification ${count("awaiting_verification")} / blocked ${count(
-    "blocked",
-  )} / pending ${count("pending")}）`;
+  )} / waiting ${count("waiting")} / blocked ${count("blocked")} / pending ${count("pending")}）`;
 };
 
 /** 一条 note 的列表行。 */
@@ -90,7 +88,8 @@ export const formatNoteLine = (note: NoteNode): string => {
     const reason = note.blocked_reason ?? "未写明原因";
     return `${note.id} [blocked] ${note.title} — ${note.description}（${reason}）`;
   }
-  return `${note.id} [${note.status}] ${note.title} — ${note.description}`;
+  const suffix = note.needs === undefined ? "" : `/${note.needs}`;
+  return `${note.id} [${note.status}${suffix}] ${note.title} — ${note.description}`;
 };
 
 /** Plan 头：引用、状态与 notes 统计。 */
