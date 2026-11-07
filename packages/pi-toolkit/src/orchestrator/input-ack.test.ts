@@ -328,6 +328,7 @@ describe("orchestrator_workers 展示待消费", () => {
     const { root, ref } = await makePlan();
     const dispatch = tools.get("orchestrator_dispatch");
 
+    // 不传 delivery：默认 steer，记的是 steered。
     await dispatch?.execute("id", { plan: ref, message: "做 42" }, undefined, undefined, ctx(root));
     const listed = textOf(
       await tools
@@ -335,10 +336,11 @@ describe("orchestrator_workers 展示待消费", () => {
         ?.execute("id", { op: "list" }, undefined, undefined, {}),
     );
     expect(listed).toContain("输入 1 次 · 待消费 1（最老");
+    expect(listed).toContain("[message/steer]");
     expect(listed).not.toContain("⚠");
 
-    // 宿主入队（真实宿主在 `followUp` 里同步发），再把它拼进本轮（队列回到空）。
-    session.emit(queueUpdate([], ["做 42"]));
+    // 宿主入队（真实宿主在 `steer` 里同步发），再把它拼进本轮（队列回到空）。
+    session.emit(queueUpdate(["做 42"], []));
     expect(
       textOf(
         await tools

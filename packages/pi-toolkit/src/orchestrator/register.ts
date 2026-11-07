@@ -282,8 +282,10 @@ const formatAgo = (at: number, now: number): string => {
  * 放行集合，worker 才能写 `completed`。
  *
  * **入队即返回**：`deliver` 只给出那条输入的终态 promise，不等整轮；终态由
- * `settled` 收割，超时交给后台 watchdog。`delivery` 与 `kind` 正交：默认 `queue`
- * （排到当前轮之后），`steer` 插入当前运行；空闲时 `steer` 退化为直接开新一轮。
+ * `settled` 收割，超时交给后台 watchdog。`delivery` 与 `kind` 正交：默认 `steer`
+ * （插入当前运行，worker 下一次 LLM 调用前生效），`queue` 排到当前轮之后；空闲时
+ * `steer` 退化为直接开新一轮。默认走 steer 是因为追加口径排在当前轮之后会被这一轮的
+ * report 漏掉（“报一半”）；它也意味着可能打断 worker 已定的计划，批量派活要显式 `queue`。
  */
 const createDispatchTool = (
   runtime: ToolRuntime,
@@ -297,7 +299,7 @@ const createDispatchTool = (
     name: "orchestrator_dispatch",
     label: "Dispatch",
     description:
-      "把一项工作交给 worker：给了 plan + notes 就按组分派（一组无依赖 note 一个 worker），只给 plan 走 Plan 级派工，都没给则起临时 worker（无 Plan、只读 + report、跑完即弃）。worktree 为 true（自动命名）或一个名字时，先把 worker 放进 .worktrees/<名字>（分支 wt/<名字>）并在那里 pnpm install，隔离并行改动。kind 为 message（默认，派活或追加）、pass（放行某条 note 置 completed）、rework、answer、fact。delivery 为 queue（默认，排到 worker 当前轮之后）或 steer（插入当前运行，下一次 LLM 调用前生效）。",
+      "把一项工作交给 worker：给了 plan + notes 就按组分派（一组无依赖 note 一个 worker），只给 plan 走 Plan 级派工，都没给则起临时 worker（无 Plan、只读 + report、跑完即弃）。worktree 为 true（自动命名）或一个名字时，先把 worker 放进 .worktrees/<名字>（分支 wt/<名字>）并在那里 pnpm install，隔离并行改动。kind 为 message（默认，派活或追加）、pass（放行某条 note 置 completed）、rework、answer、fact。delivery 为 steer（默认，插入当前运行，下一次 LLM 调用前生效；worker 空闲时退化为直接开新一轮）或 queue（排到 worker 当前轮之后，不打断；批量派活或不希望打断时显式指定）。",
     promptSnippet:
       "Dispatch work to a plan's worker group, a plan-wide worker, a temporary worker, optionally inside a git worktree.",
     promptGuidelines: [
@@ -305,7 +307,7 @@ const createDispatchTool = (
       "需要真隔离（两个 worker 可能改同一批文件）时给 worktree: true 或一个名字；worker 的 cwd 就是 .worktrees/<名字>，Plan 仍锚定主工作区。",
       "worktree 的 worker 完成前必须自己 rebase 到主分支最新提交，并在 report 里写明可以 --ff-only 合并；rebase 冲突就报 blocked 并保留现场。合并成功后派一条回收指令（git merge --ff-only + 删 worktree 与分支）。",
       "pass / rework / answer 带 note 时路由到包含它的组；该 note 不属于任何组就自动以 [note] 单独成组投递（组键可复用，不会每次都新建会话）。只有 note 本身不在 Plan 里才报错。",
-      "默认 delivery=queue，不打断 worker 当前这轮；只有方向错了或要叫停某步才用 steer（插话），硬停整个 worker 用 orchestrator_workers 的 abort。",
+      "默认 delivery=steer：追加口径在本轮生效（不会漏在这一轮 report 之外）；批量派活、与当前任务无关的新工作，或不想打断它已定的计划时显式 delivery=queue（排到当前轮之后）。注意 steer 会插进当前运行，可能在 worker 改到一半时改向；硬停整个 worker 用 orchestrator_workers 的 abort。",
       "用户的明确决定才可下发 pass / rework；不要把推断当放行。",
     ],
     parameters: Type.Unsafe<Record<string, unknown>>({
@@ -326,7 +328,7 @@ const createDispatchTool = (
           type: "string",
           enum: [...DELIVERY_MODES],
           description:
-            "投递方式：queue（默认，追加到当前轮之后，不打断）| steer（插入当前运行，下一次 LLM 调用前生效；worker 空闲时退化为直接开新一轮）",
+            "投递方式：steer（默认，插入当前运行，下一次 LLM 调用前生效；worker 空闲时退化为直接开新一轮）| queue（追加到当前轮之后，不打断；批量派活或不希望打断时显式指定）",
         },
         note: { type: "string", description: "kind=pass / rework / answer 时针对的 note id" },
         notes: {
@@ -355,7 +357,7 @@ const createDispatchTool = (
       if (!(INPUT_KINDS as readonly string[]).includes(kind)) {
         throw new Error(`kind 必须是 ${INPUT_KINDS.join(" | ")}`);
       }
-      const deliveryMode = (optionalString(args, "delivery") ?? "queue") as DeliveryMode;
+      const deliveryMode = (optionalString(args, "delivery") ?? "steer") as DeliveryMode;
       if (!(DELIVERY_MODES as readonly string[]).includes(deliveryMode)) {
         throw new Error(`delivery 必须是 ${DELIVERY_MODES.join(" | ")}`);
       }

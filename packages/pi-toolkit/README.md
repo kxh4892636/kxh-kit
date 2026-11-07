@@ -360,9 +360,12 @@ its session and queues the message as a follow-up, a different group gets its ow
 as soon as it settles. Dispatch does **not** wait for the run: it
 returns a `plan` / `notes` / `kind` / `note` / `started` / `queued` / `delivery` / `delivered` summary as
 soon as the input is enqueued, so several plans can be dispatched back to back. `delivery` is orthogonal to
-`kind`: `queue` (the default) appends the input as a `followUp` that is digested after the worker's current
-turn, while `steer` calls `session.steer()` so the new direction is in place before the worker's next LLM
-call — use it for "wrong direction" or "don't touch that file", not for ordinary messages. `steer` on an
+`kind`: `steer` (the default) calls `session.steer()` so the new direction is in place before the worker's next
+LLM call — an appended correction can no longer fall outside the report the worker is about to write — while
+`queue` appends the input as a `followUp` that is digested after the worker's current turn (ask for it
+explicitly for batches or when the worker should not be interrupted). The default costs something: `steer`
+interrupts a plan the worker already settled and can redirect it mid-edit, so a large unrelated task belongs
+on `queue`. `steer` on an
 idle worker has no running turn to steer into and degrades to `prompt()`; the result then reports
 `delivered: "prompt"`. `nextTurn` is never used (it is not persisted and dies with the process). There is no
 `abort` argument: to hard-stop a worker use `orchestrator_workers`'s abort and dispatch again.

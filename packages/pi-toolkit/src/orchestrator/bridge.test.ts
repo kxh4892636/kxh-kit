@@ -582,7 +582,7 @@ describe("dispatch 与 workers 工具", () => {
     sessions[0]?.finish?.();
   });
 
-  it("delivery 默认 queue；steer 插话到忙着的 worker，空闲时退化", async () => {
+  it("delivery 默认 steer；显式 queue 才排队，空闲时 steer 退化", async () => {
     const busySessions: FakeSession[] = [];
     const busy = await setup({
       makeSession: () => {
@@ -594,10 +594,28 @@ describe("dispatch 与 workers 工具", () => {
     const { root, ref } = await planArgs();
     const dispatch = busy.tools.get("orchestrator_dispatch");
 
-    // 默认 delivery=queue：追加为 followUp，不插话。
+    // 不传 delivery：默认 steer，插话进当前运行，不 followUp。
+    const steered = await dispatch?.execute(
+      "id",
+      { plan: ref, message: "别动 register.ts" },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+    expect(textOf(steered)).toContain("delivery: steer → steered");
+    expect(textOf(steered)).toContain("已插话：下一次 LLM 调用前生效");
+    expect((steered as { details: Record<string, unknown> }).details).toMatchObject({
+      delivery: "steer",
+      delivered: "steered",
+      queued: true,
+    });
+    expect(busySessions[0]?.steers).toEqual(["别动 register.ts"]);
+    expect(busySessions[0]?.followUps).toHaveLength(0);
+
+    // 显式 delivery=queue：仍然排到当前轮之后，不打断。
     const queued = await dispatch?.execute(
       "id",
-      { plan: ref, message: "做 01" },
+      { plan: ref, message: "做 01", delivery: "queue" },
       undefined,
       undefined,
       ctx(root),
@@ -610,24 +628,7 @@ describe("dispatch 与 workers 工具", () => {
       queued: true,
     });
     expect(busySessions[0]?.followUps).toEqual(["做 01"]);
-    expect(busySessions[0]?.steers).toHaveLength(0);
-
-    // delivery=steer：走 steer，不 followUp。
-    const steered = await dispatch?.execute(
-      "id",
-      { plan: ref, message: "别动 register.ts", delivery: "steer" },
-      undefined,
-      undefined,
-      ctx(root),
-    );
-    expect(textOf(steered)).toContain("delivery: steer → steered");
-    expect(textOf(steered)).toContain("已插话：下一次 LLM 调用前生效");
-    expect((steered as { details: Record<string, unknown> }).details).toMatchObject({
-      delivery: "steer",
-      delivered: "steered",
-    });
     expect(busySessions[0]?.steers).toEqual(["别动 register.ts"]);
-    expect(busySessions[0]?.followUps).toEqual(["做 01"]);
 
     await expect(
       dispatch?.execute(
@@ -639,18 +640,12 @@ describe("dispatch 与 workers 工具", () => {
       ),
     ).rejects.toThrow(/delivery 必须是 queue \| steer/);
 
-    // 空闲时 steer 退化为直接开新一轮，返回值里注明。
+    // 空闲时默认的 steer 退化为直接开新一轮，返回值里注明。
     const idle = await setup({ makeSession: () => fakeSession(true) });
     const { root: idleRoot, ref: idleRef } = await planArgs("2026-11-07-空闲");
     const degenerate = await idle.tools
       .get("orchestrator_dispatch")
-      ?.execute(
-        "id",
-        { plan: idleRef, message: "换方向", delivery: "steer" },
-        undefined,
-        undefined,
-        ctx(idleRoot),
-      );
+      ?.execute("id", { plan: idleRef, message: "换方向" }, undefined, undefined, ctx(idleRoot));
     expect(textOf(degenerate)).toContain("delivery: steer → prompt");
     expect(textOf(degenerate)).toContain("插话退化为直接开新一轮");
     expect(idle.spawns[0]?.prompts).toEqual(["换方向"]);
@@ -661,10 +656,17 @@ describe("dispatch 与 workers 工具", () => {
     const { tools, spawns } = await setup({ makeSession: () => fakeSession(false) });
     const { root, ref } = await planArgs();
     const dispatch = tools.get("orchestrator_dispatch");
-    await dispatch?.execute("id", { plan: ref, message: "做 01" }, undefined, undefined, ctx(root));
     await dispatch?.execute(
       "id",
-      { plan: ref, message: "  别动\nregister.ts  ", delivery: "steer" },
+      { plan: ref, message: "做 01", delivery: "queue" },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+    // 第二条不传 delivery：默认 steer。
+    await dispatch?.execute(
+      "id",
+      { plan: ref, message: "  别动\nregister.ts  " },
       undefined,
       undefined,
       ctx(root),
@@ -677,6 +679,7 @@ describe("dispatch 与 workers 工具", () => {
     // 最近一次输入：摘要（换行被折叠）+ 时刻 + 种类/方式。
     expect(listed).toContain("最近输入 刚刚 [message/steer] 别动 register.ts");
     expect(spawns[0]?.steers).toEqual(["  别动\nregister.ts  "]);
+    expect(spawns[0]?.followUps).toEqual(["做 01"]);
   });
 
   it("临时派工用 worker=temp:<id> 寻址：同 id 复用，作废后再派报错", async () => {
@@ -1235,8 +1238,9 @@ describe("dispatch 与 workers 工具", () => {
       ctx(root),
     );
     expect(spawns).toHaveLength(2);
-    expect(spawns[0]?.followUps).toHaveLength(0);
-    expect(spawns[1]?.followUps[0]).toContain("[pass] note 02");
+    // 默认 steer：pass 插进 02 组当前运行，不去打扰 01 组。
+    expect(spawns[0]?.steers).toHaveLength(0);
+    expect(spawns[1]?.steers[0]).toContain("[pass] note 02");
 
     await expect(
       dispatch?.execute(
