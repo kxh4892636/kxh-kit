@@ -7,6 +7,41 @@ import type { OrchestratorSettings } from "./config.ts";
 /** notes 文件的固定文件名。 */
 export const NOTES_FILE = "notes.json";
 
+/** 写回锁的键：一个 Plan 的 `notes.json` 绝对路径。 */
+export const documentLockKey = (planDirectory: string): string => join(planDirectory, NOTES_FILE);
+
+/**
+ * 每个 `notes.json` 一条串行链：后来的写操作挂在前一个的尾巴上。
+ *
+ * 锁是**进程内**的：多个 worker 与编排方共存于同一个 pi 进程（`createAgentSession`
+ * in-process），共享模块缓存，所以这个表就是共享的。跨 pi 实例不在本次范围 ——
+ * 那时需要真正的文件锁（例如 `*.lock` + 原子创建）。
+ */
+const writeChains = new Map<string, Promise<void>>();
+
+/**
+ * 在同一份 `notes.json` 上串行执行一次读-改-写。
+ *
+ * 锁必须盖住「读 → 改 → 写」整段，而不只是最后的 rename：否则两个 worker 并行推进
+ * 同一 Plan 的不同组时，后写的会把先写的改动整个盖掉。
+ * @param key - 锁键，用 `documentLockKey` 生成。
+ * @param action - 持锁期间的操作。
+ * @returns `action` 的结果。
+ */
+export const withDocumentLock = <T>(key: string, action: () => Promise<T>): Promise<T> => {
+  const previous = writeChains.get(key) ?? Promise.resolve();
+  // 前一个失败不影响下一个：成功与失败都往下接。
+  const next = previous.then(action, action);
+  writeChains.set(
+    key,
+    next.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return next;
+};
+
 const describe = (error: unknown): string => {
   return error instanceof Error ? error.message : String(error);
 };

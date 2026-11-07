@@ -89,7 +89,7 @@ _避免使用_：预设、preset、agentPreset
 _避免使用_：轮转、换会话、物理删除
 
 **ask_questions**：
-随 `orchestrator` 模式激活的模型工具，逐题询问用户，支持预设选项、自定义回答与跳过，问题数量不设上限。
+随 `orchestrator` 模式激活的模型工具，逐题询问用户，支持预设选项、自定义回答与跳过，问题数量不设上限。TUI 用自定义组件渲染：每项两行（选项下一行是所有型概述），项间留空行；rpc / print 退回 `ctx.ui.select` 并把概述拼进 label。
 _避免使用_：ask_user_question、questionnaire
 
 **模型修复**：
@@ -103,7 +103,7 @@ _避免使用_：自动开工、自动执行 note
 ### 编排
 
 **派工**：
-`orchestrator_dispatch` 把一个 Plan 交给一个 worker session；同一 Plan 同一时刻只有一个 worker，重复派工复用既有会话，`kind=pass` 先记放行再投递。入队即返回，不等 worker 跑完 —— 终态由 promise 收剑，超时由后台 watchdog abort 并注入一条消息。
+`orchestrator_dispatch` 把一个 Plan 交给 worker session；`worker:plan` 是 **1:N**（一个 Plan 可挂多个 worker，一个 worker 领一组无依赖 note），同一组重复派工复用会话，`kind=pass` 先记放行再投递。`plan` 与 `lockedPlan` 都缺失时起**临时 worker**（无 Plan、只读 + report、跑完即弃）。worker 可再派一层**子 worker**（`depth 1`，只吃 `message`，改不了 notes，不能再往下派）。入队即返回，不等 worker 跑完 —— 终态由 promise 收割；watchdog 按连续无进展计时（`orchestrator_report` 即续期），到点 abort + 摘除句柄并注入一条消息，下次派工起新 worker。写回经进程内按 `notes.json` 路径的互斥：worker 与编排方同进程，跨 pi 实例不在范围。
 
 **放行**：
 编排方下发 `pass` 后 worker 才可把 note 置 `completed`；判断在编排方，落盘在 worker。

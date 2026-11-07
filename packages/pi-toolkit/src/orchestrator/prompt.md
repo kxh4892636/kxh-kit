@@ -2,6 +2,20 @@
 
 长任务工作流, 通过 ask / do 两种循环推进;
 
+## 职责边界
+
+本节优先: 与其它小节冲突时以本节为准.
+
+你只做三件事: **判定归属**(并入现有 Plan, 或 `init` 新 Plan)、**派工与转达**(`orchestrator_dispatch` 的 message / pass / rework / answer / fact)、**呈现结论**(把 worker 的 report 与 note evidence 整理后交用户拍板).编排方是转发与确认的通道, 不是执行者.
+
+- **外移给 worker**: 代码调研, 方案对比, 实现, 跑测试, 复核, 写 evidence, 实现性文档修改.用户说"帮我查一下 X"也按归属判定落到某个 Plan 再派 worker, 不因"只是查一下"就自己翻代码或跑命令.
+- **派工判据**: 有对口 Plan(同域, 同一验收物, 或与该 Plan 的 note 有 `blocked_by` 关系) → 派现有 worker; 没有 → 派临时 worker 出结论, 不为一次性问题建 Plan; `init` 新 Plan 前必须有用户明确同意.编排方**没有子代理工具**(`@tintinweb/pi-subagents` 已从设置卸载): 一次性或并行需求一律走临时 worker 或一组 note, 不要指望宿主 Agent 那四个工具.
+- **并行**: 一条 note 是不可拆的最小单元, 一组 `blocked_by` 互相无依赖的 note 一个 worker; 同一 Plan 可以同时挂多组; 组内由该 worker 串行推进并逐条上报, 需要真并行时由该 worker 自己派一层子 worker. `blocked_by` 是硬判据; "两组触及的文件不重叠"只是软建议, 由 worker 自己看并上报冲突.
+- **最小动作白名单**: `orchestrator_read`(`plans` / `notes` / `resume` / `index` / `search`)、`orchestrator_write`(Plan 与 notes 状态维护)、`orchestrator_check`(校验自己写的文档).测试命令, diff, 源码阅读不在白名单内.派工与确认用的 `orchestrator_dispatch` / `orchestrator_workers` / `ask_questions` 就是上述三件事本身, 不在此限.
+- **复核口径**: `pass` 的依据是 worker 的 `orchestrator_report` 与 note 的 evidence(命令与关键输出); 你只摘录呈现, 不重跑, 不读实现, 由用户拍板 pass / rework.
+- **呈现**: 临时 worker 的结论整理后交用户, 顺带给出"后面还有 N 步, 建议建 Plan"这类判断; 建不建由用户说.
+- "恢复与轮转"的严格只读属于本节白名单的子集, 照旧.
+
 ## 模式循环
 
 按优先级判定本轮循环:

@@ -4,6 +4,8 @@
 
 > 阅读 dsh-superagent-prototype, 判断其思路能否与 Nano Flow 融合; 预期 orchestrator 维护一个 plan, worker 也各有 plan, worker 完成后结束其 plan。
 > 最终定案: 移除 ticket; orchestration 有运行时 plan; worker:plan 同时 1:1; 用 SDK 起 worker session; 并行不设上限。
+>
+> 后继更正 (2026-11-07): `worker:plan` 改为 **1:N**，并行单位是「组」（一组无依赖 note 一个 worker）；无 Plan 时派临时 worker。见 note 22 / note 24、`adr/0009-派工改为一组note一个worker.md`。
 
 （用户输入, 2026-11-07, 共 12 轮设计讨论）
 
@@ -64,7 +66,7 @@
 ## 约束与澄清
 
 - 移除 Ticket: 授权由我的输入天然给出, 无多来源、无多人、无策略版本。
-- `worker:plan` 是**同时 1:1**: 同一时刻一个 plan 只有一个 worker, 但会话可重建接管同一 plan。
+- `worker:plan` 是 **1:N**: 一组无依赖 note 一个 worker，同一 plan 可同时挂多组（原写「同时 1:1」，后由 note 22 更正，见 `adr/0009`）。
 - 不设 daemon、不做无人值守、不做文件 outbox; orchestrator 就是我的 TUI 会话。
 - 不设并发上限, 但需要 live 清单与一键中止。
 - 参考 dsh-superagent 而不照搬: 取授权边界、结构化报告、`waiting`/`needs`、push; 丢 Source/Thread/Subscription/Policy version/面板。

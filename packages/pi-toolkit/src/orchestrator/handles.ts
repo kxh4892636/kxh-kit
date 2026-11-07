@@ -1,9 +1,11 @@
 /**
  * worker 句柄表。
  *
- * 一个进程里同一时刻只允许一个 worker 服务同一个 Plan（`worker:plan` 同时 1:1），
- * 所以这张表既是幂等锁（重复 dispatch 复用同一个 session），也是 `/orchestrator
- * workers` 与退出收尾的唯一事实来源。键是 plan 目录的绝对路径。
+ * 句柄表的键是 **worker 的路由键**：`<plan 目录绝对路径>::<组标识>`，或临时 worker 的
+ * `temp:<id>`。一个 Plan 可以同时挂多个 worker（一组无依赖 note 一个），所以同一目录
+ * 会有多条条目；组标识省略时是 `<目录>::`，即老的单 worker-per-plan 路径。键既是幂等锁
+ * （同一组重复 dispatch 复用同一个 session），也是 `/orchestrator workers` 与退出收尾的
+ * 唯一事实来源。
  *
  * 表实例由 `registerOrchestrator` 的闭包持有，不做模块级单例：同一进程里 worker
  * session 共享模块缓存，模块级状态会让 worker 也看见编排方的句柄表。
@@ -33,8 +35,12 @@ export interface WorkerJob {
   readonly kind: InputKind;
   /** 针对的 note id。 */
   readonly note?: string;
+  /** 该 job 所属的组（空数组 = Plan 级派工）。 */
+  readonly notes?: readonly string[];
   /** 入队时刻（毫秒）。 */
   readonly startedAt: number;
+  /** 最近一次算作进展的时刻（毫秒）：入队或 `renew` 时刷新，展示与调试用。 */
+  progressAt: number;
   /** 这条输入的终态：worker 整轮 settle 时 resolve。 */
   readonly settled: Promise<void>;
   /** 后台 watchdog 定时器；收割或退出时清掉。 */
@@ -43,12 +49,19 @@ export interface WorkerJob {
   notified: boolean;
 }
 
+/** worker 形态：绑定 Plan，或没有 Plan 的一次性临时 worker。 */
+export type WorkerKind = "plan" | "temp";
+
 /** 表里的一条 worker。 */
 export interface WorkerEntry {
-  /** plan 目录绝对路径，也是键。 */
+  /** 路由键，也是键：plan 目录绝对路径，或临时 worker 的 `temp:<id>`。 */
   readonly planDirectory: string;
-  /** `<domain>/<lifecycle>/<name>`。 */
+  /** 展示用标识：`<domain>/<lifecycle>/<name>`，临时 worker 为 `temp:<id>`。 */
   readonly planRef: string;
+  /** worker 形态；缺省视作 `plan`。 */
+  readonly kind?: WorkerKind;
+  /** 本 worker 领的 note 组；空数组表示 Plan 级（未分组）派工。 */
+  readonly notes?: readonly string[];
   /** 起点时刻（毫秒）。 */
   readonly startedAt: number;
   /** 编排方已放行的 note id，worker 的 `complete` 依赖它。 */
@@ -69,13 +82,46 @@ export interface Delivery {
   readonly settled: Promise<void>;
 }
 
+/** 句柄键的分隔符：`<plan 目录或 temp:<id>>::<组标识>`。 */
+const KEY_SEPARATOR = "::";
+
+/**
+ * 组的规范化标识：note id 排序后拼接，所以同一批 note 无论传入顺序如何都是同一组。
+ * @param notes - 组内 note id。
+ * @returns 组标识；空数组给空串（Plan 级派工）。
+ */
+export const groupKeyOf = (notes: readonly string[]): string => [...notes].sort().join(",");
+
+/**
+ * 算一条 worker 的路由键。
+ *
+ * 一个 Plan 可以有多个 worker（一组一个），所以键 = plan 目录 + 组标识；没给组时为
+ * `<目录>::`，即老的单 worker-per-plan 路径（向后兼容）。
+ * @param planDirectory - plan 目录绝对路径，或临时 worker 的 `temp:<id>`。
+ * @param notes - 组内 note id；省略表示 Plan 级派工。
+ * @returns 句柄表的键。
+ */
+export const entryKeyOf = (planDirectory: string, notes: readonly string[] = []): string => {
+  return `${planDirectory}${KEY_SEPARATOR}${groupKeyOf(notes)}`;
+};
+
+/**
+ * 判断一个键是否属于某个 plan 目录（同一个 Plan 的任意组）。
+ * @param key - 句柄键。
+ * @param planDirectory - plan 目录绝对路径。
+ * @returns 属于该 Plan 返回 true。
+ */
+export const keyBelongsToPlan = (key: string, planDirectory: string): boolean => {
+  return key.startsWith(`${planDirectory}${KEY_SEPARATOR}`);
+};
+
 /** 句柄表。 */
 export interface WorkerRegistry {
-  /** 取一条；不存在返回 undefined。 */
+  /** 按路由键取一条；不存在返回 undefined。 */
   get(planDirectory: string): WorkerEntry | undefined;
   /** 登记；已存在时返回既有条目（幂等）。 */
   add(entry: WorkerEntry): WorkerEntry;
-  /** 移除并返回条目；不负责 dispose。 */
+  /** 按路由键移除并返回条目；不负责 dispose。 */
   remove(planDirectory: string): WorkerEntry | undefined;
   /** 全部条目，按起始时刻升序。 */
   list(): readonly WorkerEntry[];
@@ -150,6 +196,39 @@ export const deliver = (
     ? entry.session.followUp(rendered).then(() => entry.session.waitForIdle())
     : entry.session.prompt(rendered);
   return { queued, settled };
+};
+
+/**
+ * watchdog 到点时的回调：收到自己被派工的那条 job。
+ */
+export type TimeoutHandler = (job: WorkerJob) => void;
+
+/**
+ * 重设一条在途 job 的 watchdog：清旧 timer、按最新 `timeoutMs` 重设并 `unref`。
+ *
+ * 这是**唯一**登记 watchdog 的地方（派工与续期共用），所以不会出现两处各写一遍
+ * `setTimeout` 而漏掉 `unref`。`workerTimeoutMs` 衡量连续无进展，因此续期只对当前
+ * job 生效：已收割、已被新一代接管、或已经通知过超时的 job 一律不续，返回 false。
+ * @param entry - 目标 worker。
+ * @param job - 要续期的 job。
+ * @param timeoutMs - 新的无进展容忍时长。
+ * @param onTimeout - 到点回调；只在该 job 仍是当前 job 时才会有意义。
+ * @returns 真的续期了返回 true。
+ */
+export const renew = (
+  entry: WorkerEntry,
+  job: WorkerJob,
+  timeoutMs: number,
+  onTimeout: TimeoutHandler,
+): boolean => {
+  if (entry.job !== job) return false;
+  if (job.notified) return false;
+  if (job.timer !== undefined) clearTimeout(job.timer);
+  job.progressAt = Date.now();
+  const timer = setTimeout(() => onTimeout(job), timeoutMs);
+  timer.unref?.();
+  job.timer = timer;
+  return true;
 };
 
 /**

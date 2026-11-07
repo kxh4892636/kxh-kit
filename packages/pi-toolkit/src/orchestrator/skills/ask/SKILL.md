@@ -13,7 +13,7 @@ description: 目标, 边界或方案未定, 或需向用户取证, 提问时使�
 
 ## 步骤
 
-1. **取证**: 直接搜索或委派 subagent(若可用)从工作区获取事实;
+1. **取证**: 需要工作区事实时派该 Plan 的 worker(`orchestrator_dispatch`), 事实以 report 或 note 正文回读; 编排方在会话内不读源码, 不跑命令(见 `../../prompt.md` 的「职责边界」);
 2. **提问**: 每轮覆盖整个 frontier; 有可回读证据且无互斥选项的问题直接回答, 其余用 `ask_questions` 询问用户;
 3. **修订**: 使用 `orchestrator_write` 把结论就地写入 Plan; 更新选择,被排除路径与假设, 重算 frontier; 上游改变时复核并修订失效的下游结论.
 4. **收敛**: 可达问题均已处理,frontier 为空,无静默假设,用户反馈有结论后结束;

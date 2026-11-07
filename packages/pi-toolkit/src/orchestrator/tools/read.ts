@@ -186,7 +186,9 @@ const executeRead = async (
           lines.push(`  - ${formatNoteLine(note)}${suffix}`);
         }
       });
-      lines.push("下一步: 组内按从上到下执行；前置已完成的 note 可并行用 subagent 分担。");
+      lines.push(
+        "下一步: 无 blocked_by 依赖的 note 可分组并行（一组一个 worker，用 orchestrator_dispatch 的 notes 给出）；组内按依赖顺序串行。",
+      );
       return lines.join("\n");
     }
     case "graph": {

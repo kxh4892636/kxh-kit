@@ -7,9 +7,11 @@ description: 用户已放行且有可推进的 note 时使用; 逐条走门禁, 
 
 用户已放行且有可推进的 note 时按本循环推进; 门禁, 验证与 evidence 是完成条件, 不是收尾时才补的步骤.
 
+编排方按 `../../prompt.md` 的「职责边界」跑本循环: 选 note、分组与门禁判断留在编排方, 执行, verifying 与 review 外移给该 Plan 的 worker(`orchestrator_dispatch`); 编排方只用 worker 的 report 与 evidence 决定放行.
+
 ## 步骤
 
-1. **选 note**: 用 `ready` 看依赖分组; 从组内从上到下取前置已完成的 pending note; 前置已完成的 note 可并行, 没有可执行的先报告队列与阻塞项.
+1. **选 note 并分组**: 用 `ready` 看依赖分组; 把前置已完成、互相无 `blocked_by` 的 note 分成组(一组一个 worker), 没有可执行的先报告队列与阻塞项.
 2. **门禁**: 确认工作环境,执行契约与质量门禁.
 3. **执行**: 按交付物适用的规范完成全部产出;
 4. **验证**: 进行最小集合验收.
@@ -17,9 +19,9 @@ description: 用户已放行且有可推进的 note 时使用; 逐条走门禁, 
 
 ## 并行执行
 
-`ready` 按依赖关系分组: 有依赖关系的 note 在同一组, 组内从上到下是依赖顺序. DAG 里前置已完成的 note 可以并行, 用 `subagent` 一条 note 一个任务, 任务里带上 Plan 路径, note id, 正文要点, 验收与停止点. 前置未完成的 note 等前置.
+`ready` 按依赖关系分组: 有依赖关系的 note 在同一组, 组内从上到下是依赖顺序. DAG 里前置已完成且互相无 `blocked_by` 的 note 可以分成多组并行, 一组一个 worker(`orchestrator_dispatch` 的 `notes`); 同一 Plan 可以同时挂多组. 组内由该 worker 按依赖先后串行推进并逐条上报.
 
-`orchestrator_write` 的写入由主会话串行: subagent 只产出工作与证据, `status` / `update` / `complete` 统一由主会话执行, 避免并发覆盖 `notes.json`. 子任务全部回收后, 主会话写回证据再选下一组.
+`orchestrator_write` 的写入由该 Plan 的 worker 串行执行: 子任务只产出工作与证据, `status` / `update` / `complete` 统一由 worker 写回, 避免并发覆盖 `notes.json`. 子任务全部回收后, worker 写回证据并选下一组.
 
 ## 门禁
 
@@ -47,7 +49,7 @@ description: 用户已放行且有可推进的 note 时使用; 逐条走门禁, 
 
 ## review
 
-交付物触及代码,行为或用户可见输出时, 启动两个 subagent(若可用), 并行审查; 纯文档改动可只做 Spec 审查.
+交付物触及代码,行为或用户可见输出时, 该 Plan 的 worker 启动两个 subagent(若可用), 并行审查; 纯文档改动可只做 Spec 审查.审查也属于外移范围: 编排方只收 worker 的审查结论与 evidence, 不自己复审.
 
 - **Spec**: 读取交付产物对应的 story,spec,notes,adr,context 和其他来源, 验证是否符合工作需求.
 - **Standards**: 基于已有知识, 额外遵循 `AGENTS.md` 和适用的规范 skill, 判断交付产物是否符合工作规范.

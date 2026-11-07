@@ -13,9 +13,9 @@
 | 角色 | 是什么 | 归属域 |
 | --- | --- | --- |
 | orchestrator | 用户正在用的 TUI 会话 | `orchestration` |
-| worker | orchestrator 用 SDK 创建的 in-process session，`worker:plan` **同时** 1:1 | 该 plan 所属业务域 |
+| worker | orchestrator 用 SDK 创建的 in-process session，`worker:plan` 是 **1:N**（一组无依赖 note 一个 worker，见 `adr/0009-派工改为一组note一个worker.md`） | 该 plan 所属业务域 |
 
-不设 ticket：授权由用户输入天然给出，无多来源、无多人、无策略版本。会话可被重建接管同一 plan，故 1:1 是"同时"而非"一生"。
+不设 ticket：授权由用户输入天然给出，无多来源、无多人、无策略版本。会话可被重建接管同一 plan。并行单位是**组**（一次派工覆盖的一批互相无 `blocked_by` 依赖的 note）；`blocked_by` 是硬判据，"触及文件不重叠"只是软建议。临时 worker（无 Plan）只在 `plan` 与 `lockedPlan` 都缺失时起：只读 `orchestrator_read` + `orchestrator_report`，一轮 settle 后立即 dispose，建 Plan 需用户明确同意。
 
 ### 权限矩阵
 
@@ -149,14 +149,14 @@ worker session 用 `new DefaultResourceLoader({ cwd, agentDir, extensionFactorie
 - 原因：`handles.deliver` 里的 `await session.prompt()` 会等到 worker 整轮 settle（SDK 的 `prompt()` → `_startRun()` → `await agent.prompt()` + `continue()` 循环），外面再包 `withTimeout(workerTimeoutMs)`，结果是编排方一次只能等一个 worker —— “并行不设上限”只存在于原理上。
 - `handles.deliver` 改为同步入队（返回 `{ queued, settled }`，不再 await 整轮）；`WorkerEntry.job` 记在途 job（`kind` / `note` / `settled` / `timer` / `notified`），`harvest` 幂等收割（清 timer、摘 job，不误杀新一代 job），`createDispatchTool` 入队即返回。
 - 终态载体是 registry 里持有的 job promise（**不订阅事件**）：空闲分支的终态就是 `prompt()` 的 promise，忙分支是 `followUp()` 后接 `waitForIdle()`。SDK 侧两者都在 `_emitAgentSettled()` 之后才 resolve（`agent-session.js:1489` 的 `finally`，`waitForIdle` 走同函数末尾的 `_resolveIdleWaitIfIdle`），所以 promise 不早于事件、也不会丢；监听 `agent_settled` 只会多一条与 promise 平行的路径，而 `SessionLike` 也不必为此暴露 `on`。promise 在入队同一同步拍里就交给收割，不存在“抢在注册之前 settle”的窗口。
-- 后台 watchdog：入队时登记 timer，settle 时收割清掉；超时 `abort()` 并向编排方会话注入一条 `orchestrator-worker-timeout`（同一次派工只发一次），note 状态不代写（编排方对业务域只读）。
+- 后台 watchdog：入队时登记 timer，settle 时收割清掉；`orchestrator_report` 到达即**续期** —— `workerTimeoutMs` 衡量的是“连续无进展”而不是单轮总时长，续期只对当前 job 生效。到点 `abort()` + `disposeEntry()` + `registry.remove()`，并向编排方会话注入一条 `orchestrator-worker-timeout`（同一次派工只发一次），note 状态不代写（编排方对业务域只读）；下次派工是干净的新 worker。
 - 返回契约：`{ plan, started, queued, note }` 摘要 + “完成后会有 report 推回”，不引入 jobId；查状态仍用 `orchestrator_workers`。
 - 退出收尾：`disposeAll` / `disposeEntry` 先 `harvest`（清 timer）再 abort 并 dispose，退出后不会有残留定时器。
 
 ### 错误处理（七条）
 
 1. 幂等：spawn 前查句柄表，已存在则复用
-2. 超时：后台 watchdog 按 `workerTimeoutMs`（默认 30 min）计时 → `abort()` + 向编排方注入超时消息；不代写 note 状态
+2. 超时：`workerTimeoutMs`（默认 30 min）是**无进展**容忍时长；worker 每次 `orchestrator_report` 即续期（长任务每 10–15 分钟报一次进展）。到点 `abort()` + 摘除句柄 + dispose + 向编排方注入超时消息；不代写 note 状态
 3. 异常隔离：所有 handler / 工具 `execute` 过 `safe()`，捕获后记录并标记 plan `failed`，不外抛
 4. 进程兜底：`uncaughtException` / `unhandledRejection` → 写 `interrupted.json` → `process.exit(1)`
 5. 状态真相在磁盘：plan 运行态落 `interrupted.json` / 由 notes 派生，不从 session 存在推断

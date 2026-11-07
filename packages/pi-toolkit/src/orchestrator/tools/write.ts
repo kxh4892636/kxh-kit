@@ -14,7 +14,13 @@ import {
   type PlanDocument,
 } from "../dag.js";
 import { isPlanLifecycle, planRefOf, resolvePlan, type PlanRef } from "../plan.js";
-import { commitDocument, loadDocument, NOTES_FILE } from "../store.js";
+import {
+  commitDocument,
+  documentLockKey,
+  loadDocument,
+  NOTES_FILE,
+  withDocumentLock,
+} from "../store.js";
 import {
   asArguments,
   optionalString,
@@ -146,17 +152,19 @@ const initPlan = async (
   const planDirectory = join(domainsDirectory, domain, "plans", lifecycle, name);
   if (existsSync(planDirectory)) throw new Error(`Plan 已存在: ${domain}/${lifecycle}/${name}`);
   const created = await ensureDomain(runtime, workspace, domain);
-  await mkdir(planDirectory, { recursive: true });
-  const title = name.replace(/^\d{4}-\d{2}-\d{2}-/, "");
-  await writeIfMissing(join(planDirectory, "story.md"), `# ${title}\n`);
-  await writeIfMissing(join(planDirectory, "spec.md"), `# ${title}\n`);
-  await commitDocument(planDirectory, emptyDocument(), runtime.limits());
-  return [
-    `已建 Plan: ${domain}/${lifecycle}/${name}`,
-    `目录: ${planDirectory}`,
-    ...(created.length === 0 ? [] : [`顺带创建: ${created.join("、")}`]),
-    "下一步: 写 story.md 与 spec.md，再用 create 建 note。",
-  ].join("\n");
+  return withDocumentLock(documentLockKey(planDirectory), async () => {
+    await mkdir(planDirectory, { recursive: true });
+    const title = name.replace(/^\d{4}-\d{2}-\d{2}-/, "");
+    await writeIfMissing(join(planDirectory, "story.md"), `# ${title}\n`);
+    await writeIfMissing(join(planDirectory, "spec.md"), `# ${title}\n`);
+    await commitDocument(planDirectory, emptyDocument(), runtime.limits());
+    return [
+      `已建 Plan: ${domain}/${lifecycle}/${name}`,
+      `目录: ${planDirectory}`,
+      ...(created.length === 0 ? [] : [`顺带创建: ${created.join("、")}`]),
+      "下一步: 写 story.md 与 spec.md，再用 create 建 note。",
+    ].join("\n");
+  });
 };
 
 const movePlan = async (
@@ -387,6 +395,21 @@ const executeWrite = async (
   if (op === "move") return movePlan(runtime, workspace, args);
 
   const plan = await planFor(runtime, workspace, args);
+  // 同一个 notes.json 的读-改-写必须整体串行：多个 worker 并行推进同一 Plan 的不同组时，
+  // 两个 op 若各自「读→改→写」，后写的会盖掉先写的。锁是进程内的（见 store.ts）。
+  return withDocumentLock(documentLockKey(plan.directory), () =>
+    writePlan(runtime, workspace, plan, op, args),
+  );
+};
+
+/** 单个 Plan 上的写操作；调用时已持有该 Plan 的写回锁。 */
+const writePlan = async (
+  runtime: ToolRuntime,
+  workspace: string,
+  plan: PlanRef,
+  op: string,
+  args: Record<string, unknown>,
+): Promise<string> => {
   if (op === "repair") return repairPlan(runtime, plan, args);
   const document = await loadDocument(plan.directory, runtime.limits());
 

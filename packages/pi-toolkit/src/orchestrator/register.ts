@@ -23,7 +23,11 @@ import {
   deliver,
   disposeAll,
   disposeEntry,
+  entryKeyOf,
   harvest,
+  keyBelongsToPlan,
+  renew,
+  type WorkerEntry,
   type WorkerJob,
   type WorkerRegistry,
 } from "./handles.ts";
@@ -41,7 +45,7 @@ import {
   sessionModeOf,
   type BranchEntryLike,
 } from "./mode.ts";
-import { activePlans, listPlans, planRefOf, resolvePlan } from "./plan.ts";
+import { activePlans, listPlans, planRefOf, resolvePlan, type PlanRef } from "./plan.ts";
 import { pickMode } from "./selector.ts";
 import { loadDocument, NOTES_FILE } from "./store.ts";
 import { createCheckTool } from "./tools/check.ts";
@@ -50,6 +54,7 @@ import {
   asArguments,
   createToolRuntime,
   optionalString,
+  optionalStringArray,
   statusLine,
   textBlocks,
   type InterruptedAccess,
@@ -120,10 +125,66 @@ const referencesNotesFile = (toolName: string, input: unknown): boolean => {
 };
 
 /**
+ * 校验一组 note 可以并行：note 必须存在，且组内不得互相 `blocked_by`（否则「并行」会
+ * 因为依赖而退化为串行，又看不出原因）。文件是否重叠是软建议，不在派工时阻断。
+ * @param plan - 目标 Plan。
+ * @param notes - 组内 note id。
+ * @param runtime - 共享运行期依赖（取上限）。
+ */
+const assertParallelGroup = async (
+  plan: PlanRef,
+  notes: readonly string[],
+  runtime: ToolRuntime,
+): Promise<void> => {
+  const document = await loadDocument(plan.directory, runtime.limits());
+  const missing = notes.filter((id) => !document.notes.some((note) => note.id === id));
+  if (missing.length > 0) {
+    throw new Error(`没有 note ${missing.join(", ")}（${planRefOf(plan)}）`);
+  }
+  const group = new Set(notes);
+  const conflicts = document.notes
+    .filter((note) => group.has(note.id))
+    .flatMap((note) =>
+      note.blocked_by.filter((id) => group.has(id)).map((id) => `${id} → ${note.id}`),
+    );
+  if (conflicts.length > 0) {
+    throw new Error(
+      `这一组 note 之间有 blocked_by 依赖（${conflicts.join("、")}）：依赖必须串行，请拆成不同的组再派工`,
+    );
+  }
+};
+
+/** 在已分组的 Plan 里按 note 找它所属的组。 */
+const findByNote = (
+  registry: WorkerRegistry,
+  planDirectory: string,
+  note: string,
+): WorkerEntry | undefined => {
+  return registry
+    .list()
+    .find(
+      (entry) =>
+        keyBelongsToPlan(entry.planDirectory, planDirectory) && (entry.notes ?? []).includes(note),
+    );
+};
+
+/** 该 Plan 是否已经按组派过工（有 `notes` 非空的条目）。 */
+const hasGroups = (registry: WorkerRegistry, planDirectory: string): boolean => {
+  return registry
+    .list()
+    .some(
+      (entry) =>
+        keyBelongsToPlan(entry.planDirectory, planDirectory) && (entry.notes?.length ?? 0) > 0,
+    );
+};
+
+/**
  * `orchestrator_dispatch`：起一个 worker 或向它投递输入。
  *
- * 同一 plan 已有 live worker 时复用，绝不起第二个 —— `worker:plan` 同时 1:1
- * 由句柄表保证。`kind=pass` 先把 note 记进放行集合，worker 才能写 `completed`。
+ * 三种形态：给了 `plan` + `notes` 就派**组 worker**（一组无依赖 note 一个 worker，同一组
+ * 复用句柄）；只给 `plan` 走 Plan 级派工（老路径）；`plan` 与 `lockedPlan` 都没有则是
+ * **临时 worker**（不解析 Plan、键 `temp:<id>`、跑完即弃）。`kind=pass` 先把 note 记进
+ * 放行集合，worker 才能写 `completed`。
  *
  * **入队即返回**：`deliver` 只给出那条输入的终态 promise，不等整轮；终态由
  * `settled` 收割，超时交给后台 watchdog。
@@ -133,128 +194,180 @@ const createDispatchTool = (
   registry: WorkerRegistry,
   deps: OrchestratorDeps,
   onReport: (report: WorkerReport) => void,
-  sendTimeout: (planRef: string, job: WorkerJob, timeoutMs: number) => void,
-): OrchestratorTool => ({
-  name: "orchestrator_dispatch",
-  label: "Dispatch",
-  description:
-    "把一项工作交给某个 Plan 的 worker：首次调用会用 SDK 起一个 worker session，之后同一 Plan 复用同一个 worker。kind 为 message（默认，派活或追加）、pass（放行某条 note 置 completed）、rework、answer、fact。",
-  promptSnippet: "Start or message the worker of a plan.",
-  promptGuidelines: [
-    "同一 Plan 同一时刻只有一个 worker；重复 dispatch 复用既有 worker。",
-    "用户的明确决定才可下发 pass / rework；不要把推断当放行。",
-  ],
-  parameters: Type.Unsafe<Record<string, unknown>>({
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      plan: {
-        type: "string",
-        description: "<domain>/<lifecycle>/<name>；工作区只有一个 active 的 Plan 时可省略",
+  sendTimeout: (entry: WorkerEntry, job: WorkerJob, timeoutMs: number) => void,
+): OrchestratorTool => {
+  /** 临时 worker 的序号：进程内自增，键形如 `temp:1`，与 plan 目录不冲突。 */
+  let tempSeq = 0;
+  return {
+    name: "orchestrator_dispatch",
+    label: "Dispatch",
+    description:
+      "把一项工作交给 worker：给了 plan + notes 就按组分派（一组无依赖 note 一个 worker），只给 plan 走 Plan 级派工，都没给则起临时 worker（无 Plan、只读 + report、跑完即弃）。kind 为 message（默认，派活或追加）、pass（放行某条 note 置 completed）、rework、answer、fact。",
+    promptSnippet:
+      "Dispatch work to a plan's worker group, a plan-wide worker, or a temporary worker.",
+    promptGuidelines: [
+      "一组无依赖 note 一个 worker：用 notes 显式给出这一组；组内不得互相 blocked_by。",
+      "pass / rework / answer 带 note 时路由到包含它的组；找不到就报错，不要自己猜。",
+      "用户的明确决定才可下发 pass / rework；不要把推断当放行。",
+    ],
+    parameters: Type.Unsafe<Record<string, unknown>>({
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        plan: {
+          type: "string",
+          description:
+            "<domain>/<lifecycle>/<name>；省略且无 lockedPlan 时起临时 worker（不绑定 Plan）",
+        },
+        kind: {
+          type: "string",
+          enum: [...INPUT_KINDS],
+          description: "输入种类，默认 message",
+        },
+        note: { type: "string", description: "kind=pass / rework / answer 时针对的 note id" },
+        notes: {
+          type: "array",
+          items: { type: "string" },
+          description:
+            "组派工：这一组 note（互相不得有 blocked_by 依赖）；省略则走 Plan 级派工（老行为）",
+        },
+        message: { type: "string", description: "派活正文或追加说明" },
       },
-      kind: {
-        type: "string",
-        enum: [...INPUT_KINDS],
-        description: "输入种类，默认 message",
-      },
-      note: { type: "string", description: "kind=pass / rework 时针对的 note id" },
-      message: { type: "string", description: "派活正文或追加说明" },
-    },
-    required: [],
-  }),
-  async execute(_toolCallId, raw, _signal, _onUpdate, exec) {
-    const args = asArguments(raw);
-    const kind = (optionalString(args, "kind") ?? "message") as InputKind;
-    if (!(INPUT_KINDS as readonly string[]).includes(kind)) {
-      throw new Error(`kind 必须是 ${INPUT_KINDS.join(" | ")}`);
-    }
-    const note = optionalString(args, "note");
-    const message = optionalString(args, "message") ?? "";
-    const workspace = runtime.workspace(exec);
-    const plan = await resolvePlan(
-      workspace,
-      runtime.domainRoot,
-      optionalString(args, "plan") ?? runtime.lockedPlan,
-    );
+      required: [],
+    }),
+    async execute(_toolCallId, raw, _signal, _onUpdate, exec) {
+      const args = asArguments(raw);
+      const kind = (optionalString(args, "kind") ?? "message") as InputKind;
+      if (!(INPUT_KINDS as readonly string[]).includes(kind)) {
+        throw new Error(`kind 必须是 ${INPUT_KINDS.join(" | ")}`);
+      }
+      const note = optionalString(args, "note");
+      const message = optionalString(args, "message") ?? "";
+      const groupNotes = [...new Set(optionalStringArray(args, "notes") ?? [])];
+      const workspace = runtime.workspace(exec);
+      const planArgument = optionalString(args, "plan") ?? runtime.lockedPlan;
+      // 没有 plan 也没有 lockedPlan：临时模式，不解析 Plan。
+      const plan =
+        planArgument === undefined
+          ? undefined
+          : await resolvePlan(workspace, runtime.domainRoot, planArgument);
+      /** 临时 worker 的 id（`temp:<id>` 里的 `<id>`）；只有临时模式会用到。 */
+      const tempId = plan === undefined ? String((tempSeq += 1)) : "";
+      const key = plan === undefined ? `temp:${tempId}` : entryKeyOf(plan.directory, groupNotes);
+      const planRef = plan === undefined ? key : planRefOf(plan);
 
-    let entry = registry.get(plan.directory);
-    const started = entry === undefined;
-    if (entry === undefined) {
-      const released = new Set<string>();
-      const spawned = await (deps.spawn ?? spawnWorker)({
-        plan,
-        cwd: workspace,
-        settings: deps.settings,
-        report: onReport,
-        released,
-      });
-      entry = registry.add({
-        planDirectory: plan.directory,
-        planRef: planRefOf(plan),
-        startedAt: Date.now(),
-        released,
-        session: spawned.session,
-        inputs: 0,
-      });
-    }
-    if (kind === "pass" && note !== undefined) entry.released.add(note);
-    const target = entry;
-    const timeoutMs = deps.settings().orchestrator.workerTimeoutMs;
-    const delivery = deliver(target, kind, message, note);
-    // 新一代 job 接管：先把上一条的清掉，免得定时器滞留到超时后才消失。
-    harvest(target);
-    const job: WorkerJob = {
-      kind,
-      ...(note === undefined ? {} : { note }),
-      startedAt: Date.now(),
-      settled: delivery.settled,
-      notified: false,
-    };
-    target.job = job;
-    const timer = setTimeout(() => sendTimeout(planRefOf(plan), job, timeoutMs), timeoutMs);
-    timer.unref?.();
-    job.timer = timer;
-    // 终态到了就收割：清定时器、摘 job。reject 也走到这里，不让它变成未处理拒绝。
-    const done = (): void => {
-      harvest(target, job);
-    };
-    void delivery.settled.then(done, done);
+      if (plan !== undefined && groupNotes.length > 0) {
+        await assertParallelGroup(plan, groupNotes, runtime);
+      }
 
-    const head = started
-      ? `已起 worker 接手 ${planRefOf(plan)}`
-      : `已投递给 ${planRefOf(plan)} 的 worker`;
-    return {
-      content: textBlocks(
-        [
-          head,
-          `kind: ${kind}${note === undefined ? "" : ` · note ${note}`}`,
-          delivery.queued ? "worker 正在跑，输入已排队。" : "worker 已开始处理。",
-          "完成后会有 report 推回；用 orchestrator_workers 查 live 清单。",
-        ].join("\n"),
-      ),
-      details: {
-        plan: planRefOf(plan),
-        started,
-        queued: delivery.queued,
+      // pass / rework / answer 只看 note 落在哪个组；Plan 已经分组却找不到匹配时直接报错。
+      const routeByNote =
+        plan !== undefined && note !== undefined && kind !== "message"
+          ? (() => {
+              const matched = findByNote(registry, plan.directory, note);
+              if (matched === undefined && hasGroups(registry, plan.directory)) {
+                throw new Error(
+                  `没有包含 note ${note} 的 worker 组（${planRef}）：不知道投给哪一组，先确认分组或重新派工`,
+                );
+              }
+              return matched;
+            })()
+          : undefined;
+
+      let entry = routeByNote ?? registry.get(key);
+      const started = entry === undefined;
+      if (entry === undefined) {
+        const released = new Set<string>();
+        const base = { cwd: workspace, settings: deps.settings, report: onReport, released };
+        const spawned = await (deps.spawn ?? spawnWorker)(
+          plan === undefined ? { ...base, temp: tempId } : { ...base, plan },
+        );
+        entry = registry.add({
+          planDirectory: key,
+          planRef,
+          ...(plan === undefined ? { kind: "temp" as const } : {}),
+          ...(groupNotes.length === 0 ? {} : { notes: groupNotes }),
+          startedAt: Date.now(),
+          released,
+          session: spawned.session,
+          inputs: 0,
+        });
+      }
+      if (kind === "pass" && note !== undefined) entry.released.add(note);
+      const target = entry;
+      const timeoutMs = deps.settings().orchestrator.workerTimeoutMs;
+      const delivery = deliver(target, kind, message, note);
+      // 新一代 job 接管：先把上一条的清掉，免得定时器滞留到超时后才消失。
+      harvest(target);
+      const now = Date.now();
+      const job: WorkerJob = {
         kind,
         ...(note === undefined ? {} : { note }),
-      },
-    };
-  },
-});
+        ...(groupNotes.length === 0 ? {} : { notes: groupNotes }),
+        startedAt: now,
+        progressAt: now,
+        settled: delivery.settled,
+        notified: false,
+      };
+      target.job = job;
+      renew(target, job, timeoutMs, () => sendTimeout(target, job, timeoutMs));
+      // 终态到了就收割：清定时器、摘 job。reject 也走到这里，不让它变成未处理拒绝。
+      // 临时 worker 是一次性的：终态即摘除句柄并 dispose，不留隐性状态也不进 live 清单。
+      const done = (): void => {
+        harvest(target, job);
+        if (target.kind === "temp") {
+          registry.remove(target.planDirectory);
+          void disposeEntry(target);
+        }
+      };
+      void delivery.settled.then(done, done);
+
+      const head = started
+        ? plan === undefined
+          ? `已起临时 worker ${planRef}（无 Plan，跑完即弃）`
+          : groupNotes.length > 0
+            ? `已起 worker 接手 ${planRef} 的组 [${groupNotes.join(", ")}]`
+            : `已起 worker 接手 ${planRef}`
+        : `已投递给 ${planRef} 的 worker${groupNotes.length > 0 ? `（组 [${groupNotes.join(", ")}]）` : ""}`;
+      return {
+        content: textBlocks(
+          [
+            head,
+            `kind: ${kind}${note === undefined ? "" : ` · note ${note}`}`,
+            delivery.queued ? "worker 正在跑，输入已排队。" : "worker 已开始处理。",
+            "完成后会有 report 推回；用 orchestrator_workers 查 live 清单。",
+          ].join("\n"),
+        ),
+        details: {
+          plan: planRef,
+          started,
+          queued: delivery.queued,
+          kind,
+          ...(groupNotes.length === 0 ? {} : { notes: groupNotes }),
+          ...(plan === undefined ? { temp: true } : {}),
+          ...(note === undefined ? {} : { note }),
+        },
+      };
+    },
+  };
+};
 
 /** `orchestrator_workers`：列 live worker 或中止它们（不设并发上限，但要能刹车）。 */
 const createWorkersTool = (registry: WorkerRegistry): OrchestratorTool => ({
   name: "orchestrator_workers",
   label: "Workers",
-  description: "列出当前 live worker（plan、起始时刻、最近上报），或中止其中一个 / 全部。",
+  description:
+    "列出当前 live worker（plan 或 temp:<id>、形态、起始时刻、最近上报），或中止其中一个 / 全部。",
   promptSnippet: "List or abort live worker sessions.",
   parameters: Type.Unsafe<Record<string, unknown>>({
     type: "object",
     additionalProperties: false,
     properties: {
       op: { type: "string", enum: ["list", "abort"], description: "list | abort" },
-      plan: { type: "string", description: "op=abort 时的 plan 引用；省略表示中止全部" },
+      plan: {
+        type: "string",
+        description: "op=abort 时的 plan 引用或 `temp:<id>`；省略表示中止全部",
+      },
     },
     required: ["op"],
   }),
@@ -289,7 +402,10 @@ const createWorkersTool = (registry: WorkerRegistry): OrchestratorTool => ({
         entry.lastReport === undefined
           ? "尚无上报"
           : `${entry.lastReport.outcome} · note ${entry.lastReport.note}`;
-      lines.push(`  ${entry.planRef} · ${minutes} 分钟 · 输入 ${entry.inputs} 次 · ${report}`);
+      const group = entry.notes === undefined ? "" : `notes: ${entry.notes.join(",")} · `;
+      lines.push(
+        `  ${entry.planRef} · ${group}${entry.kind === "temp" ? "temp" : "plan"} · ${minutes} 分钟 · 输入 ${entry.inputs} 次 · ${report}`,
+      );
     }
     return { content: textBlocks(lines.join("\n")), details: { count: entries.length } };
   },
@@ -366,14 +482,79 @@ export const registerOrchestrator = (
   const registry: WorkerRegistry = createRegistry();
 
   /**
-   * worker 上报的落点：先记进句柄表，再把一条消息注入编排方会话。
+   * 后台 watchdog 到点：中止这条派工的 worker、摘除句柄，并向编排方注入一条超时消息。
+   *
+   * 只对同一次派工发一次（`job.notified`），stale timer 或已被新一代接管的 job 直接
+   * 返回；**不代写 note 状态** —— 编排方对业务域只读，重新派工还是改派由人决定。
+   *
+   * 摘除句柄是必需的：被 abort 的 session 不能再复用，留着会让 `orchestrator_workers`
+   * 的 live 清单说谎；下次派工应该起一个干净的新 worker。
+   */
+  const sendTimeout = (entry: WorkerEntry, job: WorkerJob, timeoutMs: number): void => {
+    if (entry.job !== job || job.notified) return;
+    job.notified = true;
+    const planRef = entry.planRef;
+    const target = job.note === undefined ? "" : ` · note ${job.note}`;
+    const group =
+      job.notes === undefined || job.notes.length === 0 ? "" : ` · notes ${job.notes.join(",")}`;
+    const minutes = Math.round(timeoutMs / 60_000);
+    void (async () => {
+      try {
+        await entry.session.abort();
+      } catch {
+        // 已经结束的 session 会拒绝 abort；收尾时忽略。
+      }
+      await disposeEntry(entry);
+      registry.remove(entry.planDirectory);
+      try {
+        pi.sendMessage(
+          {
+            customType: "orchestrator-worker-timeout",
+            content: [
+              `[worker] 超时：${planRef} 的 worker 超过 ${minutes} 分钟没有进展，已中止并摘除句柄（kind: ${job.kind}${group}${target}）。`,
+              "下次派工会起新 worker。note 状态未改动：按磁盘上的 notes 决定重新派工还是改派。",
+              "用 orchestrator_workers 查 live 清单。",
+            ].join("\n"),
+            display: true,
+            details: {
+              plan: planRef,
+              kind: job.kind,
+              timedOut: true,
+              ...(job.note === undefined ? {} : { note: job.note }),
+              ...(job.notes === undefined ? {} : { notes: job.notes }),
+            },
+          },
+          { triggerTurn: true, deliverAs: "followUp" },
+        );
+      } catch {
+        // 会话正在关闭时无法注入；abort 与摘除已经发生。
+      }
+    })();
+  };
+
+  /**
+   * worker 上报的落点：续期 watchdog、记进句柄表，再把一条消息注入编排方会话。
    * report 只是通知，磁盘上的 notes 才是事实。
+   *
+   * 任何 outcome（包括纯信息性的 `done`）都算进展并续期：`workerTimeoutMs` 衡量连续
+   * 无进展，不是单轮总时长，长任务只需定期报一句。
    */
   const onReport = (report: WorkerReport): void => {
     const directory = report.plan;
     if (directory !== undefined) {
-      const entry = registry.get(directory);
-      if (entry !== undefined) entry.lastReport = report;
+      // 路由：先找包含该 note 的组，再退到 Plan 级条目（老路径），最后试临时 worker 的键。
+      const entry =
+        findByNote(registry, directory, report.note) ??
+        registry.get(entryKeyOf(directory)) ??
+        registry.get(directory);
+      if (entry !== undefined) {
+        entry.lastReport = report;
+        const job = entry.job;
+        if (job !== undefined) {
+          const timeoutMs = deps.settings().orchestrator.workerTimeoutMs;
+          renew(entry, job, timeoutMs, () => sendTimeout(entry, job, timeoutMs));
+        }
+      }
     }
     const lines = [`[worker] ${report.outcome} · note ${report.note}: ${report.summary}`];
     if (report.question !== undefined) lines.push(`问题: ${report.question}`);
@@ -390,43 +571,6 @@ export const registerOrchestrator = (
       );
     } catch {
       // 会话正在关闭时无法注入；上报已经记进句柄表，不影响状态。
-    }
-  };
-
-  /**
-   * 后台 watchdog 到点：中止这条派工的 worker，并向编排方注入一条超时消息。
-   *
-   * 只对同一次派工发一次（`job.notified`），stale timer 或已收割的 job 直接返回；
-   * **不代写 note 状态** —— 编排方对业务域只读，重新派工还是改派由人决定。
-   */
-  const sendTimeout = (planRef: string, job: WorkerJob, timeoutMs: number): void => {
-    const entry = registry.list().find((candidate) => candidate.planRef === planRef);
-    if (entry === undefined || entry.job !== job || job.notified) return;
-    job.notified = true;
-    void entry.session.abort().catch(() => undefined);
-    const target = job.note === undefined ? "" : ` · note ${job.note}`;
-    const minutes = Math.round(timeoutMs / 60_000);
-    try {
-      pi.sendMessage(
-        {
-          customType: "orchestrator-worker-timeout",
-          content: [
-            `[worker] 超时：${planRef} 的 worker 超过 ${minutes} 分钟没有结束，已中止（kind: ${job.kind}${target}）。`,
-            "note 状态未改动：按磁盘上的 notes 决定重新派工还是改派。",
-            "用 orchestrator_workers 查 live 清单。",
-          ].join("\n"),
-          display: true,
-          details: {
-            plan: planRef,
-            kind: job.kind,
-            timedOut: true,
-            ...(job.note === undefined ? {} : { note: job.note }),
-          },
-        },
-        { triggerTurn: true, deliverAs: "followUp" },
-      );
-    } catch {
-      // 会话正在关闭时无法注入；abort 已经发生。
     }
   };
 

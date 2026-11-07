@@ -524,3 +524,63 @@ describe("resume 与真实凭据文件", () => {
     expect(readInterrupted(stateDir)?.plans).toEqual(["demo/active/另一个计划"]);
   });
 });
+
+describe("notes.json 写回锁", () => {
+  it("并发读改写同一份 notes 不丢更新", async () => {
+    const cwd = await makeWorkspace();
+    const tools = setup();
+    await run(tools.write, { op: "init", domain: "demo", name: "2026-11-08-并发计划" }, cwd);
+    const plan = "demo/active/2026-11-08-并发计划";
+    await run(
+      tools.write,
+      { op: "create", plan, title: "甲", description: "甲", content: "甲" },
+      cwd,
+    );
+    await run(
+      tools.write,
+      { op: "create", plan, title: "乙", description: "乙", content: "乙" },
+      cwd,
+    );
+
+    // 三个 op 同时开工：没有锁的话「读→改→写」会互相覆盖。
+    await Promise.all([
+      run(tools.write, { op: "update", plan, note: "01", content: "甲改" }, cwd),
+      run(tools.write, { op: "status", plan, note: "02", status: "in_progress" }, cwd),
+      run(tools.write, { op: "set_index", plan, ids: ["01"] }, cwd),
+    ]);
+
+    const text = await readFile(
+      join(cwd, ".agents/domains/demo/plans/active/2026-11-08-并发计划/notes.json"),
+      "utf8",
+    );
+    const document = JSON.parse(text) as {
+      index: string[];
+      notes: { id: string; status: string; content: string }[];
+    };
+    expect(document.notes.find((note) => note.id === "01")?.content).toBe("甲改");
+    expect(document.notes.find((note) => note.id === "02")?.status).toBe("in_progress");
+    expect(document.index).toEqual(["01"]);
+  });
+
+  it("withDocumentLock 按路径串行，前一个失败不阻塞后一个", async () => {
+    const { documentLockKey, withDocumentLock } = await import("./store.ts");
+    const key = documentLockKey(join(tmpdir(), "pi-lock-serial"));
+    let active = 0;
+    let peak = 0;
+    const order: number[] = [];
+    await Promise.all(
+      Array.from({ length: 5 }, (_unused, index) =>
+        withDocumentLock(key, async () => {
+          active += 1;
+          peak = Math.max(peak, active);
+          await new Promise((resolve) => setTimeout(resolve, 1));
+          order.push(index);
+          active -= 1;
+          if (index === 1) throw new Error("模拟写失败");
+        }).catch(() => undefined),
+      ),
+    );
+    expect(peak).toBe(1);
+    expect(order).toEqual([0, 1, 2, 3, 4]);
+  });
+});

@@ -226,6 +226,11 @@ panel; the tools and the command are the query surface. `--orchestrator` starts 
 While a session runs Orchestrator:
 
 - The fixed prompt in `prompt.md` is added as the `orchestrator` system-prompt section.
+- The orchestrator only triages and relays: it decides which plan an input belongs to, dispatches the
+  plan's worker, and presents the worker's report plus note evidence for the user to confirm. Code
+  research, implementation, tests and review belong to workers; `prompt.md` fixes the action whitelist
+  (`orchestrator_read` / `write` / `check` / `dispatch` / `workers` / `ask_questions`) and the
+  existing-vs-new-worker rule.
 - `orchestrator_read` (plans / notes / get / ready / graph / index / search / resume),
   `orchestrator_write` (init / create / update / link / status / complete / set_index / merge / delete /
   move), `orchestrator_check` (plan / workspace / limits), `orchestrator_dispatch` (start or message the
@@ -234,8 +239,11 @@ While a session runs Orchestrator:
 - `status` takes `pending / in_progress / waiting / blocked`; `waiting` must say what it waits for via
   `needs: "answer" | "review"`, and `complete` only accepts `waiting` + `needs=review`. Old
   `awaiting_verification` documents are read as `waiting` + `needs=review`.
-- `ask_questions` asks any number of questions; each one offers model-provided options plus a custom
-  answer and a skip action.
+- `ask_questions` asks any number of questions; each one offers model-provided options (each with an
+  optional one-line description) plus a custom answer and a skip action. In the TUI it renders its own
+  list — two lines per option, a blank line between options — because the host `SelectList` keeps the
+  description on the same line and has no item gap; `rpc` / `print` fall back to `ctx.ui.select` with the
+  description appended to the label.
 - pi's automatic compaction is disabled. When context usage reaches `rotateAt`, the next input
   replaces the conversation with a resume seed plus that input; the Plan on disk is the state.
 - Non-`orchestrator_*` tools are blocked from touching `notes.json` (policy, not a security boundary).
@@ -248,20 +256,36 @@ The worker keeps `orchestrator_check` for self-checking: `op: "plan"` validates 
 `op: "limits"` reports the limits, and `op: "workspace"` is scoped to `common` plus its own domain —
 the same set it may write. The orchestrator's `op: "workspace"` covers every domain.
 
-`orchestrator_dispatch` starts one worker per plan with the SDK's `createAgentSession` (in process, no
-extension discovery, only the worker extension). A plan has at most one live worker at a time; a second
-dispatch reuses it and queues the message as a follow-up. Dispatch does **not** wait for the run: it
-returns a `plan` / `kind` / `note` / `started` / `queued` summary as soon as the input is enqueued, so
-several plans can be dispatched back to back. The turn's terminal state is the enqueued input's promise
-(`prompt()`, or `followUp()` then `waitForIdle()`), which harvests the job; a background watchdog aborts
-on `orchestrator.workerTimeoutMs` and injects one `orchestrator-worker-timeout` message, without touching
-note state. The worker can do every note-level action but
+`orchestrator_dispatch` starts one worker per **group of notes** with the SDK's `createAgentSession` (in
+process, no extension discovery, only the worker extension). `worker:plan` is 1:N: a plan can run several
+workers at once, one group (a set of notes with no `blocked_by` between them) each; the same group reuses
+its session and queues the message as a follow-up, a different group gets its own. Dispatch with neither
+`plan` nor a locked plan starts a **temporary worker** instead — no plan, read-only tools + report, dropped
+as soon as it settles. Dispatch does **not** wait for the run: it
+returns a `plan` / `notes` / `kind` / `note` / `started` / `queued` summary as soon as the input is enqueued, so
+several plans can be dispatched back to back. `pass` / `rework` / `answer` with a `note` route to the group
+that owns it; a note no group owns is an error, never a guess. `notes.json` writes are serialized per path
+inside the process (workers and the orchestrator share one pi process); two pi instances writing the same
+plan are out of scope. The turn's terminal state is the enqueued input's promise
+(`prompt()`, or `followUp()` then `waitForIdle()`), which harvests the job. A background watchdog measures
+**time without progress**: every `orchestrator_report` from that worker renews it, so a long task just has to
+report periodically (every 10–15 minutes). On `orchestrator.workerTimeoutMs` of silence the watchdog aborts
+the session, drops its handle (the next dispatch starts a fresh worker) and injects one
+`orchestrator-worker-timeout` message, without touching note state. The worker can do every note-level action but
 cannot `init` a plan, cannot `move` it, and cannot write `completed` — it reports the note as
 `waiting(needs=review)` with `orchestrator_report`, and only after the orchestrator sends `pass` may it
 complete. The worker has no `ask_questions`: a question becomes `orchestrator_report(needs_answer)`.
 
 `orchestrator_report` arrives in the orchestrator session as an `orchestrator-report` message. Reports
 are notifications; the notes on disk are the truth.
+
+A worker can dispatch **one layer of sub-workers** (`depth 1`) with its own restricted
+`orchestrator_dispatch`, which takes a `message` and nothing else. A sub-worker gets the host's file
+tools plus read-only `orchestrator_read` and `orchestrator_report`: it can edit workspace files, it
+cannot write `notes.json` (no `orchestrator_write`), and it cannot dispatch further. Its reports and
+timeouts go to the **parent worker's** session only — the orchestrator never sees a sub-worker's
+handle — and it is dropped as soon as it settles. The subagent package that used to provide a second
+parallel channel is no longer installed, so this is the only way down.
 
 The plugin never reconciles on `session_start`: opening a session neither injects a message nor spends a
 turn. Recovery is explicit — `orchestrator_read` with `op: "resume"` is the one place that selects a plan

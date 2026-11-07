@@ -27,7 +27,7 @@ export interface WorkerReport {
   readonly question?: string;
   /** 已产出的证据；`needs_review` 时建议给出。 */
   readonly evidence?: readonly string[];
-  /** 由桥接层补齐：plan 的绝对路径。 */
+  /** 由桥接层补齐：路由键 —— plan 目录的绝对路径，或临时 worker 的 `temp:<id>`。 */
   readonly plan?: string;
   /** 由桥接层补齐：上报时刻。 */
   readonly at?: string;
@@ -51,7 +51,7 @@ export interface InputMessage {
 export interface WorkerHandle {
   /** plan 目录绝对路径，也是句柄表的键。 */
   readonly planDirectory: string;
-  /** `<domain>/<lifecycle>/<name>`。 */
+  /** `<domain>/<lifecycle>/<name>`，临时 worker 为 `temp:<id>`。 */
   readonly planRef: string;
   /** 起点时刻（毫秒）。 */
   readonly startedAt: number;
