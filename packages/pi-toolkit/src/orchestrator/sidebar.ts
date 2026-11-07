@@ -127,6 +127,10 @@ export const iconMargin = (): OverlayMargin => ({
 export const COMPLETED_LABEL = "已完成";
 /** 没有 worker 组归属的历史 note 放在这个组下。 */
 export const UNGROUPED_LABEL = "未分组";
+/** 领了具体 note 的 worker 组前缀（后面接 id 列表）。 */
+export const WORKER_NOTES_LABEL = "worker: notes ";
+/** Plan 级 worker（`entry.notes` 为空）的组名。 */
+export const WORKER_PLAN_LABEL = "worker: plan";
 /** 状态中文名：note 行左侧就用它（例：`执行中 · 38 侧栏改版…`）。 */
 export const STATUS_LABELS: Readonly<Record<NoteStatus, string>> = {
   pending: "待开工",
@@ -218,25 +222,42 @@ const undoneOf = (notes: readonly SidebarNote[]): readonly SidebarNote[] =>
         STATUS_ORDER[left.status] - STATUS_ORDER[right.status] || left.id.localeCompare(right.id),
     );
 
-/** 列表里的缩进：Plan 顶层 0 格，组 1 格，note 2 格（三级一眼能分）。 */
-export const GROUP_INDENT = " ";
-/** note 行相对 Plan 标题的缩进。 */
-export const NOTE_INDENT = "  ";
+/** 同层后面还有兄弟的接续符。 */
+export const TREE_BRANCH = "├─ ";
+/** 同层最后一支。 */
+export const TREE_LAST = "└─ ";
+/** 父支还有后续时，子层的竖向接续。 */
+export const TREE_PIPE = "│  ";
+/** 父支已到底时，子层的空白接续（仍是 3 列，栅格不歪）。 */
+export const TREE_BLANK = "   ";
 
-const noteRow = (plan: SidebarPlan, note: SidebarNote): SidebarRow => ({
+/** 第 `index` 支（共 `total` 支）的接续符。 */
+const branchOf = (index: number, total: number): string =>
+  index === total - 1 ? TREE_LAST : TREE_BRANCH;
+/** 第 `index` 支的子层前缀：父支后面还有兄弟就画竖线，否则留空。 */
+const contOf = (index: number, total: number): string =>
+  index === total - 1 ? TREE_BLANK : TREE_PIPE;
+
+const noteRow = (plan: SidebarPlan, note: SidebarNote, text: string): SidebarRow => ({
   kind: "note",
-  text: `${NOTE_INDENT}${noteRowText(note)}`,
+  text,
   plan: plan.ref,
   note: note.id,
   status: note.status,
   running: note.running,
 });
 
+/** Plan 下的一支：一个 worker 组（带要展示的 note）或已完成折叠行。 */
+type PlanChild =
+  | { readonly kind: "group"; readonly group: SidebarGroup; readonly notes: readonly SidebarNote[] }
+  | { readonly kind: "fold"; readonly done: number };
+
 /**
- * 构建一帧列表：**Plan → worker 组 → note** 三级，已完成的在每个 Plan 下沉成一行折叠。
+ * 构建一帧列表：**Plan → worker 组 → note** 三级，用 `├─` / `└─` 树形接续符表现层级。
  *
- * 为什么不把已完成也摆进组：worker 条目在收尾后就从 `registry` 里消失，已完成 note 会集体掉进
- * `未分组`，翻出来也多是一堆散条；折叠成一行更可读（展开后平铺在 Plan 下）。
+ * 行距靠连接符而不是空行：组与组、note 与 note 之间**不插空行**，只有 Plan 与 Plan 之间留一行。
+ * 已完成默认在每个 Plan 下折成一支（`└─ 已完成 N 条 ▸`），展开后归入各自组内（组还在时）或
+ * `未分组`，不再平铺到 Plan 下。
  * @param plans - 各 Plan 的组（只含 active、且已过滤编排期域）。
  * @param expanded - 已展开“已完成”的 Plan ref 集合。
  * @returns 行数组（下标 = 鼠标 `y` - `SIDEBAR_HEADER_ROWS`）。
@@ -247,58 +268,64 @@ export const buildSidebarView = (
 ): SidebarView => {
   const open = new Set(expanded);
   const rows: SidebarRow[] = [];
-  for (const plan of plans) {
-    if (rows.length > 0) rows.push({ kind: "spacer", text: "" });
-    rows.push({ kind: "plan", text: `▾ ${shortPlanName(plan.name)}`, plan: plan.ref });
-    const done: SidebarNote[] = [];
+  plans.forEach((plan, planIndex) => {
+    if (planIndex > 0) rows.push({ kind: "spacer", text: "" });
+    rows.push({ kind: "plan", text: shortPlanName(plan.name), plan: plan.ref });
+    const isOpen = open.has(plan.ref);
+    const children: PlanChild[] = [];
+    let done = 0;
     for (const group of plan.groups) {
-      const undone = undoneOf(group.notes);
-      done.push(...group.notes.filter((note) => note.status === "completed"));
-      if (undone.length === 0) continue;
+      const completed = group.notes
+        .filter((note) => note.status === "completed")
+        .sort((left, right) => left.id.localeCompare(right.id));
+      done += completed.length;
+      const shown = isOpen ? [...undoneOf(group.notes), ...completed] : undoneOf(group.notes);
+      if (shown.length > 0) children.push({ kind: "group", group, notes: shown });
+    }
+    if (done > 0) children.push({ kind: "fold", done });
+    children.forEach((child, index) => {
+      const branch = branchOf(index, children.length);
+      const cont = contOf(index, children.length);
+      if (child.kind === "fold") {
+        rows.push({
+          kind: "fold",
+          text: `${branch}${COMPLETED_LABEL} ${child.done} 条 ${isOpen ? "▾" : "▸"}`,
+          plan: plan.ref,
+        });
+        return;
+      }
       rows.push({
         kind: "group",
-        text: `${GROUP_INDENT}▾ ${group.label}`,
+        text: `${branch}${child.group.label}`,
         plan: plan.ref,
-        ...(group.running ? { running: true } : {}),
+        ...(child.group.running ? { running: true } : {}),
       });
-      for (const note of undone) rows.push(noteRow(plan, note));
-    }
-    if (done.length === 0) continue;
-    const isOpen = open.has(plan.ref);
-    rows.push({
-      kind: "fold",
-      text: `${GROUP_INDENT}${COMPLETED_LABEL} ${done.length} 条 ${isOpen ? "▾" : "▸"}`,
-      plan: plan.ref,
+      child.notes.forEach((note, noteIndex) => {
+        const noteBranch = branchOf(noteIndex, child.notes.length);
+        rows.push(noteRow(plan, note, `${cont}${noteBranch}${noteRowText(note)}`));
+      });
     });
-    if (isOpen) {
-      for (const note of [...done].sort((left, right) => left.id.localeCompare(right.id))) {
-        rows.push(noteRow(plan, note));
-      }
-    }
-  }
+  });
   return { rows };
 };
 
+/**
+ * 行样式：只靠颜色区分「在跑」（accent）与其余，**不用 `dim` 弱化**去假装字号变小。
+ * 层级已经由树形接续符表达。
+ */
 const renderRow = (row: SidebarRow, width: number, theme: Theme): string => {
   switch (row.kind) {
     case "plan":
       return truncateToWidth(theme.bold(row.text), width);
     case "group":
       return truncateToWidth(
-        row.running === true ? theme.fg("accent", row.text) : theme.fg("dim", theme.bold(row.text)),
+        row.running === true ? theme.fg("accent", row.text) : theme.bold(row.text),
         width,
       );
     case "note":
-      return truncateToWidth(
-        row.running === true
-          ? theme.fg("accent", row.text)
-          : row.status === "completed"
-            ? theme.fg("dim", row.text)
-            : row.text,
-        width,
-      );
+      return truncateToWidth(row.running === true ? theme.fg("accent", row.text) : row.text, width);
     case "fold":
-      return truncateToWidth(theme.fg("dim", row.text), width);
+      return truncateToWidth(row.text, width);
     case "spacer":
       return "";
   }
@@ -464,6 +491,16 @@ export interface WorkerGroupSpec {
  * @param groups - 该 Plan 的 worker 组（按句柄表顺序）。
  * @returns 组列表：有 live worker 的组在前，`未分组` 总在最后；空组不列出。
  */
+/**
+ * 把 note 按 worker 组分桶：每个 `registry` 条目一个组（同一个 Plan 下多组分别列出），
+ * 不属于任何组的（历史遗留、已完成）落到 `未分组`。
+ *
+ * 组名按 worker 的形态：领了具体 note 的叫 `worker: notes 38,42`；`notes` 为空数组表示
+ * **Plan 级派工**（见 `handles.ts`），这个 worker 领的就是剩下没被其他组占的 note，叫 `worker: plan`。
+ * @param notes - 该 Plan 的全部 note。
+ * @param groups - 该 Plan 的 worker 组（按句柄表顺序）。
+ * @returns 组列表：有 live worker 的组在前，`worker: plan` / `未分组` 总在最后；空组不列出。
+ */
 export const groupSidebarNotes = (
   notes: readonly SidebarNote[],
   groups: readonly WorkerGroupSpec[],
@@ -472,6 +509,8 @@ export const groupSidebarNotes = (
   const assigned = new Set<string>();
   const result: SidebarGroup[] = [];
   for (const group of groups) {
+    // Plan 级 worker 留到最后统一认领剩下的 note。
+    if (group.notes.length === 0) continue;
     const members = group.notes
       .map((id) => byId.get(id))
       .filter((note): note is SidebarNote => note !== undefined)
@@ -482,12 +521,22 @@ export const groupSidebarNotes = (
     const ids = members.map((note) => note.id);
     result.push({
       key: ids.join(","),
-      label: `组 ${ids.join(",")}`,
+      label: `${WORKER_NOTES_LABEL}${ids.join(",")}`,
       running: group.running,
       notes: members,
     });
   }
   const rest = notes.filter((note) => !assigned.has(note.id));
+  const planLevel = groups.find((group) => group.notes.length === 0);
+  if (planLevel !== undefined && rest.length > 0) {
+    result.push({
+      key: WORKER_PLAN_LABEL,
+      label: WORKER_PLAN_LABEL,
+      running: planLevel.running,
+      notes: rest,
+    });
+    return result;
+  }
   if (rest.length > 0) {
     result.push({ key: UNGROUPED_LABEL, label: UNGROUPED_LABEL, running: false, notes: rest });
   }

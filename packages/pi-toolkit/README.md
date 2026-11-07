@@ -268,13 +268,32 @@ While a session runs Orchestrator:
 - Non-`orchestrator_*` tools are blocked from touching `notes.json` (policy, not a security boundary).
 - **Sidebar (TUI only).** While the mode is on, a `▤` icon sits in the top-right corner and toggles a
   32-column right-anchored overlay (`sidebar.ts`). The list is **three levels — Plan → worker group →
-  note** — with no summary line at the top: each active Plan (except plans in the `orchestration`
-  domain, see below) is a bold row, each worker group from the registry is an indented `▾ 组 38,42`
-  row (one row per group, so a Plan with several workers lists several groups), and notes nobody holds
-  live fall under `▾ 未分组`. A note row is `待验收 · 42 下行 ack` — the Chinese status name
-  (`执行中` / `待回答` / `待验收` / `阻塞` / `待开工` / `已完成`) plus id and title, never the description;
-  the description lives in the detail card only. Completed notes are folded into one `已完成 N 条 ▸`
-  row per Plan (click it to expand).
+  note** — with no summary line at the top, drawn as a tree: the Plan row is unadorned, its children use
+  `├─` / `└─` (the last child of each level is always `└─`) and continue with `│  ` while the parent still
+  has siblings below.
+
+  ```
+  pi多plan编排
+  ├─ worker: notes 43
+  │  ├─ 执行中 · 43 侧栏改版…
+  │  └─ 已完成 · 42 下行 ack…
+  ├─ worker: plan
+  │  └─ 执行中 · 39 worktree 派工
+  └─ 已完成 3 条 ▸
+  ```
+
+  Group labels come from the registry entry: `worker: notes 38,42` when the worker holds specific notes
+  (one row per group, so a Plan with several workers lists several groups), `worker: plan` for a
+  plan-level dispatch (`notes: []`), and `未分组` for notes nobody holds. A note row is
+  `待验收 · 42 下行 ack` — the Chinese status name (`执行中` / `待回答` / `待验收` / `阻塞` / `待开工` /
+  `已完成`) plus id and title, never the description; the description lives in the detail card only.
+  Completed notes are folded into the Plan's last branch (`└─ 已完成 N 条 ▸`); expanding it puts each one
+  back under its own group.
+
+  **Line spacing is carried by the tree connectors, not by blank rows**: no empty line between groups or
+  between notes; only between two Plans. Styling is colour-only — running rows use `accent`, everything
+  else is default/bold. There is deliberately **no `dim`** anywhere in the list: a terminal has no font
+  size, so dimming would be faking a smaller font rather than expressing hierarchy.
 
   Clicking a note opens the detail card: a `warning`-framed box headed `◇ note <id> · <状态>` carrying
   the snapshot (description, blocking reason, group, Plan) and, while a worker holds that note, a

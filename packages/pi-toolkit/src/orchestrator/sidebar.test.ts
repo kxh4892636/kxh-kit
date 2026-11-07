@@ -33,7 +33,13 @@ import {
   SIDEBAR_WIDTH,
   SIDEBAR_WIDGET_KEY,
   shortPlanName,
+  TREE_BLANK,
+  TREE_BRANCH,
+  TREE_LAST,
+  TREE_PIPE,
   UNGROUPED_LABEL,
+  WORKER_NOTES_LABEL,
+  WORKER_PLAN_LABEL,
   type SidebarGroup,
   type SidebarNote,
   type SidebarPlan,
@@ -68,7 +74,7 @@ const demoPlans = (): SidebarPlan[] => [
     name: "2026-01-01-demo",
     groups: [
       group(
-        "组 02,03",
+        `${WORKER_NOTES_LABEL}02,03`,
         [
           note("02", "在跑", "in_progress", { running: true }),
           note("03", "等验收", "waiting", { needs: "review" }),
@@ -180,7 +186,7 @@ const press = (y: number): never =>
   ({ type: "press", button: "left", x: 1, y, screenX: 100, screenY: y }) as never;
 
 describe("侧边栏列表", () => {
-  it("三级分组：Plan → worker 组 → note，条目是「状态中文名 · 序号 名称」", () => {
+  it("三级分组：Plan → worker 组 → note，用 ├─ / └─ 接续", () => {
     const view = buildSidebarView(demoPlans());
     expect(view.rows.map((row) => row.kind)).toEqual([
       "plan",
@@ -194,41 +200,90 @@ describe("侧边栏列表", () => {
       "fold",
     ]);
     expect(view.rows[0]).toMatchObject({ kind: "plan", plan: "pi/active/2026-01-01-demo" });
-    expect(view.rows[0]?.text).toBe("▾ demo");
-    // 组行在 Plan 下一级缩进一格；running 组高亮。
-    expect(view.rows[1]).toMatchObject({ kind: "group", text: " ▾ 组 02,03", running: true });
-    expect(view.rows[4]).toMatchObject({ kind: "group", text: ` ▾ ${UNGROUPED_LABEL}` });
-    // 缩进成阶梯：Plan 0 格 / 组 1 格 / note 2 格。
-    expect(view.rows[0]?.text.startsWith("▾")).toBe(true);
-    expect(view.rows[2]?.text.startsWith("  ")).toBe(true);
+    // Plan 是顶层，没有接续符。
+    expect(view.rows[0]?.text).toBe("demo");
+    // 组是 Plan 的子树：后面还有兄弟 ⇒ ├─；running 组高亮。
+    expect(view.rows[1]).toMatchObject({
+      kind: "group",
+      text: `${TREE_BRANCH}${WORKER_NOTES_LABEL}02,03`,
+      running: true,
+    });
+    expect(view.rows[4]).toMatchObject({
+      kind: "group",
+      text: `${TREE_BRANCH}${UNGROUPED_LABEL}`,
+    });
+    // note 是组的子树：父支还有后续 ⇒ 行首 `│  `。
+    const childPipe = `${TREE_PIPE}${TREE_BRANCH}`;
+    expect(view.rows[2]?.text).toBe(`${childPipe}执行中 · 02 在跑`);
+    expect(view.rows[3]?.text).toBe(`${TREE_PIPE}${TREE_LAST}待验收 · 03 等验收`);
     // 组内按状态排序（in_progress → waiting）。
     expect(view.rows.slice(2, 4).map((row) => row.note)).toEqual(["02", "03"]);
-    expect(view.rows[2]?.text).toBe("  执行中 · 02 在跑");
-    expect(view.rows[3]?.text).toBe("  待验收 · 03 等验收");
     // 未分组组内：waiting → blocked → pending。
     expect(view.rows.slice(5, 8).map((row) => row.note)).toEqual(["04", "05", "01"]);
-    expect(view.rows[5]?.text).toBe("  待回答 · 04 等人答");
-    expect(view.rows[6]?.text).toBe("  阻塞 · 05 卡住");
-    expect(view.rows[7]?.text).toBe("  待开工 · 01 待办");
+    expect(view.rows[5]?.text).toBe(`${childPipe}待回答 · 04 等人答`);
+    expect(view.rows[6]?.text).toBe(`${childPipe}阻塞 · 05 卡住`);
+    expect(view.rows[7]?.text).toBe(`${TREE_PIPE}${TREE_LAST}待开工 · 01 待办`);
+    // Plan 的最后一支：折叠行用 └─。
+    expect(view.rows[8]?.text).toBe(`${TREE_LAST}已完成 1 条 ▸`);
+  });
+
+  it("行距靠接续符：组与组、note 与 note 之间不插空行", () => {
+    const view = buildSidebarView(demoPlans());
+    // 只有 Plan 与 Plan 之间允许 spacer；单 Plan 一帧里一个 spacer 都没有。
+    expect(view.rows.filter((row) => row.kind === "spacer")).toHaveLength(0);
+    const lines = renderSidebarLines(view, SIDEBAR_WIDTH, fakeTheme as never);
+    const body = lines
+      .slice(SIDEBAR_HEADER_ROWS, -1)
+      .map((line) => line.replaceAll("│", "").trim());
+    // 没有整行空白（上/下边框之间的每一行都有内容）。
+    expect(body.some((line) => line === "")).toBe(false);
+  });
+
+  it("最后一支用 └─，父支到底后子层用空白接续而不是 │", () => {
+    const plans: SidebarPlan[] = [
+      {
+        ref: "a/active/x",
+        name: "2026-01-02-x",
+        groups: [
+          group(`${WORKER_NOTES_LABEL}02`, [
+            note("02", "A", "in_progress", { running: true }),
+            note("08", "B", "pending"),
+          ]),
+        ],
+      },
+    ];
+    const rows = buildSidebarView(plans).rows;
+    // 只有一个组 ⇒ 它既是第一支也是最后一支。
+    expect(rows[1]?.text).toBe(`${TREE_LAST}${WORKER_NOTES_LABEL}02`);
+    // 父支是最后一支 ⇒ 子层前缀是 3 个空格（不是 │）。
+    expect(rows[2]?.text).toBe(`${TREE_BLANK}${TREE_BRANCH}执行中 · 02 A`);
+    expect(rows[3]?.text).toBe(`${TREE_BLANK}${TREE_LAST}待开工 · 08 B`);
   });
 
   it("note 行不带概述，只留 状态 · 序号 名称", () => {
     const view = buildSidebarView(demoPlans());
     const noteRows = view.rows.filter((row) => row.kind === "note");
     expect(noteRows.length).toBeGreaterThan(0);
-    for (const row of noteRows) expect(row.text).not.toContain("的摘要");
-    expect(noteRows.at(0)?.text).not.toContain("description");
+    for (const row of noteRows) {
+      expect(row.text).not.toContain("的摘要");
+      // 形如 `│  ├─ 执行中 · 02 在跑`：接续符之后就是「状态 · 序号 名称」。
+      expect(row.text).toMatch(/(?:├─ |└─ )\S+ · \d+ /u);
+    }
   });
 
-  it("已完成折叠在 Plan 下，展开后平铺", () => {
+  it("已完成折叠成 Plan 的最后一支，展开后归入各自组", () => {
     const collapsed = buildSidebarView(demoPlans());
-    const fold = collapsed.rows.at(-1);
-    expect(fold).toMatchObject({ kind: "fold", text: " 已完成 1 条 ▸" });
+    expect(collapsed.rows.at(-1)).toMatchObject({
+      kind: "fold",
+      text: `${TREE_LAST}已完成 1 条 ▸`,
+    });
     expect(collapsed.rows.some((row) => row.note === "06")).toBe(false);
 
     const open = buildSidebarView(demoPlans(), ["pi/active/2026-01-01-demo"]);
-    expect(open.rows.at(-2)).toMatchObject({ kind: "fold", text: " 已完成 1 条 ▾" });
-    expect(open.rows.at(-1)).toMatchObject({ kind: "note", note: "06", status: "completed" });
+    // 06 属 未分组：展开后排在未分组组内（组内最后一支）。
+    expect(open.rows.at(-2)).toMatchObject({ kind: "note", note: "06", status: "completed" });
+    expect(open.rows.at(-2)?.text).toBe(`${TREE_PIPE}${TREE_LAST}已完成 · 06 完成`);
+    expect(open.rows.at(-1)).toMatchObject({ kind: "fold", text: `${TREE_LAST}已完成 1 条 ▾` });
   });
 
   it("多个 Plan 之间留一个空行，没有汇总行", () => {
@@ -269,6 +324,20 @@ describe("侧边栏列表", () => {
     expect(shortPlanName("2026-11-07-pi多plan编排")).toBe("pi多plan编排");
   });
 
+  it("样式：不用 dim 弱化假装小字号，只有 running 用 accent", () => {
+    const colorTheme = {
+      fg: (color: string, text: string) => `<${color}>${text}</>`,
+      bold: (text: string) => `<b>${text}</b>`,
+    };
+    const text = renderSidebarLines(
+      buildSidebarView(demoPlans()),
+      SIDEBAR_WIDTH,
+      colorTheme as never,
+    ).join("\n");
+    expect(text).not.toContain("<dim>");
+    expect(text).toContain("<accent>");
+  });
+
   it("上边框就是第一行（无汇总行），行与 rows 一一对应，且每行不超 32 列", () => {
     const view = buildSidebarView(demoPlans());
     const lines = renderSidebarLines(view, SIDEBAR_WIDTH, fakeTheme as never);
@@ -284,7 +353,7 @@ describe("侧边栏列表", () => {
       expect(line.endsWith("│")).toBe(true);
     }
     // 第 i 行（0 起）的文本就是 rows[i]：第一行内容就是 Plan 标题。
-    expect(lines[SIDEBAR_HEADER_ROWS]?.replaceAll("│", "").trim()).toContain("▾ demo");
+    expect(lines[SIDEBAR_HEADER_ROWS]?.replaceAll("│", "").trim()).toBe("demo");
   });
 });
 
@@ -302,7 +371,11 @@ describe("按 worker 组分桶", () => {
       { notes: ["01"], running: true },
     ];
     const groups = groupSidebarNotes(notes, specs);
-    expect(groups.map((item) => item.label)).toEqual(["组 02,03", "组 01", UNGROUPED_LABEL]);
+    expect(groups.map((item) => item.label)).toEqual([
+      `${WORKER_NOTES_LABEL}02,03`,
+      `${WORKER_NOTES_LABEL}01`,
+      UNGROUPED_LABEL,
+    ]);
     expect(groups[0]?.key).toBe("02,03");
     expect(groups[0]?.running).toBe(true);
     expect(groups[0]?.notes.map((item) => item.id)).toEqual(["02", "03"]);
@@ -316,6 +389,19 @@ describe("按 worker 组分桶", () => {
     ).toEqual([UNGROUPED_LABEL]);
     expect(groupSidebarNotes(notes, []).map((g) => g.label)).toEqual([UNGROUPED_LABEL]);
     expect(groupSidebarNotes([], [])).toEqual([]);
+  });
+
+  it("notes 为空的 worker 是 Plan 级派工：认领剩下的 note，组名 worker: plan", () => {
+    const groups = groupSidebarNotes(notes, [
+      { notes: ["02"], running: true },
+      { notes: [], running: true },
+    ]);
+    expect(groups.map((item) => item.label)).toEqual([
+      `${WORKER_NOTES_LABEL}02`,
+      WORKER_PLAN_LABEL,
+    ]);
+    expect(groups[1]?.running).toBe(true);
+    expect(groups[1]?.notes.map((item) => item.id)).toEqual(["01", "03", "04"]);
   });
 
   it("编排期域不进侧栏（按 domain 过滤）", () => {
@@ -501,8 +587,8 @@ describe("侧边栏控制器", () => {
     expect(list?.options.margin).toEqual(sidebarMargin());
     await wait(20);
     const text = (list?.component.render(SIDEBAR_WIDTH) ?? []).join("\n");
-    expect(text).toContain("▾ demo");
-    expect(text).toContain("▾ 组 07");
+    expect(text).toContain("demo");
+    expect(text).toContain(`worker: notes 07`);
     expect(text).toContain("执行中 · 07 侧边栏实现");
     // 没有汇总行。
     expect(text).not.toContain("执行 ·");
@@ -510,7 +596,7 @@ describe("侧边栏控制器", () => {
   });
 
   it("不显示 orchestration 域的编排期 Plan", async () => {
-    const { root } = await tempPlan("demo", "2026-01-01-demo", [runningNote("07", "worker 的活")]);
+    const { root } = await tempPlan("demo", "2026-01-01-demo", [runningNote("07", "干活")]);
     await tempPlan("orchestration", "2026-11-07-编排期", [runningNote("01", "编排方自己的")]);
     const sidebar = createSidebar({
       registry: createRegistry(),
@@ -522,7 +608,7 @@ describe("侧边栏控制器", () => {
     mountWidget(widgets, tui);
     await wait(20);
     const text = (overlays[1]?.component.render(SIDEBAR_WIDTH) ?? []).join("\n");
-    expect(text).toContain("worker 的活");
+    expect(text).toContain("执行中 · 07 干活");
     expect(text).not.toContain("编排期");
     expect(text).not.toContain("编排方自己的");
     sidebar.dispose();
@@ -594,7 +680,7 @@ describe("侧边栏控制器", () => {
     const text = lines.join("\n");
     expect(text).toContain("◇ note 07 · 执行中");
     expect(text).toContain("侧边栏实现的摘要");
-    expect(text).toContain("组：组 07");
+    expect(text).toContain(`组：${WORKER_NOTES_LABEL}07`);
     sidebar.dispose();
   });
 
