@@ -71,6 +71,8 @@ const makePlan = async (): Promise<{ plan: PlanRef; workspace: string }> => {
     ],
   };
   await writeFile(join(directory, NOTES_FILE), serializeDocument(document), "utf8");
+  await writeFile(join(directory, "story.md"), "# 示例\n", "utf8");
+  await writeFile(join(directory, "spec.md"), "# 规格\n", "utf8");
   return {
     plan: { domain: "orchestration", lifecycle: "active", name: "2026-11-07-示例", directory },
     workspace: root,
@@ -158,6 +160,28 @@ describe("worker 扩展工厂", () => {
         ctx(workspace),
       ),
     ).rejects.toThrow(/先 status=waiting/);
+  });
+
+  it("orchestrator_check 校验自己的 Plan，但不跨域查工作区", async () => {
+    const harness = await setup();
+    const check = harness.tools.get("orchestrator_check");
+    const planResult = (await check?.execute(
+      "id",
+      { op: "plan" },
+      undefined,
+      undefined,
+      ctx(harness.workspace),
+    )) as { content: { text: string }[] };
+    expect(planResult.content[0]?.text).toContain("Plan 校验通过");
+
+    const limits = (await check?.execute("id", { op: "limits" })) as {
+      content: { text: string }[];
+    };
+    expect(limits.content[0]?.text).toContain("生效上限");
+
+    await expect(
+      check?.execute("id", { op: "workspace" }, undefined, undefined, ctx(harness.workspace)),
+    ).rejects.toThrow(/跨域读取/);
   });
 
   it("orchestrator_report 校验并回调编排方", async () => {

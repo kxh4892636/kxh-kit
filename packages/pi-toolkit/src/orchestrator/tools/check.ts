@@ -43,6 +43,12 @@ const executeCheck = async (
   if (!(CHECK_OPS as readonly string[]).includes(op)) {
     throw new Error(`未知的 op: ${op}（可用: ${CHECK_OPS.join(" | ")}）`);
   }
+  // `workspace` 校验全部域的文档，属于跨域读取，只留给编排方。
+  if (op === "workspace" && runtime.role === "worker") {
+    throw new Error(
+      "workspace 校验全部业务域的文档，属于跨域读取；worker 只用 op=plan 校验自己的 Plan。",
+    );
+  }
   const workspace = runtime.workspace(exec);
   const plan =
     op === "plan"

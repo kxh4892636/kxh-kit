@@ -28,6 +28,8 @@
 | `orchestrator_write`：`create`/`update`/`link`/`merge`/`delete`/`set_index`/`repair` | ✅ | ✅ |
 | `status` → `in_progress` / `waiting` / `blocked` | ✅ | ✅ |
 | `status` → `completed` | 仅收到 `pass` 后 | ❌ |
+| `orchestrator_check`：`plan` / `limits` | ✅ | ✅ |
+| `orchestrator_check`：`workspace` | ❌（要跨域扫描，只留给编排方） | ✅ |
 | `init` / `move` | ❌ | ✅ |
 | UI 提问 | ❌（结构化登记） | ✅ |
 | spawn / abort worker | ❌ | ✅ |

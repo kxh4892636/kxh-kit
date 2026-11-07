@@ -244,6 +244,9 @@ While a session runs Orchestrator:
 
 ### Workers
 
+The worker keeps `orchestrator_check` for self-checking (`op: "plan"` and `op: "limits"`);
+`op: "workspace"` covers every domain's documents, so it stays with the orchestrator.
+
 `orchestrator_dispatch` starts one worker per plan with the SDK's `createAgentSession` (in process, no
 extension discovery, only the worker extension). A plan has at most one live worker at a time; a second
 dispatch reuses it and queues the message as a follow-up. The worker can do every note-level action but
