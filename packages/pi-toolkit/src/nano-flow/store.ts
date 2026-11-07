@@ -2,6 +2,7 @@ import { readFile, rename, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { parseDocument, serializeDocument, type PlanDocument } from "./dag.js";
+import { repairDocument } from "./repair.ts";
 import type { NanoFlowSettings } from "./config.ts";
 
 /** notes 文件的固定文件名。 */
@@ -54,4 +55,44 @@ export const commitDocument = async (
   await writeFile(temporary, serializeDocument(validated), "utf8");
   await rename(temporary, file);
   return validated;
+};
+
+/** 打开文档的结果：文档本身 + 本次自动修复的机械问题。 */
+export interface OpenedDocument {
+  readonly document: PlanDocument;
+  readonly repairs: readonly string[];
+}
+
+/**
+ * 读取文档；遇到可机械修复的问题时先修复并写回，再返回文档。
+ *
+ * @param planDirectory - Plan 目录。
+ * @param limits - 生效上限。
+ * @returns 文档与本次修复项；不可修复时抛出剩余问题。
+ */
+export const openDocument = async (
+  planDirectory: string,
+  limits: NanoFlowSettings,
+): Promise<OpenedDocument> => {
+  const file = join(planDirectory, NOTES_FILE);
+  let text: string;
+  try {
+    text = await readFile(file, "utf8");
+  } catch (error) {
+    throw new Error(`读取 ${NOTES_FILE} 失败: ${describe(error)}`);
+  }
+  let raw: unknown;
+  try {
+    raw = JSON.parse(text);
+  } catch (error) {
+    throw new Error(`${NOTES_FILE} 不是合法 JSON: ${describe(error)}`);
+  }
+  try {
+    return { document: parseDocument(raw, limits), repairs: [] };
+  } catch (error) {
+    const { raw: repaired, changes } = repairDocument(raw, limits);
+    if (changes.length === 0) throw error;
+    const document = await commitDocument(planDirectory, parseDocument(repaired, limits), limits);
+    return { document, repairs: changes };
+  }
 };

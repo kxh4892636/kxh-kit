@@ -237,6 +237,12 @@ While a session runs Nano Flow:
 - The bundled skills (`ask`, `do`, `code-spec`, `kaizen`, `learning`, `to-skill`) are contributed
   through `resources_discover` when the switch is on; `/reload` makes them visible.
 
+Reading, writing or checking a plan first repairs mechanical problems in `notes.json`: an overlong
+note summary is truncated to `noteDescriptionMaxChars`, a missing `updated_at` is filled with the
+current time, and `index` is deduped, stripped of unknown ids, and capped at `indexMaxRows`.
+Semantic problems — oversized bodies, missing evidence, broken dependencies/cycles, missing
+Markdown links — are not auto-fixed and still fail the check.
+
 ## Development
 
 ```bash

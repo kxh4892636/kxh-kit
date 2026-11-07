@@ -1,7 +1,8 @@
 import { Type } from "typebox";
 import type { ExtensionToolContext, ToolDefinition } from "@earendil-works/pi-coding-agent";
 import { formatIssues, runCheck } from "../check-runner.js";
-import { planRefOf, resolvePlan } from "../plan.js";
+import { openDocument } from "../store.js";
+import { listPlans, planRefOf, resolvePlan } from "../plan.js";
 import {
   asArguments,
   optionalString,
@@ -48,6 +49,22 @@ const executeCheck = async (
     op === "plan"
       ? await resolvePlan(workspace, runtime.domainRoot, optionalString(args, "plan"))
       : undefined;
+  const repairs: string[] = [];
+  if (plan !== undefined) {
+    repairs.push(...(await openDocument(plan.directory, runtime.limits())).repairs);
+  } else {
+    for (const candidate of await listPlans(workspace, runtime.domainRoot)) {
+      try {
+        repairs.push(...(await openDocument(candidate.directory, runtime.limits())).repairs);
+      } catch {
+        // 不可修复的问题留给校验脚本报告。
+      }
+    }
+  }
+  const prefix =
+    repairs.length === 0
+      ? ""
+      : `已自动修复：\n${repairs.map((item) => `- ${item}`).join("\n")}\n\n`;
   const result = await runCheck({
     script: checkScriptPath(),
     workspace,
@@ -56,11 +73,14 @@ const executeCheck = async (
     ...(plan === undefined ? {} : { planRef: planRefOf(plan) }),
   });
   if (result.ok) {
-    return plan === undefined
-      ? `工作区校验通过（${workspace}）。`
-      : `Plan 校验通过: ${planRefOf(plan)}`;
+    return `${prefix}${
+      plan === undefined ? `工作区校验通过（${workspace}）。` : `Plan 校验通过: ${planRefOf(plan)}`
+    }`;
   }
-  return [`校验失败，共 ${result.errors.length} 项：`, formatIssues(result.errors)].join("\n");
+  return `${prefix}${[
+    `校验失败，共 ${result.errors.length} 项：`,
+    formatIssues(result.errors),
+  ].join("\n")}`;
 };
 
 /**

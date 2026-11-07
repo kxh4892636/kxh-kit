@@ -20,7 +20,7 @@ import {
 } from "./mode.ts";
 import { activePlans, listPlans, planRefOf } from "./plan.ts";
 import { pickMode } from "./selector.ts";
-import { loadDocument } from "./store.ts";
+import { loadDocument, NOTES_FILE } from "./store.ts";
 import { createCheckTool } from "./tools/check.ts";
 import { createReadTool } from "./tools/read.ts";
 import { createToolRuntime, statusLine } from "./tools/shared.ts";
@@ -56,15 +56,29 @@ const branchOf = (ctx: ExtensionContext): readonly BranchEntryLike[] => {
   return ctx.sessionManager.getBranch() as readonly BranchEntryLike[];
 };
 
-/** 深层扫描工具参数里的字符串，判断是否显式提到 notes.json。 */
-const mentionsNotesFile = (value: unknown, depth = 0): boolean => {
-  if (depth > 6) return false;
-  if (typeof value === "string") return value.includes("notes.json");
-  if (Array.isArray(value)) return value.some((item) => mentionsNotesFile(item, depth + 1));
-  if (typeof value === "object" && value !== null) {
-    return Object.values(value as Record<string, unknown>).some((item) =>
-      mentionsNotesFile(item, depth + 1),
-    );
+/** 文件类工具里表示路径的参数字段。 */
+const PATH_KEYS = new Set(["path", "file_path", "filePath", "file", "target", "output_path"]);
+
+/** shell 工具里表示命令的参数字段。 */
+const COMMAND_KEYS = new Set(["command", "script", "cmd"]);
+
+const mentionsNotes = (value: unknown, depth = 0): boolean => {
+  if (depth > 4) return false;
+  if (typeof value === "string") return value.includes(NOTES_FILE);
+  if (Array.isArray(value)) return value.some((item) => mentionsNotes(item, depth + 1));
+  return false;
+};
+
+/**
+ * 只检查真正代表路径/命令的参数，避免把源码内容或检索词当成访问。
+ * shell 工具检查 command/script；其它工具检查 path 类字段。
+ */
+const referencesNotesFile = (toolName: string, input: unknown): boolean => {
+  if (typeof input !== "object" || input === null) return false;
+  const keys = toolName === "bash" || toolName === "powershell" ? COMMAND_KEYS : PATH_KEYS;
+  const record = input as Record<string, unknown>;
+  for (const [key, value] of Object.entries(record)) {
+    if (keys.has(key) && mentionsNotes(value)) return true;
   }
   return false;
 };
@@ -205,7 +219,7 @@ export const registerNanoFlow = (pi: ExtensionAPI, deps: NanoFlowDeps): NanoFlow
   pi.on("tool_call", (event, ctx) => {
     if (!modeOn(ctx)) return;
     if (NANO_FLOW_TOOL_SET.has(event.toolName)) return;
-    if (!mentionsNotesFile(event.input)) return;
+    if (!referencesNotesFile(event.toolName, event.input)) return;
     return {
       block: true,
       reason: "notes.json 只能经 nano_flow_* 工具读写；请改用 nano_flow_read / nano_flow_write。",

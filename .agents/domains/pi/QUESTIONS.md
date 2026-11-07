@@ -47,3 +47,11 @@
 - 解决方法：`/toolkit` 打开 `Nano Flow` 开关，再执行 `/nano-flow` 选择 `开` / `关`（Enter 只改当前会话，`Ctrl+S` 同时写 `nanoFlow.always` 作为新会话默认）。模式生效时注入固定提示词、激活 `nano_flow_*` 与 `ask_questions`、取消 pi 压缩；`getContextUsage()` 达到 `rotateAt` 时追加 `nano-flow-reset`，`context` 只保留标记后的消息并前置恢复种子。查询用 `/nano-flow status` 与 `nano_flow_read`。
 - 验证：`register.test.ts` 覆盖开关、模式、flag、收口与清空；真实 pi 会话 JSONL 含 `nano_flow_*`、`ask_questions`、`nano_flow` section 与 `nano-flow-reset` entry。
 - 来源：本域 ADR-0005；Plan `2026-11-07-NanoFlow迁移到pi-toolkit`；`packages/pi-toolkit/src/nano-flow/`。
+
+## nano_flow_read 报 `notes.json` 无效怎么办
+
+- 适用条件与现象：`nano_flow_read plans` 或 `notes` 报「`notes.json` 无效：notes[0].description 超过 N 字」等错误，文档读不出来。
+- 原因：校验会拒绝整个文档，而 `nano_flow_write` 需要先加载文档；坏文档在工具路径里无法自助修复。
+- 解决方法：`nano_flow_read` / `nano_flow_write` / `nano_flow_check` 现在共用 `openDocument`，先修复机械问题并落盘：摘要超长按 `noteDescriptionMaxChars` 截断、`updated_at` 缺失补当前时间、`index` 去重/丢弃不存在/裁剪到 `indexMaxRows`。语义问题（正文超限、缺 evidence、依赖/环、链接）仍会失败，需要人工或模型修。
+- 验证：`repair.test.ts` 覆盖机械修复与不可修复项；`tools.test.ts` 覆盖 check/read 时自动修复并写回；`nano_flow_check` 输出顶部列出「已自动修复」。
+- 来源：本域 ADR-0006；`packages/pi-toolkit/src/nano-flow/repair.ts`、`store.ts`、`tools/check.ts`。

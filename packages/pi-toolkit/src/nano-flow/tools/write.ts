@@ -7,7 +7,7 @@ import type { ExtensionToolContext, ToolDefinition } from "@earendil-works/pi-co
 import { formatIssues, runCheck } from "../check-runner.js";
 import { emptyDocument, nextNoteId, nowIso, type NoteNode, type PlanDocument } from "../dag.js";
 import { isPlanLifecycle, planRefOf, resolvePlan, type PlanRef } from "../plan.js";
-import { commitDocument, loadDocument } from "../store.js";
+import { commitDocument, openDocument } from "../store.js";
 import {
   asArguments,
   optionalString,
@@ -264,7 +264,7 @@ const executeWrite = async (
   if (op === "move") return movePlan(runtime, workspace, args);
 
   const plan = await resolvePlan(workspace, runtime.domainRoot, optionalString(args, "plan"));
-  const document = await loadDocument(plan.directory, runtime.limits());
+  const { document } = await openDocument(plan.directory, runtime.limits());
 
   switch (op) {
     case "create": {

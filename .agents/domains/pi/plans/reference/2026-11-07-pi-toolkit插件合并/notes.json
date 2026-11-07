@@ -5,7 +5,7 @@
     {
       "id": "01",
       "title": "三插件合并与 /toolkit 开关面板",
-      "description": "三个 pi 插件合并为 `@kxh4892636/pi-toolkit`：`web_search` / `web_fetch`、嵌套 skill 发现与 `$` 引用、会话自动命名收于单包，由 `/toolkit` 的三个开关（`webTools`、`nestedSkills`、`sessionName`）控制，默认全部关闭；所有开关与参数集中在 `pi-toolkit.json`，面板交互与 pi `/settings` 一致。",
+      "description": "三个 pi 插件合并为 `@kxh4892636/pi-toolkit`：`web_search` / `web_fetch`、嵌套 skill 发现与 `$` 引用、会话自动命名收于单包，由 `/toolkit` 的三个开关（`webTools`、`nestedSkills`、`se…",
       "status": "completed",
       "blocked_by": [],
       "evidence": [

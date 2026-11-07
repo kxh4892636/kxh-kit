@@ -366,3 +366,74 @@ ${"中".repeat(12000)}`,
     ).rejects.toThrow(/校验未通过/u);
   });
 });
+
+describe("automatic repair", () => {
+  const corrupt = async (cwd: string): Promise<string> => {
+    const file = join(cwd, ".agents/domains/demo/plans/active/2026-11-08-自动修复", "notes.json");
+    const document = JSON.parse(await readFile(file, "utf8")) as {
+      index: string[];
+      notes: { description: string }[];
+    };
+    document.notes[0]!.description = "长".repeat(200);
+    document.index = ["01", "01", "99"];
+    await writeFile(file, JSON.stringify(document), "utf8");
+    return file;
+  };
+
+  it("repairs a plan during nano_flow_check and reports it", async () => {
+    const cwd = await makeWorkspace();
+    const tools = setup();
+    await run(tools.write, { op: "init", domain: "demo", name: "2026-11-08-自动修复" }, cwd);
+    await run(
+      tools.write,
+      {
+        op: "create",
+        plan: "demo/active/2026-11-08-自动修复",
+        title: "A",
+        description: "A",
+        content: "A",
+      },
+      cwd,
+    );
+    const file = await corrupt(cwd);
+    const text = await run(
+      tools.check,
+      { op: "plan", plan: "demo/active/2026-11-08-自动修复" },
+      cwd,
+    );
+    expect(text).toContain("已自动修复");
+    expect(text).toContain("Plan 校验通过");
+    const fixed = JSON.parse(await readFile(file, "utf8")) as {
+      index: string[];
+      notes: { description: string }[];
+    };
+    expect(Array.from(fixed.notes[0]!.description)).toHaveLength(144);
+    expect(fixed.index).toEqual(["01"]);
+  });
+
+  it("repairs a plan during nano_flow_read", async () => {
+    const cwd = await makeWorkspace();
+    const tools = setup();
+    await run(tools.write, { op: "init", domain: "demo", name: "2026-11-08-自动修复" }, cwd);
+    await run(
+      tools.write,
+      {
+        op: "create",
+        plan: "demo/active/2026-11-08-自动修复",
+        title: "A",
+        description: "A",
+        content: "A",
+      },
+      cwd,
+    );
+    const file = await corrupt(cwd);
+    const text = await run(
+      tools.read,
+      { op: "notes", plan: "demo/active/2026-11-08-自动修复" },
+      cwd,
+    );
+    expect(text).toContain("01 [pending] A");
+    const fixed = JSON.parse(await readFile(file, "utf8")) as { notes: { description: string }[] };
+    expect(Array.from(fixed.notes[0]!.description)).toHaveLength(144);
+  });
+});

@@ -16,7 +16,7 @@ import {
 } from "./shared.js";
 import { graphOf, planStatusOf, readyNotes, searchNotes, todoGroups } from "../dag.js";
 import { listPlans, planRefOf, resolvePlan, type PlanRef } from "../plan.js";
-import { loadDocument } from "../store.js";
+import { openDocument } from "../store.js";
 
 const READ_OPS = ["plans", "notes", "get", "ready", "graph", "index", "search", "resume"] as const;
 
@@ -41,7 +41,7 @@ const formatPlans = async (runtime: ToolRuntime, workspace: string): Promise<str
   ];
   for (const plan of plans) {
     try {
-      const document = await loadDocument(plan.directory, runtime.limits());
+      const { document } = await openDocument(plan.directory, runtime.limits());
       lines.push(
         `  ${planRefOf(plan)} · ${statusLine(document)} · ${planStatusOf(document.notes)}`,
       );
@@ -64,7 +64,7 @@ const executeRead = async (
   if (op === "plans") return formatPlans(runtime, workspace);
 
   const plan = await resolvePlan(workspace, runtime.domainRoot, planArgument);
-  const document = await loadDocument(plan.directory, runtime.limits());
+  const { document } = await openDocument(plan.directory, runtime.limits());
 
   switch (op) {
     case "notes": {

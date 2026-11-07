@@ -265,6 +265,18 @@ describe("registerNanoFlow", () => {
     expect(
       await harness.fire("tool_call", ctx, { toolName: "read", input: { path: "spec.md" } }),
     ).toEqual([undefined]);
+    expect(
+      await harness.fire("tool_call", ctx, {
+        toolName: "write",
+        input: { path: "src/repair.ts", content: "notes.json" },
+      }),
+    ).toEqual([undefined]);
+    expect(
+      await harness.fire("tool_call", ctx, {
+        toolName: "grep",
+        input: { pattern: "notes.json" },
+      }),
+    ).toEqual([undefined]);
   });
 
   it("clears context at the threshold and re-seeds the plan", async () => {
