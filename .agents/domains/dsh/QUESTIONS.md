@@ -61,7 +61,7 @@
 - 适用条件与现象：`nano_flow_write` 的 `complete` 在 `in_progress` 的 note 上报错，提示先 `status=awaiting_verification`。
 - 原因：代码或文档写完不等于验收通过；旧状态里「正在改」与「等真机确认」都留在 `in_progress`，界面无法区分，轮转与交接时也看不出卡在哪。
 - 解决方法：交付物完成后先 `status=awaiting_verification` 并写「待验证」小节；真机或用户确认后 `complete`；验证失败 `status=in_progress` 并记录差异。等待验证仍算未完成，Plan 不能迁 reference。
-- 验证：`runtime.test` 覆盖 complete 门槛与 resume 的等待验证段；249 项测试、`vp check`、build 通过。
+- 验证：`runtime.test` 覆盖 complete 门槛与 resume 的等待验证段；249 项测试、`vp check`、build 通过；重启后把 note 08 置为等待验证，`resume` 显示「等待验证（1）」、`ready` 可推进 0（不列等待验证）。
 - 来源：[2026-11-07-预设提示词评审](../../.agents/domains/dsh/plans/active/2026-11-07-预设提示词评审/spec.md) 的 note 11 / 12。
 
 ## 为什么 `read` 读不到 Plan 的 `notes.json`？

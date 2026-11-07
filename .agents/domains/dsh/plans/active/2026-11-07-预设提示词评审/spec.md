@@ -34,8 +34,8 @@
 - note 02 完成（2026-11-07）：6 个域已用 `git mv` 迁到 `.agents/domains`（186 文件无丢失，184 rename + dsh CONTEXT/QUESTIONS 覆盖 stub）；空 `planning` / `implementing` 删除，etf implementing 与 dsh-infinite-story → reference；`CONTEXT-MAP` 与 `notes-guard.ts` 注释已改；workspace 校验通过。`docs/` 只剩空目录，留给 note 14。
 - note 13 完成（2026-11-07）：28 个旧 Plan 全部转成 `notes.json`（101 条 note，4 条超限拆分；无限故事 spec 拆册；14 个 Plan 补 story；迁移链接改写；description 修复 1 条）。check-domain 对冻结 Plan 跳过 Markdown 链接校验并补测试；29 个 Plan 逐个 `nano_flow_check plan` 全绿；249 测试通过。
 - note 14 完成（2026-11-07）：`docs/` 已删除，`apps/etf`、`apps/music`、`packages/nano-flow` README 的残留引用已改；仓库内不再有 docs 域路径引用；workspace 校验通过。
-- note 12 实施完成（2026-11-07，待重启确认）：`awaiting_verification` 全链路落地（dag / check-domain / write / read / shared / contract / host / 面板 / prompt / README）；249 测试、`vp check`、build 通过；0.4.3 装进 desktop profile（安装目录与仓库 dist 同哈希）；提交 ee3a5d36。
-- 未完成：note 12 的重启真机确认（顺带把 note 08 置为等待验证、看面板与 resume），note 08 的轮转触发验证（需要一条高上下文 queue 消息）。
+- note 12 完成（2026-11-07）：`awaiting_verification` 全链路落地；249 测试、`vp check`、build 通过；0.4.3 装进 desktop profile；重启后真机确认——note 08 置为等待验证成功，`resume` 显示 `awaiting_verification 1` 与「等待验证（1）」段，`ready` 可推进 0（不列等待验证）。提交 ee3a5d36。
+- 未完成：note 08 的轮转触发验证（已置 `awaiting_verification`，等一条高上下文 queue 消息；验证通过后 `complete`）。
 - 域根：6 个域全部在 `.agents/domains`，`docs/` 已删除；29 个 Plan 均有 `notes.json` 且逐个校验通过。
 
 ## 恢复入口
@@ -46,7 +46,8 @@
 4. 复跑校验：`nano_flow_check` 的 `workspace`；单 Plan 用 `plan`（冻结 Plan 不校验 Markdown 链接，active 仍校验）。
 5. 要验轮转：note 08 仍在等一条高上下文 queue 消息；`$DSH_HOME/toolkit/nano-flow-mount.json` 的 `rotation` stage 可确认宿主侧已挂上。
 6. 只读恢复已落地并真机确认（note 10，0.4.2 已装）。
-7. 等待验证状态：定案 note 11，落地与安装见 note 12；重启后确认面板与 note 08 的状态。
+7. 等待验证状态：定案 note 11，落地与真机确认见 note 12（已完成）。
+8. 收尾：note 08 仍是 `awaiting_verification`；等一条高上下文 queue 消息验证轮转，通过后 `complete`，Plan 才能迁 `reference`。
 
 ## 开放问题
 
