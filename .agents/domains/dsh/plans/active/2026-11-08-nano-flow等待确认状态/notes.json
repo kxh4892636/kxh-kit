@@ -19,20 +19,28 @@
       "id": "02",
       "title": "落地 waiting + needs",
       "description": "把 awaiting_verification 改成 waiting+needs：dag/check-domain/工具/契约/面板/prompt/README/测试，装 0.4.4 后重启验证。",
-      "status": "awaiting_verification",
+      "status": "completed",
       "blocked_by": [],
-      "evidence": [],
-      "updated_at": "2026-11-07T18:35:06.758Z",
+      "evidence": [
+        "重启后真机确认：resume 状态行显示 waiting 2，单列「等待确认（2）」并带 [waiting/review]；旧 awaiting_verification 读入折映射生效",
+        "0.4.5 已装（安装目录与仓库 dist 同哈希）；挂载诊断 promptBytes 10,810（92 行指针版）、rotation 四服务 true",
+        "250 项测试、vp check、build 通过；提交 f3114043（实现）与 4e9f3cf3（后续）"
+      ],
+      "updated_at": "2026-11-07T18:45:50.362Z",
       "content": "# 落地 waiting + needs\n\n## 执行检查点（2026-11-08）\n\n- `dag.ts`：NOTE_STATUSES 含 `waiting`；NOTE_NEEDS、LEGACY_WAITING_STATUS、normalizeStatus、resolvedNeeds；NoteNode.needs；parse 要求 waiting 带 needs（旧值折 review）；serialize 与 STATUS_ORDER/STATUS_RANK 同步。\n- `check-domain.mjs`：状态与 needs 校验，旧值归一化后参与 DAG 规则。\n- `tools/write.ts`：status 支持 `waiting` + `needs`（`pending` 不能直接进；旧名报错提示改名）；`complete` 只接受 `waiting + needs=review`。\n- `tools/read.ts`：resume 分「等待回答（needs=answer）/ 等待确认（needs=review）」两段；`shared.ts`：statusLine 计 `waiting`，formatNoteLine 带 `/needs`。\n- `contract.ts`、`host/nano-flow-ready.ts`、`client/host-api.ts`、`client/ready-panel.ts`、`client/stylesheet.ts`：counts 改 `waiting`、透传 `needs`、面板文案「等待确认」与 glyph class。\n- `prompt.md`、README、`.agents/domains/dsh/CONTEXT.md` 词条、`QUESTIONS.md` FAQ 同步。\n- 测试：dag 旧值折映射 + waiting 必须 needs；runtime 门槛（in_progress 与 waiting/answer 都拒绝）；resume 两段；面板与 host payload。249 项通过；`vp check`、build 通过。\n- 版本 0.4.3 → 0.4.4，打包安装到 desktop profile。\n\n## 待验证\n\n- 重启后：`status=waiting` + needs 被接受；旧归档 Plan 的 `awaiting_verification` 读入正常；`resume` / `ready` / 面板显示「等待回答 / 等待确认」。\n- 验证后写 evidence 并 `complete`。\n\n## 验收\n\n- waiting 必须带 needs；complete 只接受 waiting/review；ready 不列 waiting；resume 分两段；面板计数与文案正确。\n"
     },
     {
       "id": "03",
       "title": "inspect + repair",
       "description": "新增 inspect/repair：原始视图 + 模型修正后重校验，坏文档也能修。",
-      "status": "awaiting_verification",
+      "status": "completed",
       "blocked_by": [],
-      "evidence": [],
-      "updated_at": "2026-11-07T18:43:27.476Z",
+      "evidence": [
+        "本会话真机调用 nano_flow_read op=inspect：返回原始视图（id/title/description/content 与 index）",
+        "本会话真机调用 nano_flow_write op=repair（note 03 无副作用写入）：返回「已修复：03」并重新校验落盘",
+        "runtime.test 覆盖「坏摘要 → resume 报错 → inspect → repair → resume 正常」；250 项测试、vp check、build 通过"
+      ],
+      "updated_at": "2026-11-07T18:45:52.290Z",
       "content": "# inspect + repair\n\n## 定案（参考 pi）\n\n- `nano_flow_read op=inspect`：文档无法通过校验时给原始视图（id/title/description/content 与 index）。\n- `nano_flow_write op=repair`：模型给出 `repairs`（按 id 的 title/description/content）与 `ids`（新 index），工具重新校验后落盘；不自动截断、不自动删索引项。\n- repair 先于正常加载执行，所以坏文档也能修。\n\n## 执行检查点（2026-11-08）\n\n- `store.ts`：新增 `loadRawDocument`（读原始 JSON，不校验）。\n- `tools/read.ts`：新增 `inspect` op 与工具描述。\n- `tools/write.ts`：新增 `repair` op、`repairs` 参数与 schema；`repair` 在 `loadDocument` 之前路由。\n- `prompt.md`：新增「修复校验失败」小节；README 记录用法与边界。\n- 测试：`runtime.test` 覆盖「坏摘要 → resume 报错 → inspect 原始视图 → repair → resume 正常」；250 项通过。\n\n## 待验证\n\n- 重启（0.4.5）后 `inspect` / `repair` 在真机会话可用。\n\n## 验收\n\n- 坏摘要可 repair 回合法文档；未知 note、无字段的 repair 被拒；JSON 语法错误明确不可 repair。\n"
     },
     {

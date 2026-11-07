@@ -9,17 +9,21 @@
 - 参照：`packages/pi-toolkit/src/orchestrator/` 的 `dag.ts`（waiting + needs + LEGACY）、`write.ts`（status/complete 门槛、repair）、`read.ts`（inspect、等待回答/等待确认）、`prompt.md` 与 `skills/ask|do`（循环下沉）。
 - 落点：dag / check-domain / tools（write、read、shared、store）/ contract / host ready / client（面板、host-api、stylesheet）/ prompt / skills / README / 领域文档 / 测试。
 
+## 结论摘要
+
+- 五态改为 `pending / in_progress / waiting / blocked / completed`；`waiting` 带 `needs=answer|review`，旧值读入折成 `waiting + review`。
+- `inspect` 给原始视图、`repair` 应用模型修正后重校验；工具不自动截断摘要或删索引项。
+- 一条 note 走两阶段：`waiting/answer` 定案 → `in_progress` 实施 → `waiting/review` 完成，默认不拆两条。
+- prompt 212 → 92 行：ask / do 循环规格移到 `skills/ask`、`skills/do`，prompt 只留模式判定与指针。
+
 ## 当前进度
 
-- 定案：改 `dsh-toolkit` 的 nano-flow（用户 2026-11-08），照搬 pi 的 `needs`；旧 dsh Plan 已归档，本 Plan 新建。
-- note 02（waiting 改名）实施完成：249 测试、`vp check`、build 通过；0.4.3 → 0.4.4 已装，待重启确认。
-- note 03（inspect + repair）实施完成，待重启确认：`loadRawDocument` + `inspect` + `repair`，坏文档可修；`runtime.test` 覆盖整条链路；0.4.5 已装。
-- note 04（一条 note 两阶段）完成：prompt 与 ask skill 口径一致。
-- note 05（ask / do 下沉）完成：prompt 212 → 92 行，循环规格在 `skills/ask`、`skills/do`；250 项测试通过。
-- 当前 0.4.5 已装；重启后确认 waiting、inspect/repair、循环加载，再收 note 02 / 03。
+- 5 条 note 全部完成（01 定案、02 waiting 落地、03 inspect/repair、04 两阶段、05 循环下沉）。
+- 0.4.5 已装进 desktop profile；重启后真机确认：`resume` 显示 `waiting 2` 与「等待确认」、`[waiting/review]`、`inspect` 可用、`repair` 写入成功、挂载诊断 promptBytes 10,810（92 行指针版）、rotation 四服务 true。
+- 250 项测试、`vp check`、build 通过；提交 f3114043、4e9f3cf3、42cae85f 与后续收尾提交。
 
 ## 恢复入口
 
-1. 读 note 02（waiting 落地）、03（inspect/repair）、04（两阶段）、05（循环下沉）。
-2. 装 0.4.5 并重启：确认 `status=waiting` + needs、`resume` 分「等待回答 / 等待确认」、`inspect` / `repair` 可用、prompt 只留指针。
-3. 复验：`nano_flow_check` 的 `workspace` 与 `plan`；把 note 02–05 逐个 `complete`。
+1. 读 note 02–05 的检查点与证据；定案与拷问见 note 01。
+2. 复验：`nano_flow_check` 的 `workspace` 与 `plan`；`resume` 确认状态与队列。
+3. 全部完成且用户确认后，用 `nano_flow_write` 的 `move` 迁到 `reference`。
