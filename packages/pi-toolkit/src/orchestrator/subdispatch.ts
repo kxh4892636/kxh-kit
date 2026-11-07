@@ -17,6 +17,7 @@
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import type { ToolkitSettings } from "../settings.ts";
+import type { EventInput } from "./events.ts";
 import {
   createRegistry,
   deliver,
@@ -49,6 +50,11 @@ export interface SubDispatchOptions {
   readonly depth: number;
   /** 当前设置；每次读取（`workerTimeoutMs` 改了立即生效）。 */
   readonly settings: () => ToolkitSettings;
+  /**
+   * 账本端口：子 worker 的 `worker.spawned` / `input.sent` / `report.filed` /
+   * `worker.exit` 都落账（带 `parent` 与 `depth`）。省略则不记账（单元测试）。
+   */
+  readonly events?: { append(input: EventInput): unknown };
   /** 起 session 的接缝；测试注入替身。 */
   readonly spawn?: typeof spawnWorker;
 }
@@ -84,10 +90,19 @@ export const createSubDispatchTool = (options: SubDispatchOptions): Orchestrator
     }
   };
 
+  /** 往账本落一条事件（没给端口时是空操作）。 */
+  const record = (input: EventInput): void => {
+    options.events?.append(input);
+  };
+
   /** 摘除句柄并释放 session；子 worker 只有这一条收尾路径。 */
-  const drop = async (entry: WorkerEntry): Promise<void> => {
+  const drop = async (entry: WorkerEntry, reason: string): Promise<void> => {
     registry.remove(entry.planDirectory);
     await disposeEntry(entry);
+    record({
+      type: "worker.exit",
+      payload: { worker: entry.planDirectory, reason, parent: options.parentRoute, depth },
+    });
   };
 
   /**
@@ -100,7 +115,7 @@ export const createSubDispatchTool = (options: SubDispatchOptions): Orchestrator
     job.notified = true;
     const minutes = Math.round(timeoutMs / 60_000);
     void (async () => {
-      await drop(entry);
+      await drop(entry, "timeout");
       notify(
         SUB_TIMEOUT_TYPE,
         [
@@ -127,6 +142,20 @@ export const createSubDispatchTool = (options: SubDispatchOptions): Orchestrator
     const lines = [`[sub] ${report.outcome} · note ${report.note}: ${report.summary}`];
     if (report.question !== undefined) lines.push(`问题: ${report.question}`);
     lines.push(`来源: ${entry.planRef}`);
+    // 子 worker 的 report 同样落账（带 parent）：编排方看不到句柄，但 `state` 能看见层级。
+    record({
+      type: "report.filed",
+      payload: {
+        worker: entry.planDirectory,
+        parent: options.parentRoute,
+        depth,
+        note: report.note,
+        outcome: report.outcome,
+        summary: report.summary,
+        ...(report.question === undefined ? {} : { question: report.question }),
+        ...(report.evidence === undefined ? {} : { evidence: [...report.evidence] }),
+      },
+    });
     notify(SUB_REPORT_TYPE, lines, { ...report, sub: entry.planRef, depth });
   };
 
@@ -175,6 +204,23 @@ export const createSubDispatchTool = (options: SubDispatchOptions): Orchestrator
         planRef: key,
         startedAt: Date.now(),
         session: spawned.session,
+        parent: options.parentRoute,
+        depth,
+        ...(spawned.sessionPath === undefined ? {} : { sessionPath: spawned.sessionPath }),
+        ...(exec.cwd === undefined ? {} : { cwd: exec.cwd }),
+      });
+      // 子 worker 的派生也落账（带 parent / depth）：父在 `state` 里缩进列出它。
+      record({
+        type: "worker.spawned",
+        payload: {
+          worker: key,
+          planRef: key,
+          kind: "temp",
+          parent: options.parentRoute,
+          depth,
+          ...(spawned.sessionPath === undefined ? {} : { sessionPath: spawned.sessionPath }),
+          startedAt: new Date().toISOString(),
+        },
       });
       const timeoutMs = options.settings().orchestrator.workerTimeoutMs;
       const delivery = deliver(entry, "message", message);
@@ -187,11 +233,25 @@ export const createSubDispatchTool = (options: SubDispatchOptions): Orchestrator
         notified: false,
       };
       entry.job = job;
+      // 与顶层 worker 同一口径：`input.sent` 让 ack（`input.consumed`）有东西可消费。
+      record({
+        type: "input.sent",
+        payload: {
+          worker: key,
+          planRef: key,
+          kind: "message",
+          delivery: "steer",
+          delivered: delivery.delivered,
+          text: message,
+          parent: options.parentRoute,
+          depth,
+        },
+      });
       renew(entry, job, timeoutMs, () => sendTimeout(entry, job, timeoutMs));
       // 子 worker 是一次性的：终态即摘句柄 + dispose，不留隐性状态。
+      // 已被超时路径收掉时 `harvest` 返回 false，不再重复落一条 `worker.exit`。
       const done = (): void => {
-        harvest(entry, job);
-        void drop(entry);
+        if (harvest(entry, job)) void drop(entry, "settled");
       };
       void delivery.settled.then(done, done);
       return {

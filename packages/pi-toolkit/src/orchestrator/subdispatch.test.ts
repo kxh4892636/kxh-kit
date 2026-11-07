@@ -3,6 +3,7 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_SETTINGS, DEFAULT_TOOLS, type ToolkitSettings } from "../settings.ts";
 import type { SessionLike } from "./handles.ts";
 import { createSubDispatchTool, SUB_REPORT_TYPE, SUB_TIMEOUT_TYPE } from "./subdispatch.ts";
+import type { EventInput } from "./events.ts";
 import type { SpawnWorkerOptions, SpawnedWorker } from "./spawn.ts";
 import { workerSessionName } from "./spawn.ts";
 import type { WorkerReport } from "./types.ts";
@@ -90,6 +91,8 @@ interface Harness {
   /** 每次起 session 的参数。 */
   readonly spawns: SpawnWorkerOptions[];
   readonly sessions: FakeSession[];
+  /** 落进账本的事件（子 worker 的 spawned / input.sent / report / exit）。 */
+  readonly recorded: EventInput[];
 }
 
 /**
@@ -101,6 +104,7 @@ const setup = (options: { timeoutMs?: number; autoFinish?: boolean } = {}): Harn
   const injected: Injected[] = [];
   const spawns: SpawnWorkerOptions[] = [];
   const sessions: FakeSession[] = [];
+  const recorded: EventInput[] = [];
   const pi = {
     registerTool: () => undefined,
     sendMessage: (message: Injected) => injected.push(message),
@@ -111,6 +115,7 @@ const setup = (options: { timeoutMs?: number; autoFinish?: boolean } = {}): Harn
     parentRef: "x/active/p",
     depth: 0,
     settings: () => settings(options.timeoutMs),
+    events: { append: (input: EventInput) => recorded.push(input) },
     spawn: async (spawnOptions: SpawnWorkerOptions): Promise<SpawnedWorker> => {
       spawns.push(spawnOptions);
       const session = fakeSession(options.autoFinish ?? true);
@@ -127,6 +132,7 @@ const setup = (options: { timeoutMs?: number; autoFinish?: boolean } = {}): Harn
     injected,
     spawns,
     sessions,
+    recorded,
   };
 };
 
@@ -230,6 +236,54 @@ describe("worker 侧子派工", () => {
     // 同一次派工只报一条。
     await flush(30);
     expect(harness.injected.filter((m) => m.customType === SUB_TIMEOUT_TYPE)).toHaveLength(1);
+  });
+
+  it("子 worker 的 spawn / input / report / exit 都落账，且带 parent 与 depth", async () => {
+    const harness = setup({ autoFinish: false });
+    await harness.dispatch.execute("id", { message: "查一下 X" }, undefined, undefined, ctx);
+    const parent = "/w/.agents/domains/x/plans/active/p";
+    expect(harness.recorded.map((event) => event.type)).toEqual(["worker.spawned", "input.sent"]);
+    expect(harness.recorded[0]?.payload).toMatchObject({
+      parent,
+      depth: 1,
+      kind: "temp",
+      worker: `${parent}/sub:1`,
+    });
+    expect(harness.recorded[1]?.payload).toMatchObject({
+      parent,
+      depth: 1,
+      kind: "message",
+      text: "查一下 X",
+    });
+
+    harness.spawns[0]?.report({
+      outcome: "needs_review",
+      note: "-",
+      summary: "查完了",
+      evidence: ["grep 结果"],
+    });
+    harness.sessions[0]?.finish?.();
+    await flush();
+    const after = harness.recorded.map((event) => event.type);
+    expect(after).toEqual(["worker.spawned", "input.sent", "report.filed", "worker.exit"]);
+    expect(harness.recorded[2]?.payload).toMatchObject({
+      parent,
+      depth: 1,
+      note: "-",
+      outcome: "needs_review",
+      summary: "查完了",
+      evidence: ["grep 结果"],
+    });
+    expect(harness.recorded[3]?.payload).toMatchObject({ parent, depth: 1, reason: "settled" });
+  });
+
+  it("超时的子 worker 只落一条 worker.exit（不重复记 settled）", async () => {
+    const harness = setup({ timeoutMs: 10, autoFinish: false });
+    await harness.dispatch.execute("id", { message: "查一下 X" }, undefined, undefined, ctx);
+    await flush(40);
+    const exits = harness.recorded.filter((event) => event.type === "worker.exit");
+    expect(exits).toHaveLength(1);
+    expect(exits[0]?.payload).toMatchObject({ reason: "timeout", depth: 1 });
   });
 
   it("message 为空时拒绝派工，不起 session", async () => {

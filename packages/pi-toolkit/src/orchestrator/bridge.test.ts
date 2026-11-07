@@ -1374,6 +1374,61 @@ describe("dispatch 与 workers 工具", () => {
     expect(types).not.toContain("timeout.diagnosed");
   });
 
+  it("子 worker 带 parent 落账本，并在 state 里缩进列在父下面", async () => {
+    const { tools, stateRoot } = await setup({ makeSession: () => fakeSession(true, false) });
+    const { root, ref } = await planWithNotes([note("01")]);
+    await tools
+      .get("orchestrator_command")
+      ?.execute(
+        "id",
+        { plan: ref, notes: ["01"], message: "做 01" },
+        undefined,
+        undefined,
+        ctx(root),
+      );
+    const { openLedger } = await import("./ledger.ts");
+    const { openProjection } = await import("./projection.ts");
+    const ledger = openLedger(stateRoot);
+    const parent = [...openProjection(ledger).state().workers.keys()][0] ?? "";
+    const sub = `${parent}/sub:1`;
+    ledger.append({
+      type: "worker.spawned",
+      payload: {
+        worker: sub,
+        planRef: sub,
+        kind: "temp",
+        parent,
+        depth: 1,
+        startedAt: new Date().toISOString(),
+      },
+    });
+    ledger.append({
+      type: "report.filed",
+      payload: {
+        worker: sub,
+        parent,
+        depth: 1,
+        note: "01",
+        outcome: "done",
+        summary: "子任务查完了",
+      },
+    });
+    const projected = openProjection(ledger).state().workers.get(sub);
+    expect(projected).toMatchObject({ parent, depth: 1, status: "live" });
+
+    const listed = textOf(
+      await tools
+        .get("orchestrator_state")
+        ?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
+    );
+    const lines = listed.split("\n");
+    const parentLine = lines.findIndex((line) => line.includes(ref));
+    const subLine = lines.findIndex((line) => line.includes("/sub:1"));
+    expect(subLine).toBeGreaterThan(parentLine);
+    expect(lines[subLine]).toContain("↳");
+    expect(lines[subLine]).toContain("sub ·");
+  });
+
   it("ack 由 agent_start 写进账本：待消费归零", async () => {
     // 真 worker 的 agent_start 钩子会 append input.consumed；这里用账本端口模拟同一步。
     const { tools, stateRoot } = await setup({ makeSession: () => fakeSession(true, false) });

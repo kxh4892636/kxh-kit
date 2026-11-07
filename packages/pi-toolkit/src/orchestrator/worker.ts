@@ -176,6 +176,7 @@ export const createWorkerExtension = (options: WorkerExtensionOptions): Extensio
               parentRef,
               depth,
               settings: options.settings,
+              ...(options.events === undefined ? {} : { events: options.events }),
               ...(options.spawn === undefined ? {} : { spawn: options.spawn }),
             }),
           ]

@@ -280,6 +280,35 @@ const findByNote = (
     );
 };
 
+/**
+ * 把 live worker 按父子关系排开：父先列，子紧跟其后。
+ *
+ * 子 worker（`depth >= 1`）的父不在列表里时当根列出（父已经退出，子还在收尾）。
+ * @param workers - live worker（已按开始时刻升序）。
+ * @returns 展示顺序。
+ */
+const orderByHierarchy = (workers: readonly ProjectedWorker[]): readonly ProjectedWorker[] => {
+  const keys = new Set(workers.map((worker) => worker.worker));
+  const children = new Map<string, ProjectedWorker[]>();
+  const roots: ProjectedWorker[] = [];
+  for (const worker of workers) {
+    const parent = worker.parent;
+    if (parent === undefined || !keys.has(parent)) {
+      roots.push(worker);
+      continue;
+    }
+    const list = children.get(parent) ?? [];
+    list.push(worker);
+    children.set(parent, list);
+  }
+  const ordered: ProjectedWorker[] = [];
+  for (const root of roots) {
+    ordered.push(root);
+    for (const child of children.get(root.worker) ?? []) ordered.push(child);
+  }
+  return ordered;
+};
+
 /** 相对时刻：清单里只需要“多久之前”，不需要绝对时间。 */
 const formatAgo = (at: number, now: number): string => {
   const seconds = Math.max(0, Math.round((now - at) / 1000));
@@ -925,7 +954,10 @@ const createStateTool = (
       lines.push("当前没有 live worker。");
     } else {
       lines.push(`live worker（${live.length}）:`);
-      for (const worker of live) {
+      for (const worker of orderByHierarchy(live)) {
+        // 子 worker 缩进列在父下面：层级一眼看得出，而不是一堆平铺的 sub:1。
+        const indent = worker.depth > 0 ? "  ↳ " : "";
+        const shape = worker.depth > 0 ? "sub" : worker.kind === "temp" ? "temp" : "plan";
         const minutes = Math.max(0, Math.round((now - Date.parse(worker.startedAt)) / 60_000));
         const group = worker.notes.length === 0 ? "" : `notes: ${worker.notes.join(",")} · `;
         const report =
@@ -961,7 +993,7 @@ const createStateTool = (
                   : `（${worker.lastDiagnosis.adjust.join("+")}）`
               }`;
         lines.push(
-          `  ${worker.planRef} · ${group}${worker.kind === "temp" ? "temp" : "plan"} · ${minutes} 分钟 · 输入 ${worker.inputs} 次 · ${pendingLabelOf(pending)} · ${report} · 最近输入 ${lastInput}${worktreeMark}${mergeMark}${timeoutMark}${diagnosisMark}`,
+          `${indent}${worker.planRef} · ${group}${shape} · ${minutes} 分钟 · 输入 ${worker.inputs} 次 · ${pendingLabelOf(pending)} · ${report} · 最近输入 ${lastInput}${worktreeMark}${mergeMark}${timeoutMark}${diagnosisMark}`,
         );
       }
     }
