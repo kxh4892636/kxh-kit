@@ -5,6 +5,9 @@
  * 扩展工厂（`noExtensions: true`），因此 worker 看不到编排方的工具、句柄表与
  * 崩溃凭据，也不会递归加载宿主扩展。
  *
+ * Plan worker 与临时 worker 的会话都**落盘**（jsonl）：工作键相同即能续上历史，重启后
+ * 也找得回来；子 worker 不续、不落盘，仍在内存会话里跑。
+ *
  * 三种形态：绑定 Plan 的 worker（`plan` 给出）、没有 Plan 的临时 worker（`temp`
  * 给出临时 id），以及上层 worker 派出的子 worker（`sub` 给出上级标识与序号，固定
  * `depth 1`）。只许给其中一个，否则属于调用错误。
@@ -19,10 +22,12 @@ import {
 } from "@earendil-works/pi-coding-agent";
 import type { ToolkitSettings } from "../settings.ts";
 import { assetsSkillsRoot } from "./assets.ts";
+import { stateDirectory } from "./errors.ts";
 import type { SessionLike } from "./handles.ts";
 import type { PlanRef } from "./plan.ts";
 import type { WorkerReport } from "./types.ts";
 import { createWorkerExtension } from "./worker.ts";
+import { openWorkerSession } from "./worker-sessions.ts";
 
 /** 起 worker 的参数。 */
 export interface SpawnWorkerOptions {
@@ -42,13 +47,24 @@ export interface SpawnWorkerOptions {
   readonly report: (report: WorkerReport) => void;
   /** 编排方已放行的 note id。 */
   readonly released: Set<string>;
+  /**
+   * 落盘会话的工作键（`<plan 目录>::<组>` 或 `temp:<id>`）；同一键重启后能续上。
+   * 子 worker 省略：它不续、不落盘，仍用内存会话。
+   */
+  readonly sessionKey?: string;
   /** 覆盖 agent 目录（测试用）。 */
   readonly agentDir?: string;
+  /** 覆盖会话目录（测试用）；省略即 pi 的默认 sessions 目录。 */
+  readonly sessionDir?: string;
 }
 
 /** 起出来的 worker。 */
 export interface SpawnedWorker {
   readonly session: SessionLike;
+  /** 会话文件路径；子 worker（内存会话）为 undefined。 */
+  readonly sessionPath?: string;
+  /** 是否从磁盘上的旧会话续上。 */
+  readonly resumed: boolean;
   readonly dispose: () => void;
 }
 
@@ -84,6 +100,16 @@ export const spawnWorker = async (options: SpawnWorkerOptions): Promise<SpawnedW
   if (given.length !== 1) {
     throw new Error("起 worker 需要 plan / temp / sub 之一，且只能给一个");
   }
+  // 子 worker 不续、不落盘；Plan worker 与临时 worker 都有 jsonl，按工作键找得回来。
+  const opened =
+    options.sessionKey === undefined || sub !== undefined
+      ? undefined
+      : openWorkerSession({
+          key: options.sessionKey,
+          cwd: options.cwd,
+          stateDir: stateDirectory(options.agentDir ?? getAgentDir()),
+          ...(options.sessionDir === undefined ? {} : { sessionDir: options.sessionDir }),
+        });
   const loader = new DefaultResourceLoader({
     cwd: options.cwd,
     agentDir: options.agentDir ?? getAgentDir(),
@@ -109,11 +135,14 @@ export const spawnWorker = async (options: SpawnWorkerOptions): Promise<SpawnedW
   const { session } = await createAgentSession({
     cwd: options.cwd,
     resourceLoader: loader,
-    sessionManager: SessionManager.inMemory(options.cwd),
+    sessionManager: opened?.manager ?? SessionManager.inMemory(options.cwd),
   });
-  session.setSessionName(workerSessionName(options));
+  // 续上的会话已经带名字，不再追加一条 session_info。
+  if (opened?.resumed !== true) session.setSessionName(workerSessionName(options));
   return {
     session: session as unknown as SessionLike,
+    ...(opened === undefined ? {} : { sessionPath: opened.path }),
+    resumed: opened?.resumed ?? false,
     dispose: () => session.dispose(),
   };
 };

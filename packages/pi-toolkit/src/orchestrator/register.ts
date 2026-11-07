@@ -36,6 +36,13 @@ import {
   type WorkerRegistry,
 } from "./handles.ts";
 import { spawnWorker, type SpawnWorkerOptions, type SpawnedWorker } from "./spawn.ts";
+import { createOutbox, type Outbox } from "./outbox.ts";
+import {
+  abortedWorkerSession,
+  markWorkerSessionAborted,
+  nextTempSeq,
+  rememberWorkerSession,
+} from "./worker-sessions.ts";
 import { INPUT_KINDS, type InputKind, type WorkerReport } from "./types.ts";
 import { assetsSkillsRoot, readPromptText } from "./assets.ts";
 import { createAskQuestionsTool } from "./ask.ts";
@@ -156,6 +163,8 @@ export interface OrchestratorDeps {
   readonly setAlways: (always: boolean) => void;
   /** 起 worker 的入口；缺省用 SDK，测试可替换以避开真实会话。 */
   readonly spawn?: (options: SpawnWorkerOptions) => Promise<SpawnedWorker>;
+  /** 状态目录（崩溃凭据、worker 会话索引）；缺省 `<agentDir>/orchestrator`，测试可覆盖。 */
+  readonly stateDir?: () => string;
 }
 
 /** 返回给入口的句柄：配置加载完成后启动，切换开关后同步。 */
@@ -276,11 +285,10 @@ const createDispatchTool = (
   runtime: ToolRuntime,
   registry: WorkerRegistry,
   deps: OrchestratorDeps,
+  stateDir: () => string,
   onReport: (report: WorkerReport) => void,
   sendTimeout: (entry: WorkerEntry, job: WorkerJob, timeoutMs: number) => void,
 ): OrchestratorTool => {
-  /** 临时 worker 的序号：进程内自增，键形如 `temp:1`，与 plan 目录不冲突。 */
-  let tempSeq = 0;
   return {
     name: "orchestrator_dispatch",
     label: "Dispatch",
@@ -322,6 +330,11 @@ const createDispatchTool = (
             "组派工：这一组 note（互相不得有 blocked_by 依赖）；省略则走 Plan 级派工（老行为）",
         },
         message: { type: "string", description: "派活正文或追加说明" },
+        worker: {
+          type: "string",
+          description:
+            "临时 worker 标识 `temp:<id>`（只与 plan 缺省时的临时派工合用）：盘上有这个 id 的会话就续上它，没有则新建；被 abort / 超时作废的 id 直接报错。省略则自动取下一个序号。",
+        },
       },
       required: [],
     }),
@@ -346,9 +359,29 @@ const createDispatchTool = (
           ? undefined
           : await resolvePlan(workspace, runtime.domainRoot, planArgument);
       /** 临时 worker 的 id（`temp:<id>` 里的 `<id>`）；只有临时模式会用到。 */
-      const tempId = plan === undefined ? String((tempSeq += 1)) : "";
+      const requestedWorker = optionalString(args, "worker");
+      if (requestedWorker !== undefined && plan !== undefined) {
+        throw new Error("worker=temp:<id> 只用于临时派工；Plan 派工用 plan + notes 定位");
+      }
+      if (requestedWorker !== undefined && !/^temp:.+/.test(requestedWorker)) {
+        throw new Error("worker 必须是 `temp:<id>`");
+      }
+      const tempId =
+        plan === undefined
+          ? (requestedWorker?.slice("temp:".length) ?? String(nextTempSeq(stateDir())))
+          : "";
       const key = plan === undefined ? `temp:${tempId}` : entryKeyOf(plan.directory, groupNotes);
       const planRef = plan === undefined ? key : planRefOf(plan);
+      // 作废登记是落盘的：被 abort / 超时的会话不再复用那时的上下文，连重启也不复活。
+      // 临时 id 直接报错（id 本身就是地址，得换一个）；Plan/组的键必须能重派，所以换一代
+      // 会话（id 与作废时刻绑定），旧 jsonl 当作历史留在盘上。
+      const aborted = abortedWorkerSession(stateDir(), key);
+      if (aborted !== undefined && plan === undefined) {
+        throw new Error(
+          `${key} 的 worker 会话已于 ${aborted.at} 作废（${aborted.reason}）：换一个 id（worker=temp:<新 id>）或重新分组再派`,
+        );
+      }
+      const sessionKey = aborted === undefined ? key : `${key}#${aborted.at}`;
 
       if (plan !== undefined && groupNotes.length > 0) {
         await assertParallelGroup(plan, groupNotes, runtime);
@@ -370,17 +403,29 @@ const createDispatchTool = (
 
       let entry = routeByNote ?? registry.get(key);
       const started = entry === undefined;
+      /** 本次是否从磁盘上的旧会话续上（新建时为 false）。 */
+      let resumed = false;
       if (entry === undefined) {
         const released = new Set<string>();
-        const base = { cwd: workspace, settings: deps.settings, report: onReport, released };
+        const base = {
+          cwd: workspace,
+          settings: deps.settings,
+          report: onReport,
+          released,
+          sessionKey,
+        };
         const spawned = await (deps.spawn ?? spawnWorker)(
           plan === undefined ? { ...base, temp: tempId } : { ...base, plan },
         );
+        // 登记“这个键已经被用过”：临时 id 计数不依赖内存计数器，重启后不会重发 temp:1。
+        rememberWorkerSession(stateDir(), sessionKey, spawned.sessionPath ?? "");
+        resumed = spawned.resumed;
         entry = registry.add({
           planDirectory: key,
           planRef,
           ...(plan === undefined ? { kind: "temp" as const } : {}),
           ...(groupNotes.length === 0 ? {} : { notes: groupNotes }),
+          ...(spawned.sessionPath === undefined ? {} : { sessionPath: spawned.sessionPath }),
           startedAt: Date.now(),
           released,
           session: spawned.session,
@@ -406,7 +451,7 @@ const createDispatchTool = (
       target.job = job;
       renew(target, job, timeoutMs, () => sendTimeout(target, job, timeoutMs));
       // 终态到了就收割：清定时器、摘 job。reject 也走到这里，不让它变成未处理拒绝。
-      // 临时 worker 是一次性的：终态即摘除句柄并 dispose，不留隐性状态也不进 live 清单。
+      // 临时 worker 是一次性的：终态即摘除句柄并 dispose，会话文件留在盘上等同 id 再派。
       const done = (): void => {
         harvest(target, job);
         if (target.kind === "temp") {
@@ -418,11 +463,15 @@ const createDispatchTool = (
 
       const head = started
         ? plan === undefined
-          ? `已起临时 worker ${planRef}（无 Plan，跑完即弃）`
+          ? `已起临时 worker ${planRef}（无 Plan，跑完即弃；同 id 再派可续上它）`
           : groupNotes.length > 0
             ? `已起 worker 接手 ${planRef} 的组 [${groupNotes.join(", ")}]`
             : `已起 worker 接手 ${planRef}`
         : `已投递给 ${planRef} 的 worker${groupNotes.length > 0 ? `（组 [${groupNotes.join(", ")}]）` : ""}`;
+      const sessionLine =
+        target.sessionPath === undefined
+          ? undefined
+          : `会话：${resumed ? "续上既有 jsonl" : "新建 jsonl"} ${target.sessionPath}`;
       const deliverLine =
         delivery.delivered === "steered"
           ? "worker 正在跑，已插话：下一次 LLM 调用前生效。"
@@ -438,18 +487,21 @@ const createDispatchTool = (
             `kind: ${kind}${note === undefined ? "" : ` · note ${note}`}`,
             `delivery: ${deliveryMode} → ${delivery.delivered}`,
             deliverLine,
+            ...(sessionLine === undefined ? [] : [sessionLine]),
             "完成后会有 report 推回；用 orchestrator_workers 查 live 清单。",
           ].join("\n"),
         ),
         details: {
           plan: planRef,
           started,
+          resumed,
           queued: delivery.queued,
           delivery: deliveryMode,
           delivered: delivery.delivered,
           kind,
           ...(groupNotes.length === 0 ? {} : { notes: groupNotes }),
-          ...(plan === undefined ? { temp: true } : {}),
+          ...(plan === undefined ? { temp: true, worker: key } : {}),
+          ...(target.sessionPath === undefined ? {} : { sessionPath: target.sessionPath }),
           ...(note === undefined ? {} : { note }),
         },
       };
@@ -458,7 +510,11 @@ const createDispatchTool = (
 };
 
 /** `orchestrator_workers`：列 live worker 或中止它们（不设并发上限，但要能刹车）。 */
-const createWorkersTool = (registry: WorkerRegistry): OrchestratorTool => ({
+const createWorkersTool = (
+  registry: WorkerRegistry,
+  stateDir: () => string,
+  outbox: Outbox,
+): OrchestratorTool => ({
   name: "orchestrator_workers",
   label: "Workers",
   description:
@@ -482,17 +538,21 @@ const createWorkersTool = (registry: WorkerRegistry): OrchestratorTool => ({
     if (op === "abort") {
       const plan = optionalString(args, "plan");
       if (plan === undefined) {
+        for (const entry of registry.list()) {
+          markWorkerSessionAborted(stateDir(), entry.planDirectory, "abort");
+        }
         const count = await disposeAll(registry);
         return { content: textBlocks(`已中止 ${count} 个 worker。`), details: { count } };
       }
       const entries = registry.list().filter((entry) => entry.planRef === plan);
       if (entries.length === 0) throw new Error(`没有在跑的 worker: ${plan}`);
       for (const entry of entries) {
+        markWorkerSessionAborted(stateDir(), entry.planDirectory, "abort");
         registry.remove(entry.planDirectory);
         await disposeEntry(entry);
       }
       return {
-        content: textBlocks(`已中止 ${plan} 的 worker。`),
+        content: textBlocks(`已中止 ${plan} 的 worker（会话作废：同 id / 同组再派会报错）。`),
         details: { count: entries.length },
       };
     }
@@ -513,11 +573,20 @@ const createWorkersTool = (registry: WorkerRegistry): OrchestratorTool => ({
         entry.lastInput === undefined
           ? "尚无输入"
           : `${formatAgo(entry.lastInput.at, now)} [${entry.lastInput.kind}/${entry.lastInput.delivery}] ${entry.lastInput.text}`;
+      const unsent = outbox.countFor(entry.planRef);
+      const unsentMark = unsent === 0 ? "" : ` · 未送达 ${unsent} 条`;
       lines.push(
-        `  ${entry.planRef} · ${group}${entry.kind === "temp" ? "temp" : "plan"} · ${minutes} 分钟 · 输入 ${entry.inputs} 次 · ${report} · 最近输入 ${lastInput}`,
+        `  ${entry.planRef} · ${group}${entry.kind === "temp" ? "temp" : "plan"} · ${minutes} 分钟 · 输入 ${entry.inputs} 次 · ${report} · 最近输入 ${lastInput}${unsentMark}`,
       );
     }
-    return { content: textBlocks(lines.join("\n")), details: { count: entries.length } };
+    const unsent = outbox.count();
+    if (unsent > 0) {
+      const reason = outbox.lastError();
+      lines.push(
+        `未送达的通知: ${unsent} 条${reason === undefined ? "" : `（最近失败: ${reason}）`}；下一次 agent_settled / before_agent_start / input 会重试。`,
+      );
+    }
+    return { content: textBlocks(lines.join("\n")), details: { count: entries.length, unsent } };
   },
 });
 
@@ -607,8 +676,8 @@ export const registerOrchestrator = (
     setTools(ctx, modeOn(ctx));
   };
 
-  /** 状态目录：崩溃凭据落在这里。 */
-  const stateDir = (): string => stateDirectory(getAgentDir());
+  /** 状态目录：崩溃凭据与 worker 会话索引落在这里。 */
+  const stateDir = (): string => deps.stateDir?.() ?? stateDirectory(getAgentDir());
 
   /** 崩溃凭据的读写口；只给编排方，worker 拿不到。 */
   const interrupted: InterruptedAccess = {
@@ -625,6 +694,28 @@ export const registerOrchestrator = (
 
   /** 进程内的 worker 句柄表；闭包持有，不做模块级单例。 */
   const registry: WorkerRegistry = createRegistry();
+
+  /**
+   * 编排方会话的通知队列（report / 超时）。pi 的 `sendMessage` 是即发即忘的，失败不会
+   * 抛给我们，所以必须自己留账：失败入队、下一次可注入的时机重试、积压可见。
+   */
+  const outbox: Outbox = createOutbox((message, options) => pi.sendMessage(message, options));
+
+  /** 编排方是否正在跑一轮：注入方式据此选 `followUp`（忙）/ `steer` + `triggerTurn`（闲）。 */
+  let busy = false;
+
+  /**
+   * 投递一条通知：立即尝试，失败入队；不抛错、不阻塞、不改任何 note 状态。
+   * @param input - 通知内容与归到哪个 worker。
+   */
+  const notify = (input: Parameters<Outbox["submit"]>[0]): void => {
+    outbox.submit(input, busy);
+  };
+
+  /** 重试积压的通知（`agent_settled` / `before_agent_start` / `input` 都会调）。 */
+  const flushNotices = (): void => {
+    outbox.retry(busy);
+  };
 
   /**
    * 后台 watchdog 到点：中止这条派工的 worker、摘除句柄，并向编排方注入一条超时消息。
@@ -651,29 +742,24 @@ export const registerOrchestrator = (
       }
       await disposeEntry(entry);
       registry.remove(entry.planDirectory);
-      try {
-        pi.sendMessage(
-          {
-            customType: "orchestrator-worker-timeout",
-            content: [
-              `[worker] 超时：${planRef} 的 worker 超过 ${minutes} 分钟没有进展，已中止并摘除句柄（kind: ${job.kind}${group}${target}）。`,
-              "下次派工会起新 worker。note 状态未改动：按磁盘上的 notes 决定重新派工还是改派。",
-              "用 orchestrator_workers 查 live 清单。",
-            ].join("\n"),
-            display: true,
-            details: {
-              plan: planRef,
-              kind: job.kind,
-              timedOut: true,
-              ...(job.note === undefined ? {} : { note: job.note }),
-              ...(job.notes === undefined ? {} : { notes: job.notes }),
-            },
-          },
-          { triggerTurn: true, deliverAs: "followUp" },
-        );
-      } catch {
-        // 会话正在关闭时无法注入；abort 与摘除已经发生。
-      }
+      // 中止即作废：这个键（plan/组或 temp id）不再复用那时的上下文，重启也不复活。
+      markWorkerSessionAborted(stateDir(), entry.planDirectory, "timeout");
+      notify({
+        customType: "orchestrator-worker-timeout",
+        content: [
+          `[worker] 超时：${planRef} 的 worker 超过 ${minutes} 分钟没有进展，已中止并摘除句柄（kind: ${job.kind}${group}${target}）。`,
+          "下次派工会起新 worker。note 状态未改动：按磁盘上的 notes 决定重新派工还是改派。",
+          "用 orchestrator_workers 查 live 清单。",
+        ].join("\n"),
+        planRef,
+        details: {
+          plan: planRef,
+          kind: job.kind,
+          timedOut: true,
+          ...(job.note === undefined ? {} : { note: job.note }),
+          ...(job.notes === undefined ? {} : { notes: job.notes }),
+        },
+      });
     })();
   };
 
@@ -686,13 +772,15 @@ export const registerOrchestrator = (
    */
   const onReport = (report: WorkerReport): void => {
     const directory = report.plan;
+    let matched: WorkerEntry | undefined;
     if (directory !== undefined) {
       // 路由：先找包含该 note 的组，再退到 Plan 级条目（老路径），最后试临时 worker 的键。
-      const entry =
+      matched =
         findByNote(registry, directory, report.note) ??
         registry.get(entryKeyOf(directory)) ??
         registry.get(directory);
-      if (entry !== undefined) {
+      if (matched !== undefined) {
+        const entry = matched;
         entry.lastReport = report;
         const job = entry.job;
         if (job !== undefined) {
@@ -704,19 +792,12 @@ export const registerOrchestrator = (
     const lines = [`[worker] ${report.outcome} · note ${report.note}: ${report.summary}`];
     if (report.question !== undefined) lines.push(`问题: ${report.question}`);
     if (report.plan !== undefined) lines.push(`plan: ${report.plan}`);
-    try {
-      pi.sendMessage(
-        {
-          customType: "orchestrator-report",
-          content: lines.join("\n"),
-          display: true,
-          details: { ...report },
-        },
-        { triggerTurn: true, deliverAs: "steer" },
-      );
-    } catch {
-      // 会话正在关闭时无法注入；上报已经记进句柄表，不影响状态。
-    }
+    notify({
+      customType: "orchestrator-report",
+      content: lines.join("\n"),
+      ...(matched === undefined ? {} : { planRef: matched.planRef }),
+      details: { ...report },
+    });
   };
 
   for (const tool of [
@@ -724,8 +805,8 @@ export const registerOrchestrator = (
     createWriteTool(runtime),
     createCheckTool(runtime),
     createAskQuestionsTool(),
-    createDispatchTool(runtime, registry, deps, onReport, sendTimeout),
-    createWorkersTool(registry),
+    createDispatchTool(runtime, registry, deps, stateDir, onReport, sendTimeout),
+    createWorkersTool(registry, stateDir, outbox),
   ]) {
     pi.registerTool({ ...tool, defaultActive: false });
   }
@@ -815,6 +896,16 @@ export const registerOrchestrator = (
     await disposeAll(registry);
   });
 
+  pi.on("agent_start", () => {
+    busy = true;
+  });
+
+  // 一轮结束就空闲了：先翻状态，再重试积压的通知（失败会留在队里，不静默丢）。
+  pi.on("agent_settled", () => {
+    busy = false;
+    flushNotices();
+  });
+
   pi.on("session_tree", (_event, ctx) => {
     sync(ctx);
   });
@@ -825,6 +916,8 @@ export const registerOrchestrator = (
     // 任何没走到 `sync` 的路径（宿主不重放 `session_start` 的 reload、恢复会话等）都会在
     // 下一轮请求之前被这次对齐纠正。模式关时它同样幂等：没进过模式的会话原样不动。
     sync(ctx);
+    busy = true;
+    flushNotices();
     if (!modeOn(ctx)) return;
     const text = prompt();
     if (text === undefined) {
@@ -843,6 +936,7 @@ export const registerOrchestrator = (
   });
 
   pi.on("input", (event, ctx) => {
+    flushNotices();
     if (event.source === "extension" || resetPending || !modeOn(ctx)) return;
     const usage = ctx.getContextUsage();
     if (usage === undefined || usage.tokens === null || usage.contextWindow <= 0) return;
@@ -910,6 +1004,13 @@ export const registerOrchestrator = (
         lines.push(`  可能悬空: ${crashed.notes.join(", ")}`);
       }
       interrupted.clear();
+    }
+    const unsent = outbox.count();
+    if (unsent > 0) {
+      const reason = outbox.lastError();
+      lines.push(
+        `未送达通知: ${unsent} 条${reason === undefined ? "" : `（最近失败: ${reason}）`}`,
+      );
     }
     return lines.join("\n");
   };

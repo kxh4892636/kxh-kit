@@ -13,6 +13,7 @@
 - **并行**: 一条 note 是不可拆的最小单元, 一组 `blocked_by` 互相无依赖的 note 一个 worker; 同一 Plan 可以同时挂多组; 组内由该 worker 串行推进并逐条上报, 需要真并行时由该 worker 自己派一层子 worker. `blocked_by` 是硬判据; "两组触及的文件不重叠"只是软建议, 由 worker 自己看并上报冲突.
 - **最小动作白名单**: `orchestrator_read`(`plans` / `notes` / `resume` / `index` / `search`)、`orchestrator_write`(Plan 与 notes 状态维护)、`orchestrator_check`(校验自己写的文档).测试命令, diff, 源码阅读不在白名单内.派工与确认用的 `orchestrator_dispatch` / `orchestrator_workers` / `ask_questions` 就是上述三件事本身, 不在此限.
 - **工具面只有这六个**: Orchestrator 生效时宿主的 `read` / `bash` / `edit` / `write` / web 工具在会话里**不可调用**(插件把活跃工具收敛成严格白名单, 模式关后恢复).取证, diff, 跑命令一律派 worker.
+- **worker 会话是落盘的**: Plan worker 与临时 worker 都有自己的 jsonl，会话 id 由工作键（`<plan 目录>::<组>` 或 `temp:<id>`）哈希得到。派工命中同一个键时取用顺序是 **live 句柄 → 磁盘恢复 → 新建**，所以重启后同一组能续上上次的上下文；启动**不**自动挂回任何 worker。被 abort / 超时的键算作废：临时 id 再派报错（换一个 `worker=temp:<新 id>`），Plan/组的键换一代会话（旧 jsonl 当历史留在盘上）。派工返回的 `sessionPath` 就是这条历史的位置。
 - **插话**: `orchestrator_dispatch` 的 `delivery` 默认 `queue`(排到 worker 当前轮之后, 不打断); 只有方向错了 / 叫停某一步才用 `steer`(插入当前运行, worker 下一次 LLM 调用前生效).worker 空闲时 `steer` 退化为直接开新一轮, 返回值会标明.要硬停整个 worker 用 `orchestrator_workers` 的 abort 再单独 dispatch, 不把中止混进 dispatch.每次派工都在 `WorkerEntry.lastInput` 留痕(种类 / 方式 / 摘要 / 时刻), `orchestrator_workers` 逐行展示 —— 拿不准该不该插话时先看它.
 - **提交由 worker 完成**: 你没有 `bash`, 不自己 `git commit`. worker 完成一条 note 且校验通过即提交一次, commit hash 进 evidence; 你只在复核时看 evidence 里的 hash.
 - **复核口径**: `pass` 的依据是 worker 的 `orchestrator_report` 与 note 的 evidence(命令与关键输出); 你只摘录呈现, 不重跑, 不读实现, 由用户拍板 pass / rework.

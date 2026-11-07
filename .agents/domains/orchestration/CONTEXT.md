@@ -38,8 +38,12 @@ _Avoid_: 临时会话、绕过 Plan 直接问模型
 _Avoid_: 批准、通过审核
 
 **派工**:
-用 `orchestrator_dispatch` 把一个业务域 Plan 交给一个 worker session。`worker:plan` 是 **1:N**：一个 Plan 可同时挂多个 worker，一个 worker 领一**组** note；同一组重复派工复用既有会话，不同组各起一个。入队即返回（拒绝串行阻塞），完成后由 `orchestrator_report` 推回。
+用 `orchestrator_dispatch` 把一个业务域 Plan 交给一个 worker session。`worker:plan` 是 **1:N**：一个 Plan 可同时挂多个 worker，一个 worker 领一**组** note；同一组重复派工复用既有会话，不同组各起一个。入队即返回（拒绝串行阻塞），完成后由 `orchestrator_report` 推回。会话取用优先级：**live 句柄 → 磁盘恢复 → 新建**（会话 id 由工作键哈希得到，重启后同一组能续上；作废的键换一代会话，见「会话落盘」）。
 _Avoid_: 分配、ticket、工单、一个 Plan 只能一个 worker
+
+**会话落盘**:
+两种 worker（Plan worker 与临时 worker）的会话都是磁盘上的 jsonl，会话 id 由工作键（`<plan 目录>::<组>` 或 `temp:<id>`）哈希得到，所以映射能从磁盘重建；状态目录的 `workers.json` 只是加速与作废登记，丢了也能靠会话 id 重扫回来。启动**不**自动挂回任何 worker，恢复只在 `dispatch` 命中同一个键时发生。`abort` 或超时登记作废：临时 id 再派报错（换一个 id），Plan/组的键换下一代会话 id（旧 jsonl 留作历史）。
+_Avoid_: 内存会话、重启即失忆、启动自动恢复全部 worker
 
 **组**:
 一次派工覆盖的一批 note，组内互相无 `blocked_by` 依赖；组标识由 note id 排序串稳定生成，参与句柄键（`<plan 目录>::<组标识>`）。`blocked_by` 是硬判据，“触及文件不重叠”只是软建议，由 worker 自行遵守并上报冲突。
@@ -50,7 +54,7 @@ _Avoid_: 批次、分片、一条 note 一个 worker
 _Avoid_: 打断、抢占、nextTurn
 
 **临时 worker**:
-没有 Plan 的一次性 worker：只在 `plan` 与 `lockedPlan` 都缺失时起，工具面 = 宿主工具 + 只读 `orchestrator_read` + `orchestrator_report`（无写工具、无 `orchestrator_check`），句柄键 `temp:<id>`，一轮 settle 后立即 `disposeEntry` + 摘除。用于一次性/探索性提问，结论由编排方转呈；建 Plan 需用户明确同意。
+没有 Plan 的一次性 worker：只在 `plan` 与 `lockedPlan` 都缺失时起，工具面 = 宿主工具 + 只读 `orchestrator_read` + `orchestrator_report`（无写工具、无 `orchestrator_check`），句柄键 `temp:<id>`，一轮 settle 后立即 `disposeEntry` + 摘除。**它就是一个普通的 pi 会话**：有 jsonl，用 `worker=temp:<id>` 再派能续上历史；被 `abort` / 超时后该 id 作废，再派直接报错。用于一次性/探索性提问，结论由编排方转呈；建 Plan 需用户明确同意。
 _Avoid_: 聊天模式、无上下文会话、随手派个临时工
 
 **子 worker**:
@@ -64,6 +68,10 @@ _Avoid_: 前台等待、轮询 jobId、按任务总量计时的超时
 **刹车**:
 不设并发上限时的替代手段：`orchestrator_workers` 列 live 清单、按 Plan 或全部中止、退出时自动收尾。
 _Avoid_: 限流、配额
+
+**上报**:
+worker 的 `orchestrator_report` 落成编排方会话里的一条 `orchestrator-report` 消息（超时提醒走同一通道）。pi 的 `sendMessage` 是即发即忘的，失败既不会抛给扩展也不会留痕，所以本插件自己记账：投递失败入队并计数（`outbox`），只在 `agent_settled` / `before_agent_start` / `input` 这几个可注入时机重试，成功即出队；积压条数与最近失败原因在 `orchestrator_workers` 与 `/orchestrator status` 都能看到。忙时用 `followUp`（等当前轮结束再插），空闲时用 `steer` + `triggerTurn`（立刻开一轮）。重试失败**不改任何 note 状态** —— report 只是通知，磁盘上的 notes 才是事实。
+_Avoid_: 静默吞异常、把 report 当真相、重复投递阻塞编排方
 
 ### 恢复
 

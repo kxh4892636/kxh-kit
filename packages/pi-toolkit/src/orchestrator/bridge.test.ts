@@ -297,7 +297,17 @@ describe("句柄表与输入投递", () => {
 });
 
 describe("dispatch 与 workers 工具", () => {
-  const setup = async (options: { timeoutMs?: number; makeSession?: () => FakeSession } = {}) => {
+  const setup = async (
+    options: {
+      timeoutMs?: number;
+      makeSession?: () => FakeSession;
+      stateDir?: () => string;
+      /** 模拟 `pi.sendMessage` 前几次抛错（report 注入失败）。 */
+      failSendTimes?: number;
+      /** 假 spawn 报出的会话文件路径。 */
+      sessionPath?: string;
+    } = {},
+  ) => {
     const local: ToolkitSettings =
       options.timeoutMs === undefined
         ? settings
@@ -318,7 +328,13 @@ describe("dispatch 与 workers 工具", () => {
       appendEntry: () => undefined,
       getActiveTools: () => ["read"],
       setActiveTools: () => undefined,
-      sendMessage: (message: unknown) => messages.push(message),
+      sendMessage: (message: unknown) => {
+        if (failSend > 0) {
+          failSend -= 1;
+          throw new Error("会话正在关闭");
+        }
+        messages.push(message);
+      },
       on: (event: string, handler: (payload: unknown) => unknown) => {
         const list = handlers.get(event) ?? [];
         list.push(handler);
@@ -326,26 +342,42 @@ describe("dispatch 与 workers 工具", () => {
       },
     } as unknown as ExtensionAPI;
 
+    let failSend = options.failSendTimes ?? 0;
     const spawns: FakeSession[] = [];
     const reports: Array<(report: WorkerReport) => void> = [];
-    const spawnOptions: Array<{ plan?: unknown; temp?: string }> = [];
+    const spawnOptions: Array<{ plan?: unknown; temp?: string; sessionKey?: string }> = [];
+    // 状态目录（worker 会话索引 / 作废登记）落在临时目录：测试不能写真实的 ~/.pi。
+    const fs = await import("node:fs/promises");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-bridge-state-"));
+    createdDirs.push(stateRoot);
     const { registerOrchestrator } = await import("./register.ts");
     registerOrchestrator(pi, {
       settings: () => local,
       setAlways: () => undefined,
+      stateDir: options.stateDir ?? (() => stateRoot),
       spawn: async (spawnOptionsInput) => {
         spawnOptions.push({
           ...(spawnOptionsInput.plan === undefined ? {} : { plan: spawnOptionsInput.plan }),
           ...(spawnOptionsInput.temp === undefined ? {} : { temp: spawnOptionsInput.temp }),
+          ...(spawnOptionsInput.sessionKey === undefined
+            ? {}
+            : { sessionKey: spawnOptionsInput.sessionKey }),
         });
         reports.push(spawnOptionsInput.report);
         const session = (options.makeSession ?? (() => fakeSession()))();
         spawns.push(session);
         created.push(session);
-        return { session, dispose: () => session.dispose() };
+        return {
+          session,
+          resumed: false,
+          ...(options.sessionPath === undefined ? {} : { sessionPath: options.sessionPath }),
+          dispose: () => session.dispose(),
+        };
       },
     });
-    return { tools, messages, spawns, reports, spawnOptions, handlers };
+    return { tools, messages, spawns, reports, spawnOptions, handlers, stateRoot };
   };
 
   const textOf = (result: unknown): string =>
@@ -527,6 +559,94 @@ describe("dispatch 与 workers 工具", () => {
     expect(spawns[0]?.steers).toEqual(["  别动\nregister.ts  "]);
   });
 
+  it("临时派工用 worker=temp:<id> 寻址：同 id 复用，作废后再派报错", async () => {
+    const { tools, spawns, spawnOptions } = await setup({
+      makeSession: () => fakeSession(true, false),
+    });
+    const { root } = await planArgs();
+    const dispatch = tools.get("orchestrator_dispatch");
+    const workers = tools.get("orchestrator_workers");
+
+    await dispatch?.execute(
+      "id",
+      { message: "查 X", worker: "temp:7" },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+    expect(spawnOptions[0]).toMatchObject({ temp: "7", sessionKey: "temp:7" });
+
+    // 同 id 再派：复用同一个 worker，不再起新会话。
+    await dispatch?.execute(
+      "id",
+      { message: "再看 Y", worker: "temp:7" },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+    expect(spawns).toHaveLength(1);
+
+    // abort 即作废：同 id 再派直接报错，换一个 id 才行。
+    await workers?.execute("id", { op: "abort", plan: "temp:7" }, undefined, undefined, ctx(root));
+    await expect(
+      dispatch?.execute(
+        "id",
+        { message: "再来", worker: "temp:7" },
+        undefined,
+        undefined,
+        ctx(root),
+      ),
+    ).rejects.toThrow(/作废/);
+    await dispatch?.execute(
+      "id",
+      { message: "再来", worker: "temp:8" },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+    expect(spawnOptions[1]).toMatchObject({ temp: "8" });
+  });
+
+  it("Plan 组被作废后仍可重派：换一代会话，不把组锁死", async () => {
+    const { tools, spawns, spawnOptions } = await setup({
+      makeSession: () => fakeSession(true, false),
+    });
+    const { root, ref } = await planArgs();
+    const dispatch = tools.get("orchestrator_dispatch");
+    const workers = tools.get("orchestrator_workers");
+
+    await dispatch?.execute("id", { plan: ref, message: "做 01" }, undefined, undefined, ctx(root));
+    expect(spawnOptions[0]?.sessionKey).not.toContain("#");
+
+    await workers?.execute("id", { op: "abort", plan: ref }, undefined, undefined, ctx(root));
+    await dispatch?.execute(
+      "id",
+      { plan: ref, message: "重做 01" },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+    expect(spawns).toHaveLength(2);
+    // 作废后的会话 id 与作废时刻绑定：旧上下文不再续上，旧 jsonl 还在。
+    expect(spawnOptions[1]?.sessionKey).toContain("#");
+  });
+
+  it("dispatch 返回会话文件路径，便于知道历史落在哪", async () => {
+    const { tools } = await setup({
+      makeSession: () => fakeSession(),
+      sessionPath: "/tmp/sessions/worker-abc.jsonl",
+    });
+    const { root, ref } = await planArgs();
+    const result = await tools
+      .get("orchestrator_dispatch")
+      ?.execute("id", { plan: ref, message: "做 01" }, undefined, undefined, ctx(root));
+    expect(textOf(result)).toContain("会话：新建 jsonl /tmp/sessions/worker-abc.jsonl");
+    expect((result as { details: Record<string, unknown> }).details).toMatchObject({
+      sessionPath: "/tmp/sessions/worker-abc.jsonl",
+      resumed: false,
+    });
+  });
+
   it("两个 Plan 连续派工，第二个不被第一个阻塞", async () => {
     const sessions: FakeSession[] = [];
     const { tools } = await setup({
@@ -596,7 +716,10 @@ describe("dispatch 与 workers 工具", () => {
     const previous = process.env["PI_CODING_AGENT_DIR"];
     process.env["PI_CODING_AGENT_DIR"] = agentDir;
     try {
-      const { tools, handlers } = await setup({ makeSession: () => fakeSession(true, false) });
+      const { tools, handlers } = await setup({
+        makeSession: () => fakeSession(true, false),
+        stateDir: () => stateDirectory(agentDir),
+      });
       const { root, ref } = await planWithNotes([note("01", [], "in_progress"), note("02")]);
       await tools
         .get("orchestrator_dispatch")
@@ -1004,10 +1127,51 @@ describe("dispatch 与 workers 工具", () => {
     };
     expect(listed.content[0]?.text).toContain("没有 live worker");
   });
+
+  it("report 注入失败不静默丢：计数可见，下一次钩子重试送达", async () => {
+    const { tools, reports, handlers } = await setup({
+      makeSession: () => fakeSession(true, false),
+      failSendTimes: 1,
+    });
+    const { root, ref } = await planArgs();
+    const path = await import("node:path");
+    const planDirectory = path.resolve(
+      root,
+      ".agents",
+      "domains",
+      "etf",
+      "plans",
+      "active",
+      "2026-11-07-示例",
+    );
+    await tools
+      .get("orchestrator_dispatch")
+      ?.execute("id", { plan: ref, message: "做 01" }, undefined, undefined, ctx(root));
+
+    // 注入失败：不崩、消息没进会话，但积压可见。
+    reports[0]?.({ outcome: "needs_review", note: "01", summary: "改完了", plan: planDirectory });
+    const listed = textOf(
+      await tools
+        .get("orchestrator_workers")
+        ?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
+    );
+    expect(listed).toContain("未送达 1 条");
+    expect(listed).toContain("最近失败: 会话正在关闭");
+
+    // 下一次钩子（agent_settled）重试：真的送出去了，积压归零。
+    for (const handler of handlers.get("agent_settled") ?? []) await handler({});
+    const after = textOf(
+      await tools
+        .get("orchestrator_workers")
+        ?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
+    );
+    expect(after).not.toContain("未送达");
+  });
 });
 
 describe("report 注入", () => {
   it("worker 上报后编排方收到一条消息", async () => {
+    let failSend = 0;
     const messages: unknown[] = [];
     const tools = new Map<string, { execute: (...args: unknown[]) => Promise<unknown> }>();
     const pi = {
@@ -1018,17 +1182,29 @@ describe("report 注入", () => {
       appendEntry: () => undefined,
       getActiveTools: () => ["read"],
       setActiveTools: () => undefined,
-      sendMessage: (message: unknown) => messages.push(message),
+      sendMessage: (message: unknown) => {
+        if (failSend > 0) {
+          failSend -= 1;
+          throw new Error("会话正在关闭");
+        }
+        messages.push(message);
+      },
       on: () => undefined,
     } as unknown as ExtensionAPI;
     const { registerOrchestrator } = await import("./register.ts");
     const captured: Array<(report: WorkerReport) => void> = [];
+    const stateFs = await import("node:fs/promises");
+    const stateOs = await import("node:os");
+    const statePath = await import("node:path");
+    const stateRoot = await stateFs.mkdtemp(statePath.join(stateOs.tmpdir(), "pi-bridge-state-"));
+    createdDirs.push(stateRoot);
     registerOrchestrator(pi, {
       settings: () => settings,
       setAlways: () => undefined,
+      stateDir: () => stateRoot,
       spawn: async (options) => {
         captured.push(options.report);
-        return { session: fakeSession(), dispose: () => undefined };
+        return { session: fakeSession(), resumed: false, dispose: () => undefined };
       },
     });
 

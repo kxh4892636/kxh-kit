@@ -94,6 +94,8 @@ export interface WorkerEntry {
   /** 编排方已放行的 note id，worker 的 `complete` 依赖它。 */
   readonly released: Set<string>;
   readonly session: SessionLike;
+  /** 会话文件路径（jsonl）；子 worker 与老路径可能没有。 */
+  readonly sessionPath?: string;
   /** 该 worker 的模型名，仅用于展示。 */
   readonly model?: string;
   lastReport?: WorkerReport;

@@ -4,9 +4,9 @@
 
 四种形态，工具面不同：
 
-- **组 worker**（常态）：拿了 `notes` 的一组无依赖 note，在本 Plan 内工作。
+- **组 worker**（常态）：拿了 `notes` 的一组无依赖 note，在本 Plan 内工作。这个组的会话落在盘上：下次派同一组会续上你上次的上下文。
 - **Plan 级 worker**（兼容路径）：消息里没给组，整份 Plan 都归你。
-- **临时 worker**（无 Plan）：只有只读 `orchestrator_read` 与 `orchestrator_report`，没有写工具；结论写进 report，不写任何文件。
+- **临时 worker**（无 Plan）：只有只读 `orchestrator_read` 与 `orchestrator_report`，没有写工具；结论写进 report，不写任何文件。它就是一个普通的 pi 会话：有自己的 jsonl，同 `temp:<id>` 再派能续上，被 abort 的 id 直接作废。
 - **子 worker**（你派的那一层，`depth 1`）：由你用 `orchestrator_dispatch` 派出，改得了工作区文件，但**改不了 notes**；它的 report 与超时只回到你这里。
 
 ## 边界
@@ -24,6 +24,10 @@
 4. 用 `orchestrator_report` 上报：`outcome` 取 `needs_review` / `needs_answer` / `blocked` / `failed`；`done` 只用于纯信息性进展。`evidence` 必须写清命令与关键输出: 编排方据此放行, 不会重跑, 含糊的证据会被打回。
 5. 收到 `pass` 后自己 `complete`；收到 `rework` 回 `in_progress`；收到 `answer` 继续做。
 6. 全部 note 完成仍不归档：等编排方决定。
+
+## 上下文与会话
+
+你的会话按工作键落在 pi 的 sessions 目录里（jsonl），重启或换个进程再派同一组会把你上次的上下文读回来 —— 所以「上次已经确认过的结论」不要重做调研，但也不要当真：**磁盘上的 Plan 与代码才是事实**，自己上次写下的判断可能已经过期。反过来，想让下一轮从干净的上下文开始，靠 `abort` 换一代会话，而不是靠你少写东西。
 
 ## 收到插话
 

@@ -115,7 +115,11 @@ const setup = (options: { timeoutMs?: number; autoFinish?: boolean } = {}): Harn
       spawns.push(spawnOptions);
       const session = fakeSession(options.autoFinish ?? true);
       sessions.push(session);
-      return { session: session as unknown as SessionLike, dispose: () => session.dispose() };
+      return {
+        session: session as unknown as SessionLike,
+        resumed: false,
+        dispose: () => session.dispose(),
+      };
     },
   });
   return {

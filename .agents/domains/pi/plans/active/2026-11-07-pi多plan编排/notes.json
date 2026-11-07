@@ -464,12 +464,13 @@
       "id": "31",
       "title": "执行：派工插话（delivery = queue / steer）",
       "description": "dispatch 增加 delivery=queue（默认，followUp）| steer（插入当前运行），workers 展示最近输入，插话须写入 note 执行检查点。",
-      "status": "in_progress",
+      "status": "waiting",
+      "needs": "review",
       "blocked_by": [
         "30"
       ],
       "evidence": [],
-      "updated_at": "2026-11-07T12:55:03.136Z",
+      "updated_at": "2026-11-07T12:55:25.792Z",
       "content": "# 派工可插话：delivery = queue / steer\n\n## 用户要求（2026-11-07）\n\n> 如果一个 worker 正在执行, 我依旧可以向其发消息, 更新其行为, 就像 steer 或 queue 一样\n\n## 定案（用户已确认）\n\n1. **新增参数**：`orchestrator_dispatch` 的 `delivery: \"queue\" | \"steer\"`，**默认 `queue`**；与 `kind`（message / pass / rework / answer / fact）正交。\n2. **语义**：`queue` → `followUp()`（当前轮做完再消化）；`steer` → `steer()`（插入当前运行，下一次 LLM 调用前生效），只用于\"方向错了\"\"别动那个文件\"。\n3. **不做 abort 参数**：硬停由编排方用 `orchestrator_workers` 的 abort，再单独 dispatch。\n4. **可见性**：dispatch 返回值区分 `prompt` / `queued` / `steered`；`orchestrator_workers` 每行加\"最近一次输入摘要 + 时刻\"。\n5. **落盘**：worker 收到插话后在对应 note 的\"执行检查点\"记「谁说的 / 为什么改 / 改了什么」。\n6. **不用 `nextTurn`**：不落盘、可能滞留、进程退出即丢。\n\n## 本轮实现\n\n- `handles.ts`：`DELIVERY_MODES` / `DeliveryMode` / `DeliveredAs` / `LastInput`；`deliver(entry, kind, text, note, mode = \"queue\")` —— 空闲 → `prompt`；忙且 `steer` → `session.steer()`；忙且 `queue` → `followUp()`；两条忙分支都接 `waitForIdle()` 作终态。`WorkerEntry.lastInput = { kind, delivery, text, at }`，`text` 走 `summarizeInput`（折叠空白 + 60 字截断）。\n- `register.ts`：`delivery` 参数（默认 queue，非法值报错）；返回正文带 `delivery: queue → queued` 一行与 `details.{delivery, delivered, queued}`；worker 空闲 + steer 明确写「插话退化为直接开新一轮」。`orchestrator_workers` 每行追加 `最近输入 <相对时刻> [kind/delivery] <摘要>`，无输入时「尚无输入」。\n- 文档：`worker.md` 新增「收到插话」小节；`prompt.md` 职责边界加「插话」条；`README.md` 的 Workers 段同步；`.agents/domains/orchestration/CONTEXT.md` 新增术语「插话」（跨域：本 note 范围明列，编排方需覆盖该域校验）。\n\n## 验证\n\n1. `cd packages/pi-toolkit && npx vp test --run` → `Test Files 25 passed / Tests 315 passed`。新增 5 条：忙时 queue→`followUp` 且不 steer；忙时 steer→`steer` 且不 followUp；空闲 steer→`prompt` 且 `delivered: \"prompt\"`；`lastInput` 摘要与截断（61 字 = 60 + `…`）；dispatch 工具层默认 queue、非法 delivery 报错、退化文案；workers 清单展示最近输入；源文件不含 `nextTurn(`。\n2. `npx vp check` → `Found no warnings, lint errors, or type errors in 62 files` / `All 78 files are correctly formatted`。\n3. `orchestrator_check op=plan` 通过；`op=workspace`（范围 common + pi）通过。\n\n## 执行检查点\n\n- 2026-11-07：开工（`blocked_by: 30` 已完成）。实现 handles / register / 文档 / 测试如上；315 测试 + check 全绿后提交，hash 见 evidence。\n- 未收到插话。（收到时就在此追加一行：谁说的 / 为什么改 / 改了什么。）\n\n## 待验证\n\n- 验收点：worker 运行中可 `delivery: \"steer\"` 插话，改动在它下一次 LLM 调用前生效；默认 `queue` 不打断当前轮；`orchestrator_workers` 能看到每个 worker 最近收到的输入。\n- 证据：上节「验证」的命令与计数、evidence 里的 commit hash。\n\n## 下一步\n\n- 等编排方验收（`needs=review`）；`pass` 后 `complete` 并把 commit hash 写进 evidence。\n"
     },
     {

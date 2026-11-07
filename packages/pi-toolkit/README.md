@@ -270,7 +270,15 @@ The worker keeps `orchestrator_check` for self-checking: `op: "plan"` validates 
 the same set it may write. The orchestrator's `op: "workspace"` covers every domain.
 
 `orchestrator_dispatch` starts one worker per **group of notes** with the SDK's `createAgentSession` (in
-process, no extension discovery, only the worker extension). `worker:plan` is 1:N: a plan can run several
+process, no extension discovery, only the worker extension). Both plan workers and temporary workers keep
+their conversation as a **jsonl session on disk**, and the session id is the hash of the work key
+(`<plan dir>::<group>` or `temp:<id>`), so the mapping is rebuildable from disk alone; a small
+`workers.json` in the state dir only speeds up lookup and records voided keys. Dispatch resolves a worker
+by **live handle → disk session → new**: the same group picks up its previous context after a restart,
+while nothing is reattached at startup. `abort` (or a watchdog timeout) voids the key: a temporary id can
+never be dispatched again (pick a new one) and a plan/group key moves to a fresh generation (the old jsonl
+stays as history). The tool result carries the `sessionPath` so the orchestrator knows where the history
+lives. `worker:plan` is 1:N: a plan can run several
 workers at once, one group (a set of notes with no `blocked_by` between them) each; the same group reuses
 its session and queues the message as a follow-up, a different group gets its own. Dispatch with neither
 `plan` nor a locked plan starts a **temporary worker** instead — no plan, read-only tools + report, dropped
@@ -301,7 +309,12 @@ id) and the hash goes into that note's evidence: the orchestrator has no `bash`,
 nothing is committed while tests or checks fail.
 
 `orchestrator_report` arrives in the orchestrator session as an `orchestrator-report` message. Reports
-are notifications; the notes on disk are the truth.
+are notifications; the notes on disk are the truth. Delivery goes through an **outbox**: `pi.sendMessage`
+is fire-and-forget (failures are swallowed by the host), so the plugin keeps its own account — a failed
+injection is queued and counted, retried on the next `agent_settled` / `before_agent_start` / `input`, and
+removed once it lands. Busy orchestrator → `deliverAs: "followUp"`; idle → `steer` + `triggerTurn`. Pending
+count and the last error show up in `orchestrator_workers` and `/orchestrator status`, and a retry never
+touches note state.
 
 A worker can dispatch **one layer of sub-workers** (`depth 1`) with its own restricted
 `orchestrator_dispatch`, which takes a `message` and nothing else. A sub-worker gets the host's file
