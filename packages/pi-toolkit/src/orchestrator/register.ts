@@ -1752,6 +1752,17 @@ export const registerOrchestrator = (
     registry,
     limits: () => deps.settings().orchestrator,
     events: { subscribe: (listener) => projectionOf().subscribe(listener) },
+    // 分组看**账本**而不是只看 live 句柄：合并回收 / abort / 重启会把句柄摘掉，
+    // 但 `worker.spawned.notes` 是派工种子，侧栏的组必须跟着它走（note 62）。
+    workers: () =>
+      [...projectionOf().state().workers.values()]
+        // 子 worker 不进 Plan 的组（它们的键没有 `::`，`planDirectoryOf` 会把它当自己的目录）。
+        .filter((worker) => worker.depth === 0)
+        .map((worker) => ({
+          worker: worker.worker,
+          notes: worker.notes,
+          running: worker.status === "live",
+        })),
   });
 
   /** 编排方是否正在跑一轮；只影响推送落到哪条投递分支。 */

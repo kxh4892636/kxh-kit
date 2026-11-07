@@ -28,6 +28,7 @@ import {
   createSidebar,
   createSidebarComponent,
   groupSidebarNotes,
+  GROUP_COLLAPSED_MARK,
   ICON_CLOSED,
   ICON_OPEN,
   noteRowText,
@@ -1445,6 +1446,212 @@ describe("侧边栏控制器", () => {
     // 定时器已清：推进 3 个刷新周期（3 × 3s）也不再有重绘请求
     vi.advanceTimersByTime(SIDEBAR_REFRESH_MS * 3);
     expect(state.renders).toBe(before);
+    sidebar.dispose();
+  });
+});
+
+describe("分组来源与组折叠（note 62）", () => {
+  /** 帧里的纯文本：渲染成 40 列的行，去掉边框与内距（断言只看内容与先后顺序）。 */
+  const bodyOf = (component: Component): readonly string[] =>
+    component
+      .render(SIDEBAR_WIDTH)
+      .slice(SIDEBAR_HEADER_ROWS, -1)
+      .map((line) => stripTerminalSequences(line).replaceAll("│", "").trimEnd());
+  const indexOf = (lines: readonly string[], needle: string): number =>
+    lines.findIndex((line) => line.includes(needle));
+
+  it("分组走结构化数据：live 句柄退场后仍按派工种子分组，不回退到平铺 未分组", async () => {
+    /** 一条指定状态的 note（派工种子的闭包要靠 blocked_by 拉进来）。 */
+    const planNote = (
+      id: string,
+      title: string,
+      status: string,
+      blockedBy: string[] = [],
+    ): unknown => ({
+      ...(runningNote(id, title) as Record<string, unknown>),
+      status,
+      blocked_by: blockedBy,
+    });
+    const { root, directory } = await tempPlan("demo", "2026-01-01-groups", [
+      planNote("07", "侧栏分组", "in_progress"),
+      // 只给 07 派工：08 靠 blocked_by 进 07 的闭包。
+      planNote("08", "依赖分组", "pending", ["07"]),
+      planNote("01", "历史残留", "pending"),
+    ]);
+    // 句柄表是空的：worker 已 exit（合并回收 / abort / 重启）—— 症状现场就是这一帧。
+    const registry = createRegistry();
+    const sidebar = createSidebar({
+      registry,
+      limits: () => DEFAULT_ORCHESTRATOR_SETTINGS,
+      workers: () => [{ worker: `${directory}::07`, notes: ["07"], running: false }],
+    });
+    const { ctx, widgets } = createFakeCtx(root);
+    const { tui, overlays } = createFakeTui();
+    sidebar.sync(ctx, true);
+    mountWidget(widgets, tui);
+    await wait(20);
+    const lines = bodyOf(overlays[1]!.component);
+    const groupAt = indexOf(lines, `${WORKER_NOTES_LABEL}07,08`);
+    const ungroupedAt = indexOf(lines, UNGROUPED_LABEL);
+    // 三级分组还在：Plan → worker 组 → note。
+    expect(groupAt).toBeGreaterThan(-1);
+    expect(ungroupedAt).toBeGreaterThan(groupAt);
+    // 07 / 08 归组，只有真没归属的 01 落 未分组。
+    expect(indexOf(lines, "07 侧栏分组")).toBeGreaterThan(groupAt);
+    expect(indexOf(lines, "07 侧栏分组")).toBeLessThan(ungroupedAt);
+    expect(indexOf(lines, "08 依赖分组")).toBeLessThan(ungroupedAt);
+    expect(indexOf(lines, "01 历史残留")).toBeGreaterThan(ungroupedAt);
+    sidebar.dispose();
+  });
+
+  it("点组行收起 / 展开，且 refresh 之后收起状态保持", async () => {
+    const { root, directory } = await tempPlan("demo", "2026-01-01-fold", [
+      runningNote("07", "侧栏实现"),
+      {
+        ...(runningNote("08", "依赖实现") as Record<string, unknown>),
+        status: "pending",
+        blocked_by: ["07"],
+      },
+    ]);
+    const registry = createRegistry();
+    registry.add(workerEntry(directory, ["07"]));
+    const listeners: Array<() => void> = [];
+    const sidebar = createSidebar({
+      registry,
+      limits: () => DEFAULT_ORCHESTRATOR_SETTINGS,
+      events: {
+        subscribe: (listener) => {
+          listeners.push(listener);
+          return () => undefined;
+        },
+      },
+    });
+    const { ctx, widgets } = createFakeCtx(root);
+    const { tui, overlays } = createFakeTui();
+    sidebar.sync(ctx, true);
+    mountWidget(widgets, tui);
+    await wait(20);
+    const list = overlays[1]!;
+    const textOf = (): string => bodyOf(list.component).join("\n");
+    // 组行是 Plan 下面的第一支（行 1），点它收起。
+    expect(textOf()).toContain("07 侧栏实现");
+    list.component.handleMouse?.(click(SIDEBAR_HEADER_ROWS + 1));
+    expect(textOf()).toContain(`${WORKER_NOTES_LABEL}07,08 ${GROUP_COLLAPSED_MARK} 2 条`);
+    expect(textOf()).not.toContain("07 侧栏实现");
+    expect(textOf()).not.toContain("08 依赖实现");
+
+    // 刷新（盘上多一条 note 触发重绘）：收起状态不重置。
+    const document = parseDocument(
+      {
+        version: 1,
+        index: [],
+        notes: [
+          runningNote("07", "侧栏实现"),
+          {
+            ...(runningNote("08", "依赖实现") as Record<string, unknown>),
+            status: "pending",
+            blocked_by: ["07"],
+          },
+          { ...(runningNote("09", "新条目") as Record<string, unknown>), status: "pending" },
+        ],
+      },
+      DEFAULT_ORCHESTRATOR_SETTINGS,
+    );
+    await writeFile(join(directory, "notes.json"), serializeDocument(document), "utf8");
+    for (const listener of listeners) listener();
+    const started = Date.now();
+    while (!textOf().includes("09 新条目") && Date.now() - started < 1_000) await wait(2);
+    expect(textOf()).toContain("09 新条目");
+    expect(textOf()).toContain(`${GROUP_COLLAPSED_MARK} 2 条`);
+    expect(textOf()).not.toContain("07 侧栏实现");
+
+    // 再点一下展开：子行回来，标记消失。
+    list.component.handleMouse?.(click(SIDEBAR_HEADER_ROWS + 1));
+    expect(textOf()).toContain("07 侧栏实现");
+    expect(textOf()).not.toContain(GROUP_COLLAPSED_MARK);
+    sidebar.dispose();
+  });
+
+  it("投影里的历史 worker 不抢流：卡片只绑 live 句柄，换代重绑且两代不混流", async () => {
+    const { root, directory } = await tempPlan("demo", "2026-01-01-history", [
+      runningNote("07", "侧栏实现"),
+    ]);
+    const key = `${directory}::07`;
+    /** 每一代会话都记下自己的订阅者与退订次数：重绑的证据就在这里。 */
+    const generation = () => {
+      const state = { listeners: [] as Array<(event: unknown) => void>, subscribed: 0, stopped: 0 };
+      const session: SessionLike = {
+        ...fakeSession(),
+        subscribe: (listener) => {
+          state.subscribed += 1;
+          state.listeners.push(listener);
+          return () => {
+            state.stopped += 1;
+          };
+        },
+      };
+      return { state, session };
+    };
+    const stale = generation();
+    const first = generation();
+    const registry = createRegistry();
+    registry.add({
+      planDirectory: key,
+      planRef: "demo/active/2026-01-01-history",
+      notes: ["07"],
+      startedAt: Date.now(),
+      session: first.session,
+    });
+    const refreshListeners: Array<() => void> = [];
+    const sidebar = createSidebar({
+      registry,
+      limits: () => DEFAULT_ORCHESTRATOR_SETTINGS,
+      events: {
+        subscribe: (listener) => {
+          refreshListeners.push(listener);
+          return () => undefined;
+        },
+      },
+      // 账本里还有更早的一代（已退出）：它有 notes、也是同一个组，但没有 live 会话。
+      workers: () => [
+        { worker: `${key}#3`, notes: ["07"], running: false },
+        { worker: key, notes: ["07"], running: true },
+      ],
+    });
+    const { ctx, widgets } = createFakeCtx(root);
+    const { tui, overlays } = createFakeTui();
+    sidebar.sync(ctx, true);
+    mountWidget(widgets, tui);
+    await wait(20);
+    overlays[1]?.component.handleMouse?.(click(SIDEBAR_HEADER_ROWS + 2));
+    const card = (): string => (overlays[2]?.component.render(DETAIL_WIDTH) ?? []).join("\n");
+    const waitFor = async (predicate: () => boolean): Promise<void> => {
+      const started = Date.now();
+      while (!predicate() && Date.now() - started < 1_000) await wait(2);
+    };
+    await waitFor(() => first.state.subscribed === 1);
+    expect(first.state.subscribed).toBe(1);
+    // 历史那一代一次都没被订阅（不会把两代混进一张卡片）。
+    expect(stale.state.subscribed).toBe(0);
+
+    // 换代（同组重派）：解旧绑新，只看到新一代的流。
+    const second = generation();
+    registry.remove(key);
+    registry.add({
+      planDirectory: key,
+      planRef: "demo/active/2026-01-01-history",
+      notes: ["07"],
+      startedAt: Date.now() + 1_000,
+      session: second.session,
+    });
+    for (const listener of refreshListeners) listener();
+    await waitFor(() => second.state.subscribed === 1);
+    expect(first.state.stopped).toBe(1);
+    first.state.listeners[0]?.({ type: "tool_execution_start", toolName: "一代工具" });
+    second.state.listeners[0]?.({ type: "tool_execution_start", toolName: "二代工具" });
+    expect(card()).toContain("⋯ 二代工具");
+    expect(card()).not.toContain("一代工具");
+    expect(stale.state.subscribed).toBe(0);
     sidebar.dispose();
   });
 });

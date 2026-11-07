@@ -140,6 +140,13 @@ export const iconMargin = (): OverlayMargin => ({
 });
 /** 折叠行文案里的“已完成”前缀。 */
 export const COMPLETED_LABEL = "已完成";
+/**
+ * 组行收起后的标记（后面跟被收起的条数）。
+ *
+ * **只在收起时出现**：展开态与 note 43 锁定下来的帧逐字一致（`结构快照` 用例是那条口径的锚点），
+ * 收起则必须看得出来 —— 否则点了半天不知道有没有生效。
+ */
+export const GROUP_COLLAPSED_MARK = "▸";
 /** 没有 worker 组归属的历史 note 放在这个组下。 */
 export const UNGROUPED_LABEL = "未分组";
 /** 领了具体 note 的 worker 组前缀（后面接 id 列表）。 */
@@ -206,6 +213,10 @@ export interface SidebarRow {
   readonly temp?: string;
   readonly status?: NoteStatus;
   readonly running?: boolean;
+  /** 组行的组名（= `SidebarGroup.label`）：折叠状态以 `<plan ref>::<组名>` 为键。 */
+  readonly group?: string;
+  /** 组行当前是收起的（`▸ N 条`，子行不出现）。 */
+  readonly collapsed?: boolean;
 }
 
 /**
@@ -401,6 +412,7 @@ type PlanChild =
  * @param expanded - 已展开“已完成”的 Plan ref 集合。
  * @param textWidth - 行文本可用列数（默认 `SIDEBAR_TEXT_WIDTH`），用于只截名称/摘要。
  * @param temps - live 临时 worker（来自 `registry` 的 `temp:` 条目）；空数组则整块不显示。
+ * @param collapsed - 已收起的组（键 `<plan ref>::<组名>`）：组行后面跟 `▸ N 条`，子行不出现。
  * @returns 行数组（下标 = 鼠标 `y` - `SIDEBAR_HEADER_ROWS`）。
  */
 export const buildSidebarView = (
@@ -408,8 +420,10 @@ export const buildSidebarView = (
   expanded: Iterable<string> = [],
   textWidth: number = SIDEBAR_TEXT_WIDTH,
   temps: readonly SidebarTemp[] = [],
+  collapsed: Iterable<string> = [],
 ): SidebarView => {
   const open = new Set(expanded);
+  const closed = new Set(collapsed);
   const rows: SidebarRow[] = [];
   plans.forEach((plan, planIndex) => {
     if (planIndex > 0) rows.push({ kind: "spacer", text: "" });
@@ -437,12 +451,19 @@ export const buildSidebarView = (
         });
         return;
       }
+      const isCollapsed = closed.has(`${plan.ref}::${child.group.label}`);
       rows.push({
         kind: "group",
-        text: `${branch}${child.group.label}`,
+        text: isCollapsed
+          ? `${branch}${child.group.label} ${GROUP_COLLAPSED_MARK} ${child.notes.length} 条`
+          : `${branch}${child.group.label}`,
         plan: plan.ref,
+        group: child.group.label,
         ...(child.group.running ? { running: true } : {}),
+        ...(isCollapsed ? { collapsed: true } : {}),
       });
+      // 收起的组只留组行：子行一条都不出，但“已完成 N 条”的计数照旧算（它是 Plan 级的）。
+      if (isCollapsed) return;
       child.notes.forEach((note, noteIndex) => {
         const noteBranch = branchOf(noteIndex, child.notes.length);
         // 接续符占的列从文本宽度里扣掉，剩下的只截名称、状态与序号不动。
@@ -605,10 +626,18 @@ export interface SidebarDeps {
   /** 领域根，默认 `.agents/domains`。 */
   readonly domainsPath?: string;
   /**
-   * 变化源（账本投影的订阅）：一变就立刻刷新，这是**主路径**（同进程 append 后毫秒级）。
+   * 变化源（账本投影的订阅）：一变就立即刷新，这是**主路径**（同进程 append 后毫秒级）。
    * 省略时退回定时器轮询（跨进程兜底 / 测试）。
    */
   readonly events?: { subscribe(listener: () => void): () => void };
+  /**
+   * 派工分组的**结构化历史**（账本投影的全部 worker，含 `status: "exited"`）。
+   *
+   * `registry` 只有 live 句柄：合并回收 / abort / 超时 / 临时 worker 收工 / 重启之后句柄就没了，
+   * 只看它会整份 Plan 塌成一个 `未分组`（侧栏平铺）。投影里的 `worker.spawned.notes` 是派工种子
+   * 的历史事实，分组以它为准。省略时只用 `registry`（与旧行为一致）。
+   */
+  readonly workers?: () => readonly SidebarGroupSource[];
 }
 
 /**
@@ -663,9 +692,24 @@ export const SIDEBAR_EXCLUDED_DOMAINS: readonly string[] = ["orchestration"];
 export const planVisibleInSidebar = (plan: Pick<PlanRef, "domain">): boolean =>
   !SIDEBAR_EXCLUDED_DOMAINS.includes(plan.domain);
 
-/** 一组 worker 领的 note id（来自 `registry` 条目）+ 是否有 live worker。 */
+/** 一组 worker 领的 note id（来自 `registry` 条目 / 账本投影）+ 是否有 live worker。 */
 export interface WorkerGroupSpec {
   readonly notes: readonly string[];
+  readonly running: boolean;
+}
+
+/**
+ * 派工分组的一条**结构化**来源（账本投影里的一个 worker，含已退出）。
+ *
+ * 分组不能只看 `registry`：句柄随 `worker.exit`（合并回收 / abort / 超时 / 临时 worker 收工 / 会话重启）
+ * 一起消失，而 `worker.spawned` 落下的派工种子是历史事实 —— 少了它，worker 一退场整份 Plan 的组就
+ * 塌成一个 `未分组`，侧栏变成平铺。投影是这份事实的唯一来源（`notes` 就是派工种子）。
+ */
+export interface SidebarGroupSource {
+  /** 路由键：`<plan 目录>::<组标识>`（`temp:` / 子 worker 键会被过滤）。 */
+  readonly worker: string;
+  readonly notes: readonly string[];
+  /** 这一组当前有 live 会话（`worker.status === "live"`）。 */
   readonly running: boolean;
 }
 
@@ -678,7 +722,8 @@ export interface WorkerGroupSpec {
  * - **去重**：闭包会重叠，同一条 note 只归**组键排序最前**的组（组键 = 闭包 id 升序 `,` 连接），
  *   该行标 `shared: true`，渲染时行尾加 `↔`。
  * - **已完成**：照旧留在组里（`已完成 N 条 ▸` 的计数靠它），可见性由 `buildSidebarView` 折叠。
- * - **未分组**：没被任何闭包覆盖的 note；有 Plan 级派工（`notes` 为空）时由它全部认领。
+ * - **未分组**：没被任何闭包覆盖的 note；有 **live** 的 Plan 级派工（`notes` 为空）时由它全部认领
+ *   （历史 Plan 级派工不认领：它们已经退场，拿剩下的 note 充数只会把“未分组”洗成“worker: plan”）。
  * - **顺序**：组按 `registry` 顺序（句柄表 = 起始时刻），`worker: plan` / `未分组` 总在最后。
  * @param notes - 该 Plan 的全部 note。
  * @param groups - 该 Plan 的 worker 组（按句柄表顺序）。
@@ -735,7 +780,7 @@ export const groupSidebarNotes = (
   }
 
   const rest = notes.filter((note) => !owner.has(note.id));
-  const planLevel = groups.find((group) => group.notes.length === 0);
+  const planLevel = groups.find((group) => group.notes.length === 0 && group.running);
   if (planLevel !== undefined && rest.length > 0) {
     result.push({
       key: WORKER_PLAN_LABEL,
@@ -823,6 +868,8 @@ export const createSidebarGroupCache = (): SidebarGroupCache => {
  */
 export const createSidebar = (deps: SidebarDeps): Sidebar => {
   const expanded = new Set<string>();
+  /** 已收起的组（键 `<plan ref>::<组名>`）：只活在内存里，`refresh` 不重置（只清掉已不存在的组）。 */
+  const collapsed = new Set<string>();
   const plansByRef = new Map<string, PlanRef>();
   /** 组构建按 Plan 目录缓存一帧：读盘 3s 一次，盘没变就不重走闭包。 */
   const groupCache = createSidebarGroupCache();
@@ -1073,10 +1120,19 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
       return;
     }
     if (row.plan === undefined) return;
+    if (row.kind === "group" && row.group !== undefined) {
+      // 组行点一下就收起 / 展开：状态挂在 `<plan ref>::<组名>` 上，`refresh` 不清它。
+      const key = `${row.plan}::${row.group}`;
+      if (collapsed.has(key)) collapsed.delete(key);
+      else collapsed.add(key);
+      view = buildSidebarView(plans, expanded, SIDEBAR_TEXT_WIDTH, tempsOf(), collapsed);
+      requestRender();
+      return;
+    }
     if (row.kind === "fold") {
       if (expanded.has(row.plan)) expanded.delete(row.plan);
       else expanded.add(row.plan);
-      view = buildSidebarView(plans, expanded, SIDEBAR_TEXT_WIDTH, tempsOf());
+      view = buildSidebarView(plans, expanded, SIDEBAR_TEXT_WIDTH, tempsOf(), collapsed);
       requestRender();
       return;
     }
@@ -1138,12 +1194,31 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
     });
   };
 
-  /** 一个 Plan 的 worker 组（句柄表顺序 = 起始时刻升序）。 */
-  const groupsOfPlan = (directory: string): readonly WorkerGroupSpec[] =>
-    deps.registry
-      .list()
-      .filter((entry) => planDirectoryOf(entry.planDirectory) === directory)
-      .map((entry) => ({ notes: entry.notes ?? [], running: true }));
+  /**
+   * 一个 Plan 的 worker 组：**live 句柄 + 账本投影里的历史派工**（同一路由键只算一次）。
+   *
+   * 句柄表顺序（起始时刻升序）在前，投影独占的组（已退出：合并回收 / abort / 重启）跟在后。
+   * 只拿句柄做分组是“worker 一退场就平铺”的病根 —— 分组是派工的历史事实，不是“谁现在还活着”。
+   * @param directory - Plan 的绝对目录。
+   * @returns 组 spec；临时 worker / 子 worker 不进这里（它们不属于 Plan 的组）。
+   */
+  const groupsOfPlan = (directory: string): readonly WorkerGroupSpec[] => {
+    const specs: WorkerGroupSpec[] = [];
+    const seen = new Set<string>();
+    const inPlan = (key: string): boolean =>
+      !key.startsWith("temp:") && planDirectoryOf(key) === directory;
+    for (const entry of deps.registry.list()) {
+      if (!inPlan(entry.planDirectory) || seen.has(entry.planDirectory)) continue;
+      seen.add(entry.planDirectory);
+      specs.push({ notes: entry.notes ?? [], running: true });
+    }
+    for (const source of deps.workers?.() ?? []) {
+      if (!inPlan(source.worker) || seen.has(source.worker)) continue;
+      seen.add(source.worker);
+      specs.push({ notes: source.notes, running: source.running });
+    }
+    return specs;
+  };
 
   /**
    * 账本一变就排一次刷新。
@@ -1197,7 +1272,13 @@ export const createSidebar = (deps: SidebarDeps): Sidebar => {
         });
       }
       plans = next;
-      const nextView = buildSidebarView(plans, expanded, SIDEBAR_TEXT_WIDTH, tempsOf());
+      // 收起状态跟着帧走：已经不存在（或改了名）的组就丢掉，其余原样保留 —— 刷新不重置。
+      const known = new Set(
+        next.flatMap((plan) => plan.groups.map((group) => `${plan.ref}::${group.label}`)),
+      );
+      const staleGroups = [...collapsed].filter((key) => !known.has(key));
+      for (const key of staleGroups) collapsed.delete(key);
+      const nextView = buildSidebarView(plans, expanded, SIDEBAR_TEXT_WIDTH, tempsOf(), collapsed);
       if (JSON.stringify(nextView) !== JSON.stringify(view)) {
         view = nextView;
         requestRender();
