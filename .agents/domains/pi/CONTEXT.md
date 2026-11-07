@@ -89,7 +89,7 @@ _避免使用_：预设、preset、agentPreset
 _避免使用_：轮转、换会话、物理删除
 
 **ask_questions**：
-随 `orchestrator` 模式激活的模型工具，逐题询问用户，支持预设选项、自定义回答与跳过，问题数量不设上限。TUI 用自定义组件渲染：每项两行（选项下一行是所有型概述），项间留空行；rpc / print 退回 `ctx.ui.select` 并把概述拼进 label。
+随 `orchestrator` 模式激活的模型工具，逐题询问用户，支持预设选项、自定义回答与跳过，问题数量不设上限。TUI 用自定义组件渲染：每项两行（选项下一行是所有型概述），项间留空行；选中「自定义回答」后跳出组件取文本，非空即保存并前进（末题进「提交」页），空输入或取消留在原题并提示。rpc / print 退回 `ctx.ui.select` 并把概述拼进 label。
 _避免使用_：ask_user_question、questionnaire
 
 **模型修复**：

@@ -10,8 +10,9 @@
  * 选中位置；题目之后另有一页独立的「提交」页（汇总各题答案），末题 Enter 只是前进到那里，
  * 在提交页按 Enter 才结束提问；还有题未作答（既未作答也未显式跳过）时提交被拦下，光标跳到
  * 第一道未答题并提示是哪几题。
- * 选中「自定义回答」时组件先退出，外层用 `ctx.ui.input` 取文本，
- * 再带着同一份草稿重新进入组件并停在同一题 —— 之前的答案不会丢。
+ * 选中「自定义回答」时组件先退出，外层用 `ctx.ui.input` 取文本，再带着同一份草稿重新进入
+ * 组件：文本非空即等于「确认并前进」（下一题，末题落到「提交」页），空输入或取消则留在同一题
+ * 并提示 —— 之前的答案不会丢，`←` 回退也照旧。
  *
  * rpc / print 没有自定义组件，退回 `ctx.ui.select` 顺序问答（不能回退），把概述拼进 label
  * —— 至少不让它丢掉。
@@ -58,6 +59,8 @@ export interface AskDraft {
   readonly index: number;
   readonly selection: readonly number[];
   readonly answers: readonly (AskAnswer | undefined)[];
+  /** 只展示一次的提示（自定义回答为空 / 取消自定义）；下一次按键即清掉。 */
+  readonly notice?: string;
 }
 
 /** 组件交回外层的意图：「自定义」要跳出组件去 `ctx.ui.input`。 */
@@ -78,6 +81,20 @@ export const CUSTOM_LABEL = "✎ 自定义回答";
 export const SKIP_LABEL = "跳过";
 /** 「提交」页的标签：题目 tab 之后的独立一页，汇总各题答案并在此提交。 */
 export const SUBMIT_LABEL = "提交";
+/** 自定义回答为空时的提示：空串不算答案，也不记跳过。 */
+export const EMPTY_CUSTOM_NOTICE = "自定义回答不能为空：请输入内容，或选「跳过」";
+/** 取消自定义输入后的提示：留在同一题，该题已有答案不变。 */
+export const CUSTOM_CANCELLED_NOTICE = "已取消自定义回答：本题答案保持不变";
+
+/**
+ * 确认之后的落点：题目页前进一题，末题落到「提交」页（`total`）。
+ * 组件里按 Enter 与自定义回答取到文本后共用这一条前进规则。
+ * @param index - 当前 tab。
+ * @param total - 题目数。
+ * @returns 前进后的 tab。
+ */
+export const nextTab = (index: number, total: number): number =>
+  index < total ? Math.min(index + 1, total) : index;
 
 /** 渲染与选择共用的候选项：预设项在前，自定义 / 跳过在后。 */
 export interface AskEntry {
@@ -253,7 +270,7 @@ const submitTitle = (answered: number, total: number): string =>
  * TUI：一个组件管全部题目，每项两行、项间空行，可来回切题。
  * @param ctx - 工具上下文。
  * @param questions - 全部问题。
- * @param draft - 重新进入时的草稿（自定义回答后回到同一题）。
+ * @param draft - 重新进入时的草稿（回到同一题或已前进的落点，可带一次性提示）。
  * @returns 组件的意图；自定义回答要由外层去 `ctx.ui.input`。
  */
 const askInTui = async (
@@ -268,7 +285,7 @@ const askInTui = async (
     const container = new Container();
     let index = Math.min(Math.max(draft.index, 0), submitTab);
     /** 提交被拦下时的提示；下一次按键先清掉。 */
-    let warning: string | undefined;
+    let warning: string | undefined = draft.notice;
     const selection: number[] = [];
     const answers: (AskAnswer | undefined)[] = [];
     for (let at = 0; at < total; at += 1) {
@@ -379,7 +396,7 @@ const askInTui = async (
                 };
         }
       }
-      index += 1;
+      index = nextTab(index, total);
       return undefined;
     };
 
@@ -510,7 +527,7 @@ const askSequential = async (
         question: item.question,
         questionIndex: index,
         answer: text.trim(),
-        skipped: text.trim() === "",
+        skipped: false,
         custom: true,
       });
       continue;
@@ -521,7 +538,7 @@ const askSequential = async (
 };
 
 /**
- * TUI：一个组件管全部题目，直到提交 / 取消；自定义回答跳出后回到同一题。
+ * TUI：一个组件管全部题目，直到提交 / 取消；自定义回答跳出后按「确认并前进」继续。
  * @param ctx - 工具上下文。
  * @param questions - 全部问题。
  * @returns 答案与是否取消。
@@ -530,7 +547,10 @@ const askInteractive = async (
   ctx: ExtensionToolContext,
   questions: readonly AskQuestion[],
 ): Promise<AskResult> => {
+  const total = questions.length;
   let index = 0;
+  /** 重新进入组件时展示一次提示（空输入 / 取消自定义）；清掉后不再重复。 */
+  let notice: string | undefined;
   const selection: number[] = questions.map(() => 0);
   const answers: (AskAnswer | undefined)[] = questions.map(() => undefined);
   const collected = (): AskAnswer[] =>
@@ -541,7 +561,9 @@ const askInteractive = async (
       index,
       selection: [...selection],
       answers: [...answers],
+      ...(notice === undefined ? {} : { notice }),
     });
+    notice = undefined;
     // 组件里的切题与选中位置要带出来，重新进入时才能停在同一题。
     index = event.draft.index;
     event.draft.selection.forEach((picked, at) => {
@@ -553,17 +575,29 @@ const askInteractive = async (
     if (event.kind === "cancel") return { answers: collected(), cancelled: true };
     if (event.kind === "submit") return { answers: collected(), cancelled: false };
 
+    // 自定义回答：组件先退出，这里取文本后带着同一份草稿重新进入。
     const question = questions[index] as AskQuestion;
     const text = await ctx.ui.input(question.question, "输入回答");
-    if (text === undefined) return { answers: collected(), cancelled: true };
+    if (text === undefined) {
+      // 放弃自定义：回到同一题，该题已有答案不变。
+      notice = CUSTOM_CANCELLED_NOTICE;
+      continue;
+    }
     const trimmed = text.trim();
+    if (trimmed === "") {
+      // 空串 / 纯空白不算答案，也不记跳过：不前进，留在该题并提示。
+      notice = EMPTY_CUSTOM_NOTICE;
+      continue;
+    }
     answers[index] = {
       question: question.question,
       questionIndex: index,
       answer: trimmed,
-      skipped: trimmed === "",
+      skipped: false,
       custom: true,
     };
+    // 与在选项上按 Enter 走同一条「确认并前进」：下一题，末题落到「提交」页。
+    index = nextTab(index, total);
   }
 };
 
@@ -633,7 +667,7 @@ export const createAskQuestionsTool = (): ToolDefinition => ({
   name: "ask_questions",
   label: "Ask Questions",
   description:
-    "向用户提出一个或多个问题，逐题等待回答。每题最多 3 个预设选项（每个选项建议配一句话概述），也可自定义回答或跳过；用于 Orchestrator 的 ask 循环与其他需要用户决策的场景。TUI 下可用 ←/→ 或 Tab/Shift+Tab 在题目间来回切换并回改答案；题目之后还有一页独立的「提交」（先汇总各题答案再提交），有题未作答（既未作答也未显式跳过）时提交会被拦下并提示是哪几题。rpc / print 为顺序问答，不支持回退。",
+    "向用户提出一个或多个问题，逐题等待回答。每题最多 3 个预设选项（每个选项建议配一句话概述），也可自定义回答或跳过；用于 Orchestrator 的 ask 循环与其他需要用户决策的场景。TUI 下可用 ←/→ 或 Tab/Shift+Tab 在题目间来回切换并回改答案；自定义回答输入后按 Enter 即保存并前进（末题进「提交」页），空输入不前进、Esc 取消则留原题；题目之后还有一页独立的「提交」（先汇总各题答案再提交），有题未作答（既未作答也未显式跳过）时提交会被拦下并提示是哪几题。rpc / print 为顺序问答，不支持回退。",
   promptSnippet: "Ask the user one or more questions and wait for answers.",
   promptGuidelines: [
     "ask_questions 会阻塞直到用户作答；一次可提任意数量的问题，每题都能自定义回答或跳过。",

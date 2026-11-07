@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
+  CUSTOM_CANCELLED_NOTICE,
+  EMPTY_CUSTOM_NOTICE,
   askEntries,
   askEntryLines,
   createAskQuestionsTool,
   formatAnswers,
+  nextTab,
   parseQuestions,
   submitRows,
 } from "./ask.ts";
@@ -365,36 +368,91 @@ describe("TUI 「提交」独立一页", () => {
 });
 
 describe("TUI 自定义回答", () => {
-  it("跳出组件输入后回到同一题，且此前答案不丢", async () => {
-    const { text, renders } = await runTui(
+  const twoQuestions = [
+    { question: "第一题", options: [{ label: "A" }] },
+    { question: "第二题", options: [{ label: "C" }] },
+  ];
+
+  it("输入非空即保存并前进到下一题", async () => {
+    const { text, renders, details } = await runTui(
+      twoQuestions,
       [
-        { question: "第一题", options: [{ label: "A" }] },
-        { question: "第二题", options: [{ label: "C" }] },
-      ],
-      [
-        // Q1 选确认，Q2 滚到「✎ 自定义回答」（C → 自定义）。
-        ["\r", "\u001b[B", "\r"],
-        // 输入后重新进入组件，应停在 Q2 的「自定义回答」项上，Enter 采用该答案提交。
-        ["\r"],
+        // Q1 滚到「✎ 自定义回答」后确认，跳出组件取文本。
+        ["\u001b[B", "\r"],
+        // 重新进入应已在 Q2：确认 C → 提交页 → 提交。
+        ["\r", "\r"],
       ],
       ["自己写"],
     );
     expect(renders).toHaveLength(2);
     const second = renders[1]?.join("\n") ?? "";
     expect(second).toContain("问题 2/2");
-    expect(second).toContain("已填：自己写");
-    expect(text).toContain("A1: A");
-    expect(text).toContain("A2: 自己写（自定义）");
+    expect(second).toContain("已答 1/2");
+    expect(text).toContain("A1: 自己写（自定义）");
+    expect(text).toContain("A2: C");
+    expect(details["cancelled"]).toBe(false);
   });
 
-  it("自定义输入被取消时整轮取消但保留已答", async () => {
-    const { text, details } = await runTui(
+  it("末题自定义后直接落到「提交」页", async () => {
+    const { text, renders, details } = await runTui(
       [{ question: "第一题", options: [{ label: "A" }] }],
-      [["\u001b[B", "\r"]],
+      [["\u001b[B", "\r"], ["\r"]],
+      ["自己写"],
+    );
+    const page = renders[1]?.join("\n") ?? "";
+    expect(page).toContain("提交（已答 1/1）");
+    expect(page).toContain("Q1 第一题 → 自己写（自定义）");
+    expect(text).toContain("A1: 自己写（自定义）");
+    expect(details["cancelled"]).toBe(false);
+  });
+
+  it("空串 / 纯空白不前进、不记答案，留在该题并提示", async () => {
+    const { text, renders, details } = await runTui(
+      [{ question: "第一题", options: [{ label: "A" }] }],
+      [
+        ["\u001b[B", "\r"],
+        // 回到原题后改选 A：确认 → 提交页 → 提交。
+        ["\u001b[A", "\r", "\r"],
+      ],
+      ["   "],
+    );
+    const page = renders[1]?.join("\n") ?? "";
+    expect(page).toContain("问题 1/1");
+    expect(page).toContain("已答 0/1");
+    expect(page).toContain(EMPTY_CUSTOM_NOTICE);
+    expect(text).toContain("A1: A");
+    expect(details["cancelled"]).toBe(false);
+    const answers = details["answers"] as { skipped: boolean; custom: boolean }[];
+    expect(answers).toHaveLength(1);
+    expect(answers[0]).toMatchObject({ skipped: false, custom: false });
+  });
+
+  it("输入框里取消 = 回原题，答案不变", async () => {
+    const { text, renders, details } = await runTui(
+      [{ question: "第一题", options: [{ label: "A" }] }],
+      [
+        // 选 A 确认 → 提交页 → ← 回该题 → 滚到自定义并确认。
+        ["\r", "\u001b[D", "\u001b[B", "\r"],
+        // 取消后应仍在原题、答案仍是 A：确认 A → 提交页 → 提交。
+        ["\u001b[A", "\r", "\r"],
+      ],
       [],
     );
-    expect(details["cancelled"]).toBe(true);
-    expect(text).toContain("用户取消了后续问题");
+    const page = renders[1]?.join("\n") ?? "";
+    expect(page).toContain("问题 1/1");
+    expect(page).toContain("已答 1/1");
+    expect(page).toContain(CUSTOM_CANCELLED_NOTICE);
+    expect(text).toContain("A1: A");
+    expect(details["cancelled"]).toBe(false);
+  });
+});
+
+describe("nextTab", () => {
+  it("题目页前进一题，末题落到提交页", () => {
+    expect(nextTab(0, 2)).toBe(1);
+    expect(nextTab(1, 2)).toBe(2);
+    // 提交页本身就是终点：不再往后跑。
+    expect(nextTab(2, 2)).toBe(2);
   });
 });
 
