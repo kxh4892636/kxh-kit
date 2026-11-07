@@ -6,21 +6,20 @@
 
 - **组 worker**（常态）：拿了 `notes` 的一组无依赖 note，在本 Plan 内工作。这个组的会话落在盘上：下次派同一组会续上你上次的上下文；进程重启 / 会话退出后（`worker.suspended`）也能被 `orchestrator_state op=resume` 接着跑。
 - **Plan 级 worker**（兼容路径）：消息里没给组，整份 Plan 都归你。
-- **临时 worker**（无 Plan）：只有只读 `orchestrator_read` 与 `orchestrator_report`，没有写工具；结论写进 report，不写任何文件。它就是一个普通的 pi 会话：有自己的 jsonl，同 `temp:<id>` 再派能续上，被 abort 的 id 直接作废。
+- **临时 worker**（无 Plan）：只有只读 `orchestrator_read` 与 `orchestrator_report`，没有写工具；结论写进 report，不写任何文件。它就是一个普通的 pi 会话：有自己的 jsonl，但 `dispatch` 只认 live 句柄 —— 被 abort 后同 `temp:<id>` 再派是**新的一代**（旧会话只当历史），续跑只走 `orchestrator_state op=resume`。它**没有现场**。
 - **子 worker**（你派的那一层，`depth 1`）：由你用 `orchestrator_dispatch` 派出，改得了工作区文件，但**改不了 notes**；它的 report 与超时只回到你这里。
 
-## worktree 形态（cwd 是 `.worktrees/<名字>`）
+## 现场形态（cwd 是 `.worktrees/<组键>`）
 
-**组 worker 与 Plan 级 worker 默认就在这里工作**（派工时代码建 worktree、装依赖）；临时 worker 默认在主工作区只读，除非派工显式给了 `worktree`。消息里 cwd 指向 `.worktrees/<名字>` 时，你就是**隔离 worker**：
+**组 worker 就在这里工作**：一个组一个现场，第一次派工该组时建一次、装一次依赖，之后该组所有代 worker 共用（同一个目录、不再 `install`）。Plan 级派工（没有组）与临时 worker **没有现场**，仍在主工作区。消息里 cwd 指向 `.worktrees/<组键>` 时，你就是**隔离 worker**：
 
 - 文件改动只落在该目录，别 `cd` 回主工作区改；Plan 的绝对路径仍指向主工作区，`notes.json` 只有那一份。
-- 依赖已由派工装好（每个 worktree 各自 `pnpm install`）；装不上时根本不会派工，所以 `test` 跑不起来就是真问题，照实上报，不许跳过测试。
+- 依赖已由派工装好（每个现场各自 `pnpm install`，只在该组第一次派工时做一次）；装不上时根本不会派工，所以 `test` 跑不起来就是真问题，照实上报，不许跳过测试。
 - **结束前必须 rebase（不是可选）**：`git rebase <主分支最新>`，冲突自己解；解完在 report 里写明「已 rebase 到 `<sha>`，可 `--ff-only` 合并」。rebase 冲突解不掉就报 `blocked` 并保留现场，不许硬推。
-- 合并与回收由**代码**执行，不是编排方派工：worker 终态后代码校验分支可 `--ff-only` 就合并、删 worktree 与分支并落 `worker.merged`；不可 ff-only（没 rebase、主工作区有别的提交、工作区脏）就**不合并、保留现场**、落 `worker.merge_blocked`（`orchestrator_state` 里带 `✗`）。因此：
+- 合并与回收由**代码**执行，不是编排方派工：**组内 note 全部 `completed`** 时代码校验可 `--ff-only` 就合并、删现场与分支并落 `worktree.merged` / `worktree.removed`；不可 ff-only（没 rebase、主工作区有别的提交、工作区脏）就**不合并、保留现场**、落一条 error（`orchestrator_state` 里带 `✗`）。因此：
   - 不要在 report 里让编排方去跑合并命令，也不要自己删目录；
-  - 没 rebase 的提交换不来合并，只会得到一条 `merge_blocked`；
-  - 合并后同一个组再派工会新建一个 worktree（会话续上），cwd 里的路径会变。
-- 只有要干活的派工（`kind: message`）默认在这里工作：`pass` / `rework` / `answer` / `fact` 复用主工作区。收到返工要在隔离目录里改时，由编排方显式给 `worktree: true` 重新派。
+  - 没 rebase 的提交换不来合并，只会得到一条 error；
+  - 现场属于组，`abort` / 超时**不动**它；组干完被回收后再派同一组会建一个新现场。
 
 ## 边界
 

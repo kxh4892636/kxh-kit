@@ -419,28 +419,34 @@ idle worker has no running turn to steer into and degrades to `prompt()`; the re
 `note.pass` / `worker.exit`) before or after the SDK call — the log guarantees order and history, the SDK
 still does the delivery.
 
-**Worktrees** (`worktree.ts`): **Plan dispatches that do work (`kind: "message"`) are isolated by
-default** — dispatch auto-creates `.worktrees/<名字>` on branch `wt/<名字>` (names: `note-<id>` /
-`grp-<id-id>` / `plan`) and runs
-`pnpm install --prefer-offline` there first — one install per worktree, as measured on Windows with a warm
-store: worktree add ≈1.5s / 98 MB, install ≈13.5s, `node_modules` 894 MB nominal but ≈183 MB of real disk
-(pnpm hardlinks its store), and `pnpm test` then runs in 3.8s (372 tests). Temporary workers default to
-**no** worktree (read-only, seconds long). Pure control inputs — `pass` / `rework` / `answer` / `fact` —
-reuse the main workspace: they change no code, so creating a worktree and installing dependencies there is
-pure waste (one `pass` used to cost a fresh directory plus 13.7s of install). An explicit
-`worktree: true | "<名字>"` still overrides for **any** kind (a `rework` that really rewrites code asks for
-it), and `worktree: false` guarantees none. A failed worktree add or install aborts the dispatch with the reason instead of
-letting the worker skip tests — it never silently falls back to the main workspace. The plan stays anchored
-to the main workspace (absolute path), so `notes.json` still has exactly one writer. The worker must rebase
-onto the latest main commit and report "ready for `--ff-only` merge"; a conflicting rebase becomes `blocked`
-with the scene left intact. **Merging and cleanup are code, not a dispatch:** once the worker settles, the
-plugin checks ff-only (`git merge-base --is-ancestor`), then `git merge --ff-only wt/<名字>`, removes the
-worktree (`git -c core.longpaths=true worktree remove` with an `rm -rf` fallback + `worktree prune`) and the
-branch, and appends `worker.merged`. If it is not ff-only (diverged, dirty workspace, no rebase) it does
-**not** merge: it appends `worker.merge_blocked` with the scene path and `orchestrator_state` shows it with a
-`✗`. Merges are serialized in-process (mutex + retry on git lock errors) so two worktrees cannot interleave;
-`abort` and timeouts never delete a worktree. A re-dispatch to the same group after a merge creates a fresh
-worktree and writes it back to the handle (same session, new cwd). Each worker
+**Worktrees** (`worktree.ts`): **one scene per group**, and it is persistent — the scene unit is the
+dispatch `notes` (a single-note group is still a group), so the key is `note-<id>` for one note and
+`grp-<id-id>` for several: directory `.worktrees/<key>`, branch `wt/<key>`. The first dispatch of that group
+creates it once and `pnpm install --prefer-offline` once (Windows, warm store: worktree add ≈1.5s / 98 MB,
+install ≈13.5s, `node_modules` 894 MB nominal but ≈183 MB of real disk — pnpm hardlinks its store, and
+`pnpm test` then runs in 3.8s). Every later generation of the same group — after `abort`, `rework`,
+`resume`, or an appended `steer` — reuses that same directory without installing again. There is no switch
+and no per-`kind` derivation: plan-level dispatches (no `notes`) and temporary workers have **no** scene and
+stay in the main workspace; to isolate, use another group. A failed worktree add or install aborts the
+dispatch with the reason instead of letting the worker skip tests — it never silently falls back to the main
+workspace. The plan stays anchored to the main workspace (absolute path), so `notes.json` still has exactly
+one writer. The worker must rebase onto the latest main commit and report "ready for `--ff-only` merge"; a
+conflicting rebase becomes `blocked` with the scene left intact. **Merging and cleanup are code, not a
+dispatch:** when every note of the group is `completed`, the plugin checks ff-only (`git merge-base
+--is-ancestor`), then `git merge --ff-only wt/<key>`, removes the scene (`git -c core.longpaths=true
+worktree remove` with an `rm -rf` fallback + `worktree prune`) and the branch, and appends
+`worktree.merged` / `worktree.removed`. If it is not ff-only (diverged, dirty workspace, no rebase) it does
+**not** merge: it keeps the scene and appends one error (`worker.merge_blocked`) that `orchestrator_state`
+shows with a `✗`. Merges are serialized in-process (mutex + retry on git lock errors) so two scenes cannot
+interleave; `abort` and timeouts never touch a scene (a scene belongs to the group, not to one generation),
+and `abort` itself is group-scoped: `notes` stops only that group's worker, `plan` its whole plan, nothing
+stops everything. `dispatch` only honours a **live handle** — otherwise it spawns a new worker and the old
+jsonl stays history. Continuing an on-disk session has exactly two entry points, and they are the same
+implementation: `session_start` (reload / restart) auto-resumes the orphans of **this session's current
+plan** — no current plan recorded means it does nothing at all (no guessing, no global reconciliation) —
+and `orchestrator_state op=resume` does it on demand. Parents first, live workers skipped, repeated triggers
+idempotent.
+Each worker
 records nothing on its own: the ledger is the truth. `input.sent` carries the kind / delivery / summary /
 time, and the orchestrator's handle table is a **cache of the projection** used by the sidebar and by
 delivery. `orchestrator_state` prints `输入 N 次` (cumulative, only grows) and `待消费 N（最老 X）` (the
