@@ -2428,6 +2428,204 @@ describe("dispatch 与 workers 工具", () => {
     expect(resumedEvents).toHaveLength(1);
   });
 
+  it("组内 note 全 completed：session_start 与 op=resume 都不恢复（现场已回收的孤儿）", async () => {
+    // 真机现场（note 54）：note 已经 complete、现场已被回收，reload 后 session_start 仍把
+    // 孤儿拉起来，cwd 指向已删除的 `.worktrees/note-54`，只能 abort。判据加在“组是否收口”上。
+    const path = await import("node:path");
+    const fs = await import("node:fs/promises");
+    const worktree = fakeWorktree();
+    const first = await setup({
+      worktree: worktree.hooks,
+      makeSession: () => fakeSession(true, false),
+    });
+    const { root, ref } = await planWithNotes([note("01")]);
+    await first.tools
+      .get("orchestrator_command")
+      ?.execute(
+        "id",
+        { plan: ref, notes: ["01"], message: "做 01" },
+        undefined,
+        undefined,
+        ctx(root),
+      );
+    const directory = path.join(
+      root,
+      ".agents",
+      "domains",
+      "etf",
+      "plans",
+      "active",
+      "2026-11-07-分组",
+    );
+    // 组内唯一一条 note 被 complete（真实路径里现场随之回收，目录不再存在）。
+    const { serializeDocument } = await import("./dag.ts");
+    const { NOTES_FILE } = await import("./store.ts");
+    await fs.writeFile(
+      path.join(directory, NOTES_FILE),
+      serializeDocument({ version: 1, index: [], notes: [note("01", [], "completed")] }),
+      "utf8",
+    );
+    for (const handler of first.handlers.get("session_shutdown") ?? []) {
+      await handler({ reason: "reload" });
+    }
+    const mode = { type: "custom", customType: MODE_ENTRY, data: { enabled: true } };
+    const current = { type: "custom", customType: CURRENT_PLAN_ENTRY, data: { directory } };
+
+    // 入口一：session_start 自动恢复。
+    const revived = await setup({
+      stateDir: () => first.stateRoot,
+      worktree: fakeWorktree().hooks,
+      makeSession: () => fakeSession(true, false),
+    });
+    revived.handle.start(sessionCtx(root, [mode, current]));
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(revived.spawnOptions).toEqual([]);
+    const { openLedger } = await import("./ledger.ts");
+    const types = openLedger(first.stateRoot)
+      .events()
+      .map((event) => event.type);
+    expect(types).not.toContain("worker.resumed");
+    expect(types.filter((type) => type === "worker.spawned")).toHaveLength(1);
+    // 不建现场：这一代只该有第一次派工那一次 ensure。
+    expect(worktree.ensured).toHaveLength(1);
+
+    // 入口二：显式 op=resume —— 同一份判据，同样跳过。
+    const resumed = await revived.tools
+      .get("orchestrator_state")
+      ?.execute("id", { op: "resume", plan: ref }, undefined, undefined, ctx(root));
+    expect(textOf(resumed)).toContain("跳过（组内 note 全部 completed，现场已回收）");
+    const details = (resumed as { details: Record<string, unknown> }).details;
+    expect(details["resumed"]).toEqual([]);
+    expect(details["closed"]).toHaveLength(1);
+    expect(revived.spawnOptions).toEqual([]);
+    expect(
+      openLedger(first.stateRoot)
+        .events()
+        .filter((event) => event.type === "worker.resumed"),
+    ).toHaveLength(0);
+
+    // state 不再把它列为“可恢复”，但也不静默丢掉。
+    const listed = await revived.tools
+      .get("orchestrator_state")
+      ?.execute("id", { op: "list" }, undefined, undefined, ctx(root));
+    expect(textOf(listed)).not.toContain("可恢复 worker");
+    expect(textOf(listed)).toContain("已收口，不恢复");
+    const listedDetails = (listed as { details: Record<string, unknown> }).details;
+    expect(listedDetails["resumable"]).toEqual([]);
+    expect(listedDetails["closedOrphans"]).toHaveLength(1);
+  });
+
+  it("组内有未完成 note：两个入口都照常恢复（同一份判据不误伤）", async () => {
+    const path = await import("node:path");
+    const worktree = fakeWorktree();
+    const first = await setup({
+      worktree: worktree.hooks,
+      makeSession: () => fakeSession(true, false),
+    });
+    const { root, ref } = await planWithNotes([note("01")]);
+    await first.tools
+      .get("orchestrator_command")
+      ?.execute(
+        "id",
+        { plan: ref, notes: ["01"], message: "做 01" },
+        undefined,
+        undefined,
+        ctx(root),
+      );
+    for (const handler of first.handlers.get("session_shutdown") ?? []) {
+      await handler({ reason: "reload" });
+    }
+    const directory = path.join(
+      root,
+      ".agents",
+      "domains",
+      "etf",
+      "plans",
+      "active",
+      "2026-11-07-分组",
+    );
+    const mode = { type: "custom", customType: MODE_ENTRY, data: { enabled: true } };
+    const current = { type: "custom", customType: CURRENT_PLAN_ENTRY, data: { directory } };
+
+    // 入口一：session_start 照常拉起来，cwd 回到该组的现场目录。
+    const revived = await setup({
+      stateDir: () => first.stateRoot,
+      worktree: fakeWorktree().hooks,
+      makeSession: () => fakeSession(true, false),
+    });
+    revived.handle.start(sessionCtx(root, [mode, current]));
+    await waitUntil(() => revived.spawnOptions.length > 0);
+    expect(revived.spawnOptions).toHaveLength(1);
+    expect(revived.spawnCwds).toEqual([`${root}/.worktrees/note-01`]);
+    const { openLedger } = await import("./ledger.ts");
+    expect(
+      openLedger(first.stateRoot)
+        .events()
+        .filter((event) => event.type === "worker.resumed"),
+    ).toHaveLength(1);
+    // 幂等：再发一次 session_start 不新增会话、worker.resumed 仍只有一条。
+    revived.handle.start(sessionCtx(root, [mode, current]));
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    expect(revived.spawnOptions).toHaveLength(1);
+    expect(
+      openLedger(first.stateRoot)
+        .events()
+        .filter((event) => event.type === "worker.resumed"),
+    ).toHaveLength(1);
+
+    // 入口二：显式 op=resume（另一份状态目录，避开上面那条幂等键）。
+    const other = await setup();
+    const key = `${directory}::01`;
+    openLedger(other.stateRoot).append({
+      type: "worker.spawned",
+      payload: { worker: key, planRef: ref, kind: "plan", notes: ["01"], cwd: root },
+    });
+    const resumed = await other.tools
+      .get("orchestrator_state")
+      ?.execute("id", { op: "resume", plan: ref }, undefined, undefined, ctx(root));
+    expect(textOf(resumed)).toContain("已恢复");
+    expect(other.spawnOptions).toHaveLength(1);
+  });
+
+  it("同一 Plan 两个孤儿：只恢复未收口的那一组", async () => {
+    const path = await import("node:path");
+    const { root, ref } = await planWithNotes([note("01", [], "completed"), note("02")]);
+    const directory = path.join(
+      root,
+      ".agents",
+      "domains",
+      "etf",
+      "plans",
+      "active",
+      "2026-11-07-分组",
+    );
+    const { tools, stateRoot, spawnOptions } = await setup();
+    const { openLedger } = await import("./ledger.ts");
+    const ledger = openLedger(stateRoot);
+    for (const noteId of ["01", "02"]) {
+      ledger.append({
+        type: "worker.spawned",
+        payload: {
+          worker: `${directory}::${noteId}`,
+          planRef: ref,
+          kind: "plan",
+          notes: [noteId],
+          cwd: root,
+        },
+      });
+    }
+    const resumed = await tools
+      .get("orchestrator_state")
+      ?.execute("id", { op: "resume", plan: ref }, undefined, undefined, ctx(root));
+    const details = (resumed as { details: Record<string, unknown> }).details;
+    expect(details["resumed"]).toHaveLength(1);
+    expect((details["resumed"] as { worker: string }[])[0]?.worker).toBe(`${directory}::02`);
+    expect(details["closed"]).toHaveLength(1);
+    expect(spawnOptions).toHaveLength(1);
+    expect(textOf(resumed)).toContain("已恢复");
+    expect(textOf(resumed)).toContain("跳过（组内 note 全部 completed，现场已回收）");
+  });
+
   it("resume 幂等键：同一代已经恢复过就跳过，不再起会话", async () => {
     const { tools, stateRoot, spawnOptions } = await setup();
     const { root, ref } = await planWithNotes([note("01")]);

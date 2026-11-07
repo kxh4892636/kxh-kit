@@ -41,6 +41,7 @@ import {
   openProjection,
   orphanWorkers,
   progressAtOf,
+  type OrphanWorker,
   type ProjectedWorker,
   type ProjectedWorktree,
   type Projection,
@@ -488,6 +489,33 @@ const groupCompleted = async (
       (id) => document.notes.find((note) => note.id === id)?.status === "completed",
     );
   } catch {
+    return false;
+  }
+};
+
+/**
+ * 这个孤儿所属的组是否已经收口（组内 note 全部 completed）。
+ *
+ * 收口的组现场已被 `recycleGroup` 删掉（`worktree.removed`），再恢复只会得到一个 cwd 指向
+ * **不存在目录**的 worker（note 54 的真机现场）：不 spawn、不建现场、不落 `worker.resumed`。
+ * `session_start` 自动恢复与显式 `op=resume` 共用这一判据（`state` 的可恢复清单同源），
+ * 三处口径才不会走偏。临时 worker / 子 worker / 没有组的孤儿没有“组完成”这回事。
+ * @param input - 孤儿、主工作区根、领域根与设置读取器。
+ * @returns 组内每条 note 都 completed 返回 true；其余情况（含 Plan 解析失败）false。
+ */
+const orphanGroupClosed = async (input: {
+  readonly orphan: OrphanWorker;
+  readonly workspace: string;
+  readonly domainRoot: string;
+  readonly deps: OrchestratorDeps;
+}): Promise<boolean> => {
+  const { orphan } = input;
+  if (orphan.depth > 0 || orphan.kind !== "plan" || orphan.notes.length === 0) return false;
+  try {
+    const plan = await resolvePlan(input.workspace, input.domainRoot, orphan.planRef);
+    return await groupCompleted({ plan, notes: orphan.notes }, input.deps);
+  } catch {
+    // Plan 解析失败不在这里吞掉：照旧走恢复路径，让它落一条“Plan 解析失败”。
     return false;
   }
 };
@@ -1279,6 +1307,16 @@ const createStateTool = (
     ];
     // worktree 内的领域副本不参与解析；亮出来是为了让“为什么看不到那份改动”有答案。
     const workspace = runtime.workspace(exec);
+    // 可恢复清单去掉**已经收口**的组（组内 note 全 completed、现场已被回收）：拿它们去
+    // `op=resume` 只会得到一个 cwd 不存在的 worker（note 54 的真机现场）。与 resume 共用判据。
+    const closedOrphans: OrphanWorker[] = [];
+    for (const orphan of orphans) {
+      if (await orphanGroupClosed({ orphan, workspace, domainRoot: runtime.domainRoot, deps })) {
+        closedOrphans.push(orphan);
+      }
+    }
+    const closedKeys = new Set(closedOrphans.map((orphan) => orphan.worker));
+    const resumable = orphans.filter((orphan) => !closedKeys.has(orphan.worker));
     const copies = worktreeDomainCopies(workspace);
     // 磁盘上的现场：账本说 `created` 不等于目录还在（手工 `git worktree remove` /
     // `rm -rf` 不留事件），所以现场行与复用判断都按这一份校验结果说。
@@ -1358,15 +1396,24 @@ const createStateTool = (
     );
     const unregisteredSites = [...onDisk].filter((name) => !state.worktrees.has(name)).sort();
     lines.push(...siteLines(sites, onDisk));
-    if (orphans.length > 0) {
+    if (resumable.length > 0) {
       lines.push(
-        `可恢复 worker（${orphans.length}，op=resume 恢复）：${orphans
+        `可恢复 worker（${resumable.length}，op=resume 恢复）：${resumable
           .slice(0, 10)
           .map((orphan) =>
             orphan.depth > 0
               ? `${orphan.planRef}（子 worker，由父重建）`
               : `${orphan.planRef}（${orphan.worker}）`,
           )
+          .join("、")}`,
+      );
+    }
+    // 已收口不恢复的孤儿单独一行：不静默丢掉，但也不进可恢复清单。
+    if (closedOrphans.length > 0) {
+      lines.push(
+        `已收口，不恢复（组内 note 全部 completed，现场已回收）：${closedOrphans
+          .slice(0, 10)
+          .map((orphan) => orphan.planRef)
           .join("、")}`,
       );
     }
@@ -1436,6 +1483,14 @@ const createStateTool = (
         worktrees: sites.map((site) => ({ ...site, present: onDisk.has(site.key) })),
         /** 目录在但账本无记录（疑似手建）：同样不复用。 */
         unregisteredSites,
+        /** 可恢复的孤儿（已收口的组不在其中）。 */
+        resumable: resumable.map((orphan) => orphan.worker),
+        /** 跳过恢复的已收口组（组内 note 全部 completed）。 */
+        closedOrphans: closedOrphans.map((orphan) => ({
+          worker: orphan.worker,
+          planRef: orphan.planRef,
+          notes: [...orphan.notes],
+        })),
         // 合并结论也进 details：汇报与测试不必去拆文本行。
         merged: live.flatMap((worker) =>
           worker.merged === undefined ? [] : [{ worker: worker.worker, ...worker.merged }],
@@ -2230,11 +2285,12 @@ export const registerOrchestrator = (
         content: textBlocks(
           "没有可恢复的孤儿 worker（进程内 session 都还在，或账本里没有未结束的派生）。",
         ),
-        details: { resumed: [], lost: [] },
+        details: { resumed: [], lost: [], closed: [] },
       };
     }
     const resumed: Array<{ worker: string; planRef: string; sessionPath?: string }> = [];
     const lost: Array<{ worker: string; planRef: string; reason: string }> = [];
+    const closed: Array<{ worker: string; planRef: string; notes: readonly string[] }> = [];
     const lines: string[] = [];
     // 先父后子（orphanWorkers 按 depth 排过）：父恢复后子任务由父重建。
     for (const orphan of orphans) {
@@ -2249,6 +2305,11 @@ export const registerOrchestrator = (
           },
         });
         lost.push({ worker: orphan.worker, planRef: orphan.planRef, reason: "子任务丢失" });
+        continue;
+      }
+      // 组已收口（全 completed + 现场已回收）：拉起它只会得到一个 cwd 不存在的 worker。
+      if (await orphanGroupClosed({ orphan, workspace, domainRoot: runtime.domainRoot, deps })) {
+        closed.push({ worker: orphan.worker, planRef: orphan.planRef, notes: orphan.notes });
         continue;
       }
       const idem = `resume:${orphan.worker}:${orphan.anchor}`;
@@ -2311,11 +2372,18 @@ export const registerOrchestrator = (
       });
     }
     for (const item of resumed) lines.push(`已恢复：${item.planRef}（${item.worker}）`);
+    for (const item of closed) {
+      lines.push(
+        `跳过（组内 note 全部 completed，现场已回收）：${item.planRef} · notes ${item.notes.join(",")}`,
+      );
+    }
     for (const item of lost) lines.push(`未恢复：${item.planRef} · ${item.reason}`);
-    lines.push("恢复用的是同一份 jsonl：接着上次的上下文跑，不重开一份会话。");
+    if (resumed.length > 0) {
+      lines.push("恢复用的是同一份 jsonl：接着上次的上下文跑，不重开一份会话。");
+    }
     return {
       content: textBlocks(lines.join("\n")),
-      details: { resumed, lost, orphans: orphans.length },
+      details: { resumed, lost, closed, orphans: orphans.length },
     };
   };
 
