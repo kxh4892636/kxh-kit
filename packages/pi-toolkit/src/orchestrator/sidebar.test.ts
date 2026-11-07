@@ -1123,7 +1123,7 @@ describe("侧边栏控制器", () => {
     const card = (detail?.component.render(DETAIL_WIDTH) ?? []).join("\n");
     expect(card).toContain("◇ temp:5 · 已完成");
     expect(card).toContain("侧栏渲染核对完毕");
-    // 卡片也不放待消费：诊断信息只在 orchestrator_workers 里。
+    // 卡片也不放待消费：诊断信息只在 orchestrator_state 里。
     expect(card).not.toContain("待消费");
     // Esc 只关卡片。
     expect([...listeners][0]?.("")).toEqual({ consume: true });

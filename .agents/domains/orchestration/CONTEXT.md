@@ -1,6 +1,6 @@
 # Orchestration
 
-编排业务域：一个 pi TUI 会话（orchestrator）接住用户输入，判断它归已有 Plan 还是新 Plan，用 `orchestrator_dispatch` 交给对应 worker 推进，汇总 worker 的 `orchestrator_report`，并在用户明确决定后放行与归档。**它不产出业务交付物**，只承载"谁做、做到哪、谁放行"。
+编排业务域：一个 pi TUI 会话（orchestrator）接住用户输入，判断它归已有 Plan 还是新 Plan，用 `orchestrator_command` 交给对应 worker 推进，按需用 `orchestrator_state` 拉账本摘要，并在用户明确决定后放行与归档。**它不产出业务交付物**，只承载"谁做、做到哪、谁放行"。
 
 本域与各业务域的关系是单向只读：orchestrator 读取任何域的 Plan 与领域文档，但只写本域。业务域 Plan 的 note 由该域的 worker 写。
 
@@ -20,7 +20,7 @@ _Avoid_: 编排日志、审计流水
 _Avoid_: 需求分类、意图识别
 
 **编排方职责**:
-只做三件事：判定归属（并入 / 新建 Plan）、派工与转达（message / pass / rework / answer / fact）、呈现 worker 结论并收集用户确认；代码调研、方案对比、实现、跑测试、复核一律外移给 worker。白名单只有 `orchestrator_read` / `orchestrator_write` / `orchestrator_check` / `orchestrator_dispatch` / `orchestrator_workers` / `ask_questions`；这不是“靠自觉”的约定，而是启用时把活跃工具集收敛成这六个，宿主的 `read` / `bash` / `edit` / `write` / web 在编排方会话里不可调用（模式关后恢复到配置层默认集：`defaultTools` / `--tools` 语义与首次收敛前记下的活跃集的并集，不是运行时快照）。
+只做三件事：判定归属（并入 / 新建 Plan）、派工与转达（`orchestrator_command` 的 dispatch / pass / rework / answer / fact / abort）、呈现 worker 结论并收集用户确认；代码调研、方案对比、实现、跑测试、复核一律外移给 worker。白名单只有 `orchestrator_read` / `orchestrator_write` / `orchestrator_check` / `orchestrator_state` / `orchestrator_command` / `ask_questions`；这不是“靠自觉”的约定，而是启用时把活跃工具集收敛成这六个，宿主的 `read` / `bash` / `edit` / `write` / web 在编排方会话里不可调用（模式关后恢复到配置层默认集：`defaultTools` / `--tools` 语义与首次收敛前记下的活跃集的并集，不是运行时快照）。
 _Avoid_: 编排方顺手调研、编排方代为验证
 
 **提交**:
@@ -34,11 +34,11 @@ _Avoid_: 临时会话、绕过 Plan 直接问模型
 ### 授权与放行
 
 **放行**:
-编排方把「某条 note 验证通过」作为一条 `pass` 输入下发给 worker，worker 收到后才可把该 note 置 `completed`。判断在编排方，落盘在 worker —— worker 有笔没印。依据是 worker 的 `orchestrator_report` 与 note evidence（命令与关键输出），编排方只摘录呈现，不重跑。
+编排方把「某条 note 验证通过」作为一条 `pass` 输入下发给 worker，worker 收到后才可把该 note 置 `completed`。判断在编排方，落盘在 worker —— worker 有笔没印。依据是 worker 的 report（账本里的 `report.filed`，用 `orchestrator_state` 拉）与 note evidence（命令与关键输出），编排方只摘录呈现，不重跑。授权本身是账本事件 `note.pass`，不是内存集合，重启后靠重放恢复。
 _Avoid_: 批准、通过审核
 
 **派工**:
-用 `orchestrator_dispatch` 把一个业务域 Plan 交给一个 worker session。`worker:plan` 是 **1:N**：一个 Plan 可同时挂多个 worker，一个 worker 领一**组** note；同一组重复派工复用既有会话，不同组各起一个。入队即返回（拒绝串行阻塞），完成后由 `orchestrator_report` 推回。会话取用优先级：**live 句柄 → 磁盘恢复 → 新建**（会话 id 由工作键哈希得到，重启后同一组能续上；作废的键换一代会话，见「会话落盘」）。
+用 `orchestrator_command`（`op: "dispatch"`，默认）把一个业务域 Plan 交给一个 worker session。`worker:plan` 是 **1:N**：一个 Plan 可同时挂多个 worker，一个 worker 领一**组** note；同一组重复派工复用既有会话，不同组各起一个。入队即返回（拒绝串行阻塞），投递落成 `input.sent` 事件；report 只落 `report.filed`，不推给模型。会话取用优先级：**live 句柄 → 磁盘恢复 → 新建**（会话 id 由工作键哈希得到，重启后同一组能续上；作废的键换一代会话，见「会话落盘」）。
 _Avoid_: 分配、ticket、工单、一个 Plan 只能一个 worker
 
 **会话落盘**:
@@ -50,7 +50,7 @@ _Avoid_: 内存会话、重启即失忆、启动自动恢复全部 worker
 _Avoid_: 批次、分片、一条 note 一个 worker
 
 **插话**:
-`orchestrator_dispatch` 的 `delivery` 参数，与 `kind` 正交：`queue`（默认）追加成 `followUp`，worker 当前轮跑完再消化；`steer` 走 `session.steer()` 插入当前运行，worker 下一次 LLM 调用前就换方向；worker 空闲时没有可插入的运行，`steer` 退化为 `prompt()` 并在返回值里标成 `delivered: "prompt"`。不使用 `nextTurn`（不落盘、进程退出即丢）。每个 worker 的 `WorkerEntry.lastInput` 记下最近一次输入（种类 / 方式 / 摘要 / 时刻），`orchestrator_workers` 逐行展示；收到插话的 worker 必须把“谁说的 / 为什么改”写进对应 note 的执行检查点。要硬停整个 worker 用 `orchestrator_workers` 的 abort，不把中止混进 dispatch。
+`orchestrator_command` 的 `delivery` 参数，与 `kind` 正交：`queue`（默认）追加成 `followUp`，worker 当前轮跑完再消化；`steer` 走 `session.steer()` 插入当前运行，worker 下一次 LLM 调用前就换方向；worker 空闲时没有可插入的运行，`steer` 退化为 `prompt()` 并在返回值里标成 `delivered: "prompt"`。不使用 `nextTurn`（不落盘、进程退出即丢）。每次投递都落成账本里的 `input.sent`（种类 / 方式 / 摘要 / 时刻），`orchestrator_state` 逐行展示；收到插话的 worker 必须把“谁说的 / 为什么改”写进对应 note 的执行检查点。要硬停整个 worker 用 `orchestrator_command` / `orchestrator_state` 的 `op: "abort"`，不把中止混进 dispatch。
 _Avoid_: 打断、抢占、nextTurn
 
 **临时 worker**:
@@ -62,19 +62,19 @@ worker 自己用受限的 `orchestrator_dispatch` 派出的一层会话（`depth
 _Avoid_: subagent、子任务、第二层 worker、worktree 分身
 
 **超时**:
-`workerTimeoutMs` 衡量的是「连续无进展」而非单轮总时长：worker 每次 `orchestrator_report` 即续期（实际实现只有 `renew` 一处登记 watchdog），到点 `abort` → 摘除句柄 → `dispose` → 注入一条 `orchestrator-worker-timeout`；只提醒一次，不代写 note 状态，下次派工是干净的新会话。
+两个判据都由**代码定时器扫投影**得出，不依赖模型回合：最老一条未消费输入超过 `inputStuckMs`（默认 10 分钟），或距最后进展（派工 / 输入 / report）超过 `workerTimeoutMs`（默认 30 分钟，report 即续期）。到点 `abort` → 摘除句柄 → `dispose` → 落 `timeout` 与 `worker.exit` 事件；不代写 note 状态，下次派工是干净的新会话。
 _Avoid_: 前台等待、轮询 jobId、按任务总量计时的超时
 
 **worktree 派工**:
-`orchestrator_dispatch` 带 `worktree: true`(自动命名 `note-<id>` / `grp-<id-id>` / `plan`)或一个名字时，worker 的 cwd 变成 `.worktrees/<名字>`、分支 `wt/<名字>`，派工前在该目录各自 `pnpm install`（装不上就中止派工，worker 不许跳过测试）。Plan 仍锚定主工作区绝对路径，`notes.json` 只有主工作区一份。worker 完成前自己 rebase 到主分支最新提交并在 report 里写明可 `--ff-only` 合并；合并由编排方派工执行，成功后删 worktree 与分支，abort / 超时**不删**（现场留给合并或人工看）。
+`orchestrator_command` 带 `worktree: true`(自动命名 `note-<id>` / `grp-<id-id>` / `plan`)或一个名字时，worker 的 cwd 变成 `.worktrees/<名字>`、分支 `wt/<名字>`，派工前在该目录各自 `pnpm install`（装不上就中止派工，worker 不许跳过测试）。Plan 仍锚定主工作区绝对路径，`notes.json` 只有主工作区一份。worker 完成前自己 rebase 到主分支最新提交并在 report 里写明可 `--ff-only` 合并；合并由编排方派工执行，成功后删 worktree 与分支，abort / 超时**不删**（现场留给合并或人工看）。
 _Avoid_: 真左右分栏式隔离、共享 node_modules、worker 自行删 worktree、rebase 冲突时硬推
 
 **刹车**:
-不设并发上限时的替代手段：`orchestrator_workers` 列 live 清单、按 Plan 或全部中止、退出时自动收尾。
+不设并发上限时的替代手段：`orchestrator_state` 列 live 清单、按 Plan 或全部中止、退出时自动收尾。
 _Avoid_: 限流、配额
 
 **上报**:
-worker 的 `orchestrator_report` 落成编排方会话里的一条 `orchestrator-report` 消息（超时提醒走同一通道）。pi 的 `sendMessage` 是即发即忘的，失败既不会抛给扩展也不会留痕，所以本插件自己记账：投递失败入队并计数（`outbox`），只在 `agent_settled` / `before_agent_start` / `input` 这几个可注入时机重试，成功即出队；积压条数与最近失败原因在 `orchestrator_workers` 与 `/orchestrator status` 都能看到。忙时用 `followUp`（等当前轮结束再插），空闲时用 `steer` + `triggerTurn`（立刻开一轮）。积压还**落盘**在状态目录的 `reports-pending.json`（按 id 去重，送达即重写，清空即删文件）：进程被杀或重启后，下个会话的第一个钩子会接着重试。重试失败**不改任何 note 状态** —— report 只是通知，磁盘上的 notes 才是事实。
+worker 的 `orchestrator_report` 只落账本事件 `report.filed`（`worker` / `note` / `outcome` / `summary` / `question?` / `evidence?`，都截短），**不注入编排方会话**；编排方需要时调 `orchestrator_state`，读一次落 `state.pulled` 把未读清零，所以“未读 report”跨重启成立。旧的 outbox / `reports-pending.json` 重试机制随之删除：账本是记录，不需要重新投递。`orchestrator.wakeOnReport` 只留一个默认关闭的“叫醒”开关。report 只是通知，磁盘上的 notes 才是事实。
 _Avoid_: 静默吞异常、把 report 当真相、重复投递阻塞编排方
 
 ### 恢复
@@ -84,4 +84,4 @@ _Avoid_: 静默吞异常、把 report 当真相、重复投递阻塞编排方
 _Avoid_: 启动对账、自愈、自动恢复
 
 **崩溃凭据**:
-`interrupted.json`（`at` / `reason` / `plans[]`）记下崩溃时仍有 live worker 的 Plan；`resume <plan>` 只在本 Plan 命中时展示并移除本条目，`status` 展示整档后清空。
+由账本里的 `worker.exit`（带可能悬空的 `in_progress` note）投影成凭据，不再有 `interrupted.json`；`resume <plan>` 只在本 Plan 命中时展示并落 `interrupted.forgotten` 移除本条目，`status` 展示整档后落 `interrupted.cleared` 清空。

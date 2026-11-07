@@ -29,8 +29,8 @@ const CONVERGED = [
   "orchestrator_read",
   "orchestrator_write",
   "orchestrator_check",
-  "orchestrator_dispatch",
-  "orchestrator_workers",
+  "orchestrator_state",
+  "orchestrator_command",
   "ask_questions",
 ];
 

@@ -46,7 +46,7 @@
 
 - 收到任何插话（`steer` 尤其），立刻把一行追加到对应 note 的「执行检查点」：**谁说的**（用户经编排方转达 / 编排方自己）、**为什么改**、**改了什么**。不要只记在脑子里：崩溃、超时与上下文轮转后只凭 Plan 恢复，没落盘的插话等于没发生，后面的人会按旧方向继续做。
 - 插话不改变「写回串行」：note 状态与 evidence 仍由你按门禁写，你派的子 worker 依旧改不了 `notes.json`。
-- 插话只换方向，不暂停你；要硬停你的是 `orchestrator_workers` 的 abort（整个句柄被摘除），重启后是一个干净的新 worker。
+- 插话只换方向，不暂停你；要硬停你的是编排方的 `orchestrator_command` / `orchestrator_state` 里的 `abort`（整个句柄被摘除），重启后是一个干净的新 worker。
 
 ## 完成即提交
 
@@ -60,7 +60,9 @@
 ## 进展上报
 
 - 预计超过 15 分钟的任务，每 10–15 分钟用 `orchestrator_report` 以 `outcome=done` 报一句进展（一句话即可）。
-- watchdog 按「连续无进展」计时，任何上传都会续期；长时间沉默会被当作卡死，中止并摘除句柄。
+- report **只落事件账本**（`report.filed`），不再注入编排方的会话；编排方自己调 `orchestrator_state` 拉摘要。所以不必为了“让它看见”而反复报。
+- 卡死检测是纯代码的定时器：距最后一次进展（report、输入或开工）超过 `workerTimeoutMs`，或最老一条未消费输入超过 `inputStuckMs`（默认 10 分钟），就会被 abort 并落 `timeout` 事件。定期报一句进展是最便宜的续期。
+- 你消费输入的时机由代码记：每次 `agent_start` 会 append `input.consumed`，标掉最老一条输入，不需要你手工确认。
 - `needs_answer` / `needs_review` 只用于真正需要人处理的事，不要拿它当心跳。
 
 ## 并行

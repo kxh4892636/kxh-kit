@@ -229,12 +229,14 @@ While a session runs Orchestrator:
 - The orchestrator only triages and relays: it decides which plan an input belongs to, dispatches the
   plan's worker, and presents the worker's report plus note evidence for the user to confirm. Code
   research, implementation, tests and review belong to workers; `prompt.md` fixes the action whitelist
-  (`orchestrator_read` / `write` / `check` / `dispatch` / `workers` / `ask_questions`) and the
+  (`orchestrator_read` / `write` / `check` / `state` / `command` / `ask_questions`) and the
   existing-vs-new-worker rule.
 - `orchestrator_read` (plans / notes / get / ready / graph / index / search / resume),
   `orchestrator_write` (init / create / update / link / status / complete / set_index / merge / delete /
-  move), `orchestrator_check` (plan / workspace / limits), `orchestrator_dispatch` (start or message the
-  worker of one plan) and `orchestrator_workers` (list or abort live workers) are the **entire** active
+  move), `orchestrator_check` (plan / workspace / limits), `orchestrator_command` (dispatch / pass / rework /
+  answer / fact / abort — the one entry point for everything sent to workers) and `orchestrator_state`
+  (pull the ledger projection: live workers, pending input, unread reports, stuck workers; or abort) are
+  the **entire** active
   tool set, together with `ask_questions`. The host's `read` / `bash` / `edit` / `write` / web tools are
   switched off in that session, so evidence has to come from a worker. Leaving the mode (`/orchestrator
 关`, `always: false`, or the `/toolkit` switch off) restores the **config-layer** default set: the
@@ -244,9 +246,9 @@ While a session runs Orchestrator:
   `getActiveTools()` at restore time: pi records the tool loadout in the transcript and `/reload` plus
   resumed sessions replay it, so a snapshot taken after converging is the converged set itself and the
   host tools would never come back. The `orchestrator-baseline` entry is written once per branch and read
-  back after a reload. `disposeAll` (session shutdown / reload) writes the plans it kills and their
-  `in_progress` notes into the interrupted.json record before dropping the workers, so no note is left
-  silently dangling. The tool set is re-aligned on every `before_agent_start` as well, before the mode
+  back after a reload. `disposeAll` (session shutdown / reload) appends a `worker.exit` per live worker
+  (with the `in_progress` notes it may strand) before dropping them, so no note is left silently
+  dangling. The tool set is re-aligned on every `before_agent_start` as well, before the mode
   check: a reload or resume path that does not replay `session_start` is then corrected by the next
   request instead of leaving the session converged with the host tools missing.
 - `status` takes `pending / in_progress / waiting / blocked`; `waiting` must say what it waits for via
@@ -302,7 +304,7 @@ While a session runs Orchestrator:
   `lastInput` and `lastReport`, collapsed to one line (`尚无上报` when there is neither). Only the
   summary is truncated (`…`) when the 30 columns under the tree prefix run out — status and id stay
   whole. The row deliberately carries **no** `待消费 N`: that queue depth is a stuck-worker diagnostic
-  and belongs to `orchestrator_workers`' output, not to the panel. Clicking a temp row opens the same
+  and belongs to `orchestrator_state`'s output, not to the panel. Clicking a temp row opens the same
   detail card (snapshot + live stream while the job runs). The block is omitted entirely when no temp
   worker is alive.
 
@@ -371,7 +373,7 @@ The worker keeps `orchestrator_check` for self-checking: `op: "plan"` validates 
 `op: "limits"` reports the limits, and `op: "workspace"` is scoped to `common` plus its own domain —
 the same set it may write. The orchestrator's `op: "workspace"` covers every domain.
 
-`orchestrator_dispatch` starts one worker per **group of notes** with the SDK's `createAgentSession` (in
+`orchestrator_command` with `op: "dispatch"` starts one worker per **group of notes** with the SDK's `createAgentSession` (in
 process, no extension discovery, only the worker extension). Both plan workers and temporary workers keep
 their conversation as a **jsonl session on disk**, and the session id is the hash of the work key
 (`<plan dir>::<group>` or `temp:<id>`), so the mapping is rebuildable from disk alone; a small
@@ -395,7 +397,10 @@ interrupts a plan the worker already settled and can redirect it mid-edit, so a 
 on `queue`. `steer` on an
 idle worker has no running turn to steer into and degrades to `prompt()`; the result then reports
 `delivered: "prompt"`. `nextTurn` is never used (it is not persisted and dies with the process). There is no
-`abort` argument: to hard-stop a worker use `orchestrator_workers`'s abort and dispatch again.
+`abort` argument: to hard-stop a worker use `orchestrator_command` / `orchestrator_state` with
+`op: "abort"` and dispatch again. Every command lands in the event ledger (`worker.spawned` / `input.sent` /
+`note.pass` / `worker.exit`) before or after the SDK call — the log guarantees order and history, the SDK
+still does the delivery.
 
 **Worktrees** (`worktree.ts`): `worktree: true` (auto name `note-<id>` / `grp-<id-id>` / `plan`) or a name
 puts the worker's cwd in `.worktrees/<名字>` on branch `wt/<名字>` and runs `pnpm install --prefer-offline`
@@ -408,26 +413,25 @@ of letting the worker skip tests. The plan stays anchored to the main workspace 
 and cleanup are a separate dispatch (`git merge --ff-only wt/<名字>`, then
 `git -c core.longpaths=true worktree remove` with an `rm -rf` fallback and `worktree prune`, then delete the
 branch) — `abort` and timeouts never delete a worktree. Each worker
-records its most recent input (`WorkerEntry.lastInput`: kind, delivery, summary, time), which
-`orchestrator_workers` prints per line next to the start time and the last report. Every delivery also lands in
-a 20-entry ledger (`WorkerEntry.inputLog`), so the list separates **still pending** from **already consumed**:
-`输入 N 次` stays a cumulative counter (it only grows), while `待消费 N（最老 X）` is the queue.
-Consumption is inferred from session events, not from the model: `queue_update` reports the follow-up / steering
-queues, and a shrinking queue means the host spliced that message into the running turn — exact, because both
-queues are FIFO, so the oldest unconsumed record of that branch is the one consumed. An idle delivery
-(`prompt` / degenerate `steer`) is consumed at `agent_start`. If a session never emits `queue_update` (older
-session object, or no `subscribe`), the ledger degrades to "one `agent_start` consumes the oldest unconsumed
-record", which is an **approximation** — it keeps the count right but cannot tell which input was consumed.
-`待消费` older than a fixed 10 minutes (`INPUT_STUCK_MS`, independent of `workerTimeoutMs`) adds
-`⚠ 可能卡住`. `pass` / `rework` / `answer` with a `note` route to the group
-that owns it; a note no group owns is an error, never a guess. `notes.json` writes are serialized per path
-inside the process (workers and the orchestrator share one pi process); two pi instances writing the same
-plan are out of scope. The turn's terminal state is the enqueued input's promise
-(`prompt()`, or `followUp()` then `waitForIdle()`), which harvests the job. A background watchdog measures
-**time without progress**: every `orchestrator_report` from that worker renews it, so a long task just has to
-report periodically (every 10–15 minutes). On `orchestrator.workerTimeoutMs` of silence the watchdog aborts
-the session, drops its handle (the next dispatch starts a fresh worker) and injects one
-`orchestrator-worker-timeout` message, without touching note state. The worker can do every note-level action but
+records nothing on its own: the ledger is the truth. `input.sent` carries the kind / delivery / summary /
+time, and the orchestrator's handle table is a **cache of the projection** used by the sidebar and by
+delivery. `orchestrator_state` prints `输入 N 次` (cumulative, only grows) and `待消费 N（最老 X）` (the
+queue). Acknowledgements are written by code, not inferred: the worker extension's `agent_start` hook
+appends `input.consumed` for the **oldest** unconsumed `input.sent` of that worker key (FIFO, exact), so
+`待消费` returns to zero the moment the host starts the turn. An input whose oldest pending entry is older
+than `orchestrator.inputStuckMs` (default 10 minutes; independent of `workerTimeoutMs`) is a stuck worker
+and the scanner appends `timeout` before aborting it. `pass` is authorization recorded in the ledger: the
+`note.pass` event replaces the old in-memory `released` set, so a restart replays it and a worker's
+`complete` gate still sees it. `pass` / `rework` / `answer` with a `note` route to the group that owns it;
+a note no group owns is dispatched as a single-note group, a note missing from the plan is an error.
+`notes.json` writes are serialized per path inside the process (workers and the orchestrator share one pi
+process); two pi instances writing the same plan are out of scope. The turn's terminal state is the
+enqueued input's promise (`prompt()`, or `followUp()` then `waitForIdle()`), which harvests the job.
+A **code timer scans the projection** — it does not wait for a model turn: a worker whose oldest pending
+input exceeds `inputStuckMs`, or whose last progress (dispatch, input, report) is older than
+`orchestrator.workerTimeoutMs`, is aborted, its handle dropped and `timeout` + `worker.exit` appended. No
+message is injected into the orchestrator; note state is never touched by the watchdog.
+The worker can do every note-level action but
 cannot `init` a plan, cannot `move` it, and cannot write `completed` — it reports the note as
 `waiting(needs=review)` with `orchestrator_report`, and only after the orchestrator sends `pass` may it
 complete. The worker has no `ask_questions`: a question becomes `orchestrator_report(needs_answer)`.
@@ -435,15 +439,12 @@ Every finished note is committed right away (`git add -A && git commit`, message
 id) and the hash goes into that note's evidence: the orchestrator has no `bash`, so it cannot commit, and
 nothing is committed while tests or checks fail.
 
-`orchestrator_report` arrives in the orchestrator session as an `orchestrator-report` message. Reports
-are notifications; the notes on disk are the truth. Delivery goes through an **outbox**: `pi.sendMessage`
-is fire-and-forget (failures are swallowed by the host), so the plugin keeps its own account — a failed
-injection is queued and counted, retried on the next `agent_settled` / `before_agent_start` / `input`, and
-removed once it lands. Busy orchestrator → `deliverAs: "followUp"`; idle → `steer` + `triggerTurn`. Pending
-count and the last error show up in `orchestrator_workers` and `/orchestrator status`, and a retry never
-touches note state. The backlog is also **persisted** to `reports-pending.json` in the state dir (ids are
-deduplicated, the file is rewritten on every change and deleted once the queue drains), so an undelivered
-report survives a crash or a restart and is retried by the first hook of the next session.
+`orchestrator_report` **does not arrive in the orchestrator session**: it appends a `report.filed` event
+(`worker`, `note`, `outcome`, `summary`, `question?`, `evidence?` — all clipped so events stay small). The
+orchestrator pulls `orchestrator_state` instead, and that read appends `state.pulled`, which marks the
+reports as read; "unread report" therefore survives a restart. The old outbox / retry machinery is gone:
+the ledger is the record, so nothing has to be re-delivered. A `wakeOnReport: true` setting exists for
+callers who want one injected line (`orchestrator-wake`) and is **off by default**.
 
 A worker can dispatch **one layer of sub-workers** (`depth 1`) with its own restricted
 `orchestrator_dispatch`, which takes a `message` and nothing else. A sub-worker gets the host's file
@@ -456,10 +457,11 @@ parallel channel is no longer installed, so this is the only way down.
 The plugin never reconciles on `session_start`: opening a session neither injects a message nor spends a
 turn. Recovery is explicit — `orchestrator_read` with `op: "resume"` is the one place that selects a plan
 and reports where it stands (status line, index, ready queue, waiting for answer/review, blocked). A crash
-writes `interrupted.json` under the agent dir and exits; `resume <plan>` shows `上次崩溃: <at> · <reason>`
-when that plan is in the record and then drops only that plan's entry, while `/orchestrator status` lists
-every active plan plus the whole record and clears it. There is no concurrency cap: use
-`orchestrator_workers` to see live workers and abort them, individually or all.
+or a session shutdown appends `worker.exit` (with the `in_progress` notes it may strand) and exits;
+`resume <plan>` shows `上次崩溃: <at> · <reason>` when the projection still carries that plan's credential
+and drops only that entry (`interrupted.forgotten`), while `/orchestrator status` lists every active plan
+plus the record and clears it (`interrupted.cleared`). There is no concurrency cap: use
+`orchestrator_state` to see live workers and abort them, individually or all.
 
 When a plan cannot pass validation, `orchestrator_read` with `op: "inspect"` returns the raw notes and
 the validation errors, and `orchestrator_write` with `op: "repair"` applies model-supplied

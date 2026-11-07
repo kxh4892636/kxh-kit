@@ -7,7 +7,7 @@ description: 用户已放行且有可推进的 note 时使用; 逐条走门禁, 
 
 用户已放行且有可推进的 note 时按本循环推进; 门禁, 验证与 evidence 是完成条件, 不是收尾时才补的步骤.
 
-编排方按 `../../prompt.md` 的「职责边界」跑本循环: 选 note、分组与门禁判断留在编排方, 执行, verifying 与 review 外移给该 Plan 的 worker(`orchestrator_dispatch`); 编排方只用 worker 的 report 与 evidence 决定放行.
+编排方按 `../../prompt.md` 的「职责边界」跑本循环: 选 note、分组与门禁判断留在编排方, 执行, verifying 与 review 外移给该 Plan 的 worker(`orchestrator_command` 的 `dispatch`)；worker 的 report 落事件账本，编排方用 `orchestrator_state` 拉摘要，与 note 的 evidence 一起决定放行.
 
 ## 步骤
 
@@ -19,7 +19,7 @@ description: 用户已放行且有可推进的 note 时使用; 逐条走门禁, 
 
 ## 并行执行
 
-`ready` 按依赖关系分组: 有依赖关系的 note 在同一组, 组内从上到下是依赖顺序. DAG 里前置已完成且互相无 `blocked_by` 的 note 可以分成多组并行, 一组一个 worker(`orchestrator_dispatch` 的 `notes`); 同一 Plan 可以同时挂多组. 组内由该 worker 按依赖先后串行推进并逐条上报.
+`ready` 按依赖关系分组: 有依赖关系的 note 在同一组, 组内从上到下是依赖顺序. DAG 里前置已完成且互相无 `blocked_by` 的 note 可以分成多组并行, 一组一个 worker(`orchestrator_command` 的 `notes`); 同一 Plan 可以同时挂多组. 组内由该 worker 按依赖先后串行推进并逐条上报.
 
 `orchestrator_write` 的写入由该 Plan 的 worker 串行执行: 子任务只产出工作与证据, `status` / `update` / `complete` 统一由 worker 写回, 避免并发覆盖 `notes.json`. 子任务全部回收后, worker 写回证据并选下一组.
 

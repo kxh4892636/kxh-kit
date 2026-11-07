@@ -103,17 +103,25 @@ _避免使用_：自动开工、自动执行 note
 ### 编排
 
 **派工**：
-`orchestrator_dispatch` 把一个 Plan 交给 worker session；`worker:plan` 是 **1:N**（一个 Plan 可挂多个 worker，一个 worker 领一组无依赖 note），同一组重复派工复用会话，`kind=pass` 先记放行再投递。`plan` 与 `lockedPlan` 都缺失时起**临时 worker**（无 Plan、只读 + report、跑完即弃）。worker 可再派一层**子 worker**（`depth 1`，只吃 `message`，改不了 notes，不能再往下派）。入队即返回，不等 worker 跑完 —— 终态由 promise 收割；watchdog 按连续无进展计时（`orchestrator_report` 即续期），到点 abort + 摘除句柄并注入一条消息，下次派工起新 worker。写回经进程内按 `notes.json` 路径的互斥：worker 与编排方同进程，跨 pi 实例不在范围。
+`orchestrator_command`（`op: "dispatch"`，默认）把一个 Plan 交给 worker session；`worker:plan` 是 **1:N**（一个 Plan 可挂多个 worker，一个 worker 领一组无依赖 note），同一组重复派工复用会话，`kind=pass` 先记放行再投递。`plan` 与 `lockedPlan` 都缺失时起**临时 worker**（无 Plan、只读 + report、跑完即弃）。worker 可再派一层**子 worker**（`depth 1`，只吃 `message`，改不了 notes，不能再往下派）。入队即返回，不等 worker 跑完 —— 终态由 promise 收割；卡死判定由代码定时器扫投影得出（最老未消费输入超过 `inputStuckMs` 或连续无进展超过 `workerTimeoutMs`），到点 abort + 摘除句柄 + 落 `timeout`，下次派工起新 worker。写回经进程内按 `notes.json` 路径的互斥：worker 与编排方同进程，跨 pi 实例不在范围。
 
 **放行**：
-编排方下发 `pass` 后 worker 才可把 note 置 `completed`；判断在编排方，落盘在 worker。
+编排方下发 `pass` 后 worker 才可把 note 置 `completed`；判断在编排方，落盘在 worker。授权本身是账本事件 `note.pass`（不是内存集合），重启后靠重放恢复。
+
+**事件账本**：
+`<agentDir>/orchestrator/events.jsonl`，一行一个事件（`seq` / `at` / `type` / `idem?` / `payload`），只追加；`input.sent` / `input.consumed` / `report.filed` / `note.status` / `note.pass` / `worker.spawned` / `worker.exit` / `timeout` / `state.pulled` / `snapshot`。运行态的唯一真相，压缩靠 `snapshot` 轮转（旧行归档到 `events-<日期>.jsonl`）。
+_避免使用_：多通道通知、内存句柄表当真相、每类消息各一套持久化
+
+**投影**：
+从账本重放出来的运行态视图（worker 表、待消费输入、未读 report、放行集合、凭据）；进程内的句柄表降级为它的缓存。代码在 `agent_start` 写 `input.consumed` 做精确 ack，侧栏订阅投影（同进程 append 后毫秒级刷新，3s 轮询只是跨进程兜底），模型改成按需调 `orchestrator_state` 拉摘要而不是被推送。
+_避免使用_：实时推送模型、近似推断 ack、轮询直读句柄表
 
 **按 Plan 恢复**：
 恢复是显式动作，不在会话启动时自动跑：`orchestrator_read` 的 `resume <plan>` 既"选中"某个 Plan，也给出它的状态行、可推进队列、待回答/待验证与阻塞；`/orchestrator status` 是全局视图。
 _避免使用_：启动对账、自动播报
 
 **崩溃凭据**：
-进程崩在未捕获异常上时落下 `interrupted.json`（`at` / `reason` / `plans[]`）后退出；它只在显式查询时展示 —— `resume <plan>` 命中本 Plan 就多一行 `上次崩溃` 并只移除该条目，`status` 列出整档后清空。
+进程崩在未捕获异常上或会话退出时落 `worker.exit` 事件（带可能悬空的 `in_progress` note），由投影成凭据；只在显式查询时展示 —— `resume <plan>` 命中本 Plan 就多一行 `上次崩溃` 并只移除该条目（`interrupted.forgotten`），`status` 列出整档后清空（`interrupted.cleared`）。
 
 **刹车**：
-不设并发上限的替代：`orchestrator_workers` 列 live 清单、按 Plan 或全部中止、退出时自动收尾。
+不设并发上限的替代：`orchestrator_state` 拉 live 清单、按 Plan 或全部中止、退出时自动收尾。
