@@ -262,16 +262,6 @@ const findByNote = (
     );
 };
 
-/** 该 Plan 是否已经按组派过工（有 `notes` 非空的条目）。 */
-const hasGroups = (registry: WorkerRegistry, planDirectory: string): boolean => {
-  return registry
-    .list()
-    .some(
-      (entry) =>
-        keyBelongsToPlan(entry.planDirectory, planDirectory) && (entry.notes?.length ?? 0) > 0,
-    );
-};
-
 /** 相对时刻：清单里只需要“多久之前”，不需要绝对时间。 */
 const formatAgo = (at: number, now: number): string => {
   const seconds = Math.max(0, Math.round((now - at) / 1000));
@@ -389,7 +379,23 @@ const createDispatchTool = (
         plan === undefined
           ? (requestedWorker?.slice("temp:".length) ?? String(nextTempSeq(stateDir())))
           : "";
-      const key = plan === undefined ? `temp:${tempId}` : entryKeyOf(plan.directory, groupNotes);
+      // pass / rework / answer 带 note 时先找包含它的组；没有就**以该 note 单独成组**（组键 = [note]），
+      // 不再报“不知道投给哪一组”。只有 note 本身不在 Plan 里才报错（下面校验）。
+      const noteRouting = plan !== undefined && note !== undefined && kind !== "message";
+      const groupedByNote = noteRouting ? findByNote(registry, plan.directory, note) : undefined;
+      const autoGroup = noteRouting && groupedByNote === undefined;
+      /** 本次真正落到哪个组：note 路由命中的组 / 自动成组的 [note] / 参数给的组。 */
+      const targetNotes = groupedByNote?.notes ?? (autoGroup ? [note as string] : groupNotes);
+      if (autoGroup && plan !== undefined) {
+        const document = await loadDocument(plan.directory, runtime.limits());
+        if (!document.notes.some((item) => item.id === note)) {
+          throw new Error(`note ${note} 不在 ${planRefOf(plan)} 里：检查 note id 或换一个 Plan`);
+        }
+      }
+      const key =
+        plan === undefined
+          ? `temp:${tempId}`
+          : (groupedByNote?.planDirectory ?? entryKeyOf(plan.directory, targetNotes));
       const planRef = plan === undefined ? key : planRefOf(plan);
       // 作废登记是落盘的：被 abort / 超时的会话不再复用那时的上下文，连重启也不复活。
       // 临时 id 直接报错（id 本身就是地址，得换一个）；Plan/组的键必须能重派，所以换一代
@@ -444,21 +450,7 @@ const createDispatchTool = (
         }
       }
 
-      // pass / rework / answer 只看 note 落在哪个组；Plan 已经分组却找不到匹配时直接报错。
-      const routeByNote =
-        plan !== undefined && note !== undefined && kind !== "message"
-          ? (() => {
-              const matched = findByNote(registry, plan.directory, note);
-              if (matched === undefined && hasGroups(registry, plan.directory)) {
-                throw new Error(
-                  `没有包含 note ${note} 的 worker 组（${planRef}）：不知道投给哪一组，先确认分组或重新派工`,
-                );
-              }
-              return matched;
-            })()
-          : undefined;
-
-      let entry = routeByNote ?? registry.get(key);
+      let entry = registry.get(key);
       const started = entry === undefined;
       /** 本次是否从磁盘上的旧会话续上（新建时为 false）。 */
       let resumed = false;
@@ -482,7 +474,7 @@ const createDispatchTool = (
           planDirectory: key,
           planRef,
           ...(plan === undefined ? { kind: "temp" as const } : {}),
-          ...(groupNotes.length === 0 ? {} : { notes: groupNotes }),
+          ...(targetNotes.length === 0 ? {} : { notes: targetNotes }),
           ...(spawned.sessionPath === undefined ? {} : { sessionPath: spawned.sessionPath }),
           ...(worktree === undefined
             ? {}
@@ -509,7 +501,7 @@ const createDispatchTool = (
       const job: WorkerJob = {
         kind,
         ...(note === undefined ? {} : { note }),
-        ...(groupNotes.length === 0 ? {} : { notes: groupNotes }),
+        ...(targetNotes.length === 0 ? {} : { notes: targetNotes }),
         startedAt: now,
         progressAt: now,
         settled: delivery.settled,
@@ -531,10 +523,10 @@ const createDispatchTool = (
       const head = started
         ? plan === undefined
           ? `已起临时 worker ${planRef}（无 Plan，跑完即弃；同 id 再派可续上它）`
-          : groupNotes.length > 0
-            ? `已起 worker 接手 ${planRef} 的组 [${groupNotes.join(", ")}]`
+          : targetNotes.length > 0
+            ? `已起 worker 接手 ${planRef} 的组 [${targetNotes.join(", ")}]${autoGroup ? "（该 note 原本不属于任何组，已单独成组）" : ""}`
             : `已起 worker 接手 ${planRef}`
-        : `已投递给 ${planRef} 的 worker${groupNotes.length > 0 ? `（组 [${groupNotes.join(", ")}]）` : ""}`;
+        : `已投递给 ${planRef} 的 worker${targetNotes.length > 0 ? `（组 [${targetNotes.join(", ")}]）` : ""}`;
       const sessionLine =
         target.sessionPath === undefined
           ? undefined
@@ -576,7 +568,8 @@ const createDispatchTool = (
           delivery: deliveryMode,
           delivered: delivery.delivered,
           kind,
-          ...(groupNotes.length === 0 ? {} : { notes: groupNotes }),
+          ...(targetNotes.length === 0 ? {} : { notes: targetNotes }),
+          ...(autoGroup ? { autoGroup: true } : {}),
           ...(plan === undefined ? { temp: true, worker: key } : {}),
           ...(target.sessionPath === undefined ? {} : { sessionPath: target.sessionPath }),
           ...(note === undefined ? {} : { note }),

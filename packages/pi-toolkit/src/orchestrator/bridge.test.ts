@@ -1089,6 +1089,64 @@ describe("dispatch 与 workers 工具", () => {
     for (const session of spawns) session.finish?.();
   });
 
+  it("未分组的 note 直接 pass：自动以该 note 单独成组", async () => {
+    const { tools, spawns } = await setup();
+    const { root, ref } = await planWithNotes([note("07", [], "in_progress")]);
+    const dispatch = tools.get("orchestrator_dispatch");
+    const first = textOf(
+      await dispatch?.execute(
+        "id",
+        { plan: ref, kind: "pass", note: "07", message: "" },
+        undefined,
+        undefined,
+        ctx(root),
+      ),
+    );
+    expect(first).toContain(`已起 worker 接手 ${ref} 的组 [07]`);
+    expect(first).toContain("原本不属于任何组，已单独成组");
+    expect(spawns).toHaveLength(1);
+    expect(spawns[0]?.prompts[0]).toContain("[pass] note 07");
+
+    // 同一 note 再来一次：复用同一个组（不新建会话）。
+    const second = textOf(
+      await dispatch?.execute(
+        "id",
+        { plan: ref, kind: "pass", note: "07", message: "" },
+        undefined,
+        undefined,
+        ctx(root),
+      ),
+    );
+    expect(second).toContain(`已投递给 ${ref} 的 worker（组 [07]）`);
+    expect(spawns).toHaveLength(1);
+    expect(spawns[0]?.prompts).toHaveLength(2);
+
+    // 组已经出现在 live 清单里，后续 rework / answer 也能路由到它。
+    const listed = textOf(
+      await tools
+        .get("orchestrator_workers")
+        ?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
+    );
+    expect(listed).toContain("notes: 07");
+    await dispatch?.execute(
+      "id",
+      { plan: ref, kind: "rework", note: "07", message: "改一下" },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+    expect(spawns).toHaveLength(1);
+    await dispatch?.execute(
+      "id",
+      { plan: ref, kind: "answer", note: "07", message: "按 A 做" },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+    expect(spawns).toHaveLength(1);
+    for (const session of spawns) session.finish?.();
+  });
+
   it("pass 按 note 路由到含它的组，找不到就报错", async () => {
     const { tools, spawns } = await setup({ makeSession: () => fakeSession(true, false) });
     const { root, ref } = await planWithNotes([note("01"), note("02")]);
@@ -1126,7 +1184,7 @@ describe("dispatch 与 workers 工具", () => {
         undefined,
         ctx(root),
       ),
-    ).rejects.toThrow(/没有包含 note 99 的 worker 组/);
+    ).rejects.toThrow(/note 99 不在 .* 里/u);
     for (const session of spawns) session.finish?.();
   });
 
@@ -1222,7 +1280,7 @@ describe("dispatch 与 workers 工具", () => {
 
   it("pass 先放行再投递，abort 清空句柄表", async () => {
     const { tools, spawns } = await setup();
-    const { root, ref } = await planArgs();
+    const { root, ref } = await planWithNotes([note("01")], "2026-11-07-示例");
     const dispatch = tools.get("orchestrator_dispatch");
     await dispatch?.execute(
       "id",
