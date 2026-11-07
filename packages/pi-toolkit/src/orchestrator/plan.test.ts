@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 import {
   activePlans,
+  workspaceOfPlanDirectory,
   isPlanLifecycle,
   listPlans,
   planRefOf,
@@ -62,6 +63,21 @@ describe("listPlans", () => {
 
   it("returns nothing for a missing domains root", async () => {
     expect(await listPlans(await tempDir(), ".agents/domains")).toEqual([]);
+  });
+});
+
+describe("workspaceOfPlanDirectory（worktree worker 的 lockedPlan）", () => {
+  it("从绝对 Plan 目录反推工作区根", async () => {
+    const root = await tempDir();
+    const directory = join(root, ".agents/domains/demo/plans/active/2026-01-01-x");
+    await mkdir(directory, { recursive: true });
+    await writeFile(join(directory, "notes.json"), "{}", "utf8");
+    expect(workspaceOfPlanDirectory(directory)).toBe(root);
+  });
+
+  it("形状不匹配或不是绝对路径时返回 undefined", async () => {
+    expect(workspaceOfPlanDirectory("pi/active/2026-01-01-x")).toBeUndefined();
+    expect(workspaceOfPlanDirectory("/tmp/whatever")).toBeUndefined();
   });
 });
 

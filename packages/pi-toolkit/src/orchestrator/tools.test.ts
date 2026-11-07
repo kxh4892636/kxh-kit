@@ -601,3 +601,38 @@ describe("notes.json 写回锁", () => {
     expect(order).toEqual([0, 1, 2, 3, 4]);
   });
 });
+
+describe("worker 在 worktree 里也能解析锚定的 Plan", () => {
+  it("cwd 是 .worktrees/<名> 时，用 lockedPlan 反推工作区根", async () => {
+    const { mkdtemp, mkdir, writeFile } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const path = await import("node:path");
+    const join = (...parts: string[]): string => path.join(...parts);
+    const { createToolRuntime } = await import("./tools/shared.ts");
+    const { createReadTool } = await import("./tools/read.ts");
+    const { DEFAULT_DOMAIN_ROOT, DEFAULT_ORCHESTRATOR_SETTINGS } = await import("./config.ts");
+    const { serializeDocument, emptyDocument } = await import("./dag.ts");
+
+    const root = await mkdtemp(join(tmpdir(), "pi-worktree-tools-"));
+    const planDirectory = join(root, ".agents/domains/demo/plans/active/2026-01-01-x");
+    await mkdir(planDirectory, { recursive: true });
+    await writeFile(join(planDirectory, "notes.json"), serializeDocument(emptyDocument()), "utf8");
+    // 模拟 worktree worker：cwd 在别处（没有 .agents/domains），Plan 锚定主工作区绝对路径。
+    const worktree = join(root, ".worktrees", "plan");
+    await mkdir(worktree, { recursive: true });
+
+    const runtime = createToolRuntime({
+      limits: () => DEFAULT_ORCHESTRATOR_SETTINGS,
+      domainRoot: DEFAULT_DOMAIN_ROOT,
+      role: "worker",
+      lockedPlan: planDirectory,
+    });
+    expect(runtime.workspace({ cwd: worktree } as never)).toBe(root);
+
+    const tool = createReadTool(runtime);
+    const result = (await tool.execute?.("id", { op: "resume" }, undefined, undefined, {
+      cwd: worktree,
+    } as never)) as { content: { text: string }[] };
+    expect(result.content[0]?.text).toContain("demo/active/2026-01-01-x");
+  });
+});

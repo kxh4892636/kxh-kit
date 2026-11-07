@@ -8,7 +8,7 @@ import { assetsCheckScript } from "../assets.ts";
 import type { OrchestratorSettings } from "../config.ts";
 import type { NoteNode, PlanDocument } from "../dag.ts";
 import type { ProjectedInterrupted } from "../projection.ts";
-import type { PlanRef } from "../plan.ts";
+import { workspaceOfPlanDirectory, type PlanRef } from "../plan.ts";
 
 /** 调用方角色：编排方拥有 plan 级动作，worker 只拥有 note 级动作。 */
 export type OrchestratorRole = "orchestrator" | "worker";
@@ -167,6 +167,12 @@ export const createToolRuntime = (options: {
     ...(options.released === undefined ? {} : { released: options.released }),
     ...(options.interrupted === undefined ? {} : { interrupted: options.interrupted }),
     workspace(ctx: ExtensionToolContext): string {
+      // worktree worker 的 cwd 是 `.worktrees/<名字>`，Plan 却锚定主工作区绝对路径：
+      // 能从 lockedPlan 反推工作区根时以它为准，否则保持旧行为（cwd）。
+      if (options.lockedPlan !== undefined) {
+        const root = workspaceOfPlanDirectory(options.lockedPlan);
+        if (root !== undefined) return root;
+      }
       return ctx.cwd;
     },
   };

@@ -27,6 +27,36 @@ export const planRefOf = (plan: PlanRef): string => {
   return `${plan.domain}/${plan.lifecycle}/${plan.name}`;
 };
 
+/** 领域根的目录名（与 `DEFAULT_DOMAIN_ROOT` 同构，只是拆成两段便于按路径切分）。 */
+const DOMAIN_ROOT_SEGMENTS = [".agents", "domains"] as const;
+
+/**
+ * 从一个绝对的 Plan 目录反推工作区根。
+ *
+ * worktree worker 的 `ctx.cwd` 是 `.worktrees/<名字>`，而 Plan 锚定在主工作区的绝对路径：
+ * 只按 cwd 找 `.agents/domains` 会把「lockedPlan 在自己工作区之外」误判为无法识别。
+ * 所以只要能认出 `<root>/.agents/domains/<domain>/plans/<lifecycle>/<name>` 的形状，
+ * 就把 `<root>` 当作工作区。
+ * @param planDirectory - Plan 目录（通常是绝对的）。
+ * @returns 工作区根；形状不匹配时 undefined。
+ */
+export const workspaceOfPlanDirectory = (planDirectory: string): string | undefined => {
+  if (!isAbsolute(planDirectory)) return undefined;
+  const segments = planDirectory.split(/[\\/]+/u);
+  for (let at = segments.length - 5; at >= 0; at -= 1) {
+    const isRoot =
+      segments[at] === DOMAIN_ROOT_SEGMENTS[0] &&
+      segments[at + 1] === DOMAIN_ROOT_SEGMENTS[1] &&
+      segments[at + 3] === "plans";
+    if (!isRoot) continue;
+    if (segments[at + 4] === undefined) continue;
+    const root = segments.slice(0, at).join(sep);
+    if (root === "" || !existsSync(join(root, ...DOMAIN_ROOT_SEGMENTS))) continue;
+    return root;
+  }
+  return undefined;
+};
+
 const sortedEntries = async (directory: string): Promise<readonly string[]> => {
   try {
     const entries = await readdir(directory, { withFileTypes: true });
