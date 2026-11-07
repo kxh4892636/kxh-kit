@@ -284,6 +284,16 @@ While a session runs Orchestrator:
   └─ 已完成 3 条 ▸
   ```
 
+  A group's members are **not** just the `notes` given at dispatch: the group is the dispatch seeds
+  **∪ their bidirectional `blocked_by` closure** (upstream and downstream, not expanding through already
+  `completed` notes). So a worker running `45` also shows `46` (which depends on it) in the same group —
+  the group is the whole dependency chain, `completed` notes excluded from the visible rows and counted by
+  the `已完成 N 条 ▸` fold. When two groups' closures overlap, a note appears only once, in the group whose
+  key (sorted member ids) sorts first, with a `↔` marker; notes with no dispatch and no closure membership
+  fall into `未分组`. In-group order is id-ascending with `执行中` pinned to the top. The closure is cached
+  per data signature (group specs + each note's `id|status|blocked_by`), so rendering never walks the whole
+  document.
+
   **Temporary workers get their own block at the very bottom.** `temp:<id>` belongs to no Plan and
   lives nowhere in `notes.json`, so grouping by Plan used to drop them silently; they now appear as the
   last top-level branch with one row per live temp worker:
@@ -402,17 +412,24 @@ idle worker has no running turn to steer into and degrades to `prompt()`; the re
 `note.pass` / `worker.exit`) before or after the SDK call — the log guarantees order and history, the SDK
 still does the delivery.
 
-**Worktrees** (`worktree.ts`): `worktree: true` (auto name `note-<id>` / `grp-<id-id>` / `plan`) or a name
-puts the worker's cwd in `.worktrees/<名字>` on branch `wt/<名字>` and runs `pnpm install --prefer-offline`
-there first — one install per worktree, as measured on Windows with a warm store: worktree add ≈1.5s /
-98 MB, install ≈13.5s, `node_modules` 894 MB nominal but ≈183 MB of real disk (pnpm hardlinks its store),
-and `pnpm test` then runs in 3.8s (372 tests). A failed install aborts the dispatch with the reason instead
-of letting the worker skip tests. The plan stays anchored to the main workspace (absolute path), so
-`notes.json` still has exactly one writer. The worker must rebase onto the latest main commit and report
-"ready for `--ff-only` merge"; a conflicting rebase becomes `blocked` with the scene left intact. Merging
-and cleanup are a separate dispatch (`git merge --ff-only wt/<名字>`, then
-`git -c core.longpaths=true worktree remove` with an `rm -rf` fallback and `worktree prune`, then delete the
-branch) — `abort` and timeouts never delete a worktree. Each worker
+**Worktrees** (`worktree.ts`): **Plan workers are isolated by default** — dispatch auto-creates
+`.worktrees/<名字>` on branch `wt/<名字>` (names: `note-<id>` / `grp-<id-id>` / `plan`) and runs
+`pnpm install --prefer-offline` there first — one install per worktree, as measured on Windows with a warm
+store: worktree add ≈1.5s / 98 MB, install ≈13.5s, `node_modules` 894 MB nominal but ≈183 MB of real disk
+(pnpm hardlinks its store), and `pnpm test` then runs in 3.8s (372 tests). Temporary workers default to
+**no** worktree (read-only, seconds long); pass `worktree: true` to force one, `worktree: false` or an
+explicit name still works. A failed worktree add or install aborts the dispatch with the reason instead of
+letting the worker skip tests — it never silently falls back to the main workspace. The plan stays anchored
+to the main workspace (absolute path), so `notes.json` still has exactly one writer. The worker must rebase
+onto the latest main commit and report "ready for `--ff-only` merge"; a conflicting rebase becomes `blocked`
+with the scene left intact. **Merging and cleanup are code, not a dispatch:** once the worker settles, the
+plugin checks ff-only (`git merge-base --is-ancestor`), then `git merge --ff-only wt/<名字>`, removes the
+worktree (`git -c core.longpaths=true worktree remove` with an `rm -rf` fallback + `worktree prune`) and the
+branch, and appends `worker.merged`. If it is not ff-only (diverged, dirty workspace, no rebase) it does
+**not** merge: it appends `worker.merge_blocked` with the scene path and `orchestrator_state` shows it with a
+`✗`. Merges are serialized in-process (mutex + retry on git lock errors) so two worktrees cannot interleave;
+`abort` and timeouts never delete a worktree. A re-dispatch to the same group after a merge creates a fresh
+worktree and writes it back to the handle (same session, new cwd). Each worker
 records nothing on its own: the ledger is the truth. `input.sent` carries the kind / delivery / summary /
 time, and the orchestrator's handle table is a **cache of the projection** used by the sidebar and by
 delivery. `orchestrator_state` prints `输入 N 次` (cumulative, only grows) and `待消费 N（最老 X）` (the

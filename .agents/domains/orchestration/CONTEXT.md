@@ -46,7 +46,8 @@ _Avoid_: 分配、ticket、工单、一个 Plan 只能一个 worker
 _Avoid_: 内存会话、重启即失忆、启动自动恢复全部 worker
 
 **组**:
-一次派工覆盖的一批 note，组内互相无 `blocked_by` 依赖；组标识由 note id 排序串稳定生成，参与句柄键（`<plan 目录>::<组标识>`）。`blocked_by` 是硬判据，“触及文件不重叠”只是软建议，由 worker 自行遵守并上报冲突。
+一次派工覆盖的一批 note，组内互相无 `blocked_by` 依赖；组标识由 note id 排序串稳定生成，参与句柄键（`<plan 目录>::<组标识>`）。`blocked_by` 是硬判据，“触及文件不重叠”只是软建议，由 worker 自行遵守并上报冲突。侧栏把一个组展开成**派工种子 ∪ 双向依赖闭包**：种子是派工时给的 `notes`，闭包把“它依赖的 / 依赖它的”未完成 note 一并列入（不穿过已完成的 note），所以 `45` 在跑时依赖它的 `46` 也显示在同一组；同一个 note 落入多个闭包时只归组键排序最前的组、行尾标 `↔`，无派工且不在任何闭包里的落「未分组」。
+_Avoid_: 把“组”理解成只能并行的同层 note、重合 note 在多个组里重复出现
 _Avoid_: 批次、分片、一条 note 一个 worker
 
 **插话**:
@@ -66,8 +67,8 @@ _Avoid_: subagent、子任务、第二层 worker、worktree 分身
 _Avoid_: 前台等待、轮询 jobId、按任务总量计时的超时
 
 **worktree 派工**:
-`orchestrator_command` 带 `worktree: true`(自动命名 `note-<id>` / `grp-<id-id>` / `plan`)或一个名字时，worker 的 cwd 变成 `.worktrees/<名字>`、分支 `wt/<名字>`，派工前在该目录各自 `pnpm install`（装不上就中止派工，worker 不许跳过测试）。Plan 仍锚定主工作区绝对路径，`notes.json` 只有主工作区一份。worker 完成前自己 rebase 到主分支最新提交并在 report 里写明可 `--ff-only` 合并；合并由编排方派工执行，成功后删 worktree 与分支，abort / 超时**不删**（现场留给合并或人工看）。
-_Avoid_: 真左右分栏式隔离、共享 node_modules、worker 自行删 worktree、rebase 冲突时硬推
+**Plan worker 默认隔离**：派工时建 `.worktrees/<名字>`（自动命名 `note-<id>` / `grp-<id-id>` / `plan`）、分支 `wt/<名字>`，并先在该目录各自 `pnpm install`（建 worktree 或装依赖失败就**中止派工**，worker 不许跳过测试，也不降级回主工作区）。临时 worker 默认不建，需要时显式 `worktree: true`；`worktree: false | "<名字>"` 仍支持。Plan 仍锚定主工作区绝对路径，`notes.json` 只有主工作区一份。worker 完成前自己 rebase 到主分支最新提交并在 report 里写明可 `--ff-only` 合并。**合并与回收由代码做**（不经模型、不需编排方派工）：worker 终态后校验分支可 ff-only → `git merge --ff-only wt/<名字>` → 删 worktree 与分支 → 落 `worker.merged`；不可 ff-only → **不合并、保留现场**，落 `worker.merge_blocked`（含现场路径），`orchestrator_state` 里标 `✗` 等人工处理。合并串行化：主工作区同一时刻只允许一个 merge（进程内互斥 + 锁错误重试），避免两个 worktree 并发插队；abort / 超时**不删** worktree。
+_Avoid_: 真左右分栏式隔离、共享 node_modules、worker 自行删 worktree、编排方手工跑合并、rebase 冲突时硬推
 
 **刹车**:
 不设并发上限时的替代手段：`orchestrator_state` 列 live 清单、按 Plan 或全部中止、退出时自动收尾。
