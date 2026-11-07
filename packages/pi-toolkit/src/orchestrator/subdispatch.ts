@@ -222,6 +222,8 @@ export const createSubDispatchTool = (options: SubDispatchOptions): Orchestrator
           parent: options.parentRoute,
           depth,
           ...(spawned.sessionPath === undefined ? {} : { sessionPath: spawned.sessionPath }),
+          // cwd 落账：子 worker 就在父的现场里跑（`exec.cwd`），`state` 里看得见。
+          ...(exec.cwd === undefined ? {} : { cwd: exec.cwd }),
           startedAt: new Date().toISOString(),
         },
       });

@@ -50,6 +50,8 @@ export interface ProjectedWorker {
   /** 落盘会话的工作键（可能带 `#<作废时刻>` 的代数后缀）；`resume` 靠它接上同一份 jsonl。 */
   sessionKey?: string;
   worktree?: { readonly name: string; readonly branch: string; readonly directory: string };
+  /** 派工时定的 cwd（追加输入不改它；`resume` 也回到它）。 */
+  cwd?: string;
   /** 起点时刻（ISO）。 */
   startedAt: string;
   status: "live" | "exited";
@@ -371,6 +373,7 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
       const planRef = payloadString(payload, "planRef");
       const parent = payloadString(payload, "parent");
       const depth = payloadNumber(payload, "depth");
+      const cwd = payloadString(payload, "cwd");
       const worktree = payload["worktree"];
       const entry = ensureWorker(state, worker, event.at, {
         ...(planRef === undefined ? {} : { planRef }),
@@ -380,6 +383,7 @@ export const applyEvent = (state: ProjectionState, event: LedgerEvent): boolean 
         ...(sessionKey === undefined ? {} : { sessionKey }),
         ...(parent === undefined ? {} : { parent }),
         ...(depth === undefined ? {} : { depth }),
+        ...(cwd === undefined ? {} : { cwd }),
         ...(isRecord(worktree) &&
         typeof worktree["name"] === "string" &&
         typeof worktree["branch"] === "string" &&

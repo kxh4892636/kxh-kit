@@ -667,39 +667,38 @@ const createCommandTool = (
       /** 本次是否新建（复用已有现场时不再装依赖）。 */
       let worktreeCreated = false;
       let worktreeInstall: InstallOutcome | undefined;
-      const siteName = groupWorktreeName(targetNotes);
-      if (siteName !== undefined) {
-        const hooks = deps.worktree ?? DEFAULT_WORKTREE_HOOKS;
-        // 已有现场且目录还在 → 直接复用；目录不在（合并回收过）→ 重新建 + 装一次。
-        const ensured = await hooks.ensure({ workspace, name: siteName });
-        worktreeCreated = ensured.created;
-        worktree = ensured;
-        if (worktreeCreated) {
-          worktreeInstall = await hooks.install(ensured.directory);
-          if (!worktreeInstall.ok) {
-            throw new Error(
-              `worktree ${siteName} 的依赖安装失败（${worktreeInstall.command}，${worktreeInstall.durationMs}ms）：${worktreeInstall.reason ?? "未知原因"}。` +
-                `worker 在那里跑不了测试，已中止派工；工作区保留在 ${ensured.directory}，可手工修后重派或删掉。`,
-            );
+      // **现场只在新起 worker 时绑定**：`steer` / `queue` / `rework` / `answer` / `pass` /
+      // `fact` 命中 live 句柄时一律不 ensure、不 install、不碰 cwd —— 追加输入把 worker 的
+      // cwd 从主工作区切走、把它未提交的在制品留在原地，是实测过的病。组键对应的现场与
+      // worker 当前 cwd 不一致时**静默以 cwd 为准**：不提示、不报错、不拉回。
+      if (entry === undefined) {
+        const siteName = groupWorktreeName(targetNotes);
+        if (siteName !== undefined) {
+          const hooks = deps.worktree ?? DEFAULT_WORKTREE_HOOKS;
+          // 已有现场且目录还在 → 直接复用；目录不在（合并回收过）→ 重新建 + 装一次。
+          const ensured = await hooks.ensure({ workspace, name: siteName });
+          worktreeCreated = ensured.created;
+          worktree = ensured;
+          if (worktreeCreated) {
+            worktreeInstall = await hooks.install(ensured.directory);
+            if (!worktreeInstall.ok) {
+              throw new Error(
+                `worktree ${siteName} 的依赖安装失败（${worktreeInstall.command}，${worktreeInstall.durationMs}ms）：${worktreeInstall.reason ?? "未知原因"}。` +
+                  `worker 在那里跑不了测试，已中止派工；工作区保留在 ${ensured.directory}，可手工修后重派或删掉。`,
+              );
+            }
+            ledgerOf().append({
+              type: "worktree.created",
+              payload: {
+                key: siteName,
+                branch: ensured.branch,
+                directory: ensured.directory,
+                worker: key,
+                created: true,
+                installMs: worktreeInstall.durationMs,
+              },
+            });
           }
-          ledgerOf().append({
-            type: "worktree.created",
-            payload: {
-              key: siteName,
-              branch: ensured.branch,
-              directory: ensured.directory,
-              worker: key,
-              created: true,
-              installMs: worktreeInstall.durationMs,
-            },
-          });
-        }
-        if (entry !== undefined) {
-          entry.worktree = {
-            name: ensured.name,
-            directory: ensured.directory,
-            branch: ensured.branch,
-          };
         }
       }
 
@@ -756,7 +755,8 @@ const createCommandTool = (
             ...(spawned.sessionPath === undefined ? {} : { sessionPath: spawned.sessionPath }),
             sessionKey,
             resumed: spawned.resumed,
-            startedAt: new Date().toISOString(),
+            // cwd 落账：`state` 里看得见，追加输入不改它（note 50）。
+            cwd: worktree?.directory ?? workspace,
             ...(worktree === undefined
               ? {}
               : {
@@ -847,8 +847,11 @@ const createCommandTool = (
             : deliveryMode === "steer"
               ? "worker 空闲，插话退化为直接开新一轮。"
               : "worker 已开始处理。";
-      const worktreeLine =
-        target.worktree === undefined
+      // 现场行只描述**这一次派工**做了什么：新起 worker 时才谈「建 / 复用现场」，
+      // 命中 live 句柄的追加输入只投递：cwd 一句交代，不 ensure、不改 cwd（note 50）。
+      const siteLine = !started
+        ? `cwd 未变：${target.cwd}（追加输入只投递，不 ensure、不 install）`
+        : target.worktree === undefined
           ? undefined
           : `worktree: ${target.worktree.name}（${target.worktree.branch}）· ${worktreeCreated ? `新建 · 依赖 ${worktreeInstall?.durationMs ?? 0}ms` : "复用现有现场"}`;
       return {
@@ -859,12 +862,12 @@ const createCommandTool = (
             `delivery: ${deliveryMode} → ${delivery.delivered}`,
             deliverLine,
             ...(sessionLine === undefined ? [] : [sessionLine]),
-            ...(worktreeLine === undefined ? [] : [worktreeLine]),
-            ...(target.worktree === undefined
-              ? []
-              : [
-                  `worker 的 cwd 是 ${target.worktree.directory}；Plan 仍锚定主工作区。完成前先 rebase 到主分支最新提交，再 report 里写“可 --ff-only 合并”（合并由代码自动做，不需派回收指令）。`,
-                ]),
+            ...(siteLine === undefined ? [] : [siteLine]),
+            ...(started && target.worktree !== undefined
+              ? [
+                  `worker 的 cwd 是 ${target.cwd}；Plan 仍锚定主工作区。完成前先 rebase 到主分支最新提交，再 report 里写“可 --ff-only 合并”（合并由代码自动做，不需派回收指令）。`,
+                ]
+              : []),
             `已记入账本：seq ${sentEvent.seq}（事件账本不再推送 report，用 orchestrator_state 拉摘要）。`,
           ].join("\n"),
         ),
@@ -877,6 +880,7 @@ const createCommandTool = (
           delivered: delivery.delivered,
           kind,
           seq: sentEvent.seq,
+          cwd: target.cwd,
           ...(targetNotes.length === 0 ? {} : { notes: targetNotes }),
           ...(autoGroup ? { autoGroup: true } : {}),
           ...(plan === undefined ? { temp: true, worker: key } : {}),
@@ -1089,6 +1093,8 @@ const createStateTool = (
         // 组级 abort 前确认没误杀、没杀错组靠的就是它们。
         const siteKey = groupWorktreeName(worker.notes);
         const site = siteKey === undefined ? undefined : state.worktrees.get(siteKey);
+        // cwd：派工时定的那个。组现场与它不一致时以 cwd 为准（追加输入不 ensure、不拉回）。
+        const cwdMark = worker.cwd === undefined ? "" : ` · cwd ${worker.cwd}`;
         const siteMark =
           siteKey === undefined
             ? " · 无现场（无组）"
@@ -1127,7 +1133,7 @@ const createStateTool = (
                   : `（${worker.lastDiagnosis.adjust.join("+")}）`
               }`;
         lines.push(
-          `${indent}${worker.planRef} · ${group}${shape} · ${minutes} 分钟 · 输入 ${worker.inputs} 次 · ${pendingLabelOf(pending)} · ${report} · 最近输入 ${lastInput}${siteMark}${mergeMark}${orphanMark}${timeoutMark}${diagnosisMark}`,
+          `${indent}${worker.planRef} · ${group}${shape} · ${minutes} 分钟 · 输入 ${worker.inputs} 次 · ${pendingLabelOf(pending)} · ${report} · 最近输入 ${lastInput}${cwdMark}${siteMark}${mergeMark}${orphanMark}${timeoutMark}${diagnosisMark}`,
         );
       }
     }
@@ -1812,6 +1818,7 @@ export const registerOrchestrator = (
         ...(spawned.sessionPath === undefined ? {} : { sessionPath: spawned.sessionPath }),
         sessionKey: input.sessionKey,
         resumed: spawned.resumed,
+        cwd: input.cwd,
         startedAt: new Date().toISOString(),
         ...input.spawnedExtra,
         ...(input.worktree === undefined

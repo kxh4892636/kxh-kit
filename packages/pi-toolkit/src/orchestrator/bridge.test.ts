@@ -762,7 +762,7 @@ describe("dispatch 与 workers 工具", () => {
     expect(names).toEqual(["note-01", "grp-01-02", undefined]);
   });
 
-  it("同组共用现场：一次建、后续投递不重装", async () => {
+  it("同组共用现场：一次建、后续投递不碰现场", async () => {
     const worktree = fakeWorktree();
     const { tools, spawnCwds, spawnOptions } = await setup({
       worktree: worktree.hooks,
@@ -780,7 +780,7 @@ describe("dispatch 与 workers 工具", () => {
     expect(spawnCwds).toEqual([`${root}/.worktrees/note-01`]);
     expect(spawnOptions[0]?.sessionKey).toBeDefined();
 
-    // 同一组再来 rework / answer / fact：落回同一个目录，不再 install。
+    // 同一组再来 rework / answer / fact：命中 live 句柄，**不 ensure、不 install、不改 cwd**。
     const requests: Record<string, unknown>[] = [
       { plan: ref, kind: "rework", note: "01", message: "改一下" },
       { plan: ref, kind: "answer", note: "01", message: "按 A 做" },
@@ -788,9 +788,11 @@ describe("dispatch 与 workers 工具", () => {
     ];
     for (const args of requests) {
       const text = await send({ ...args });
-      expect(text).toContain("worktree: note-01（wt/note-01）· 复用现有现场");
+      expect(text).toContain(`cwd 未变：${root}/.worktrees/note-01`);
       expect(text).toContain(`已投递给 ${ref} 的 worker（组 [01]）`);
     }
+    // 组键的现场只会在“新起 worker”时碰：这一轮一次都没再 ensure。
+    expect(worktree.ensured).toEqual(["note-01"]);
     expect(worktree.installed).toEqual([`${root}/.worktrees/note-01`]);
     expect(spawnCwds).toEqual([`${root}/.worktrees/note-01`]);
 
@@ -802,6 +804,136 @@ describe("dispatch 与 workers 工具", () => {
       `${root}/.worktrees/note-02`,
     ]);
     expect(spawnCwds[1]).toBe(`${root}/.worktrees/note-02`);
+  });
+
+  it("live worker 的追加输入不碰现场：cwd 不变、.worktrees 目录数不变、不 install", async () => {
+    const worktree = fakeWorktree();
+    const { tools, spawnCwds } = await setup({
+      worktree: worktree.hooks,
+      makeSession: () => fakeSession(true, false),
+    });
+    const fs = await import("node:fs/promises");
+    const path = await import("node:path");
+    const { root, ref } = await planWithNotes([note("08")]);
+    const dispatch = tools.get("orchestrator_command");
+    const workers = tools.get("orchestrator_state");
+    const send = async (args: Record<string, unknown>) =>
+      await dispatch?.execute("id", args, undefined, undefined, ctx(root));
+
+    await send({ plan: ref, notes: ["08"], message: "做 08" });
+    // 替身给的现场目录用 `/` 拼（与 `ensure` 的返回值一致），断言才对得上。
+    const site = `${root}/.worktrees/note-08`;
+    // 真实 ensure 会建出这个目录；替身不碰盘，这里手工摆出来当“现场已存在”。
+    await fs.mkdir(site, { recursive: true });
+    const dirsBefore = (await fs.readdir(path.join(root, ".worktrees"))).sort();
+    expect(worktree.ensured).toEqual(["note-08"]);
+
+    // 连发 steer / rework / answer / queue：全部命中 live 句柄。
+    const requests: Record<string, unknown>[] = [
+      { plan: ref, notes: ["08"], message: "顺手改一下", delivery: "steer" },
+      { plan: ref, kind: "rework", note: "08", message: "测试没过" },
+      { plan: ref, kind: "answer", note: "08", message: "按方案 A" },
+      { plan: ref, notes: ["08"], message: "排在这轮后面", delivery: "queue" },
+    ];
+    for (const args of requests) {
+      const result = await send(args);
+      expect(textOf(result)).toContain(`cwd 未变：${site}`);
+      expect((result as { details: { cwd?: string; started?: boolean } }).details).toMatchObject({
+        started: false,
+        cwd: site,
+      });
+    }
+    // 一次 ensure / 一次 install 都没多出来，cwd 也没被切走。
+    expect(worktree.ensured).toEqual(["note-08"]);
+    expect(worktree.installed).toEqual([site]);
+    expect(spawnCwds).toEqual([site]);
+    expect((await fs.readdir(path.join(root, ".worktrees"))).sort()).toEqual(dirsBefore);
+
+    // state 里也看得见 cwd（追加不改它）。
+    const listed = textOf(
+      await workers?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
+    );
+    expect(listed).toContain(`cwd ${site}`);
+  });
+
+  it("对照组：worker 在主工作区、组现场已存在 → 追加仍用主工作区（不切 cwd）", async () => {
+    const worktree = fakeWorktree({ created: false });
+    const fs = await import("node:fs/promises");
+    const os = await import("node:os");
+    const path = await import("node:path");
+    const { root, ref } = await planWithNotes([note("07")]);
+    const { openLedger } = await import("./ledger.ts");
+    const stateRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-bridge-state-"));
+    createdDirs.push(stateRoot);
+    const planDirectory = path.join(
+      root,
+      ".agents",
+      "domains",
+      "etf",
+      "plans",
+      "active",
+      "2026-11-07-分组",
+    );
+    // 今天的翻车场景：老账本里这一代没有 worktree 字段，cwd 就是主工作区。
+    openLedger(stateRoot).append({
+      type: "worker.spawned",
+      payload: {
+        worker: `${planDirectory}::07`,
+        planRef: ref,
+        kind: "plan",
+        notes: ["07"],
+        startedAt: new Date().toISOString(),
+      },
+    });
+    // 组现场在盘上存在（上一代建好了，或别的路径建的）。
+    const site = path.join(root, ".worktrees", "note-07");
+    await fs.mkdir(site, { recursive: true });
+
+    const { tools, spawnCwds } = await setup({
+      stateDir: () => stateRoot,
+      worktree: worktree.hooks,
+      makeSession: () => fakeSession(true, false),
+    });
+    const workersAndResume = tools.get("orchestrator_state");
+    // 恢复孤儿：没有 worktree 记录 → 回到主工作区。
+    await workersAndResume?.execute(
+      "id",
+      { op: "resume", plan: ref },
+      undefined,
+      undefined,
+      ctx(root),
+    );
+    expect(spawnCwds).toEqual([root]);
+
+    // 追加输入命中 live 句柄：现场在也不 ensure，也不把 cwd 拉过去。
+    const result = await tools
+      .get("orchestrator_command")
+      ?.execute(
+        "id",
+        { plan: ref, kind: "rework", note: "07", message: "改一下" },
+        undefined,
+        undefined,
+        ctx(root),
+      );
+    expect(textOf(result)).toContain(`cwd 未变：${root}`);
+    expect((result as { details: { cwd?: string; started?: boolean } }).details).toMatchObject({
+      started: false,
+      cwd: root,
+    });
+    expect(worktree.ensured).toEqual([]);
+    expect(worktree.installed).toEqual([]);
+    expect(spawnCwds).toEqual([root]);
+    expect(
+      await fs.stat(site).then(
+        () => true,
+        () => false,
+      ),
+    ).toBe(true);
+
+    const listed = textOf(
+      await workersAndResume?.execute("id", { op: "list" }, undefined, undefined, ctx(root)),
+    );
+    expect(listed).toContain(`cwd ${root}`);
   });
 
   it("abort 按组键：只摘目标组，别组继续跑、现场不动", async () => {
