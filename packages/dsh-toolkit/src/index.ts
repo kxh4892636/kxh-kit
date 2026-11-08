@@ -22,7 +22,6 @@ import { recordMount, restoreMountReport } from "./nano-flow/mount-report.js";
 import { buildNotesSnapshot } from "./nano-flow/notes.js";
 import { NANO_FLOW_PRESET_ID, nanoFlowEntryUrl } from "./nano-flow/preset.js";
 import { createRotation, type RotationSession } from "./nano-flow/rotate.js";
-import { registerRotateCommand } from "./nano-flow/rotate-command.js";
 import { createPlanLogService } from "./nano-flow/plan-log-service.js";
 import {
   BINDINGS_FILE,
@@ -33,6 +32,7 @@ import {
   writeBindings,
 } from "./nano-flow/plan-log.js";
 import { listActivePlans } from "./nano-flow/notes.js";
+import { planRefFromDirectory } from "./nano-flow/plan.js";
 import { hostServices } from "./nano-flow/services.js";
 import { createNestedSkillTool } from "./host/tools/nested-skill.js";
 import { createOfficeSkillsTool } from "./host/tools/office-skills.js";
@@ -170,13 +170,13 @@ export const apply = (ctx: Context, config: Config = {}): void => {
       /**
        * 轮转后自动跑一次校验（等价于执行 `nano_flow_check`）：校验 Plan，并把轮转前会话的
        * Plan 绑定继承给新会话（与工作区 active Plan 数量无关），让 Note 看板不必等模型
-       * 自己调工具就能出现。返回一行结论，由轮转追加到 seed。
+       * 自己调工具就能出现。返回结论文本与继承到的 Plan，由轮转写进 seed。
        */
       const autoCheck = async (params: {
         sessionId: string;
         previousSessionId: string;
         workspace: string;
-      }): Promise<string | undefined> => {
+      }): Promise<{ readonly text: string; readonly planReference?: string } | undefined> => {
         const domainsPath = config.domainRoot ?? DEFAULT_DOMAIN_ROOT;
         const result = await runCheck({
           script: assetsCheckScript(locateAssetsRoot()),
@@ -208,7 +208,11 @@ export const apply = (ctx: Context, config: Config = {}): void => {
             ? `本会话的 Note 看板绑定已建立（继承轮转前的 Plan：${planRelativePath(params.workspace, inherited)}），无需再跑一次。`
             : "轮转前会话没有绑定 Plan，未建立看板绑定；恢复时确认 Plan 后跑一次 `nano_flow_check`。",
         );
-        return lines.join("\n");
+        const planReference = inherited === undefined ? undefined : planRefFromDirectory(inherited);
+        return {
+          text: lines.join("\n"),
+          ...(planReference === undefined ? {} : { planReference }),
+        };
       };
       const rotation = createRotation({
         services: hostServices(child),
@@ -224,17 +228,13 @@ export const apply = (ctx: Context, config: Config = {}): void => {
         onRotated: (from, to) => runtime.rememberRotation(from, to),
       });
       const disposeRotation = rotation.attach();
-      const disposeCommand = registerRotateCommand(child, rotation, NANO_FLOW_PRESET_ID);
       recordMount("rotation", {
         tokenMeter: serviceOf<object>(child, "tokenMeter") !== undefined,
         sessions: serviceOf<object>(child, "sessions") !== undefined,
         workspaceRegistry: serviceOf<object>(child, "workspaceRegistry") !== undefined,
         workingDirectory: serviceOf<object>(child, "workingDirectory") !== undefined,
       });
-      return () => {
-        disposeCommand();
-        disposeRotation();
-      };
+      return disposeRotation;
     }, "toolkit: nano-flow rotation");
   });
   ctx.inject(["workspaceRegistry"], (child: Context) => {

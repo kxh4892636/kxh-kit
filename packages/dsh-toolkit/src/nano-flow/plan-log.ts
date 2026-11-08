@@ -90,13 +90,15 @@ interface ContentBlock {
 const blocksOf = (content: unknown): readonly ContentBlock[] =>
   Array.isArray(content) ? (content as readonly ContentBlock[]) : [];
 
-const textOf = (content: unknown): string =>
+/** 取内容块里的全部文本（按块顺序、换行连接）。 */
+export const textOf = (content: unknown): string =>
   blocksOf(content)
     .filter((block) => block.type === "text" && typeof block.text === "string")
     .map((block) => block.text)
     .join("\n");
 
-const asRecord = (value: unknown): Record<string, unknown> =>
+/** 把未知值收窄成对象；非对象返回空对象。 */
+export const asRecord = (value: unknown): Record<string, unknown> =>
   typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 
 /**

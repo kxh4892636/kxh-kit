@@ -1,7 +1,7 @@
 ---
 name: 'nano-flow 重构与 dsh 迁移'
 description: '把 nano-flow 插件重构、dsh 领域文档生成与旧 plans 迁移收进同一个 Plan。'
-status: completed
+status: in_progress
 ---
 
 # nano-flow 重构与 dsh 迁移
@@ -16,6 +16,7 @@ status: completed
 - dsh 领域文档：CONTEXT、questions、adr、workflows 的生成与旧文档适配。
 - dsh 旧 plans：17 个旧 Plan 从 `story/spec/notes.json` 迁到 `spec + note`。
 - 插件增强：会话内 Note 面板（007）、`plan/log.jsonl` 轨迹日志（009）、轮转保留分组与置顶（010）、`/rotate` 命令与轮转输入标注（012）、note 状态先行约束（013）、nano-flow 预设改用 PTC 模式（014）。
+- 轮转 seed 内容与手动入口（030 → 031/032）：触发时机不变；seed 末尾先自动校验结论、再上一轮 assistant 最终文本的 `<rotation-last-output>` 块，用户原文用 `<rotation-prior-input>` 包裹放在消息最末；删除手动 `/rotate`，客户端在根上下文订阅导航选择切换视图。
 - 不迁移其他域（common、nano-flow、etf、music、video）；不删除 `.tmp` 原文。
 
 ## 结果
@@ -53,11 +54,15 @@ status: completed
 
 ## 当前进度
 
-note 001–029 全部完成（spec 随之为 `completed`，Plan 留在 `active`）。2026-11-08 20:16 首轮 dream 已跑通：提交 `c3e85d3a`、游标 `lastSeq: 271`、GUIDE 2.7 KB（访问信号写「spec 被读 32 次」）、dsh CONTEXT 纠错、新增 ADR 007 与发布 workflow；`nano-flow dream` 任务已 active（每日 08:00 Asia/Shanghai、`target: new`、`agentPreset: nano-flow`）。dream v1 已实现并装入 **0.5.32**：L0=`log.jsonl`（compact）、L1=note 结论、L2=领域文档+`## 相关`互链（链接+原因）、L3=`GUIDE.md`（13 KB，设置面板）；check 新增互链与 GUIDE 校验；nano-flow 预设挂载 `dsh-tool-schedule`；`prompts/dream.md` 作为自动化任务指令（每天 08:00 默认）；kaizen skill 已删除、知识归属并入 dream.md（skill 6→5）；多业务域按域 spawn subagent 并行（≤4），common/guide/check/commit/游标由父会话收口。020/021 已把 legacy 领域文档与 10 个旧 plans 迁入 `.agents`（53 条 note、117 条死链清零）；music 截图忽略。插件 desktop / web profile 均为 0.5.32。机制补充：轮转会话没有 `agent-preset/selected` 事件，日志在 `turn/end` 落盘（详见 016）。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。机制补充：轮转会话没有 `agent-preset/selected` 事件，日志在 `turn/end` 落盘（详见 016）。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。dream 自动化任务已建（2026-11-08，`schedule-413189d2`，每日 08:00 Asia/Shanghai，preset `nano-flow`，首次 2026-11-09；详见 023 遗留）。
+note 001–030 全部完成。031（删手动 rotate + 自动切视图）与 032（seed 携带上一轮输出）在 0.5.36 落地；2026-11-09 真机轮转暴露两处问题——客户端切视图挂在会话面板轮询上来不及（宿主动作是归档，客户端会立刻卸载面板），改为客户端根级订阅导航选择；用户要求 seed 先写校验结论、末尾放输出块，原文再用 `<rotation-prior-input>` 包住。修复在 **0.5.37**：`vp check` 与 `vp test src` 全绿，两个 profile 装入同一版本；Spec / Standards 两路审查的发现已逐项处理。剩余只有真机验收（需重启宿主后触发一次轮转）。
+
+dream 首轮 2026-11-08 20:16 跑通（提交 `c3e85d3a`、游标 `lastSeq: 271`，详见 024）；`nano-flow dream` 自动化任务每日 08:00（`schedule-413189d2`、preset `nano-flow`，详见 023）。轮转会话没有 `agent-preset/selected` 事件、日志在 `turn/end` 落盘（详见 016）；legacy 迁移见 020/021，旧 Plan 在 `plans/archived/`，原文留在 `.tmp/nano-flow-legacy/`。
+
+note 030（轮转时机与 seed 内容调整）定案：触发时机不变（queue 消息时判压）、删除手动 `/rotate`（只留自动触发）。2026-11-09 用户修订 seed 形态：seed 先写恢复要求与自动校验结论，末尾放 `<rotation-last-output>`（上一轮 assistant 最终文本，8192 B 保尾）；本次触发原文重新用 `<rotation-prior-input>` 包裹，紧跟输出块之后（回退了 030 最初「不再套 XML」的决定）。031/032 于 0.5.36 实现，0.5.37 修复视图不切换并调整 seed 顺序。
 
 ## 恢复入口
 
-先读 `notes_index.md`；插件细节在 001，领域文档在 002，旧 plans 映射与截断在 003，`CONTEXT-MAP.md` 位置修正在 004，旧 Plan 链接校正在 005，提示词改名在 006，Note 面板在 007，历史加载失败在 008，Plan 轨迹日志的设计、拷问与 live 验收在 009，轮转分组/置顶修复在 010，绑定轮修复在 011，`/rotate` 命令与 XML 标注在 012，状态先行约束在 013，PTC 模式切换在 014，绑定贯通 Note 面板在 015，轨迹日志的轮转验收在 016，轮转后自动校验与 seed 前绑定在 017，恢复 Plan 开头自动校验在 018，dream 设计在 019，legacy 领域文档迁移在 020，旧 plans 迁移在 021，互链与 check 扩展在 022，dream 指令与自动化接入在 023，访问信号与剪枝验收在 024，kaizen 并入 dream 在 025，dream 并行化在 026。dream 首轮 live 记录在 024；索引链接中文修复在 027，轮转绑定继承旧会话 Plan 在 028，恢复时显式 Plan 绑定在 029。动化接入在 023，访问信号与剪枝验收在 024，kaizen 并入 dream 在 025，dream 并行化在 026。
+先读 `notes_index.md`；插件细节在 001，领域文档在 002，旧 plans 映射与截断在 003，`CONTEXT-MAP.md` 位置修正在 004，旧 Plan 链接校正在 005，提示词改名在 006，Note 面板在 007，历史加载失败在 008，Plan 轨迹日志的设计、拷问与 live 验收在 009，轮转分组/置顶修复在 010，绑定轮修复在 011，`/rotate` 命令与 XML 标注在 012，状态先行约束在 013，PTC 模式切换在 014，绑定贯通 Note 面板在 015，轨迹日志的轮转验收在 016，轮转后自动校验与 seed 前绑定在 017，恢复 Plan 开头自动校验在 018，dream 设计在 019，legacy 领域文档迁移在 020，旧 plans 迁移在 021，互链与 check 扩展在 022，dream 指令与自动化接入在 023，访问信号与剪枝验收在 024，kaizen 并入 dream 在 025，dream 并行化在 026。dream 首轮 live 记录在 024；索引链接中文修复在 027，轮转绑定继承旧会话 Plan 在 028，恢复时显式 Plan 绑定在 029，轮转时机与 seed 内容调整在 030，删手动 rotate 与自动切视图在 031，seed 携带上一轮输出在 032。
 
 ## 追踪 Note
 
@@ -65,3 +70,5 @@ note 001–029 全部完成（spec 随之为 `completed`，Plan 留在 `active`�
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
+| [031-删除手动rotate并自动切视图](031-删除手动rotate并自动切视图.md) | 删除 /rotate 命令与手动路径，客户端在根上下文订阅导航选择，自动轮转归档旧会话后视图自动切到新会话。 | blocked | 等待宿主重启装入 0.5.37 后触发一次自动轮转，真机确认视图自动切到新会话且旧行消失 | 宿主重启后触发一次自动轮转，确认视图自动切到新会话、旧行消失；之后置 completed | 012-rotate命令与轮转输入标注, 030-轮转时机与种子内容调整, 032-轮转seed携带上一轮输出 |
+| [032-轮转seed携带上一轮输出](032-轮转seed携带上一轮输出.md) | seed 末尾先写恢复要求与校验结论、再放上一轮 assistant 最终文本的 XML 块；用户原文用 `<rotation-prior-input>` 包裹放在消息最末。 | blocked | 等待宿主重启装入 0.5.37 后做一次自动轮转，真机确认新会话首条消息里 seed 顺序（校验结论 → 输出块 → 原文块）正确 | 宿主重启后触发一次自动轮转，读新会话首条消息确认 seed 顺序与包裹；之后置 completed | 012-rotate命令与轮转输入标注, 030-轮转时机与种子内容调整, 031-删除手动rotate并自动切视图 |

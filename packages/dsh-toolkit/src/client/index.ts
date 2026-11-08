@@ -1,7 +1,8 @@
 import { PANEL_ID, PANEL_LABEL } from "../contract.js";
-import { clientService, type ClientContext, type ClientWorkspace } from "./contract.js";
-import { fetchHiddenSessions, fetchNanoFlowRotation, fetchToolkitState } from "./host-api.js";
+import { clientService, type ClientContext } from "./contract.js";
+import { fetchHiddenSessions, fetchToolkitState } from "./host-api.js";
 import { NotesDock } from "./notes-dock.js";
+import { installRotationFollow } from "./rotation-follow.js";
 import { ToolkitPanel } from "./panel.js";
 import { ToolkitPanelIcon } from "./panel-icon.js";
 import { toolkitClientState } from "./state.js";
@@ -49,7 +50,12 @@ export const apply = (ctx: ClientContext): void => {
   );
   ctx.slots.inject("conversation.input.dock", () =>
     ctx.slots.register(
-      { name: "conversation.input.dock", id: "nano-flow-notes", order: 5 },
+      {
+        name: "conversation.input.dock",
+        id: "nano-flow-notes",
+        order: 5,
+        inject: () => ({ ctx }),
+      },
       NotesDock,
     ),
   );
@@ -58,64 +64,17 @@ export const apply = (ctx: ClientContext): void => {
     .catch(() => {
       // 宿主路由不可达时保持默认启用：面板会显示具体错误。
     });
+  // 轮转跟随挂在客户端根：旧会话一被归档，会话视图与输入面板会立刻卸载，
+  // 挂在面板里的轮询来不及看到轮转记录，必须在根上下文里订阅导航选择。
+  if (typeof ctx.inject === "function") {
+    ctx.inject(["uiWorkspace"], (scope) => {
+      scope.effect(() => installRotationFollow(scope), "toolkit: rotation follow");
+    });
+  }
   void fetchHiddenSessions().then((ids) => {
     for (const sessionId of ids) rememberTombstone(sessionId);
     applyHiddenRows(ctx);
   });
-  ctx.effect(() => {
-    const off = ctx.on?.("command/executed", (sessionId: unknown, name: unknown) => {
-      if (name !== "rotate" || typeof sessionId !== "string") return;
-      followRotation(ctx, sessionId);
-    });
-    return () => {
-      off?.();
-    };
-  }, "toolkit: rotation follow");
-};
-
-/**
- * `/rotate` 之后把视图切到新会话：读宿主最近一次轮转记录，只认当前会话触发的那次。
- * @param ctx - 客户端根上下文。
- * @param sessionId - 执行命令的旧会话 id。
- */
-const followRotation = (ctx: ClientContext, sessionId: string): void => {
-  void fetchNanoFlowRotation()
-    .then((rotation) => {
-      if (rotation === null || rotation.from !== sessionId) return undefined;
-      rememberTombstone(rotation.from);
-      hideSessionRow(clientService<SessionCatalogLike>(ctx, "sessions"), rotation.from);
-      refreshCatalog(ctx);
-      const workspace = clientService<ClientWorkspace>(ctx, "uiWorkspace");
-      if (workspace === undefined || typeof workspace.openSession !== "function") {
-        return undefined;
-      }
-      return workspace.openSession(rotation.to);
-    })
-    .catch(() => {
-      // 宿主路由不可达时保持原会话，用户可手动选择新会话。
-    });
-};
-
-/** 两次目录刷新：覆盖宿主删除窗口 150ms 与落盘。 */
-const CATALOG_REFRESH_DELAYS_MS = [600, 1800];
-
-/**
- * 让会话目录重读一次，使被轮转掉的旧行立即消失。
- * @param ctx - 客户端根上下文。
- */
-const refreshCatalog = (ctx: ClientContext): void => {
-  const sessions = clientService<{ refresh?: () => unknown }>(ctx, "sessions");
-  const refresh = sessions?.refresh;
-  if (typeof refresh !== "function") return;
-  for (const delay of CATALOG_REFRESH_DELAYS_MS) {
-    setTimeout(() => {
-      try {
-        refresh.call(sessions);
-      } catch {
-        // 连接中断等情况下刷新失败不影响切换。
-      }
-    }, delay);
-  }
 };
 
 /**

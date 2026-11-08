@@ -184,12 +184,13 @@ const openUndone = async (
 ): Promise<void> => {
   if (result.prompt === "") return;
   rememberDraft(result.childSessionId, result.prompt);
-  const workspace = clientService<{ openSession(id: string): Promise<unknown> }>(
-    ctx,
-    "uiWorkspace",
-  );
+  const workspace = clientService<{ openSession(id: string): unknown }>(ctx, "uiWorkspace");
   if (workspace !== undefined && typeof workspace.openSession === "function") {
-    await workspace.openSession(result.childSessionId).catch(() => {});
+    try {
+      await workspace.openSession(result.childSessionId);
+    } catch {
+      // 打开失败不影响撤回记账：用户可在会话目录里手动打开。
+    }
   }
   hideUndoneRow(ctx, sourceId);
   scheduleCatalogRefresh(ctx);

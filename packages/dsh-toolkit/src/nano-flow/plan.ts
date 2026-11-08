@@ -27,6 +27,23 @@ export const planRefOf = (plan: PlanRef): string => {
   return `${plan.domain}/${plan.lifecycle}/${plan.name}`;
 };
 
+/**
+ * 从 Plan 目录反推 `<domain>/<lifecycle>/<name>`。
+ * @param directory - Plan 目录（绝对路径或任意分隔符的相对路径）。
+ * @returns 形状不符时 undefined。
+ */
+export const planRefFromDirectory = (directory: string): string | undefined => {
+  const parts = directory.split(/[\\/]/u).filter((part) => part !== "");
+  const at = parts.lastIndexOf("plans");
+  if (at < 2) return undefined;
+  const domain = parts[at - 1];
+  const lifecycle = parts[at + 1];
+  const name = parts[at + 2];
+  if (domain === undefined || name === undefined) return undefined;
+  if (!isPlanLifecycle(lifecycle ?? "")) return undefined;
+  return `${domain}/${lifecycle}/${name}`;
+};
+
 const sortedEntries = async (directory: string): Promise<readonly string[]> => {
   try {
     const entries = await readdir(directory, { withFileTypes: true });

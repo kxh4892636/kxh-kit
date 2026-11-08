@@ -31,9 +31,27 @@ export interface ClientSessions {
   binding(sessionId: string): unknown;
 }
 
-/** 工作区导航：`uiWorkspace.openSession(id)`（`dsh-client-ui-workspace/lib/client.js:1471-1473`）。 */
+/**
+ * 当前会话的导航选择 store：`dsh-client-ui-workspace/lib/client.js` 的
+ * `selection`（持久化键 `dsh.sessions.current`）。归档会把当前会话清空，
+ * 轮转跟随靠它感知「视图已离开旧会话」。
+ */
+export interface ClientSelectionStore {
+  getSnapshot(): { readonly sessionId?: string };
+  /** 选择变化通知；宿主版本缺该方法时退化为轮询。 */
+  subscribe?(listener: () => void): () => void;
+}
+
+/**
+ * 工作区导航：`uiWorkspace.openSession(id)`（`dsh-client-ui-workspace/lib/client.js:1471-1473`）。
+ *
+ * 宿主实装是同步换主视图引用（返回 void），不能对返回值 `.catch()`；返回类型用 `unknown`
+ * 让调用方按“可能是同步也可能是 Promise”处理。
+ */
 export interface ClientWorkspace {
-  openSession(sessionId: string): Promise<unknown>;
+  openSession(sessionId: string): unknown;
+  /** 导航选择 store；宿主版本没有时缺省（轮转跟随退化为会话面板轮询）。 */
+  readonly selection?: ClientSelectionStore;
 }
 
 /** 草稿初始化选项（`dsh-client-ui-conversation/lib/client.js:15107-15121`）。 */
@@ -59,6 +77,8 @@ export interface ClientContext {
   effect(callback: () => (() => void) | void, label?: string): () => void;
   /** 客户端事件订阅（与宿主同一套 cordis 事件）；宿主半不可用时缺省。 */
   on?(event: string, handler: (...args: readonly unknown[]) => void): () => void;
+  /** 依赖注入：服务就绪后回调子上下文（与 `ui-agent-preset` 等客户端插件同一套 cordis API）。 */
+  inject?(dependencies: readonly string[], callback: (scope: ClientContext) => void): unknown;
 }
 
 /** 会话作用域 slot 的标准 props（`conversation.input.right` 由 composer 送出）。 */

@@ -3,8 +3,11 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { DEFAULT_NANO_FLOW_SETTINGS } from "../contract.js";
 import {
   createRotation,
+  LAST_OUTPUT_TAG,
+  lastAssistantText,
+  PRIOR_INPUT_TAG,
   selectedPreset,
-  wrapPriorInput,
+  truncateTail,
   type PromptRequestLike,
   type RotationSession,
 } from "./rotate.js";
@@ -16,17 +19,36 @@ type Pressure = {
   contextWindow?: number;
 };
 
+type EventLike = { type: string; data?: unknown };
+
 const signal = new AbortController().signal;
+
+/** 一轮事件：turn/start + 若干 assistant 消息 + turn/end。 */
+const turnEvents = (
+  turn: number,
+  messages: readonly (readonly { type: string; text?: string }[])[],
+): readonly EventLike[] => {
+  const events: EventLike[] = [{ type: "turn/start", data: { turn } }];
+  for (const content of messages) {
+    events.push({ type: "assistant/message", data: { turn, message: { content } } });
+  }
+  events.push({ type: "turn/end", data: { turn, reason: { kind: "completed" } } });
+  return events;
+};
 
 /** 会话形状：预设以日志里最后一条 `agent-preset/selected` 为准。 */
 const sessionOf = (
   id: string,
   preset = "nano-flow",
   header: RotationSession["header"] = {},
+  extra: readonly EventLike[] = [],
 ): RotationSession => ({
   id,
   header: { cwd: "C:\\work", ...header },
-  snapshotEvents: () => [{ type: "agent-preset/selected", data: { agentPreset: preset } }],
+  snapshotEvents: () => [
+    { type: "agent-preset/selected", data: { agentPreset: preset } },
+    ...extra,
+  ],
 });
 
 const makeHarness = (
@@ -35,7 +57,7 @@ const makeHarness = (
     sessionId: string;
     previousSessionId: string;
     workspace: string;
-  }) => Promise<string | undefined>,
+  }) => Promise<{ readonly text: string; readonly planReference?: string } | undefined>,
 ) => {
   let pressure: Pressure = { pressureTokens: 10, contextWindow: 1000 };
   const sessions = new Map<string, RotationSession>([
@@ -84,7 +106,6 @@ const makeHarness = (
     services,
     warn,
     dispose,
-    rotation,
     send,
     sessions,
     setPressure: (next: Pressure) => (pressure = next),
@@ -128,6 +149,9 @@ const makeWorkspaceRegistry = () => {
   return { registry, record, ids, pinned };
 };
 
+const textsOf = (request: PromptRequestLike | undefined): readonly string[] =>
+  (request?.content ?? []).map((block) => String(block["text"]));
+
 describe("selectedPreset", () => {
   it("以日志里最后一条预设选择为准，而不是 live header", () => {
     const session: RotationSession = {
@@ -147,37 +171,54 @@ describe("selectedPreset", () => {
   });
 });
 
-describe("wrapPriorInput", () => {
-  it("在用户内容前后各加一个 XML 标记与一句说明", () => {
-    const wrapped = wrapPriorInput([{ type: "text", text: "用户消息" }]);
-    expect(wrapped.map((block) => block["text"])).toEqual([
-      "以下 XML 块是轮转前用户在旧会话发出的输入：",
-      "<rotation-prior-input>",
-      "用户消息",
-      "</rotation-prior-input>",
+describe("lastAssistantText", () => {
+  it("取最后一个已结束轮里最后一条含文本的 assistant 消息", () => {
+    const session = sessionOf("session-1", "nano-flow", {}, [
+      ...turnEvents(1, [[{ type: "text", text: "第一轮结论" }]]),
+      ...turnEvents(2, [
+        [{ type: "reasoning", text: "内部推理" }],
+        [{ type: "text", text: "第二轮中间文本" }],
+        [{ type: "text", text: "第二轮最终答复" }],
+      ]),
     ]);
+    expect(lastAssistantText(session)).toBe("第二轮最终答复");
+  });
+
+  it("没有已结束轮或没有文本时为 undefined", () => {
+    expect(lastAssistantText(sessionOf("session-1"))).toBeUndefined();
+    const pendingOnly = sessionOf("session-1", "nano-flow", {}, [
+      { type: "turn/start", data: { turn: 1 } },
+    ]);
+    expect(lastAssistantText(pendingOnly)).toBeUndefined();
+  });
+
+  it("超长输出保尾并标注截断字节数", () => {
+    const long = "甲".repeat(5000);
+    const clipped = lastAssistantText(
+      sessionOf("session-1", "nano-flow", {}, turnEvents(1, [[{ type: "text", text: long }]])),
+    );
+    expect(clipped).toBeDefined();
+    expect(String(clipped).startsWith("…（前 ")).toBe(true);
+    expect(String(clipped).endsWith("甲")).toBe(true);
+    expect(String(clipped)).not.toContain("\uFFFD");
   });
 });
 
-describe("rotation engine", () => {
-  it("rotates on demand: the new session receives only the seed", async () => {
-    const harness = makeHarness();
-    const session = harness.sessions.get("session-1");
-    const result = await harness.rotation.rotate(session!);
-    expect(result.accepted).toBe(true);
-    expect(harness.create).toHaveBeenCalledTimes(1);
-    const prompted = harness.originalPrompt.mock.calls[0]?.[0];
-    expect(prompted?.sessionId).toBe("session-new");
-    expect(prompted?.content).toHaveLength(1);
-    expect(String(prompted?.content[0]?.["text"])).toContain("只读报告");
+describe("truncateTail", () => {
+  it("未超过上限时原样返回", () => {
+    expect(truncateTail("短文本", 100)).toBe("短文本");
   });
 
-  it("does nothing for a non-nano-flow session", async () => {
-    const harness = makeHarness();
-    const session = harness.sessions.get("session-other");
-    const result = await harness.rotation.rotate(session!);
-    expect(result.accepted).toBe(false);
-    expect(harness.create).not.toHaveBeenCalled();
+  it("超过上限时保留尾部", () => {
+    const out = truncateTail("abcdef", 3);
+    expect(out.endsWith("def")).toBe(true);
+    expect(out).toContain("已截断");
+  });
+
+  it("多字节切口不残留替换字符", () => {
+    const out = truncateTail("甲".repeat(4000), 1000);
+    expect(out).not.toContain("\uFFFD");
+    expect(out).toContain("已截断");
   });
 });
 
@@ -190,7 +231,7 @@ describe("attachRotation", () => {
     expect(harness.originalPrompt.mock.calls[0]?.[0].sessionId).toBe("session-1");
   });
 
-  it("redirects the user prompt to a new session with the seed before the user content", async () => {
+  it("redirects the user prompt to a new session with the seed, then the wrapped user input", async () => {
     const harness = makeHarness();
     harness.setPressure({ projectedTokens: 700, contextWindow: 1000 });
     await harness.send();
@@ -200,15 +241,71 @@ describe("attachRotation", () => {
     expect(redirected?.mode).toBe("queue");
     expect(redirected?.content[0]).toMatchObject({ type: "text" });
     expect(String(redirected?.content[0]?.["text"])).toContain("只读报告");
-    const texts = (redirected?.content ?? []).map((block) => String(block["text"]));
+    const texts = textsOf(redirected);
     expect(texts).toContain("用户消息");
-    expect(texts).toContain("<rotation-prior-input>");
-    expect(texts).toContain("</rotation-prior-input>");
-    expect(texts.indexOf("<rotation-prior-input>")).toBeLessThan(texts.indexOf("用户消息"));
-    expect(texts.indexOf("用户消息")).toBeLessThan(texts.indexOf("</rotation-prior-input>"));
+    expect(texts).toContain(`<${PRIOR_INPUT_TAG}>`);
+    expect(texts.at(-1)).toBe(`</${PRIOR_INPUT_TAG}>`);
+    expect(texts.at(-2)).toBe("用户消息");
     expect(harness.originalPrompt.mock.calls.some(([item]) => item.sessionId === "session-1")).toBe(
       false,
     );
+  });
+
+  it("keeps non-text blocks inside the wrapped user input", async () => {
+    const harness = makeHarness();
+    harness.setPressure({ projectedTokens: 700, contextWindow: 1000 });
+    await harness.send({
+      content: [
+        { type: "text", text: "看这张图" },
+        { type: "image", source: { kind: "path", path: "a.png" } },
+      ],
+    });
+    const redirected = harness.originalPrompt.mock.calls[0]?.[0];
+    expect(redirected?.content.map((block) => block.type)).toEqual([
+      "text",
+      "text",
+      "text",
+      "text",
+      "image",
+      "text",
+    ]);
+    expect(redirected?.content[2]).toMatchObject({ type: "text", text: `<${PRIOR_INPUT_TAG}>` });
+    expect(redirected?.content[4]).toMatchObject({ type: "image" });
+    expect(redirected?.content.at(-1)).toMatchObject({
+      type: "text",
+      text: `</${PRIOR_INPUT_TAG}>`,
+    });
+  });
+
+  it("appends the last turn's assistant output to the end of the seed", async () => {
+    const harness = makeHarness();
+    harness.sessions.set(
+      "session-1",
+      sessionOf(
+        "session-1",
+        "nano-flow",
+        {},
+        turnEvents(1, [[{ type: "text", text: "上一轮结论" }]]),
+      ),
+    );
+    harness.setPressure({ projectedTokens: 700, contextWindow: 1000 });
+    await harness.send();
+    const redirected = harness.originalPrompt.mock.calls[0]?.[0];
+    const seed = String(redirected?.content[0]?.["text"]);
+    expect(seed).toContain(`<${LAST_OUTPUT_TAG}>`);
+    expect(seed).toContain("上一轮结论");
+    expect(seed.trimEnd().endsWith(`</${LAST_OUTPUT_TAG}>`)).toBe(true);
+    // 输出块之后才是用户原文，两者一起落在消息最末。
+    const texts = textsOf(redirected);
+    expect(texts.at(-1)).toBe(`</${PRIOR_INPUT_TAG}>`);
+  });
+
+  it("omits the output block when the old session has no completed turn", async () => {
+    const harness = makeHarness();
+    harness.setPressure({ projectedTokens: 700, contextWindow: 1000 });
+    await harness.send();
+    const seed = String(harness.originalPrompt.mock.calls[0]?.[0].content[0]?.["text"]);
+    expect(seed).not.toContain(LAST_OUTPUT_TAG);
   });
 
   it("only redirects once, and only for Nano Flow queue prompts", async () => {
@@ -268,40 +365,52 @@ describe("autoCheck after rotation", () => {
     "轮转后自动执行 `nano_flow_check`：领域文档校验通过，索引已刷新。\n本会话的 Note 看板绑定已建立，无需再跑一次。";
 
   it("runs the check for the new session and appends the result to the seed", async () => {
-    const autoCheck = vi.fn(async () => summary);
+    const autoCheck = vi.fn(async () => ({ text: summary }));
     const harness = makeHarness(undefined, autoCheck);
-    const session = harness.sessions.get("session-1");
-    const result = await harness.rotation.rotate(session!);
-    expect(result.accepted).toBe(true);
+    harness.setPressure({ projectedTokens: 700, contextWindow: 1000 });
+    await harness.send();
     expect(autoCheck).toHaveBeenCalledTimes(1);
     expect(autoCheck).toHaveBeenCalledWith({
       sessionId: "session-new",
       previousSessionId: "session-1",
       workspace: "C:\\work",
     });
-    const prompted = harness.originalPrompt.mock.calls[0]?.[0];
-    const text = String(prompted?.content[0]?.["text"]);
-    expect(text).toContain("只读报告");
-    expect(text.endsWith(summary)).toBe(true);
+    const redirected = harness.originalPrompt.mock.calls[0]?.[0];
+    const seed = String(redirected?.content[0]?.["text"]);
+    expect(seed).toContain("只读报告");
+    expect(seed.endsWith(summary)).toBe(true);
+    expect(textsOf(redirected)).toContain("用户消息");
   });
 
-  it("also runs on the pressure path, keeping the prior input wrapped", async () => {
-    const autoCheck = vi.fn(
-      async () => "轮转后自动执行 `nano_flow_check`：领域文档校验通过，索引已刷新。",
+  it("keeps the check summary before the output block", async () => {
+    const autoCheck = vi.fn(async () => ({ text: summary }));
+    const harness = makeHarness(undefined, autoCheck);
+    harness.sessions.set(
+      "session-1",
+      sessionOf(
+        "session-1",
+        "nano-flow",
+        {},
+        turnEvents(1, [[{ type: "text", text: "上一轮结论" }]]),
+      ),
     );
+    harness.setPressure({ projectedTokens: 700, contextWindow: 1000 });
+    await harness.send();
+    const seed = String(harness.originalPrompt.mock.calls[0]?.[0].content[0]?.["text"]);
+    expect(seed.indexOf(summary)).toBeLessThan(seed.indexOf(`<${LAST_OUTPUT_TAG}>`));
+    expect(seed.trimEnd().endsWith(`</${LAST_OUTPUT_TAG}>`)).toBe(true);
+  });
+
+  it("uses the inherited plan as the seed plan reference", async () => {
+    const autoCheck = vi.fn(async () => ({
+      text: summary,
+      planReference: "dsh/active/2026-11-08-示例",
+    }));
     const harness = makeHarness(undefined, autoCheck);
     harness.setPressure({ projectedTokens: 700, contextWindow: 1000 });
     await harness.send();
-    expect(autoCheck).toHaveBeenCalledWith({
-      sessionId: "session-new",
-      previousSessionId: "session-1",
-      workspace: "C:\\work",
-    });
-    const redirected = harness.originalPrompt.mock.calls[0]?.[0];
-    const texts = (redirected?.content ?? []).map((block) => String(block["text"]));
-    expect(texts[0]).toContain("nano_flow_check");
-    expect(texts).toContain("<rotation-prior-input>");
-    expect(texts).toContain("用户消息");
+    const seed = String(harness.originalPrompt.mock.calls[0]?.[0].content[0]?.["text"]);
+    expect(seed).toContain("恢复当前 Plan：dsh/active/2026-11-08-示例");
   });
 
   it("keeps rotating and notes the failure when the check throws", async () => {
@@ -309,13 +418,11 @@ describe("autoCheck after rotation", () => {
       throw new Error("node 挂了");
     });
     const harness = makeHarness(undefined, autoCheck);
-    const session = harness.sessions.get("session-1");
-    const result = await harness.rotation.rotate(session!);
-    expect(result.accepted).toBe(true);
-    const prompted = harness.originalPrompt.mock.calls[0]?.[0];
-    const text = String(prompted?.content[0]?.["text"]);
-    expect(text).toContain("nano_flow_check");
-    expect(text).toContain("node 挂了");
+    harness.setPressure({ projectedTokens: 700, contextWindow: 1000 });
+    await harness.send();
+    const seed = String(harness.originalPrompt.mock.calls[0]?.[0].content[0]?.["text"]);
+    expect(seed).toContain("nano_flow_check");
+    expect(seed).toContain("node 挂了");
     expect(harness.warn).toHaveBeenCalled();
   });
 });

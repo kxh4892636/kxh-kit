@@ -213,8 +213,12 @@ metadata:
   找到存活会话，再用日志里最后一条 `agent-preset/selected` 判断它是否跑 Nano Flow（live header
   的 `agentPreset` 在恢复会话时不可靠），然后读 `tokenMeter.contextPressure` 的
   `projectedTokens ?? pressureTokens`。达到 `rotateAt × contextWindow` 时创建新会话（同一 cwd
-  与预设），把"上一会话已轮转，只读恢复当前 Plan"的种子与这条消息一起发给它，新 prompt
-  被接受后**物理删除**旧会话（不是归档）。新会话创建或发送失败时回落到旧会话，消息不丢。
+  与预设），把 seed（上一会话已轮转、只读恢复当前 Plan、自动校验结论、最末是上一轮模型输出的
+  `<rotation-last-output>` 块）与本次触发原文（包在 `<rotation-prior-input>` 里，紧跟输出块之后）
+  一起发给它，新 prompt 被接受后**先归档、再物理删除**旧会话（归档会让客户端立刻离开旧会话，
+  所以切视图挂在客户端根上下文，见下一段）。新会话创建或发送失败时回落到
+  旧会话，消息不丢。轮转只能自动触发，没有手动命令；客户端在根上下文订阅导航选择 store，
+  旧会话被归档离开时读 `nano-flow/rotation` 路由切到新会话（会话面板里的 5s 轮询保留为兜底）。
 - 轮转种子只让新会话读 `spec.md` 与 `notes_index.md`，所以每轮结束前必须把检查点写回磁盘：
   spec 的进度与恢复入口、note 的 status / next_step。
 - 轮转不写在预设行里：预设行读不到 `ctx.agent`（cordis 对服务属性做 inject 守卫），而根插件

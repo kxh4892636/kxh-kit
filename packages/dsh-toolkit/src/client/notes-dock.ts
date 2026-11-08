@@ -15,8 +15,10 @@ import {
   type PanelNote,
   type PanelNoteStatus,
 } from "../contract.js";
+import { followRotation, rotationFollowInstalled } from "./rotation-follow.js";
 import { fetchNanoFlowNotes } from "./host-api.js";
 import { ensureToolkitStyles } from "./stylesheet.js";
+import type { ClientContext } from "./contract.js";
 
 export type { NotesSnapshot, PanelNote, PanelNoteStatus } from "../contract.js";
 
@@ -31,6 +33,8 @@ export interface NotesDockProps {
   readonly useProjection?: (key: string) => unknown;
   /** 会话快照选择器；`sessionId` 缺席时用它兜底取 id。 */
   readonly useSession?: <S>(selector: (snapshot: NotesSessionSnapshot) => S) => S;
+  /** 注册时注入的客户端上下文（轮转跟随要用 `sessions` / `uiWorkspace`）。 */
+  readonly ctx?: ClientContext;
 }
 
 /** 只声明本组件用到的会话快照字段。 */
@@ -102,7 +106,8 @@ const countLabel = (notes: readonly PanelNote[]): string => {
 const NotesPanelView: FC<{
   readonly sessionId: string;
   readonly useProjection: (key: string) => unknown;
-}> = ({ sessionId, useProjection }) => {
+  readonly ctx?: ClientContext;
+}> = ({ sessionId, useProjection, ctx }) => {
   ensureToolkitStyles();
   const [collapsed, setCollapsed] = useState(true);
   const [snapshot, setSnapshot] = useState<NotesSnapshot | null | undefined>(undefined);
@@ -116,6 +121,8 @@ const NotesPanelView: FC<{
     let retries = 0;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     const load = (): void => {
+      // 轮转只能自动触发：根级订阅是主路径，没装上时才用这里的 5s 轮询兜底。
+      if (ctx !== undefined && !rotationFollowInstalled()) void followRotation(ctx, sessionId);
       fetchNanoFlowNotes(sessionId, controller.signal)
         .then((next) => {
           if (controller.signal.aborted) return;
@@ -137,7 +144,7 @@ const NotesPanelView: FC<{
       clearInterval(timer);
       if (retryTimer !== undefined) clearTimeout(retryTimer);
     };
-  }, [preset, sessionId]);
+  }, [ctx, preset, sessionId]);
   if (preset !== NANO_FLOW_PRESET) return null;
   if (snapshot === null || snapshot === undefined) return null;
   if (snapshot.notes.length === 0) return null;
@@ -215,6 +222,10 @@ export const NotesDock: FC<NotesDockProps> = (props) => {
   return createElement(
     getBoundaryClass(),
     null,
-    createElement(NotesPanelView, { sessionId, useProjection }),
+    createElement(NotesPanelView, {
+      sessionId,
+      useProjection,
+      ...(props.ctx === undefined ? {} : { ctx: props.ctx }),
+    }),
   );
 };
