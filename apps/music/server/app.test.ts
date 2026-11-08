@@ -9,8 +9,16 @@ import { loadLibrary } from "./tracks.ts";
 const track = {
   id: "t1",
   composer: "Johann Sebastian Bach",
+  composerZh: "巴赫",
   work: "Goldberg Variations",
+  workZh: "哥德堡变奏曲",
   movement: "Aria",
+  movementZh: "咏叹调",
+  workOriginal: "Goldberg Variations, BWV 988",
+  catalog: "BWV 988",
+  collection: "musopen",
+  kind: "full",
+  confidence: "high",
   trackNo: "01",
   title: "Aria",
   artist: "Kimiko Ishizaka",
@@ -32,12 +40,15 @@ const FILE_BYTES = CHUNK_BYTES + 2048;
 const buildApp = (basePath?: string) => {
   const root = mkdtempSync(join(tmpdir(), "music-app-"));
   const music = join(root, "music");
+  const classical = join(root, "classical");
   const waves = join(root, "waves");
   const client = join(root, "client");
   mkdirSync(join(music, "Bach"), { recursive: true });
+  mkdirSync(classical, { recursive: true });
   mkdirSync(waves, { recursive: true });
   mkdirSync(client, { recursive: true });
   writeFileSync(join(music, "Bach", "aria.flac"), Buffer.alloc(FILE_BYTES, 1));
+  writeFileSync(join(classical, "t1.flac"), Buffer.alloc(FILE_BYTES, 2));
   writeFileSync(join(waves, "t1.png"), Buffer.from([1, 2, 3]));
   writeFileSync(join(client, "index.html"), "<!doctype html><title>听</title>", "utf8");
 
@@ -57,6 +68,7 @@ const buildApp = (basePath?: string) => {
   return createApp({
     snapshot: loadLibrary(indexFile),
     musicRoot: music,
+    classicalRoot: classical,
     wavesRoot: waves,
     clientDir: client,
     ...(basePath ? { basePath } : {}),
@@ -147,6 +159,15 @@ describe("createApp", () => {
   it("reports a missing file", async () => {
     const response = await buildApp().request("/media/Bach/nope.flac");
     expect(response.status).toBe(404);
+  });
+
+  it("serves the second collection from its own root", async () => {
+    const response = await buildApp().request("/media/classical/t1.flac", {
+      headers: { range: "bytes=0-1023" },
+    });
+    expect(response.status).toBe(206);
+    expect(response.headers.get("content-type")).toBe("audio/flac");
+    expect(response.headers.get("content-range")).toBe(`bytes 0-1023/${FILE_BYTES}`);
   });
 
   it("serves waveform masks", async () => {

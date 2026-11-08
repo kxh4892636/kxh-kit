@@ -14,6 +14,7 @@ export const startServer = (config: Config): RunningServer => {
   const app = createApp({
     snapshot,
     musicRoot: config.musicRoot,
+    classicalRoot: config.classicalRoot,
     wavesRoot: config.wavesRoot,
     clientDir: config.clientDir,
     basePath: config.basePath,

@@ -13,7 +13,8 @@ import { HISTORY_MAX } from "../store/history.ts";
 import { usePlayerStore } from "../store/player.ts";
 import type { Track } from "../../../shared/tracks.ts";
 
-const labelOf = (track: Track): string => [track.work, track.movement || "单乐章"].join("，");
+const labelOf = (track: Track): string =>
+  [track.workZh, track.movementZh || (track.kind === "excerpt" ? "选段" : "单乐章")].join("，");
 
 export const HomeRoute: React.FC = () => {
   const query = useQuery({
@@ -36,7 +37,7 @@ export const HomeRoute: React.FC = () => {
   const entries: HistoryView[] = history.flatMap((entry) => {
     const track = byId.get(entry.id);
     if (!track) return [];
-    return [{ id: track.id, at: entry.at, label: labelOf(track), composer: track.composer }];
+    return [{ id: track.id, at: entry.at, label: labelOf(track), composer: track.composerZh }];
   });
 
   useEffect(() => {
@@ -72,16 +73,10 @@ export const HomeRoute: React.FC = () => {
         <section className="now" aria-labelledby="work">
           {current ? (
             <>
-              <NowPlaying
-                composer={current.composer}
-                work={current.work}
-                movement={current.movement}
-                elapsed={playback.elapsed}
-                total={playback.total}
-              />
+              <NowPlaying track={current} elapsed={playback.elapsed} total={playback.total} />
               <WaveSeek
                 mask={current.mask ? appUrl(current.mask) : null}
-                label={`${current.composer}，${labelOf(current)}，可拖动调整进度`}
+                label={`${current.composerZh}，${labelOf(current)}，可拖动调整进度`}
                 progress={progress}
                 valueNow={playback.elapsed}
                 valueMax={playback.total}
@@ -124,7 +119,7 @@ export const HomeRoute: React.FC = () => {
           <a href={library?.source ?? "https://archive.org/details/MusopenCollectionAsFlac"}>
             Internet Archive · Musopen
           </a>
-          ，{library?.license ?? "CC PD Mark 1.0"}。
+          （CC PD Mark 1.0）与本地收藏（来源未确认）。
           {library ? (
             <span>
               曲库 {library.library.tracks} 首 / {library.library.works} 部作品。

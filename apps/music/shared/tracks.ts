@@ -1,10 +1,22 @@
 import { z } from "zod";
 
+export const collections = ["musopen", "classical"] as const;
+export const kinds = ["full", "excerpt", "arrangement"] as const;
+export const confidences = ["high", "medium", "low"] as const;
+
 export const trackSchema = z.object({
   id: z.string().min(1),
   composer: z.string(),
+  composerZh: z.string(),
   work: z.string(),
+  workZh: z.string(),
   movement: z.string(),
+  movementZh: z.string(),
+  workOriginal: z.string(),
+  catalog: z.string(),
+  collection: z.enum(collections),
+  kind: z.enum(kinds),
+  confidence: z.enum(confidences),
   trackNo: z.string(),
   title: z.string(),
   artist: z.string(),
@@ -14,9 +26,9 @@ export const trackSchema = z.object({
   sampleRate: z.number().int().nonnegative(),
   bits: z.number().int().nonnegative(),
   audio: z.string().startsWith("media/"),
-  cover: z.string().startsWith("media/"),
+  cover: z.string().startsWith("media/").nullable(),
   mask: z.string().startsWith("waves/").nullable(),
-  sourceUrl: z.string().url(),
+  sourceUrl: z.string().url().nullable(),
   md5: z.string(),
   license: z.string(),
 });

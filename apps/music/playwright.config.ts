@@ -2,6 +2,9 @@ import { defineConfig } from "@playwright/test";
 
 const port = "5299";
 const musicRoot = process.env["MUSIC_ROOT"] ?? "C:\\Users\\kxh\\Music\\musopen-flac";
+const classicalRoot =
+  process.env["MUSIC_ROOT_CLASSICAL"] ??
+  "C:\\Users\\kxh\\kxh-awesome\\projects\\kxh-kit\\.temp\\music-new\\flac";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -24,6 +27,7 @@ export default defineConfig({
     env: {
       PORT: port,
       MUSIC_ROOT: musicRoot,
+      MUSIC_ROOT_CLASSICAL: classicalRoot,
       TRACKS_FILE: "./server/data/tracks.json",
       WAVES_ROOT: "./server/data/waves",
       CLIENT_DIR: "./dist/client",

@@ -10,6 +10,7 @@ import type { LibrarySnapshot } from "./tracks.ts";
 export interface AppOptions {
   snapshot: LibrarySnapshot;
   musicRoot: string;
+  classicalRoot: string;
   wavesRoot: string;
   clientDir: string;
   basePath?: string;
@@ -26,7 +27,7 @@ const stripPrefix =
  * shuffle bag are the browser's business.
  */
 const buildApp = (options: AppOptions): Hono => {
-  const { snapshot, musicRoot, wavesRoot, clientDir } = options;
+  const { snapshot, musicRoot, classicalRoot, wavesRoot, clientDir } = options;
   const base = options.basePath && options.basePath !== "/" ? options.basePath : "";
   // Mounted under /music the handlers still see the prefixed path.
   const stripBase = (path: string): string =>
@@ -49,9 +50,15 @@ const buildApp = (options: AppOptions): Hono => {
     return c.json(apiOk(snapshot.library), 200, headers);
   });
 
-  app.get("/media/*", (c) =>
-    serveMedia(c, musicRoot, stripBase(c.req.path).replace(/^\/media/, "")),
-  );
+  app.get("/media/*", (c) => {
+    const path = stripBase(c.req.path).replace(/^\/media/, "");
+    // The second collection lives in its own root; "classical/" is the switch,
+    // not part of the file path under that root.
+    if (path.startsWith("/classical/")) {
+      return serveMedia(c, classicalRoot, path.replace(/^\/classical/, ""));
+    }
+    return serveMedia(c, musicRoot, path);
+  });
   app.use(
     "/waves/*",
     serveStatic({

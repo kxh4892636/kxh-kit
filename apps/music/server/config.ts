@@ -4,6 +4,7 @@ import { z } from "zod";
 const settings = z.object({
   PORT: z.coerce.number().int().min(1).max(65535),
   MUSIC_ROOT: z.string().trim().min(1),
+  MUSIC_ROOT_CLASSICAL: z.string().trim().min(1),
   TRACKS_FILE: z.string().trim().min(1),
   WAVES_ROOT: z.string().trim().min(1),
   CLIENT_DIR: z.string().trim().min(1),
@@ -13,6 +14,7 @@ const settings = z.object({
 export interface Config {
   port: number;
   musicRoot: string;
+  classicalRoot: string;
   tracksFile: string;
   wavesRoot: string;
   clientDir: string;
@@ -22,6 +24,7 @@ export interface Config {
 const KEYS = [
   "PORT",
   "MUSIC_ROOT",
+  "MUSIC_ROOT_CLASSICAL",
   "TRACKS_FILE",
   "WAVES_ROOT",
   "CLIENT_DIR",
@@ -56,9 +59,13 @@ export const loadConfig = (file: string, environment: NodeJS.ProcessEnv = proces
   const pick = (key: Key, fallback: string): string =>
     environment[key]?.trim() || fromFile[key] || fallback;
 
+  const musicRoot = pick("MUSIC_ROOT", "C:\\Users\\kxh\\Music\\musopen-flac");
   const parsed = settings.parse({
     PORT: pick("PORT", "5210"),
-    MUSIC_ROOT: pick("MUSIC_ROOT", "C:\\Users\\kxh\\Music\\musopen-flac"),
+    MUSIC_ROOT: musicRoot,
+    // Older deployments only know MUSIC_ROOT; falling back keeps them booting,
+    // and classical tracks simply 404 until the second collection is uploaded.
+    MUSIC_ROOT_CLASSICAL: pick("MUSIC_ROOT_CLASSICAL", musicRoot),
     TRACKS_FILE: pick("TRACKS_FILE", "./server/data/tracks.json"),
     WAVES_ROOT: pick("WAVES_ROOT", "./server/data/waves"),
     CLIENT_DIR: pick("CLIENT_DIR", "./dist/client"),
@@ -68,6 +75,7 @@ export const loadConfig = (file: string, environment: NodeJS.ProcessEnv = proces
   return {
     port: parsed.PORT,
     musicRoot: parsed.MUSIC_ROOT,
+    classicalRoot: parsed.MUSIC_ROOT_CLASSICAL,
     tracksFile: parsed.TRACKS_FILE,
     wavesRoot: parsed.WAVES_ROOT,
     clientDir: parsed.CLIENT_DIR,
