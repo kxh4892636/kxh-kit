@@ -1,131 +1,143 @@
-import { createElement, useId, useState, type FC } from "react";
 import {
-  IconChecklistOutline14,
-  IconChevronDownOutline14,
-  IconChevronUpOutline14,
-  Tooltip,
-} from "@deepseek-ai/dsh-client-ui-primitives";
+  Component,
+  createElement,
+  useEffect,
+  useState,
+  type ComponentType,
+  type FC,
+  type ReactNode,
+} from "react";
+import { Tooltip } from "@deepseek-ai/dsh-client-ui-primitives";
 
+import {
+  NANO_FLOW_NOTES_REFRESH_MS,
+  type NotesSnapshot,
+  type PanelNote,
+  type PanelNoteStatus,
+} from "../contract.js";
+import { fetchNanoFlowNotes } from "./host-api.js";
 import { ensureToolkitStyles } from "./stylesheet.js";
 
-/** 面板读取的会话投影键；与宿主 `notes-panel.ts` 一致。 */
-export const NOTES_PROJECTION_KEY = "nanoFlowNotes";
+export type { NotesSnapshot, PanelNote, PanelNoteStatus } from "../contract.js";
 
 /** 只挂本面板的 Agent 预设 id。 */
 export const NANO_FLOW_PRESET = "nano-flow";
 
-/** 面板展示的三态（完成的 note 不进来）。 */
-export type PanelNoteStatus = "pending" | "in_progress" | "blocked";
-
-/** 面板里的一条 note。 */
-export interface PanelNote {
-  readonly name: string;
-  readonly status: PanelNoteStatus;
-  readonly description: string;
-}
-
-/** 宿主写进投影的快照。 */
-export interface NotesSnapshot {
-  readonly planName: string;
-  readonly planPath: string;
-  readonly notes: readonly PanelNote[];
-}
-
 /** `conversation.input.dock` 会话插槽的标准 props（只声明本组件用到的）。 */
 export interface NotesDockProps {
+  /** 当前会话 id；标准 session 插槽会传入。 */
+  readonly sessionId?: string;
+  /** 预设投影读取函数；标准 session 插槽会传入。 */
   readonly useProjection?: (key: string) => unknown;
+  /** 会话快照选择器；`sessionId` 缺席时用它兜底取 id。 */
+  readonly useSession?: <S>(selector: (snapshot: NotesSessionSnapshot) => S) => S;
 }
 
+/** 只声明本组件用到的会话快照字段。 */
+export interface NotesSessionSnapshot {
+  readonly sessionId: string;
+}
+
+/** 状态中文名：行首直接展示，不再使用图标。 */
 const STATUS_LABEL: Record<PanelNoteStatus, string> = {
   in_progress: "进行中",
   blocked: "阻塞",
   pending: "待处理",
 };
 
-/** 14×14 的「进行中」圆环：业务色渐变 + CSS 旋转（与 Todo 面板同款）。 */
-const ProgressGlyph: FC = () => {
-  const gradientId = useId();
-  return createElement(
-    "svg",
-    {
-      width: 14,
-      height: 14,
-      viewBox: "0 0 14 14",
-      fill: "none",
-      "aria-hidden": "true",
-      className: "dshtk-notes-glyph-progress",
-    },
-    createElement(
-      "defs",
-      null,
-      createElement(
-        "linearGradient",
-        {
-          id: gradientId,
-          x1: "2.5",
-          y1: "12",
-          x2: "10.5",
-          y2: "3.5",
-          gradientUnits: "userSpaceOnUse",
-        },
-        createElement("stop", { stopColor: "currentColor" }),
-        createElement("stop", { offset: "1", stopColor: "currentColor", stopOpacity: "0" }),
-      ),
-    ),
-    createElement("circle", {
-      cx: "7",
-      cy: "7",
-      r: "6.4",
-      stroke: `url(#${gradientId})`,
-      strokeWidth: "1.2",
-    }),
-  );
-};
+/** 宿主 primitives 的导出在插件 bundle 里可能拿到 undefined；只有可真渲染时才复用。 */
+const isRenderable = (value: unknown): boolean =>
+  typeof value === "function" ||
+  (typeof value === "object" &&
+    value !== null &&
+    typeof (value as { readonly $$typeof?: unknown }).$$typeof !== "undefined");
 
-/** 14×14 的虚线圆环：待处理（灰）与阻塞（错误色）共用形状，颜色由 class 决定。 */
-const RingGlyph: FC<{ readonly blocked: boolean }> = ({ blocked }) =>
-  createElement(
-    "svg",
-    {
-      width: 14,
-      height: 14,
-      viewBox: "0 0 14 14",
-      fill: "none",
-      "aria-hidden": "true",
-      className: blocked ? "dshtk-notes-glyph-blocked" : "dshtk-notes-glyph-pending",
-    },
-    createElement("circle", {
-      cx: "7",
-      cy: "7",
-      r: "6.4",
-      stroke: "currentColor",
-      strokeWidth: "1.2",
-      strokeDasharray: "2.4 2.4",
-    }),
-  );
+/** 宿主 Tooltip 可用就用宿主组件，否则退回原生 `title`。 */
+const NotesTooltip: FC<{ readonly label: string; readonly children?: ReactNode }> = isRenderable(
+  Tooltip,
+)
+  ? ({ label, children }) => createElement(Tooltip, { label, side: "top", delayMs: 200 }, children)
+  : ({ label, children }) => createElement("span", { title: label }, children);
 
-const StatusGlyph: FC<{ readonly status: PanelNoteStatus }> = ({ status }) => {
-  if (status === "in_progress") return createElement(ProgressGlyph);
-  return createElement(RingGlyph, { blocked: status === "blocked" });
+/** 渲染错误边界：面板内部异常时降级为不渲染，不拖垮整个插槽。 */
+interface BoundaryProps {
+  readonly children?: ReactNode;
+}
+
+let boundaryClass: ComponentType<BoundaryProps> | undefined;
+
+/**
+ * 惰性构造错误边界类（模块顶层直接 `class extends Component` 会在加载期拿到未就绪的 React）。
+ * @returns 可复用的错误边界组件类。
+ */
+const getBoundaryClass = (): ComponentType<BoundaryProps> => {
+  if (boundaryClass !== undefined) return boundaryClass;
+  boundaryClass = class NotesBoundary extends Component<BoundaryProps, { failed: boolean }> {
+    constructor(props: BoundaryProps) {
+      super(props);
+      this.state = { failed: false };
+    }
+
+    static getDerivedStateFromError(): { failed: boolean } {
+      return { failed: true };
+    }
+
+    override render(): ReactNode {
+      return this.state.failed ? null : this.props.children;
+    }
+  };
+  return boundaryClass;
 };
 
 const countLabel = (notes: readonly PanelNote[]): string => {
   const counts: Record<PanelNoteStatus, number> = { in_progress: 0, blocked: 0, pending: 0 };
-  for (const note of notes) counts[note.status] += 1;
+  for (const note of notes) counts[note.status] = (counts[note.status] ?? 0) + 1;
   return (["in_progress", "blocked", "pending"] as const)
-    .filter((status) => counts[status] > 0)
-    .map((status) => `${counts[status]} ${STATUS_LABEL[status]}`)
+    .filter((status) => (counts[status] ?? 0) > 0)
+    .map((status) => `${counts[status] ?? 0} ${STATUS_LABEL[status]}`)
     .join(" · ");
 };
 
-/** 面板本体：默认展开，点标题折叠。 */
-const NotesPanelView: FC<{ readonly useProjection: (key: string) => unknown }> = ({
-  useProjection,
-}) => {
+/** 面板本体：默认展开，可折叠；挂载时轮询宿主快照。 */
+const NotesPanelView: FC<{
+  readonly sessionId: string;
+  readonly useProjection: (key: string) => unknown;
+}> = ({ sessionId, useProjection }) => {
   ensureToolkitStyles();
   const [collapsed, setCollapsed] = useState(false);
+  const [snapshot, setSnapshot] = useState<NotesSnapshot | null | undefined>(undefined);
   const preset = useProjection("agentPreset");
-  const snapshot = useProjection(NOTES_PROJECTION_KEY) as NotesSnapshot | null | undefined;
+  useEffect(() => {
+    if (preset !== NANO_FLOW_PRESET) {
+      setSnapshot(undefined);
+      return;
+    }
+    const controller = new AbortController();
+    let retries = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+    const load = (): void => {
+      fetchNanoFlowNotes(sessionId, controller.signal)
+        .then((next) => {
+          if (controller.signal.aborted) return;
+          setSnapshot(next);
+          // 会话刚打开时宿主可能还没登记，1s 后再试几次。
+          if (next === null && retries < 3) {
+            retries += 1;
+            retryTimer = setTimeout(load, 1_000);
+          }
+        })
+        .catch(() => {
+          // 宿主路由不可达或响应损坏时保持上一次快照；面板下次轮询再试。
+        });
+    };
+    load();
+    const timer = setInterval(load, NANO_FLOW_NOTES_REFRESH_MS);
+    return () => {
+      controller.abort();
+      clearInterval(timer);
+      if (retryTimer !== undefined) clearTimeout(retryTimer);
+    };
+  }, [preset, sessionId]);
   if (preset !== NANO_FLOW_PRESET) return null;
   if (snapshot === null || snapshot === undefined) return null;
   if (snapshot.notes.length === 0) return null;
@@ -150,20 +162,9 @@ const NotesPanelView: FC<{ readonly useProjection: (key: string) => unknown }> =
             setCollapsed((value) => !value);
           },
         },
-        createElement(
-          "span",
-          { className: "dshtk-notes-lead", "aria-hidden": "true" },
-          createElement(IconChecklistOutline14, {}),
-        ),
         createElement("span", { className: "dshtk-notes-title" }, "Note"),
         createElement("span", { className: "dshtk-notes-progress" }, summary),
-        createElement(
-          "span",
-          { className: "dshtk-notes-chevron", "aria-hidden": "true" },
-          collapsed
-            ? createElement(IconChevronDownOutline14, {})
-            : createElement(IconChevronUpOutline14, {}),
-        ),
+        createElement("span", { className: "dshtk-notes-toggle" }, collapsed ? "展开" : "收起"),
       ),
       collapsed
         ? null
@@ -180,12 +181,12 @@ const NotesPanelView: FC<{ readonly useProjection: (key: string) => unknown }> =
                 },
                 createElement(
                   "span",
-                  { className: "dshtk-notes-glyph", "aria-hidden": "true" },
-                  createElement(StatusGlyph, { status: note.status }),
+                  { className: "dshtk-notes-status" },
+                  STATUS_LABEL[note.status],
                 ),
                 createElement(
-                  Tooltip,
-                  { label: note.description, side: "top", delayMs: 200 },
+                  NotesTooltip,
+                  { label: note.description },
                   createElement("span", { className: "dshtk-notes-content" }, note.name),
                 ),
               ),
@@ -195,13 +196,25 @@ const NotesPanelView: FC<{ readonly useProjection: (key: string) => unknown }> =
   );
 };
 
+/** 没有 `useSession` prop 时的兜底：不读取任何会话状态。 */
+const noSessionHook = <S>(selector: (snapshot: NotesSessionSnapshot) => S): S =>
+  selector({ sessionId: "" });
+
 /**
- * 输入框上方的未完成 note 面板：只在 nano-flow 预设会话、且宿主投影有快照时渲染。
- * @param props - 会话插槽标准 props（`useProjection`）。
+ * 输入框上方的未完成 note 面板：只在 nano-flow 预设会话里轮询宿主快照。
+ * @param props - 会话插槽标准 props（`sessionId` / `useProjection` / `useSession`）。
  * @returns 面板或 `null`。
  */
 export const NotesDock: FC<NotesDockProps> = (props) => {
+  const useSession = props.useSession ?? noSessionHook;
+  const derived = useSession((snapshot) => snapshot.sessionId);
+  const sessionId = props.sessionId ?? derived;
   const useProjection = props.useProjection;
   if (typeof useProjection !== "function") return null;
-  return createElement(NotesPanelView, { useProjection });
+  if (sessionId === "" || sessionId === undefined) return null;
+  return createElement(
+    getBoundaryClass(),
+    null,
+    createElement(NotesPanelView, { sessionId, useProjection }),
+  );
 };

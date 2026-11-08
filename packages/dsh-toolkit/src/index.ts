@@ -3,14 +3,19 @@ import type { Context } from "@deepseek-ai/cordis";
 import { resolveDshHome } from "@deepseek-ai/dsh-home-paths";
 import z from "@deepseek-ai/schemastery";
 import type Schema from "@deepseek-ai/schemastery";
-import type { UndoAvailability, UndoTurnResponse } from "./contract.js";
+import type {
+  NanoFlowSettings,
+  NotesSnapshot,
+  UndoAvailability,
+  UndoTurnResponse,
+} from "./contract.js";
 import { createNanoFlowSettingsStore, nodeNanoFlowSettingsIo } from "./host/nano-flow-settings.js";
 import { NANO_FLOW_SERVICE, type ToolkitNanoFlowFacade } from "./host/nano-flow-facade.js";
-import type { NanoFlowSettings } from "./contract.js";
 import { createNanoFlowTool } from "./host/tools/nano-flow.js";
 import { applyNanoFlow } from "./nano-flow/plugin.js";
 import { DEFAULT_DOMAIN_ROOT } from "./nano-flow/config.js";
 import { recordMount, restoreMountReport } from "./nano-flow/mount-report.js";
+import { notesForWorkspace } from "./nano-flow/notes.js";
 import { NANO_FLOW_PRESET_ID, nanoFlowEntryUrl } from "./nano-flow/preset.js";
 import { attachRotation, type RotationSession } from "./nano-flow/rotate.js";
 import { hostServices } from "./nano-flow/services.js";
@@ -110,6 +115,9 @@ export const apply = (ctx: Context, config: Config = {}): void => {
         get: () => runtime.nanoFlow.get(),
         update: (patch: unknown) => runtime.nanoFlow.update(patch),
       },
+      notes: {
+        of: (sessionId: string) => runtime.notesOf(sessionId),
+      },
     });
     child.effect(() => disposeRoutes, "toolkit: routes");
   });
@@ -154,6 +162,8 @@ interface ToolkitRuntime {
     get(): NanoFlowSettings;
     update(patch: unknown): Promise<NanoFlowSettings>;
   };
+  /** 当前会话要展示的未完成 note 快照；不写会话日志。 */
+  notesOf(sessionId: string): NotesSnapshot | null;
   inspect(sessionId: string): UndoAvailability;
   undo(sessionId: string): Promise<UndoTurnResponse>;
   /** 工作区注册表就绪后，把日志已删的会话从归档集合里摘掉。 */
@@ -285,6 +295,25 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
     },
     async dispose() {
       await registry.dispose();
+    },
+    notesOf(sessionId) {
+      const sessions = serviceOf<HostSessionStore>(ctx, "sessions");
+      if (!hasMethod<HostSessionStore>(sessions, "get")) return null;
+      const session = sessions.get(sessionId);
+      const workspace =
+        config.workspace !== undefined && config.workspace !== ""
+          ? config.workspace
+          : session?.header?.cwd;
+      if (workspace === undefined || workspace === "") return null;
+      try {
+        return notesForWorkspace({
+          workspace,
+          domainRoot: config.domainRoot ?? DEFAULT_DOMAIN_ROOT,
+        });
+      } catch (error) {
+        logger.warn(`toolkit: notes snapshot failed: ${describe(error)}`);
+        return null;
+      }
     },
     inspect(sessionId) {
       const deps = undoTarget();

@@ -109,6 +109,37 @@ export interface NanoFlowSettingsRequest {
 /** Nano Flow 设置路由（连接服务已鉴权）。 */
 export const TOOLKIT_NANO_FLOW_PATH = "/api/toolkit/nano-flow";
 
+/** 面板展示的 note 状态：完成的 note 不进面板。 */
+export const PANEL_STATUSES = ["pending", "in_progress", "blocked"] as const;
+
+/** 面板 note 状态。 */
+export type PanelNoteStatus = (typeof PANEL_STATUSES)[number];
+
+/** 面板里的一条 note。 */
+export interface PanelNote {
+  readonly name: string;
+  readonly status: PanelNoteStatus;
+  readonly description: string;
+}
+
+/** 面板快照；`planPath` 相对工作区。 */
+export interface NotesSnapshot {
+  readonly planName: string;
+  readonly planPath: string;
+  readonly notes: readonly PanelNote[];
+}
+
+/** `GET /api/toolkit/nano-flow/notes` 的响应；`null` 表示当前会话没有可展示的 note。 */
+export interface NanoFlowNotesResponse {
+  readonly snapshot: NotesSnapshot | null;
+}
+
+/** Note 面板轮询宿主路由的节奏。 */
+export const NANO_FLOW_NOTES_REFRESH_MS = 5_000;
+
+/** Note 面板快照路由（连接服务已鉴权）。 */
+export const TOOLKIT_NANO_FLOW_NOTES_PATH = "/api/toolkit/nano-flow/notes";
+
 /** 工具 id；状态文件与面板都以此为键。 */
 export const TOOL_IDS = {
   nestedSkill: "nested-skill",

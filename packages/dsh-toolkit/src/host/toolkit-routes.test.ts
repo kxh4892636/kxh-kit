@@ -1,9 +1,11 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 import {
   DEFAULT_NANO_FLOW_SETTINGS,
+  TOOLKIT_NANO_FLOW_NOTES_PATH,
   TOOLKIT_NANO_FLOW_PATH,
   TOOLKIT_STATE_PATH,
   TOOLKIT_UNDO_PATH,
+  type NotesSnapshot,
 } from "../contract.js";
 import { createNanoFlowSettingsStore, type NanoFlowSettingsIo } from "./nano-flow-settings.js";
 import { registerToolkitRoutes, type ToolkitRouteRegistry } from "./toolkit-routes.js";
@@ -74,6 +76,14 @@ const setup = async () => {
     inspect: vi.fn(() => ({ available: true, prompt: "帮我改一下" })),
     run: vi.fn(async () => ({ childSessionId: "session-child", prompt: "帮我改一下" })),
   };
+  const notesSnapshot: NotesSnapshot = {
+    planName: "2026-11-08-演示",
+    planPath: ".agents/domains/dsh/plans/active/2026-11-08-演示",
+    notes: [{ name: "001-第一个", status: "pending", description: "概述" }],
+  };
+  const notes = {
+    of: vi.fn((sessionId: string) => (sessionId === "session-1" ? notesSnapshot : null)),
+  };
   const dispose = registerToolkitRoutes({
     registry,
     connection,
@@ -83,6 +93,7 @@ const setup = async () => {
       get: () => settings.current(),
       update: (patch: unknown) => settings.update(patch),
     },
+    notes,
     logger: { warn: vi.fn() },
   });
   const call = (path: string, request: Request): Promise<Response> => {
@@ -90,7 +101,7 @@ const setup = async () => {
     if (handler === undefined) throw new Error(`route ${path} not registered`);
     return handler(request);
   };
-  return { call, registry, undo, settings, dispose, routes };
+  return { call, registry, undo, settings, notes, dispose, routes };
 };
 
 const request = (
@@ -218,9 +229,59 @@ describe("toolkit routes", () => {
     expect(await unsupported.json()).toMatchObject({ error: "unsupported-host" });
   });
 
+  it("returns the nano-flow notes snapshot for a session", async () => {
+    const { call, notes } = await setup();
+    const response = await call(
+      TOOLKIT_NANO_FLOW_NOTES_PATH,
+      request(TOOLKIT_NANO_FLOW_NOTES_PATH, {
+        url: `http://127.0.0.1:58683${TOOLKIT_NANO_FLOW_NOTES_PATH}?sessionId=session-1`,
+      }),
+    );
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      snapshot: { planName: "2026-11-08-演示", notes: [{ name: "001-第一个" }] },
+    });
+    expect(notes.of).toHaveBeenCalledWith("session-1");
+  });
+
+  it("returns a null snapshot when the session has no active plan", async () => {
+    const { call } = await setup();
+    const response = await call(
+      TOOLKIT_NANO_FLOW_NOTES_PATH,
+      request(TOOLKIT_NANO_FLOW_NOTES_PATH, {
+        url: `http://127.0.0.1:58683${TOOLKIT_NANO_FLOW_NOTES_PATH}?sessionId=session-2`,
+      }),
+    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ snapshot: null });
+  });
+
+  it("rejects a notes request without a session id", async () => {
+    const { call } = await setup();
+    const response = await call(
+      TOOLKIT_NANO_FLOW_NOTES_PATH,
+      request(TOOLKIT_NANO_FLOW_NOTES_PATH),
+    );
+    expect(response.status).toBe(400);
+  });
+
+  it("reports a failing notes snapshot as an internal error", async () => {
+    const { call, notes } = await setup();
+    notes.of.mockImplementationOnce(() => {
+      throw new Error("boom");
+    });
+    const response = await call(
+      TOOLKIT_NANO_FLOW_NOTES_PATH,
+      request(TOOLKIT_NANO_FLOW_NOTES_PATH, {
+        url: `http://127.0.0.1:58683${TOOLKIT_NANO_FLOW_NOTES_PATH}?sessionId=session-1`,
+      }),
+    );
+    expect(response.status).toBe(500);
+  });
+
   it("unregisters all routes on dispose", async () => {
     const { dispose, routes } = await setup();
-    expect(routes.size).toBe(4);
+    expect(routes.size).toBe(5);
     dispose();
     expect(routes.size).toBe(0);
   });

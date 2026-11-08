@@ -1,11 +1,15 @@
 import {
+  PANEL_STATUSES,
   TOOLKIT_HIDDEN_PATH,
+  TOOLKIT_NANO_FLOW_NOTES_PATH,
   TOOLKIT_NANO_FLOW_PATH,
   TOOLKIT_STATE_PATH,
   TOOLKIT_UNDO_PATH,
   type NanoFlowSettings,
   type NanoFlowSettingsRequest,
   type NanoFlowSettingsResponse,
+  type NotesSnapshot,
+  type PanelNote,
   type ToolkitErrorBody,
   type ToolkitStateRequest,
   type ToolkitStateResponse,
@@ -127,6 +131,20 @@ export const saveNanoFlowSettings = async (
   return parseSettings(body);
 };
 
+/** 探测某会话的未完成 note 快照；无绑定 Plan 或无未完成 note 时为 `null`。 */
+export const fetchNanoFlowNotes = async (
+  sessionId: string,
+  signal?: AbortSignal,
+): Promise<NotesSnapshot | null> => {
+  const query = `?sessionId=${encodeURIComponent(sessionId)}`;
+  const response = await send(
+    `${relative(TOOLKIT_NANO_FLOW_NOTES_PATH)}${query}`,
+    optionalSignal(signal),
+  );
+  const body = (await readJson(response)) as unknown;
+  return parseNotesSnapshot(body);
+};
+
 /** 探测某会话能否撤回。 */
 export const fetchUndoAvailability = async (
   sessionId: string,
@@ -195,6 +213,41 @@ const readJson = async (response: Response): Promise<unknown> => {
 };
 
 /** 外部响应逐层判空，避免宿主版本漂移时把 undefined 当结构用。 */
+const parseNotesSnapshot = (body: unknown): NotesSnapshot | null => {
+  const snapshot = (body as { snapshot?: unknown } | null)?.snapshot;
+  if (snapshot === null || snapshot === undefined) return null;
+  if (typeof snapshot !== "object") return null;
+  const record = snapshot as unknown as Record<string, unknown>;
+  if (typeof record["planName"] !== "string" || typeof record["planPath"] !== "string") {
+    throw new HostApiError("invalid-response", "unexpected notes payload");
+  }
+  if (!Array.isArray(record["notes"])) {
+    throw new HostApiError("invalid-response", "unexpected notes payload");
+  }
+  const notes: PanelNote[] = [];
+  for (const item of record["notes"]) {
+    if (typeof item !== "object" || item === null) {
+      throw new HostApiError("invalid-response", "unexpected notes payload");
+    }
+    const note = item as Record<string, unknown>;
+    const status = note["status"];
+    if (
+      typeof note["name"] !== "string" ||
+      typeof note["description"] !== "string" ||
+      typeof status !== "string" ||
+      !(PANEL_STATUSES as readonly string[]).includes(status)
+    ) {
+      throw new HostApiError("invalid-response", "unexpected notes payload");
+    }
+    notes.push({
+      name: note["name"],
+      status: status as PanelNote["status"],
+      description: note["description"],
+    });
+  }
+  return { planName: record["planName"], planPath: record["planPath"], notes };
+};
+
 const parseState = (body: unknown): readonly ToolkitToolInfo[] | undefined => {
   if (typeof body !== "object" || body === null) return undefined;
   const tools = (body as Partial<ToolkitStateResponse>).tools;

@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { Context } from "@deepseek-ai/cordis";
-import { afterEach, describe, expect, it } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { DEFAULT_NANO_FLOW_SETTINGS } from "../contract.js";
 import { disableMountReport } from "./mount-report.js";
@@ -124,6 +124,18 @@ describe("applyNanoFlow", () => {
     expect(harness.sections.map((section) => section.name)).toEqual([PROMPT_SECTION]);
     expect(harness.contexts.map((context) => context.name)).toEqual([USER_CONTEXT_NAME]);
     expect(harness.listeners).toHaveLength(1);
+  });
+
+  it("does not append note snapshots to the session log", async () => {
+    const workspace = await makeRoot();
+    const harness = makeHarness();
+    applyNanoFlow(harness.ctx, { workspace });
+    const append = vi.fn();
+    const agent = { session: { header: { cwd: workspace }, append } };
+    const listener = harness.listeners[0];
+    if (listener === undefined) throw new Error("pre-step listener not registered");
+    await listener({ agent, turn: 1, step: 1 }, async () => undefined);
+    expect(append).not.toHaveBeenCalled();
   });
 
   it("works on a host without systemPrompt.context", async () => {

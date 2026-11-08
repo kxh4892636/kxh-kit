@@ -2,10 +2,11 @@
 name: "007-会话内未完成note面板"
 description: "在输入框 dock 展示当前会话绑定 Plan 的未完成 note，样式与 TODO 面板一致。"
 status: blocked
-reason: "等待用户重启宿主验收 Note 面板：面板出现、5s 刷新、tooltip 与折叠通过后才置 completed"
+reason: "0.5.21 已把行内状态改成中文名并去掉图标；等待用户确认文本版面板的最终观感"
 related_noted:
   - '006-固定提示词改名为system'
-next_step: '重启后按 README 验证第 9 条确认面板，验收通过再置 completed'
+  - '008-修复notes事件导致会话历史加载失败'
+next_step: '重启后确认面板已显示「阻塞 + note 名称」，确认后置 completed'
 ---
 
 # 007-会话内未完成note面板
@@ -122,3 +123,22 @@ next_step: '重启后按 README 验证第 9 条确认面板，验收通过再置
 - 构建：`dist/index.mjs` 118.45 kB（含 4 处 `nano-flow/notes`、1 处 `nanoFlowNotes`）；`dist/client.js` 48.34 kB（含 30 处 `dshtk-notes`、2 处 `nano-flow-notes`）。
 - 安装 0.5.13 到 desktop profile，安装包与本地构建 SHA256 一致；`zod` 可在 profile 解析。
 - **未验证（需重启宿主）**：真实会话里面板出现、5s 内刷新、tooltip 与折叠的真机表现；投影注册是否在预设作用域可见。
+
+## 验收阻塞（2026-11-08）
+
+- 重启/重开后打开 `session-80f0ac73` 历史报 `nano-flow/notes` (seq 1362) unknown 且未标 ignorable，整个会话拒绝加载；面板验收无法进行。
+- 该事件正是本 note 的 5s 轮询在 14:46:30 写入的快照。原因、止血与替代方案见 note 008。
+- 008 已把数据源改为「宿主路由现算 + 客户端 5s 轮询」，不再写会话事件；本 note 的验收动作不变。
+- 结论：面板数据不能写进会话日志；本 note 在 008 完成并重启前不再重新验收。
+
+## 修复与收尾（0.5.18 → 0.5.21）
+
+- **0.5.18 诊断**：客户端阶段上报 + 宿主探针文件，一次重启定位到 `client:render-error`（React #130 `Element type is invalid … got: undefined`）：插件 bundle 里 `IconChecklistOutline14` / `IconChevron*` / `Tooltip` 实际是 `undefined`，带数据首帧渲染即抛错、被插槽边界吞掉并卸载——这也是"第二次请求后轮询停止"的原因。
+- **0.5.19 观测**：错误边界 + 逐次轮询上报 + 首次 `null` 快照的 1s 重试（会话刚打开时宿主还没登记会话）。
+- **0.5.20 兜底**：primitives 可渲染才复用（图标/Tooltip），否则内联 SVG 与原生 `title`；面板恢复显示，用户确认出现。
+- **0.5.21 按用户要求去掉图标**：行改为「中文状态名 + note 名称」（`阻塞 007-…`），折叠改为「收起 / 展开」文本；删除诊断通道（探针路由、`notes-probe.ts`、客户端上报）。
+
+## 验收现状
+
+- 面板已显示（用户截图确认：标题「Note 2 阻塞」+ 两条 blocked）。
+- 待确认：文本版行内状态与折叠文本的最终观感（0.5.21，重启后生效）。

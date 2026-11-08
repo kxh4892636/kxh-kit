@@ -2,22 +2,13 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { afterEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, it } from "vite-plus/test";
 
-import {
-  buildNotesSnapshot,
-  listActivePlans,
-  NOTES_EVENT,
-  NOTES_PROJECTION_KEY,
-  readPanelNotes,
-  resolveBoundPlan,
-} from "./notes.js";
-import { createNotesPanel, notesProjection } from "./notes-panel.js";
+import { buildNotesSnapshot, listActivePlans, notesForWorkspace, readPanelNotes } from "./notes.js";
 
 const roots: string[] = [];
 
 afterEach(async () => {
-  vi.useRealTimers();
   await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
 });
 
@@ -101,124 +92,36 @@ describe("buildNotesSnapshot", () => {
   });
 });
 
-describe("resolveBoundPlan", () => {
-  it("binds the only active plan", async () => {
+describe("notesForWorkspace", () => {
+  it("returns the snapshot when exactly one active plan exists", async () => {
     const root = await makeRoot();
     await writeNote(root, "2026-11-08-唯一", "001-第一个.md", "pending");
-    expect(
-      resolveBoundPlan({ workspace: root, domainsDirectory: join(root, ".agents", "domains") }),
-    ).toBe(planDirectory(root, "2026-11-08-唯一"));
+    expect(notesForWorkspace({ workspace: root, domainRoot: ".agents/domains" })).toEqual({
+      planName: "2026-11-08-唯一",
+      planPath: ".agents/domains/dsh/plans/active/2026-11-08-唯一",
+      notes: [{ name: "001-第一个", status: "pending", description: "001-第一个.md 概述" }],
+    });
   });
 
-  it("refuses to pick between several active plans", async () => {
+  it("returns null when several active plans exist", async () => {
     const root = await makeRoot();
     await writeNote(root, "2026-11-08-甲", "001-甲.md", "pending");
     await writeNote(root, "2026-11-08-乙", "001-乙.md", "pending");
     expect(listActivePlans(join(root, ".agents", "domains"))).toHaveLength(2);
+    expect(notesForWorkspace({ workspace: root, domainRoot: ".agents/domains" })).toBeNull();
+  });
+
+  it("returns null when every note is completed", async () => {
+    const root = await makeRoot();
+    await writeNote(root, "2026-11-08-完成", "001-完成.md", "completed");
+    expect(notesForWorkspace({ workspace: root, domainRoot: ".agents/domains" })).toBeNull();
+  });
+
+  it("supports an absolute domain root", async () => {
+    const root = await makeRoot();
+    await writeNote(root, "2026-11-08-绝对", "001-第一个.md", "pending");
     expect(
-      resolveBoundPlan({ workspace: root, domainsDirectory: join(root, ".agents", "domains") }),
-    ).toBeUndefined();
-  });
-
-  it("keeps an existing binding and drops one whose plan moved away", async () => {
-    const root = await makeRoot();
-    await writeNote(root, "2026-11-08-甲乙", "001-甲.md", "pending");
-    const bound = planDirectory(root, "2026-11-08-甲乙");
-    expect(
-      resolveBoundPlan({
-        workspace: root,
-        domainsDirectory: join(root, ".agents", "domains"),
-        boundPlanPath: bound,
-      }),
-    ).toBe(bound);
-    await rm(bound, { recursive: true, force: true });
-    expect(
-      resolveBoundPlan({
-        workspace: root,
-        domainsDirectory: join(root, ".agents", "domains"),
-        boundPlanPath: bound,
-      }),
-    ).toBeUndefined();
-  });
-});
-
-describe("notesProjection", () => {
-  it("keeps the state unless the snapshot event arrives", () => {
-    expect(notesProjection.key).toBe(NOTES_PROJECTION_KEY);
-    expect(notesProjection.init()).toBeNull();
-    const snapshot = { planName: "p", planPath: "p", notes: [] };
-    expect(notesProjection.apply(null, { type: "turn/start" })).toBeNull();
-    expect(notesProjection.apply(null, { type: NOTES_EVENT, data: snapshot })).toEqual(snapshot);
-  });
-});
-
-describe("createNotesPanel", () => {
-  const agentOf = (root: string) => {
-    const append = vi.fn();
-    const agent = { session: { header: { cwd: root }, append } };
-    return { agent, append };
-  };
-
-  it("writes the snapshot once and dedupes unchanged refreshes", async () => {
-    const root = await makeRoot();
-    await writeNote(root, "2026-11-08-演示", "001-第一个.md", "pending");
-    const panel = createNotesPanel({
-      domainRoot: ".agents/domains",
-      logger: { warn: () => {} },
-    });
-    const { agent, append } = agentOf(root);
-    panel.refresh(agent);
-    expect(append).toHaveBeenCalledTimes(1);
-    expect(append.mock.calls[0]?.[0]).toBe(NOTES_EVENT);
-    panel.refresh(agent);
-    expect(append).toHaveBeenCalledTimes(1);
-    panel.dispose();
-  });
-
-  it("stays silent while the session has no displayable notes", async () => {
-    const root = await makeRoot();
-    await writeNote(root, "2026-11-08-演示", "001-完成.md", "completed");
-    const panel = createNotesPanel({
-      domainRoot: ".agents/domains",
-      logger: { warn: () => {} },
-    });
-    const { agent, append } = agentOf(root);
-    panel.refresh(agent);
-    expect(append).not.toHaveBeenCalled();
-    panel.dispose();
-  });
-
-  it("rewrites the snapshot when a note changes, and polls on the timer", async () => {
-    vi.useFakeTimers();
-    const root = await makeRoot();
-    await writeNote(root, "2026-11-08-演示", "001-第一个.md", "pending");
-    const panel = createNotesPanel({
-      domainRoot: ".agents/domains",
-      refreshMs: 1_000,
-      logger: { warn: () => {} },
-    });
-    const { agent, append } = agentOf(root);
-    panel.attach(agent);
-    panel.refresh(agent);
-    expect(append).toHaveBeenCalledTimes(1);
-    await writeNote(root, "2026-11-08-演示", "001-第一个.md", "completed");
-    vi.advanceTimersByTime(1_000);
-    expect(append).toHaveBeenCalledTimes(2);
-    expect(append.mock.calls[1]?.[1]).toBeNull();
-    panel.dispose();
-  });
-
-  it("stops polling after dispose", async () => {
-    vi.useFakeTimers();
-    const root = await makeRoot();
-    await writeNote(root, "2026-11-08-演示", "001-第一个.md", "pending");
-    const panel = createNotesPanel({ domainRoot: ".agents/domains", logger: { warn: () => {} } });
-    const { agent, append } = agentOf(root);
-    panel.attach(agent);
-    panel.refresh(agent);
-    panel.dispose();
-    await writeNote(root, "2026-11-08-演示", "001-第一个.md", "blocked");
-    vi.advanceTimersByTime(10_000);
-    expect(append).toHaveBeenCalledTimes(1);
+      notesForWorkspace({ workspace: root, domainRoot: join(root, ".agents", "domains") }),
+    ).not.toBeNull();
   });
 });

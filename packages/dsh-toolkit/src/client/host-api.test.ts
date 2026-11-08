@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import {
   fetchHiddenSessions,
+  fetchNanoFlowNotes,
   fetchToolkitState,
   fetchUndoAvailability,
   HostApiError,
@@ -43,6 +44,41 @@ describe("host api", () => {
     const [, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(init.method).toBe("POST");
     expect(init.body).toBe('{"id":"undo-turn","enabled":false}');
+  });
+
+  it("reads the nano-flow notes snapshot with an encoded session id", async () => {
+    const snapshot = {
+      planName: "2026-11-08-演示",
+      planPath: ".agents/domains/dsh/plans/active/2026-11-08-演示",
+      notes: [{ name: "001-第一个", status: "pending", description: "概述" }],
+    };
+    const fetchMock = vi.fn(async () => json({ snapshot }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(fetchNanoFlowNotes("session a/b")).resolves.toEqual(snapshot);
+    const [target] = fetchMock.mock.calls[0] as unknown as [string];
+    expect(target).toBe("api/toolkit/nano-flow/notes?sessionId=session%20a%2Fb");
+  });
+
+  it("treats a null notes snapshot as empty and rejects malformed statuses", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => json({ snapshot: null })),
+    );
+    await expect(fetchNanoFlowNotes("s1")).resolves.toBeNull();
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        json({
+          snapshot: {
+            planName: "p",
+            planPath: "p",
+            notes: [{ name: "n", status: "unknown", description: "d" }],
+          },
+        }),
+      ),
+    );
+    await expect(fetchNanoFlowNotes("s1")).rejects.toMatchObject({ code: "invalid-response" });
   });
 
   it("surfaces host error bodies", async () => {

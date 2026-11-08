@@ -1,10 +1,13 @@
 import {
   TOOLKIT_HIDDEN_PATH,
+  TOOLKIT_NANO_FLOW_NOTES_PATH,
   TOOLKIT_NANO_FLOW_PATH,
   TOOLKIT_STATE_PATH,
   TOOLKIT_UNDO_PATH,
+  type NanoFlowNotesResponse,
   type NanoFlowSettings,
   type NanoFlowSettingsResponse,
+  type NotesSnapshot,
   type ToolkitErrorBody,
   type ToolkitHiddenResponse,
   type ToolkitStateRequest,
@@ -30,6 +33,10 @@ export interface ToolkitRoutesOptions {
   readonly nanoFlow?: {
     readonly get: () => NanoFlowSettings;
     readonly update: (patch: unknown) => Promise<NanoFlowSettings>;
+  };
+  /** Nano Flow Note 面板快照；缺省时面板路由返回 501。 */
+  readonly notes?: {
+    readonly of: (sessionId: string) => NotesSnapshot | null;
   };
   readonly logger: { warn(message: string): void };
 }
@@ -70,6 +77,12 @@ export const registerToolkitRoutes = (options: ToolkitRoutesOptions): (() => voi
     requestBody: "buffered",
     fetch: (request) => handleNanoFlow(options, request),
   });
+  const notes = options.connection.fetch.register({
+    path: TOOLKIT_NANO_FLOW_NOTES_PATH,
+    methods: ["GET"],
+    requestBody: "buffered",
+    fetch: (request) => handleNotes(options, request),
+  });
   const hidden = options.connection.fetch.register({
     path: TOOLKIT_HIDDEN_PATH,
     methods: ["GET"],
@@ -83,8 +96,27 @@ export const registerToolkitRoutes = (options: ToolkitRoutesOptions): (() => voi
     state();
     undo();
     nanoFlow();
+    notes();
     hidden();
   };
+};
+
+const handleNotes = (options: ToolkitRoutesOptions, request: Request): Promise<Response> => {
+  if (options.notes === undefined) {
+    return Promise.resolve(
+      failure(501, "unsupported-host", "nano-flow notes are not wired on this host"),
+    );
+  }
+  const sessionId = new URL(request.url).searchParams.get("sessionId");
+  if (sessionId === null || sessionId === "") {
+    return Promise.resolve(failure(400, "invalid-body", "missing sessionId query parameter"));
+  }
+  try {
+    return Promise.resolve(json<NanoFlowNotesResponse>({ snapshot: options.notes.of(sessionId) }));
+  } catch (error) {
+    options.logger.warn(`toolkit: notes snapshot for "${sessionId}" failed: ${describe(error)}`);
+    return Promise.resolve(failure(500, "internal", "the notes snapshot could not be read"));
+  }
 };
 
 const handleNanoFlow = async (
