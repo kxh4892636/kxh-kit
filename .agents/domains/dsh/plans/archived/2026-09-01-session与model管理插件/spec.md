@@ -225,12 +225,12 @@ DSH Web 的会话内 agent 无法读取、搜索、派生、投递其他 session
 
 ## 上下文
 
-- [story](story.md)
-- [quest 审阅](../../../../.flow/quest/2026-09-01-session与model管理插件.md)
-- [ADR-0002](../../adr/0002-会话管理能力以模型工具面交付.md)
-- [ADR-0003](../../adr/0003-内容搜索经上游opt-in工具与索引启用交付.md)
-- [CONTEXT](../../CONTEXT.md)
-- [CONTEXT-MAP](../../../CONTEXT-MAP.md)
+- story
+- quest 审阅
+- ADR-0002
+- ADR-0003
+- [CONTEXT](../../../CONTEXT.md)
+- [CONTEXT-MAP](../../../../CONTEXT-MAP.md)
 - 前例插件：`../../../packages/dsh-nested-skill`（同构交付；参考 spec `plans/reference/2026-08-31-dsh嵌套skill发现插件/spec.md`）
 
 ## Issue

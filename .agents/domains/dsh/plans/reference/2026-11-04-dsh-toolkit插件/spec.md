@@ -82,8 +82,8 @@ status: in_progress
 
 ## 上下文
 
-- 现有插件：[packages/dsh-nested-skill](../../../../packages/dsh-nested-skill/README.md)
-- 领域约定：[dsh/CONTEXT.md](../../../CONTEXT.md)、[dsh/QUESTIONS.md](../../../QUESTIONS.md)
+- 现有插件：packages/dsh-nested-skill
+- 领域约定：[dsh/CONTEXT.md](../../../CONTEXT.md)、dsh/QUESTIONS.md
 - 历史 Plan：[2026-10-27 装进 desktop 宿主](../2026-10-27-dsh插件装进desktop宿主/spec.md)
 - 宿主实装：`C:\Users\kxh\AppData\Local\Programs\DeepSeek Harness\resources\app\dsh\node_modules\@deepseek-ai`（0.2.1-rc.5）
 
@@ -168,7 +168,7 @@ status: in_progress
 
 ## 上下文
 
-- story：[story.md](story.md)
+- story：story.md
 - 取证：note 01「拷问与方案定案」
 - 历史 Plan：[2026-10-27 装进 desktop 宿主](../2026-10-27-dsh插件装进desktop宿主/spec.md)、[2026-08-31 嵌套skill发现插件](../2026-08-31-dsh嵌套skill发现插件/spec.md)
 

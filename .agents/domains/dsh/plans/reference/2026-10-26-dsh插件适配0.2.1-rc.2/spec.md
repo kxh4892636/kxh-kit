@@ -65,8 +65,8 @@ status: completed
 
 - [spec](./spec.md)
 - [领域语言](../../../CONTEXT.md)
-- [ADR-0001 嵌套 skill 任意深度发现](../../../adr/0001-嵌套skill任意深度发现.md)
-- [package.json](../../../../../packages/dsh-nested-skill/package.json)
+- [ADR-0001 嵌套 skill 任意深度发现](../../../adr/001-嵌套skill任意深度发现.md)
+- package.json
 
 
 ## 旧 spec
@@ -157,10 +157,10 @@ status: completed
 ## 上下文
 
 - note 01「版本取证与兼容性比对」
-- [故事](story.md)
+- 故事
 - [领域语言](../../../CONTEXT.md)
-- [ADR-0001 嵌套 skill 任意深度发现](../../../adr/0001-嵌套skill任意深度发现.md)
-- [ADR-0003 内容搜索经上游 opt-in 工具与索引启用交付](../../../adr/0003-内容搜索经上游opt-in工具与索引启用交付.md)（声明口径：等于已在本机验证的通道版本）
+- [ADR-0001 嵌套 skill 任意深度发现](../../../adr/001-嵌套skill任意深度发现.md)
+- ADR-0003 内容搜索经上游 opt-in 工具与索引启用交付（声明口径：等于已在本机验证的通道版本）
 - [前序 Plan：dsh 插件适配 0.1.5-rc.1](../../archived/2026-09-10-dsh插件适配0.1.5-rc.1/spec.md)（tarball 交付与真机冒烟经验）
 - 上游契约：运行中安装树 `@deepseek-ai/dsh-app-boot/lib/index.js` 的 `unmetRequirements`/`evaluatePluginCompatibility`、`@deepseek-ai/dsh-skill/lib/types/index.d.ts`、`@deepseek-ai/dsh-skill-filesystem/lib/index.js`
 
@@ -170,7 +170,7 @@ status: completed
 
 ## 恢复入口
 
-1. 读 [story.md](story.md) 与「实施决策」，再读 note 01「版本取证与兼容性比对」 的取证表与拷问记录；需要复现安装时读 note 03「打包安装与真机验证」。
+1. 读 story.md 与「实施决策」，再读 note 01「版本取证与兼容性比对」 的取证表与拷问记录；需要复现安装时读 note 03「打包安装与真机验证」。
 2. 核对现场：`dsh --version` 应为 `0.2.1-rc.2`；`grep -n '"@deepseek-ai/dsh-skill"' packages/dsh-nested-skill/package.json` 应为 `"0.2.1-rc.2"`；`dsh --profile web --dump-config | grep nested-skill` 应有命中；`git log --oneline -1` 应在本 Plan 的提交之后。
 3. 下一动作：本 Plan 已归档为参考（生命周期 `reference`），无待办；新一轮版本适配另建 Plan，从 note 01「版本取证与兼容性比对」 的比对方法与安装链路事实起步。宿主已被安装改变，回滚用 `dsh plugin --profile web remove @kxh4892636/dsh-nested-skill`。
 4. 停止条件：出现「装好但 skill 目录没有嵌套 skill」时，先 `--dump-config` 与 `~/.dsh/profiles/web/package.json` 对照，再回到 01 的安装链路事实排查。

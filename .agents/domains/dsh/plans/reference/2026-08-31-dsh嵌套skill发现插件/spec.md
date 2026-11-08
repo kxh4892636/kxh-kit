@@ -90,9 +90,9 @@ DSH 内建 provider 只发现 `.agents/skills/<skill>/SKILL.md` 的一层形态�
 ## 上下文
 
 - `.flow/quest/2026-08-31-dsh嵌套skill发现插件.md`
-- [ADR](../../adr/0001-嵌套skill任意深度发现.md)
-- [CONTEXT](../../CONTEXT.md)
-- [CONTEXT-MAP](../../../CONTEXT-MAP.md)
+- [ADR](../../../adr/001-嵌套skill任意深度发现.md)
+- [CONTEXT](../../../CONTEXT.md)
+- [CONTEXT-MAP](../../../../CONTEXT-MAP.md)
 
 ## Issue
 

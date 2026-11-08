@@ -35,7 +35,7 @@ next_step: ''
 
 ## 上下文
 
-- [spec](../../spec.md)
+- [spec](spec.md)
 - 现有实现：`packages/dsh-session-manager/src/host.ts`（spawn）、`src/tools.ts`（session_spawn execute）
 
 ## 下一步

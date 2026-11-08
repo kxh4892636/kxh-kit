@@ -45,7 +45,7 @@ macOS 上 `dsh-alive` 走同一 CLI 与控制协议，不再被平台检查拒�
 
 - [执行契约](spec.md) 的「macOS（BSD ps）」「状态目录与控制通道」「待定」。
 - 上游 issue：note 03「Linux全功能支持」。
-- 用户故事 [US-002、US-003](story.md)。
+- 用户故事 US-002、US-003。
 
 ## 下一步
 

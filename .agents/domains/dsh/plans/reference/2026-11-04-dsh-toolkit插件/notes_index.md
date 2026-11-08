@@ -4,7 +4,7 @@
 
 | Name | Description | Related Note |
 | --- | --- | --- |
-| [001-拷问与方案定案](001-%E6%8B%B7%E9%97%AE%E4%B8%8E%E6%96%B9%E6%A1%88%E5%AE%9A%E6%A1%88.md) | 把 story 与 spec 的待定项收敛为有证据的决策：撤回的落地机制、入口命名、开关权威位置、旧包迁移、版本号。产出写回 [spec.md](spec.md) 与 [story.md](story.md)。 | — |
+| [001-拷问与方案定案](001-%E6%8B%B7%E9%97%AE%E4%B8%8E%E6%96%B9%E6%A1%88%E5%AE%9A%E6%A1%88.md) | 把 story 与 spec 的待定项收敛为有证据的决策：撤回的落地机制、入口命名、开关权威位置、旧包迁移、版本号。产出写回 [spec.md](spec.md) 与 story.md。 | — |
 | [002-包重命名与工具注册表](002-%E5%8C%85%E9%87%8D%E5%91%BD%E5%90%8D%E4%B8%8E%E5%B7%A5%E5%85%B7%E6%B3%A8%E5%86%8C%E8%A1%A8.md) | `packages/dsh-nested-skill` 变为 `packages/dsh-toolkit`（包名 `@kxh4892636/dsh-toolkit`、版本 `0.2.0`），宿主半提供工具注册表、逐工具开关状态持久化与宿主 HTTP 路由，嵌套 skill 发现作为首个工 | 001-拷问与方案定案 |
 | [003-客户端bundle与toolkit面板](003-%E5%AE%A2%E6%88%B7%E7%AB%AFbundle%E4%B8%8Etoolkit%E9%9D%A2%E6%9D%BF.md) | 插件带上浏览器半：向 root 作用域 `sidebar.panellist` 注册 `toolkit` 图标行、向 `main` 注册同 key 面板；面板列出全部工具并提供独立开关，读写宿主 `api/toolkit/state`。对应 US-002。 | 001-拷问与方案定案 |
 | [004-撤回工具](004-%E6%92%A4%E5%9B%9E%E5%B7%A5%E5%85%B7.md) | 会话 composer 工具栏、模型选择器左侧出现「撤回」按钮（工具关闭时不出现）；点击弹确认，确认后：停掉正在执行的一轮、把会话回到上一轮结束的状态、把本轮用户输入回填输入框、删除原会话。对应 US-004。 | 001-拷问与方案定案, 002-包重命名与工具注册表, 003-客户端bundle与toolkit面板 |

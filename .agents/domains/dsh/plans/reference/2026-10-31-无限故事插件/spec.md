@@ -490,11 +490,11 @@ sessionC  →  另一个故事
 
 ## 去哪查
 
-- 规则 → [RULES.md](./RULES.md)
-- 人物 → [核心](./shards/chars-core.md) / [常驻](./shards/chars-major.md)
-- 地点 → [locations](./shards/locations.md)
-- 线 → [threads](./shards/threads.md)
-- 大事 → [events](./shards/events.md)
+- 规则 → RULES.md
+- 人物 → 核心 / 常驻
+- 地点 → locations
+- 线 → threads
+- 大事 → events
 
 ## 悬置
 

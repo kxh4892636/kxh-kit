@@ -38,8 +38,8 @@ next_step: ''
 
 ## 上下文
 
-- [spec](../../spec.md)「工作环境」
-- [ADR-0001](../../adr/0001-嵌套skill任意深度发现.md)
+- [spec](spec.md)「工作环境」
+- [ADR-0001](../../../adr/001-嵌套skill任意深度发现.md)
 - DSH 插件管理文档：`C:\Users\kxh\kxh-awesome\projects\deepseek-harness\apps\cli\reference\README.zh.md`
 
 ## 下一步

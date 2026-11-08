@@ -67,8 +67,8 @@ status: completed
 - [spec](spec.md)
 - note 02「取证与兼容性比对」
 - 前序 Plan：[dsh 插件适配 0.2.1-rc.2](../../reference/2026-10-26-dsh插件适配0.2.1-rc.2/spec.md)
-- [领域语言](../../../CONTEXT.md)、[ADR-0001 嵌套 skill 任意深度发现](../../../adr/0001-嵌套skill任意深度发现.md)、[ADR-0003 内容搜索交付口径](../../../adr/0003-内容搜索经上游opt-in工具与索引启用交付.md)
-- [package.json](../../../../../packages/dsh-nested-skill/package.json)
+- [领域语言](../../../CONTEXT.md)、[ADR-0001 嵌套 skill 任意深度发现](../../../adr/001-嵌套skill任意深度发现.md)、ADR-0003 内容搜索交付口径
+- package.json
 
 
 ## 旧 spec
@@ -149,8 +149,8 @@ status: completed
 
 ## 上下文
 
-- [故事](story.md)、note 02「取证与兼容性比对」
-- [领域语言](../../../CONTEXT.md)、[ADR-0001](../../../adr/0001-嵌套skill任意深度发现.md)、[ADR-0003](../../../adr/0003-内容搜索经上游opt-in工具与索引启用交付.md)
+- 故事、note 02「取证与兼容性比对」
+- [领域语言](../../../CONTEXT.md)、[ADR-0001](../../../adr/001-嵌套skill任意深度发现.md)、ADR-0003
 - 前序 Plan：[dsh 插件适配 0.2.1-rc.2](../../reference/2026-10-26-dsh插件适配0.2.1-rc.2/spec.md)（安装链路与兼容性校验的第一手结论）
 - 上游证据：`resources\app.asar` 内 `dsh/node_modules/@deepseek-ai/dsh-app-boot/lib/index.js`（252–336 行）、`dsh-skill/lib/index.js`、`dsh-skill-filesystem/lib/index.js`、`dsh-home-paths/lib/index.js`
 
@@ -160,7 +160,7 @@ status: completed
 
 ## 恢复入口
 
-1. 读 [story.md](story.md) 与「实施决策」，再读 note 04「打包安装与宿主验证」 的安装与宿主证据；需要复现取证时读 note 02「取证与兼容性比对」。
+1. 读 story.md 与「实施决策」，再读 note 04「打包安装与宿主验证」 的安装与宿主证据；需要复现取证时读 note 02「取证与兼容性比对」。
 2. 核对现场：`& '<app>\resources\runtime\cli\bin\dsh.cmd' --version` 应为 `0.2.1-rc.3`；`~/.dsh/profiles/desktop/package.json` 的 bundles 末项应为 `@kxh4892636/dsh-nested-skill`；`git log --oneline -1` 应在本 Plan 的归档提交之后。
 3. 下一动作：本 Plan 已归档为参考（生命周期 `reference`），无待办；宿主换版本时另建 Plan，从 note 02「取证与兼容性比对」 的兼容性校验说明与 note 03「声明对齐到rc.3」 的 peer 矩阵起步。
 4. 停止条件：出现「装好但宿主 skill 目录没有嵌套 skill」时，先看 profile 清单是否含 bundle、再确认宿主是否重组（desktop 无 `--dump-config`，只能靠目录与日志），不要用 `allow-version` 绕过。回滚：`plugin --profile desktop remove @kxh4892636/dsh-nested-skill`。

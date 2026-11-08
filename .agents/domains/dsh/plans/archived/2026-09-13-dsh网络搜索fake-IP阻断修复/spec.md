@@ -116,9 +116,9 @@ DSH 启动器（`dsh` bin → `dsh-app-boot` 的 `loadLayeredEnv`）把四个代
 
 ## 上下文
 
-- [澄清与取证记录](../../../../../.flow/quest/2026-09-13-dsh网络搜索fake-IP阻断修复.md)
-- [ADR-0005 fake-IP 解析经代理声明修正](../../../adr/0005-fake-ip解析经代理声明修正.md)
-- [ADR-0003 内容搜索经上游 opt-in 工具与索引启用交付](../../../adr/0003-内容搜索经上游opt-in工具与索引启用交付.md)
+- 澄清与取证记录
+- [ADR-0005 fake-IP 解析经代理声明修正](../../../adr/005-fake-ip解析经代理声明修正.md)
+- ADR-0003 内容搜索经上游 opt-in 工具与索引启用交付
 - 报错来源：`@deepseek-ai/dsh-web-fetch-http/lib/index.js:55-79`（`resolvePublicAddresses`）、`:495-509`（`requestOnce` 的代理分支）
 - 代理策略：`@deepseek-ai/dsh-http-proxy/lib/index.js`（`resolveProxyPolicy`/`proxyRouteFor`/`installProxyFromEnvironment`）
 - 环境层：`@deepseek-ai/dsh-app-boot/lib/index.js:1006-1099`（`HOME_LAYER_PROXY_NAMES`/`loadLayeredEnv`）

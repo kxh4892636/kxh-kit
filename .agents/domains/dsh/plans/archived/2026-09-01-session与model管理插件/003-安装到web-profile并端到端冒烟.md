@@ -40,9 +40,9 @@ next_step: ''
 
 ## 上下文
 
-- [spec](../../spec.md)
-- [ADR-0002](../../adr/0002-会话管理能力以模型工具面交付.md)
-- [ADR-0003](../../adr/0003-内容搜索经上游opt-in工具与索引启用交付.md)
+- [spec](spec.md)
+- ADR-0002
+- ADR-0003
 - 前例安装验证：`../../reference/2026-08-31-dsh嵌套skill发现插件/02-安装到web-profile并验证.md`
 - profile：`C:\Users\kxh\.dsh\profiles\web`；GUI：`http://127.0.0.1:3080`
 

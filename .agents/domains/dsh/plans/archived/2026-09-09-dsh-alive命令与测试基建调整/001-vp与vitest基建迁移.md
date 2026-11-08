@@ -37,7 +37,7 @@ next_step: ''
 
 - [执行契约](spec.md)。
 - 迁移前基线：`pnpm --filter dsh-keep-alive test` 32 项通过（node:test，约 16 s）；`check` 通过。
-- 参考：[dsh-nested-skill 配置](../../../../../packages/dsh-nested-skill/vite.config.ts)。
+- 参考：dsh-nested-skill 配置。
 
 ## 下一步
 

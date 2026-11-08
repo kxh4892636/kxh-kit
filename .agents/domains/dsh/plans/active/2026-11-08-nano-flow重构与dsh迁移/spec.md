@@ -23,15 +23,16 @@ status: completed
 - note 002 完成 dsh 领域文档生成与旧 dsh 文档迁移。
 - note 003 完成 17 个 dsh 旧 plans 迁移。
 - note 004 把生成的 `CONTEXT-MAP.md` 从工作区根迁到 `.agents/domains/`（版本 0.5.11）。
+- note 005 修正旧 Plan 的 119 条失效相对链接：46 条重指、73 条死链降为纯文本。
 - `nano_flow_check` 通过；插件已安装 0.5.11。
 
 ## 当前进度
 
-全部完成，等待用户重启宿主验收。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
+全部完成，等待用户验收（note 004 需重启宿主才看到新提示词）。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
 
 ## 恢复入口
 
-先读 `notes_index.md`；插件细节在 001，领域文档在 002，旧 plans 映射与截断在 003，`CONTEXT-MAP.md` 位置修正在 004。
+先读 `notes_index.md`；插件细节在 001，领域文档在 002，旧 plans 映射与截断在 003，`CONTEXT-MAP.md` 位置修正在 004，旧 Plan 链接校正在 005。
 
 ## 追踪 Note
 
