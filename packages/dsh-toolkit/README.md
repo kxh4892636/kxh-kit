@@ -120,13 +120,14 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
 
 挂载后会话里多出五样东西:
 
-| 类别       | 内容                                                                                                               |
-| ---------- | ------------------------------------------------------------------------------------------------------------------ |
-| 固定提示词 | `prompts/system.md` 与 `.agents/domains/GUIDE.md` 的当前快照拼接, 作为系统提示词段 `order: 1` 注入                 |
-| 每轮提示词 | `prompts/user.md`, 作为运行时上下文在每轮第一次 pre-step 后追加; 不冒充用户消息, UI 以 context 卡片显示            |
-| 工具       | `nano_flow_create`(domain / plan / note 的目录与模板) 与 `nano_flow_check`(校验 + 生成全部索引)                    |
-| skill      | `skills/` 动态发现: `ask`,`do`,`to-skill`,`code-spec`,`learning`,`kaizen`                                          |
-| Note 面板  | 输入框上方 dock: 当前会话唯一 active Plan 的未完成 note(中文状态名 + 名称, hover 显示概述), 客户端 5s 轮询宿主路由 |
+| 类别       | 内容                                                                                                                                          |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| 固定提示词 | `prompts/system.md` 与 `.agents/domains/GUIDE.md` 的当前快照拼接, 作为系统提示词段 `order: 1` 注入                                            |
+| 每轮提示词 | `prompts/user.md`, 作为运行时上下文在每轮第一次 pre-step 后追加; 不冒充用户消息, UI 以 context 卡片显示                                       |
+| 工具       | `nano_flow_create`(domain / plan / note 的目录与模板) 与 `nano_flow_check`(校验 + 生成全部索引)                                               |
+| skill      | `skills/` 动态发现: `ask`,`do`,`to-skill`,`code-spec`,`learning`,`kaizen`                                                                     |
+| Note 面板  | 输入框上方 dock: 当前会话唯一 active Plan 的未完成 note(中文状态名 + 名称, hover 显示概述), 客户端 5s 轮询宿主路由                            |
+| Plan 日志  | 每轮把 `<plan>/log.jsonl` 追加一条 compact 轨迹(user/assistant/工具摘要/usage/seq), 绑定表在 `$DSH_HOME/toolkit/nano-flow-plan-bindings.json` |
 
 **目录布局**
 
@@ -241,7 +242,9 @@ metadata:
    spec 的状态与 `## 追踪 Note` 自动更新。
 9. 在 nano-flow 会话里改一条未完成 note 的 `status`：输入框上方的 Note 面板 5s 内更新；
    hover 显示该 note 的 `description`；note 全部完成或 workspace 里没有唯一 active Plan 时面板消失。
-   重启/重开会话后历史正常加载，会话日志里不再出现 `nano-flow/notes`。
+10. 在 nano-flow 会话里正常对话几轮（至少触发一次 `nano_flow_*` 工具）：当前 Plan 目录出现
+    `log.jsonl`，首行是本会话段头，其后每轮一行 `turn`（sessionId/turn/user/assistant/tools/usage/seq）。
+    重启/重开会话后历史正常加载，会话日志里不再出现 `nano-flow/notes`。
 
 ## 配置
 

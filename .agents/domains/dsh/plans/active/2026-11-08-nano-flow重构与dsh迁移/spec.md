@@ -28,11 +28,12 @@ status: in_progress
 - note 006 把固定提示词改名为 `prompts/system.md`，段名改 `nano-flow:system`，顺带消除被当成 `AGENTS.md` 注入的副作用。
 - note 007 新增会话内 Note 面板：`conversation.input.dock` + 宿主路由快照 + 客户端 5s 轮询；行内为「中文状态名 + note 名称」（已验收）。
 - note 008 定位并修复 `nano-flow/notes` 事件导致的历史加载失败：补 `ignorable` 止血，面板数据改走宿主路由；用户已确认历史加载正常（`completed`）。
-- `nano_flow_check` 通过；插件已安装 0.5.21。
+- note 009 实现 Plan 轨迹日志：每轮 compact 记录追加到 `<plan>/log.jsonl`，宿主事件订阅 + 持久化回填（`blocked`，等重启验收）。
+- `nano_flow_check` 通过；插件已安装 0.5.22。
 
 ## 当前进度
 
-note 001–008 已完成并验收；note 009（Plan 轨迹日志）已收敛设计、处于 `pending`，等 `/do` 实现：每 Plan 一个 `log.jsonl`，只存 compact 轨迹（每轮一条），宿主侧由 `session/event` 实时聚合、`turn/end` 落盘，绑定持久化在宿主文件，回填当前会话。测试 262 项、`vp check` 通过；插件已装 0.5.21。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
+note 001–008 完成；note 009 已实现（0.5.22）并处于 `blocked`，只差重启宿主验证 live 绑定、`log.jsonl` 落盘与回填。本轮同时把本地 `vite-plus` 工具树从 0.1.6 升级到 **0.2.2-rc.1**（与运行宿主一致），后续实现与取证都以它为准。测试 277 项、`vp check` 通过。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
 
 ## 恢复入口
 
@@ -44,4 +45,4 @@ note 001–008 已完成并验收；note 009（Plan 轨迹日志）已收敛设�
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [009-Plan轨迹日志](009-Plan%E8%BD%A8%E8%BF%B9%E6%97%A5%E5%BF%97.md) | 在每个 Plan 目录追加 log.jsonl，把对应 nano-flow 会话的每轮轨迹（精简）持久化。 | pending | — | 按设计实现宿主半：绑定表 + session/event 聚合 + turn/end 追加，再接回填 | 007-会话内未完成note面板, 008-修复notes事件导致会话历史加载失败 |
+| [009-Plan轨迹日志](009-Plan%E8%BD%A8%E8%BF%B9%E6%97%A5%E5%BF%97.md) | 在每个 Plan 目录追加 log.jsonl，把对应 nano-flow 会话的每轮轨迹（精简）持久化。 | blocked | 0.5.22 已实现并安装；等待重启宿主验证 live 事件绑定、log.jsonl 落盘与回填 | 重启后在 nano-flow 会话聊几轮，确认 <plan>/log.jsonl 出现 session 段头与 turn 记录 | 007-会话内未完成note面板, 008-修复notes事件导致会话历史加载失败 |

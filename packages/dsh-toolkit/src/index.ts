@@ -1,4 +1,4 @@
-import { join } from "node:path";
+import { isAbsolute, join } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import { resolveDshHome } from "@deepseek-ai/dsh-home-paths";
 import z from "@deepseek-ai/schemastery";
@@ -18,6 +18,8 @@ import { recordMount, restoreMountReport } from "./nano-flow/mount-report.js";
 import { notesForWorkspace } from "./nano-flow/notes.js";
 import { NANO_FLOW_PRESET_ID, nanoFlowEntryUrl } from "./nano-flow/preset.js";
 import { attachRotation, type RotationSession } from "./nano-flow/rotate.js";
+import { createPlanLogService } from "./nano-flow/plan-log-service.js";
+import { listActivePlans } from "./nano-flow/notes.js";
 import { hostServices } from "./nano-flow/services.js";
 import { createNestedSkillTool } from "./host/tools/nested-skill.js";
 import { createOfficeSkillsTool } from "./host/tools/office-skills.js";
@@ -147,6 +149,35 @@ export const apply = (ctx: Context, config: Config = {}): void => {
   });
   ctx.inject(["workspaceRegistry"], (child: Context) => {
     void runtime.cleanupArchive(child);
+  });
+  // Plan 轨迹日志：订阅会话事件 firehose（seed 不触发），按轮把 compact 摘要追加到 Plan 的 log.jsonl。
+  const planLog = createPlanLogService({
+    home: resolveDshHome(),
+    domainRoot: config.domainRoot ?? DEFAULT_DOMAIN_ROOT,
+    logger: ctx.logger,
+    plansFor: (workspace: string) => {
+      const domainsRoot = isAbsolute(config.domainRoot ?? DEFAULT_DOMAIN_ROOT)
+        ? (config.domainRoot ?? DEFAULT_DOMAIN_ROOT)
+        : join(workspace, config.domainRoot ?? DEFAULT_DOMAIN_ROOT);
+      return listActivePlans(domainsRoot);
+    },
+  });
+  ctx.effect(() => () => void planLog.dispose(), "toolkit: plan log");
+  ctx.inject(["sessionPersistence"], (child: Context) => {
+    const persistence = serviceOf<{ open(id: string, mode: "read"): Promise<unknown> }>(
+      child,
+      "sessionPersistence",
+    );
+    if (persistence === undefined || typeof persistence.open !== "function") return;
+    planLog.attach(persistence as never);
+    const dispose = child.on(
+      "session/event",
+      (session: unknown, event: unknown) => {
+        planLog.onEvent(session, event);
+      },
+      { global: true },
+    );
+    child.effect(() => dispose as () => void, "toolkit: plan log subscription");
   });
   void runtime.start();
 };

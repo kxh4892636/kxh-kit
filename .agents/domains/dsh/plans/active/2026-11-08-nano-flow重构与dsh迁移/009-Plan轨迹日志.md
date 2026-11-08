@@ -1,12 +1,12 @@
 ---
 name: "009-Plan轨迹日志"
 description: "在每个 Plan 目录追加 log.jsonl，把对应 nano-flow 会话的每轮轨迹（精简）持久化。"
-status: pending
-reason:
+status: blocked
+reason: "0.5.22 已实现并安装；等待重启宿主验证 live 事件绑定、log.jsonl 落盘与回填"
 related_noted:
   - '007-会话内未完成note面板'
   - '008-修复notes事件导致会话历史加载失败'
-next_step: '按设计实现宿主半：绑定表 + session/event 聚合 + turn/end 追加，再接回填'
+next_step: '重启后在 nano-flow 会话聊几轮，确认 <plan>/log.jsonl 出现 session 段头与 turn 记录'
 ---
 
 # 009-Plan轨迹日志
@@ -28,15 +28,14 @@ next_step: '按设计实现宿主半：绑定表 + session/event 聚合 + turn/e
 
 ## 取证
 
-> 版本提醒：已安装包树是 `@deepseek-ai/dsh 0.1.6-alpha.1`（`SESSION_FORMAT_VERSION=3`），运行宿主是 Desktop 0.2.2-rc.1（v4，`session.v4.jsonl.zstd`）。下列 API 在 0.2.2 的 asar 里逐一确认仍存在，但字段细节实现时以运行版复核；行号来自 0.1.6 树。
+> 版本基线（2026-11-08 更新）：本地 `vite-plus` 工具树已用 npm 升级到 **0.2.2-rc.1**，与运行宿主 `app.asar` 内的 `@deepseek-ai/dsh-session@0.2.2-rc.1` 同版本；后续实现与核对都以该树为准。事件字段已用真实会话日志复核。
 
 - 轮转会**物理删除**旧会话日志：`rotate.ts:172-201` 走 archive → detach → `deleteSessionLogs`（延迟 150 ms），旧日志目录被删；所以「事后导出」必丢历史，必须边发生边落盘。轮转是**新会话新日志**（`sessionController.create()` 铸新 `session-<uuid>`），不是续写。
-- 实时通道：`ctx.on('session/event', (session, event) => void, { global: true })`，提交后 fire-and-forget；**构造函数 seed 不触发**（`dsh-session/lib/types/index.d.ts:51-62,126-127`），所以恢复会话必须先用快照补齐。
-- 受支持的读取面：`ctx.sessionQuery.observeSession(id)` / `readSession(id)` 返回 `{header, inheritedEventCount, events[]}`（数组快照，非流）；`ctx.sessionPersistence.open(id,'read').read(offset, length)` 支持按 seq 增量读；`stat(id)` 给 header/eventCount/sizeBytes。已弃用且禁止新增：`eventAt` / `snapshotEvents` / `ownEvents`（`dsh-session/README.zh.md:60`）。
-- 会话定位：`header.cwd` 决定工作区；`sessions.get(id).header` 取活会话，`persistence.stat(id).header` 取冷会话。**没有 API 暴露日志路径**，但 `open` / `stat` 会按 id 扫所有项目目录，重启后无活跃会话也能读，所以轨迹日志不需要存宿主日志路径。
-- 官方增量范式：`dsh-api-session-controller/lib/types/history.js:158-178`（开场快照 + `{global:true}` 订阅 + 用快照补 seed 缺口），可作模板。
-- 导出实现可参考：`dsh-session-log-export` 先 `sessions.flush(session)`，再 `persistence.open(id,'read')` + `read(0)` + `serializeSessionLog`（首行 header，其后每行原始事件 JSON）；ZIP 分块与压缩与本需求无关。
-- 规模：单事件均值 2–3 KB、中位 0.3–0.6 KB；本会话 2.47 MB zstd → 7.84 MB 未压缩（1493 帧）；大条目是 `assistant/message` 的 compact stream 与 `tool/result`。10 万事件≈200–300 MB 原始 JSONL，采集时必须边收边截断、避免反复 `read(0)`。
+- 实时通道：`ctx.on('session/event', (session, event) => void, { global: true })`，提交后 fire-and-forget；**构造函数 seed 不触发**，所以恢复会话必须先用快照补齐。
+- 受支持的读取面：`ctx.sessionQuery.observeSession(id)` / `readSession(id)` 返回 `{header, events[]}`（数组快照）；`ctx.sessionPersistence.open(id,'read').read(offset, length)` 支持按 seq 增量读。已弃用且禁止新增：`eventAt` / `snapshotEvents` / `ownEvents`。
+- 会话定位：`header.cwd` 决定工作区；没有 API 暴露宿主日志路径，也不需要——绑定表只存 `cwd + planPath`。
+- 真实事件形状（v4 日志实测）：`user/message` 不带 `turn`（需按 `turn/start`→`turn/end` 的 seq 窗口归属）；`assistant/message` 为 `{turn, step, message.content[{type:text|reasoning|tool-call}], usage{inputTokens,outputTokens,cacheReadTokens,cacheWriteTokens,totalTokens}}`；`tool/call {callId,name,arguments}`；`tool/result {message.content[].text, isError, message.source.callId}`；`turn/end {turn, reason}`；`time` 为 epoch ms。
+- 规模：单事件均值 2–3 KB；本会话 2.47 MB zstd → 7.84 MB 未压缩（1493 帧）。compact 实测：本会话 19 轮 / 518 次工具 / **945 KB**。
 - 既有约束：不能把这类状态写进会话事件（question 009），绑定信息必须存宿主文件。
 
 ## 设计
@@ -76,6 +75,22 @@ next_step: '按设计实现宿主半：绑定表 + session/event 聚合 + turn/e
 - 轮转后新会话在同一文件追加新段头与记录。
 - 含 subagent 的任务不产生子会话记录。
 - 回填：已存在绑定的会话，历史轮次补齐且不重复。
+
+## 实施记录（0.5.22）
+
+- `src/nano-flow/plan-log.ts`：compact 记录构建（截断、工具配对、usage、seq 窗口归属）、绑定表读写、`log.jsonl` 追加。
+- `src/nano-flow/plan-log-service.ts`：绑定（首次 `nano_flow_*` 工具调用触发；`turn/end` 不建绑定，只续写已绑定会话）、快照回填、`session/event` firehose 增量（`{global:true}`）、按会话串行化写入、`dispose` 关闭读句柄；排除 subagent；多 active Plan 拒绝绑定。
+- `src/index.ts`：根插件创建服务，`ctx.inject(["sessionPersistence"])` 接持久化读句柄并订阅 `session/event`。
+- 绑定表：`$DSH_HOME/toolkit/nano-flow-plan-bindings.json`；日志：`<cwd>/<planPath>/log.jsonl`。
+- 本地 `vite-plus` 工具树已升级到 0.2.2-rc.1（与宿主一致），不再依赖 0.1.6。
+
+## 验证证据
+
+- 测试 **277 项通过**（36 文件），新增 `plan-log.test.ts` 11 例 + `plan-log-service.test.ts` 4 例（绑定、回填、增量、重启不重复、subagent 跳过、多 Plan 拒绝）。
+- `vp check`：121 文件格式 + 92 文件 lint/类型全过。
+- 真实会话探针（`session-80f0ac73`，3146 条事件）：19 轮全部生成记录、518 次工具调用、compact 总计 **945 KB**（原始 7.84 MB）。
+- 构建/安装：0.5.22 已装入 desktop profile，安装包与本地构建 SHA256 一致；插件 peer 解析指向本地 0.2.2 树。
+- **未验证（需重启宿主）**：真实运行时绑定触发、`log.jsonl` 落盘、轮转后续写；因为这些依赖宿主 live 事件与持久化句柄。
 
 ## 第 1 轮拷问
 
