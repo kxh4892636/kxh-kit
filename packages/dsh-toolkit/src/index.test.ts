@@ -243,9 +243,31 @@ describe("toolkit plugin entry", () => {
       "---\nname: '001-第一个'\ndescription: '概述'\nstatus: pending\n---\n",
       "utf8",
     );
+    const bindings = join(directory, "bindings.json");
     const { ctx, routes } = makeHarness({ notesSession: { id: "session-1", cwd: directory } });
-    apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
+    apply(ctx as never, {
+      stateFile: join(directory, "state.json"),
+      sessionsRoot: directory,
+      bindingsFile: bindings,
+    });
     await vi.waitFor(() => expect(routes.size).toBe(6));
+    // 未绑定 Plan 的会话不显示面板。
+    const unbound = await routes.get(TOOLKIT_NANO_FLOW_NOTES_PATH)?.(
+      new Request(`http://127.0.0.1${TOOLKIT_NANO_FLOW_NOTES_PATH}?sessionId=session-1`),
+    );
+    await expect(unbound?.json()).resolves.toEqual({ snapshot: null });
+
+    await writeFile(
+      bindings,
+      JSON.stringify({
+        "session-1": {
+          planPath: ".agents/domains/dsh/plans/active/2026-11-08-演示",
+          cwd: directory,
+          boundAt: "2026-11-08T00:00:00.000Z",
+        },
+      }),
+      "utf8",
+    );
     const response = await routes.get(TOOLKIT_NANO_FLOW_NOTES_PATH)?.(
       new Request(`http://127.0.0.1${TOOLKIT_NANO_FLOW_NOTES_PATH}?sessionId=session-1`),
     );

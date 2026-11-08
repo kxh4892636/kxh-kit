@@ -114,6 +114,46 @@ describe("createPlanLogService", () => {
     await service.dispose();
   });
 
+  it("binds on the first run_code call once the session selected nano-flow", async () => {
+    const root = await makeRoot();
+    const plan = planFor(root);
+    const preset = event("agent-preset/selected", 0, { agentPreset: "nano-flow" });
+    const events = [
+      ...turn(1, 1),
+      event("tool/call", 100, {
+        turn: 2,
+        step: 1,
+        callId: "call-ptc",
+        name: "run_code",
+        arguments: "{}",
+      }),
+    ];
+    const persistence = makePersistence([preset, ...events]);
+    const service = makeService(root, () => [plan]);
+    service.attach(persistence);
+    service.onEvent(session(root), preset);
+    service.onEvent(session(root), events[events.length - 1]);
+    const file = join(root, "toolkit", "nano-flow-plan-bindings.json");
+    await vi.waitFor(async () => {
+      expect(await readBindings(file)).toMatchObject({ s1: { planPath: expect.any(String) } });
+    });
+    await service.dispose();
+  });
+
+  it("ignores sessions whose selected preset is not nano-flow", async () => {
+    const root = await makeRoot();
+    const plan = planFor(root);
+    const preset = event("agent-preset/selected", 0, { agentPreset: "standard" });
+    const events = [...turn(1, 1), nanoFlowToolCall(2, 100)];
+    const service = makeService(root, () => [plan]);
+    service.attach(makePersistence([preset, ...events]));
+    service.onEvent(session(root), preset);
+    service.onEvent(session(root), events[events.length - 1]);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(await readBindings(join(root, "toolkit", "nano-flow-plan-bindings.json"))).toEqual({});
+    await service.dispose();
+  });
+
   it("keeps the binding turn whole when binding happens mid-turn", async () => {
     const root = await makeRoot();
     const plan = planFor(root);

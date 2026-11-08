@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile, appendFile } from "node:fs/promises";
 import { dirname, join, relative } from "node:path";
 
@@ -258,6 +259,16 @@ export const readBindings = async (file: string): Promise<BindingTable> => {
   try {
     const raw = await readFile(file, "utf8");
     const parsed = JSON.parse(raw) as unknown;
+    return typeof parsed === "object" && parsed !== null ? (parsed as BindingTable) : {};
+  } catch {
+    return {};
+  }
+};
+
+/** 同步读取绑定表；文件缺失或损坏时返回空表（宿主路由是同步返回快照的）。 */
+export const readBindingsSync = (file: string): BindingTable => {
+  try {
+    const parsed = JSON.parse(readFileSync(file, "utf8")) as unknown;
     return typeof parsed === "object" && parsed !== null ? (parsed as BindingTable) : {};
   } catch {
     return {};

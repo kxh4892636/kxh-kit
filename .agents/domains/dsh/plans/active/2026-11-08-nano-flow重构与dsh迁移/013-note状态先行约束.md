@@ -1,10 +1,9 @@
 ---
 name: "013-note状态先行约束"
 description: "nano-flow 系统提示词要求新建或变更 note 时先落 YAML 头再补正文，使 Note 看板及时反映状态。"
-status: in_progress
+status: completed
 related_noted:
   - '007-会话内未完成note面板'
-next_step: "0.5.24 构建安装后重启宿主，确认会话注入的 nano-flow 提示词含「状态先行」条款且看板按 YAML 头刷新"
 ---
 
 # 013-note状态先行约束
@@ -26,3 +25,8 @@ Note 看板只读 note 的 YAML 头（`status`/`next_step`/`description`），�
 - 构建产物 `dist/nano-flow/prompts/system.md` 含该条款。
 - 重启宿主后，新会话注入的 `nano-flow:system` 段包含该条款（挂载快照 promptBytes 变化）。
 - 看板在 note 状态变更后 5s 内刷新（沿用既有轮询，不改代码）。
+## live 验收（2026-11-08，0.5.25）
+
+- 已装 `dist/nano-flow/prompts/system.md` 含「状态先行」行；本会话注入的固定提示词同文，条款在场。
+- 看板数据面：`notesForWorkspace` 只在请求时现算 YAML 头（`src/nano-flow/notes.ts:105-124`，注释「每次请求都是当前文件系统状态」）；客户端每 5s 拉一次（`src/client/notes-dock.ts:134`，`NANO_FLOW_NOTES_REFRESH_MS=5_000`），且仅在 `agentPreset=nano-flow` 的会话渲染（同文件 111 行）。
+- 本轮把 014 改为 completed 后，面板应在 5s 内少一条未完成 note（数据源与轮询间隔已按上述代码取证，未改代码）。

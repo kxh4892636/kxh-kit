@@ -6,6 +6,7 @@ import {
   BINDINGS_FILE,
   buildTurnRecord,
   groupByTurn,
+  isNanoFlowPreset,
   planLogPath,
   planRelativePath,
   readBindings,
@@ -43,6 +44,8 @@ export interface PersistenceLike {
 export interface PlanLogOptions {
   /** `$DSH_HOME`。 */
   readonly home: string;
+  /** 绑定表路径；缺省 `$DSH_HOME/toolkit/<BINDINGS_FILE>`。 */
+  readonly bindingsFile?: string;
   /** 领域根（相对工作区或绝对路径）。 */
   readonly domainRoot: string;
   readonly logger: { warn(message: string): void };
@@ -88,7 +91,7 @@ const turnedKey = (sessionId: string, turn: number): string => `${sessionId}#${t
  * @returns 服务实例。
  */
 export const createPlanLogService = (options: PlanLogOptions): PlanLogService => {
-  const bindingsFile = join(options.home, "toolkit", BINDINGS_FILE);
+  const bindingsFile = options.bindingsFile ?? join(options.home, "toolkit", BINDINGS_FILE);
   const sessions = new Map<string, SessionState>();
   let persistence: PersistenceLike | undefined;
 
@@ -264,21 +267,38 @@ export const createPlanLogService = (options: PlanLogOptions): PlanLogService =>
     state.cursor = maxSeq;
   };
 
+  /** 各会话最近一次的预设选择：`true`=nano-flow，`false`=其它，缺席=未知。 */
+  const presets = new Map<string, boolean>();
+
   const onEvent = (rawSession: unknown, rawEvent: unknown): void => {
     const session = asSession(rawSession);
     const event = asEvent(rawEvent);
     if (session === undefined || event === undefined) return;
+    const sessionId = session.id;
+    if (sessionId === undefined) return;
+    if (event.type === "agent-preset/selected") {
+      presets.set(sessionId, isNanoFlowPreset([event]));
+      return;
+    }
     const header = session.header ?? {};
     if (header.origin === "subagent" || (header.delegationDepth ?? 0) > 0) return;
+    if (event.type !== "tool/call" && event.type !== "turn/end") return;
+    const nanoFlow = presets.get(sessionId);
+    if (nanoFlow === false) return;
     const state = ensureState(session);
     if (state === undefined) return;
-    if (event.type === "tool/call") {
-      const data = isRecord(event.data) ? event.data : {};
-      const name = typeof data["name"] === "string" ? data["name"] : "";
-      if (!name.startsWith("nano_flow_")) return;
-    }
-    if (event.type !== "tool/call" && event.type !== "turn/end") return;
-    const allowBind = event.type === "tool/call";
+    const data = event.type === "tool/call" && isRecord(event.data) ? event.data : {};
+    const name = typeof data["name"] === "string" ? data["name"] : "";
+    const nanoTool = name.startsWith("nano_flow_");
+    // 绑定只发生在本插件的会话：预设已知为 nano-flow 时，PTC 的首个 `run_code` 调用即绑定；
+    // 预设未知（老宿主没有预设选择事件）时退回「只认 nano_flow_* 调用」。
+    if (
+      event.type === "tool/call" &&
+      !nanoTool &&
+      (state.binding !== undefined || nanoFlow !== true)
+    )
+      return;
+    const allowBind = event.type === "tool/call" && (nanoTool || nanoFlow === true);
     state.chain = state.chain.then(
       () => flush(state, session, allowBind),
       () => flush(state, session, allowBind),

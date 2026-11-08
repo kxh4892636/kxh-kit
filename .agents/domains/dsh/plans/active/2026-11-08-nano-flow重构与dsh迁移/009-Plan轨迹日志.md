@@ -5,7 +5,7 @@ status: in_progress
 related_noted:
   - '007-会话内未完成note面板'
   - '008-修复notes事件导致会话历史加载失败'
-next_step: '重装 0.5.23 并重启宿主，触发绑定轮，确认记录含完整 user/assistant/tools/usage/seq；再验轮转后新段头'
+next_step: '重启 0.5.26 后调用一次工具，确认绑定表出现本会话、log.jsonl 写出段头与绑定轮；再验 /rotate 后新段头'
 ---
 
 # 009-Plan轨迹日志
@@ -182,3 +182,8 @@ live 验收（0.5.22）与绑定轮修复（0.5.23）见 [011-轨迹日志绑定
 
 - 用户原话「把 plan 对应的 session 的所有历史轨迹全部保留」与「只存 compact」存在张力：compact 会丢流式细节与完整工具输出。按用户最终选择执行，并在验收里明确这一点。
 - 「所有历史」覆盖范围最终由 3 个约束收窄：只 nano-flow 预设会话、排除 subagent、只从本次变更起记录（当前会话可回填）。
+## live 复验受阻（2026-11-08，0.5.25 + PTC）
+
+- 本会话 turn 2 末尾执行 `nano_flow_check` 后，`$DSH_HOME/toolkit/nano-flow-plan-bindings.json` 仍只有旧会话 `session-17660661`，没有为本会话写入绑定；`log.jsonl` 仍是 6 行（旧会话段头 + 5 轮）。
+- 原因假设：014 把预设切到 PTC 后，宿主看到的工具调用是 `run_code`，本服务的绑定触发条件是 `tool/call` 且 `data.name` 以 `nano_flow_` 开头，不再命中；另一种可能是嵌套的 `tool/call` 事件只在轮末进入持久化，而轮末 flush 带 `allowBind=false`。
+- 待验证：下一轮读 `log.jsonl` 看有无本会话段头/记录；确认缺失后把绑定条件改为「PTC 会话里 `run_code` 的首次 `tool/call` 也允许绑定」（用会话预设限定在 nano-flow 会话），再复验绑定轮完整性。

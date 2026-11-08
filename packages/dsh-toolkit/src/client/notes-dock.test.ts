@@ -61,6 +61,7 @@ describe("NotesDock", () => {
     fetchNotes.mockResolvedValue(snapshot);
     render(createElement(NotesDock, props("nano-flow")));
     expect(await screen.findByTestId("nano-flow-notes-panel")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: /Note/u }));
     for (const note of snapshot.notes) expect(screen.getByText(note.name)).toBeDefined();
     expect(screen.getByText("1 进行中 · 1 阻塞 · 1 待处理")).toBeDefined();
   });
@@ -69,6 +70,7 @@ describe("NotesDock", () => {
     fetchNotes.mockResolvedValue(snapshot);
     render(createElement(NotesDock, props("nano-flow")));
     await screen.findByTestId("nano-flow-notes-panel");
+    fireEvent.click(screen.getByRole("button", { name: /Note/u }));
     expect(screen.getByText("阻塞")).toBeDefined();
     expect(screen.getByText("待处理")).toBeDefined();
   });
@@ -77,18 +79,20 @@ describe("NotesDock", () => {
     fetchNotes.mockResolvedValue(snapshot);
     render(createElement(NotesDock, props("nano-flow")));
     await screen.findByTestId("nano-flow-notes-panel");
+    fireEvent.click(screen.getByRole("button", { name: /Note/u }));
     const tooltip = screen.getByTitle("进行中的概述");
     expect(tooltip.textContent).toBe("001-进行中");
   });
 
-  it("starts expanded and folds on header click", async () => {
+  it("starts collapsed and unfolds on header click", async () => {
     fetchNotes.mockResolvedValue(snapshot);
     render(createElement(NotesDock, props("nano-flow")));
     await screen.findByTestId("nano-flow-notes-panel");
-    expect(screen.getByText("001-进行中")).toBeDefined();
-    fireEvent.click(screen.getByRole("button", { name: /Note/u }));
     expect(screen.queryByText("001-进行中")).toBeNull();
     expect(screen.getByText("展开")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: /Note/u }));
+    expect(screen.getByText("001-进行中")).toBeDefined();
+    expect(screen.getByText("收起")).toBeDefined();
   });
 
   it("polls the host again after the refresh interval", async () => {

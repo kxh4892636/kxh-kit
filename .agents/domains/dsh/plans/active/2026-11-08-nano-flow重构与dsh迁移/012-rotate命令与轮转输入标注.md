@@ -1,11 +1,12 @@
 ---
 name: "012-rotate命令与轮转输入标注"
 description: "新增 /rotate 命令手动触发轮转（新会话、自动只读恢复、切过去），并把自动轮转时触发的用户输入用 XML 标注为轮转前输入。"
-status: in_progress
+status: blocked
+reason: "等用户执行 /rotate 做 live 验收（命令、客户端切换）；自动轮转的 XML 标注需要阈值触发的真实轮转，尚未造出"
 related_noted:
   - '010-轮转保留分组与置顶'
   - '011-轨迹日志绑定轮修复'
-next_step: "实现 rotate 引擎与 /rotate 命令、输入 XML 标注、客户端切换与路由；补测试后构建安装 0.5.24"
+next_step: "用户执行 /rotate 后核对：命令被接受、客户端切到新会话、新会话拿到 seed；XML 标注待自动轮转时验"
 ---
 
 # 012-rotate命令与轮转输入标注

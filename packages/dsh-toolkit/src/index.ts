@@ -16,11 +16,12 @@ import { createNanoFlowTool } from "./host/tools/nano-flow.js";
 import { applyNanoFlow } from "./nano-flow/plugin.js";
 import { DEFAULT_DOMAIN_ROOT } from "./nano-flow/config.js";
 import { recordMount, restoreMountReport } from "./nano-flow/mount-report.js";
-import { notesForWorkspace } from "./nano-flow/notes.js";
+import { buildNotesSnapshot } from "./nano-flow/notes.js";
 import { NANO_FLOW_PRESET_ID, nanoFlowEntryUrl } from "./nano-flow/preset.js";
 import { createRotation, type RotationSession } from "./nano-flow/rotate.js";
 import { registerRotateCommand } from "./nano-flow/rotate-command.js";
 import { createPlanLogService } from "./nano-flow/plan-log-service.js";
+import { BINDINGS_FILE, readBindingsSync } from "./nano-flow/plan-log.js";
 import { listActivePlans } from "./nano-flow/notes.js";
 import { hostServices } from "./nano-flow/services.js";
 import { createNestedSkillTool } from "./host/tools/nested-skill.js";
@@ -58,6 +59,8 @@ export type Config = NestedSkillOptions & {
   sessionsRoot?: string;
   /** Nano Flow 上限设置文件；缺省 `$DSH_HOME/toolkit/nano-flow.json`。 */
   nanoFlowFile?: string;
+  /** 会话↔Plan 绑定表；缺省 `$DSH_HOME/toolkit/nano-flow-plan-bindings.json`。 */
+  bindingsFile?: string;
   /** Nano Flow 的工作区覆盖（预设行可传）。 */
   workspace?: string;
   /** Nano Flow 的领域根覆盖（预设行可传）。 */
@@ -78,10 +81,17 @@ export const Config: Schema<Config> = z.object({
   stateFile: z.string(),
   sessionsRoot: z.string(),
   nanoFlowFile: z.string(),
+  bindingsFile: z.string(),
   workspace: z.string(),
   domainRoot: z.string(),
   nanoFlowOnly: z.boolean(),
 });
+
+/** 会话↔Plan 绑定表路径：配置优先，缺省落在 `$DSH_HOME/toolkit`。 */
+const bindingsFilePath = (config: Config): string =>
+  config.bindingsFile !== undefined && config.bindingsFile !== ""
+    ? config.bindingsFile
+    : join(resolveDshHome(), "toolkit", BINDINGS_FILE);
 
 export const name = "toolkit";
 export const inject = ["skills"];
@@ -162,6 +172,7 @@ export const apply = (ctx: Context, config: Config = {}): void => {
   // Plan 轨迹日志：订阅会话事件 firehose（seed 不触发），按轮把 compact 摘要追加到 Plan 的 log.jsonl。
   const planLog = createPlanLogService({
     home: resolveDshHome(),
+    bindingsFile: bindingsFilePath(config),
     domainRoot: config.domainRoot ?? DEFAULT_DOMAIN_ROOT,
     logger: ctx.logger,
     plansFor: (workspace: string) => {
@@ -357,11 +368,14 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
           ? config.workspace
           : session?.header?.cwd;
       if (workspace === undefined || workspace === "") return null;
+      // 面板只对已绑定 Plan 的会话显示；绑定由 Plan 轨迹日志在首次工具调用时写入。
+      const binding = readBindingsSync(bindingsFilePath(config))[sessionId];
+      if (binding === undefined) return null;
+      const planDirectory = isAbsolute(binding.planPath)
+        ? binding.planPath
+        : join(binding.cwd === "" ? workspace : binding.cwd, binding.planPath);
       try {
-        return notesForWorkspace({
-          workspace,
-          domainRoot: config.domainRoot ?? DEFAULT_DOMAIN_ROOT,
-        });
+        return buildNotesSnapshot(workspace, planDirectory);
       } catch (error) {
         logger.warn(`toolkit: notes snapshot failed: ${describe(error)}`);
         return null;
