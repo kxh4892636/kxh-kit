@@ -25,6 +25,11 @@ describe("nano-flow preset", () => {
     expect(names.some((name) => name.includes("plan-mode"))).toBe(false);
   });
 
+  it("挂载定时任务工具，供 dream 任务创建", () => {
+    const names = preset.plugins.map((row) => row.name);
+    expect(names).toContain("@deepseek-ai/dsh-tool-schedule");
+  });
+
   it("以 PTC 模式呈现工具（需要宿主的 code runtime）", () => {
     const presentation = preset.plugins.find((row) => row.id === "tool-presentation");
     expect(presentation?.name).toBe("@deepseek-ai/dsh-agent-tool-presentation");

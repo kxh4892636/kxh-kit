@@ -92,6 +92,7 @@ export const createNanoFlowPreset = (entryUrl: string): PresetDefinitionLike => 
     { id: "tool-jobs", name: "@deepseek-ai/dsh-tool-jobs" },
     { id: "skill-filesystem", name: "@deepseek-ai/dsh-skill-filesystem" },
     { id: "tool-skill", name: "@deepseek-ai/dsh-tool-skill" },
+    { id: "tool-schedule", name: "@deepseek-ai/dsh-tool-schedule" },
     { id: "nano-flow", name: entryUrl, config: { nanoFlowOnly: true } },
     {
       id: "delegation",

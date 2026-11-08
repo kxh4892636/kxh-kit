@@ -36,6 +36,7 @@ const SETTING_FIELDS: readonly {
   { key: "questionMaxBytes", label: "单个 question", unit: "KB", scale: KB, integer: true },
   { key: "adrMaxBytes", label: "单个 ADR", unit: "KB", scale: KB, integer: true },
   { key: "workflowMaxBytes", label: "单个 workflow", unit: "KB", scale: KB, integer: true },
+  { key: "guideMaxBytes", label: "GUIDE.md", unit: "KB", scale: KB, integer: true },
   { key: "rotateAt", label: "轮转阈值", unit: "比例", scale: 1, integer: false },
 ];
 

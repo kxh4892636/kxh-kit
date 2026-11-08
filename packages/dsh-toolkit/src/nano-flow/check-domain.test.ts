@@ -268,6 +268,99 @@ describe("checkWorkspace", () => {
     expect(result.errors.some((issue) => issue.message.includes("拆成多个独立 note"))).toBe(true);
   });
 
+  it("validates related links at the end of a page", async () => {
+    const root = await makeRoot();
+    await domain(root, "demo", "演示");
+    const question = (body: string): string =>
+      [
+        "---",
+        "name: '001-相关问题'",
+        "description: '相关问题。'",
+        "---",
+        "",
+        "# 001-相关问题",
+        "",
+        body,
+      ].join("\n");
+    await write(
+      root,
+      ".agents/domains/demo/adr/001-决策.md",
+      [
+        "---",
+        "name: '001-决策'",
+        "description: '决策。'",
+        "status: accepted",
+        "---",
+        "",
+        "# 001-决策",
+        "",
+      ].join("\n"),
+    );
+    await write(
+      root,
+      ".agents/domains/demo/questions/001-相关问题.md",
+      question("## 相关\n- [001-决策](../adr/001-决策.md) — 同一决策\n"),
+    );
+    const valid = checkWorkspace(root);
+    expect(valid.ok).toBe(true);
+  });
+
+  it("rejects dead related links, missing reasons, and trailing sections", async () => {
+    const root = await makeRoot();
+    await domain(root, "demo", "演示");
+    const question = (body: string): string =>
+      [
+        "---",
+        "name: '001-相关问题'",
+        "description: '相关问题。'",
+        "---",
+        "",
+        "# 001-相关问题",
+        "",
+        body,
+      ].join("\n");
+    await write(
+      root,
+      ".agents/domains/demo/questions/001-相关问题.md",
+      question("## 相关\n- [缺失](../adr/009-缺失.md) — 不存在\n"),
+    );
+    const dead = checkWorkspace(root);
+    expect(dead.ok).toBe(false);
+    expect(dead.errors.some((issue) => issue.message.includes("相关链接目标不存在"))).toBe(true);
+
+    await write(
+      root,
+      ".agents/domains/demo/questions/001-相关问题.md",
+      question("## 相关\n- [缺失](../adr/009-缺失.md)\n"),
+    );
+    const noReason = checkWorkspace(root);
+    expect(noReason.ok).toBe(false);
+    expect(noReason.errors.some((issue) => issue.message.includes("必须是「- ["))).toBe(true);
+
+    await write(
+      root,
+      ".agents/domains/demo/questions/001-相关问题.md",
+      question("## 相关\n- [缺失](../adr/009-缺失.md) — 不存在\n\n## 其他\n"),
+    );
+    const trailing = checkWorkspace(root);
+    expect(trailing.ok).toBe(false);
+    expect(trailing.errors.some((issue) => issue.message.includes("必须是最后一个章节"))).toBe(
+      true,
+    );
+  });
+
+  it("enforces the GUIDE budget from limits", async () => {
+    const root = await makeRoot();
+    await domain(root, "demo", "演示");
+    await write(root, ".agents/domains/GUIDE.md", "x".repeat(14 * 1024));
+    const over = checkWorkspace(root);
+    expect(over.ok).toBe(false);
+    expect(over.errors.some((issue) => issue.message.includes("GUIDE.md"))).toBe(true);
+
+    const raised = checkWorkspace(root, { limits: { guideMaxBytes: 15 * 1024 } });
+    expect(raised.ok).toBe(true);
+  });
+
   it("reports duplicate names and legacy documents", async () => {
     const root = await makeRoot();
     await domain(root, "demo", "演示");

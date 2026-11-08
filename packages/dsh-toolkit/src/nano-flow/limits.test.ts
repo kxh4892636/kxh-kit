@@ -23,6 +23,7 @@ describe("buildLimitsText", () => {
     expect(text).toContain("question ≤ 13 KB");
     expect(text).toContain("ADR ≤ 13 KB");
     expect(text).toContain("workflow ≤ 34 KB");
+    expect(text).toContain("GUIDE.md ≤ 13 KB");
   });
 
   it("reflects changed settings without changing the rule template", () => {

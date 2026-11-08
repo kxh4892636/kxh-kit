@@ -80,6 +80,8 @@ export interface NanoFlowSettings {
   readonly adrMaxBytes: number;
   /** 单个 workflow 上限（字节）。 */
   readonly workflowMaxBytes: number;
+  /** GUIDE.md 上限（字节）；dream 维护的注入层索引。 */
+  readonly guideMaxBytes: number;
   /** 上下文占用达到最大上下文的这个比例后轮转会话（0–1）。 */
   readonly rotateAt: number;
 }
@@ -93,6 +95,7 @@ export const DEFAULT_NANO_FLOW_SETTINGS: NanoFlowSettings = {
   questionMaxBytes: 13 * 1024,
   adrMaxBytes: 13 * 1024,
   workflowMaxBytes: 34 * 1024,
+  guideMaxBytes: 13 * 1024,
   rotateAt: 0.618,
 };
 

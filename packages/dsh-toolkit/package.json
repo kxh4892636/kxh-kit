@@ -1,6 +1,6 @@
 {
   "name": "@kxh4892636/dsh-toolkit",
-  "version": "0.5.29",
+  "version": "0.5.30",
   "description": "DSH plugin: a toolkit of independently switchable tools — nested skill discovery, one-click turn undo, plus the Nano Flow agent preset.",
   "license": "MIT",
   "files": [

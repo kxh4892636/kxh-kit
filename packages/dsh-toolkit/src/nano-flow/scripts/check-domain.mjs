@@ -39,6 +39,7 @@ export const DEFAULT_LIMITS = Object.freeze({
   questionMaxBytes: 13 * 1024,
   adrMaxBytes: 13 * 1024,
   workflowMaxBytes: 34 * 1024,
+  guideMaxBytes: 13 * 1024,
 });
 
 /** 名称、reason、next_step 的单行长度上限。 */
@@ -230,6 +231,61 @@ const HEADER_KEYS = Object.freeze({
   note: ["name", "description", "status", "reason", "related_noted", "next_step", "metadata"],
 });
 
+/**
+ * 校验页面文末的 `## 相关` 段：每条必须是 `- [标题](相对.md) — 原因`。
+ * 段外链接不解析；反向链接由 check 的后续版本生成，不手写。
+ * @param ctx - 校验上下文（errors / rootDir）。
+ * @param file - 页面文件路径。
+ * @param body - 去掉 YAML 头后的正文。
+ */
+const checkRelatedSection = (ctx, file, body) => {
+  const headings = [...body.matchAll(/^## 相关\s*$/gmu)];
+  if (headings.length === 0) return;
+  if (headings.length > 1) {
+    addIssue(ctx.errors, ctx.rootDir, file, "related", "只允许一个「## 相关」段");
+  }
+  const first = headings[0];
+  const after = body.slice(first.index + first[0].length);
+  if (/^#{2,6} /mu.test(after)) {
+    addIssue(ctx.errors, ctx.rootDir, file, "related", "「## 相关」必须是最后一个章节");
+  }
+  const section = after.split(/^## /mu)[0];
+  const lines = section
+    .split(/\r?\n/u)
+    .map((line) => line.trim())
+    .filter((line) => line !== "");
+  if (lines.length === 0) {
+    addIssue(ctx.errors, ctx.rootDir, file, "related", "「## 相关」不能为空");
+    return;
+  }
+  const baseDir = path.dirname(file);
+  for (const line of lines) {
+    const match = line.match(/^-\s*\[([^\]]+)\]\(([^)\s]+)\)\s+—\s+(.+)$/u);
+    if (match === null) {
+      addIssue(
+        ctx.errors,
+        ctx.rootDir,
+        file,
+        "related",
+        `相关条目必须是「- [标题](相对.md) — 原因」：${line}`,
+      );
+      continue;
+    }
+    const [, , target, reason] = match;
+    if (!target.endsWith(".md")) {
+      addIssue(ctx.errors, ctx.rootDir, file, "related", `相关链接只允许 .md：${target}`);
+    }
+    const targetPath = decodeURI(target.split("#")[0]);
+    const resolved = path.resolve(baseDir, targetPath);
+    if (!exists(resolved)) {
+      addIssue(ctx.errors, ctx.rootDir, file, "related", `相关链接目标不存在：${target}`);
+    }
+    if (reason.trim() === "") {
+      addIssue(ctx.errors, ctx.rootDir, file, "related", `相关链接缺少原因：${target}`);
+    }
+  }
+};
+
 const readDocument = (ctx, file, kind, options = {}) => {
   if (!exists(file)) {
     if (options.required === true) {
@@ -265,6 +321,9 @@ const readDocument = (ctx, file, kind, options = {}) => {
   if (!checkName(data.name, kind, ctx, file)) return null;
   checkDescription(data.description, ctx, file);
   checkMetadata(data.metadata, ctx, file);
+  if (kind === "context" || kind === "question" || kind === "adr" || kind === "workflow") {
+    checkRelatedSection(ctx, file, body);
+  }
 
   if (kind === "adr") {
     if (data.status !== undefined && data.status !== null) {
@@ -1029,6 +1088,20 @@ export const checkWorkspace = (rootDirectory, options = {}) => {
   const guideFile = path.join(domainsRoot, "GUIDE.md");
   if (!exists(guideFile)) {
     writeGenerated(ctx, guideFile, "");
+  }
+  try {
+    const guideSize = fs.statSync(guideFile).size;
+    if (guideSize > ctx.limits.guideMaxBytes) {
+      addIssue(
+        ctx.errors,
+        ctx.rootDir,
+        guideFile,
+        "size",
+        `GUIDE.md ${guideSize} 字节，超过 ${ctx.limits.guideMaxBytes}；只保留索引与指针`,
+      );
+    }
+  } catch (error) {
+    addIssue(ctx.errors, ctx.rootDir, guideFile, "read", `读取失败: ${describe(error)}`);
   }
 
   const domains = [];

@@ -21,6 +21,7 @@ export const buildLimitsValues = (settings: NanoFlowSettings): string => {
     `- question ≤ ${formatKb(settings.questionMaxBytes)}`,
     `- ADR ≤ ${formatKb(settings.adrMaxBytes)}`,
     `- workflow ≤ ${formatKb(settings.workflowMaxBytes)}`,
+    `- GUIDE.md ≤ ${formatKb(settings.guideMaxBytes)}`,
   ].join("\n");
 };
 

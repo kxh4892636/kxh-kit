@@ -135,6 +135,15 @@ describe("applyNanoFlow", () => {
     expect(text).toContain("seed 已带校验结论时跳过");
   });
 
+  it("documents the related-links contract and the dream entry", async () => {
+    const workspace = await makeRoot();
+    const harness = makeHarness();
+    applyNanoFlow(harness.ctx, { workspace });
+    const text = sectionText(harness)({ agent: { session: { header: { cwd: workspace } } } });
+    expect(text).toContain("## 互链");
+    expect(text).toContain("[nano-flow:dream]");
+  });
+
   it("does not append note snapshots to the session log", async () => {
     const workspace = await makeRoot();
     const harness = makeHarness();

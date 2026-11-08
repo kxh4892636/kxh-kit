@@ -192,7 +192,8 @@ metadata:
 - `nano_flow_create`：`kind=domain` 建 `CONTEXT.md`、questions / adr / workflows 与 `GUIDE.md`；
   `kind=plan` 建 `spec.md` 与 `notes_index.md`；`kind=note` 建一条 note（可自动取下一个三位编号）。
   只补缺失文件，不覆盖已有内容。
-- `nano_flow_check`：校验 YAML 头、三位 name、篇幅、status / reason / related_noted 与 spec 状态派生；
+- `nano_flow_check`：校验 YAML 头、三位 name、篇幅、status / reason / related_noted 与 spec 状态派生，
+  以及页面文末 `## 相关` 互链（目标存在、原因非空）与 `GUIDE.md` 体积；
   同时生成/更新 `CONTEXT-MAP.md`、`questions/index.md`、`adr/index.md`、`workflows/index.md`、
   `notes_index.md` 与 spec 的 `## 追踪 Note`。可用 `domain` / `plan` 缩小范围，`strict=false`
   把旧格式文档记为警告并跳过。
@@ -200,11 +201,14 @@ metadata:
 **上限与轮转**
 
 - 所有数字在 **开关旁的下拉设置面板**维护（持久化到 `$DSH_HOME/toolkit/nano-flow.json`）：
-  spec / note / CONTEXT / question / ADR / workflow 体积与 description 字数，以及会话轮转阈值。
+  spec / note / CONTEXT / question / ADR / workflow / GUIDE 体积与 description 字数，以及会话轮转阈值。
   体积字段在面板里以 **KB** 输入（1 KB = 1024 字节，存储仍是字节）。ADR 数量与追踪 Note
   行数不再限制；静态规则在 `prompts/limit.md`，具体值由脚本追加，启动时生成
   「篇幅限制」块拼在 `prompts/system.md` + `GUIDE.md` 之后注入。压缩与拆分规则统一
   由 `prompts/limit.md` 维护。
+- 记忆维护由 **dream** 承担：`prompts/dream.md` 是投递给自动化任务的完整指令（每天 08:00 默认新建会话执行）；
+  五 pass 写回领域文档与 `GUIDE.md` 后跑 check 并 commit。互链写在页面文末
+  `## 相关` 段（`- [链接](相对.md) — 原因`），check 校验目标与原因。
 - 预设不挂载压缩插件。轮转挂在**宿主半**：用户每发一条**排队**消息（queue）时，先按会话 id
   找到存活会话，再用日志里最后一条 `agent-preset/selected` 判断它是否跑 Nano Flow（live header
   的 `agentPreset` 在恢复会话时不可靠），然后读 `tokenMeter.contextPressure` 的
