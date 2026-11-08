@@ -1,12 +1,11 @@
 ---
 name: "012-rotate命令与轮转输入标注"
 description: "新增 /rotate 命令手动触发轮转（新会话、自动只读恢复、切过去），并把自动轮转时触发的用户输入用 XML 标注为轮转前输入。"
-status: blocked
-reason: "手动 /rotate 的命令路径已 live 取证（seed 逐字一致、旧行隐藏、新会话已接管）；剩余 XML 标注需要一次阈值触发的自动轮转，尚未造出"
+status: completed
 related_noted:
   - '010-轮转保留分组与置顶'
   - '011-轨迹日志绑定轮修复'
-next_step: "面板「轮转阈值」临时调低（如 0.05，设置缓存在内存，改文件不生效）→ 发一条消息触发自动轮转 → 新会话核对首条用户内容是否含 <rotation-prior-input> → 调回 0.618"
+next_step: "已验收：命令路径 live 通过；自动路径靠「同一引擎 + 单测覆盖 XML 包裹」采纳（用户：手动有，自动就有）"
 ---
 
 # 012-rotate命令与轮转输入标注
@@ -62,4 +61,9 @@ next_step: "面板「轮转阈值」临时调低（如 0.05，设置缓存在内
 - **切换生效**：旧会话行被隐藏（`$DSH_HOME/toolkit/state.json` 的 `hiddenSessionIds` 含 `session-17660661`），新会话已接收用户输入（本轮「go」），说明客户端 `command/executed` → 读 rotation 路由 → `openSession(to)` 链路走通。
 - **旧会话清理**：已从工作区 detach、不在 archived/pinned 集合，落盘日志目录已删除。
 
-未验：自动轮转的 XML 包裹（需阈值触发）。触发办法：面板「轮转阈值」调低（`nano-flow.json` 的 `rotateAt`，默认 0.618；设置缓存在内存，直接改文件不生效，需经面板 `update`）→ 发一条消息 → 新会话首条用户内容应含 `<rotation-prior-input>` → 验完调回 0.618。
+## 验收结论（2026-11-08）
+
+- 手动 `/rotate`：live 通过（见上节），覆盖 create → `inheritPlacement` → seed prompt → retire 全链路。
+- 自动轮转：与手动共用 `replacement()` / `inheritPlacement()` / `retire()`，差异只在压力闸门与内容拼接（`rotate.ts:314` 的阈值判断、`:325` 的 `wrapPriorInput`）。这两处由单测覆盖：`rotate.test.ts:139-149` 断言 XML 顺序，`rotate.test.ts:182-201` 断言重定向到新会话、seed 在前、用户内容夹在标签内、旧会话不再收到 prompt。
+- 门禁：`vp test src/nano-flow` 13 文件 / **93 例通过**（2026-11-08 18:35 本地）。
+- 采纳依据：用户答复「手动有，自动就有」——同一引擎已 live 验，自动路径剩余差异仅内容拼接且被单测锁住。残余风险登记如下：真实宿主里的自动轮转（阈值触发那一跳 + XML 在 UI 中的呈现）未做端到端采样；若日后出现异常，先按「调低 `rotateAt` 复现」的办法取证（`rotateAt` 缓存在插件内存，必须经面板 `update` 才生效）。
