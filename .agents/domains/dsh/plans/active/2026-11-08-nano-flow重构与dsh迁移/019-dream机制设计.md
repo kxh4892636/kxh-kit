@@ -61,6 +61,8 @@ dream 是**后台记忆维护引擎**：按 Anthropic《The components of agent 
 
 聚焦：只写当前 Plan 所属域 + `common`；其他域只读。
 
+**并行（多业务域）**：域之间不跨域写，`common` 是唯一共享面。父会话按域分组，把每个域交给一个 subagent 并行处理（一次最多 4 个域）；子 agent 只写本域，不碰 `common`、`GUIDE.md`、游标、生成物、`spec.md` 与 note，不 commit、不跑 check；父会话汇总 `common` 候选、重写 guide、跑一次 check、一次 commit、再推进游标。
+
 ## 7. 写入边界
 
 - 可写：`{domain}/CONTEXT.md`、`questions/NNN-*.md`、`adr/NNN-*.md`、`workflows/...`、`GUIDE.md`、游标。
@@ -69,7 +71,7 @@ dream 是**后台记忆维护引擎**：按 Anthropic《The components of agent 
 
 ## 8. 门禁
 
-- `nano_flow_check` 通过（含新增：`## 相关` 链接/原因校验、GUIDE ≤ `guideMaxBytes`）。
+- `nano_flow_check` 通过（含新增：`## 相关` 链接/原因校验、GUIDE ≤ `guideMaxBytes`）；只由父会话执行。
 - 链接可解析、原因非空；生成物零手改。
 - 单次预算（文件数/字节数）超限时停在该 pass 边界并报告。
 - check 失败不提交、不推进游标。

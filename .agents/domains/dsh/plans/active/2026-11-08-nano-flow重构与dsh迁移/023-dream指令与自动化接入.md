@@ -11,7 +11,7 @@ related_noted:
 
 ## 交付
 
-- `prompts/dream.md`：完整 dream 指令（首行 `[nano-flow:dream]`；输入与游标、五 pass、写入边界、门禁、退出）。
+- `prompts/dream.md`：完整 dream 指令（首行 `[nano-flow:dream]`；输入与游标、五 pass、并行、写入边界、门禁、退出）。并行段：多域时父会话按域 spawn subagent（一次 ≤4 个），子 agent 只写本域，`common`/`GUIDE.md`/check/commit/游标由父会话统一。
 - `prompts/system.md`：入口第 5 条——收到 `[nano-flow:dream]` 指令时按指令执行，不进入恢复或拷问。
 - `preset.ts`：nano-flow 预设挂载 `@deepseek-ai/dsh-tool-schedule`，使 agent 能在 nano-flow 会话里创建定时任务。
 - `README.md`：dream 与自动化任务说明。

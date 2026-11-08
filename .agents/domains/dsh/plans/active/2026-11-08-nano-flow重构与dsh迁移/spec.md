@@ -46,14 +46,15 @@ status: in_progress
 - note 023 新增 `prompts/dream.md`（自动化任务指令，首行 `[nano-flow:dream]`）+ system.md 入口第 5 条 + nano-flow 预设挂载 `dsh-tool-schedule`；0.5.30 装入两个 profile。
 - note 024 把访问信号、晋升排序与剪枝规则写进 dream.md；等首次 dream 运行验收实际效果。
 - note 025 删除 dsh-toolkit 的 kaizen skill，把知识归属与工作流规则并入 dream.md；0.5.31 装入两个 profile，skill 列表 6→5。
+- note 026 dream 并行化：dream.md 按域 spawn subagent（一次 ≤4），子 agent 只写本域，common/guide/check/commit/游标由父会话收口；0.5.32 装入两个 profile。
 
 ## 当前进度
 
-note 001–023 与 025 完成；024（访问信号与剪枝）规则已写入 `prompts/dream.md`，等首次 dream 运行验收。dream v1 已实现并装入 **0.5.31**：L0=`log.jsonl`（compact）、L1=note 结论、L2=领域文档+`## 相关`互链（链接+原因）、L3=`GUIDE.md`（13 KB，设置面板）；check 新增互链与 GUIDE 校验；nano-flow 预设挂载 `dsh-tool-schedule`；`prompts/dream.md` 作为自动化任务指令（每天 08:00 默认）；kaizen skill 已删除、知识归属并入 dream.md（skill 6→5）。020/021 已把 legacy 领域文档与 10 个旧 plans 迁入 `.agents`（53 条 note、117 条死链清零）；music 截图忽略。插件 desktop / web profile 均为 0.5.31。机制补充：轮转会话没有 `agent-preset/selected` 事件，日志在 `turn/end` 落盘（详见 016）。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。机制补充：轮转会话没有 `agent-preset/selected` 事件，日志在 `turn/end` 落盘（详见 016）。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
+note 001–023、025、026 完成；024（访问信号与剪枝）规则已写入 `prompts/dream.md`，等首次 dream 运行验收。dream v1 已实现并装入 **0.5.32**：L0=`log.jsonl`（compact）、L1=note 结论、L2=领域文档+`## 相关`互链（链接+原因）、L3=`GUIDE.md`（13 KB，设置面板）；check 新增互链与 GUIDE 校验；nano-flow 预设挂载 `dsh-tool-schedule`；`prompts/dream.md` 作为自动化任务指令（每天 08:00 默认）；kaizen skill 已删除、知识归属并入 dream.md（skill 6→5）；多业务域按域 spawn subagent 并行（≤4），common/guide/check/commit/游标由父会话收口。020/021 已把 legacy 领域文档与 10 个旧 plans 迁入 `.agents`（53 条 note、117 条死链清零）；music 截图忽略。插件 desktop / web profile 均为 0.5.32。机制补充：轮转会话没有 `agent-preset/selected` 事件，日志在 `turn/end` 落盘（详见 016）。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。机制补充：轮转会话没有 `agent-preset/selected` 事件，日志在 `turn/end` 落盘（详见 016）。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
 
 ## 恢复入口
 
-先读 `notes_index.md`；插件细节在 001，领域文档在 002，旧 plans 映射与截断在 003，`CONTEXT-MAP.md` 位置修正在 004，旧 Plan 链接校正在 005，提示词改名在 006，Note 面板在 007，历史加载失败在 008，Plan 轨迹日志的设计、拷问与 live 验收在 009，轮转分组/置顶修复在 010，绑定轮修复在 011，`/rotate` 命令与 XML 标注在 012，状态先行约束在 013，PTC 模式切换在 014，绑定贯通 Note 面板在 015，轨迹日志的轮转验收在 016，轮转后自动校验与 seed 前绑定在 017，恢复 Plan 开头自动校验在 018，dream 设计在 019，legacy 领域文档迁移在 020，旧 plans 迁移在 021，互链与 check 扩展在 022，dream 指令与自动化接入在 023，访问信号与剪枝验收在 024，kaizen 并入 dream 在 025。
+先读 `notes_index.md`；插件细节在 001，领域文档在 002，旧 plans 映射与截断在 003，`CONTEXT-MAP.md` 位置修正在 004，旧 Plan 链接校正在 005，提示词改名在 006，Note 面板在 007，历史加载失败在 008，Plan 轨迹日志的设计、拷问与 live 验收在 009，轮转分组/置顶修复在 010，绑定轮修复在 011，`/rotate` 命令与 XML 标注在 012，状态先行约束在 013，PTC 模式切换在 014，绑定贯通 Note 面板在 015，轨迹日志的轮转验收在 016，轮转后自动校验与 seed 前绑定在 017，恢复 Plan 开头自动校验在 018，dream 设计在 019，legacy 领域文档迁移在 020，旧 plans 迁移在 021，互链与 check 扩展在 022，dream 指令与自动化接入在 023，访问信号与剪枝验收在 024，kaizen 并入 dream 在 025，dream 并行化在 026。
 
 ## 追踪 Note
 

@@ -29,3 +29,4 @@
 | [023-dream指令与自动化接入](023-dream%E6%8C%87%E4%BB%A4%E4%B8%8E%E8%87%AA%E5%8A%A8%E5%8C%96%E6%8E%A5%E5%85%A5.md) | 新增 prompts/dream.md 作为自动化任务指令；nano-flow 预设挂载 schedule 工具；system.md 加 dream 入口与互链契约。 | 019-dream机制设计, 022-互链与check扩展 |
 | [024-访问信号与剪枝验收](024-%E8%AE%BF%E9%97%AE%E4%BF%A1%E5%8F%B7%E4%B8%8E%E5%89%AA%E6%9E%9D%E9%AA%8C%E6%94%B6.md) | 把访问信号、晋升排序与剪枝规则写进 dream.md；等首次 dream 运行验收实际效果。 | 019-dream机制设计, 023-dream指令与自动化接入 |
 | [025-删除kaizen并入dream](025-%E5%88%A0%E9%99%A4kaizen%E5%B9%B6%E5%85%A5dream.md) | 删除 dsh-toolkit 的 kaizen skill，把知识归属与工作流规则并入 prompts/dream.md，更新引用与测试，发布 0.5.31。 | 019-dream机制设计, 023-dream指令与自动化接入 |
+| [026-dream并行化](026-dream%E5%B9%B6%E8%A1%8C%E5%8C%96.md) | dream.md 增加按业务域 subagent 并行：子 agent 只写本域，common/GUIDE/check/commit/游标由父会话收口；发布 0.5.32。 | 019-dream机制设计, 023-dream指令与自动化接入, 024-访问信号与剪枝验收 |
