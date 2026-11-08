@@ -728,6 +728,7 @@ const scanPlan = (ctx, planDirectory, planName) => {
   const spec = readDocument(ctx, specFile, "spec", { required: true });
   const names = new Set();
   const notes = [];
+  const specParts = [];
   for (const entry of readEntries(planDirectory, ctx)) {
     if (entry.isDirectory()) {
       addIssue(
@@ -747,6 +748,35 @@ const scanPlan = (ctx, planDirectory, planName) => {
         path.join(planDirectory, entry.name),
         "legacy",
         "story.md 已并入 spec.md，可删除",
+      );
+      continue;
+    }
+    const specPartMatch = /^spec-([1-9]\d*)\.md$/u.exec(entry.name);
+    if (specPartMatch !== null) {
+      const file = path.join(planDirectory, entry.name);
+      const content = readText(file, ctx);
+      if (content !== null) {
+        const size = byteLength(content);
+        if (size > ctx.limits.specMaxBytes) {
+          addIssue(
+            ctx.errors,
+            ctx.rootDir,
+            file,
+            "size",
+            `spec 分片 ${size} 字节，超过 ${ctx.limits.specMaxBytes}`,
+          );
+        }
+        specParts.push({ number: Number(specPartMatch[1]), file });
+      }
+      continue;
+    }
+    if (entry.name.startsWith("spec-")) {
+      addIssue(
+        ctx.errors,
+        ctx.rootDir,
+        path.join(planDirectory, entry.name),
+        "name",
+        "spec 分片必须命名为 spec-N.md（N 从 1 开始，不带前导 0）",
       );
       continue;
     }
@@ -791,6 +821,19 @@ const scanPlan = (ctx, planDirectory, planName) => {
       file,
       fileName: entry.name,
     });
+  }
+  specParts.sort((left, right) => left.number - right.number);
+  for (const [index, part] of specParts.entries()) {
+    const expected = index + 1;
+    if (part.number !== expected) {
+      addIssue(
+        ctx.errors,
+        ctx.rootDir,
+        part.file,
+        "spec",
+        `spec 分片编号必须从 1 连续，期望 spec-${expected}.md`,
+      );
+    }
   }
   notes.sort(sortByName);
   for (const note of notes) {

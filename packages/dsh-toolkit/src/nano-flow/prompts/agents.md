@@ -108,7 +108,7 @@ workflow 是脱离单次 Plan 仍可复用的业务域工作流；一次性结�
 
 Plan 只有三类文档：`spec.md`、`notes_index.md`（生成）和若干 `001-中文标题.md` 的 note。
 
-- `spec.md` 正文自由组织，不再强制固定章节；只在最后保留 `## 追踪 Note`，check 会用未完成 note 自动生成该表。可选写问题、方案、范围、决策、进度与恢复入口。
+- `spec.md` 正文自由组织，不再强制固定章节；只在最后保留 `## 追踪 Note`，check 会用未完成 note 自动生成该表。可选写问题、方案、范围、决策、进度与恢复入口。超过篇幅上限时按 `spec-1.md`、`spec-2.md` 顺序拆分，主文件保留 YAML 头与追踪表，每个分片各自受上限约束。
 - spec 的 status 从**全部 note** 派生：全部 pending 为 pending，全部 completed 为 completed，其余为 in_progress。
 - 一条 note 只跟进一个原子化、独立的子任务；不同子任务使用同一模板，正文自由组织，不强制固定章节。按工作性质写清交付、验收与证据，例如“形成有依据的选择及理由”“制定可执行计划”“完成可验证的用户能力”。
 - note 状态流转：`pending → in_progress → completed`，受阻时 `blocked`，解除后回 `in_progress`。`blocked` 用 `reason` 写清“在等什么”和解除条件。
