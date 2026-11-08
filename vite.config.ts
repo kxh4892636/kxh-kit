@@ -16,9 +16,8 @@ export default defineConfig({
     cache: true,
   },
   test: {
-    // `.worktrees/*` 是 worker 现场（整份仓库副本）：从仓库根跑测试会把现场里的测试也扫进来，
+    // `.worktrees/*` 是历史 worker 现场（整份仓库副本）：从仓库根跑测试会把现场里的测试也扫进来，
     // 报的是「现场里 cwd 不对」这类假红（`Can't find meta/_journal.json` 等）。
-    // 验收口径是 `cd packages/pi-toolkit && vp test --run`；这里再把现场排除，根目录跑也不假红。
     // Vitest 的 `exclude` 是**覆盖**语义，所以它自己的默认项要一并列上。
     exclude: [
       "**/node_modules/**",

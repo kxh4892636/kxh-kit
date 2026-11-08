@@ -105,6 +105,39 @@ describe("readNanoFlowReady", () => {
     ]);
   });
 
+  it("counts waiting with needs=blocked 单列，不影响 waiting 总数", async () => {
+    const workspace = await makeWorkspace([
+      {
+        name: "2026-11-08-阻塞并入等待",
+        notes: [
+          note("01", {
+            status: "waiting",
+            needs: "blocked",
+            blocked_reason: "等上游接口",
+          }),
+        ],
+      },
+    ]);
+    const ready = await readNanoFlowReady({
+      workspace,
+      domainRoot: ".agents/domains",
+      limits: DEFAULT_NANO_FLOW_SETTINGS,
+    });
+    expect(ready.available).toBe(true);
+    expect(ready.counts).toMatchObject({
+      total: 1,
+      pending: 0,
+      waiting: 1,
+      needsBlocked: 1,
+      completed: 0,
+    });
+    expect(ready.groups?.[0]?.notes[0]).toMatchObject({
+      status: "waiting",
+      needs: "blocked",
+      blocked_reason: "等上游接口",
+    });
+  });
+
   it("reports no active plan", async () => {
     const workspace = await makeWorkspace([]);
     await expect(

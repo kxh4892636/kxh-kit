@@ -147,13 +147,14 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
 └── notes.json   实现记录(DAG)      单条 content 默认 ≤ 13 KB(面板可调)
 ```
 
-`notes.json` 的 `index` 取代旧的 spec `## Notes` 表;`evidence` 是完成凭据. note 状态为
-`pending → in_progress → waiting → completed`: `waiting` 表示交付物已完成、等用户一个人, 必须带
-`needs`: `review`(等验收, 写"待验证"小节) 或 `answer`(等人回答, 写"待回答"小节); 只能从
-`in_progress` 进入, 仍是未完成(Plan 不迁 `reference`, `ready` 不列它, 面板与 `resume` 单列
-"等待回答/等待确认"); `complete` 只接受 `waiting` 且 `needs=review` 的 note, 用户回复后
-`status` 回 `in_progress` 或 `complete`, 内部仍先跑 Plan 校验. 旧文档的 `awaiting_verification`
-读入时折成 `waiting + needs=review`.
+`notes.json` 的 `index` 取代旧的 spec `## Notes` 表;`evidence` 是完成凭据. note 有四个状态
+`pending` / `in_progress` / `waiting` / `completed`: `waiting` 表示当下必须等自身之外的东西, 必须带
+`needs`: `review`(等验收, 写"待验证"小节)、`answer`(等人回答, 写"待回答"小节) 或 `blocked`
+(等阻塞解除, 写"待解除"小节并给 `blocked_reason`); `pending` 可直接进 `waiting` 或 `in_progress`,
+`waiting` 与 `in_progress` 可互相转换; `waiting` 仍是未完成(Plan 不迁 `reference`, `ready` 不列它,
+面板与 `resume` 单列"等待回答/等待确认/待阻塞解除"); `complete` 只接受 `waiting` 且 `needs=review`
+的 note, 等到回答或阻塞解除后 `status` 回 `in_progress` 或 `complete`, 内部仍先跑 Plan 校验. 旧文档的
+`awaiting_verification` 读入时折成 `waiting + needs=review`, 旧的 `blocked` 状态不再兼容.
 
 文档无法通过校验时, 不要用文件工具直接改 `notes.json`: 先 `nano_flow_read` 的 `inspect` 看原始
 note 与问题, 再由模型判断, 用 `nano_flow_write` 的 `repair` 提交 `repairs`(按 id 的

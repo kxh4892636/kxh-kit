@@ -18,7 +18,7 @@ const payload = {
     pending: 1,
     in_progress: 0,
     waiting: 0,
-    blocked: 0,
+    needsBlocked: 0,
     completed: 1,
   },
   groups: [
@@ -70,7 +70,7 @@ describe("ReadyPanel", () => {
         pending: 0,
         in_progress: 0,
         waiting: 1,
-        blocked: 0,
+        needsBlocked: 0,
         completed: 1,
       },
       groups: [
@@ -100,6 +100,47 @@ describe("ReadyPanel", () => {
     const item = container.querySelector("[data-status='waiting']");
     expect(item).not.toBeNull();
     expect(item?.querySelector(".dshtk-ready-glyph-waiting")).not.toBeNull();
+  });
+
+  it("把 waiting + needs=blocked 画成阻塞并单列原因", async () => {
+    const blocked = {
+      ...payload,
+      counts: {
+        total: 1,
+        pending: 0,
+        in_progress: 0,
+        waiting: 1,
+        needsBlocked: 1,
+        completed: 0,
+      },
+      groups: [
+        {
+          notes: [
+            {
+              id: "03",
+              title: "等上游接口",
+              description: "接口没好",
+              status: "waiting",
+              needs: "blocked",
+              blocked_by: [],
+              blocked_reason: "上游接口未发布",
+            },
+          ],
+        },
+      ],
+    };
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => json(blocked)),
+    );
+    const { container } = render(createElement(ReadyPanel, { sessionId: "s1" }));
+    expect(await screen.findByText("1 未完成 · 1 阻塞")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button"));
+    expect(await screen.findByText("上游接口未发布")).toBeDefined();
+    const item = container.querySelector("[data-status='blocked']");
+    expect(item).not.toBeNull();
+    expect(item?.querySelector(".dshtk-ready-glyph-blocked")).not.toBeNull();
   });
 
   it("renders nothing when the host reports the panel unavailable", async () => {

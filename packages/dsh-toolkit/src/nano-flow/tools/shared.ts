@@ -79,14 +79,14 @@ export const statusLine = (document: PlanDocument): string => {
   const total = document.notes.length;
   return `notes ${total}（completed ${count("completed")} / in_progress ${count(
     "in_progress",
-  )} / waiting ${count("waiting")} / blocked ${count("blocked")} / pending ${count("pending")}）`;
+  )} / waiting ${count("waiting")} / pending ${count("pending")}）`;
 };
 
 /** 一条 note 的列表行。 */
 export const formatNoteLine = (note: NoteNode): string => {
-  if (note.status === "blocked") {
+  if (note.status === "waiting" && note.needs === "blocked") {
     const reason = note.blocked_reason ?? "未写明原因";
-    return `${note.id} [blocked] ${note.title} — ${note.description}（${reason}）`;
+    return `${note.id} [waiting/blocked] ${note.title} — ${note.description}（${reason}）`;
   }
   const suffix = note.needs === undefined ? "" : `/${note.needs}`;
   return `${note.id} [${note.status}${suffix}] ${note.title} — ${note.description}`;

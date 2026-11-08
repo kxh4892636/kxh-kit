@@ -1,5 +1,5 @@
 import { createElement, useEffect, useState, type FC } from "react";
-import type { NanoFlowNoteStatus, NanoFlowReadyResponse } from "../contract.js";
+import type { NanoFlowNoteStatus, NanoFlowReadyNote, NanoFlowReadyResponse } from "../contract.js";
 import { fetchNanoFlowReady } from "./host-api.js";
 import { ensureToolkitStyles } from "./stylesheet.js";
 
@@ -56,7 +56,11 @@ const Chevron: FC<{ open: boolean }> = ({ open }) => {
   );
 };
 
-const StatusGlyph: FC<{ status: NanoFlowNoteStatus }> = ({ status }) => {
+/** 面板上的展示状态：`waiting` + `needs=blocked` 按「阻塞」画，与其它等待区分开。 */
+const displayStatusOf = (note: NanoFlowReadyNote): NanoFlowNoteStatus | "blocked" =>
+  note.status === "waiting" && note.needs === "blocked" ? "blocked" : note.status;
+
+const StatusGlyph: FC<{ status: NanoFlowNoteStatus | "blocked" }> = ({ status }) => {
   const className = `dshtk-ready-glyph-${status}`;
   if (status === "in_progress") {
     return createElement(
@@ -179,13 +183,14 @@ export const ReadyPanel: FC<ReadyPanelProps> = (props) => {
   const groups = state.groups;
   const counts = state.counts;
   if (groups === undefined || counts === undefined || groups.length === 0) return null;
-  const unfinished = counts.pending + counts.in_progress + counts.waiting + counts.blocked;
+  const unfinished = counts.pending + counts.in_progress + counts.waiting;
   if (unfinished === 0) return null;
 
   const summaryParts = [`${unfinished} 未完成`];
   if (counts.in_progress > 0) summaryParts.push(`${counts.in_progress} 进行中`);
-  if (counts.waiting > 0) summaryParts.push(`${counts.waiting} 等待确认`);
-  if (counts.blocked > 0) summaryParts.push(`${counts.blocked} 阻塞`);
+  const awaitingReview = Math.max(counts.waiting - counts.needsBlocked, 0);
+  if (awaitingReview > 0) summaryParts.push(`${awaitingReview} 等待确认`);
+  if (counts.needsBlocked > 0) summaryParts.push(`${counts.needsBlocked} 阻塞`);
   if (counts.completed > 0) summaryParts.push(`${counts.completed} 已完成`);
   const planRef =
     state.plan === undefined
@@ -244,17 +249,17 @@ export const ReadyPanel: FC<ReadyPanelProps> = (props) => {
                     {
                       className: "dshtk-ready-item",
                       key: note.id,
-                      "data-status": note.status,
+                      "data-status": displayStatusOf(note),
                       title: note.description,
                     },
                     createElement(
                       "span",
                       { className: "dshtk-ready-glyph", "aria-hidden": "true" },
-                      createElement(StatusGlyph, { status: note.status }),
+                      createElement(StatusGlyph, { status: displayStatusOf(note) }),
                     ),
                     createElement("span", { className: "dshtk-ready-id" }, note.id),
                     createElement("span", { className: "dshtk-ready-item-title" }, note.title),
-                    note.status === "blocked" && note.blocked_reason !== undefined
+                    note.needs === "blocked" && note.blocked_reason !== undefined
                       ? createElement(
                           "span",
                           { className: "dshtk-ready-reason" },

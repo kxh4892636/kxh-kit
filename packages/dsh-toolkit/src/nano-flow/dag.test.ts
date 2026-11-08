@@ -79,26 +79,49 @@ describe("parseDocument", () => {
     expect(() => parseDocument(raw(notes), limits)).toThrow(/尚未 completed/);
   });
 
-  it("blocked 的直接依赖必须已完成", () => {
+  it("completed 的直接依赖必须已完成", () => {
     const notes = [
       note({ id: "01" }),
-      note({
-        id: "02",
-        status: "blocked",
-        blocked_by: ["01"],
-        blocked_reason: "等外部确认",
-      }),
+      note({ id: "02", status: "completed", blocked_by: ["01"], evidence: ["完成"] }),
     ];
     expect(() => parseDocument(raw(notes), limits)).toThrow(/尚未 completed/);
   });
 
-  it("blocked 必须写原因", () => {
-    expect(() => parseDocument(raw([note({ status: "blocked" })]), limits)).toThrow(
-      /必须写 blocked_reason/,
-    );
+  it("pending 与 waiting 可以先挂着：直接依赖未完成也允许", () => {
+    const notes = [
+      note({ id: "01" }),
+      note({ id: "02", status: "waiting", needs: "answer", blocked_by: ["01"] }),
+      note({ id: "03", blocked_by: ["01"] }),
+      note({
+        id: "04",
+        status: "waiting",
+        needs: "blocked",
+        blocked_reason: "等外部确认",
+        blocked_by: ["01"],
+      }),
+    ];
+    expect(() => parseDocument(raw(notes), limits)).not.toThrow();
   });
 
-  it("waiting 必须带 needs；旧 awaiting_verification 折成 waiting/review；依赖必须已完成", () => {
+  it("needs=blocked 必须写原因", () => {
+    expect(() =>
+      parseDocument(raw([note({ status: "waiting", needs: "blocked" })]), limits),
+    ).toThrow(/必须写 blocked_reason/);
+    expect(() =>
+      parseDocument(
+        raw([
+          note({
+            status: "waiting",
+            needs: "blocked",
+            blocked_reason: "等外部确认",
+          }),
+        ]),
+        limits,
+      ),
+    ).not.toThrow();
+  });
+
+  it("waiting 必须带 needs；旧 awaiting_verification 折成 waiting/review", () => {
     expect(
       parseDocument(raw([note({ status: "waiting", needs: "review" })]), limits).notes[0],
     ).toMatchObject({ status: "waiting", needs: "review" });
@@ -108,15 +131,10 @@ describe("parseDocument", () => {
       status: "waiting",
       needs: "review",
     });
-    expect(() =>
-      parseDocument(
-        raw([
-          note({ id: "01" }),
-          note({ id: "02", status: "waiting", needs: "review", blocked_by: ["01"] }),
-        ]),
-        limits,
-      ),
-    ).toThrow(/尚未 completed/);
+    // blocked 已并入 waiting：旧状态名不再合法。
+    expect(() => parseDocument(raw([note({ status: "blocked" } as never)]), limits)).toThrow(
+      /status 必须是/,
+    );
   });
 
   it("拒绝超长 note 正文", () => {
@@ -153,12 +171,18 @@ describe("查询", () => {
     ).toEqual([]);
   });
 
-  it("todoGroups 把等待确认排在同层可执行项之后、blocked 之前", () => {
+  it("todoGroups 把等待项排在同层可执行项之后", () => {
     const grouped = [
       note({ id: "01", status: "completed", evidence: ["完成"] }),
       note({ id: "02", blocked_by: ["01"] }),
       note({ id: "03", status: "waiting", needs: "review", blocked_by: ["01"] }),
-      note({ id: "04", status: "blocked", blocked_by: ["01"], blocked_reason: "等外部确认" }),
+      note({
+        id: "04",
+        status: "waiting",
+        needs: "blocked",
+        blocked_by: ["01"],
+        blocked_reason: "等外部确认",
+      }),
       note({ id: "05", blocked_by: ["02", "03", "04"] }),
     ];
     expect(todoGroups(grouped).map((group) => group.notes.map((item) => item.id))).toEqual([
@@ -173,7 +197,7 @@ describe("查询", () => {
       note({ id: "03", status: "in_progress", blocked_by: ["01"] }),
       note({ id: "04", blocked_by: ["02", "03"] }),
       note({ id: "05", blocked_by: ["02"] }),
-      note({ id: "06", status: "blocked", blocked_reason: "等外部确认" }),
+      note({ id: "06", status: "waiting", needs: "blocked", blocked_reason: "等外部确认" }),
     ];
     expect(todoGroups(grouped).map((group) => group.notes.map((item) => item.id))).toEqual([
       ["02", "03", "04", "05"],

@@ -412,37 +412,43 @@ const executeWrite = async (
       if (status === "awaiting_verification") {
         throw new Error("awaiting_verification 已改名为 waiting；请用 status=waiting 并给 needs");
       }
-      if (!["pending", "in_progress", "waiting", "blocked"].includes(status)) {
-        throw new Error("status 必须是 pending | in_progress | waiting | blocked");
+      if (status === "blocked") {
+        throw new Error(
+          "blocked 已并入 waiting；请用 status=waiting 且 needs=blocked，并给 reason",
+        );
+      }
+      if (!["pending", "in_progress", "waiting"].includes(status)) {
+        throw new Error("status 必须是 pending | in_progress | waiting");
       }
       const note = findNote(document, id);
-      if (status === "waiting" && note.status === "pending") {
-        throw new Error("pending 的 note 不能直接进 waiting；先 status=in_progress");
-      }
       const needs = optionalString(args, "needs");
-      if (status === "waiting" && needs !== "answer" && needs !== "review") {
-        throw new Error("status=waiting 必须给 needs=answer（等人回答）或 needs=review（等验收）");
+      if (status === "waiting" && needs !== "answer" && needs !== "review" && needs !== "blocked") {
+        throw new Error(
+          "status=waiting 必须给 needs=answer（等人回答）/ review（等验收）/ blocked（等阻塞解除）",
+        );
       }
       const reason = optionalString(args, "reason");
-      if (status === "blocked" && (reason === undefined || reason.trim() === "")) {
-        throw new Error("status=blocked 必须给 reason（障碍与解除条件）");
+      if (status === "waiting" && needs === "blocked" && (reason ?? "").trim() === "") {
+        throw new Error("needs=blocked 时必须给 reason（障碍与解除条件）");
       }
       const base: NoteNode = {
         id: note.id,
         title: note.title,
         description: note.description,
-        status: status as "pending" | "in_progress" | "waiting" | "blocked",
+        status: status as "pending" | "in_progress" | "waiting",
         blocked_by: note.blocked_by,
         evidence: note.evidence,
         updated_at: nowIso(),
         content: note.content,
       };
       const next: NoteNode =
-        status === "blocked"
-          ? { ...base, blocked_reason: reason ?? "" }
-          : status === "waiting" && (needs === "answer" || needs === "review")
-            ? { ...base, needs }
-            : base;
+        status === "waiting" && (needs === "answer" || needs === "review" || needs === "blocked")
+          ? {
+              ...base,
+              needs,
+              ...(needs === "blocked" ? { blocked_reason: reason ?? "" } : {}),
+            }
+          : base;
       await commitDocument(plan.directory, replaceNote(document, next), runtime.limits());
       return `note ${id} 状态 → ${status}${next.needs === undefined ? "" : `/${next.needs}`}`;
     }
@@ -490,7 +496,7 @@ const executeWrite = async (
 export const createWriteTool = (runtime: ToolRuntime): ToolDefinitionLike => ({
   name: "nano_flow_write",
   description:
-    "写 Nano Flow 的 Plan 与 notes DAG。init 建 Plan；create / update 维护 note；link 改依赖；status 设 pending / in_progress / waiting（带 needs=answer|review）/ blocked；complete 只接受 waiting + needs=review 的 note，写 evidence 并通过 Plan 校验后置 completed；set_index 维护关键索引；merge / delete 合并删除；move 迁移生命周期；repair 用模型给出的 title/description/content 与 ids 修复无法通过校验的文档（工具不自作主张截断或删除）。completed 只能由 complete 设置。",
+    "写 Nano Flow 的 Plan 与 notes DAG。init 建 Plan；create / update 维护 note；link 改依赖；status 设 pending / in_progress / waiting（带 needs=answer|review|blocked）；complete 只接受 waiting + needs=review 的 note，写 evidence 并通过 Plan 校验后置 completed；set_index 维护关键索引；merge / delete 合并删除；move 迁移生命周期；repair 用模型给出的 title/description/content 与 ids 修复无法通过校验的文档（工具不自作主张截断或删除）。completed 只能由 complete 设置。",
   parameters: {
     type: "object",
     additionalProperties: false,
@@ -529,15 +535,19 @@ export const createWriteTool = (runtime: ToolRuntime): ToolDefinitionLike => ({
       },
       status: {
         type: "string",
-        enum: ["pending", "in_progress", "waiting", "blocked"],
-        description: "status 动作的目标状态",
+        enum: ["pending", "in_progress", "waiting"],
+        description: "status 动作的目标状态；blocked 已并入 waiting + needs=blocked",
       },
       needs: {
         type: "string",
-        enum: ["answer", "review"],
-        description: "status=waiting 时的等待目标：answer 等人回答，review 等验收",
+        enum: ["answer", "review", "blocked"],
+        description:
+          "status=waiting 时的等待目标：answer 等人回答，review 等验收，blocked 等阻塞解除",
       },
-      reason: { type: "string", description: "status=blocked 时的障碍与解除条件" },
+      reason: {
+        type: "string",
+        description: "status=waiting 且 needs=blocked 时的障碍与解除条件",
+      },
       evidence: {
         type: "array",
         items: { type: "string" },

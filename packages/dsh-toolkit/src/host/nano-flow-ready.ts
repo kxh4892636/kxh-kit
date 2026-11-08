@@ -37,10 +37,13 @@ export const readNanoFlowReady = async (
       pending: 0,
       in_progress: 0,
       waiting: 0,
-      blocked: 0,
+      needsBlocked: 0,
       completed: 0,
     };
-    for (const note of document.notes) counts[note.status] += 1;
+    for (const note of document.notes) {
+      counts[note.status] += 1;
+      if (note.status === "waiting" && note.needs === "blocked") counts.needsBlocked += 1;
+    }
 
     return {
       available: true,

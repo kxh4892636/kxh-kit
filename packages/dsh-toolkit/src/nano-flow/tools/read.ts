@@ -213,8 +213,10 @@ const executeRead = async (
       const ready = readyNotes(document.notes);
       const waiting = document.notes.filter((note) => note.status === "waiting");
       const awaitingAnswer = waiting.filter((note) => note.needs === "answer");
-      const awaitingReview = waiting.filter((note) => note.needs !== "answer");
-      const blocked = document.notes.filter((note) => note.status === "blocked");
+      const awaitingUnblock = waiting.filter((note) => note.needs === "blocked");
+      const awaitingReview = waiting.filter(
+        (note) => note.needs !== "answer" && note.needs !== "blocked",
+      );
       const storyBytes = await describeBytes(plan, "story.md");
       const specBytes = await describeBytes(plan, "spec.md");
       const lines = [
@@ -244,9 +246,9 @@ const executeRead = async (
         lines.push(`等待确认（${awaitingReview.length}）:`);
         lines.push(...awaitingReview.map((note) => `  ${formatNoteLine(note)}`));
       }
-      if (blocked.length > 0) {
-        lines.push(`阻塞（${blocked.length}）:`);
-        lines.push(...blocked.map((note) => `  ${formatNoteLine(note)}`));
+      if (awaitingUnblock.length > 0) {
+        lines.push(`待阻塞解除（${awaitingUnblock.length}）:`);
+        lines.push(...awaitingUnblock.map((note) => `  ${formatNoteLine(note)}`));
       }
       lines.push(
         "下一步: 读 spec.md 与 story.md，只读报告进度与可推进队列；恢复报告后等用户第一条消息放行再执行，需要澄清则进入 ask。",

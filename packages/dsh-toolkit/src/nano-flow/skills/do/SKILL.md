@@ -35,7 +35,7 @@ description: 把一条 note 推进到可验收完成时使用; 按 do 循环走�
 
 ## 执行
 
-- 交付中遇到阻塞时, 优先查阅 `common` 与该域的领域知识; 仍无解时把 note 置 `blocked` 并写清障碍与解除条件.
+- 交付中遇到阻塞时, 优先查阅 `common` 与该域的领域知识; 仍无解时把 note 置 `waiting` 且 `needs=blocked`, 用 `reason` 写清障碍与解除条件.
 
 ## verifying
 

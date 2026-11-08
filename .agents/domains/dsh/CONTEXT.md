@@ -68,9 +68,9 @@ _Avoid_: 压缩、compact、归档旧会话
 用户说"恢复""继续"且会话还没加载 Plan 时只读加载：`resume` 拿恢复包，读 story / spec，报告进度与可推进队列，本轮不写文件、不执行 note；恢复报告之后的用户消息才放行执行，轮转出的新会话同样先只读恢复。
 _Avoid_: 自动续跑、恢复即执行
 
-**等待确认**:
-note 的 `waiting` 状态：交付物已完成、等用户一个人；带 `needs=review`（等验收，写「待验证」）或 `needs=answer`（等人回答，写「待回答」）。仍算未完成，`complete` 只接受 `waiting + needs=review`。
-_Avoid_: 等待验证、待验收（只描述某一侧时用 `needs` 区分）
+**等待**:
+note 的 `waiting` 状态：当下必须等自身之外的东西，`needs` 区分等的是 `answer`（等人回答，写「待回答」）、`review`（等人验收，写「待验证」）还是 `blocked`（等阻塞解除，写「待解除」并带 `blocked_reason`）。仍算未完成，`complete` 只接受 `waiting + needs=review`。
+_Avoid_: 等待验证、待验收（只描述某一侧时用 `needs` 区分）、阻塞（作为独立状态名，已并入 `waiting`）
 
 ### 会话撤回
 

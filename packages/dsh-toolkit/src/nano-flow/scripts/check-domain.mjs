@@ -10,15 +10,9 @@ export const DEFAULT_DOMAINS = ".agents/domains";
 export const PLAN_LIFECYCLES = Object.freeze(["active", "reference", "archived"]);
 // reference 与 archived 是冻结内容，模板差异不再校验，避免历史缺项淹没本次新增问题。
 export const CHECKED_LIFECYCLES = Object.freeze(["active"]);
-export const NOTE_STATUSES = Object.freeze([
-  "pending",
-  "in_progress",
-  "waiting",
-  "blocked",
-  "completed",
-]);
+export const NOTE_STATUSES = Object.freeze(["pending", "in_progress", "waiting", "completed"]);
 /** `waiting` 时在等什么；与 dag.ts 的 NOTE_NEEDS 保持一致。 */
-export const NOTE_NEEDS = Object.freeze(["answer", "review"]);
+export const NOTE_NEEDS = Object.freeze(["answer", "review", "blocked"]);
 /** 重命名前的状态名，读到即当作 waiting + needs: review。 */
 export const LEGACY_WAITING_STATUS = "awaiting_verification";
 
@@ -357,6 +351,7 @@ const checkNotesDocument = (planDir, limits, report) => {
     notes.push({
       id,
       status,
+      needs,
       blocked_by: isStringArray(note.blocked_by) ? note.blocked_by : [],
       evidence: isStringArray(note.evidence) ? note.evidence : [],
       blocked_reason: typeof note.blocked_reason === "string" ? note.blocked_reason : undefined,
@@ -374,7 +369,11 @@ const checkNotesDocument = (planDir, limits, report) => {
         report.push(notesPath, "dag", `note ${note.id} 依赖不存在的 note ${dependency}`);
         continue;
       }
-      if (note.status !== "pending" && target.status !== "completed") {
+      // pending 与 waiting 可以先挂着：还没开工，或在等回答／验收／外部解除。
+      if (
+        (note.status === "in_progress" || note.status === "completed") &&
+        target.status !== "completed"
+      ) {
         report.push(
           notesPath,
           "dag",
@@ -385,8 +384,12 @@ const checkNotesDocument = (planDir, limits, report) => {
     if (note.status === "completed" && note.evidence.length === 0) {
       report.push(notesPath, "notes", `completed 的 note ${note.id} 缺少 evidence`);
     }
-    if (note.status === "blocked" && (note.blocked_reason ?? "").trim() === "") {
-      report.push(notesPath, "notes", `blocked 的 note ${note.id} 必须写 blocked_reason`);
+    if (
+      note.status === "waiting" &&
+      note.needs === "blocked" &&
+      (note.blocked_reason ?? "").trim() === ""
+    ) {
+      report.push(notesPath, "notes", `waiting/blocked 的 note ${note.id} 必须写 blocked_reason`);
     }
   }
   checkCycle(notes, report, notesPath);

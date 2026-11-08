@@ -299,7 +299,7 @@ describe("tools", () => {
     expect(text).toContain("03 [in_progress]");
   });
 
-  it("complete 只接受 waiting + needs=review 的 note", async () => {
+  it("pending 可直接进 waiting；complete 只接受 waiting + needs=review 的 note", async () => {
     const workspace = await makeWorkspace();
     const tools = createTools(workspace);
     await tools.write.execute({ op: "init", domain: "demo", name: "2026-11-07-完成门槛" }, exec());
@@ -307,9 +307,14 @@ describe("tools", () => {
       { op: "create", title: "示例 note", description: "摘要", content: "正文" },
       exec(),
     );
+    // pending 不必先假装开工：直接挂着等回答
+    await tools.write.execute(
+      { op: "status", note: "01", status: "waiting", needs: "answer" },
+      exec(),
+    );
     await expect(
-      tools.write.execute({ op: "status", note: "01", status: "waiting", needs: "review" }, exec()),
-    ).rejects.toThrow(/pending/);
+      tools.write.execute({ op: "complete", note: "01", evidence: ["做完了"] }, exec()),
+    ).rejects.toThrow(/review/);
     await tools.write.execute({ op: "status", note: "01", status: "in_progress" }, exec());
     await expect(
       tools.write.execute({ op: "complete", note: "01", evidence: ["做完了"] }, exec()),
@@ -335,6 +340,41 @@ describe("tools", () => {
       exec(),
     );
     expect(String(completed)).toContain("已完成 note 01");
+  });
+
+  it("blocked 并入 waiting：status=blocked 被拒，needs=blocked 必须给 reason", async () => {
+    const workspace = await makeWorkspace();
+    const tools = createTools(workspace);
+    await tools.write.execute(
+      { op: "init", domain: "demo", name: "2026-11-08-阻塞并入等待" },
+      exec(),
+    );
+    await tools.write.execute(
+      { op: "create", title: "等外部", description: "摘要", content: "正文" },
+      exec(),
+    );
+    await expect(
+      tools.write.execute({ op: "status", note: "01", status: "blocked" }, exec()),
+    ).rejects.toThrow(/needs=blocked/);
+    await expect(
+      tools.write.execute(
+        { op: "status", note: "01", status: "waiting", needs: "blocked" },
+        exec(),
+      ),
+    ).rejects.toThrow(/reason/);
+    const moved = await tools.write.execute(
+      { op: "status", note: "01", status: "waiting", needs: "blocked", reason: "等上游接口" },
+      exec(),
+    );
+    expect(String(moved)).toContain("waiting/blocked");
+    const resumed = String(await tools.read.execute({ op: "resume" }, exec()));
+    expect(resumed).toContain("待阻塞解除（1）");
+    expect(resumed).toContain("01 [waiting/blocked] 等外部 — 摘要（等上游接口）");
+    // 阻塞解除后回 in_progress，原因随之清掉
+    await tools.write.execute({ op: "status", note: "01", status: "in_progress" }, exec());
+    const reopened = String(await tools.read.execute({ op: "notes" }, exec()));
+    expect(reopened).toContain("01 [in_progress] 等外部");
+    expect(reopened).not.toContain("等上游接口");
   });
 
   it("resume 单列等待回答/等待确认，readyNotes 不列它", async () => {

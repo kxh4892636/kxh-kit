@@ -122,7 +122,7 @@ describe("host api", () => {
             pending: 0,
             in_progress: 0,
             waiting: 1,
-            blocked: 0,
+            needsBlocked: 0,
             completed: 0,
           },
           groups: [

@@ -4,6 +4,7 @@ import {
   TOOLKIT_NANO_FLOW_READY_PATH,
   TOOLKIT_STATE_PATH,
   TOOLKIT_UNDO_PATH,
+  type NanoFlowNoteNeeds,
   type NanoFlowNoteStatus,
   type NanoFlowReadyGroup,
   type NanoFlowReadyNote,
@@ -117,16 +118,15 @@ const NOTE_STATUSES: readonly NanoFlowNoteStatus[] = [
   "pending",
   "in_progress",
   "waiting",
-  "blocked",
   "completed",
 ];
 
-const NOTE_NEEDS: readonly ("answer" | "review")[] = ["answer", "review"];
+const NOTE_NEEDS: readonly NanoFlowNoteNeeds[] = ["answer", "review", "blocked"];
 
 const isNoteStatus = (value: unknown): value is NanoFlowNoteStatus =>
   typeof value === "string" && (NOTE_STATUSES as readonly string[]).includes(value);
 
-const isNoteNeeds = (value: unknown): value is "answer" | "review" =>
+const isNoteNeeds = (value: unknown): value is NanoFlowNoteNeeds =>
   typeof value === "string" && (NOTE_NEEDS as readonly string[]).includes(value);
 
 const isStringArray = (value: unknown): value is string[] =>
@@ -201,7 +201,7 @@ const parseReady = (body: unknown): NanoFlowReadyResponse | undefined => {
     "pending",
     "in_progress",
     "waiting",
-    "blocked",
+    "needsBlocked",
     "completed",
   ] as const) {
     if (typeof counts[key] !== "number") return undefined;

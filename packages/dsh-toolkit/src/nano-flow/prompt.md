@@ -84,7 +84,7 @@ workflow 是脱离单次 Plan 仍可复用的业务域工作流, 沉淀在 `work
 - `spec.md`: 规格文档;
 - `notes.json`: 工作记录(垂直切片 + DAG 有向无环图);
 
-story / spec / note 正文结构自定; 四个锚点固定: spec 必须有"当前进度""恢复入口", 进行中的 note 必须有"执行检查点""下一步"; `waiting` 的 note 按 `needs` 写"待回答"或"待验证"小节.
+story / spec / note 正文结构自定; 四个锚点固定: spec 必须有"当前进度""恢复入口", 进行中的 note 必须有"执行检查点""下一步"; `waiting` 的 note 按 `needs` 写"待回答"(answer)、"待验证"(review)或"待解除"(blocked)小节.
 
 ### 何时建 Plan
 
@@ -108,11 +108,11 @@ story / spec / note 正文结构自定; 四个锚点固定: spec 必须有"当�
 
 **切片规则**: 垂直切片划分, 一条 note 对应一个可独立验收的用户结果, 贯穿它需要的所有层级; 降低后续交付难度的前置准备排最前;
 
-**状态**: `pending → in_progress → waiting → completed`; `waiting` 表示交付物已完成、等用户一个人: 必须带 `needs`: `review`(等验收, 写"待验证"小节) 或 `answer`(等人回答, 写"待回答"小节), 用户回复后 `complete` 或回 `in_progress`; 受阻进 `blocked` 并写 `blocked_reason`, 解除后回 `in_progress`; `pending` 不能直接进 `waiting`; 旧文档的 `awaiting_verification` 读入时折成 `waiting + needs=review`;
+**状态**: `pending` / `in_progress` / `waiting` / `completed` 四态; `waiting` 表示当下必须等自身之外的东西, 必带 `needs`: `review`(等验收, 写"待验证"小节)、`answer`(等人回答, 写"待回答"小节) 或 `blocked`(等阻塞解除, 写"待解除"小节并给 `blocked_reason`); `pending` 可直接进 `in_progress` 或 `waiting`, `waiting` 与 `in_progress` 可互相转换, 等到回答、验收或阻塞解除后回 `in_progress` 或 `complete`; 旧文档的 `awaiting_verification` 读入时折成 `waiting + needs=review`, 旧的 `blocked` 状态不再兼容;
 
 **一条 note 走完两个阶段**: 需要人拍板的先置 `waiting` 且 `needs=answer`, 用户答完把结论写进"定案"小节, 再回 `in_progress` 实施, 完成后 `waiting` 且 `needs=review` → `completed`; 即 `pending → in_progress → waiting/answer → in_progress → waiting/review → completed` 是常态路径, 定案与执行不单独拆 note. 只有"定案与执行由不同角色承担"或"执行要拆成多个可独立验收的能力"时才拆成两条;
 
-- 直接依赖写进 `blocked_by`; 依赖必须存在,无环; 非 `pending` 的 note, 其直接依赖必须已完成.
+- 直接依赖写进 `blocked_by`; 依赖必须存在,无环; `in_progress` 与 `completed` 的 note, 其直接依赖必须已完成, `pending` 与 `waiting` 可以先挂着.
 - 完成条件是验收满足且 evidence 写清; `complete` 只接受 `waiting` 且 `needs=review` 的 note, 置 `completed`.
 - 讨论,调查与计划类 note 以可检查的结论或方案为交付物; 执行类 note 以可验证的用户能力为交付物; 同一条 note 先交结论再交能力时, 两段都写在同一篇里(见上条).
 - 删除或合并有下游的 note 前, 先用 `link` 改指承接产物, 或 `merge` 合并; 清空依赖传 `[]`.
