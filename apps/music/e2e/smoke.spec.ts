@@ -38,6 +38,35 @@ test("播放、下一首与历史", async ({ page }) => {
   await expect(audio).toHaveCount(1);
 });
 
+test("开启自动播放后，播完自动播下一首", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "播放" }).click();
+
+  const auto = page.getByRole("switch", { name: "自动播放" });
+  await expect(auto).toHaveAttribute("aria-checked", "false");
+  await auto.click();
+  await expect(auto).toHaveAttribute("aria-checked", "true");
+
+  const first = await page.locator("#work").textContent();
+  await page.evaluate(() => {
+    const audio = document.querySelector("audio");
+    if (!audio || !Number.isFinite(audio.duration)) return;
+    audio.currentTime = Math.max(0, audio.duration - 0.6);
+  });
+
+  await expect.poll(() => page.locator("#work").textContent()).not.toBe(first);
+  await expect(page.getByRole("button", { name: "暂停" })).toBeVisible();
+  await expect
+    .poll(async () => page.evaluate(() => document.querySelector("audio")?.currentTime ?? 0))
+    .toBeGreaterThan(1);
+
+  await page.reload();
+  await expect(page.getByRole("switch", { name: "自动播放" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+});
+
 test("播放结束后停在下一首的开头，不自动播放", async ({ page }) => {
   await page.goto("/");
   await page.getByRole("button", { name: "播放" }).click();

@@ -65,6 +65,7 @@ export const usePlayback = (
   const advance = usePlayerStore((state) => state.advance);
   const commitPlayed = usePlayerStore((state) => state.commitPlayed);
   const select = usePlayerStore((state) => state.select);
+  const autoPlay = usePlayerStore((state) => state.autoPlay);
 
   useEffect(() => {
     if (ids.length > 0) start(ids);
@@ -96,13 +97,14 @@ export const usePlayback = (
           setFailed(true);
         },
         onEnded: () => {
-          // A finished track hands over to the next one and stops there: the
-          // listener presses play when they want to keep going.
+          // Off: hand over to the next track and stop at 0:00, as before.
+          // On: hand over and start it without another click.
           setPlaying(false);
+          if (autoPlay) shouldPlayRef.current = true;
           advance(ids);
         },
       }),
-    [audio, advance, commitPlayed, current, ids],
+    [audio, advance, autoPlay, commitPlayed, current, ids],
   );
 
   useEffect(() => {

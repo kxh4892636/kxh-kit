@@ -55,7 +55,7 @@ status: completed
 ## 恢复入口
 
 1. 读 [001-中文曲目信息与新曲库并入的决策](001-中文曲目信息与新曲库并入的决策.md) 的结论，再按 notes_index 顺序推进。
-2. 当前进度（2026-11-08 23:35）：全部完成。线上 <http://123.57.92.26/music/> 为 347 首 / 196 部作品；标题宽度 90%、`text-wrap: wrap`，线上复验通过；详见 005/007 的执行记录与回滚方式。
+2. 当前进度（2026-11-08 23:45）：全部完成。自动播放开关与快捷键提示换行已上线；线上默认关闭，开启后播完自动播下一首，开关状态存 localStorage。单测 56/56、e2e 3/3、线上复验通过。
 3. 代码入口：`apps/music/scripts/build-library.py`、`apps/music/server/data/tracks.json`、`apps/music/shared/tracks.ts`、`apps/music/client/app/components/now-playing.tsx`、`apps/music/client/app/routes/home.tsx`、`apps/music/server/media.ts`、`apps/music/server/config.ts`。
 4. 曲库：老 `C:\Users\kxh\Music\musopen-flac`；新 `C:\Users\kxh\Music\古典音乐精选合辑 无损WAV`；取证产物 `.temp/music-new/`（scan.json、report.txt）。
 5. 本地调试根目录与 FLAC 产物位置在 006 前定稿并写入 note，避免轮转后丢线索。

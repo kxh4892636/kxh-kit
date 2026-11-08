@@ -132,9 +132,9 @@ body::after {
 
 .console {
   display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-xs) var(--space-lg);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-xs);
   margin-top: var(--space-2xl);
 }
 
@@ -154,8 +154,84 @@ body::after {
 
 .transport {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-xs) var(--space-sm);
+}
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  min-height: 44px;
+  padding: 0 var(--space-2xs);
+  border: 0;
+  background: none;
+  color: var(--color-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.switch:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
+  border-radius: var(--radius-pill);
+}
+
+.switch[aria-checked="true"] {
+  color: var(--color-ink);
+}
+
+.switch:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.switch__track {
+  position: relative;
+  inline-size: 34px;
+  block-size: 20px;
+  border-radius: var(--radius-pill);
+  background: var(--color-paper-3);
+  box-shadow: inset 0 0 0 var(--rule-hair) var(--color-rule);
+  transition: background-color var(--dur-short) var(--ease-out);
+}
+
+.switch__thumb {
+  position: absolute;
+  inset-block-start: 2px;
+  inset-inline-start: 2px;
+  inline-size: 16px;
+  block-size: 16px;
+  border-radius: 50%;
+  background: var(--color-sheet);
+  box-shadow:
+    0 0 0 var(--rule-hair) var(--shade-1),
+    0 1px 1px var(--shade-1);
+  transition: transform var(--dur-short) var(--ease-out);
+}
+
+.switch[aria-checked="true"] .switch__track {
+  background: var(--color-accent);
+}
+
+.switch[aria-checked="true"] .switch__thumb {
+  transform: translateX(14px);
+}
+
+.switch:hover:not(:disabled):not([aria-checked="true"]) .switch__track {
+  background: var(--color-paper-2);
+}
+
+.switch:active:not(:disabled)[aria-checked="true"] .switch__track {
+  background: var(--color-accent-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .switch__track,
+  .switch__thumb {
+    transition: none;
+  }
 }
 
 .cap {

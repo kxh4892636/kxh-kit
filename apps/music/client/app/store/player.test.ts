@@ -46,6 +46,14 @@ describe("player store", () => {
     expect(usePlayerStore.getState().history.filter((entry) => entry.id === "t19")).toHaveLength(1);
   });
 
+  it("defaults auto play off and toggles", () => {
+    expect(usePlayerStore.getState().autoPlay).toBe(false);
+    usePlayerStore.getState().setAutoPlay(true);
+    expect(usePlayerStore.getState().autoPlay).toBe(true);
+    usePlayerStore.getState().setAutoPlay(false);
+    expect(usePlayerStore.getState().autoPlay).toBe(false);
+  });
+
   it("drops a committed track from the bag", () => {
     usePlayerStore.getState().start(["a", "b"]);
     const current = usePlayerStore.getState().currentId;

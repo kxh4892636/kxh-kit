@@ -7,17 +7,19 @@ interface PlayerState {
   history: HistoryEntry[];
   bag: string[];
   currentId: string | null;
+  autoPlay: boolean;
   start: (ids: readonly string[]) => void;
   advance: (ids: readonly string[]) => string | null;
   select: (id: string) => void;
   commitPlayed: (id: string, at?: number) => void;
+  setAutoPlay: (value: boolean) => void;
 }
 
 const STORAGE_KEY = "musopen.listen.v1";
 
 /**
- * Only the history is worth keeping between sessions; the bag and the current
- * track reset on reload, which is what a fresh shuffle should do.
+ * History and the auto-play preference survive a reload; the bag and the
+ * current track reset, which is what a fresh shuffle should do.
  */
 export const usePlayerStore = create<PlayerState>()(
   persist(
@@ -25,6 +27,7 @@ export const usePlayerStore = create<PlayerState>()(
       history: [],
       bag: [],
       currentId: null,
+      autoPlay: false,
 
       start: (ids) => {
         const bag = refillBag(ids, get().currentId);
@@ -52,14 +55,18 @@ export const usePlayerStore = create<PlayerState>()(
           history: pushHistory(state.history, id, at),
         }));
       },
+
+      setAutoPlay: (value) => {
+        set({ autoPlay: value });
+      },
     }),
     {
       name: STORAGE_KEY,
-      partialize: (state) => ({ history: state.history }),
+      partialize: (state) => ({ history: state.history, autoPlay: state.autoPlay }),
     },
   ),
 );
 
 export const resetPlayer = (): void => {
-  usePlayerStore.setState({ history: [], bag: [], currentId: null });
+  usePlayerStore.setState({ history: [], bag: [], currentId: null, autoPlay: false });
 };
