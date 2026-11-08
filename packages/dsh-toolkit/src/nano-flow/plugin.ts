@@ -10,6 +10,7 @@ import {
   assetsSkillsRoot,
   assetsTemplatesRoot,
   locateAssetsRoot,
+  readLimitTemplate,
   readPromptText,
   readUserPromptText,
 } from "./assets.js";
@@ -108,6 +109,7 @@ const mountNanoFlow = (target: Context, host: Context, config: NanoFlowConfig): 
     const assetsRoot = locateAssetsRoot();
     const fixedPrompt = readPromptText(assetsRoot);
     const userPrompt = readUserPromptText(assetsRoot);
+    const limitTemplate = readLimitTemplate(assetsRoot);
     const settings = createSettingsReader(services);
     const domainRoot = config.domainRoot ?? DEFAULT_DOMAIN_ROOT;
     const runtime = createToolRuntime({ services, config, settings, assetsRoot, domainRoot });
@@ -132,7 +134,7 @@ const mountNanoFlow = (target: Context, host: Context, config: NanoFlowConfig): 
     const turnByAgent = new WeakMap<object, number>();
     const promptText = (context: PromptContext): string => {
       const guide = guideOf(context.agent).trim();
-      const limits = buildLimitsText(settings());
+      const limits = buildLimitsText(limitTemplate, settings());
       return [fixedPrompt, guide, limits].filter((part) => part.trim() !== "").join("\n\n");
     };
     const userText = (context: PromptContext): string => {

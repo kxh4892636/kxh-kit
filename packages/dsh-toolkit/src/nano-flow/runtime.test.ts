@@ -10,6 +10,7 @@ import {
   assetsCheckScript,
   assetsSkillsRoot,
   locateAssetsRoot,
+  readLimitTemplate,
   readPromptText,
   readUserPromptText,
 } from "./assets.js";
@@ -71,6 +72,8 @@ describe("assets", () => {
     const assetsRoot = locateAssetsRoot();
     expect(readPromptText(assetsRoot)).toContain("# Nano Flow");
     expect(readUserPromptText(assetsRoot)).toContain("ask");
+    expect(readLimitTemplate(assetsRoot)).toContain("## 篇幅限制");
+    expect((await stat(join(assetsRoot, "prompts", "limit.md"))).isFile()).toBe(true);
     expect((await stat(join(assetsRoot, "templates", "spec.md"))).isFile()).toBe(true);
     expect((await stat(join(assetsRoot, "templates", "guide.md"))).isFile()).toBe(true);
     expect((await stat(assetsCheckScript(assetsRoot))).isFile()).toBe(true);

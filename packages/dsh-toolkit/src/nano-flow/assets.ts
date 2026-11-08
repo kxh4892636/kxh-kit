@@ -42,6 +42,15 @@ export const readUserPromptText = (assetsRoot: string): string => {
   return readFileSync(join(assetsRoot, "prompts", "user.md"), "utf8").trim();
 };
 
+/**
+ * 读取篇幅限制的静态模板；具体值由 `limits.ts` 追加。
+ * @param assetsRoot - `nano-flow/` 目录。
+ * @returns 去掉首尾空白的模板正文。
+ */
+export const readLimitTemplate = (assetsRoot: string): string => {
+  return readFileSync(join(assetsRoot, "prompts", "limit.md"), "utf8").trim();
+};
+
 /** 动态注入的 skill 根目录。 */
 export const assetsSkillsRoot = (assetsRoot: string): string => join(assetsRoot, "skills");
 

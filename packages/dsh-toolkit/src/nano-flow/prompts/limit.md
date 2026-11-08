@@ -1,0 +1,5 @@
+## 篇幅限制
+
+规则：超过上限时先压缩；只允许删除能由 note、领域文档、代码或命令重新查到的内容，并在删除处留下指针；压缩后仍有事实无处可查时，拆成 note 或领域文档。
+
+概述：spec、note、CONTEXT、question、ADR、workflow 有字节上限；description 有字数上限；ADR 数量与追踪 Note 行数不限制。

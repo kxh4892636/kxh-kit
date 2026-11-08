@@ -8,21 +8,12 @@ const formatKb = (bytes: number): string => {
 };
 
 /**
- * 把当前设置渲染成注入系统提示词顶部的篇幅限制块。
- *
- * 结构固定为「规则 + 概述 + 具体值」，数值全部来自 `nano-flow.json`，
- * 不把具体数字写死在提示词里。
+ * 把当前设置渲染成「具体值」列表。
  * @param settings - 当前生效的设置。
- * @returns 可直接拼接到固定提示词后的 Markdown 文本。
+ * @returns 具体值 Markdown 文本。
  */
-export const buildLimitsText = (settings: NanoFlowSettings): string => {
+export const buildLimitsValues = (settings: NanoFlowSettings): string => {
   return [
-    "## 篇幅限制",
-    "",
-    "规则：超过上限时先压缩；只允许删除能由 note、领域文档、代码或命令重新查到的内容，并在删除处留下指针；压缩后仍有事实无处可查时，拆成 note 或领域文档。",
-    "",
-    "概述：spec、note、CONTEXT、question、ADR、workflow 有字节上限；description 有字数上限；ADR 数量与追踪 Note 行数不限制。",
-    "",
     "具体值：",
     `- spec.md ≤ ${formatKb(settings.specMaxBytes)}`,
     `- 单条 note ≤ ${formatKb(settings.noteMaxBytes)}`,
@@ -32,4 +23,17 @@ export const buildLimitsText = (settings: NanoFlowSettings): string => {
     `- ADR ≤ ${formatKb(settings.adrMaxBytes)}`,
     `- workflow ≤ ${formatKb(settings.workflowMaxBytes)}`,
   ].join("\n");
+};
+
+/**
+ * 把 `prompts/limit.md` 的静态模板与当前设置的具体值拼成注入块。
+ *
+ * 规则的措辞由 `prompts/limit.md` 维护；这里只负责追加来自
+ * `nano-flow.json` 的数字，避免把具体值写死在提示词里。
+ * @param template - `prompts/limit.md` 的正文。
+ * @param settings - 当前生效的设置。
+ * @returns 可直接拼接到 GUIDE 之后的 Markdown 文本。
+ */
+export const buildLimitsText = (template: string, settings: NanoFlowSettings): string => {
+  return `${template.trim()}\n\n${buildLimitsValues(settings)}`;
 };
