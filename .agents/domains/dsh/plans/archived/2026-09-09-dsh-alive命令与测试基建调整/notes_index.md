@@ -4,6 +4,6 @@
 
 | Name | Description | Related Note |
 | --- | --- | --- |
-| [001-vp与vitest基建迁移](001-vp%E4%B8%8Evitest%E5%9F%BA%E5%BB%BA%E8%BF%81%E7%A7%BB.md) | `packages/dsh-keep-alive` 使用仓库统一的 vp 工具链：`vp pack` 构建、`vp check` 检查、`vp test` 测试、`vp test --run --coverage` 覆盖率；四条命令全部通过，且行为与迁移前一致。 | — |
-| [002-cli改名与默认端口](002-cli%E6%94%B9%E5%90%8D%E4%B8%8E%E9%BB%98%E8%AE%A4%E7%AB%AF%E5%8F%A3.md) | 用户以 `dsh-alive` 调用工具；`start`/`stop`/`logs` 省略 `--port` 时作用于 3080，`status` 无参数仍列出全部受管端口。 | 001-vp与vitest基建迁移 |
-| [003-移除class与lint强制](003-%E7%A7%BB%E9%99%A4class%E4%B8%8Elint%E5%BC%BA%E5%88%B6.md) | `packages/dsh-keep-alive` 的 src 中不再出现 class；工作区根 lint 配置对该包 src 强制 `max-classes-per-file: 0`，`vp check` 全绿。 | 001-vp与vitest基建迁移 |
+| [001-vp与vitest基建迁移](001-vp与vitest基建迁移.md) | `packages/dsh-keep-alive` 使用仓库统一的 vp 工具链：`vp pack` 构建、`vp check` 检查、`vp test` 测试、`vp test --run --coverage` 覆盖率；四条命令全部通过，且行为与迁移前一致。 | — |
+| [002-cli改名与默认端口](002-cli改名与默认端口.md) | 用户以 `dsh-alive` 调用工具；`start`/`stop`/`logs` 省略 `--port` 时作用于 3080，`status` 无参数仍列出全部受管端口。 | 001-vp与vitest基建迁移 |
+| [003-移除class与lint强制](003-移除class与lint强制.md) | `packages/dsh-keep-alive` 的 src 中不再出现 class；工作区根 lint 配置对该包 src 强制 `max-classes-per-file: 0`，`vp check` 全绿。 | 001-vp与vitest基建迁移 |

@@ -81,4 +81,4 @@ status: in_progress
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [001-删除清单定案：pi-toolkit的包、域、关联域与本机痕迹](001-%E5%88%A0%E9%99%A4%E6%B8%85%E5%8D%95%E5%AE%9A%E6%A1%88%EF%BC%9Api-toolkit%E7%9A%84%E5%8C%85%E3%80%81%E5%9F%9F%E3%80%81%E5%85%B3%E8%81%94%E5%9F%9F%E4%B8%8E%E6%9C%AC%E6%9C%BA%E7%97%95%E8%BF%B9.md) | 出删除清单并拷问范围：pi 域、关联域、本机痕迹与删除方式。 | blocked | 等待用户验收：旧 waiting/needs=review | 1. 用户验收后 `complete`。 2. 若之后仍要用 pi：重启 pi 即可（插件列表已空），需要恢复时从 `.temp/pi-backup/` 与 git 历史取回。 3. 可选后续：`~/.pi/agent/sessions`（134.8 MB pi 会话）与 `missions/` 未清理，需要的话另开一条。 | — |
+| [001-删除清单定案：pi-toolkit的包、域、关联域与本机痕迹](001-删除清单定案：pi-toolkit的包、域、关联域与本机痕迹.md) | 出删除清单并拷问范围：pi 域、关联域、本机痕迹与删除方式。 | blocked | 等待用户验收：旧 waiting/needs=review | 1. 用户验收后 `complete`。 2. 若之后仍要用 pi：重启 pi 即可（插件列表已空），需要恢复时从 `.temp/pi-backup/` 与 git 历史取回。 3. 可选后续：`~/.pi/agent/sessions`（134.8 MB pi 会话）与 `missions/` 未清理，需要的话另开一条。 | — |

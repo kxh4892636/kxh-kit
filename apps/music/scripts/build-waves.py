@@ -1,10 +1,11 @@
-"""Generate 800x200 binary-alpha waveform silhouettes from audio.
+"""Generate 1600x400 binary-alpha waveform silhouettes from audio.
 
 The site renders the silhouette through CSS mask-image; only the alpha channel
 matters. Each column is a symmetric vertical bar whose half-height is the
-column's peak amplitude, normalised to the loudest column of the track. This
-matches the shape of the Musopen cover-art masks (800x200, binary alpha,
-median bar height ~20-33 px) without needing the cover PNGs.
+column's peak amplitude, normalised to the loudest column of the track and
+smoothed with a 3-tap moving average. The earlier 800x200 mask was too coarse
+at display width (~850 px): 1600 columns give 2x supersampling, and the
+smoothing removes the step-like column jumps the 800-column version showed.
 
 Local build tool: needs soundfile (FLAC/WAV decode) and Pillow.
 Run with the workspace venv, e.g.:
@@ -23,11 +24,10 @@ import numpy as np
 import soundfile as sf
 from PIL import Image
 
-WIDTH = 800
-HEIGHT = 200
-# The loudest column spans 3/4 of the 200 px canvas, so the visible waveform
-# fills the block instead of sitting as a thin band in the middle.
-HALF = 75
+WIDTH = 1600
+HEIGHT = 400
+HALF = 150  # 301 px at the loudest column = 75.25% of the canvas
+SMOOTH = 5
 
 
 def envelope(path: Path) -> np.ndarray:
@@ -39,7 +39,12 @@ def envelope(path: Path) -> np.ndarray:
         start, end = edges[column], max(edges[column] + 1, edges[column + 1])
         peaks[column] = float(mono[start:end].max())
     loudest = float(peaks.max())
-    return peaks / loudest if loudest > 0 else np.zeros(WIDTH)
+    if loudest <= 0:
+        return np.zeros(WIDTH)
+    peaks = np.convolve(peaks / loudest, np.ones(SMOOTH) / SMOOTH, mode="same")
+    peaks = np.clip(peaks, 0, None)
+    # Smoothing lowers the loudest column; renormalise so the peak still hits 3/4.
+    return peaks / peaks.max()
 
 
 def mask(peaks: np.ndarray) -> Image.Image:

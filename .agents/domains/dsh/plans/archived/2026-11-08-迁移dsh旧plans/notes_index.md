@@ -4,4 +4,4 @@
 
 | Name | Description | Related Note |
 | --- | --- | --- |
-| [001-迁移旧dsh-plans](001-%E8%BF%81%E7%A7%BB%E6%97%A7dsh-plans.md) | 把 17 个旧 dsh Plan 的 story/spec/notes.json 转成当前 spec + note 格式。 | — |
+| [001-迁移旧dsh-plans](001-迁移旧dsh-plans.md) | 把 17 个旧 dsh Plan 的 story/spec/notes.json 转成当前 spec + note 格式。 | — |

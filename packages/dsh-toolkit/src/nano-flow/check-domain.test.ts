@@ -361,6 +361,98 @@ describe("checkWorkspace", () => {
     expect(raised.ok).toBe(true);
   });
 
+  it("keeps Chinese file names readable in generated index links", async () => {
+    const root = await makeRoot();
+    await domain(root, "demo", "演示");
+    const doc = (name: string, extra: string[] = []): string =>
+      [
+        "---",
+        `name: '${name}'`,
+        `description: '${name}。'`,
+        ...extra,
+        "---",
+        "",
+        `# ${name}`,
+        "",
+      ].join("\n");
+    await write(root, ".agents/domains/demo/questions/001-中文问题.md", doc("001-中文问题"));
+    await write(
+      root,
+      ".agents/domains/demo/adr/001-中文决策.md",
+      doc("001-中文决策", ["status: accepted"]),
+    );
+    await write(
+      root,
+      ".agents/domains/demo/workflows/001-中文工作流/001-中文工作流.md",
+      doc("001-中文工作流"),
+    );
+    const result = checkWorkspace(root);
+    expect(result.ok).toBe(true);
+    const questions = await readFile(join(root, ".agents/domains/demo/questions/index.md"), "utf8");
+    expect(questions).toContain("[001-中文问题](001-中文问题.md)");
+    expect(questions).not.toContain("%E4");
+    const adrs = await readFile(join(root, ".agents/domains/demo/adr/index.md"), "utf8");
+    expect(adrs).toContain("[001-中文决策](001-中文决策.md)");
+    const workflows = await readFile(join(root, ".agents/domains/demo/workflows/index.md"), "utf8");
+    expect(workflows).toContain("[001-中文工作流](001-中文工作流/001-中文工作流.md)");
+  });
+
+  it("escapes only ASCII-unsafe characters in generated links", async () => {
+    const root = await makeRoot();
+    await domain(root, "demo", "演示");
+    await write(
+      root,
+      ".agents/domains/demo/questions/001-中文 问题.md",
+      [
+        "---",
+        "name: '001-中文 问题'",
+        "description: '带空格的问题。'",
+        "---",
+        "",
+        "# 带空格",
+        "",
+      ].join("\n"),
+    );
+    const plan = ".agents/domains/demo/plans/active/2026-11-08-示例";
+    await write(
+      root,
+      `${plan}/spec.md`,
+      [
+        "---",
+        "name: '示例'",
+        "description: '示例。'",
+        "status: pending",
+        "---",
+        "",
+        "# 示例",
+        "",
+      ].join("\n"),
+    );
+    await write(
+      root,
+      `${plan}/001-中文 标题.md`,
+      [
+        "---",
+        "name: '001-中文 标题'",
+        "description: '带空格的标题。'",
+        "status: pending",
+        "reason:",
+        "related_noted: []",
+        "next_step: '继续'",
+        "---",
+        "",
+        "# 001-中文 标题",
+        "",
+      ].join("\n"),
+    );
+    const result = checkWorkspace(root);
+    expect(result.ok).toBe(true);
+    const questions = await readFile(join(root, ".agents/domains/demo/questions/index.md"), "utf8");
+    expect(questions).toContain("(001-中文%20问题.md)");
+    const notes = await readFile(join(root, plan, "notes_index.md"), "utf8");
+    expect(notes).toContain("(001-中文%20标题.md)");
+  });
+
   it("reports duplicate names and legacy documents", async () => {
     const root = await makeRoot();
     await domain(root, "demo", "演示");

@@ -88,4 +88,4 @@ create ──► pending ⇄ in_progress ⇄ waiting ──► completed(仅 com
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [001-状态机定案：pending直进waiting与blocked并入waiting](001-%E7%8A%B6%E6%80%81%E6%9C%BA%E5%AE%9A%E6%A1%88%EF%BC%9Apending%E7%9B%B4%E8%BF%9Bwaiting%E4%B8%8Eblocked%E5%B9%B6%E5%85%A5waiting.md) | 定案并落地：状态 5→4、needs 增 blocked，pending 可直进 waiting，依赖规则放宽；代码/文案/测试/0.4.6 构建完成，等验收。 | blocked | 等待用户验收：旧 waiting/needs=review | 1. 用户验收通过后 `complete`。 2. 装包重启（0.4.6）后做上面第 4 项原生验证；未装包前本会话仍跑 0.4.5 的旧规则。 3. 后续独立议题：`pi-toolkit` orchestrator 与 `packages/nano-flow` 旧脚本的状态机分叉（本轮明确不动）。 | — |
+| [001-状态机定案：pending直进waiting与blocked并入waiting](001-状态机定案：pending直进waiting与blocked并入waiting.md) | 定案并落地：状态 5→4、needs 增 blocked，pending 可直进 waiting，依赖规则放宽；代码/文案/测试/0.4.6 构建完成，等验收。 | blocked | 等待用户验收：旧 waiting/needs=review | 1. 用户验收通过后 `complete`。 2. 装包重启（0.4.6）后做上面第 4 项原生验证；未装包前本会话仍跑 0.4.5 的旧规则。 3. 后续独立议题：`pi-toolkit` orchestrator 与 `packages/nano-flow` 旧脚本的状态机分叉（本轮明确不动）。 | — |

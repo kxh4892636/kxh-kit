@@ -231,4 +231,4 @@ status: in_progress
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [005-打包安装与真机验证](005-%E6%89%93%E5%8C%85%E5%AE%89%E8%A3%85%E4%B8%8E%E7%9C%9F%E6%9C%BA%E9%AA%8C%E8%AF%81.md) | `@kxh4892636/dsh-toolkit@0.2.0` 打包为 tgz，装进 desktop profile，替换掉旧的 `@kxh4892636/dsh-nested-skill`，并在真实宿主里验收四条用户故事。 | in_progress | — | 用户重启 DSH 后按 README「验证」四步走，把结果补进本 note 的交付记录（必要时把 Plan 迁回 `planning` 修订）。 | 002-包重命名与工具注册表, 003-客户端bundle与toolkit面板, 004-撤回工具 |
+| [005-打包安装与真机验证](005-打包安装与真机验证.md) | `@kxh4892636/dsh-toolkit@0.2.0` 打包为 tgz，装进 desktop profile，替换掉旧的 `@kxh4892636/dsh-nested-skill`，并在真实宿主里验收四条用户故事。 | in_progress | — | 用户重启 DSH 后按 README「验证」四步走，把结果补进本 note 的交付记录（必要时把 Plan 迁回 `planning` 修订）。 | 002-包重命名与工具注册表, 003-客户端bundle与toolkit面板, 004-撤回工具 |

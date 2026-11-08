@@ -12,7 +12,7 @@ description: 领域索引与关系。
 - [Common](./common/CONTEXT.md) - 由多个业务域共同贡献的基础业务域，承载跨业务域共享的基础约定。
 - [DSH](./dsh/CONTEXT.md) - 工作区自研 DeepSeek Harness 扩展的业务域：独立插件包、可开关工具与 Nano Flow 预设。
 - [ETF](./etf/CONTEXT.md) - ETF 行情产品：证券目录、日线缓存、图表与虚拟均线。
-- [Music](./music/CONTEXT.md) - 本地免版权古典曲库与消费该曲库的随机播放站点。
+- [Music](./music/CONTEXT.md) - 本地古典曲库（Musopen 与本地收藏）与消费该曲库的随机播放站点。
 - [Nano Flow](./nano-flow/CONTEXT.md) - Nano Flow 业务域：从想法路由到经门禁验证交付的 Flow，以单一 CLI 收口内建子命令并管理 Nano Flow 与 CLI 路由 skill。
 - [video](./video/CONTEXT.md) - 把图片、文字稿与录音合成为可发布视频的代码化渲染管线。
 

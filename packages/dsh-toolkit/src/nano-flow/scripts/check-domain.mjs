@@ -275,7 +275,12 @@ const checkRelatedSection = (ctx, file, body) => {
     if (!target.endsWith(".md")) {
       addIssue(ctx.errors, ctx.rootDir, file, "related", `相关链接只允许 .md：${target}`);
     }
-    const targetPath = decodeURI(target.split("#")[0]);
+    let targetPath = target.split("#")[0];
+    try {
+      targetPath = decodeURI(targetPath);
+    } catch {
+      // 非法的 % 序列按原文处理，交给存在性校验报错。
+    }
     const resolved = path.resolve(baseDir, targetPath);
     if (!exists(resolved)) {
       addIssue(ctx.errors, ctx.rootDir, file, "related", `相关链接目标不存在：${target}`);
@@ -416,6 +421,29 @@ const readDocument = (ctx, file, kind, options = {}) => {
   return { data, body, content, file };
 };
 
+/**
+ * 生成 Markdown 链接目标：中文等非 ASCII 字符保持原样，只转义会破坏链接的 ASCII 字符
+ * （空格、#、?、% 等）。索引里因此显示可读的中文路径，而不是一长串 %E8…。
+ * @param fileName - 相对文件名。
+ * @returns Markdown 链接目标。
+ */
+const linkTarget = (fileName) =>
+  encodeURI(fileName).replace(
+    /%([C-Fc-f][0-9A-Fa-f])((?:%[89ABab][0-9A-Fa-f])+)/gu,
+    (whole, lead, rest) => {
+      const hex = lead + rest.replaceAll("%", "");
+      const bytes = [];
+      for (let index = 0; index < hex.length; index += 2) {
+        bytes.push(Number.parseInt(hex.slice(index, index + 2), 16));
+      }
+      try {
+        return new TextDecoder("utf-8", { fatal: true }).decode(Uint8Array.from(bytes));
+      } catch {
+        return whole;
+      }
+    },
+  );
+
 const indexTable = (headers, rows) => {
   const head = `| ${headers.join(" | ")} |`;
   const separator = `| ${headers.map(() => "---").join(" | ")} |`;
@@ -425,7 +453,7 @@ const indexTable = (headers, rows) => {
 
 const noteRow = (note, includeStatus) => {
   const cells = [
-    `[${normalizeCell(note.name)}](${encodeURI(note.fileName)})`,
+    `[${normalizeCell(note.name)}](${linkTarget(note.fileName)})`,
     normalizeCell(note.description),
   ];
   if (includeStatus === true) {
@@ -766,7 +794,7 @@ const renderContextMap = (ctx, contexts) => {
 
 const renderQuestionsIndex = (questions) => {
   const rows = questions.map((question) => [
-    `[${normalizeCell(question.name)}](${encodeURI(question.fileName)})`,
+    `[${normalizeCell(question.name)}](${linkTarget(question.fileName)})`,
     normalizeCell(question.description),
   ]);
   return ["# Questions", "", GENERATED_MARKER, "", indexTable(["Name", "Description"], rows)].join(
@@ -776,7 +804,7 @@ const renderQuestionsIndex = (questions) => {
 
 const renderAdrIndex = (adrs) => {
   const rows = adrs.map((adr) => [
-    `[${normalizeCell(adr.name)}](${encodeURI(adr.fileName)})`,
+    `[${normalizeCell(adr.name)}](${linkTarget(adr.fileName)})`,
     normalizeCell(adr.description),
     adr.status ?? "—",
   ]);
@@ -791,7 +819,7 @@ const renderAdrIndex = (adrs) => {
 
 const renderWorkflowsIndex = (workflows) => {
   const rows = workflows.map((workflow) => [
-    `[${normalizeCell(workflow.name)}](${encodeURI(workflow.fileName)})`,
+    `[${normalizeCell(workflow.name)}](${linkTarget(workflow.fileName)})`,
     normalizeCell(workflow.description),
   ]);
   return ["# Workflows", "", GENERATED_MARKER, "", indexTable(["Name", "Description"], rows)].join(
