@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -224,6 +225,10 @@ describe("tools", () => {
     );
     expect(domain).toContain("已创建/检查 domain: demo");
     expect((await stat(join(workspace, ".agents", "domains", "GUIDE.md"))).isFile()).toBe(true);
+    expect((await stat(join(workspace, ".agents", "domains", "CONTEXT-MAP.md"))).isFile()).toBe(
+      true,
+    );
+    expect(existsSync(join(workspace, "CONTEXT-MAP.md"))).toBe(false);
 
     const plan = String(
       await tools.create.execute(
@@ -279,7 +284,7 @@ describe("tools", () => {
       "utf8",
     );
     expect(index).toContain("001-取消订单");
-    const map = await readFile(join(workspace, "CONTEXT-MAP.md"), "utf8");
+    const map = await readFile(join(workspace, ".agents", "domains", "CONTEXT-MAP.md"), "utf8");
     expect(map).toContain("Demo 域");
   });
 

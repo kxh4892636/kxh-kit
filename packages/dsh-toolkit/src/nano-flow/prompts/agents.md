@@ -74,7 +74,7 @@ metadata:
 
 ## 业务域
 
-从 `CONTEXT-MAP.md` 找到所属业务域；没有时用 `nano_flow_create` 创建。跨域工作以 `common` 为业务域；`common` 可被任何域读写，跨域共享的术语、问题、决策与 workflow 写进 `common`，其他域引用而不复制。
+从 `.agents/domains/CONTEXT-MAP.md` 找到所属业务域；没有时用 `nano_flow_create` 创建。跨域工作以 `common` 为业务域；`common` 可被任何域读写，跨域共享的术语、问题、决策与 workflow 写进 `common`，其他域引用而不复制。
 
 ### CONTEXT
 

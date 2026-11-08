@@ -9,7 +9,7 @@ description: 领域索引与关系。
 
 ## Contexts
 
-- [DSH](./.agents/domains/dsh/CONTEXT.md) - 工作区自研 DeepSeek Harness 扩展的业务域：独立插件包、可开关工具与 Nano Flow 预设。
+- [DSH](./dsh/CONTEXT.md) - 工作区自研 DeepSeek Harness 扩展的业务域：独立插件包、可开关工具与 Nano Flow 预设。
 
 ## Relationships
 

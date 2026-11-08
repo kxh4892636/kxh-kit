@@ -9,6 +9,9 @@ import { parse as parseYaml } from "yaml";
 /** 默认领域根；与 `prompts/agents.md` 的约定一致。 */
 export const DOMAINS_DIR = ".agents/domains";
 
+/** 领域索引文件名；与 `GUIDE.md` 同级，宿主据它定位业务域。 */
+export const CONTEXT_MAP_FILE = "CONTEXT-MAP.md";
+
 /** 生成文件的标记：模型不需要维护索引，看到它就应改源文档。 */
 export const GENERATED_MARKER = "<!-- 由 nano_flow_check 生成，请勿手改 -->";
 
@@ -608,7 +611,7 @@ const renderContextMap = (ctx, contexts) => {
     sorted.length === 0
       ? ["（暂无业务域）"]
       : sorted.map((context) => {
-          const relative = relativePath(ctx.rootDir, context.file);
+          const relative = relativePath(ctx.domainsRoot, context.file);
           return `- [${normalizeCell(context.name)}](./${relative}) - ${normalizeCell(context.description)}`;
         });
 
@@ -1063,7 +1066,7 @@ export const checkWorkspace = (rootDirectory, options = {}) => {
   }
   // 单域过滤或宽松模式只做校验，不用不完整的集合覆盖全量 CONTEXT-MAP。
   if ((options.domain === undefined || options.domain === "") && options.strict !== false) {
-    writeGenerated(ctx, path.join(rootDir, "CONTEXT-MAP.md"), renderContextMap(ctx, contexts));
+    writeGenerated(ctx, path.join(domainsRoot, CONTEXT_MAP_FILE), renderContextMap(ctx, contexts));
   }
 
   return {

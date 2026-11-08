@@ -112,7 +112,7 @@ const scaffoldDomain = async (
   const guide = await readTemplate(runtime, "guide.md");
   await writeIfMissing(join(domainsRoot, "GUIDE.md"), guide, report, workspace);
   const map = await readTemplate(runtime, "context-map.md");
-  await writeIfMissing(join(workspace, "CONTEXT-MAP.md"), map, report, workspace);
+  await writeIfMissing(join(domainsRoot, "CONTEXT-MAP.md"), map, report, workspace);
 
   return { ...report, domainPath };
 };

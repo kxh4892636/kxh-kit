@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -68,9 +69,10 @@ describe("checkWorkspace", () => {
     await domain(root, "billing", "账单");
     const result = checkWorkspace(root);
     expect(result.ok).toBe(true);
-    const map = await readFile(join(root, "CONTEXT-MAP.md"), "utf8");
-    expect(map).toContain("[订单](./.agents/domains/ordering/CONTEXT.md)");
+    const map = await readFile(join(root, ".agents", "domains", "CONTEXT-MAP.md"), "utf8");
+    expect(map).toContain("[订单](./ordering/CONTEXT.md)");
     expect(map).toContain("**订单 → 账单**：订单完成后通知账单。");
+    expect(existsSync(join(root, "CONTEXT-MAP.md"))).toBe(false);
   });
 
   it("does not overwrite CONTEXT-MAP when only one domain is checked", async () => {
@@ -79,10 +81,10 @@ describe("checkWorkspace", () => {
     await domain(root, "billing", "账单");
     const first = checkWorkspace(root);
     expect(first.ok).toBe(true);
-    const before = await readFile(join(root, "CONTEXT-MAP.md"), "utf8");
+    const before = await readFile(join(root, ".agents", "domains", "CONTEXT-MAP.md"), "utf8");
     const scoped = checkWorkspace(root, { domain: "ordering" });
     expect(scoped.ok).toBe(true);
-    const after = await readFile(join(root, "CONTEXT-MAP.md"), "utf8");
+    const after = await readFile(join(root, ".agents", "domains", "CONTEXT-MAP.md"), "utf8");
     expect(after).toBe(before);
   });
 
