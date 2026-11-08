@@ -1,7 +1,9 @@
 ---
 name: 'DSH'
 description: '工作区自研 DeepSeek Harness 扩展的业务域：独立插件包、可开关工具与 Nano Flow 预设。'
-relations: []
+relations:
+  - to: 'nano-flow'
+    description: 'DSH 工具集的嵌套 skill 工具使 Nano Flow 以嵌套 skill 形式分发的主流程 skill 能被发现与调用。'
 metadata:
   owner: 'dsh'
 ---
