@@ -140,6 +140,22 @@ export const NANO_FLOW_NOTES_REFRESH_MS = 5_000;
 /** Note 面板快照路由（连接服务已鉴权）。 */
 export const TOOLKIT_NANO_FLOW_NOTES_PATH = "/api/toolkit/nano-flow/notes";
 
+/** 一次轮转的记录：旧会话 → 新会话（客户端据此切换）。 */
+export interface NanoFlowRotation {
+  readonly from: string;
+  readonly to: string;
+  /** ISO-8601 轮转时刻。 */
+  readonly at: string;
+}
+
+/** `GET /api/toolkit/nano-flow/rotation` 的响应；`null` 表示本次宿主运行还没有轮转过。 */
+export interface NanoFlowRotationResponse {
+  readonly rotation: NanoFlowRotation | null;
+}
+
+/** 轮转记录路由（连接服务已鉴权）。 */
+export const TOOLKIT_NANO_FLOW_ROTATION_PATH = "/api/toolkit/nano-flow/rotation";
+
 /** 工具 id；状态文件与面板都以此为键。 */
 export const TOOL_IDS = {
   nestedSkill: "nested-skill",

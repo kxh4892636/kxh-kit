@@ -2,8 +2,9 @@ import { describe, expect, it, vi } from "vite-plus/test";
 
 import { DEFAULT_NANO_FLOW_SETTINGS } from "../contract.js";
 import {
-  attachRotation,
+  createRotation,
   selectedPreset,
+  wrapPriorInput,
   type PromptRequestLike,
   type RotationSession,
 } from "./rotate.js";
@@ -50,13 +51,14 @@ const makeHarness = (workspaceRegistry?: unknown) => {
     },
     logger: { warn: vi.fn() },
   } as unknown as HostServices;
-  const dispose = attachRotation({
+  const rotation = createRotation({
     services,
     config: { presetId: "nano-flow" },
     domainRoot: ".agents/domains",
     settings: () => ({ ...DEFAULT_NANO_FLOW_SETTINGS, rotateAt: 0.618 }),
     sessionOf: (id) => sessions.get(id),
   });
+  const dispose = rotation.attach();
   const request = (overrides: Partial<PromptRequestLike> = {}): PromptRequestLike => ({
     requestId: "request-1",
     sessionId: "session-1",
@@ -71,6 +73,7 @@ const makeHarness = (workspaceRegistry?: unknown) => {
     create,
     originalPrompt,
     dispose,
+    rotation,
     send,
     sessions,
     setPressure: (next: Pressure) => (pressure = next),
@@ -133,6 +136,40 @@ describe("selectedPreset", () => {
   });
 });
 
+describe("wrapPriorInput", () => {
+  it("在用户内容前后各加一个 XML 标记与一句说明", () => {
+    const wrapped = wrapPriorInput([{ type: "text", text: "用户消息" }]);
+    expect(wrapped.map((block) => block["text"])).toEqual([
+      "以下 XML 块是轮转前用户在旧会话发出的输入：",
+      "<rotation-prior-input>",
+      "用户消息",
+      "</rotation-prior-input>",
+    ]);
+  });
+});
+
+describe("rotation engine", () => {
+  it("rotates on demand: the new session receives only the seed", async () => {
+    const harness = makeHarness();
+    const session = harness.sessions.get("session-1");
+    const result = await harness.rotation.rotate(session!);
+    expect(result.accepted).toBe(true);
+    expect(harness.create).toHaveBeenCalledTimes(1);
+    const prompted = harness.originalPrompt.mock.calls[0]?.[0];
+    expect(prompted?.sessionId).toBe("session-new");
+    expect(prompted?.content).toHaveLength(1);
+    expect(String(prompted?.content[0]?.["text"])).toContain("只读报告");
+  });
+
+  it("does nothing for a non-nano-flow session", async () => {
+    const harness = makeHarness();
+    const session = harness.sessions.get("session-other");
+    const result = await harness.rotation.rotate(session!);
+    expect(result.accepted).toBe(false);
+    expect(harness.create).not.toHaveBeenCalled();
+  });
+});
+
 describe("attachRotation", () => {
   it("delegates to the old session while below the threshold", async () => {
     const harness = makeHarness();
@@ -152,7 +189,12 @@ describe("attachRotation", () => {
     expect(redirected?.mode).toBe("queue");
     expect(redirected?.content[0]).toMatchObject({ type: "text" });
     expect(String(redirected?.content[0]?.["text"])).toContain("只读报告");
-    expect(redirected?.content[1]).toEqual({ type: "text", text: "用户消息" });
+    const texts = (redirected?.content ?? []).map((block) => String(block["text"]));
+    expect(texts).toContain("用户消息");
+    expect(texts).toContain("<rotation-prior-input>");
+    expect(texts).toContain("</rotation-prior-input>");
+    expect(texts.indexOf("<rotation-prior-input>")).toBeLessThan(texts.indexOf("用户消息"));
+    expect(texts.indexOf("用户消息")).toBeLessThan(texts.indexOf("</rotation-prior-input>"));
     expect(harness.originalPrompt.mock.calls.some(([item]) => item.sessionId === "session-1")).toBe(
       false,
     );

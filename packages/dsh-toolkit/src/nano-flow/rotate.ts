@@ -82,6 +82,8 @@ export interface RotationOptions {
   readonly sessionOf?: (id: string) => RotationSession | undefined;
   /** 会话是否运行本预设；缺省用 {@link selectedPreset} 读日志。 */
   readonly isNanoFlow?: (session: RotationSession) => boolean;
+  /** 每次轮转成功后回调（from → to），供路由把目标会话交给客户端切换。 */
+  readonly onRotated?: (from: string, to: string) => void;
 }
 
 /**
@@ -160,22 +162,51 @@ const buildSeed = async (workspace: string, domainRoot: string): Promise<string>
  * @param options - 宿主能力、领域根、设置与会话解析。
  * @returns 还原 prompt 包装的 disposer。
  */
-export const attachRotation = (options: RotationOptions): (() => void) => {
+/** 轮转引擎：压力路径挂 prompt 包装，命令路径立即轮转。 */
+export interface RotationEngine {
+  /** 挂上压力触发的 prompt 包装；返回 disposer。 */
+  attach(): () => void;
+  /** 立即轮转：建新会话、继承分组/置顶、投递 seed、退役旧会话。 */
+  rotate(session: RotationSession, signal?: AbortSignal): Promise<{ readonly accepted: boolean }>;
+}
+
+/** 自动轮转时给用户原文套的 XML 标记。 */
+const PRIOR_INPUT_TAG = "rotation-prior-input";
+
+/**
+ * 把自动轮转触发的那条用户输入包进 XML，标明它来自轮转前的旧会话。
+ * @param content - 用户这次提交的内容块。
+ * @returns 带说明与 XML 包裹的新内容数组。
+ */
+export const wrapPriorInput = (
+  content: readonly PromptContentLike[],
+): readonly PromptContentLike[] => [
+  { type: "text", text: "以下 XML 块是轮转前用户在旧会话发出的输入：" },
+  { type: "text", text: `<${PRIOR_INPUT_TAG}>` },
+  ...content,
+  { type: "text", text: `</${PRIOR_INPUT_TAG}>` },
+];
+
+/**
+ * 创建轮转引擎。
+ * @param options - 宿主能力、领域根、设置与会话解析。
+ * @returns 可挂载、可手动触发的引擎；宿主缺少 sessionController 时两个方法都是空操作。
+ */
+export const createRotation = (options: RotationOptions): RotationEngine => {
   const { services, config, domainRoot, settings } = options;
   const meter = service<TokenMeterLike>(services, "tokenMeter");
   const controller = service<SessionControllerLike>(services, "sessionController");
   const workspaces = service<WorkspaceRegistryLike>(services, "workspaceRegistry");
   const workingDirectory = service<WorkingDirectoryLike>(services, "workingDirectory");
-  if (meter === undefined || controller === undefined) return () => {};
-  if (typeof controller.create !== "function" || typeof controller.prompt !== "function") {
-    return () => {};
-  }
   const presetId = config.presetId ?? "nano-flow";
   const sessionOf = options.sessionOf ?? ((): undefined => undefined);
-  const isNanoFlow =
-    options.isNanoFlow ?? ((session: RotationSession) => selectedPreset(session) === presetId);
+  const isNanoFlow = (session: RotationSession): boolean =>
+    options.isNanoFlow?.(session) ?? selectedPreset(session) === presetId;
   const facade = (): ToolkitNanoFlowFacade | undefined =>
     service<ToolkitNanoFlowFacade>(services, NANO_FLOW_SERVICE);
+  /** 同一会话的并发/重复轮转只执行一次；旧会话会被删掉，所以按 id 记账。 */
+  const rotating = new Set<string>();
+  const rotated = new Set<string>();
 
   const retire = async (sessionId: string): Promise<void> => {
     const root = facade()?.sessionsRoot();
@@ -184,16 +215,12 @@ export const attachRotation = (options: RotationOptions): (() => void) => {
       try {
         await workspaces.archiveSession(sessionId, { stopActivity: true });
       } catch (error) {
-        options.services.logger.warn(
-          `nano-flow: archive of "${sessionId}" failed: ${describe(error)}`,
-        );
+        services.logger.warn(`nano-flow: archive of "${sessionId}" failed: ${describe(error)}`);
       }
       for (const record of workspaces.list()) {
         if (!record.sessionIds.includes(sessionId)) continue;
         await record.detachSession(sessionId).catch((error: unknown) => {
-          options.services.logger.warn(
-            `nano-flow: detach of "${sessionId}" failed: ${describe(error)}`,
-          );
+          services.logger.warn(`nano-flow: detach of "${sessionId}" failed: ${describe(error)}`);
         });
       }
     }
@@ -209,9 +236,7 @@ export const attachRotation = (options: RotationOptions): (() => void) => {
   };
 
   const warnPlacement = (what: string, error: unknown): void => {
-    options.services.logger.warn(
-      `nano-flow: carry ${what} during rotation failed: ${describe(error)}`,
-    );
+    services.logger.warn(`nano-flow: carry ${what} during rotation failed: ${describe(error)}`);
   };
 
   /** 把旧会话的分组与置顶状态过继给新会话；失败只警告，不阻断轮转。 */
@@ -248,70 +273,124 @@ export const attachRotation = (options: RotationOptions): (() => void) => {
     }
   };
 
-  const original = controller.prompt.bind(controller);
-  const target = controller as unknown as { prompt: SessionControllerLike["prompt"] };
-  const previous = target.prompt;
-  /** 同一会话的并发/重复 prompt 只轮转一次；旧会话会被删掉，所以按 id 记账。 */
-  const rotating = new Set<string>();
-  const rotated = new Set<string>();
+  /** 建新会话并继承槽位/置顶；返回新会话 id 与 seed。 */
+  const replacement = async (
+    session: RotationSession,
+  ): Promise<{ readonly sessionId: string; readonly seed: string }> => {
+    const header = session.header ?? {};
+    const cwd = header.cwd ?? workingDirectory?.get(session) ?? config.workspace;
+    const created = await controller!.create({
+      ...(cwd === undefined ? {} : { cwd }),
+      agentPreset: presetId,
+    });
+    await inheritPlacement(session.id, created.sessionId);
+    const seed = await buildSeed(cwd ?? process.cwd(), domainRoot);
+    return { sessionId: created.sessionId, seed };
+  };
+
+  const original =
+    controller !== undefined && typeof controller.prompt === "function"
+      ? controller.prompt.bind(controller)
+      : undefined;
+  const target =
+    controller === undefined
+      ? undefined
+      : (controller as unknown as { prompt: SessionControllerLike["prompt"] });
 
   const redirect = async (
     session: RotationSession,
     request: PromptRequestLike,
     signal: AbortSignal,
   ): Promise<{ accepted: boolean }> => {
+    const fallback = (): Promise<{ accepted: boolean }> => original!(request, signal);
+    if (meter === undefined || original === undefined) return fallback();
     const pressure = meter.contextPressure(session);
     const used = pressure.projectedTokens ?? pressure.pressureTokens;
     const window = pressure.contextWindow;
-    if (used === undefined || window === undefined || window <= 0) {
-      return original(request, signal);
-    }
-    if (used < window * settings().rotateAt) return original(request, signal);
-    if (rotating.has(session.id) || rotated.has(session.id)) return original(request, signal);
+    if (used === undefined || window === undefined || window <= 0) return fallback();
+    if (used < window * settings().rotateAt) return fallback();
+    if (rotating.has(session.id) || rotated.has(session.id)) return fallback();
 
     rotating.add(session.id);
     try {
-      const header = session.header ?? {};
-      const cwd = header.cwd ?? workingDirectory?.get(session) ?? config.workspace;
-      const created = await controller.create({
-        ...(cwd === undefined ? {} : { cwd }),
-        agentPreset: presetId,
-      });
-      await inheritPlacement(session.id, created.sessionId);
-      const seed = await buildSeed(cwd ?? process.cwd(), domainRoot);
+      const created = await replacement(session);
       const result = await original(
         {
           ...request,
           requestId: randomUUID(),
           sessionId: created.sessionId,
-          content: [{ type: "text", text: seed }, ...request.content],
+          content: [{ type: "text", text: created.seed }, ...wrapPriorInput(request.content)],
         },
         signal,
       );
       rotated.add(session.id);
+      options.onRotated?.(session.id, created.sessionId);
       await retire(session.id);
       return result;
     } catch (error) {
-      options.services.logger.warn(`nano-flow: rotation failed: ${describe(error)}`);
-      return original(request, signal);
+      services.logger.warn(`nano-flow: rotation failed: ${describe(error)}`);
+      return fallback();
     } finally {
       rotating.delete(session.id);
     }
   };
 
-  const wrapped: SessionControllerLike["prompt"] = async (request, signal) => {
-    if (request.mode !== "queue") return original(request, signal);
-    const session = sessionOf(request.sessionId);
-    if (session === undefined) return original(request, signal);
-    const header = session.header ?? {};
-    if (header.origin === "subagent" || (header.delegationDepth ?? 0) > 0) {
-      return original(request, signal);
-    }
-    if (!isNanoFlow(session)) return original(request, signal);
-    return redirect(session, request, signal);
-  };
-  target.prompt = wrapped;
-  return () => {
-    if (target.prompt === wrapped) target.prompt = previous;
+  return {
+    attach(): () => void {
+      if (original === undefined || target === undefined) return () => {};
+      const previous = target.prompt;
+      const wrapped: SessionControllerLike["prompt"] = async (request, signal) => {
+        if (request.mode !== "queue") return original(request, signal);
+        const session = sessionOf(request.sessionId);
+        if (session === undefined) return original(request, signal);
+        const header = session.header ?? {};
+        if (header.origin === "subagent" || (header.delegationDepth ?? 0) > 0) {
+          return original(request, signal);
+        }
+        if (!isNanoFlow(session)) return original(request, signal);
+        return redirect(session, request, signal);
+      };
+      target.prompt = wrapped;
+      return () => {
+        if (target.prompt === wrapped) target.prompt = previous;
+      };
+    },
+
+    async rotate(session: RotationSession, signal?: AbortSignal): Promise<{ accepted: boolean }> {
+      if (original === undefined || controller === undefined) return { accepted: false };
+      if (!isNanoFlow(session)) return { accepted: false };
+      if (rotating.has(session.id) || rotated.has(session.id)) return { accepted: false };
+      const owned = signal ?? new AbortController().signal;
+      rotating.add(session.id);
+      try {
+        const created = await replacement(session);
+        const result = await original(
+          {
+            requestId: randomUUID(),
+            sessionId: created.sessionId,
+            mode: "queue",
+            content: [{ type: "text", text: created.seed }],
+          },
+          owned,
+        );
+        rotated.add(session.id);
+        options.onRotated?.(session.id, created.sessionId);
+        await retire(session.id);
+        return result;
+      } catch (error) {
+        services.logger.warn(`nano-flow: manual rotation failed: ${describe(error)}`);
+        return { accepted: false };
+      } finally {
+        rotating.delete(session.id);
+      }
+    },
   };
 };
+
+/**
+ * 挂载压力触发的轮转包装（兼容入口）。
+ * @param options - 宿主能力、领域根、设置与会话解析。
+ * @returns 还原 prompt 包装的 disposer。
+ */
+export const attachRotation = (options: RotationOptions): (() => void) =>
+  createRotation(options).attach();

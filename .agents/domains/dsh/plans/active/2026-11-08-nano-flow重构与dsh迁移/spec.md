@@ -15,7 +15,7 @@ status: in_progress
 - nano-flow 插件：文档格式、工具面、提示词注入、索引生成、篇幅限制与预设行为。
 - dsh 领域文档：CONTEXT、questions、adr、workflows 的生成与旧文档适配。
 - dsh 旧 plans：17 个旧 Plan 从 `story/spec/notes.json` 迁到 `spec + note`。
-- 插件增强：会话内 Note 面板（007）、`plan/log.jsonl` 轨迹日志（009）、轮转保留分组与置顶（010）。
+- 插件增强：会话内 Note 面板（007）、`plan/log.jsonl` 轨迹日志（009）、轮转保留分组与置顶（010）、`/rotate` 命令与轮转输入标注（012）、note 状态先行约束（013）。
 - 不迁移其他域（common、nano-flow、etf、music、video）；不删除 `.tmp` 原文。
 
 ## 结果
@@ -30,15 +30,17 @@ status: in_progress
 - note 008 定位并修复 `nano-flow/notes` 事件导致的历史加载失败：补 `ignorable` 止血，面板数据改走宿主路由；用户已确认历史加载正常（`completed`）。
 - note 009 实现 Plan 轨迹日志：每轮 compact 记录追加到 `<plan>/log.jsonl`，宿主事件订阅 + 持久化回填；live 验收发现绑定轮记录不完整，已在 0.5.23 用按轮 pending 缓冲修复（`in_progress`，待重启复验）。
 - note 010 修复轮转丢分组与置顶：新会话继承旧会话的工作区槽位与置顶状态（0.5.23，待 live 验证）。
-- `nano_flow_check` 通过；插件已安装 0.5.23。
+- note 012 新增 `/rotate` 命令与自动轮转的 `<rotation-prior-input>` XML 标注；客户端按轮转记录切到新会话（0.5.24，待 live 验证）。
+- note 013 给 nano-flow 提示词加「状态先行」约束：先落 note YAML 头再补正文，Note 看板及时刷新（0.5.24，待重启验）。
+- `nano_flow_check` 通过；插件已安装 0.5.24。
 
 ## 当前进度
 
-note 001–008 完成；note 009 进入 live 验收并发现绑定轮记录不完整（user 空、tools 只剩尾部），已在 0.5.23 修复（按轮 pending 缓冲）；note 010 修复轮转丢分组/置顶。两处修复都已过单测与 `vp check`（280 例），0.5.23 已装入 desktop profile，**重启宿主后 live 复验**。本轮同时把本地 `vite-plus` 工具树从 0.1.6 升级到 **0.2.2-rc.1**（与运行宿主一致），后续实现与取证都以它为准。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
+note 001–008 完成；note 009 进入 live 验收并发现绑定轮记录不完整（user 空、tools 只剩尾部），已在 0.5.23 修复（按轮 pending 缓冲）；note 010 修复轮转丢分组/置顶；note 012 新增 `/rotate` 命令、客户端切换与 XML 标注；note 013 加「状态先行」提示词约束。以上均已过单测与 `vp check`（288 例），0.5.24 已装入 desktop profile，**重启宿主后 live 复验**。本轮同时把本地 `vite-plus` 工具树从 0.1.6 升级到 **0.2.2-rc.1**（与运行宿主一致），后续实现与取证都以它为准。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
 
 ## 恢复入口
 
-先读 `notes_index.md`；插件细节在 001，领域文档在 002，旧 plans 映射与截断在 003，`CONTEXT-MAP.md` 位置修正在 004，旧 Plan 链接校正在 005，提示词改名在 006，Note 面板在 007，历史加载失败在 008，Plan 轨迹日志的设计、拷问与 live 验收在 009，轮转分组/置顶修复在 010。
+先读 `notes_index.md`；插件细节在 001，领域文档在 002，旧 plans 映射与截断在 003，`CONTEXT-MAP.md` 位置修正在 004，旧 Plan 链接校正在 005，提示词改名在 006，Note 面板在 007，历史加载失败在 008，Plan 轨迹日志的设计、拷问与 live 验收在 009，轮转分组/置顶修复在 010，绑定轮修复在 011，`/rotate` 命令与 XML 标注在 012，状态先行约束在 013。
 
 ## 追踪 Note
 
@@ -49,3 +51,5 @@ note 001–008 完成；note 009 进入 live 验收并发现绑定轮记录不�
 | [009-Plan轨迹日志](009-Plan%E8%BD%A8%E8%BF%B9%E6%97%A5%E5%BF%97.md) | 在每个 Plan 目录追加 log.jsonl，把对应 nano-flow 会话的每轮轨迹（精简）持久化。 | in_progress | — | 重装 0.5.23 并重启宿主，触发绑定轮，确认记录含完整 user/assistant/tools/usage/seq；再验轮转后新段头 | 007-会话内未完成note面板, 008-修复notes事件导致会话历史加载失败 |
 | [010-轮转保留分组与置顶](010-%E8%BD%AE%E8%BD%AC%E4%BF%9D%E7%95%99%E5%88%86%E7%BB%84%E4%B8%8E%E7%BD%AE%E9%A1%B6.md) | 轮转创建的新会话要继承旧会话的工作区分组槽位与置顶状态，不再掉进「未分组」。 | in_progress | — | 重装 0.5.23 并重启宿主，触发一次轮转后确认新会话仍在原工作区分组与原位置、且置顶保留 | 009-Plan轨迹日志 |
 | [011-轨迹日志绑定轮修复](011-%E8%BD%A8%E8%BF%B9%E6%97%A5%E5%BF%97%E7%BB%91%E5%AE%9A%E8%BD%AE%E4%BF%AE%E5%A4%8D.md) | live 验收发现绑定轮记录不完整；改用按轮 pending 缓冲合并未完成轮事件，待重启复验。 | in_progress | — | 重启宿主后在本会话触发一次绑定轮，确认 log.jsonl 的绑定轮含完整 user/assistant/tools/usage/seq | 009-Plan轨迹日志 |
+| [012-rotate命令与轮转输入标注](012-rotate%E5%91%BD%E4%BB%A4%E4%B8%8E%E8%BD%AE%E8%BD%AC%E8%BE%93%E5%85%A5%E6%A0%87%E6%B3%A8.md) | 新增 /rotate 命令手动触发轮转（新会话、自动只读恢复、切过去），并把自动轮转时触发的用户输入用 XML 标注为轮转前输入。 | in_progress | — | 实现 rotate 引擎与 /rotate 命令、输入 XML 标注、客户端切换与路由；补测试后构建安装 0.5.24 | 010-轮转保留分组与置顶, 011-轨迹日志绑定轮修复 |
+| [013-note状态先行约束](013-note%E7%8A%B6%E6%80%81%E5%85%88%E8%A1%8C%E7%BA%A6%E6%9D%9F.md) | nano-flow 系统提示词要求新建或变更 note 时先落 YAML 头再补正文，使 Note 看板及时反映状态。 | in_progress | — | 0.5.24 构建安装后重启宿主，确认会话注入的 nano-flow 提示词含「状态先行」条款且看板按 YAML 头刷新 | 007-会话内未完成note面板 |

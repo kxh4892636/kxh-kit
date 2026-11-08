@@ -57,6 +57,8 @@ export interface ClientContext {
   readonly slots: ClientSlots;
   get(key: string): unknown;
   effect(callback: () => (() => void) | void, label?: string): () => void;
+  /** 客户端事件订阅（与宿主同一套 cordis 事件）；宿主半不可用时缺省。 */
+  on?(event: string, handler: (...args: readonly unknown[]) => void): () => void;
 }
 
 /** 会话作用域 slot 的标准 props（`conversation.input.right` 由 composer 送出）。 */

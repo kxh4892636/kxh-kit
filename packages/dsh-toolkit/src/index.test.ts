@@ -220,7 +220,7 @@ describe("toolkit plugin entry", () => {
     const directory = await tempDir();
     const { ctx, routes, providerNames } = makeHarness();
     apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
-    await vi.waitFor(() => expect(routes.size).toBe(5));
+    await vi.waitFor(() => expect(routes.size).toBe(6));
     expect(providerNames).toEqual([]);
     const state = await routes.get(TOOLKIT_STATE_PATH)?.(
       new Request(`http://127.0.0.1${TOOLKIT_STATE_PATH}`),
@@ -245,7 +245,7 @@ describe("toolkit plugin entry", () => {
     );
     const { ctx, routes } = makeHarness({ notesSession: { id: "session-1", cwd: directory } });
     apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
-    await vi.waitFor(() => expect(routes.size).toBe(5));
+    await vi.waitFor(() => expect(routes.size).toBe(6));
     const response = await routes.get(TOOLKIT_NANO_FLOW_NOTES_PATH)?.(
       new Request(`http://127.0.0.1${TOOLKIT_NANO_FLOW_NOTES_PATH}?sessionId=session-1`),
     );
@@ -268,7 +268,7 @@ describe("toolkit plugin entry", () => {
     const directory = await tempDir();
     const { ctx, routes, providerNames } = makeHarness();
     apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
-    await vi.waitFor(() => expect(routes.size).toBe(5));
+    await vi.waitFor(() => expect(routes.size).toBe(6));
     await enable(routes, "nested-skill");
     await vi.waitFor(() => expect(providerNames).toEqual(["nested-agents"]));
   });
@@ -277,7 +277,7 @@ describe("toolkit plugin entry", () => {
     const directory = await tempDir();
     const { ctx, routes, providerNames } = makeHarness();
     apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
-    await vi.waitFor(() => expect(routes.size).toBe(5));
+    await vi.waitFor(() => expect(routes.size).toBe(6));
     await enable(routes, "nested-skill");
     await vi.waitFor(() => expect(providerNames).toEqual(["nested-agents"]));
 
@@ -293,7 +293,7 @@ describe("toolkit plugin entry", () => {
     const stateFile = join(directory, "state.json");
     const first = makeHarness();
     apply(first.ctx as never, { stateFile, sessionsRoot: directory });
-    await vi.waitFor(() => expect(first.routes.size).toBe(5));
+    await vi.waitFor(() => expect(first.routes.size).toBe(6));
     await enable(first.routes, "nested-skill");
     await vi.waitFor(() => expect(first.providerNames).toHaveLength(1));
 
@@ -306,7 +306,7 @@ describe("toolkit plugin entry", () => {
     const directory = await tempDir();
     const { ctx, routes } = makeHarness();
     apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
-    await vi.waitFor(() => expect(routes.size).toBe(5));
+    await vi.waitFor(() => expect(routes.size).toBe(6));
     await enable(routes, "undo-turn");
     const response = await routes.get(TOOLKIT_UNDO_PATH)?.(
       new Request(`http://127.0.0.1${TOOLKIT_UNDO_PATH}?sessionId=session-1`),
@@ -320,7 +320,7 @@ describe("toolkit plugin entry", () => {
       sessionControl: true,
     });
     apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
-    await vi.waitFor(() => expect(routes.size).toBe(5));
+    await vi.waitFor(() => expect(routes.size).toBe(6));
     await enable(routes, "undo-turn");
     pinned.push("session-source", "session-other");
 
@@ -347,7 +347,7 @@ describe("toolkit plugin entry", () => {
       archiveSweep: { archived: ["ghost", "kept", "live"], stored: ["kept"], live: ["live"] },
     });
     apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
-    await vi.waitFor(() => expect(routes.size).toBe(5));
+    await vi.waitFor(() => expect(routes.size).toBe(6));
     // 只有既不在持久化、也不存活的 id 会被从归档集合里摘掉。
     await vi.waitFor(() => expect(unarchived).toEqual(["ghost"]));
   });
@@ -374,7 +374,7 @@ describe("toolkit plugin entry", () => {
     const directory = await tempDir();
     const { ctx, routes, providerNames, disposers } = makeHarness();
     apply(ctx as never, { stateFile: join(directory, "state.json"), sessionsRoot: directory });
-    await vi.waitFor(() => expect(routes.size).toBe(5));
+    await vi.waitFor(() => expect(routes.size).toBe(6));
     await enable(routes, "nested-skill");
     await vi.waitFor(() => expect(providerNames).toEqual(["nested-agents"]));
     for (const dispose of disposers) dispose();

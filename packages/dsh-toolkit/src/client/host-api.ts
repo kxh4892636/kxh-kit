@@ -3,8 +3,10 @@ import {
   TOOLKIT_HIDDEN_PATH,
   TOOLKIT_NANO_FLOW_NOTES_PATH,
   TOOLKIT_NANO_FLOW_PATH,
+  TOOLKIT_NANO_FLOW_ROTATION_PATH,
   TOOLKIT_STATE_PATH,
   TOOLKIT_UNDO_PATH,
+  type NanoFlowRotation,
   type NanoFlowSettings,
   type NanoFlowSettingsRequest,
   type NanoFlowSettingsResponse,
@@ -143,6 +145,28 @@ export const fetchNanoFlowNotes = async (
   );
   const body = (await readJson(response)) as unknown;
   return parseNotesSnapshot(body);
+};
+
+/** 读取最近一次轮转（from → to）；本次运行还没轮转过时为 `null`。 */
+export const fetchNanoFlowRotation = async (
+  signal?: AbortSignal,
+): Promise<NanoFlowRotation | null> => {
+  const response = await send(relative(TOOLKIT_NANO_FLOW_ROTATION_PATH), optionalSignal(signal));
+  const body = (await readJson(response)) as unknown;
+  const rotation = (body as { rotation?: unknown } | null)?.rotation;
+  if (rotation === null || rotation === undefined) return null;
+  if (typeof rotation !== "object") {
+    throw new HostApiError("invalid-response", "unexpected rotation payload");
+  }
+  const record = rotation as Record<string, unknown>;
+  if (
+    typeof record["from"] !== "string" ||
+    typeof record["to"] !== "string" ||
+    typeof record["at"] !== "string"
+  ) {
+    throw new HostApiError("invalid-response", "unexpected rotation payload");
+  }
+  return { from: record["from"], to: record["to"], at: record["at"] };
 };
 
 /** 探测某会话能否撤回。 */

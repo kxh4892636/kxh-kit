@@ -4,6 +4,7 @@ import { resolveDshHome } from "@deepseek-ai/dsh-home-paths";
 import z from "@deepseek-ai/schemastery";
 import type Schema from "@deepseek-ai/schemastery";
 import type {
+  NanoFlowRotation,
   NanoFlowSettings,
   NotesSnapshot,
   UndoAvailability,
@@ -17,7 +18,8 @@ import { DEFAULT_DOMAIN_ROOT } from "./nano-flow/config.js";
 import { recordMount, restoreMountReport } from "./nano-flow/mount-report.js";
 import { notesForWorkspace } from "./nano-flow/notes.js";
 import { NANO_FLOW_PRESET_ID, nanoFlowEntryUrl } from "./nano-flow/preset.js";
-import { attachRotation, type RotationSession } from "./nano-flow/rotate.js";
+import { createRotation, type RotationSession } from "./nano-flow/rotate.js";
+import { registerRotateCommand } from "./nano-flow/rotate-command.js";
 import { createPlanLogService } from "./nano-flow/plan-log-service.js";
 import { listActivePlans } from "./nano-flow/notes.js";
 import { hostServices } from "./nano-flow/services.js";
@@ -120,6 +122,7 @@ export const apply = (ctx: Context, config: Config = {}): void => {
       notes: {
         of: (sessionId: string) => runtime.notesOf(sessionId),
       },
+      rotation: () => runtime.lastRotation(),
     });
     child.effect(() => disposeRoutes, "toolkit: routes");
   });
@@ -127,7 +130,7 @@ export const apply = (ctx: Context, config: Config = {}): void => {
   // 会话日志里的预设选择判定，再包装 `sessionController.prompt`。
   ctx.inject(["sessionController"], (child: Context) => {
     child.effect(() => {
-      const dispose = attachRotation({
+      const rotation = createRotation({
         services: hostServices(child),
         config: { presetId: NANO_FLOW_PRESET_ID },
         domainRoot: config.domainRoot ?? DEFAULT_DOMAIN_ROOT,
@@ -137,14 +140,20 @@ export const apply = (ctx: Context, config: Config = {}): void => {
           const session = sessions?.get(sessionId);
           return session as unknown as RotationSession | undefined;
         },
+        onRotated: (from, to) => runtime.rememberRotation(from, to),
       });
+      const disposeRotation = rotation.attach();
+      const disposeCommand = registerRotateCommand(child, rotation, NANO_FLOW_PRESET_ID);
       recordMount("rotation", {
         tokenMeter: serviceOf<object>(child, "tokenMeter") !== undefined,
         sessions: serviceOf<object>(child, "sessions") !== undefined,
         workspaceRegistry: serviceOf<object>(child, "workspaceRegistry") !== undefined,
         workingDirectory: serviceOf<object>(child, "workingDirectory") !== undefined,
       });
-      return dispose;
+      return () => {
+        disposeCommand();
+        disposeRotation();
+      };
     }, "toolkit: nano-flow rotation");
   });
   ctx.inject(["workspaceRegistry"], (child: Context) => {
@@ -195,6 +204,10 @@ interface ToolkitRuntime {
   };
   /** 当前会话要展示的未完成 note 快照；不写会话日志。 */
   notesOf(sessionId: string): NotesSnapshot | null;
+  /** 最近一次轮转记录（from → to）；本次运行还没轮转过时为 null。 */
+  lastRotation(): NanoFlowRotation | null;
+  /** 记录一次轮转，供客户端切换到新会话。 */
+  rememberRotation(from: string, to: string): void;
   inspect(sessionId: string): UndoAvailability;
   undo(sessionId: string): Promise<UndoTurnResponse>;
   /** 工作区注册表就绪后，把日志已删的会话从归档集合里摘掉。 */
@@ -220,6 +233,8 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
     createNanoFlowTool({ entryUrl: nanoFlowEntryUrl(import.meta.url) }),
   ];
   const registry = new ToolkitRegistry({ ctx, tools, store, logger });
+  /** 最近一次轮转（内存即可：命令与客户端切换在同一次宿主运行内完成）。 */
+  let lastRotation: NanoFlowRotation | undefined;
   /** 广播「会话已移除」：`api-session/removed` 是宿主销毁会话时客户端依赖的那条事件。 */
   const registerRemoval = (sessionId: string): void => {
     const emit = (ctx as { emit?: (event: string, ...args: unknown[]) => void }).emit;
@@ -307,6 +322,12 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
     },
     hiddenSessions() {
       return store.snapshot().hiddenSessionIds;
+    },
+    lastRotation() {
+      return lastRotation ?? null;
+    },
+    rememberRotation(from: string, to: string) {
+      lastRotation = { from, to, at: new Date().toISOString() };
     },
     async cleanupArchive(child: Context) {
       const workspaces = workspaceRegistry(child);
