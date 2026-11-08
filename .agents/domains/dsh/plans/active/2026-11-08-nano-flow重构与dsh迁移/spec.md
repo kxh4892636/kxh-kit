@@ -29,17 +29,18 @@ status: in_progress
 - note 007 新增会话内 Note 面板：`conversation.input.dock` + 宿主路由快照 + 客户端 5s 轮询；行内为「中文状态名 + note 名称」（已验收）。
 - note 008 定位并修复 `nano-flow/notes` 事件导致的历史加载失败：补 `ignorable` 止血，面板数据改走宿主路由；用户已确认历史加载正常（`completed`）。
 - note 009 实现 Plan 轨迹日志：每轮 compact 记录追加到 `<plan>/log.jsonl`，宿主事件订阅 + 持久化回填；011 用按轮 pending 缓冲修掉绑定轮记录不完整（web 形态已验），009/011 均 `completed`。
-- note 010 修复轮转丢分组与置顶：新会话继承旧会话的工作区槽位与置顶状态（0.5.23；2026-11-08 手动 `/rotate` live 取证：新会话在 kxh-kit 的 `sessionIds` 索引 2、`pinnedSessionIds` 首位，旧会话已 detach，待用户目视确认侧栏位置）。
+- note 010 修复轮转丢分组与置顶：新会话继承旧会话的工作区槽位与置顶状态（0.5.23；2026-11-08 手动 `/rotate` live 取证：新会话在 kxh-kit 的 `sessionIds` 索引 2、`pinnedSessionIds` 首位，旧会话已 detach；用户目视确认侧栏分组/位置/置顶均保留）。
 - note 012 新增 `/rotate` 命令与自动轮转的 `<rotation-prior-input>` XML 标注；客户端按轮转记录切到新会话（0.5.24；命令路径 2026-11-08 live 取证：seed 与 `buildSeed` 逐字一致、旧行隐藏、已切到新会话；XML 标注待阈值触发的自动轮转）。
 - note 013 给 nano-flow 提示词加「状态先行」约束：先落 note YAML 头再补正文，Note 看板及时刷新（0.5.24；live 已验注入条款与「5s 现算 YAML 头」数据面，`completed`）。
 - note 014 把 nano-flow 预设从标准模式改为 PTC 模式基准：加 `tool-presentation(mode: ptc)` 行，模型经 `run_code` 调工具（0.5.25；live 已验本会话只有 `run_code`，`completed`）。
 - `nano_flow_check` 通过；插件已安装 0.5.25 → 0.5.26 → 0.5.27（desktop 与 web profile 都是 0.5.27）。
 - note 015 修 Note 看板与 Plan 绑定脱节：宿主路由先查绑定表（未绑定返回 null）、面板默认折叠、绑定改由 `nano_flow_check` 执行时经宿主 facade 写入（0.5.27；web 形态已 live 验收）。
 - note 011 绑定轮修复在 web 形态 live 通过：`log.jsonl` 新增会话段头 + 完整 turn（user/assistant/tools/usage/seq）。
+- note 016 验收「轮转后」的轨迹日志：新会话段头 + turn 1/2 完整（`user` 以 seed 开头、19/24 次工具、usage 五项、seq 连续），旧会话 5 轮未重写（0.5.27，`completed`）。
 
 ## 当前进度
 
-note 001–008、011、013、014、015 完成。015 把「新会话也显示 Note 看板」与 PTC 下绑定不触发一起修掉：未绑定会话不出面板、默认折叠、绑定由 `nano_flow_check` 经宿主 facade 写入（事件 firehose 在本宿主不可用）。**web 形态已 live 验收**（web profile 装 0.5.27，`dsh web` + bsk 驱动 Chrome）：新会话无面板 → 发送「运行 nano_flow_check」后绑定表出现该会话、看板出现且折叠、展开后状态与 YAML 头一致；`log.jsonl` 同步新增段头 + 完整绑定轮（user/assistant/tools/usage/seq）。desktop 也已装 0.5.27（浏览器宿主需重启才对用户生效）。用户已手动执行 `/rotate` 做验收（旧会话 `session-17660661` → 新会话 `session-cad2849e`）：010 的槽位/置顶继承与 012 的命令路径、seed 已在宿主状态取证，剩 010 的目视确认与 012 的自动轮转 XML 标注；016 的「轮转后新段头 + 旧会话回填」要等本轮 `turn/end` 落盘后核对（轮转会话没有 `agent-preset/selected` 事件，`tool/call` 快路径不触发 flush，只有 `turn/end` 会落盘）。绑定语义按用户答复「遵循 011」：只在首次工具调用时绑定，纯聊天不落 log。本轮同时把本地 `vite-plus` 工具树从 0.1.6 升级到 **0.2.2-rc.1**（与运行宿主一致），后续实现与取证都以它为准。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
+note 001–008、011、013、014、015 完成。015 把「新会话也显示 Note 看板」与 PTC 下绑定不触发一起修掉：未绑定会话不出面板、默认折叠、绑定由 `nano_flow_check` 经宿主 facade 写入（事件 firehose 在本宿主不可用）。**web 形态已 live 验收**（web profile 装 0.5.27，`dsh web` + bsk 驱动 Chrome）：新会话无面板 → 发送「运行 nano_flow_check」后绑定表出现该会话、看板出现且折叠、展开后状态与 YAML 头一致；`log.jsonl` 同步新增段头 + 完整绑定轮（user/assistant/tools/usage/seq）。desktop 也已装 0.5.27（浏览器宿主需重启才对用户生效）。用户已手动执行 `/rotate` 做验收（旧会话 `session-17660661` → 新会话 `session-cad2849e`）：010 与 016 都已 `completed`（槽位/置顶继承由宿主状态 + 用户目视确认；新会话段头与 turn 1/2 完整、无重复键）。012 的命令路径、seed、客户端切换也已取证，只剩自动轮转的 XML 标注要等阈值触发。机制补充：轮转会话没有 `agent-preset/selected` 事件，`tool/call` 快路径不触发 flush，日志在 `turn/end` 落盘（详见 016）。绑定语义按用户答复「遵循 011」：只在首次工具调用时绑定，纯聊天不落 log。本轮同时把本地 `vite-plus` 工具树从 0.1.6 升级到 **0.2.2-rc.1**（与运行宿主一致），后续实现与取证都以它为准。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
 
 ## 恢复入口
 
@@ -51,6 +52,4 @@ note 001–008、011、013、014、015 完成。015 把「新会话也显示 Not
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [010-轮转保留分组与置顶](010-%E8%BD%AE%E8%BD%AC%E4%BF%9D%E7%95%99%E5%88%86%E7%BB%84%E4%B8%8E%E7%BD%AE%E9%A1%B6.md) | 轮转创建的新会话要继承旧会话的工作区分组槽位与置顶状态，不再掉进「未分组」。 | blocked | 宿主状态已取证（新会话 session-cad2849e 在 kxh-kit 的 sessionIds 索引 2、pinnedSessionIds 首位，旧会话已 detach）；等用户目视确认侧栏分组/位置/置顶 | 用户在侧栏核对：新会话是否仍在原分组、原位置、置顶保留；确认后置 completed | 009-Plan轨迹日志 |
 | [012-rotate命令与轮转输入标注](012-rotate%E5%91%BD%E4%BB%A4%E4%B8%8E%E8%BD%AE%E8%BD%AC%E8%BE%93%E5%85%A5%E6%A0%87%E6%B3%A8.md) | 新增 /rotate 命令手动触发轮转（新会话、自动只读恢复、切过去），并把自动轮转时触发的用户输入用 XML 标注为轮转前输入。 | blocked | 手动 /rotate 的命令路径已 live 取证（seed 逐字一致、旧行隐藏、新会话已接管）；剩余 XML 标注需要一次阈值触发的自动轮转，尚未造出 | 阈值自动轮转发生时，核对新会话首条用户内容是否包在 <rotation-prior-input> 内 | 010-轮转保留分组与置顶, 011-轨迹日志绑定轮修复 |
-| [016-轨迹日志轮转验收](016-%E8%BD%A8%E8%BF%B9%E6%97%A5%E5%BF%97%E8%BD%AE%E8%BD%AC%E9%AA%8C%E6%94%B6.md) | 轮转后新会话的 log.jsonl 段头、seed 注入与旧会话回填的 live 验收（随 /rotate 一起做）。 | in_progress | — | 下一轮读 log.jsonl：新会话段头、turn 1（seed 轮）与 turn 2 记录是否完整，旧会话回填是否重复 | 009-Plan轨迹日志, 010-轮转保留分组与置顶, 012-rotate命令与轮转输入标注 |
