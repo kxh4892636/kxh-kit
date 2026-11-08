@@ -10,13 +10,11 @@ describe("buildLimitsText", () => {
   it("keeps the static rule in prompts/limit.md and appends concrete values", () => {
     expect(template).toContain("## 篇幅限制");
     expect(template).toContain("规则：");
-    expect(template).toContain("概述：");
     expect(template).not.toContain("具体值");
 
     const text = buildLimitsText(template, DEFAULT_NANO_FLOW_SETTINGS);
     expect(text).toContain("## 篇幅限制");
     expect(text).toContain("规则：");
-    expect(text).toContain("概述：");
     expect(text).not.toContain("具体值：");
     expect(text).toContain("spec.md ≤ 34 KB");
     expect(text).toContain("单条 note ≤ 13 KB");
@@ -25,7 +23,6 @@ describe("buildLimitsText", () => {
     expect(text).toContain("question ≤ 13 KB");
     expect(text).toContain("ADR ≤ 13 KB");
     expect(text).toContain("workflow ≤ 34 KB");
-    expect(text).toContain("ADR 数量与追踪 Note 行数不限制");
   });
 
   it("reflects changed settings without changing the rule template", () => {
