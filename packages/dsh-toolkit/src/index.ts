@@ -14,6 +14,8 @@ import { createNanoFlowSettingsStore, nodeNanoFlowSettingsIo } from "./host/nano
 import { NANO_FLOW_SERVICE, type ToolkitNanoFlowFacade } from "./host/nano-flow-facade.js";
 import { createNanoFlowTool } from "./host/tools/nano-flow.js";
 import { applyNanoFlow } from "./nano-flow/plugin.js";
+import { assetsCheckScript, locateAssetsRoot } from "./nano-flow/assets.js";
+import { formatIssues, runCheck } from "./nano-flow/check-runner.js";
 import { DEFAULT_DOMAIN_ROOT } from "./nano-flow/config.js";
 import { recordMount, restoreMountReport } from "./nano-flow/mount-report.js";
 import { buildNotesSnapshot } from "./nano-flow/notes.js";
@@ -163,11 +165,50 @@ export const apply = (ctx: Context, config: Config = {}): void => {
   // 会话日志里的预设选择判定，再包装 `sessionController.prompt`。
   ctx.inject(["sessionController"], (child: Context) => {
     child.effect(() => {
+      /**
+       * 轮转后自动跑一次校验（等价于执行 `nano_flow_check`）：校验 Plan，并给新会话写绑定，
+       * 让 Note 看板不必等模型自己调工具就能出现。返回一行结论，由轮转追加到 seed。
+       */
+      const autoCheck = async (params: {
+        sessionId: string;
+        workspace: string;
+      }): Promise<string | undefined> => {
+        const domainsPath = config.domainRoot ?? DEFAULT_DOMAIN_ROOT;
+        const domainsDirectory = isAbsolute(domainsPath)
+          ? domainsPath
+          : join(params.workspace, domainsPath);
+        const result = await runCheck({
+          script: assetsCheckScript(locateAssetsRoot()),
+          workspace: params.workspace,
+          domainsPath,
+          limits: runtime.nanoFlow.get(),
+        });
+        const plans = listActivePlans(domainsDirectory);
+        const only = plans[0];
+        const bound = plans.length === 1 && only !== undefined;
+        if (bound) await runtime.bindSession(params.sessionId, only, params.workspace);
+        const lines: string[] = [];
+        if (result.ok) {
+          lines.push("轮转后自动执行 `nano_flow_check`：领域文档校验通过，索引已刷新。");
+        } else {
+          lines.push(`轮转后自动执行 \`nano_flow_check\` 失败，共 ${result.errors.length} 项：`);
+          lines.push(formatIssues(result.errors.slice(0, 5)));
+          if (result.errors.length > 5)
+            lines.push(`…还有 ${result.errors.length - 5} 项，跑一次工具看全部。`);
+        }
+        lines.push(
+          bound
+            ? "本会话的 Note 看板绑定已建立，无需再跑一次。"
+            : `工作区有 ${plans.length} 个 active Plan，未建立看板绑定；先确认要推进哪个 Plan。`,
+        );
+        return lines.join("\n");
+      };
       const rotation = createRotation({
         services: hostServices(child),
         config: { presetId: NANO_FLOW_PRESET_ID },
         domainRoot: config.domainRoot ?? DEFAULT_DOMAIN_ROOT,
         settings: () => runtime.nanoFlow.get(),
+        autoCheck,
         sessionOf: (sessionId: string) => {
           const sessions = serviceOf<HostSessionStore>(child, "sessions");
           const session = sessions?.get(sessionId);

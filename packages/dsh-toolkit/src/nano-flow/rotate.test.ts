@@ -29,7 +29,10 @@ const sessionOf = (
   snapshotEvents: () => [{ type: "agent-preset/selected", data: { agentPreset: preset } }],
 });
 
-const makeHarness = (workspaceRegistry?: unknown) => {
+const makeHarness = (
+  workspaceRegistry?: unknown,
+  autoCheck?: (params: { sessionId: string; workspace: string }) => Promise<string | undefined>,
+) => {
   let pressure: Pressure = { pressureTokens: 10, contextWindow: 1000 };
   const sessions = new Map<string, RotationSession>([
     ["session-1", sessionOf("session-1")],
@@ -40,6 +43,7 @@ const makeHarness = (workspaceRegistry?: unknown) => {
     accepted: true,
   }));
   const controller = { create, prompt: originalPrompt };
+  const warn = vi.fn();
   const services = {
     get: (name: string) => {
       if (name === "tokenMeter") {
@@ -49,7 +53,7 @@ const makeHarness = (workspaceRegistry?: unknown) => {
       if (name === "workspaceRegistry") return workspaceRegistry;
       return undefined;
     },
-    logger: { warn: vi.fn() },
+    logger: { warn },
   } as unknown as HostServices;
   const rotation = createRotation({
     services,
@@ -57,6 +61,7 @@ const makeHarness = (workspaceRegistry?: unknown) => {
     domainRoot: ".agents/domains",
     settings: () => ({ ...DEFAULT_NANO_FLOW_SETTINGS, rotateAt: 0.618 }),
     sessionOf: (id) => sessions.get(id),
+    ...(autoCheck === undefined ? {} : { autoCheck }),
   });
   const dispose = rotation.attach();
   const request = (overrides: Partial<PromptRequestLike> = {}): PromptRequestLike => ({
@@ -72,6 +77,8 @@ const makeHarness = (workspaceRegistry?: unknown) => {
     controller,
     create,
     originalPrompt,
+    services,
+    warn,
     dispose,
     rotation,
     send,
@@ -249,5 +256,54 @@ describe("attachRotation", () => {
     harness.dispose();
     expect(harness.controller.prompt).toBe(harness.originalPrompt);
     expect(harness.controller.prompt).not.toBe(wrapped);
+  });
+});
+
+describe("autoCheck after rotation", () => {
+  const summary =
+    "轮转后自动执行 `nano_flow_check`：领域文档校验通过，索引已刷新。\n本会话的 Note 看板绑定已建立，无需再跑一次。";
+
+  it("runs the check for the new session and appends the result to the seed", async () => {
+    const autoCheck = vi.fn(async () => summary);
+    const harness = makeHarness(undefined, autoCheck);
+    const session = harness.sessions.get("session-1");
+    const result = await harness.rotation.rotate(session!);
+    expect(result.accepted).toBe(true);
+    expect(autoCheck).toHaveBeenCalledTimes(1);
+    expect(autoCheck).toHaveBeenCalledWith({ sessionId: "session-new", workspace: "C:\\work" });
+    const prompted = harness.originalPrompt.mock.calls[0]?.[0];
+    const text = String(prompted?.content[0]?.["text"]);
+    expect(text).toContain("只读报告");
+    expect(text.endsWith(summary)).toBe(true);
+  });
+
+  it("also runs on the pressure path, keeping the prior input wrapped", async () => {
+    const autoCheck = vi.fn(
+      async () => "轮转后自动执行 `nano_flow_check`：领域文档校验通过，索引已刷新。",
+    );
+    const harness = makeHarness(undefined, autoCheck);
+    harness.setPressure({ projectedTokens: 700, contextWindow: 1000 });
+    await harness.send();
+    expect(autoCheck).toHaveBeenCalledWith({ sessionId: "session-new", workspace: "C:\\work" });
+    const redirected = harness.originalPrompt.mock.calls[0]?.[0];
+    const texts = (redirected?.content ?? []).map((block) => String(block["text"]));
+    expect(texts[0]).toContain("nano_flow_check");
+    expect(texts).toContain("<rotation-prior-input>");
+    expect(texts).toContain("用户消息");
+  });
+
+  it("keeps rotating and notes the failure when the check throws", async () => {
+    const autoCheck = vi.fn(async () => {
+      throw new Error("node 挂了");
+    });
+    const harness = makeHarness(undefined, autoCheck);
+    const session = harness.sessions.get("session-1");
+    const result = await harness.rotation.rotate(session!);
+    expect(result.accepted).toBe(true);
+    const prompted = harness.originalPrompt.mock.calls[0]?.[0];
+    const text = String(prompted?.content[0]?.["text"]);
+    expect(text).toContain("nano_flow_check");
+    expect(text).toContain("node 挂了");
+    expect(harness.warn).toHaveBeenCalled();
   });
 });

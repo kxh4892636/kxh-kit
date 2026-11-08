@@ -1,7 +1,7 @@
 ---
 name: 'nano-flow 重构与 dsh 迁移'
 description: '把 nano-flow 插件重构、dsh 领域文档生成与旧 plans 迁移收进同一个 Plan。'
-status: completed
+status: in_progress
 ---
 
 # nano-flow 重构与 dsh 迁移
@@ -37,10 +37,11 @@ status: completed
 - note 015 修 Note 看板与 Plan 绑定脱节：宿主路由先查绑定表（未绑定返回 null）、面板默认折叠、绑定改由 `nano_flow_check` 执行时经宿主 facade 写入（0.5.27；web 形态已 live 验收）。
 - note 011 绑定轮修复在 web 形态 live 通过：`log.jsonl` 新增会话段头 + 完整 turn（user/assistant/tools/usage/seq）。
 - note 016 验收「轮转后」的轨迹日志：新会话段头 + turn 1/2 完整（`user` 以 seed 开头、19/24 次工具、usage 五项、seq 连续），旧会话 5 轮未重写（0.5.27，`completed`）。
+- note 017 轮转后自动跑一次 `nano_flow_check`：宿主在 seed 投递前执行校验并把结论写进 seed，同时给新会话写绑定，Note 看板不必等模型调工具就出现（0.5.28，单测 96 例通过，待重启后 live 验收）。
 
 ## 当前进度
 
-note 001–008、011、013、014、015 完成。015 把「新会话也显示 Note 看板」与 PTC 下绑定不触发一起修掉：未绑定会话不出面板、默认折叠、绑定由 `nano_flow_check` 经宿主 facade 写入（事件 firehose 在本宿主不可用）。**web 形态已 live 验收**（web profile 装 0.5.27，`dsh web` + bsk 驱动 Chrome）：新会话无面板 → 发送「运行 nano_flow_check」后绑定表出现该会话、看板出现且折叠、展开后状态与 YAML 头一致；`log.jsonl` 同步新增段头 + 完整绑定轮（user/assistant/tools/usage/seq）。desktop 也已装 0.5.27（浏览器宿主需重启才对用户生效）。用户已手动执行 `/rotate` 做验收（旧会话 `session-17660661` → 新会话 `session-cad2849e`）：010 与 016 都已 `completed`（槽位/置顶继承由宿主状态 + 用户目视确认；新会话段头与 turn 1/2 完整、无重复键）。012 也已 `completed`：命令路径 live 通过，自动路径与手动共用同一 engine、XML 包裹由单测锁定（`vp test src/nano-flow` 13 文件 / 93 例），按用户「手动有，自动就有」采纳。全部 16 条 note 完成，Plan 可转入 `reference`。机制补充：轮转会话没有 `agent-preset/selected` 事件，`tool/call` 快路径不触发 flush，日志在 `turn/end` 落盘（详见 016）。绑定语义按用户答复「遵循 011」：只在首次工具调用时绑定，纯聊天不落 log。本轮同时把本地 `vite-plus` 工具树从 0.1.6 升级到 **0.2.2-rc.1**（与运行宿主一致），后续实现与取证都以它为准。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
+note 001–008、011、013、014、015 完成。015 把「新会话也显示 Note 看板」与 PTC 下绑定不触发一起修掉：未绑定会话不出面板、默认折叠、绑定由 `nano_flow_check` 经宿主 facade 写入（事件 firehose 在本宿主不可用）。**web 形态已 live 验收**（web profile 装 0.5.27，`dsh web` + bsk 驱动 Chrome）：新会话无面板 → 发送「运行 nano_flow_check」后绑定表出现该会话、看板出现且折叠、展开后状态与 YAML 头一致；`log.jsonl` 同步新增段头 + 完整绑定轮（user/assistant/tools/usage/seq）。desktop 也已装 0.5.27（浏览器宿主需重启才对用户生效）。用户已手动执行 `/rotate` 做验收（旧会话 `session-17660661` → 新会话 `session-cad2849e`）：010 与 016 都已 `completed`（槽位/置顶继承由宿主状态 + 用户目视确认；新会话段头与 turn 1/2 完整、无重复键）。012 也已 `completed`：命令路径 live 通过，自动路径与手动共用同一 engine、XML 包裹由单测锁定（`vp test src/nano-flow` 13 文件 / 93 例），按用户「手动有，自动就有」采纳。用户随后提出 017：轮转后必须自动跑一次 `nano_flow_check`（校验 Plan + 让看板立即出现），已实现为宿主侧 `autoCheck`、装上 0.5.28，待重启后 `/rotate` 验收。机制补充：轮转会话没有 `agent-preset/selected` 事件，`tool/call` 快路径不触发 flush，日志在 `turn/end` 落盘（详见 016）。绑定语义按用户答复「遵循 011」：只在首次工具调用时绑定，纯聊天不落 log。本轮同时把本地 `vite-plus` 工具树从 0.1.6 升级到 **0.2.2-rc.1**（与运行宿主一致），后续实现与取证都以它为准。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
 
 ## 恢复入口
 
@@ -52,3 +53,4 @@ note 001–008、011、013、014、015 完成。015 把「新会话也显示 Not
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
+| [017-轮转后自动校验Plan并绑定看板](017-%E8%BD%AE%E8%BD%AC%E5%90%8E%E8%87%AA%E5%8A%A8%E6%A0%A1%E9%AA%8CPlan%E5%B9%B6%E7%BB%91%E5%AE%9A%E7%9C%8B%E6%9D%BF.md) | 轮转创建新会话后自动执行一次 nano_flow_check：校验 Plan 并建立会话↔Plan 绑定，让 Note 看板立即出现。 | blocked | 0.5.28 已构建并装入 desktop/web profile；等用户重启宿主后执行 /rotate 做 live 验收：新会话 seed 带校验结论、看板立即出现、绑定表出现新会话 | 重启宿主后 /rotate；在新会话核对 seed 末尾的校验结论、Note 看板是否立即出现、bindings 表是否有新会话 | 010-轮转保留分组与置顶, 012-rotate命令与轮转输入标注, 015-Plan绑定贯通Note面板 |

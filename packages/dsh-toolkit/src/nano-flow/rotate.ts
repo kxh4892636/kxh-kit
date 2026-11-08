@@ -84,6 +84,14 @@ export interface RotationOptions {
   readonly isNanoFlow?: (session: RotationSession) => boolean;
   /** 每次轮转成功后回调（from → to），供路由把目标会话交给客户端切换。 */
   readonly onRotated?: (from: string, to: string) => void;
+  /**
+   * 新会话建立后立刻跑一次校验（等价于执行一次 `nano_flow_check`）。
+   * 返回值是一行结论，会追加到 seed 末尾；抛错只记 warn，不阻断轮转。
+   */
+  readonly autoCheck?: (params: {
+    readonly sessionId: string;
+    readonly workspace: string;
+  }) => Promise<string | undefined>;
 }
 
 /**
@@ -276,6 +284,21 @@ export const createRotation = (options: RotationOptions): RotationEngine => {
     }
   };
 
+  /** 新会话建立后跑一次校验（等价于 `nano_flow_check`）；摘要进 seed，失败只 warn。 */
+  const runAutoCheck = async (
+    sessionId: string,
+    workspace: string,
+  ): Promise<string | undefined> => {
+    const check = options.autoCheck;
+    if (check === undefined) return undefined;
+    try {
+      return await check({ sessionId, workspace });
+    } catch (error) {
+      services.logger.warn(`nano-flow: auto check after rotation failed: ${describe(error)}`);
+      return `轮转后自动执行 \`nano_flow_check\` 失败：${describe(error)}。先手工跑一次确认 Plan 状态。`;
+    }
+  };
+
   /** 建新会话并继承槽位/置顶；返回新会话 id 与 seed。 */
   const replacement = async (
     session: RotationSession,
@@ -287,8 +310,13 @@ export const createRotation = (options: RotationOptions): RotationEngine => {
       agentPreset: presetId,
     });
     await inheritPlacement(session.id, created.sessionId);
-    const seed = await buildSeed(cwd ?? process.cwd(), domainRoot);
-    return { sessionId: created.sessionId, seed };
+    const workspace = cwd ?? process.cwd();
+    const checked = await runAutoCheck(created.sessionId, workspace);
+    const seed = await buildSeed(workspace, domainRoot);
+    return {
+      sessionId: created.sessionId,
+      seed: checked === undefined ? seed : `${seed}\n\n${checked}`,
+    };
   };
 
   const original =
