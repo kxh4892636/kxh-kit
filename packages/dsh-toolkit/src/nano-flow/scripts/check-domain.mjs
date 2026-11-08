@@ -334,7 +334,21 @@ const readDocument = (ctx, file, kind, options = {}) => {
               : ctx.limits.noteMaxBytes;
   const size = byteLength(content);
   if (size > limit) {
-    addIssue(ctx.errors, ctx.rootDir, file, "size", `${size} 字节，超过 ${limit}`);
+    const advice =
+      kind === "note"
+        ? "；单条 note 放不下时拆成多个独立 note（各自新的 NNN 编号）"
+        : kind === "question"
+          ? "；单个 question 放不下时拆成多个独立 question 文件（各自新的 NNN 编号）"
+          : kind === "adr"
+            ? "；单个 ADR 放不下时拆成多个独立 ADR 文件（各自新的 NNN 编号）"
+            : kind === "spec"
+              ? "；请把细节下沉到 note 或领域文档，并在 spec.md 留指针"
+              : kind === "context"
+                ? "；CONTEXT 上限足够大，请压缩，不拆分"
+                : kind === "workflow"
+                  ? "；workflow 放不下时拆成多个独立 workflow（各自新的 NNN 编号）"
+                  : "；请先压缩";
+    addIssue(ctx.errors, ctx.rootDir, file, "size", `${size} 字节，超过 ${limit}${advice}`);
   }
 
   return { data, body, content, file };

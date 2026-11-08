@@ -78,7 +78,7 @@ metadata:
 
 ### CONTEXT
 
-CONTEXT 只承载域职责与 glossary，不写工作过程。从用户输入、工作区事实与已确认决策提取稳定术语，就地修订、去重或删除过时定义：
+CONTEXT 只承载域职责与 glossary，不写工作过程。从用户输入、工作区事实与已确认决策提取稳定术语，就地修订、去重或删除过时定义。超过上限时只压缩，不拆分：
 
 ```markdown
 **{规范术语}**：
@@ -88,7 +88,7 @@ _Avoid_：{会造成歧义的同义词}
 
 ### Questions
 
-从工作记录、用户反馈与验证证据识别重复问题，一条问题一个文件；合并同因问题，记录适用条件、原因、解决方法、验证与来源。未经验证的猜想留在 note；没有符合条件的问题时，questions 目录可以只有生成的 `index.md`。
+从工作记录、用户反馈与验证证据识别重复问题，一条问题一个文件；合并同因问题，记录适用条件、原因、解决方法、验证与来源。未经验证的猜想留在 note；没有符合条件的问题时，questions 目录可以只有生成的 `index.md`。单个 question 超过上限时拆成多个独立 question 文件，各自使用新的三位编号。
 
 ### ADR
 
@@ -98,11 +98,11 @@ _Avoid_：{会造成歧义的同义词}
 2. **Surprising without context**：只看实现无法理解为何这样选择。
 3. **Real trade-off**：存在真实备选，并因明确理由选择其一。
 
-一项决策一个文件，按域内 `001` 起连续编号；与现有 ADR 冲突时显式指出冲突及重新讨论的理由，不静默覆盖。
+一项决策一个文件，按域内 `001` 起连续编号；与现有 ADR 冲突时显式指出冲突及重新讨论的理由，不静默覆盖。单个 ADR 超过上限时拆成多个独立 ADR 文件，各自使用新的三位编号。
 
 ### Workflow
 
-workflow 是脱离单次 Plan 仍可复用的业务域工作流；一次性结论留在 Plan。目录与文件同名（`001-中文工作流/001-中文工作流.md`），按域内 `001` 起连续编号。覆盖同一活动的已有 workflow 先就地完善或合并，不新建近似条目。触发条件写进 `description`，索引由 check 生成。
+workflow 是脱离单次 Plan 仍可复用的业务域工作流；一次性结论留在 Plan。目录与文件同名（`001-中文工作流/001-中文工作流.md`），按域内 `001` 起连续编号。覆盖同一活动的已有 workflow 先就地完善或合并，不新建近似条目。触发条件写进 `description`，索引由 check 生成。单个 workflow 超过上限时拆成多个独立 workflow，各自使用新的三位编号。
 
 ## Plan
 
@@ -110,7 +110,7 @@ Plan 只有三类文档：`spec.md`、`notes_index.md`（生成）和若干 `001
 
 - `spec.md` 正文自由组织，不再强制固定章节；只在最后保留 `## 追踪 Note`，check 会用未完成 note 自动生成该表。可选写问题、方案、范围、决策、进度与恢复入口。超过篇幅上限时，把细节下沉到 note 或领域文档，并在 spec.md 留下相对链接指针；不拆分 spec 文件。
 - spec 的 status 从**全部 note** 派生：全部 pending 为 pending，全部 completed 为 completed，其余为 in_progress。
-- 一条 note 只跟进一个原子化、独立的子任务；不同子任务使用同一模板，正文自由组织，不强制固定章节。按工作性质写清交付、验收与证据，例如“形成有依据的选择及理由”“制定可执行计划”“完成可验证的用户能力”。
+- 一条 note 只跟进一个原子化、独立的子任务；不同子任务使用同一模板，正文自由组织，不强制固定章节。按工作性质写清交付、验收与证据，例如“形成有依据的选择及理由”“制定可执行计划”“完成可验证的用户能力”。单条 note 超过上限时拆成多个独立 note，各自使用新的三位编号，不要用 note-1.md 这类分片命名。
 - note 状态流转：`pending → in_progress → completed`，受阻时 `blocked`，解除后回 `in_progress`。`blocked` 用 `reason` 写清“在等什么”和解除条件。
 - `related_noted` 只表达关联，不是依赖，不构成 DAG；选择下一条 note 时看 `status`、`next_step` 与 `related_noted`。
 - `notes_index.md` 收录全部 note（name、description、related_noted）；spec 的 `## 追踪 Note` 收录全部未完成 note，按 blocked、in_progress、pending 排序。

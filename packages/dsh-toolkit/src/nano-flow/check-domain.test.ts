@@ -224,6 +224,48 @@ describe("checkWorkspace", () => {
     expect(result.errors.some((issue) => issue.message.includes("spec 不拆分"))).toBe(true);
   });
 
+  it("tells the model to split an oversized note into multiple notes", async () => {
+    const root = await makeRoot();
+    await domain(root, "demo", "演示");
+    const plan = ".agents/domains/demo/plans/active/2026-11-08-大-note";
+    await write(
+      root,
+      `${plan}/spec.md`,
+      [
+        "---",
+        "name: '大 note'",
+        "description: '大 note。'",
+        "status: pending",
+        "---",
+        "",
+        "# 大 note",
+        "",
+      ].join("\n"),
+    );
+    await write(
+      root,
+      `${plan}/001-大-note.md`,
+      [
+        "---",
+        "name: '001-大-note'",
+        "description: '大 note。'",
+        "status: pending",
+        "reason:",
+        "related_noted: []",
+        "next_step: '继续'",
+        "---",
+        "",
+        "# 001-大-note",
+        "",
+        "x".repeat(14000),
+        "",
+      ].join("\n"),
+    );
+    const result = checkWorkspace(root);
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((issue) => issue.message.includes("拆成多个独立 note"))).toBe(true);
+  });
+
   it("reports duplicate names and legacy documents", async () => {
     const root = await makeRoot();
     await domain(root, "demo", "演示");
