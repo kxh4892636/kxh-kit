@@ -111,7 +111,7 @@ Plan 只有三类文档：`spec.md`、`notes_index.md`（生成）和若干 `001
 - `spec.md` 正文自由组织，不再强制固定章节；只在最后保留 `## 追踪 Note`，check 会用未完成 note 自动生成该表。可选写问题、方案、范围、决策、进度与恢复入口。
 - spec 的 status 从**全部 note** 派生：全部 pending 为 pending，全部 completed 为 completed，其余为 in_progress。
 - 一条 note 只跟进一个原子化、独立的子任务；不同子任务使用同一模板，正文自由组织，不强制固定章节。按工作性质写清交付、验收与证据，例如“形成有依据的选择及理由”“制定可执行计划”“完成可验证的用户能力”。
-- note 状态流转：`pending → in_progress → blocked → completed`。**只有用户验收通过后才能写 `completed`**；交付完成但还没验收时一律 `blocked`，`reason` 写清“等待用户验收”并给出验收入口；受阻解除后回 `in_progress`。`blocked` 用 `reason` 写清“在等什么”和解除条件。
+- note 状态流转：`pending → in_progress → blocked → completed`。`blocked` 表示这条 note **无法正常继续**——等待用户验收、等待用户确认或回答、被其他 note 阻塞、外部前置未就绪等，都属于 `blocked`；`reason` 写清“在等什么”与解除条件；受阻解除后回 `in_progress`。
 - `related_noted` 只表达关联，不是依赖，不构成 DAG；选择下一条 note 时看 `status`、`next_step` 与 `related_noted`。
 - `notes_index.md` 收录全部 note（name、description、related_noted）；spec 的 `## 追踪 Note` 收录全部未完成 note，按 blocked、in_progress、pending 排序。
 

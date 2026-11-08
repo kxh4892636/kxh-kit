@@ -26,11 +26,11 @@ status: in_progress
 - note 005 修正旧 Plan 的 119 条失效相对链接：46 条重指、73 条死链降为纯文本。
 - note 006 把固定提示词改名为 `prompts/system.md`，段名改 `nano-flow:system`，顺带消除被当成 `AGENTS.md` 注入的副作用。
 - note 007 新增会话内 Note 面板：`conversation.input.dock` + 会话投影 `nanoFlowNotes` + 5s 轮询（`blocked`，等待重启宿主验收）。
-- `nano_flow_check` 通过；插件已安装 0.5.14。
+- `nano_flow_check` 通过；插件已安装 0.5.16。
 
 ## 当前进度
 
-note 001–006 完成；note 007 处于 `blocked`，等用户重启宿主验收 Note 面板（验收通过才置 `completed`）。插件已装 0.5.14。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
+note 001–006 完成；note 007 处于 `blocked`，等用户重启宿主验收 Note 面板（验收通过才置 `completed`）。插件已装 0.5.16。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
 
 ## 恢复入口
 
