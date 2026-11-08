@@ -41,13 +41,8 @@ dream 是**后台记忆维护引擎**：按 Anthropic《The components of agent 
 - 标题：`nano-flow dream`
 - 时间：`DTSTART;TZID=Asia/Shanghai:20261109T080000` + `RRULE:FREQ=DAILY`（页面也可用 cron `0 8 * * *`）
 - 目标：`new`（新建会话，继承 nano-flow preset 与工作目录）
-- 指令（固定文案）：
-
-```text
-运行 dream：按 nano-flow 的 dream 流程维护记忆。先读 $DSH_HOME/toolkit/nano-flow-dream.json 的游标，只处理各 Plan 新增的 log.jsonl 段；依次执行纠错、提炼、建链、晋升、剪枝；结束前跑 nano_flow_check 并 git commit；没有新增日志就说明并退出。
-```
-
-- 前提：nano-flow preset 增加 `@deepseek-ai/dsh-tool-schedule` 行，否则只有页面能建任务。
+- 指令：`prompts/dream.md` 的全文（首行 `[nano-flow:dream]`），作为任务 prompt 原文投递；system.md 的入口第 5 条据此识别。
+- 前提：nano-flow preset 已加 `@deepseek-ai/dsh-tool-schedule` 行（0.5.30），否则只有页面能建任务。
 
 ## 5. 输入与游标
 
@@ -101,15 +96,15 @@ dream 是**后台记忆维护引擎**：按 Anthropic《The components of agent 
 
 ## 12. 测试与验收
 
-- 单测：`## 相关` 合法/死链/缺原因；GUIDE 超 13 KB 报错；dream skill 文本含五 pass 与写入边界。
+- 单测：`## 相关` 合法/死链/缺原因/段后还有章节；GUIDE 超限报错；preset 含 `dsh-tool-schedule`；注入提示词含互链契约与 `[nano-flow:dream]` 入口；`prompts/dream.md` 随包复制。
 - 集成：fixture 工作区 + 伪造 `log.jsonl` 跑 dream，断言新增 question/ADR、互链、guide 变化、游标前进、幂等重跑无 diff。
 - live：建任务后 `run` 立即执行一次：dream 会话完成、check 通过、commit 出现、guide ≤13 KB、0 死链。
 
 ## 13. 实现拆分
 
-- 021：互链契约 + check（`## 相关`、GUIDE 预算、面板字段）。
-- 022：dream skill + 游标 + 自动化任务接入（preset 加 `tool-schedule`、任务文案）。
-- 023：访问信号与晋升排序（log 读文件统计、剪枝规则）。
+- 022：互链契约 + check（`## 相关`、GUIDE 预算、面板字段）。
+- 023：dream 指令（`prompts/dream.md`）+ 游标 + 自动化任务接入（preset 加 `tool-schedule`、入口规则）。
+- 024：访问信号与晋升排序（规则写进 dream.md，随首次 dream 运行验收）。
 
 ## 14. 非目标
 

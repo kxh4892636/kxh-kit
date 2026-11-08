@@ -25,3 +25,6 @@
 | [019-dream机制设计](019-dream%E6%9C%BA%E5%88%B6%E8%AE%BE%E8%AE%A1.md) | dream 的完整设计：DSH 自动化任务每日 08:00 触发；L0=log.jsonl、L1=note 结论、L2=领域文档+「## 相关」互链、L3=guide（13 KB）；五 pass 与门禁。 | 001-nano-flow重构, 009-Plan轨迹日志, 017-轮转后自动校验Plan并绑定看板, 018-恢复Plan开头自动校验, 020-迁移legacy领域文档, 021-迁移legacy旧plans |
 | [020-迁移legacy领域文档](020-%E8%BF%81%E7%A7%BBlegacy%E9%A2%86%E5%9F%9F%E6%96%87%E6%A1%A3.md) | 把 .tmp/nano-flow-legacy 里 common/etf/music/nano-flow/video 的历史领域文档适配成 YAML + 三位编号并迁入 .agents；旧 plans 与二进制截图不迁。 | 002-生成并迁移dsh领域文档, 019-dream机制设计 |
 | [021-迁移legacy旧plans](021-%E8%BF%81%E7%A7%BBlegacy%E6%97%A7plans.md) | 把 common/etf/music/nano-flow/video 的 10 个旧 Plan 从 story/spec/notes.json 迁成 spec + note，并重写内部链接。 | 003-迁移dsh旧plans, 020-迁移legacy领域文档 |
+| [022-互链与check扩展](022-%E4%BA%92%E9%93%BE%E4%B8%8Echeck%E6%89%A9%E5%B1%95.md) | 实现页面文末「## 相关」互链契约：check 校验目标与原因、GUIDE 预算进设置面板，测试与安装。 | 019-dream机制设计, 020-迁移legacy领域文档 |
+| [023-dream指令与自动化接入](023-dream%E6%8C%87%E4%BB%A4%E4%B8%8E%E8%87%AA%E5%8A%A8%E5%8C%96%E6%8E%A5%E5%85%A5.md) | 新增 prompts/dream.md 作为自动化任务指令；nano-flow 预设挂载 schedule 工具；system.md 加 dream 入口与互链契约。 | 019-dream机制设计, 022-互链与check扩展 |
+| [024-访问信号与剪枝验收](024-%E8%AE%BF%E9%97%AE%E4%BF%A1%E5%8F%B7%E4%B8%8E%E5%89%AA%E6%9E%9D%E9%AA%8C%E6%94%B6.md) | 把访问信号、晋升排序与剪枝规则写进 dream.md；等首次 dream 运行验收实际效果。 | 019-dream机制设计, 023-dream指令与自动化接入 |
