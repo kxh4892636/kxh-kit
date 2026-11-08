@@ -1,6 +1,6 @@
 ---
 name: "019-dream机制设计"
-description: "dream 的最终设计：L0=compact log、L2=领域文档+「## 相关」互链（链+原因）、L3=guide（默认 13 KB，面板配置）、五 pass 与门禁。"
+description: "dream 的完整设计：DSH 自动化任务每日 08:00 触发；L0=log.jsonl、L1=note 结论、L2=领域文档+「## 相关」互链、L3=guide（13 KB）；五 pass 与门禁。"
 status: completed
 related_noted:
   - '001-nano-flow重构'
@@ -8,95 +8,109 @@ related_noted:
   - '017-轮转后自动校验Plan并绑定看板'
   - '018-恢复Plan开头自动校验'
   - '020-迁移legacy领域文档'
+  - '021-迁移legacy旧plans'
 ---
 
 # 019-dream机制设计
 
-## 背景与已定决策
+## 1. 定位
 
-- 目标：按 Anthropic《The components of agent memory》（2026-11-06）的四层 + dreaming 闭环，把维护从手动 kaizen 升级为 dream 批处理。
-- L0 = `log.jsonl`（compact 足够；轮转不删、只增量；不归档原文 transcript）。
-- L1 = note 的「验证/结论」段（会话内写；dream 只读，不重写历史）。
-- L2 = 领域文档（CONTEXT/questions/adr/workflows）+ `## 相关` 互链；生成物由 check 写。
-- L3 = `guide.md`（dream 维护，默认 **13 KB**，上限进设置面板）+ `system.md`（用户维护）。
-- 互链用 A 方案：页面正文的 `## 相关` 段，格式「链接 — 原因」。
-- 触发用 **DSH 自动化任务**，默认每天 **08:00**；直接读写，不做人工 diff，每次运行后 git commit。
-- 前置：先把 `.tmp/nano-flow-legacy` 的历史领域文档迁移进 `.agents`（020）。
+dream 是**后台记忆维护引擎**：按 Anthropic《The components of agent memory》的四层 + dreaming 闭环，把 nano-flow 的记忆维护从手动 kaizen 升级为定时批处理。它不新增第五层存储，只在现有文档上做纠错、提炼、建链、晋升、剪枝。
 
-## 层与维护者
+## 2. 分层与边界
 
 | 层 | 存储 | 写者 | 读者 |
 | --- | --- | --- | --- |
-| L0 | `<plan>/log.jsonl`（compact；轮转不删） | 宿主（已有） | dream |
-| L1 | note「验证/结论」段 | 模型（会话内） | dream |
-| L2 | 领域文档 + `## 相关` 段（页面 + 互链） | dream（内容）、check（生成物） | 模型 / dream |
-| L3 | `guide.md`（dream）、`system.md`（用户） | dream / 用户 | 每会话注入 |
+| L0 | `<plan>/log.jsonl`（compact；轮转不删，只增量） | 宿主插件 | dream |
+| L1 | note 的「验证/结论」段（会话内写） | 模型 | dream（只读） |
+| L2 | 领域文档（CONTEXT/questions/adr/workflows）+ `## 相关` 互链 | dream 写正文；check 写生成物 | 模型 / dream |
+| L3 | `GUIDE.md`（dream，≤13 KB）；`system.md`（用户） | dream / 用户 | 每会话注入 |
 
-生成物：`CONTEXT-MAP.md`、questions/adr/workflows 的 `index.md`、`notes_index.md`、spec `## 追踪 Note`——只由 check 写。
+生成物（`CONTEXT-MAP.md`、各 `index.md`、`notes_index.md`、spec `## 追踪 Note`）只由 check 写。
 
-## 互链契约（A + 链 + 原因）
+## 3. 运行形态：DSH 自动化任务
 
-每个页面（question / ADR / workflow / CONTEXT 主体）文末固定段：
+- 用宿主的 Schedule 服务（`@deepseek-ai/dsh-schedule`，任务页「自动化任务」）在**每天 08:00（Asia/Shanghai）** 创建/复用会话并投递 dream 指令。
+- 投递目标用 **`new`**：每次运行新建会话。理由：`new_once` 复用同一会话，上下文逐日膨胀；而且该会话被轮转删除后，投递会被 Schedule 拒绝（目标已归档）。
+- 新会话继承**创建任务时的 preset**，所以任务要在 **nano-flow 会话**里创建（或页面里选中该 preset），否则 dream 没有 nano-flow 提示词与工具。
+- 手动兜底：任意 nano-flow 会话说「运行 dream」。
+- 宿主必须运行；错过 08:00 只投递最近一次错过的发生点；投递「至少一次」，dream 必须幂等。
 
-```md
-## 相关
-- [001-取消订单](../questions/001-取消订单.md) — 同一订单状态机，取消会触发超时关闭
-- [002-订单超时关闭](./002-订单超时关闭.md) — 超时关闭是取消的兜底
+## 4. 任务契约（可复制）
+
+- 标题：`nano-flow dream`
+- 时间：`DTSTART;TZID=Asia/Shanghai:20261109T080000` + `RRULE:FREQ=DAILY`（页面也可用 cron `0 8 * * *`）
+- 目标：`new`（新建会话，继承 nano-flow preset 与工作目录）
+- 指令（固定文案）：
+
+```text
+运行 dream：按 nano-flow 的 dream 流程维护记忆。先读 $DSH_HOME/toolkit/nano-flow-dream.json 的游标，只处理各 Plan 新增的 log.jsonl 段；依次执行纠错、提炼、建链、晋升、剪枝；结束前跑 nano_flow_check 并 git commit；没有新增日志就说明并退出。
 ```
 
-- 每条 = 相对路径链接 + ` — ` + 一句原因；**原因必填**，写「为什么相关」。
-- 只链接 `.md`；跨域用相对路径（如 `../../common/adr/001-….md`）。
-- dream 负责新增、改原因、删除；目标被删时重指或删条目。
-- check 校验：段内每条必须是可解析的相对链接、目标存在、原因非空；`## 相关` 之外不解析链接。
-- 不在页面复制反向链接；v2 如需反查，由 check 生成域级 `links.md`（生成物）。
+- 前提：nano-flow preset 增加 `@deepseek-ai/dsh-tool-schedule` 行，否则只有页面能建任务。
 
-## dream 五 pass
+## 5. 输入与游标
 
-1. **纠错**：读新增 log 段与相关 L2 页面；旧结论被后续证据推翻或环境变化时，就地修正 L2（questions/ADR/CONTEXT），在正文注明依据（note 名 + `sessionId/turn`）。note 是历史快照，不改写。
-2. **提炼（L1→L2）**：按 kaizen 的「知识归属」上浮 note 的稳定结论：术语→CONTEXT、重复问题→questions、难逆决策→ADR、可复用活动→workflow；准入不满足不写，没有新结论就跳过。
-3. **建链**：为新增或大改的页面补 `## 相关`（链 + 原因）；合并同因条目后再连。
-4. **晋升（→L3）**：只挑「跨 Plan 反复用到且稳定」的极少条目进 `guide.md`，以索引/指针为主；按访问信号排序（`log.jsonl` 的 `tools[].args` 里读过的文件路径算热度/陈旧度）；超 13 KB 先下沉细节再写；整体重写 guide。
-5. **剪枝/降级**：删过时/无访问/重复条目；页面合并后修正链接；CONTEXT 术语去重；workflow 覆盖同一活动时合并而非新增。
+- 游标文件：`$DSH_HOME/toolkit/nano-flow-dream.json`，形如 `{ "version": 1, "plans": { "<planPath>": { "lastSeq": 1234, "lastSessionId": "session-…", "lastTurn": 7, "ranAt": "ISO" } } }`。
+- 扫描 `.agents/domains/*/plans/{active,reference,archived}/*/log.jsonl`；每个 Plan 只处理 `seq > lastSeq` 的 turn（log 的 turn 行带 `seq`）。
+- 同时读：该 Plan 的 `spec.md`、note 结论（L1）、所属域文档（L2）、`GUIDE.md`（L3）。
+- 游标只在 `git commit` 成功后推进；重复投递会重读同一段，结果幂等。
 
-聚焦：只处理与当前 Plan 的 spec/domain 相关的域；跨域只读（用户确认后才写）。
+## 6. 五 pass
 
-## 触发 / 游标 / 幂等 / 并发
+1. **纠错**：新增 log 与既有 L2 结论冲突时，就地修正（questions/ADR/CONTEXT），正文写依据 `> 纠正（日期，seq N）：…`。note 是历史快照，不改写。
+2. **提炼（L1→L2）**：按 kaizen 的「知识归属」上浮 note 的稳定结论：术语→CONTEXT、重复问题→questions、难逆决策→ADR、可复用活动→workflow。准入 = 有证据 + 未来会再用 + 不与现有重复；不满足不写，没有新结论就跳过。
+3. **建链**：为新增/大改页面补 `## 相关`（相对链接 + 一句原因）；目标被删时重指或删条目。
+4. **晋升（→L3）**：只挑「跨 Plan 反复命中、稳定、与当前 goal 相关」的极少数条目进 guide，以索引/指针为主；按访问信号排序（log 的 `tools[].args` 里读过的文件路径 = 热度/陈旧度）；超 13 KB 先下沉细节再写；整体重写。
+5. **剪枝/降级**：删同因重复、过时、无访问条目；workflow 同活动合并；CONTEXT 术语去重；从 guide 移除但保留在下层。
 
-- 触发：**DSH 自动化任务**按日执行，默认每天 **08:00**；到期时以 dream 入口启动一次会话（可带 `plan`/`domain`）。手动 `/dream` 作为兜底。
-- 调度归属：时间与开关在 DSH 自动化任务面板配置；插件只提供可被任务 prompt 触发的 dream 入口、游标与门禁。
-- v2 可选：轮转后 / 空闲事件触发。
-- 游标：`$DSH_HOME/toolkit/nano-flow-dream.json`，按 Plan 记录 `{ sessionId, turn, seq }`，只消费新增段。
-- 幂等：同一 (sessionId, turn) 只处理一次；写入前校验文档内容 hash，冲突则跳过并报告。
-- 并发：按 workspace 单写者锁；dream 运行期间不轮转。
+聚焦：只写当前 Plan 所属域 + `common`；其他域只读。
 
-## 门禁
+## 7. 写入边界
 
-- `nano_flow_check` 通过（新增：`## 相关` 链接/原因校验；GUIDE ≤ `guideMaxBytes`）。
-- 每条新增/修正结论带出处（note 名或 `sessionId/turn`）。
-- 生成物零改动：dream 只写页面正文与 `guide.md`，不改 spec/notes/索引。
-- 单次运行预算（文件数/字节数）超限时停在该 pass 边界。
-- 运行结束自动 `git commit`（消息 `docs(dream): …`）；失败不提交。
+- 可写：`{domain}/CONTEXT.md`、`questions/NNN-*.md`、`adr/NNN-*.md`、`workflows/...`、`GUIDE.md`、游标。
+- 只读：`spec.md`、note、全部生成物、`system.md`。
+- 每条改动带出处（note 名或 `sessionId/turn`）；一次运行一次 `git commit`（`docs(dream): …`）。
 
-## 配置（nano-flow 面板）
+## 8. 门禁
 
-- `guideMaxBytes` = **13 × 1024**（新增默认值）。
-- `dreamEnabled`（bool，默认 false；自动化任务未启用时不跑）。
-- `dreamMaxFiles` / `dreamMaxBytes`（单次预算，先给保守默认）。
-- 自动化任务的触发时间（默认 08:00）在 DSH 自动化面板维护，不存进本插件的设置文件。
-- 落点：`contract.ts` 的 `NanoFlowSettings`、`client/panel.ts:31-33` 的字段表、`$DSH_HOME/toolkit/nano-flow.json`、check 的 limits 入参。
+- `nano_flow_check` 通过（含新增：`## 相关` 链接/原因校验、GUIDE ≤ `guideMaxBytes`）。
+- 链接可解析、原因非空；生成物零手改。
+- 单次预算（文件数/字节数）超限时停在该 pass 边界并报告。
+- check 失败不提交、不推进游标。
 
-## v1 / v2
+## 9. check 扩展
 
-- v1：互链契约 + check 校验 + guide 预算（面板）；dream 入口接 DSH 自动化任务（每日 08:00），跑通一个 Plan。
-- v2：事件触发（轮转后/空闲）、反链视图、dream 自评（用后续 log 验证上次改动是否被采纳）。
+- 解析页面末的 `## 相关` 段：每条 `- [text](相对路径.md) — 原因`；目标必须存在、原因非空；段外链接不解析。
+- `GUIDE.md` 大小 ≤ `guideMaxBytes`（来自设置）。
+- v2：生成域级 `links.md` 反链视图（生成物）。
 
-## 实现拆分（待确认后开 note）
+## 10. 配置
 
-- 021：互链与 check（`## 相关` 解析/校验、死链报错；guide 预算读取配置；面板字段）。
-- 022：dream 引擎（dream 入口、游标、五 pass、门禁、commit；接自动化任务）。
-- 023：访问信号与晋升策略（log 读文件统计、guide 排序、剪枝规则）。
+- `guideMaxBytes` = 13 × 1024（默认；落 `contract.ts`、`client/panel.ts` 字段表、`nano-flow.json`、check 的 limits）。
+- `dreamEnabled`（默认 false；自动化任务未建时不跑）、`dreamMaxFiles`、`dreamMaxBytes`。
+- 任务时间在 Schedule 页维护，不存插件设置。
 
-## 验收
+## 11. 失败模式与幂等
 
-- 单测：`## 相关` 合法/死链/缺原因；guide 超 13 KB 报错；游标只读新增段、重复运行幂等。
-- live：对一个已完成 Plan 跑 `/dream`：至少上浮 1 条 question/ADR、补至少 1 条互链、guide 更新（或明确无晋升理由）；check 通过；无死链；git 有新 commit。
+- 宿主未运行：下次启动只投递最近一次；dream 按游标补处理，不丢不重。
+- log 截断（args/result 4 KB、assistant 8 KB）：只做高置信修正，低置信跳过并记录。
+- 并发（用户同时编辑）：写入前比对内容 hash，冲突则跳过该文件并报告。
+- 写坏/校验失败：不提交，游标不前进，下轮重试。
+- 回滚：每次 commit 即一个可回滚单元。
+
+## 12. 测试与验收
+
+- 单测：`## 相关` 合法/死链/缺原因；GUIDE 超 13 KB 报错；dream skill 文本含五 pass 与写入边界。
+- 集成：fixture 工作区 + 伪造 `log.jsonl` 跑 dream，断言新增 question/ADR、互链、guide 变化、游标前进、幂等重跑无 diff。
+- live：建任务后 `run` 立即执行一次：dream 会话完成、check 通过、commit 出现、guide ≤13 KB、0 死链。
+
+## 13. 实现拆分
+
+- 021：互链契约 + check（`## 相关`、GUIDE 预算、面板字段）。
+- 022：dream skill + 游标 + 自动化任务接入（preset 加 `tool-schedule`、任务文案）。
+- 023：访问信号与晋升排序（log 读文件统计、剪枝规则）。
+
+## 14. 非目标
+
+原文 transcript 归档、跨域写、改 note/spec、改生成物、反链视图（v2）、检索工具（v2）。
