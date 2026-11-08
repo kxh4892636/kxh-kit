@@ -1,20 +1,21 @@
 ---
 name: 'nano-flow 重构与 dsh 迁移'
 description: '把 nano-flow 插件重构、dsh 领域文档生成与旧 plans 迁移收进同一个 Plan。'
-status: completed
+status: in_progress
 ---
 
 # nano-flow 重构与 dsh 迁移
 
 ## 目标
 
-用一个 Plan 记录两条工作线：nano-flow 插件重构，以及 dsh 旧领域文档与旧 plans 的迁移。此前分散的“生成并迁移 dsh 领域文档”和“迁移 dsh 旧 plans”两个 Plan 已归档，内容合并到这里。
+用一个 Plan 记录两条工作线：nano-flow 插件重构，以及 dsh 旧领域文档与旧 plans 的迁移。此前分散的“生成并迁移 dsh 领域文档”和“迁移 dsh 旧 plans”两个 Plan 已归档，内容合并到这里。后续同域的 nano-flow 插件增强（Note 面板、Plan 轨迹日志）也落在本 Plan。
 
 ## 范围
 
 - nano-flow 插件：文档格式、工具面、提示词注入、索引生成、篇幅限制与预设行为。
 - dsh 领域文档：CONTEXT、questions、adr、workflows 的生成与旧文档适配。
 - dsh 旧 plans：17 个旧 Plan 从 `story/spec/notes.json` 迁到 `spec + note`。
+- 插件增强：会话内 Note 面板（007）、`plan/log.jsonl` 轨迹日志（009）。
 - 不迁移其他域（common、nano-flow、etf、music、video）；不删除 `.tmp` 原文。
 
 ## 结果
@@ -31,11 +32,11 @@ status: completed
 
 ## 当前进度
 
-全部完成并验收：Note 面板（0.5.21 文本版）与历史加载修复均通过用户确认。测试 262 项、`vp check` 通过。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
+note 001–008 已完成并验收；note 009（Plan 轨迹日志）已收敛设计、处于 `pending`，等 `/do` 实现：每 Plan 一个 `log.jsonl`，只存 compact 轨迹（每轮一条），宿主侧由 `session/event` 实时聚合、`turn/end` 落盘，绑定持久化在宿主文件，回填当前会话。测试 262 项、`vp check` 通过；插件已装 0.5.21。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
 
 ## 恢复入口
 
-先读 `notes_index.md`；插件细节在 001，领域文档在 002，旧 plans 映射与截断在 003，`CONTEXT-MAP.md` 位置修正在 004，旧 Plan 链接校正在 005，提示词改名在 006，Note 面板设计与验收条件在 007，历史加载失败的根因与替代方案在 008。
+先读 `notes_index.md`；插件细节在 001，领域文档在 002，旧 plans 映射与截断在 003，`CONTEXT-MAP.md` 位置修正在 004，旧 Plan 链接校正在 005，提示词改名在 006，Note 面板在 007，历史加载失败在 008，Plan 轨迹日志的设计与拷问记录在 009。
 
 ## 追踪 Note
 
@@ -43,3 +44,4 @@ status: completed
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
+| [009-Plan轨迹日志](009-Plan%E8%BD%A8%E8%BF%B9%E6%97%A5%E5%BF%97.md) | 在每个 Plan 目录追加 log.jsonl，把对应 nano-flow 会话的每轮轨迹（精简）持久化。 | pending | — | 按设计实现宿主半：绑定表 + session/event 聚合 + turn/end 追加，再接回填 | 007-会话内未完成note面板, 008-修复notes事件导致会话历史加载失败 |
