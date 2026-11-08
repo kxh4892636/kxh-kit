@@ -41,14 +41,15 @@ status: completed
 - note 018 恢复 Plan 时开头自动跑一次 `nano_flow_check`：同一目的（校验 + 建看板绑定），约束写进 `prompts/system.md` 的恢复条款（0.5.29，单测 97 例通过，已装入两个 profile；2026-11-08 重启后新会话 live 验收通过，`completed`）。
 - note 019 定义 dream 机制设计：L0=compact log、L1=note 结论、L2=领域文档+`## 相关`互链（链+原因）、L3=guide（默认 13 KB，面板配置）；五 pass + 游标幂等 + check 门禁 + git commit；触发走 DSH 自动化任务（默认每日 08:00）。
 - note 020 迁移 legacy 领域文档：common/etf/music/nano-flow/video 的 CONTEXT/questions/adr/workflows 适配成 YAML + 三位编号；`nano_flow_check` 通过、0 死链；旧 10 个 plans 与 music 截图留在 `.tmp`，另开 note 迁移。
+- note 021 迁移 legacy 旧 plans：10 个 Plan 的 story/spec/notes.json → spec + 53 条 note；117 条死链重写为 0；旧 active Plan 归档（note 等验收）；music 截图按用户要求忽略。
 
 ## 当前进度
 
-note 001–020 全部完成（001–018 功能/验收，019 dream 设计，020 legacy 领域文档迁移）。018 收尾：2026-11-08 用户重启宿主（desktop 载 0.5.29）后开新会话恢复 Plan 验证——模型开头先调 `nano_flow_check`、Note 看板出现，用户确认「已经验证」；插件 desktop / web profile 均为 0.5.29。019 定稿：L0=`log.jsonl`（compact，轮转不删、只增量）、L1=note 结论、L2=领域文档+`## 相关`互链（链接+原因）、L3=`guide.md`（默认 13 KB，上限进设置面板）；dream 五 pass（纠错/提炼/建链/晋升/剪枝）、游标幂等、check 门禁、每次运行 git commit；触发走 DSH 自动化任务，默认每天 08:00。020 把 common/etf/music/nano-flow/video 的历史领域文档迁成 YAML + 三位编号；`nano_flow_check` 通过、0 死链。旧 10 个 plans 与 music 截图仍在 `.tmp`，plans 迁移另开 note。机制补充：轮转会话没有 `agent-preset/selected` 事件，日志在 `turn/end` 落盘（详见 016）。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
+note 001–021 全部完成（001–018 功能/验收，019 dream 设计，020 领域文档迁移，021 旧 plans 迁移）。018 收尾：2026-11-08 用户重启宿主（desktop 载 0.5.29）后开新会话恢复 Plan 验证——模型开头先调 `nano_flow_check`、Note 看板出现，用户确认「已经验证」；插件 desktop / web profile 均为 0.5.29。019 定稿：L0=`log.jsonl`（compact，轮转不删、只增量）、L1=note 结论、L2=领域文档+`## 相关`互链（链接+原因）、L3=`guide.md`（默认 13 KB，上限进设置面板）；dream 五 pass（纠错/提炼/建链/晋升/剪枝）、游标幂等、check 门禁、每次运行 git commit；触发走 DSH 自动化任务，默认每天 08:00。020 把 common/etf/music/nano-flow/video 的历史领域文档迁成 YAML + 三位编号；021 把 10 个旧 Plan 迁成 spec + 53 条 note，并把 117 条死链重写为 0（story→spec、ADR 4→3 位、note 2→3 位、跨 Plan 引用、旧 docs 布局补一层、失效链接降纯文本）。common 的旧 active Plan（删除 pi-toolkit）已执行完、note 等验收，迁到 archived 以免两个 active Plan 破坏轮转后的自动绑定。music 的设计截图按用户要求忽略，不迁不引用。`nano_flow_check` 通过。机制补充：轮转会话没有 `agent-preset/selected` 事件，日志在 `turn/end` 落盘（详见 016）。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
 
 ## 恢复入口
 
-先读 `notes_index.md`；插件细节在 001，领域文档在 002，旧 plans 映射与截断在 003，`CONTEXT-MAP.md` 位置修正在 004，旧 Plan 链接校正在 005，提示词改名在 006，Note 面板在 007，历史加载失败在 008，Plan 轨迹日志的设计、拷问与 live 验收在 009，轮转分组/置顶修复在 010，绑定轮修复在 011，`/rotate` 命令与 XML 标注在 012，状态先行约束在 013，PTC 模式切换在 014，绑定贯通 Note 面板在 015，轨迹日志的轮转验收在 016，轮转后自动校验与 seed 前绑定在 017，恢复 Plan 开头自动校验在 018，dream 设计在 019，legacy 领域文档迁移在 020。
+先读 `notes_index.md`；插件细节在 001，领域文档在 002，旧 plans 映射与截断在 003，`CONTEXT-MAP.md` 位置修正在 004，旧 Plan 链接校正在 005，提示词改名在 006，Note 面板在 007，历史加载失败在 008，Plan 轨迹日志的设计、拷问与 live 验收在 009，轮转分组/置顶修复在 010，绑定轮修复在 011，`/rotate` 命令与 XML 标注在 012，状态先行约束在 013，PTC 模式切换在 014，绑定贯通 Note 面板在 015，轨迹日志的轮转验收在 016，轮转后自动校验与 seed 前绑定在 017，恢复 Plan 开头自动校验在 018，dream 设计在 019，legacy 领域文档迁移在 020，旧 plans 迁移在 021。
 
 ## 追踪 Note
 

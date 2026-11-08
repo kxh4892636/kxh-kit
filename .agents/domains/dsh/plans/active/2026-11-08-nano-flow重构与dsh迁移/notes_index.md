@@ -24,3 +24,4 @@
 | [018-恢复Plan开头自动校验](018-%E6%81%A2%E5%A4%8DPlan%E5%BC%80%E5%A4%B4%E8%87%AA%E5%8A%A8%E6%A0%A1%E9%AA%8C.md) | 恢复 Plan 时开头自动跑一次 nano_flow_check：校验 Plan 并建立会话↔Plan 看板绑定（同 017 的轮转自动校验），约束写进 prompts/system.md。 | 015-Plan绑定贯通Note面板, 017-轮转后自动校验Plan并绑定看板 |
 | [019-dream机制设计](019-dream%E6%9C%BA%E5%88%B6%E8%AE%BE%E8%AE%A1.md) | dream 的最终设计：L0=compact log、L2=领域文档+「## 相关」互链（链+原因）、L3=guide（默认 13 KB，面板配置）、五 pass 与门禁。 | 001-nano-flow重构, 009-Plan轨迹日志, 017-轮转后自动校验Plan并绑定看板, 018-恢复Plan开头自动校验, 020-迁移legacy领域文档 |
 | [020-迁移legacy领域文档](020-%E8%BF%81%E7%A7%BBlegacy%E9%A2%86%E5%9F%9F%E6%96%87%E6%A1%A3.md) | 把 .tmp/nano-flow-legacy 里 common/etf/music/nano-flow/video 的历史领域文档适配成 YAML + 三位编号并迁入 .agents；旧 plans 与二进制截图不迁。 | 002-生成并迁移dsh领域文档, 019-dream机制设计 |
+| [021-迁移legacy旧plans](021-%E8%BF%81%E7%A7%BBlegacy%E6%97%A7plans.md) | 把 common/etf/music/nano-flow/video 的 10 个旧 Plan 从 story/spec/notes.json 迁成 spec + note，并重写内部链接。 | 003-迁移dsh旧plans, 020-迁移legacy领域文档 |
