@@ -281,6 +281,27 @@ export const writeBindings = async (file: string, table: BindingTable): Promise<
   await writeFile(file, `${JSON.stringify(table, null, 2)}\n`, "utf8");
 };
 
+/**
+ * 轮转时继承旧会话的 Plan：查绑定表里旧会话的 planPath，返回仍存在的 Plan 目录。
+ * 与工作区有几个 active Plan 无关；旧会话无绑定或目录已不存在时返回 undefined。
+ * @param table - 绑定表。
+ * @param previousSessionId - 被轮转的旧会话 id。
+ * @param workspace - 工作区根。
+ * @param exists - 目录存在性判断（测试可注入）。
+ * @returns 绝对 Plan 目录，或 undefined。
+ */
+export const inheritedPlanDirectory = (
+  table: BindingTable,
+  previousSessionId: string,
+  workspace: string,
+  exists: (directory: string) => boolean = () => true,
+): string | undefined => {
+  const binding = table[previousSessionId];
+  if (binding === undefined) return undefined;
+  const directory = join(workspace, binding.planPath);
+  return exists(directory) ? directory : undefined;
+};
+
 /** 解析 Plan 目录的相对路径（相对工作区，正斜杠）。 */
 export const planRelativePath = (workspace: string, planDirectory: string): string =>
   relative(workspace, planDirectory).replaceAll("\\", "/");

@@ -90,6 +90,8 @@ export interface RotationOptions {
    */
   readonly autoCheck?: (params: {
     readonly sessionId: string;
+    /** 被轮转的旧会话；新会话继承它的 Plan 绑定。 */
+    readonly previousSessionId: string;
     readonly workspace: string;
   }) => Promise<string | undefined>;
 }
@@ -287,12 +289,13 @@ export const createRotation = (options: RotationOptions): RotationEngine => {
   /** 新会话建立后跑一次校验（等价于 `nano_flow_check`）；摘要进 seed，失败只 warn。 */
   const runAutoCheck = async (
     sessionId: string,
+    previousSessionId: string,
     workspace: string,
   ): Promise<string | undefined> => {
     const check = options.autoCheck;
     if (check === undefined) return undefined;
     try {
-      return await check({ sessionId, workspace });
+      return await check({ sessionId, previousSessionId, workspace });
     } catch (error) {
       services.logger.warn(`nano-flow: auto check after rotation failed: ${describe(error)}`);
       return `轮转后自动执行 \`nano_flow_check\` 失败：${describe(error)}。先手工跑一次确认 Plan 状态。`;
@@ -311,7 +314,7 @@ export const createRotation = (options: RotationOptions): RotationEngine => {
     });
     await inheritPlacement(session.id, created.sessionId);
     const workspace = cwd ?? process.cwd();
-    const checked = await runAutoCheck(created.sessionId, workspace);
+    const checked = await runAutoCheck(created.sessionId, session.id, workspace);
     const seed = await buildSeed(workspace, domainRoot);
     return {
       sessionId: created.sessionId,

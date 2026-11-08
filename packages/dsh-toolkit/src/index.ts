@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { isAbsolute, join } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import { resolveDshHome } from "@deepseek-ai/dsh-home-paths";
@@ -25,6 +26,7 @@ import { registerRotateCommand } from "./nano-flow/rotate-command.js";
 import { createPlanLogService } from "./nano-flow/plan-log-service.js";
 import {
   BINDINGS_FILE,
+  inheritedPlanDirectory,
   planRelativePath,
   readBindings,
   readBindingsSync,
@@ -166,27 +168,32 @@ export const apply = (ctx: Context, config: Config = {}): void => {
   ctx.inject(["sessionController"], (child: Context) => {
     child.effect(() => {
       /**
-       * 轮转后自动跑一次校验（等价于执行 `nano_flow_check`）：校验 Plan，并给新会话写绑定，
-       * 让 Note 看板不必等模型自己调工具就能出现。返回一行结论，由轮转追加到 seed。
+       * 轮转后自动跑一次校验（等价于执行 `nano_flow_check`）：校验 Plan，并把轮转前会话的
+       * Plan 绑定继承给新会话（与工作区 active Plan 数量无关），让 Note 看板不必等模型
+       * 自己调工具就能出现。返回一行结论，由轮转追加到 seed。
        */
       const autoCheck = async (params: {
         sessionId: string;
+        previousSessionId: string;
         workspace: string;
       }): Promise<string | undefined> => {
         const domainsPath = config.domainRoot ?? DEFAULT_DOMAIN_ROOT;
-        const domainsDirectory = isAbsolute(domainsPath)
-          ? domainsPath
-          : join(params.workspace, domainsPath);
         const result = await runCheck({
           script: assetsCheckScript(locateAssetsRoot()),
           workspace: params.workspace,
           domainsPath,
           limits: runtime.nanoFlow.get(),
         });
-        const plans = listActivePlans(domainsDirectory);
-        const only = plans[0];
-        const bound = plans.length === 1 && only !== undefined;
-        if (bound) await runtime.bindSession(params.sessionId, only, params.workspace);
+        // 绑定继承轮转前会话的 Plan，与工作区有几个 active Plan 无关。
+        const inherited = inheritedPlanDirectory(
+          await readBindings(bindingsFilePath(config)),
+          params.previousSessionId,
+          params.workspace,
+          (directory) => existsSync(directory),
+        );
+        if (inherited !== undefined) {
+          await runtime.bindSession(params.sessionId, inherited, params.workspace);
+        }
         const lines: string[] = [];
         if (result.ok) {
           lines.push("轮转后自动执行 `nano_flow_check`：领域文档校验通过，索引已刷新。");
@@ -197,9 +204,9 @@ export const apply = (ctx: Context, config: Config = {}): void => {
             lines.push(`…还有 ${result.errors.length - 5} 项，跑一次工具看全部。`);
         }
         lines.push(
-          bound
-            ? "本会话的 Note 看板绑定已建立，无需再跑一次。"
-            : `工作区有 ${plans.length} 个 active Plan，未建立看板绑定；先确认要推进哪个 Plan。`,
+          inherited !== undefined
+            ? `本会话的 Note 看板绑定已建立（继承轮转前的 Plan：${planRelativePath(params.workspace, inherited)}），无需再跑一次。`
+            : "轮转前会话没有绑定 Plan，未建立看板绑定；恢复时确认 Plan 后跑一次 `nano_flow_check`。",
         );
         return lines.join("\n");
       };

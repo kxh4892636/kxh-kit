@@ -8,6 +8,7 @@ import {
   BINDINGS_FILE,
   buildTurnRecord,
   groupByTurn,
+  inheritedPlanDirectory,
   isNanoFlowPreset,
   planLogPath,
   planRelativePath,
@@ -74,6 +75,29 @@ describe("truncateText", () => {
     expect(result.truncated).toBe(true);
     expect(result.bytes).toBe(24);
     expect(Buffer.byteLength(result.text, "utf8")).toBeLessThanOrEqual(6);
+  });
+});
+
+describe("inheritedPlanDirectory", () => {
+  const table = {
+    "session-old": {
+      planPath: ".agents/domains/dsh/plans/active/x",
+      cwd: "C:\\work",
+      boundAt: "2026-11-08T00:00:00.000Z",
+    },
+  };
+
+  it("returns the previous session's bound plan when it still exists", () => {
+    expect(inheritedPlanDirectory(table, "session-old", "C:\\work", () => true)).toBe(
+      join("C:\\work", ".agents/domains/dsh/plans/active/x"),
+    );
+  });
+
+  it("ignores sessions without a binding and stale plan directories", () => {
+    expect(
+      inheritedPlanDirectory(table, "session-unknown", "C:\\work", () => true),
+    ).toBeUndefined();
+    expect(inheritedPlanDirectory(table, "session-old", "C:\\work", () => false)).toBeUndefined();
   });
 });
 

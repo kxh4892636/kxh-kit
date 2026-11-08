@@ -31,7 +31,11 @@ const sessionOf = (
 
 const makeHarness = (
   workspaceRegistry?: unknown,
-  autoCheck?: (params: { sessionId: string; workspace: string }) => Promise<string | undefined>,
+  autoCheck?: (params: {
+    sessionId: string;
+    previousSessionId: string;
+    workspace: string;
+  }) => Promise<string | undefined>,
 ) => {
   let pressure: Pressure = { pressureTokens: 10, contextWindow: 1000 };
   const sessions = new Map<string, RotationSession>([
@@ -270,7 +274,11 @@ describe("autoCheck after rotation", () => {
     const result = await harness.rotation.rotate(session!);
     expect(result.accepted).toBe(true);
     expect(autoCheck).toHaveBeenCalledTimes(1);
-    expect(autoCheck).toHaveBeenCalledWith({ sessionId: "session-new", workspace: "C:\\work" });
+    expect(autoCheck).toHaveBeenCalledWith({
+      sessionId: "session-new",
+      previousSessionId: "session-1",
+      workspace: "C:\\work",
+    });
     const prompted = harness.originalPrompt.mock.calls[0]?.[0];
     const text = String(prompted?.content[0]?.["text"]);
     expect(text).toContain("只读报告");
@@ -284,7 +292,11 @@ describe("autoCheck after rotation", () => {
     const harness = makeHarness(undefined, autoCheck);
     harness.setPressure({ projectedTokens: 700, contextWindow: 1000 });
     await harness.send();
-    expect(autoCheck).toHaveBeenCalledWith({ sessionId: "session-new", workspace: "C:\\work" });
+    expect(autoCheck).toHaveBeenCalledWith({
+      sessionId: "session-new",
+      previousSessionId: "session-1",
+      workspace: "C:\\work",
+    });
     const redirected = harness.originalPrompt.mock.calls[0]?.[0];
     const texts = (redirected?.content ?? []).map((block) => String(block["text"]));
     expect(texts[0]).toContain("nano_flow_check");
