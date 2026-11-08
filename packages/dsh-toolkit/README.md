@@ -199,9 +199,8 @@ metadata:
   spec / note / CONTEXT / question / ADR / workflow 体积与 description 字数，以及会话轮转阈值。
   体积字段在面板里以 **KB** 输入（1 KB = 1024 字节，存储仍是字节）。ADR 数量与追踪 Note
   行数不再限制；静态规则在 `prompts/limit.md`，具体值由脚本追加，启动时生成
-  「篇幅限制」块拼在 `prompts/agents.md` + `GUIDE.md` 之后注入。spec 超过上限时，
-  把细节下沉到 note 或领域文档，并在 `spec.md` 留下相对链接指针；note、question、
-  ADR、workflow 超过上限时拆成多个独立编号的文档；CONTEXT 只压缩，不拆分。
+  「篇幅限制」块拼在 `prompts/agents.md` + `GUIDE.md` 之后注入。压缩与拆分规则统一
+  由 `prompts/limit.md` 维护。
 - 预设不挂载压缩插件。轮转挂在**宿主半**：用户每发一条**排队**消息（queue）时，先按会话 id
   找到存活会话，再用日志里最后一条 `agent-preset/selected` 判断它是否跑 Nano Flow（live header
   的 `agentPreset` 在恢复会话时不可靠），然后读 `tokenMeter.contextPressure` 的
