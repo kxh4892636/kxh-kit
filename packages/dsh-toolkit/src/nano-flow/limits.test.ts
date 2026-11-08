@@ -17,7 +17,7 @@ describe("buildLimitsText", () => {
     expect(text).toContain("## 篇幅限制");
     expect(text).toContain("规则：");
     expect(text).toContain("概述：");
-    expect(text).toContain("具体值：");
+    expect(text).not.toContain("具体值：");
     expect(text).toContain("spec.md ≤ 34 KB");
     expect(text).toContain("单条 note ≤ 13 KB");
     expect(text).toContain("description ≤ 233 字");

@@ -14,7 +14,6 @@ const formatKb = (bytes: number): string => {
  */
 export const buildLimitsValues = (settings: NanoFlowSettings): string => {
   return [
-    "具体值：",
     `- spec.md ≤ ${formatKb(settings.specMaxBytes)}`,
     `- 单条 note ≤ ${formatKb(settings.noteMaxBytes)}`,
     `- description ≤ ${settings.noteDescriptionMaxChars} 字`,
