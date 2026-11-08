@@ -201,35 +201,27 @@ describe("checkWorkspace", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("accepts spec-N.md continuations and requires continuous numbering", async () => {
+  it("rejects spec-N.md split files and expects details to be linked from spec.md", async () => {
     const root = await makeRoot();
     await domain(root, "demo", "演示");
-    const plan = ".agents/domains/demo/plans/active/2026-11-08-拆分-spec";
-    const spec = (status = "pending"): string =>
-      [
-        "---",
-        "name: '拆分 spec'",
-        "description: '拆分 spec。'",
-        `status: ${status}`,
-        "---",
-        "",
-        "# 拆分 spec",
-        "",
-        "主文件正文。",
-        "",
-      ].join("\n");
-    await write(root, `${plan}/spec.md`, spec());
-    await write(root, `${plan}/spec-1.md`, "第一段续写。\n");
-    await write(root, `${plan}/spec-2.md`, "第二段续写。\n");
+    const plan = ".agents/domains/demo/plans/active/2026-11-08-指针-spec";
+    const spec = [
+      "---",
+      "name: '指针 spec'",
+      "description: '指针 spec。'",
+      "status: pending",
+      "---",
+      "",
+      "# 指针 spec",
+      "",
+      "细节见 [note 001](001-细节.md)。",
+      "",
+    ].join("\n");
+    await write(root, `${plan}/spec.md`, spec);
+    await write(root, `${plan}/spec-1.md`, "不该存在的 spec 分片。\n");
     const result = checkWorkspace(root);
-    expect(result.ok).toBe(true);
-
-    await rm(join(root, plan, "spec-1.md"));
-    const gap = checkWorkspace(root);
-    expect(gap.ok).toBe(false);
-    expect(gap.errors.some((issue) => issue.message.includes("spec 分片编号必须从 1 连续"))).toBe(
-      true,
-    );
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((issue) => issue.message.includes("spec 不拆分"))).toBe(true);
   });
 
   it("reports duplicate names and legacy documents", async () => {
