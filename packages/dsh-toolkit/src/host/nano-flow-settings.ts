@@ -7,15 +7,15 @@ export { DEFAULT_NANO_FLOW_SETTINGS };
 export type { NanoFlowSettings };
 
 const INTEGER_KEYS = [
-  "storyMaxBytes",
   "specMaxBytes",
   "noteMaxBytes",
   "noteDescriptionMaxChars",
   "indexMaxRows",
   "contextMaxBytes",
-  "questionsMaxBytes",
+  "questionMaxBytes",
   "adrMaxBytes",
   "adrMaxCount",
+  "workflowMaxBytes",
 ] as const;
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {

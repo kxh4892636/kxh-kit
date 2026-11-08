@@ -7,11 +7,14 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const source = join(root, "src", "nano-flow");
 const target = join(root, "dist", "nano-flow");
-const entries = ["prompt.md", "assets.lock.json", "skills", "scripts"];
+const entries = ["prompts", "templates", "skills", "scripts"];
 
 await rm(target, { recursive: true, force: true });
 await mkdir(target, { recursive: true });
 for (const entry of entries) {
-  await cp(join(source, entry), join(target, entry), { recursive: true });
+  await cp(join(source, entry), join(target, entry), {
+    recursive: true,
+    filter: (file) => !file.endsWith(".d.mts"),
+  });
 }
 console.log(`copy-nano-flow-assets: wrote ${target}`);

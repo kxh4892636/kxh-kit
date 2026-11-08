@@ -24,7 +24,7 @@ export const createNanoFlowTool = (options: { entryUrl: string }): ToolkitTool =
   id: TOOL_IDS.nanoFlow,
   title: "Nano Flow 预设",
   description:
-    "在会话的预设选择器里增加 Nano Flow：固定提示词、nano_flow_* 工具与随包 skill。关闭即从预设列表移除。",
+    "在会话的预设选择器里增加 Nano Flow：固定提示词、nano_flow_create / nano_flow_check 工具与随包 skill。关闭即从预设列表移除。",
   defaultEnabled: false,
   apply: (ctx: Context): (() => void) => {
     const definition = createNanoFlowPreset(options.entryUrl);

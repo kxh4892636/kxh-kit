@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import {
   DEFAULT_NANO_FLOW_SETTINGS,
   TOOLKIT_NANO_FLOW_PATH,
-  TOOLKIT_NANO_FLOW_READY_PATH,
   TOOLKIT_STATE_PATH,
   TOOLKIT_UNDO_PATH,
 } from "../contract.js";
@@ -75,31 +74,6 @@ const setup = async () => {
     inspect: vi.fn(() => ({ available: true, prompt: "帮我改一下" })),
     run: vi.fn(async () => ({ childSessionId: "session-child", prompt: "帮我改一下" })),
   };
-  const ready = vi.fn(async (_sessionId: string) => ({
-    available: true as const,
-    plan: { domain: "dsh", lifecycle: "active" as const, name: "2026-11-07-示例工作" },
-    counts: {
-      total: 1,
-      pending: 1,
-      in_progress: 0,
-      waiting: 0,
-      needsBlocked: 0,
-      completed: 0,
-    },
-    groups: [
-      {
-        notes: [
-          {
-            id: "01",
-            title: "示例 note",
-            description: "摘要",
-            status: "pending" as const,
-            blocked_by: [],
-          },
-        ],
-      },
-    ],
-  }));
   const dispose = registerToolkitRoutes({
     registry,
     connection,
@@ -109,7 +83,6 @@ const setup = async () => {
       get: () => settings.current(),
       update: (patch: unknown) => settings.update(patch),
     },
-    nanoFlowReady: ready,
     logger: { warn: vi.fn() },
   });
   const call = (path: string, request: Request): Promise<Response> => {
@@ -117,7 +90,7 @@ const setup = async () => {
     if (handler === undefined) throw new Error(`route ${path} not registered`);
     return handler(request);
   };
-  return { call, registry, undo, settings, dispose, routes, ready };
+  return { call, registry, undo, settings, dispose, routes };
 };
 
 const request = (
@@ -245,32 +218,9 @@ describe("toolkit routes", () => {
     expect(await unsupported.json()).toMatchObject({ error: "unsupported-host" });
   });
 
-  it("serves the nano-flow ready list for a session", async () => {
-    const { call, ready } = await setup();
-    const response = await call(
-      TOOLKIT_NANO_FLOW_READY_PATH,
-      request(TOOLKIT_NANO_FLOW_READY_PATH, {
-        url: `http://127.0.0.1:58683${TOOLKIT_NANO_FLOW_READY_PATH}?sessionId=s1`,
-      }),
-    );
-    expect(response.status).toBe(200);
-    const body = (await response.json()) as { groups: { notes: { id: string }[] }[] };
-    expect(body.groups[0]?.notes[0]?.id).toBe("01");
-    expect(ready).toHaveBeenCalledWith("s1");
-  });
-
-  it("rejects a ready request without a session id", async () => {
-    const { call } = await setup();
-    const response = await call(
-      TOOLKIT_NANO_FLOW_READY_PATH,
-      request(TOOLKIT_NANO_FLOW_READY_PATH),
-    );
-    expect(response.status).toBe(400);
-  });
-
   it("unregisters all routes on dispose", async () => {
     const { dispose, routes } = await setup();
-    expect(routes.size).toBe(5);
+    expect(routes.size).toBe(4);
     dispose();
     expect(routes.size).toBe(0);
   });
@@ -278,8 +228,8 @@ describe("toolkit routes", () => {
     const { call } = await setup();
     const read = await call(TOOLKIT_NANO_FLOW_PATH, request(TOOLKIT_NANO_FLOW_PATH));
     expect(read.status).toBe(200);
-    const initial = (await read.json()) as { settings: { storyMaxBytes: number } };
-    expect(initial.settings.storyMaxBytes).toBe(DEFAULT_NANO_FLOW_SETTINGS.storyMaxBytes);
+    const initial = (await read.json()) as { settings: { specMaxBytes: number } };
+    expect(initial.settings.specMaxBytes).toBe(DEFAULT_NANO_FLOW_SETTINGS.specMaxBytes);
 
     const saved = await call(
       TOOLKIT_NANO_FLOW_PATH,

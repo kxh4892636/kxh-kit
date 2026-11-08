@@ -48,7 +48,7 @@ export const NANO_FLOW_PRESET_ID = "nano-flow";
 export const createNanoFlowPreset = (entryUrl: string): PresetDefinitionLike => ({
   id: NANO_FLOW_PRESET_ID,
   name: "Nano Flow",
-  description: "以 Plan（story/spec/notes DAG）为唯一权威状态的交付流程：ask 拷问、do 交付。",
+  description: "以 spec + note 为唯一权威状态的交付流程：ask 拷问、do 交付。",
   order: 2,
   plugins: [
     {
@@ -56,7 +56,7 @@ export const createNanoFlowPreset = (entryUrl: string): PresetDefinitionLike => 
       name: "@deepseek-ai/dsh-persona",
       config: {
         prefix:
-          "You are a coding agent powered by the {{model}} model. 本会话运行 Nano Flow：按固定提示词里的 ask / do 两个循环推进，Plan 是唯一权威状态。",
+          "You are a coding agent powered by the {{model}} model. 本会话运行 Nano Flow：按固定提示词里的 ask / do 两个循环推进，spec 与 note 是唯一权威状态。",
       },
     },
     {

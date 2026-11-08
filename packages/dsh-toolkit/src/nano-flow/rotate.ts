@@ -136,7 +136,7 @@ const buildSeed = async (workspace: string, domainRoot: string): Promise<string>
   return [
     "（上一会话因上下文达到阈值已轮转；Plan 在磁盘上，状态不丢。）",
     `${head}。`,
-    "先调 nano_flow_read 的 resume 拿恢复包，再读 spec.md 与 story.md，只读报告进度与可推进队列，等用户放行后再执行。",
+    "先读 spec.md 与 notes_index.md，只读报告进度与可推进队列，等用户放行后再执行。",
   ].join("");
 };
 

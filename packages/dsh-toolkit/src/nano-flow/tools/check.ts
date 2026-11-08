@@ -1,91 +1,71 @@
 import { assetsCheckScript } from "../assets.js";
 import { formatIssues, runCheck } from "../check-runner.js";
-import { planRefOf, resolvePlan } from "../plan.js";
 import {
   asArguments,
+  optionalBoolean,
   optionalString,
-  requiredString,
   textBlocks,
   type ToolRuntime,
 } from "./shared.js";
 import type { ToolDefinitionLike } from "../services.js";
-
-const CHECK_OPS = ["plan", "workspace", "limits"] as const;
-
-const KB = 1024;
-
-const formatLimits = (runtime: ToolRuntime): string => {
-  const limits = runtime.limits();
-  const kb = (value: number): string => `${Math.round((value / KB) * 100) / 100} KB`;
-  return [
-    "生效上限（来自 toolkit 面板的 Nano Flow 设置）：",
-    `  story.md: ${kb(limits.storyMaxBytes)}`,
-    `  spec.md: ${kb(limits.specMaxBytes)}`,
-    `  单条 note: ${kb(limits.noteMaxBytes)}`,
-    `  note 摘要: ${limits.noteDescriptionMaxChars} 字`,
-    `  关键索引: ${limits.indexMaxRows} 行`,
-    `  CONTEXT.md: ${kb(limits.contextMaxBytes)}`,
-    `  QUESTIONS.md: ${kb(limits.questionsMaxBytes)}`,
-    `  单个 ADR: ${kb(limits.adrMaxBytes)}`,
-    `  ADR 数量: ${limits.adrMaxCount} 个`,
-    `  轮转阈值: ${limits.rotateAt}`,
-  ].join("\n");
-};
 
 const executeCheck = async (
   runtime: ToolRuntime,
   args: Record<string, unknown>,
   exec: { signal: AbortSignal; agent?: unknown },
 ): Promise<string> => {
-  const op = requiredString(args, "op");
-  if (op === "limits") return formatLimits(runtime);
-  if (!(CHECK_OPS as readonly string[]).includes(op)) {
-    throw new Error(`未知的 op: ${op}（可用: ${CHECK_OPS.join(" | ")}）`);
-  }
   const workspace = await runtime.workspace(exec);
-  const plan =
-    op === "plan"
-      ? await resolvePlan(workspace, runtime.domainRoot, optionalString(args, "plan"))
-      : undefined;
+  const domain = optionalString(args, "domain");
+  const plan = optionalString(args, "plan");
+  const strict = optionalBoolean(args, "strict");
   const result = await runCheck({
     script: assetsCheckScript(runtime.assetsRoot),
     workspace,
     domainsPath: runtime.domainRoot,
     limits: runtime.limits(),
-    ...(plan === undefined ? {} : { planRef: planRefOf(plan) }),
+    ...(domain === undefined ? {} : { domain }),
+    ...(plan === undefined ? {} : { plan }),
+    ...(strict === undefined ? {} : { strict }),
   });
+  const lines: string[] = [];
   if (result.ok) {
-    return plan === undefined
-      ? `工作区校验通过（${workspace}）。`
-      : `Plan 校验通过: ${planRefOf(plan)}`;
+    lines.push("领域文档校验通过。");
+  } else {
+    lines.push(`领域文档校验失败，共 ${result.errors.length} 项：`);
+    lines.push(formatIssues(result.errors));
   }
-  return [`校验失败，共 ${result.errors.length} 项：`, formatIssues(result.errors)].join("\n");
+  if (result.warnings.length > 0) {
+    lines.push(`警告 ${result.warnings.length} 项：`);
+    lines.push(formatIssues(result.warnings));
+  }
+  if (result.updated.length > 0) {
+    lines.push(`已更新索引 ${result.updated.length} 个：`);
+    lines.push(result.updated.map((file) => `- ${file}`).join("\n"));
+  }
+  return lines.join("\n");
 };
 
 /**
- * 构造 `nano_flow_check`：单个 Plan、整个工作区或上限回显。
+ * 构造 `nano_flow_check`：校验领域文档并自动生成/更新全部索引。
  * @param runtime - 共享运行期依赖。
  * @returns 工具定义。
  */
 export const createCheckTool = (runtime: ToolRuntime): ToolDefinitionLike => ({
   name: "nano_flow_check",
   description:
-    "校验 Nano Flow 的结构：plan 校验单个 Plan（布局、story/spec 字节、notes DAG、索引）；workspace 额外校验领域文档与全部 active 的 Plan；limits 回显当前生效的上限数字。",
+    "校验 Nano Flow 的领域文档（YAML 头、三位数字 name、篇幅、status/reason/related_noted、Plan 状态派生），并自动创建/更新 CONTEXT-MAP.md、questions/adr/workflows 的 index.md、notes_index.md 与 spec 的 ## 追踪 Note。domain 过滤只校验该域且不重写 CONTEXT-MAP；plan 过滤只校验该 Plan。",
   parameters: {
     type: "object",
     additionalProperties: false,
     properties: {
-      op: {
-        type: "string",
-        enum: [...CHECK_OPS],
-        description: "plan | workspace | limits",
-      },
-      plan: {
-        type: "string",
-        description: "<domain>/<lifecycle>/<name>；工作区只有一个 active 的 Plan 时可省略",
+      domain: { type: "string", description: "只校验指定域，省略表示全工作区" },
+      plan: { type: "string", description: "只校验指定 Plan 目录名" },
+      strict: {
+        type: "boolean",
+        description: "缺省 true；false 时把旧格式文档记为警告并跳过",
       },
     },
-    required: ["op"],
+    required: [],
   },
   output: { schema: { type: "string" }, render: (_args, value) => textBlocks(value) },
   async execute(raw, exec) {

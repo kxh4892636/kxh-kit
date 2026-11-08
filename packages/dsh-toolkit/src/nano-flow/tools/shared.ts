@@ -1,7 +1,7 @@
-import type { PlanRef } from "../plan.js";
-import type { NoteNode, PlanDocument } from "../dag.js";
-import type { Config } from "../config.js";
+import { isAbsolute, join } from "node:path";
+
 import type { NanoFlowSettings } from "../../contract.js";
+import type { Config } from "../config.js";
 import type {
   HostServices,
   ToolExecContext,
@@ -9,17 +9,21 @@ import type {
   WorkingDirectoryService,
 } from "../services.js";
 
-/** 三个工具共享的运行期依赖。 */
+/** 两个工具共享的运行期依赖。 */
 export interface ToolRuntime {
   readonly services: HostServices;
   readonly config: Config;
   /** 当前生效的上限；每次调用重新读取，面板改设置后立即生效。 */
   limits(): NanoFlowSettings;
   readonly assetsRoot: string;
+  /** 文档模板目录。 */
+  readonly templatesRoot: string;
   /** 领域根：配置值或默认 `.agents/domains`。 */
   readonly domainRoot: string;
   /** 解析本会话的工作区根。 */
   workspace(exec: ToolExecContext): Promise<string>;
+  /** 领域根的绝对路径。 */
+  domainsDirectory(workspace: string): string;
 }
 
 /** 统一把工具结果渲染成一段文本。 */
@@ -52,52 +56,15 @@ export const requiredString = (args: Record<string, unknown>, key: string): stri
   return value;
 };
 
-/** 读取可选字符串数组参数。 */
-export const optionalStringArray = (
+/** 读取可选布尔参数。 */
+export const optionalBoolean = (
   args: Record<string, unknown>,
   key: string,
-): string[] | undefined => {
+): boolean | undefined => {
   const value = args[key];
   if (value === undefined || value === null) return undefined;
-  if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
-    throw new Error(`${key} 必须是字符串数组`);
-  }
-  return value as string[];
-};
-
-/** 读取必填字符串数组参数。 */
-export const requiredStringArray = (args: Record<string, unknown>, key: string): string[] => {
-  const value = optionalStringArray(args, key);
-  if (value === undefined || value.length === 0) throw new Error(`${key} 不能为空`);
+  if (typeof value !== "boolean") throw new Error(`${key} 必须是布尔值`);
   return value;
-};
-
-/** Plan 状态的一行摘要。 */
-export const statusLine = (document: PlanDocument): string => {
-  const count = (status: NoteNode["status"]): number =>
-    document.notes.filter((note) => note.status === status).length;
-  const total = document.notes.length;
-  return `notes ${total}（completed ${count("completed")} / in_progress ${count(
-    "in_progress",
-  )} / waiting ${count("waiting")} / pending ${count("pending")}）`;
-};
-
-/** 一条 note 的列表行。 */
-export const formatNoteLine = (note: NoteNode): string => {
-  if (note.status === "waiting" && note.needs === "blocked") {
-    const reason = note.blocked_reason ?? "未写明原因";
-    return `${note.id} [waiting/blocked] ${note.title} — ${note.description}（${reason}）`;
-  }
-  const suffix = note.needs === undefined ? "" : `/${note.needs}`;
-  return `${note.id} [${note.status}${suffix}] ${note.title} — ${note.description}`;
-};
-
-/** Plan 头：引用、状态与 notes 统计。 */
-export const formatPlanHeader = (plan: PlanRef, document: PlanDocument): string => {
-  return [
-    `Plan: ${plan.domain}/${plan.lifecycle}/${plan.name}`,
-    `状态: ${statusLine(document)}`,
-  ].join("\n");
 };
 
 const describeError = (error: unknown): string =>
@@ -105,11 +72,7 @@ const describeError = (error: unknown): string =>
 
 /**
  * 把 cordis 上下文解析成共享运行期依赖。
- * @param services - 宿主能力。
- * @param config - 插件配置。
- * @param limits - 生效上限。
- * @param assetsRoot - 资产目录。
- * @param domainRoot - 领域根。
+ * @param options - 宿主能力、配置、上限、资产目录与领域根。
  * @returns 运行期依赖。
  */
 export const createToolRuntime = (options: {
@@ -120,12 +83,17 @@ export const createToolRuntime = (options: {
   domainRoot: string;
 }): ToolRuntime => {
   const { services, config, settings, assetsRoot, domainRoot } = options;
+  const templatesRoot = join(assetsRoot, "templates");
+  const domainsDirectory = (workspace: string): string =>
+    isAbsolute(domainRoot) ? domainRoot : join(workspace, domainRoot);
   return {
     services,
     config,
     limits: settings,
     assetsRoot,
+    templatesRoot,
     domainRoot,
+    domainsDirectory,
     async workspace(exec: ToolExecContext): Promise<string> {
       if (config.workspace !== undefined) return config.workspace;
       const workingDirectory = services.get("workingDirectory") as

@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { readdir } from "node:fs/promises";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { isAbsolute, join } from "node:path";
 
 /** Plan 生命周期目录，顺序即创建时的推荐顺序。 */
 export const PLAN_LIFECYCLES = ["active", "reference", "archived"] as const;
@@ -41,6 +41,8 @@ const sortedEntries = async (directory: string): Promise<readonly string[]> => {
 
 /**
  * 列出工作区里的全部 Plan。
+ *
+ * 以 `spec.md` 为存在标志：story 已并入 spec，notes.json 是旧格式。
  * @param workspace - 工作区根。
  * @param domainsPath - 领域根（相对工作区根或绝对路径）。
  * @returns 按域、生命周期、名称排序的 Plan 列表。
@@ -58,8 +60,7 @@ export const listPlans = async (
       const lifecycleDirectory = join(plansDirectory, lifecycle);
       for (const name of await sortedEntries(lifecycleDirectory)) {
         const directory = join(lifecycleDirectory, name);
-        // 旧 Markdown Plan（没有 notes.json）当作不存在：既不列出，也不参与解析。
-        if (!existsSync(join(directory, "notes.json"))) continue;
+        if (!existsSync(join(directory, "spec.md"))) continue;
         plans.push({ domain, lifecycle, name, directory });
       }
     }
@@ -70,80 +71,4 @@ export const listPlans = async (
 /** 只保留仍在推进的 Plan（active）。 */
 export const activePlans = (plans: readonly PlanRef[]): readonly PlanRef[] => {
   return plans.filter((plan) => plan.lifecycle === "active");
-};
-
-const fromDirectory = (
-  workspace: string,
-  domainsPath: string,
-  directory: string,
-): PlanRef | undefined => {
-  const domainsDirectory = isAbsolute(domainsPath) ? domainsPath : join(workspace, domainsPath);
-  const relativePath = relative(domainsDirectory, directory);
-  if (relativePath.startsWith("..")) return undefined;
-  const segments = relativePath.split(sep);
-  if (segments.length !== 4) return undefined;
-  const [domain, plans, lifecycle, name] = segments;
-  if (domain === undefined || plans !== "plans" || lifecycle === undefined || name === undefined) {
-    return undefined;
-  }
-  if (!isPlanLifecycle(lifecycle)) return undefined;
-  return { domain, lifecycle, name, directory };
-};
-
-/**
- * 解析一个 Plan 引用。
- *
- * 支持三种写法：`<domain>/<lifecycle>/<name>`、工作区内的目录路径、绝对路径。
- * 省略引用时要求工作区里恰好只有一个 active 的 Plan。
- * @param workspace - 工作区根。
- * @param domainsPath - 领域根。
- * @param ref - Plan 引用。
- * @returns 定位信息。
- */
-export const resolvePlan = async (
-  workspace: string,
-  domainsPath: string,
-  ref?: string,
-): Promise<PlanRef> => {
-  const trimmed = ref?.trim();
-  if (trimmed !== undefined && trimmed !== "") {
-    if (!trimmed.includes("/") || trimmed.split("/").filter(Boolean).length === 3) {
-      const segments = trimmed.split("/").filter(Boolean);
-      if (segments.length === 3) {
-        const [domain, lifecycle, name] = segments;
-        if (domain === undefined || lifecycle === undefined || name === undefined) {
-          throw new Error(`无法识别 Plan 引用: ${trimmed}`);
-        }
-        if (!isPlanLifecycle(lifecycle)) {
-          throw new Error(`Plan 引用的生命周期无效: ${lifecycle}`);
-        }
-        const directory = join(
-          isAbsolute(domainsPath) ? domainsPath : join(workspace, domainsPath),
-          domain,
-          "plans",
-          lifecycle,
-          name,
-        );
-        if (!existsSync(join(directory, "notes.json"))) {
-          throw new Error(`Plan 不存在: ${trimmed}（缺 notes.json 的目录 ${directory}）`);
-        }
-        return { domain, lifecycle, name, directory };
-      }
-    }
-    const directory = isAbsolute(trimmed) ? trimmed : resolve(workspace, trimmed);
-    const parsed = fromDirectory(workspace, domainsPath, directory);
-    if (parsed !== undefined && existsSync(join(directory, "notes.json"))) return parsed;
-    throw new Error(`无法识别 Plan 引用: ${trimmed}`);
-  }
-  const candidates = activePlans(await listPlans(workspace, domainsPath));
-  const only = candidates[0];
-  if (candidates.length === 1 && only !== undefined) return only;
-  if (candidates.length === 0) {
-    throw new Error("工作区里没有 active 的 Plan；先用 nano_flow_write 的 init 建一个");
-  }
-  throw new Error(
-    `工作区里有 ${candidates.length} 个 active 的 Plan，请用 plan 参数指定：${candidates
-      .map(planRefOf)
-      .join("、")}`,
-  );
 };

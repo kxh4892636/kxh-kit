@@ -29,15 +29,15 @@ const SETTING_FIELDS: readonly {
   /** 保存时取整（KB、字、行）；比例保留小数。 */
   readonly integer: boolean;
 }[] = [
-  { key: "storyMaxBytes", label: "story.md", unit: "KB", scale: KB, integer: true },
   { key: "specMaxBytes", label: "spec.md", unit: "KB", scale: KB, integer: true },
   { key: "noteMaxBytes", label: "单条 note", unit: "KB", scale: KB, integer: true },
-  { key: "noteDescriptionMaxChars", label: "note 摘要", unit: "字", scale: 1, integer: true },
-  { key: "indexMaxRows", label: "关键索引", unit: "行", scale: 1, integer: true },
+  { key: "noteDescriptionMaxChars", label: "名称/描述", unit: "字", scale: 1, integer: true },
+  { key: "indexMaxRows", label: "追踪 Note 行", unit: "行", scale: 1, integer: true },
   { key: "contextMaxBytes", label: "CONTEXT.md", unit: "KB", scale: KB, integer: true },
-  { key: "questionsMaxBytes", label: "QUESTIONS.md", unit: "KB", scale: KB, integer: true },
+  { key: "questionMaxBytes", label: "单个 question", unit: "KB", scale: KB, integer: true },
   { key: "adrMaxBytes", label: "单个 ADR", unit: "KB", scale: KB, integer: true },
   { key: "adrMaxCount", label: "ADR 数量", unit: "个", scale: 1, integer: true },
+  { key: "workflowMaxBytes", label: "单个 workflow", unit: "KB", scale: KB, integer: true },
   { key: "rotateAt", label: "轮转阈值", unit: "比例", scale: 1, integer: false },
 ];
 

@@ -1,10 +1,8 @@
 import {
   TOOLKIT_HIDDEN_PATH,
   TOOLKIT_NANO_FLOW_PATH,
-  TOOLKIT_NANO_FLOW_READY_PATH,
   TOOLKIT_STATE_PATH,
   TOOLKIT_UNDO_PATH,
-  type NanoFlowReadyResponse,
   type NanoFlowSettings,
   type NanoFlowSettingsResponse,
   type ToolkitErrorBody,
@@ -33,8 +31,6 @@ export interface ToolkitRoutesOptions {
     readonly get: () => NanoFlowSettings;
     readonly update: (patch: unknown) => Promise<NanoFlowSettings>;
   };
-  /** ready 面板数据；缺省时路由返回 501。 */
-  readonly nanoFlowReady?: (sessionId: string) => Promise<NanoFlowReadyResponse>;
   readonly logger: { warn(message: string): void };
 }
 
@@ -74,12 +70,6 @@ export const registerToolkitRoutes = (options: ToolkitRoutesOptions): (() => voi
     requestBody: "buffered",
     fetch: (request) => handleNanoFlow(options, request),
   });
-  const ready = options.connection.fetch.register({
-    path: TOOLKIT_NANO_FLOW_READY_PATH,
-    methods: ["GET"],
-    requestBody: "buffered",
-    fetch: (request) => handleReady(options, request),
-  });
   const hidden = options.connection.fetch.register({
     path: TOOLKIT_HIDDEN_PATH,
     methods: ["GET"],
@@ -93,7 +83,6 @@ export const registerToolkitRoutes = (options: ToolkitRoutesOptions): (() => voi
     state();
     undo();
     nanoFlow();
-    ready();
     hidden();
   };
 };
@@ -116,22 +105,6 @@ const handleNanoFlow = async (
     return json<NanoFlowSettingsResponse>({ settings: await options.nanoFlow.update(patch) });
   } catch (error) {
     return failure(400, "invalid-settings", describe(error));
-  }
-};
-
-const handleReady = async (options: ToolkitRoutesOptions, request: Request): Promise<Response> => {
-  if (options.nanoFlowReady === undefined) {
-    return failure(501, "unsupported-host", "nano-flow ready is not wired on this host");
-  }
-  const sessionId = new URL(request.url).searchParams.get("sessionId");
-  if (sessionId === null || sessionId === "") {
-    return failure(400, "invalid-body", "missing sessionId query parameter");
-  }
-  try {
-    return json(await options.nanoFlowReady(sessionId));
-  } catch (error) {
-    options.logger.warn(`toolkit: nano-flow ready for "${sessionId}" failed: ${describe(error)}`);
-    return failure(500, "internal", "the nano-flow ready list could not be read");
   }
 };
 

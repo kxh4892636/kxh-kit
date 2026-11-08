@@ -11,6 +11,8 @@ export interface CheckIssue {
 export interface CheckResult {
   readonly ok: boolean;
   readonly errors: readonly CheckIssue[];
+  readonly warnings: readonly CheckIssue[];
+  readonly updated: readonly string[];
 }
 
 const isIssue = (value: unknown): value is CheckIssue => {
@@ -25,7 +27,7 @@ const isIssue = (value: unknown): value is CheckIssue => {
 
 /**
  * 调用随包分发的校验脚本，保证「校验规则只有一处实现」。
- * @param options - 脚本路径、工作区、域根与可选的 Plan 引用。
+ * @param options - 脚本路径、工作区、域根、上限与可选过滤。
  * @returns 解析后的结果；脚本输出无法解析时抛错。
  */
 export const runCheck = (options: {
@@ -33,7 +35,9 @@ export const runCheck = (options: {
   workspace: string;
   domainsPath: string;
   limits: unknown;
-  planRef?: string;
+  domain?: string;
+  plan?: string;
+  strict?: boolean;
 }): Promise<CheckResult> => {
   return new Promise<CheckResult>((resolve, reject) => {
     const args = [
@@ -44,7 +48,9 @@ export const runCheck = (options: {
       "--json",
       "--limits",
       JSON.stringify(options.limits),
-      ...(options.planRef === undefined ? [] : ["--plan", options.planRef]),
+      ...(options.domain === undefined ? [] : ["--domain", options.domain]),
+      ...(options.plan === undefined ? [] : ["--plan", options.plan]),
+      ...(options.strict === false ? ["--no-strict"] : []),
     ];
     execFile(
       process.execPath,
@@ -78,7 +84,13 @@ export const runCheck = (options: {
         try {
           const parsed = JSON.parse(line) as Record<string, unknown>;
           const errors = Array.isArray(parsed["errors"]) ? parsed["errors"].filter(isIssue) : [];
-          resolve({ ok: parsed["ok"] === true && errors.length === 0, errors });
+          const warnings = Array.isArray(parsed["warnings"])
+            ? parsed["warnings"].filter(isIssue)
+            : [];
+          const updated = Array.isArray(parsed["updated"])
+            ? parsed["updated"].filter((item): item is string => typeof item === "string")
+            : [];
+          resolve({ ok: parsed["ok"] === true && errors.length === 0, errors, warnings, updated });
         } catch {
           reject(new Error(`校验脚本输出无法解析: ${line}`));
         }

@@ -66,39 +66,39 @@ export interface ToolkitHiddenResponse {
  * 持久化在 `$DSH_HOME/toolkit/nano-flow.json`。
  */
 export interface NanoFlowSettings {
-  /** story.md 单文件上限（字节）。 */
-  readonly storyMaxBytes: number;
   /** spec.md 单文件上限（字节）。 */
   readonly specMaxBytes: number;
   /** 单条 note 正文上限（字节）。 */
   readonly noteMaxBytes: number;
-  /** note 摘要字数上限。 */
+  /** 名称/描述/索引单元格的字数上限。 */
   readonly noteDescriptionMaxChars: number;
-  /** 关键索引行数上限。 */
+  /** spec 追踪 Note 的最大行数。 */
   readonly indexMaxRows: number;
   /** CONTEXT.md 上限（字节）。 */
   readonly contextMaxBytes: number;
-  /** QUESTIONS.md 上限（字节）。 */
-  readonly questionsMaxBytes: number;
+  /** 单个 question 上限（字节）。 */
+  readonly questionMaxBytes: number;
   /** 单个 ADR 上限（字节）。 */
   readonly adrMaxBytes: number;
   /** 单个域的 ADR 数量上限。 */
   readonly adrMaxCount: number;
+  /** 单个 workflow 上限（字节）。 */
+  readonly workflowMaxBytes: number;
   /** 上下文占用达到最大上下文的这个比例后轮转会话（0–1）。 */
   readonly rotateAt: number;
 }
 
-/** 默认值（面板按 KB 显示）：34 / 34 / 13 KB，144 字，13 行，89 / 89 / 13 KB，55 个 ADR，轮转阈值 0.618。 */
+/** 默认值（面板按 KB 显示）：34 / 13 KB，144 字，21 行，89 / 13 / 13 / 34 KB，55 个 ADR，轮转阈值 0.618。 */
 export const DEFAULT_NANO_FLOW_SETTINGS: NanoFlowSettings = {
-  storyMaxBytes: 34 * 1024,
   specMaxBytes: 34 * 1024,
   noteMaxBytes: 13 * 1024,
   noteDescriptionMaxChars: 144,
-  indexMaxRows: 13,
+  indexMaxRows: 21,
   contextMaxBytes: 89 * 1024,
-  questionsMaxBytes: 89 * 1024,
+  questionMaxBytes: 13 * 1024,
   adrMaxBytes: 13 * 1024,
   adrMaxCount: 55,
+  workflowMaxBytes: 34 * 1024,
   rotateAt: 0.618,
 };
 
@@ -114,67 +114,6 @@ export interface NanoFlowSettingsRequest {
 
 /** Nano Flow 设置路由（连接服务已鉴权）。 */
 export const TOOLKIT_NANO_FLOW_PATH = "/api/toolkit/nano-flow";
-
-/** Nano Flow ready 面板路由：按会话返回当前 active Plan 的未完成分组。 */
-export const TOOLKIT_NANO_FLOW_READY_PATH = "/api/toolkit/nano-flow-ready";
-
-/** note 状态；与 `notes.json` 的 status 一致。 */
-export type NanoFlowNoteStatus = "pending" | "in_progress" | "waiting" | "completed";
-
-/** `waiting` 时在等什么：answer 等人回答，review 等验收，blocked 等阻塞解除。 */
-export type NanoFlowNoteNeeds = "answer" | "review" | "blocked";
-
-/** ready 面板里的一条 note；不含正文。 */
-export interface NanoFlowReadyNote {
-  readonly id: string;
-  readonly title: string;
-  readonly description: string;
-  readonly status: NanoFlowNoteStatus;
-  readonly needs?: NanoFlowNoteNeeds;
-  readonly blocked_by: readonly string[];
-  readonly blocked_reason?: string;
-}
-
-/** 依赖组：有依赖关系的 note 在同一组，组内按拓扑顺序。 */
-export interface NanoFlowReadyGroup {
-  readonly notes: readonly NanoFlowReadyNote[];
-}
-
-/** ready 面板头部的计数。 */
-export interface NanoFlowReadyCounts {
-  readonly total: number;
-  readonly pending: number;
-  readonly in_progress: number;
-  readonly waiting: number;
-  /** `waiting` 里 `needs=blocked` 的数量：等阻塞解除，面板单列。 */
-  readonly needsBlocked: number;
-  readonly completed: number;
-}
-
-/** 当前 active Plan 的引用。 */
-export interface NanoFlowReadyPlan {
-  readonly domain: string;
-  readonly lifecycle: "active" | "reference" | "archived";
-  readonly name: string;
-}
-
-/** ready 面板不可用的原因。 */
-export type NanoFlowReadyReason =
-  | "not-nano-flow"
-  | "session-not-live"
-  | "no-workspace"
-  | "no-active-plan"
-  | "multiple-active-plans"
-  | "read-failed";
-
-/** `GET /api/toolkit/nano-flow-ready` 的响应体。 */
-export interface NanoFlowReadyResponse {
-  readonly available: boolean;
-  readonly reason?: NanoFlowReadyReason;
-  readonly plan?: NanoFlowReadyPlan;
-  readonly counts?: NanoFlowReadyCounts;
-  readonly groups?: readonly NanoFlowReadyGroup[];
-}
 
 /** 工具 id；状态文件与面板都以此为键。 */
 export const TOOL_IDS = {

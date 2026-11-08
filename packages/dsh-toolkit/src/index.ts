@@ -4,12 +4,9 @@ import { resolveDshHome } from "@deepseek-ai/dsh-home-paths";
 import z from "@deepseek-ai/schemastery";
 import type Schema from "@deepseek-ai/schemastery";
 import type { UndoAvailability, UndoTurnResponse } from "./contract.js";
-import type { NanoFlowReadyResponse } from "./contract.js";
 import { createNanoFlowSettingsStore, nodeNanoFlowSettingsIo } from "./host/nano-flow-settings.js";
-import { readNanoFlowReady } from "./host/nano-flow-ready.js";
 import { NANO_FLOW_SERVICE, type ToolkitNanoFlowFacade } from "./host/nano-flow-facade.js";
 import type { NanoFlowSettings } from "./contract.js";
-import { installNotesGuard } from "./host/notes-guard.js";
 import { createNanoFlowTool } from "./host/tools/nano-flow.js";
 import { applyNanoFlow } from "./nano-flow/plugin.js";
 import { DEFAULT_DOMAIN_ROOT } from "./nano-flow/config.js";
@@ -113,14 +110,8 @@ export const apply = (ctx: Context, config: Config = {}): void => {
         get: () => runtime.nanoFlow.get(),
         update: (patch: unknown) => runtime.nanoFlow.update(patch),
       },
-      nanoFlowReady: (sessionId: string) => runtime.ready(sessionId),
     });
     child.effect(() => disposeRoutes, "toolkit: routes");
-  });
-  // Plan 的 notes.json 只留给 nano_flow_*：工具层按参数里的显式引用拒绝，fs 层按已解析
-  // target 拒绝。这是策略而非安全边界（shell/子进程仍可绕过），边界写在 README 与 QUESTIONS。
-  ctx.inject(["tools", "fs"], (child: Context) => {
-    child.effect(() => installNotesGuard(child, ctx.logger), "toolkit: notes guard");
   });
   // 会话轮转挂在宿主层：预设行看不到 `ctx.agent`（cordis 的 inject 守卫），只能由这里按
   // 会话日志里的预设选择判定，再包装 `sessionController.prompt`。
@@ -163,13 +154,11 @@ interface ToolkitRuntime {
     get(): NanoFlowSettings;
     update(patch: unknown): Promise<NanoFlowSettings>;
   };
+  inspect(sessionId: string): UndoAvailability;
+  undo(sessionId: string): Promise<UndoTurnResponse>;
   /** 工作区注册表就绪后，把日志已删的会话从归档集合里摘掉。 */
   cleanupArchive(ctx: Context): Promise<void>;
   dispose(): Promise<void>;
-  inspect(sessionId: string): UndoAvailability;
-  undo(sessionId: string): Promise<UndoTurnResponse>;
-  /** ready 面板数据：按会话解析 Nano Flow 的 active Plan。 */
-  ready(sessionId: string): Promise<NanoFlowReadyResponse>;
 }
 
 const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
@@ -220,10 +209,6 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
         }
       },
     };
-  };
-  const workspacePathOf = (sessionId: string): string | undefined => {
-    const workspaces = workspaceRegistry(ctx);
-    return workspaces?.list().find((record) => record.sessionIds.includes(sessionId))?.path;
   };
   const nanoFlow: ToolkitNanoFlowFacade = {
     settings: () => settings.current(),
@@ -312,22 +297,6 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
         throw new UndoUnavailableError("unsupported-host", "this host exposes no session control");
       }
       return undoTurn(deps, sessionId);
-    },
-    async ready(sessionId) {
-      const sessions = serviceOf<HostSessionStore>(ctx, "sessions");
-      const session = sessions?.get(sessionId);
-      if (session === undefined) return { available: false, reason: "session-not-live" };
-      // 会话 header 的 agentPreset 在部分宿主版本/恢复会话里不可靠；是否展示由客户端按
-      // 当前会话 projection 的 agentPreset 决定，这里只负责解析工作区并读 Plan。
-      const workspace = config.workspace ?? session.header?.cwd ?? workspacePathOf(sessionId);
-      if (workspace === undefined || workspace === "") {
-        return { available: false, reason: "no-workspace" };
-      }
-      return readNanoFlowReady({
-        workspace,
-        domainRoot: config.domainRoot ?? DEFAULT_DOMAIN_ROOT,
-        limits: settings.current(),
-      });
     },
   };
 };

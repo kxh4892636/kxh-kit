@@ -48,23 +48,16 @@ describe("client plugin entry", () => {
     const { ctx, registrations, injections } = harness();
     expect(inject).toEqual(["slots"]);
     apply(ctx);
-    expect(injections).toEqual([
-      "sidebar.panellist",
-      "main",
-      "conversation.input.right",
-      "conversation.input.dock",
-    ]);
+    expect(injections).toEqual(["sidebar.panellist", "main", "conversation.input.right"]);
     expect(registrations.map((entry) => entry.options.name)).toEqual([
       "sidebar.panellist",
       "main",
       "conversation.input.right",
-      "conversation.input.dock",
     ]);
     const panellist = registrations[0]?.options;
     expect(panellist).toMatchObject({ id: "toolkit", order: 30, label: "toolkit" });
     expect(registrations[1]?.options).toMatchObject({ key: "toolkit" });
     expect(registrations[2]?.options).toMatchObject({ id: "toolkit-undo", order: 100 });
-    expect(registrations[3]?.options).toMatchObject({ id: "nano-flow-ready", order: 10 });
   });
 
   it("publishes the host catalog so the undo button can hide itself", async () => {

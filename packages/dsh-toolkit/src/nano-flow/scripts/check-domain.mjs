@@ -1,47 +1,89 @@
 #!/usr/bin/env node
-// Nano Flow 工作区校验：领域文档、Plan 布局、notes.json（DAG）与尺寸上限。
-// 唯一实现：nano_flow_check 直接以 node 运行本文件，不再另写一套规则。
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const DEFAULT_DOMAINS = ".agents/domains";
-export const PLAN_LIFECYCLES = Object.freeze(["active", "reference", "archived"]);
-// reference 与 archived 是冻结内容，模板差异不再校验，避免历史缺项淹没本次新增问题。
-export const CHECKED_LIFECYCLES = Object.freeze(["active"]);
-export const NOTE_STATUSES = Object.freeze(["pending", "in_progress", "waiting", "completed"]);
-/** `waiting` 时在等什么；与 dag.ts 的 NOTE_NEEDS 保持一致。 */
-export const NOTE_NEEDS = Object.freeze(["answer", "review", "blocked"]);
-/** 重命名前的状态名，读到即当作 waiting + needs: review。 */
-export const LEGACY_WAITING_STATUS = "awaiting_verification";
+import { parse as parseYaml } from "yaml";
 
-export const LIMIT_KEYS = Object.freeze([
-  "storyMaxBytes",
-  "specMaxBytes",
-  "noteMaxBytes",
-  "noteDescriptionMaxChars",
-  "indexMaxRows",
-  "contextMaxBytes",
-  "questionsMaxBytes",
-  "adrMaxBytes",
-  "adrMaxCount",
-]);
+/** 默认领域根；与 `prompts/agents.md` 的约定一致。 */
+export const DOMAINS_DIR = ".agents/domains";
+
+/** 生成文件的标记：模型不需要维护索引，看到它就应改源文档。 */
+export const GENERATED_MARKER = "<!-- 由 nano_flow_check 生成，请勿手改 -->";
+
+/** 索引表与生成章节的固定标题。 */
+export const TRACKED_HEADING = "## 追踪 Note";
+
+/** Plan 生命周期；保留现有插件的三档，轮转按 active 找 Plan。 */
+export const LIFECYCLES = Object.freeze(["active", "reference", "archived"]);
+
+/** note 状态；blocked 用 reason 表达“在等什么”。 */
+export const NOTE_STATUSES = Object.freeze(["pending", "in_progress", "blocked", "completed"]);
+
+/** spec 状态；由全部 note 派生。 */
+export const SPEC_STATUSES = Object.freeze(["pending", "in_progress", "completed"]);
+
+/** ADR 状态；可选。 */
+export const ADR_STATUSES = Object.freeze(["proposed", "accepted", "deprecated", "superseded"]);
+
+/** 面板可调的默认上限；工具会把当前设置以 `--limits` 传入。 */
+export const DEFAULT_LIMITS = Object.freeze({
+  specMaxBytes: 34 * 1024,
+  noteMaxBytes: 13 * 1024,
+  noteDescriptionMaxChars: 144,
+  indexMaxRows: 21,
+  contextMaxBytes: 89 * 1024,
+  questionMaxBytes: 13 * 1024,
+  adrMaxBytes: 13 * 1024,
+  adrMaxCount: 55,
+  workflowMaxBytes: 34 * 1024,
+});
+
+/** 名称、reason、next_step 的单行长度上限。 */
+const NAME_MAX_CHARS = 89;
+const REASON_MAX_CHARS = 233;
+const NEXT_STEP_MAX_CHARS = 233;
 
 const KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const PLAN_NAME = /^(\d{4}-\d{2}-\d{2})-(.+)$/u;
+const NUMBERED_NAME = /^(\d{3})-(.+)$/u;
 const HAN = /\p{Script=Han}/u;
-const NOTE_ID = /^\d{2}$/;
 
-const rel = (rootDir, targetPath) => path.relative(rootDir, targetPath).replaceAll("\\", "/");
+const relativePath = (rootDir, targetPath) =>
+  path.relative(rootDir, targetPath).replaceAll("\\", "/");
 
-const resolveDomains = (rootDir, domainsPath) =>
-  path.isAbsolute(domainsPath) ? domainsPath : path.join(rootDir, domainsPath);
+const addIssue = (issueList, rootDir, targetPath, rule, message) => {
+  issueList.push({ path: relativePath(rootDir, targetPath), rule, message });
+};
 
-const byteLength = (value) => Buffer.byteLength(value, "utf8");
+const describe = (error) => (error instanceof Error ? error.message : String(error));
+
+const readText = (targetPath, ctx) => {
+  try {
+    return fs.readFileSync(targetPath, "utf8");
+  } catch (error) {
+    addIssue(ctx.errors, ctx.rootDir, targetPath, "read", `读取失败: ${describe(error)}`);
+    return null;
+  }
+};
+
+const readEntries = (targetPath, ctx) => {
+  try {
+    return fs.readdirSync(targetPath, { withFileTypes: true });
+  } catch (error) {
+    addIssue(ctx.errors, ctx.rootDir, targetPath, "read", `枚举失败: ${describe(error)}`);
+    return [];
+  }
+};
+
+const exists = (targetPath) => fs.existsSync(targetPath);
+
+const byteLength = (text) => Buffer.byteLength(text, "utf8");
 
 const isValidDate = (value) => {
   const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
+  const date = new Date(Date.UTC(year, (month ?? 1) - 1, day ?? 1));
   return (
     [
       date.getUTCFullYear().toString().padStart(4, "0"),
@@ -51,492 +93,1051 @@ const isValidDate = (value) => {
   );
 };
 
-/**
- * 校验来自工具调用的上限对象；缺键或非正整数直接抛错。
- * @param raw - 已解析的上限值。
- * @returns 完整上限。
- */
-export const parseLimits = (raw) => {
-  if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
-    throw new Error("limits 必须是对象");
+const isSingleLine = (value) => !/[\r\n]/u.test(value);
+
+const normalizeCell = (value) =>
+  String(value ?? "")
+    .replaceAll("|", "\\|")
+    .replaceAll(/\s+/gu, " ")
+    .trim();
+
+const sortByName = (left, right) => {
+  const leftPrefix = Number(left.name.slice(0, 3));
+  const rightPrefix = Number(right.name.slice(0, 3));
+  if (Number.isFinite(leftPrefix) && Number.isFinite(rightPrefix) && leftPrefix !== rightPrefix) {
+    return leftPrefix - rightPrefix;
   }
-  const limits = {};
-  for (const key of LIMIT_KEYS) {
-    const value = raw[key];
-    if (!Number.isInteger(value) || value <= 0) {
-      throw new Error(`limits.${key} 必须是正整数，实际为 ${JSON.stringify(value)}`);
+  return left.name < right.name ? -1 : left.name > right.name ? 1 : 0;
+};
+
+const parseFrontmatter = (content) => {
+  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+  if (!match) return { kind: "missing" };
+  let data;
+  try {
+    data = parseYaml(match[1]);
+  } catch (error) {
+    return { kind: "invalid", detail: describe(error) };
+  }
+  if (typeof data !== "object" || data === null || Array.isArray(data)) {
+    return { kind: "invalid", detail: "YAML 头必须是对象" };
+  }
+  return { kind: "ok", data, body: content.slice(match[0].length) };
+};
+
+const checkName = (value, kind, ctx, file) => {
+  if (typeof value !== "string" || value.trim() === "") {
+    addIssue(ctx.errors, ctx.rootDir, file, "header", "缺少 name");
+    return false;
+  }
+  if (!isSingleLine(value)) {
+    addIssue(ctx.errors, ctx.rootDir, file, "header", "name 必须是单行");
+    return false;
+  }
+  if (value.length > NAME_MAX_CHARS) {
+    addIssue(
+      ctx.errors,
+      ctx.rootDir,
+      file,
+      "header",
+      `name 共 ${value.length} 字，超过 ${NAME_MAX_CHARS}`,
+    );
+  }
+  if (["adr", "question", "note", "workflow"].includes(kind) && !NUMBERED_NAME.test(value)) {
+    addIssue(ctx.errors, ctx.rootDir, file, "header", "name 必须是三位数字前缀，例如 001-标题");
+  }
+  return true;
+};
+
+const checkHanName = (value, ctx, file) => {
+  if (typeof value === "string" && !HAN.test(value)) {
+    addIssue(ctx.errors, ctx.rootDir, file, "name", "名称必须包含中文标题");
+  }
+};
+
+const checkDescription = (value, ctx, file) => {
+  if (typeof value !== "string" || value.trim() === "") {
+    addIssue(ctx.errors, ctx.rootDir, file, "header", "缺少 description");
+    return;
+  }
+  if (!isSingleLine(value)) {
+    addIssue(ctx.errors, ctx.rootDir, file, "header", "description 必须是单行");
+    return;
+  }
+  if (value.length > ctx.limits.noteDescriptionMaxChars) {
+    addIssue(
+      ctx.errors,
+      ctx.rootDir,
+      file,
+      "header",
+      `description 共 ${value.length} 字，超过 ${ctx.limits.noteDescriptionMaxChars}`,
+    );
+  }
+};
+
+const checkMetadata = (value, ctx, file) => {
+  if (value === undefined || value === null) return;
+  if (typeof value !== "object" || Array.isArray(value)) {
+    addIssue(ctx.errors, ctx.rootDir, file, "header", "metadata 必须是对象");
+  }
+};
+
+const checkSingleLineField = (value, label, max, ctx, file, required) => {
+  if (value === undefined || value === null || value === "") {
+    if (required) addIssue(ctx.errors, ctx.rootDir, file, "header", `缺少 ${label}`);
+    return;
+  }
+  if (typeof value !== "string") {
+    addIssue(ctx.errors, ctx.rootDir, file, "header", `${label} 必须是字符串`);
+    return;
+  }
+  if (!isSingleLine(value)) {
+    addIssue(ctx.errors, ctx.rootDir, file, "header", `${label} 必须是单行`);
+    return;
+  }
+  if (value.length > max) {
+    addIssue(
+      ctx.errors,
+      ctx.rootDir,
+      file,
+      "header",
+      `${label} 共 ${value.length} 字，超过 ${max}`,
+    );
+  }
+};
+
+const checkUnknownKeys = (data, allowed, ctx, file) => {
+  for (const key of Object.keys(data)) {
+    if (!allowed.includes(key)) {
+      addIssue(
+        ctx.errors,
+        ctx.rootDir,
+        file,
+        "header",
+        `未知头字段 ${key}；自由扩展请放进 metadata`,
+      );
     }
-    limits[key] = value;
+  }
+};
+
+const HEADER_KEYS = Object.freeze({
+  context: ["name", "description", "relations", "metadata"],
+  question: ["name", "description", "metadata"],
+  adr: ["name", "description", "status", "metadata"],
+  workflow: ["name", "description", "metadata"],
+  spec: ["name", "description", "status", "metadata"],
+  note: ["name", "description", "status", "reason", "related_noted", "next_step", "metadata"],
+});
+
+const readDocument = (ctx, file, kind, options = {}) => {
+  if (!exists(file)) {
+    if (options.required === true) {
+      addIssue(ctx.errors, ctx.rootDir, file, "missing", "文件不存在");
+    }
+    return null;
+  }
+  const content = readText(file, ctx);
+  if (content === null) return null;
+  const parsed = parseFrontmatter(content);
+  if (parsed.kind === "missing") {
+    addIssue(
+      ctx.strict === false ? ctx.warnings : ctx.errors,
+      ctx.rootDir,
+      file,
+      "header",
+      "缺少 YAML 头（--- ... ---）",
+    );
+    return null;
+  }
+  if (parsed.kind === "invalid") {
+    addIssue(
+      ctx.strict === false ? ctx.warnings : ctx.errors,
+      ctx.rootDir,
+      file,
+      "header",
+      `YAML 头无效: ${parsed.detail}`,
+    );
+    return null;
+  }
+  const { data, body } = parsed;
+  checkUnknownKeys(data, HEADER_KEYS[kind], ctx, file);
+  if (!checkName(data.name, kind, ctx, file)) return null;
+  checkDescription(data.description, ctx, file);
+  checkMetadata(data.metadata, ctx, file);
+
+  if (kind === "adr") {
+    if (data.status !== undefined && data.status !== null) {
+      if (!ADR_STATUSES.includes(data.status)) {
+        addIssue(
+          ctx.errors,
+          ctx.rootDir,
+          file,
+          "header",
+          `ADR status 必须是 ${ADR_STATUSES.join(" | ")}`,
+        );
+      }
+    }
+  }
+  if (kind === "spec") {
+    if (!SPEC_STATUSES.includes(data.status)) {
+      addIssue(
+        ctx.errors,
+        ctx.rootDir,
+        file,
+        "header",
+        `spec status 必须是 ${SPEC_STATUSES.join(" | ")}`,
+      );
+    }
+  }
+  if (kind === "note") {
+    if (!NOTE_STATUSES.includes(data.status)) {
+      addIssue(
+        ctx.errors,
+        ctx.rootDir,
+        file,
+        "header",
+        `note status 必须是 ${NOTE_STATUSES.join(" | ")}`,
+      );
+    }
+    if (data.status === "blocked") {
+      checkSingleLineField(data.reason, "reason", REASON_MAX_CHARS, ctx, file, true);
+    } else if (data.reason !== undefined && data.reason !== null && data.reason !== "") {
+      addIssue(ctx.errors, ctx.rootDir, file, "header", "只有 blocked 的 note 才写 reason");
+    }
+    checkSingleLineField(
+      data.next_step,
+      "next_step",
+      NEXT_STEP_MAX_CHARS,
+      ctx,
+      file,
+      data.status !== "completed",
+    );
+    if (data.related_noted !== undefined && data.related_noted !== null) {
+      if (
+        !Array.isArray(data.related_noted) ||
+        data.related_noted.some((item) => typeof item !== "string")
+      ) {
+        addIssue(ctx.errors, ctx.rootDir, file, "header", "related_noted 必须是 name 字符串数组");
+      }
+    }
+  }
+
+  const limit =
+    kind === "context"
+      ? ctx.limits.contextMaxBytes
+      : kind === "question"
+        ? ctx.limits.questionMaxBytes
+        : kind === "adr"
+          ? ctx.limits.adrMaxBytes
+          : kind === "workflow"
+            ? ctx.limits.workflowMaxBytes
+            : kind === "spec"
+              ? ctx.limits.specMaxBytes
+              : ctx.limits.noteMaxBytes;
+  const size = byteLength(content);
+  if (size > limit) {
+    addIssue(ctx.errors, ctx.rootDir, file, "size", `${size} 字节，超过 ${limit}`);
+  }
+
+  return { data, body, content, file };
+};
+
+const indexTable = (headers, rows) => {
+  const head = `| ${headers.join(" | ")} |`;
+  const separator = `| ${headers.map(() => "---").join(" | ")} |`;
+  const body = rows.map((cells) => `| ${cells.join(" | ")} |`);
+  return [head, separator, ...body].join("\n");
+};
+
+const noteRow = (note, includeStatus) => {
+  const cells = [
+    `[${normalizeCell(note.name)}](${encodeURI(note.fileName)})`,
+    normalizeCell(note.description),
+  ];
+  if (includeStatus === true) {
+    cells.push(note.status);
+    cells.push(
+      note.reason === undefined || note.reason === null || note.reason === ""
+        ? "—"
+        : normalizeCell(note.reason),
+    );
+    cells.push(normalizeCell(note.nextStep ?? "—"));
+    cells.push(
+      note.related.length === 0 ? "—" : note.related.map((item) => normalizeCell(item)).join(", "),
+    );
+  } else {
+    cells.push(
+      note.related.length === 0 ? "—" : note.related.map((item) => normalizeCell(item)).join(", "),
+    );
+  }
+  return cells;
+};
+
+const renderTracked = (notes, limitRows) => {
+  const incomplete = notes.filter((note) => note.status !== "completed");
+  const priority = { blocked: 0, in_progress: 1, pending: 2, completed: 3 };
+  incomplete.sort((left, right) => {
+    const gap = (priority[left.status] ?? 9) - (priority[right.status] ?? 9);
+    return gap === 0 ? sortByName(left, right) : gap;
+  });
+  const shown = incomplete.slice(0, Math.max(0, limitRows));
+  const rows = shown.map((note) => noteRow(note, true));
+  const lines = [
+    GENERATED_MARKER,
+    "",
+    indexTable(["Name", "Description", "Status", "Reason", "Next Step", "Related Note"], rows),
+  ];
+  if (incomplete.length > shown.length) {
+    lines.push(
+      "",
+      `其余 ${incomplete.length - shown.length} 条未完成 note 见 [notes_index.md](notes_index.md)。`,
+    );
+  }
+  return lines.join("\n");
+};
+
+const renderNotesIndex = (notes) => {
+  const rows = [...notes].sort(sortByName).map((note) => noteRow(note, false));
+  return [
+    "# Notes Index",
+    "",
+    GENERATED_MARKER,
+    "",
+    indexTable(["Name", "Description", "Related Note"], rows),
+  ].join("\n");
+};
+
+const findTrackedRange = (content, ctx, file) => {
+  const matches = [...content.matchAll(/^## 追踪 Note\s*$/gm)];
+  if (matches.length > 1) {
+    addIssue(ctx.errors, ctx.rootDir, file, "spec", "只允许一个「## 追踪 Note」章节");
+    return null;
+  }
+  if (matches.length === 0) return null;
+  const match = matches[0];
+  const start = match.index ?? 0;
+  const after = content.slice(start + match[0].length);
+  if (/^#{2,6} /m.test(after)) {
+    addIssue(ctx.errors, ctx.rootDir, file, "spec", "「## 追踪 Note」必须是最后一个章节");
+    return null;
+  }
+  return { start, end: content.length };
+};
+
+const writeGenerated = (ctx, file, content) => {
+  const resolved = path.resolve(file);
+  if (!resolved.startsWith(`${path.resolve(ctx.rootDir)}${path.sep}`)) {
+    addIssue(ctx.errors, ctx.rootDir, file, "write", "目标不在工作区内，拒绝写入");
+    return;
+  }
+  try {
+    fs.mkdirSync(path.dirname(resolved), { recursive: true });
+    const parentReal = fs.realpathSync(path.dirname(resolved));
+    const rootReal = fs.realpathSync(ctx.rootDir);
+    if (parentReal !== rootReal && !parentReal.startsWith(`${rootReal}${path.sep}`)) {
+      addIssue(ctx.errors, ctx.rootDir, file, "write", "目标解析到工作区外，拒绝写入");
+      return;
+    }
+    if (exists(resolved)) {
+      const fileReal = fs.realpathSync(resolved);
+      if (fileReal !== rootReal && !fileReal.startsWith(`${rootReal}${path.sep}`)) {
+        addIssue(ctx.errors, ctx.rootDir, file, "write", "目标文件解析到工作区外，拒绝写入");
+        return;
+      }
+      const current = fs.readFileSync(resolved, "utf8");
+      if (current === content) return;
+    }
+    fs.writeFileSync(resolved, content, "utf8");
+    ctx.updated.push(relativePath(ctx.rootDir, resolved));
+  } catch (error) {
+    addIssue(ctx.errors, ctx.rootDir, file, "write", `写入失败: ${describe(error)}`);
+  }
+};
+
+const scanNumberedDocuments = (ctx, directory, kind, options) => {
+  if (!exists(directory)) {
+    if (options.required === true) {
+      addIssue(ctx.errors, ctx.rootDir, directory, "missing", `缺少 ${kind} 目录`);
+    }
+    return [];
+  }
+  const documents = [];
+  const names = new Set();
+  for (const entry of readEntries(directory, ctx)) {
+    if (entry.name === "index.md") continue;
+    if (entry.name === "INDEX.md") {
+      addIssue(ctx.errors, ctx.rootDir, directory, "index", "索引文件名必须是小写 index.md");
+      continue;
+    }
+    if (entry.isDirectory()) {
+      addIssue(
+        ctx.errors,
+        ctx.rootDir,
+        path.join(directory, entry.name),
+        "layout",
+        "这里只允许文件",
+      );
+      continue;
+    }
+    if (!entry.name.endsWith(".md")) {
+      addIssue(ctx.errors, ctx.rootDir, path.join(directory, entry.name), "layout", "只允许 .md");
+      continue;
+    }
+    const file = path.join(directory, entry.name);
+    const document = readDocument(ctx, file, kind, { required: true });
+    if (document === null) continue;
+    const base = entry.name.slice(0, -3);
+    if (document.data.name !== base) {
+      addIssue(
+        ctx.errors,
+        ctx.rootDir,
+        file,
+        "name",
+        `name 必须与文件名一致：期望 ${base}，实际 ${document.data.name}`,
+      );
+    }
+    if (names.has(document.data.name)) {
+      addIssue(ctx.errors, ctx.rootDir, file, "name", `name 重复 ${document.data.name}`);
+    }
+    names.add(document.data.name);
+    checkHanName(document.data.name, ctx, file);
+    documents.push({
+      name: document.data.name,
+      description: document.data.description,
+      status: document.data.status,
+      data: document.data,
+      body: document.body,
+      content: document.content,
+      file,
+      fileName: entry.name,
+    });
+  }
+  documents.sort(sortByName);
+  if (options.continuous === true) {
+    for (const [index, document] of documents.entries()) {
+      const expected = String(index + 1).padStart(3, "0");
+      if (!document.name.startsWith(`${expected}-`)) {
+        addIssue(
+          ctx.errors,
+          ctx.rootDir,
+          document.file,
+          "number",
+          `编号必须从 001 连续，期望 ${expected}`,
+        );
+      }
+    }
+  }
+  if (kind === "adr" && documents.length > ctx.limits.adrMaxCount) {
+    addIssue(
+      ctx.errors,
+      ctx.rootDir,
+      directory,
+      "count",
+      `ADR 数量 ${documents.length} 超过 ${ctx.limits.adrMaxCount}`,
+    );
+  }
+  return documents;
+};
+
+const scanWorkflows = (ctx, directory) => {
+  if (!exists(directory)) return [];
+  const documents = [];
+  const names = new Set();
+  for (const entry of readEntries(directory, ctx)) {
+    if (entry.name === "index.md") continue;
+    if (entry.name === "INDEX.md") {
+      addIssue(ctx.errors, ctx.rootDir, directory, "index", "索引文件名必须是小写 index.md");
+      continue;
+    }
+    if (!entry.isDirectory()) {
+      addIssue(
+        ctx.errors,
+        ctx.rootDir,
+        path.join(directory, entry.name),
+        "layout",
+        "workflow 必须是目录",
+      );
+      continue;
+    }
+    const base = entry.name;
+    const file = path.join(directory, base, `${base}.md`);
+    const document = readDocument(ctx, file, "workflow", { required: true });
+    if (document === null) continue;
+    if (document.data.name !== base) {
+      addIssue(
+        ctx.errors,
+        ctx.rootDir,
+        file,
+        "name",
+        `name 必须与目录/文件名一致：期望 ${base}，实际 ${document.data.name}`,
+      );
+    }
+    if (names.has(document.data.name)) {
+      addIssue(ctx.errors, ctx.rootDir, file, "name", `name 重复 ${document.data.name}`);
+    }
+    names.add(document.data.name);
+    checkHanName(document.data.name, ctx, file);
+    documents.push({
+      name: document.data.name,
+      description: document.data.description,
+      data: document.data,
+      body: document.body,
+      content: document.content,
+      file,
+      fileName: path.join(base, `${base}.md`).replaceAll("\\", "/"),
+    });
+  }
+  documents.sort(sortByName);
+  for (const [index, document] of documents.entries()) {
+    const expected = String(index + 1).padStart(3, "0");
+    if (!document.name.startsWith(`${expected}-`)) {
+      addIssue(
+        ctx.errors,
+        ctx.rootDir,
+        document.file,
+        "number",
+        `编号必须从 001 连续，期望 ${expected}`,
+      );
+    }
+  }
+  return documents;
+};
+
+const renderContextMap = (ctx, contexts) => {
+  const sorted = [...contexts].sort((left, right) => {
+    if (left.domain === "common") return -1;
+    if (right.domain === "common") return 1;
+    return left.domain < right.domain ? -1 : left.domain > right.domain ? 1 : 0;
+  });
+  const contextLines =
+    sorted.length === 0
+      ? ["（暂无业务域）"]
+      : sorted.map((context) => {
+          const relative = relativePath(ctx.rootDir, context.file);
+          return `- [${normalizeCell(context.name)}](./${relative}) - ${normalizeCell(context.description)}`;
+        });
+
+  const byDomain = new Map(contexts.map((context) => [context.domain, context]));
+  const relations = [];
+  const seen = new Set();
+  for (const context of sorted) {
+    const declared = context.data.relations;
+    if (declared === undefined || declared === null) continue;
+    if (!Array.isArray(declared)) {
+      addIssue(ctx.errors, ctx.rootDir, context.file, "header", "relations 必须是数组");
+      continue;
+    }
+    for (const relation of declared) {
+      if (typeof relation !== "object" || relation === null) {
+        addIssue(ctx.errors, ctx.rootDir, context.file, "relation", "relation 必须是对象");
+        continue;
+      }
+      const to = relation.to;
+      const description = relation.description;
+      if (typeof to !== "string" || !KEBAB.test(to)) {
+        addIssue(
+          ctx.errors,
+          ctx.rootDir,
+          context.file,
+          "relation",
+          "relation.to 必须是 kebab-case 域名",
+        );
+        continue;
+      }
+      if (typeof description !== "string" || description.trim() === "") {
+        addIssue(
+          ctx.errors,
+          ctx.rootDir,
+          context.file,
+          "relation",
+          "relation.description 不能为空",
+        );
+        continue;
+      }
+      const target = byDomain.get(to);
+      if (target === undefined) {
+        addIssue(
+          ctx.errors,
+          ctx.rootDir,
+          context.file,
+          "relation",
+          `relation.to 指向不存在的域 ${to}`,
+        );
+        continue;
+      }
+      const key = `${context.domain}->${to}`;
+      if (seen.has(key)) {
+        addIssue(ctx.errors, ctx.rootDir, context.file, "relation", `关系 ${key} 重复定义`);
+        continue;
+      }
+      seen.add(key);
+      relations.push({ from: context.name, to: target.name, description });
+    }
+  }
+  relations.sort((left, right) => {
+    const from = left.from < right.from ? -1 : left.from > right.from ? 1 : 0;
+    return from === 0 ? (left.to < right.to ? -1 : left.to > right.to ? 1 : 0) : from;
+  });
+  const relationLines =
+    relations.length === 0
+      ? ["（暂无关系）"]
+      : relations.map(
+          (relation) =>
+            `- **${normalizeCell(relation.from)} → ${normalizeCell(relation.to)}**：${normalizeCell(relation.description)}`,
+        );
+
+  return [
+    "---",
+    "name: Context Map",
+    "description: 领域索引与关系。",
+    "---",
+    "",
+    "# Context Map",
+    "",
+    GENERATED_MARKER,
+    "",
+    "## Contexts",
+    "",
+    ...contextLines,
+    "",
+    "## Relationships",
+    "",
+    ...relationLines,
+    "",
+  ].join("\n");
+};
+
+const renderQuestionsIndex = (questions) => {
+  const rows = questions.map((question) => [
+    `[${normalizeCell(question.name)}](${encodeURI(question.fileName)})`,
+    normalizeCell(question.description),
+  ]);
+  return ["# Questions", "", GENERATED_MARKER, "", indexTable(["Name", "Description"], rows)].join(
+    "\n",
+  );
+};
+
+const renderAdrIndex = (adrs) => {
+  const rows = adrs.map((adr) => [
+    `[${normalizeCell(adr.name)}](${encodeURI(adr.fileName)})`,
+    normalizeCell(adr.description),
+    adr.status ?? "—",
+  ]);
+  return [
+    "# ADR",
+    "",
+    GENERATED_MARKER,
+    "",
+    indexTable(["Name", "Description", "Status"], rows),
+  ].join("\n");
+};
+
+const renderWorkflowsIndex = (workflows) => {
+  const rows = workflows.map((workflow) => [
+    `[${normalizeCell(workflow.name)}](${encodeURI(workflow.fileName)})`,
+    normalizeCell(workflow.description),
+  ]);
+  return ["# Workflows", "", GENERATED_MARKER, "", indexTable(["Name", "Description"], rows)].join(
+    "\n",
+  );
+};
+
+const scanPlan = (ctx, planDirectory, planName) => {
+  const specFile = path.join(planDirectory, "spec.md");
+  const spec = readDocument(ctx, specFile, "spec", { required: true });
+  const names = new Set();
+  const notes = [];
+  for (const entry of readEntries(planDirectory, ctx)) {
+    if (entry.isDirectory()) {
+      addIssue(
+        ctx.errors,
+        ctx.rootDir,
+        path.join(planDirectory, entry.name),
+        "layout",
+        "Plan 内不允许嵌套目录",
+      );
+      continue;
+    }
+    if (entry.name === "spec.md" || entry.name === "notes_index.md") continue;
+    if (entry.name === "story.md") {
+      addIssue(
+        ctx.warnings,
+        ctx.rootDir,
+        path.join(planDirectory, entry.name),
+        "legacy",
+        "story.md 已并入 spec.md，可删除",
+      );
+      continue;
+    }
+    if (!entry.name.endsWith(".md")) continue;
+    if (!/^\d{3}-.+\.md$/u.test(entry.name)) {
+      addIssue(
+        ctx.errors,
+        ctx.rootDir,
+        path.join(planDirectory, entry.name),
+        "name",
+        "note 文件名必须是 NNN-中文标题.md",
+      );
+      continue;
+    }
+    const file = path.join(planDirectory, entry.name);
+    const document = readDocument(ctx, file, "note", { required: true });
+    if (document === null) continue;
+    if (document.data.name !== entry.name.slice(0, -3)) {
+      addIssue(
+        ctx.errors,
+        ctx.rootDir,
+        file,
+        "name",
+        `name 必须与文件名一致：期望 ${entry.name.slice(0, -3)}，实际 ${document.data.name}`,
+      );
+    }
+    if (names.has(document.data.name)) {
+      addIssue(ctx.errors, ctx.rootDir, file, "name", `name 重复 ${document.data.name}`);
+    }
+    names.add(document.data.name);
+    checkHanName(document.data.name, ctx, file);
+    notes.push({
+      name: document.data.name,
+      description: document.data.description,
+      status: document.data.status,
+      reason: document.data.reason,
+      nextStep: document.data.next_step,
+      related: Array.isArray(document.data.related_noted) ? document.data.related_noted : [],
+      data: document.data,
+      body: document.body,
+      content: document.content,
+      file,
+      fileName: entry.name,
+    });
+  }
+  notes.sort(sortByName);
+  for (const note of notes) {
+    for (const related of note.related) {
+      if (related === note.name) {
+        addIssue(ctx.errors, ctx.rootDir, note.file, "related", "related_noted 不能引用自身");
+      } else if (!notes.some((candidate) => candidate.name === related)) {
+        addIssue(
+          ctx.errors,
+          ctx.rootDir,
+          note.file,
+          "related",
+          `related_noted 引用了不存在的 note ${related}`,
+        );
+      }
+    }
+  }
+  if (spec !== null) {
+    const specStatus = spec.data.status;
+    const expected = notes.every((note) => note.status === "pending")
+      ? "pending"
+      : notes.every((note) => note.status === "completed")
+        ? "completed"
+        : "in_progress";
+    if (specStatus !== expected) {
+      addIssue(
+        ctx.errors,
+        ctx.rootDir,
+        specFile,
+        "status",
+        `spec 状态应为 ${expected}，实际为 ${specStatus}`,
+      );
+    }
+    const range = findTrackedRange(spec.content, ctx, specFile);
+    const tracked = renderTracked(notes, ctx.limits.indexMaxRows);
+    if (range === null) {
+      const next = `${spec.content.replace(/\s+$/u, "")}\n\n## 追踪 Note\n\n${tracked}\n`;
+      writeGenerated(ctx, specFile, next);
+    } else {
+      const next = `${spec.content.slice(0, range.start)}## 追踪 Note\n\n${tracked}\n`;
+      writeGenerated(ctx, specFile, next);
+    }
+  }
+  if (exists(planDirectory)) {
+    writeGenerated(ctx, path.join(planDirectory, "notes_index.md"), `${renderNotesIndex(notes)}\n`);
+  }
+  return { name: planName, notes, spec };
+};
+
+const scanPlans = (ctx, domainPath) => {
+  const plansRoot = path.join(domainPath, "plans");
+  if (!exists(plansRoot)) return [];
+  const plans = [];
+  for (const lifecycleEntry of readEntries(plansRoot, ctx)) {
+    if (!lifecycleEntry.isDirectory()) {
+      addIssue(
+        ctx.errors,
+        ctx.rootDir,
+        path.join(plansRoot, lifecycleEntry.name),
+        "layout",
+        "plans 下只允许生命周期目录",
+      );
+      continue;
+    }
+    if (!LIFECYCLES.includes(lifecycleEntry.name)) {
+      addIssue(
+        ctx.errors,
+        ctx.rootDir,
+        path.join(plansRoot, lifecycleEntry.name),
+        "lifecycle",
+        `生命周期必须是 ${LIFECYCLES.join(" | ")}`,
+      );
+      continue;
+    }
+    const lifecyclePath = path.join(plansRoot, lifecycleEntry.name);
+    for (const planEntry of readEntries(lifecyclePath, ctx)) {
+      if (!planEntry.isDirectory()) {
+        addIssue(
+          ctx.errors,
+          ctx.rootDir,
+          path.join(lifecyclePath, planEntry.name),
+          "layout",
+          "生命周期下只允许 Plan 目录",
+        );
+        continue;
+      }
+      const match = PLAN_NAME.exec(planEntry.name);
+      if (match === null || !isValidDate(match[1]) || !HAN.test(match[2])) {
+        addIssue(
+          ctx.errors,
+          ctx.rootDir,
+          path.join(lifecyclePath, planEntry.name),
+          "name",
+          "Plan 目录名必须是 YYYY-MM-DD-中文工作名",
+        );
+        continue;
+      }
+      if (
+        ctx.planFilter !== undefined &&
+        ctx.planFilter !== "" &&
+        planEntry.name !== ctx.planFilter
+      ) {
+        continue;
+      }
+      plans.push(scanPlan(ctx, path.join(lifecyclePath, planEntry.name), planEntry.name));
+    }
+  }
+  return plans;
+};
+
+const scanDomain = (ctx, domainEntry) => {
+  const domain = domainEntry.name;
+  if (!KEBAB.test(domain)) {
+    addIssue(
+      ctx.errors,
+      ctx.rootDir,
+      path.join(ctx.domainsRoot, domain),
+      "name",
+      "domain 必须是 kebab-case",
+    );
+    return null;
+  }
+  const domainPath = path.join(ctx.domainsRoot, domain);
+  const contextFile = path.join(domainPath, "CONTEXT.md");
+  const document = readDocument(ctx, contextFile, "context", { required: true });
+  const context =
+    document === null
+      ? null
+      : {
+          domain,
+          file: contextFile,
+          name: document.data.name,
+          description: document.data.description,
+          data: document.data,
+          body: document.body,
+          content: document.content,
+        };
+  const questions = scanNumberedDocuments(ctx, path.join(domainPath, "questions"), "question", {
+    required: true,
+    continuous: true,
+  });
+  const adrs = scanNumberedDocuments(ctx, path.join(domainPath, "adr"), "adr", {
+    required: false,
+    continuous: true,
+  });
+  const workflows = scanWorkflows(ctx, path.join(domainPath, "workflows"));
+  const plans = scanPlans(ctx, domainPath);
+
+  if (exists(path.join(domainPath, "questions"))) {
+    writeGenerated(
+      ctx,
+      path.join(domainPath, "questions", "index.md"),
+      `${renderQuestionsIndex(questions)}\n`,
+    );
+  }
+  if (exists(path.join(domainPath, "adr"))) {
+    writeGenerated(ctx, path.join(domainPath, "adr", "index.md"), `${renderAdrIndex(adrs)}\n`);
+  }
+  if (exists(path.join(domainPath, "workflows"))) {
+    writeGenerated(
+      ctx,
+      path.join(domainPath, "workflows", "index.md"),
+      `${renderWorkflowsIndex(workflows)}\n`,
+    );
+  }
+  return { domain, context, questions, adrs, workflows, plans };
+};
+
+const normalizeLimits = (raw) => {
+  const limits = { ...DEFAULT_LIMITS };
+  if (typeof raw !== "object" || raw === null) return limits;
+  for (const key of Object.keys(DEFAULT_LIMITS)) {
+    const value = raw[key];
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) limits[key] = value;
   }
   return limits;
 };
 
-const createReporter = (rootDir) => {
-  const errors = [];
-  return {
-    errors,
-    /** @param {string} targetPath @param {string} rule @param {string} message */
-    push(targetPath, rule, message) {
-      errors.push({ path: rel(rootDir, targetPath), rule, message });
-    },
-  };
-};
-
-const readText = (targetPath, report) => {
-  try {
-    return fs.readFileSync(targetPath, "utf8");
-  } catch (error) {
-    report.push(
-      targetPath,
-      "io",
-      `读取失败: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return null;
-  }
-};
-
-const readEntries = (targetPath, report) => {
-  try {
-    return fs.readdirSync(targetPath, { withFileTypes: true });
-  } catch (error) {
-    report.push(
-      targetPath,
-      "io",
-      `枚举失败: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return [];
-  }
-};
-
-const checkDomainKnowledge = (rootDir, domainsPath, limits) => {
-  const report = createReporter(rootDir);
-  const mapPath = path.join(rootDir, "CONTEXT-MAP.md");
-  if (!fs.existsSync(mapPath)) {
-    report.push(mapPath, "knowledge", "缺少 CONTEXT-MAP.md");
-    return report.errors;
-  }
-  const mapContent = readText(mapPath, report);
-  const domainsDir = resolveDomains(rootDir, domainsPath);
-  if (!fs.existsSync(domainsDir)) {
-    report.push(domainsDir, "knowledge", `缺少领域根目录 ${domainsPath}`);
-    return report.errors;
-  }
-  const domainNames = new Set();
-  for (const entry of readEntries(domainsDir, report)) {
-    if (!entry.isDirectory()) continue;
-    domainNames.add(entry.name);
-    const domainPath = path.join(domainsDir, entry.name);
-    if (!KEBAB.test(entry.name)) {
-      report.push(domainPath, "knowledge", "domain-name 必须是 kebab-case");
-    }
-    for (const fileName of ["CONTEXT.md", "QUESTIONS.md"]) {
-      const documentPath = path.join(domainPath, fileName);
-      if (!fs.existsSync(documentPath)) {
-        report.push(documentPath, "knowledge", `业务域缺少 ${fileName}`);
-        continue;
-      }
-      const content = readText(documentPath, report);
-      if (content === null) continue;
-      if (!HAN.test(content)) report.push(documentPath, "knowledge", "正文必须包含中文");
-      const maxBytes =
-        fileName === "CONTEXT.md" ? limits.contextMaxBytes : limits.questionsMaxBytes;
-      const size = byteLength(content);
-      if (size > maxBytes) {
-        report.push(documentPath, "size", `${fileName} 共 ${size} 字节，超过 ${maxBytes}`);
-      }
-    }
-    if (
-      mapContent !== null &&
-      !mapContent.includes(`(./${domainsPath}/${entry.name}/CONTEXT.md)`)
-    ) {
-      report.push(mapPath, "knowledge", `缺少业务域 ${entry.name} 的索引`);
-    }
-    checkAdrs(domainPath, limits, report);
-  }
-  if (mapContent !== null) {
-    const prefix = `./${domainsPath}/`;
-    const suffix = "/CONTEXT.md";
-    for (const match of mapContent.matchAll(/\]\(([^)\s]+)\)/g)) {
-      const target = match[1];
-      if (!target.startsWith(prefix) || !target.endsWith(suffix)) continue;
-      const name = target.slice(prefix.length, -suffix.length);
-      if (!domainNames.has(name))
-        report.push(mapPath, "knowledge", `索引指向不存在的业务域 ${name}`);
-    }
-  }
-  return report.errors;
-};
-
-const checkAdrs = (domainPath, limits, report) => {
-  const adrPath = path.join(domainPath, "adr");
-  if (!fs.existsSync(adrPath)) return;
-  const files = readEntries(adrPath, report)
-    .filter((entry) => entry.isFile() && entry.name.endsWith(".md"))
-    .sort((left, right) => left.name.localeCompare(right.name, "zh-CN"));
-  if (files.length > limits.adrMaxCount) {
-    report.push(adrPath, "size", `ADR 共 ${files.length} 个，超过 ${limits.adrMaxCount}`);
-  }
-  for (const [index, file] of files.entries()) {
-    const filePath = path.join(adrPath, file.name);
-    const expected = String(index + 1).padStart(4, "0");
-    const match = file.name.match(/^(\d{4})-(.+)\.md$/);
-    if (!match || match[1] !== expected || !HAN.test(match[2])) {
-      report.push(
-        filePath,
-        "knowledge",
-        `ADR 文件名必须按域内连续编号，期望 ${expected}-中文决策名.md`,
-      );
-    }
-    const content = readText(filePath, report);
-    if (content === null) continue;
-    if (!HAN.test(content)) report.push(filePath, "knowledge", "正文必须包含中文");
-    const size = byteLength(content);
-    if (size > limits.adrMaxBytes) {
-      report.push(filePath, "size", `ADR 共 ${size} 字节，超过 ${limits.adrMaxBytes}`);
-    }
-  }
-};
-
-const checkMarkdownLinks = (planDir, filePath, report) => {
-  const content = fs.readFileSync(filePath, "utf8");
-  for (const match of content.matchAll(/\]\(([^)\s]+)\)/g)) {
-    const target = match[1];
-    if (target.startsWith("#") || /^[a-z][a-z0-9+.-]*:/i.test(target)) continue;
-    const clean = target.split("#")[0];
-    if (!clean.endsWith(".md")) continue;
-    const resolved = path.resolve(planDir, clean);
-    if (!fs.existsSync(resolved)) {
-      report.push(filePath, "link", `链接目标不存在: ${clean}`);
-    }
-  }
-};
-
-const checkPlanDocuments = (planDir, limits, report, checkLinks) => {
-  const entries = readEntries(planDir, report);
-  for (const entry of entries) {
-    if (entry.isDirectory()) {
-      report.push(path.join(planDir, entry.name), "layout", "Plan 目录内不允许嵌套目录");
-    }
-  }
-  const files = entries.filter((entry) => entry.isFile()).map((entry) => entry.name);
-  for (const required of ["story.md", "spec.md", "notes.json"]) {
-    if (!files.includes(required)) {
-      report.push(path.join(planDir, required), "layout", `Plan 必须包含 ${required}`);
-    }
-  }
-  for (const name of files) {
-    if (!/^(?:story|spec).*\.md$/.test(name)) continue;
-    const filePath = path.join(planDir, name);
-    const content = readText(filePath, report);
-    if (content === null) continue;
-    if (!HAN.test(content)) report.push(filePath, "layout", "正文必须包含中文");
-    const max = name.startsWith("story") ? limits.storyMaxBytes : limits.specMaxBytes;
-    const size = byteLength(content);
-    if (size > max) {
-      report.push(filePath, "size", `${name} 共 ${size} 字节，超过 ${max}；先压缩，再拆子索引`);
-    }
-    if (checkLinks) checkMarkdownLinks(planDir, filePath, report);
-  }
-};
-
-const checkCycle = (notes, report, notesPath) => {
-  const byId = new Map(notes.map((note) => [note.id, note]));
-  const visiting = new Set();
-  const visited = new Set();
-  const visit = (note) => {
-    if (visiting.has(note.id)) return true;
-    if (visited.has(note.id)) return false;
-    visiting.add(note.id);
-    const cyclic = note.blocked_by.some((dependency) => {
-      const target = byId.get(dependency);
-      return target === undefined ? false : visit(target);
-    });
-    visiting.delete(note.id);
-    visited.add(note.id);
-    return cyclic;
-  };
-  if (notes.some((note) => visit(note))) report.push(notesPath, "dag", "note 依赖图存在环");
-};
-
-const isStringArray = (value) =>
-  Array.isArray(value) && value.every((item) => typeof item === "string");
-
-const checkNotesDocument = (planDir, limits, report) => {
-  const notesPath = path.join(planDir, "notes.json");
-  if (!fs.existsSync(notesPath)) return;
-  const content = readText(notesPath, report);
-  if (content === null) return;
-  let doc;
-  try {
-    doc = JSON.parse(content);
-  } catch (error) {
-    report.push(
-      notesPath,
-      "notes",
-      `notes.json 不是合法 JSON: ${error instanceof Error ? error.message : String(error)}`,
-    );
-    return;
-  }
-  if (typeof doc !== "object" || doc === null || Array.isArray(doc)) {
-    report.push(notesPath, "notes", "notes.json 根必须是对象");
-    return;
-  }
-  if (doc.version !== 1)
-    report.push(notesPath, "notes", `version 必须是 1，实际为 ${String(doc.version)}`);
-  if (!isStringArray(doc.index)) {
-    report.push(notesPath, "index", "index 必须是字符串数组");
-  }
-  if (!Array.isArray(doc.notes)) {
-    report.push(notesPath, "notes", "notes 必须是数组");
-    return;
-  }
-  const ids = new Set();
-  const notes = [];
-  for (const [position, note] of doc.notes.entries()) {
-    const at = path.join(notesPath, `notes[${position}]`);
-    if (typeof note !== "object" || note === null || Array.isArray(note)) {
-      report.push(at, "notes", "note 必须是对象");
-      continue;
-    }
-    const id = note.id;
-    if (typeof id !== "string" || !NOTE_ID.test(id)) {
-      report.push(at, "notes", "id 必须是两位数字字符串");
-      continue;
-    }
-    if (ids.has(id)) report.push(at, "notes", `id 重复: ${id}`);
-    ids.add(id);
-    if (typeof note.title !== "string" || note.title.trim() === "") {
-      report.push(at, "notes", "title 必须是非空字符串");
-    }
-    if (typeof note.description !== "string") {
-      report.push(at, "notes", "description 必须是字符串");
-    } else if ([...note.description].length > limits.noteDescriptionMaxChars) {
-      report.push(at, "size", `description 超过 ${limits.noteDescriptionMaxChars} 字`);
-    }
-    const status = note.status === LEGACY_WAITING_STATUS ? "waiting" : note.status;
-    if (!NOTE_STATUSES.includes(status)) {
-      report.push(at, "notes", `status 必须是 ${NOTE_STATUSES.join(" | ")}`);
-    }
-    const needs =
-      note.needs === undefined && note.status === LEGACY_WAITING_STATUS ? "review" : note.needs;
-    if (status === "waiting" && needs === undefined) {
-      if (note.status !== LEGACY_WAITING_STATUS) {
-        report.push(at, "notes", `status 是 waiting 时必须给 needs（${NOTE_NEEDS.join(" | ")}）`);
-      }
-    } else if (needs !== undefined && !NOTE_NEEDS.includes(needs)) {
-      report.push(at, "notes", `needs 必须是 ${NOTE_NEEDS.join(" | ")}`);
-    }
-    if (!isStringArray(note.blocked_by)) {
-      report.push(at, "notes", "blocked_by 必须是字符串数组");
-    }
-    if (note.evidence !== undefined && !isStringArray(note.evidence)) {
-      report.push(at, "notes", "evidence 必须是字符串数组");
-    }
-    if (
-      note.blocked_reason !== undefined &&
-      note.blocked_reason !== null &&
-      typeof note.blocked_reason !== "string"
-    ) {
-      report.push(at, "notes", "blocked_reason 必须是字符串或 null");
-    }
-    if (typeof note.content !== "string") {
-      report.push(at, "notes", "content 必须是字符串");
-    } else if (byteLength(note.content) > limits.noteMaxBytes) {
-      report.push(
-        at,
-        "size",
-        `note ${id} 正文 ${byteLength(note.content)} 字节，超过 ${limits.noteMaxBytes}；请拆分为多条 note`,
-      );
-    }
-    notes.push({
-      id,
-      status,
-      needs,
-      blocked_by: isStringArray(note.blocked_by) ? note.blocked_by : [],
-      evidence: isStringArray(note.evidence) ? note.evidence : [],
-      blocked_reason: typeof note.blocked_reason === "string" ? note.blocked_reason : undefined,
-    });
-  }
-  const byId = new Map(notes.map((note) => [note.id, note]));
-  for (const note of notes) {
-    for (const dependency of note.blocked_by) {
-      if (dependency === note.id) {
-        report.push(notesPath, "dag", `note ${note.id} 不能依赖自己`);
-        continue;
-      }
-      const target = byId.get(dependency);
-      if (target === undefined) {
-        report.push(notesPath, "dag", `note ${note.id} 依赖不存在的 note ${dependency}`);
-        continue;
-      }
-      // pending 与 waiting 可以先挂着：还没开工，或在等回答／验收／外部解除。
-      if (
-        (note.status === "in_progress" || note.status === "completed") &&
-        target.status !== "completed"
-      ) {
-        report.push(
-          notesPath,
-          "dag",
-          `${note.status} 的 note ${note.id} 的直接依赖 ${dependency} 尚未 completed`,
-        );
-      }
-    }
-    if (note.status === "completed" && note.evidence.length === 0) {
-      report.push(notesPath, "notes", `completed 的 note ${note.id} 缺少 evidence`);
-    }
-    if (
-      note.status === "waiting" &&
-      note.needs === "blocked" &&
-      (note.blocked_reason ?? "").trim() === ""
-    ) {
-      report.push(notesPath, "notes", `waiting/blocked 的 note ${note.id} 必须写 blocked_reason`);
-    }
-  }
-  checkCycle(notes, report, notesPath);
-  const index = isStringArray(doc.index) ? doc.index : [];
-  if (index.length > limits.indexMaxRows) {
-    report.push(notesPath, "index", `index 共 ${index.length} 项，超过 ${limits.indexMaxRows}`);
-  }
-  const seen = new Set();
-  for (const id of index) {
-    if (seen.has(id)) report.push(notesPath, "index", `index 重复: ${id}`);
-    seen.add(id);
-    if (!byId.has(id)) report.push(notesPath, "index", `index 引用了不存在的 note ${id}`);
-  }
-};
-
-const checkPlan = (planDir, lifecycle, limits, report) => {
-  // 没有 notes.json 的目录是旧 Markdown Plan：当作不存在，不校验、不报错。
-  if (!fs.existsSync(path.join(planDir, "notes.json"))) return;
-  const name = path.basename(planDir);
-  const match = name.match(/^(\d{4}-\d{2}-\d{2})-(.+)$/);
-  if (!match || !isValidDate(match[1]) || !HAN.test(match[2])) {
-    report.push(planDir, "layout", "Plan 目录名必须是 YYYY-MM-DD-中文工作名");
-  }
-  // reference / archived 是冻结内容：历史链接常指向已退役文件或从未提交的运行时资料，
-  // 与「冻结内容不校验模板差异」一致，Markdown 链接只对 active 校验。
-  checkPlanDocuments(planDir, limits, report, lifecycle === "active");
-  checkNotesDocument(planDir, limits, report);
-};
-
-const checkPlans = (rootDir, domainsPath, limits, report, planRef) => {
-  const domainsDir = resolveDomains(rootDir, domainsPath);
-  if (planRef !== undefined) {
-    const segments = planRef.split("/").filter(Boolean);
-    if (segments.length !== 3) {
-      report.push(domainsDir, "layout", "--plan 必须是 <domain>/<lifecycle>/<plan-name>");
-      return;
-    }
-    const [domain, lifecycle, planName] = segments;
-    if (!PLAN_LIFECYCLES.includes(lifecycle)) {
-      report.push(domainsDir, "layout", `生命周期只能是 ${PLAN_LIFECYCLES.join(" | ")}`);
-      return;
-    }
-    const planDir = path.join(domainsDir, domain, "plans", lifecycle, planName);
-    if (!fs.existsSync(planDir)) {
-      report.push(planDir, "layout", "Plan 不存在");
-      return;
-    }
-    checkPlan(planDir, lifecycle, limits, report);
-    return;
-  }
-  for (const domainEntry of readEntries(domainsDir, report)) {
-    if (!domainEntry.isDirectory()) continue;
-    const plansDir = path.join(domainsDir, domainEntry.name, "plans");
-    if (!fs.existsSync(plansDir)) continue;
-    for (const lifecycleEntry of readEntries(plansDir, report)) {
-      if (!lifecycleEntry.isDirectory()) continue;
-      if (!PLAN_LIFECYCLES.includes(lifecycleEntry.name)) {
-        report.push(
-          path.join(plansDir, lifecycleEntry.name),
-          "layout",
-          `生命周期只能是 ${PLAN_LIFECYCLES.join(" | ")}`,
-        );
-        continue;
-      }
-      if (!CHECKED_LIFECYCLES.includes(lifecycleEntry.name)) continue;
-      const lifecyclePath = path.join(plansDir, lifecycleEntry.name);
-      for (const planEntry of readEntries(lifecyclePath, report)) {
-        if (!planEntry.isDirectory()) continue;
-        checkPlan(path.join(lifecyclePath, planEntry.name), lifecycleEntry.name, limits, report);
-      }
-    }
-  }
-};
-
 /**
- * 校验一个工作区（或其中单个 Plan）。
- * @param {{ rootDirectory: string, domainsPath?: string, planRef?: string, limits?: Record<string, number> }} options
- * @returns {{ path: string, rule: string, message: string }[]}
+ * 校验工作区并生成索引。
+ * @param {string} rootDirectory - 工作区根。
+ * @param {object} options - domainsPath / limits / domain / plan / strict。
+ * @returns {{ok: boolean, errors: object[], warnings: object[], updated: string[]}}
  */
-export const checkWorkspace = (options) => {
-  const rootDir = path.resolve(options.rootDirectory);
-  const domainsPath = options.domainsPath ?? DEFAULT_DOMAINS;
-  const limits = options.limits ?? parseLimits(undefined);
-  if (options.planRef === undefined) {
-    return [
-      ...checkDomainKnowledge(rootDir, domainsPath, limits),
-      ...(() => {
-        const report = createReporter(rootDir);
-        checkPlans(rootDir, domainsPath, limits, report, undefined);
-        return report.errors;
-      })(),
-    ];
+export const checkWorkspace = (rootDirectory, options = {}) => {
+  const rootDir = path.resolve(rootDirectory);
+  const domainsPath = options.domainsPath ?? DOMAINS_DIR;
+  const domainsRoot = path.isAbsolute(domainsPath)
+    ? path.resolve(domainsPath)
+    : path.resolve(rootDir, domainsPath);
+  const limits = normalizeLimits(options.limits);
+  const ctx = {
+    rootDir,
+    domainsRoot,
+    limits,
+    errors: [],
+    warnings: [],
+    updated: [],
+    domainFilter: options.domain,
+    planFilter: options.plan,
+    strict: options.strict !== false,
+  };
+
+  if (!exists(domainsRoot)) {
+    addIssue(ctx.errors, rootDir, domainsRoot, "missing", "领域根不存在；先运行 nano_flow_create");
+    return { ok: false, errors: ctx.errors, warnings: ctx.warnings, updated: ctx.updated };
   }
-  const report = createReporter(rootDir);
-  checkPlans(rootDir, domainsPath, limits, report, options.planRef);
-  return report.errors;
+
+  const guideFile = path.join(domainsRoot, "GUIDE.md");
+  if (!exists(guideFile)) {
+    writeGenerated(ctx, guideFile, "");
+  }
+
+  const domains = [];
+  for (const entry of readEntries(domainsRoot, ctx)) {
+    if (!entry.isDirectory()) continue;
+    if (
+      ctx.domainFilter !== undefined &&
+      ctx.domainFilter !== "" &&
+      entry.name !== ctx.domainFilter
+    ) {
+      continue;
+    }
+    const scanned = scanDomain(ctx, entry);
+    if (scanned !== null) domains.push(scanned);
+  }
+  if (ctx.domainFilter !== undefined && ctx.domainFilter !== "" && domains.length === 0) {
+    addIssue(ctx.errors, rootDir, domainsRoot, "domain", `domain 不存在: ${ctx.domainFilter}`);
+  }
+  if (ctx.planFilter !== undefined && ctx.planFilter !== "") {
+    const found = domains.some((domain) =>
+      domain.plans.some((plan) => plan.name === ctx.planFilter),
+    );
+    if (!found) {
+      addIssue(ctx.errors, rootDir, domainsRoot, "plan", `Plan 不存在: ${ctx.planFilter}`);
+    }
+  }
+
+  const contexts = domains.map((domain) => domain.context).filter((context) => context !== null);
+  const seenContextNames = new Set();
+  for (const context of contexts) {
+    if (seenContextNames.has(context.name)) {
+      addIssue(ctx.errors, rootDir, context.file, "name", `context name 重复 ${context.name}`);
+    }
+    seenContextNames.add(context.name);
+  }
+  // 单域过滤或宽松模式只做校验，不用不完整的集合覆盖全量 CONTEXT-MAP。
+  if ((options.domain === undefined || options.domain === "") && options.strict !== false) {
+    writeGenerated(
+      ctx,
+      path.join(rootDir, "CONTEXT-MAP.md"),
+      `${renderContextMap(ctx, contexts)}\n`,
+    );
+  }
+
+  return {
+    ok: ctx.errors.length === 0,
+    errors: ctx.errors,
+    warnings: ctx.warnings,
+    updated: [...new Set(ctx.updated)].sort((left, right) => left.localeCompare(right)),
+  };
 };
 
-export const formatErrors = (errors) =>
-  errors.map((error) => `${error.path}: [${error.rule}] ${error.message}`);
+const formatIssues = (issues) =>
+  issues.map((issue) => `${issue.path}: [${issue.rule}] ${issue.message}`).join("\n");
 
-const run = (argv) => {
-  const args = [...argv];
-  let json = false;
-  let planRef;
-  let limitsText;
-  let domainsPath = DEFAULT_DOMAINS;
-  let rootDirectory = ".";
-  const positional = [];
-  while (args.length > 0) {
-    const arg = args.shift();
-    if (arg === "--json") json = true;
-    else if (arg === "--plan") planRef = args.shift();
-    else if (arg === "--domains") domainsPath = args.shift() ?? DEFAULT_DOMAINS;
-    else if (arg === "--limits") limitsText = args.shift();
-    else if (arg === "--help" || arg === "-h") {
-      console.log(
-        "用法: node check-domain.mjs <工作区根> [--domains <相对路径>] [--plan <domain>/<lifecycle>/<name>] [--json]",
-      );
-      return 0;
-    } else positional.push(arg);
+const formatText = (result) => {
+  const lines = [];
+  if (result.ok) {
+    lines.push("领域文档校验通过。");
+  } else {
+    lines.push(`领域文档校验失败，共 ${result.errors.length} 项：`);
+    lines.push(formatIssues(result.errors));
   }
-  if (positional[0] !== undefined) rootDirectory = positional[0];
-  let errors;
+  if (result.warnings.length > 0) {
+    lines.push(`警告 ${result.warnings.length} 项：`);
+    lines.push(formatIssues(result.warnings));
+  }
+  if (result.updated.length > 0) {
+    lines.push(`已更新索引 ${result.updated.length} 个：`);
+    lines.push(result.updated.map((file) => `- ${file}`).join("\n"));
+  }
+  return lines.join("\n");
+};
+
+const parseArgs = (argv) => {
+  const options = { rootDirectory: argv[0] ?? process.cwd(), json: false, strict: true };
+  for (let index = 1; index < argv.length; index += 1) {
+    const arg = argv[index];
+    if (arg === "--json") options.json = true;
+    else if (arg === "--domains") options.domainsPath = argv[(index += 1)];
+    else if (arg === "--limits") {
+      try {
+        options.limits = JSON.parse(argv[(index += 1)] ?? "{}");
+      } catch {
+        options.limits = {};
+      }
+    } else if (arg === "--domain") options.domain = argv[(index += 1)];
+    else if (arg === "--plan") options.plan = argv[(index += 1)];
+    else if (arg === "--strict") options.strict = true;
+    else if (arg === "--no-strict") options.strict = false;
+  }
+  return options;
+};
+
+export const runDomainCheck = ({
+  rootDirectory,
+  args = process.argv.slice(2),
+  stdout = (message) => console.log(message),
+  stderr = (message) => console.error(message),
+} = {}) => {
   try {
-    if (limitsText === undefined) throw new Error("缺少 --limits（由 nano_flow_check 传入）");
-    const limits = parseLimits(JSON.parse(limitsText));
-    errors = checkWorkspace({ rootDirectory, domainsPath, planRef, limits });
+    const root = rootDirectory ?? args[0] ?? process.cwd();
+    const options = parseArgs([root, ...args.slice(1)]);
+    const result = checkWorkspace(options.rootDirectory, options);
+    if (options.json === true) {
+      stdout(JSON.stringify(result));
+    } else if (result.ok) {
+      stdout(formatText(result));
+    } else {
+      stderr(formatText(result));
+    }
+    return result.ok ? 0 : 1;
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    if (json)
-      console.log(JSON.stringify({ ok: false, errors: [{ path: "", rule: "internal", message }] }));
-    else console.error(`校验异常: ${message}`);
+    stderr(`领域文档校验异常: ${error instanceof Error ? error.stack : String(error)}`);
     return 1;
   }
-  if (json) {
-    console.log(JSON.stringify({ ok: errors.length === 0, errors }));
-  } else if (errors.length === 0) {
-    console.log("校验通过。");
-  } else {
-    console.error(`校验失败，共 ${errors.length} 项：`);
-    for (const line of formatErrors(errors)) console.error(`- ${line}`);
-  }
-  return errors.length === 0 ? 0 : 1;
 };
 
 const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : "";
-if (invokedPath === fileURLToPath(import.meta.url)) {
-  process.exitCode = run(process.argv.slice(2));
-}
+if (invokedPath === fileURLToPath(import.meta.url)) process.exitCode = runDomainCheck();

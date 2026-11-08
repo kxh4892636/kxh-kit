@@ -48,7 +48,7 @@ profile 的 `dsh.profile.bundles` 会多出本包及其 `cordis.patch.yml` 挂�
     └── nano-flow/
         └── references/
             └── skills/
-                └── questing/
+                └── ask/
                     └── SKILL.md          ← 内建 provider 看不到,本工具能看到
 ```
 
@@ -118,108 +118,121 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
 
 开关右侧的箭头按钮(`Nano Flow 设置`)只在开关打开时出现,点开是上限与轮转阈值的下拉面板.
 
-挂载后会话里多出三样东西:
+挂载后会话里多出四样东西:
 
-| 类别       | 内容                                                                                                                                                                                                                                                     |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 固定提示词 | `nano-flow/prompt.md`: 模式判定与 skill 指针, 业务域, Plan 与领域文档规则, notes 状态 / 切片 / 两阶段约定, 恢复与轮转                                                                                                                                    |
-| 工具       | `nano_flow_read`(plans / notes / get / ready / graph / index / search / resume / inspect),`nano_flow_write`(init / create / update / link / status / complete / set_index / merge / delete / move / repair),`nano_flow_check`(plan / workspace / limits) |
-| skill      | `skills/` 目录动态发现: `ask`,`do`(各自承载循环的完整规格, 可被模型触发, 也可 `/ask` `/do` 调用) 与 `to-skill`,`code-spec`,`learning`,`kaizen`(原样注入)                                                                                                 |
+| 类别       | 内容                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------- |
+| 固定提示词 | `prompts/agents.md` 与 `.agents/domains/GUIDE.md` 的当前快照拼接, 作为系统提示词段 `order: 1` 注入      |
+| 每轮提示词 | `prompts/user.md`, 作为运行时上下文在每轮第一次 pre-step 后追加; 不冒充用户消息, UI 以 context 卡片显示 |
+| 工具       | `nano_flow_create`(domain / plan / note 的目录与模板) 与 `nano_flow_check`(校验 + 生成全部索引)         |
+| skill      | `skills/` 动态发现: `ask`,`do`,`to-skill`,`code-spec`,`learning`,`kaizen`                               |
 
-**会话与领域**
-
-新会话先按 `CONTEXT-MAP.md` 定位业务域:有就沿用,没有就让 `init` 建(补 CONTEXT/QUESTIONS
-与 map 条目).一个会话只属于一个业务域;任务本身跨域时以 `common` 为业务域.`common` 是
-任何域都可读写的公共域,跨域内容写在那里,其它域只引用.
-
-**恢复只读**
-
-用户说"恢复""继续"且会话还没加载该 Plan 时只读加载:`resume` 拿恢复包,读 story / spec,
-报告进度,可推进队列与阻塞项,本轮不写文件,不执行 note;恢复报告之后的用户消息才放行执行,
-若是新的澄清需求则进入 ask.轮转出来的新会话同样先只读恢复.
-
-**Plan 结构**
+**目录布局**
 
 ```text
-<域根>/<domain>/plans/<lifecycle>/<YYYY-MM-DD-中文工作名>/
-├── story.md     用户想干什么        默认 ≤ 34 KB(面板可调)
-├── spec.md      应该如何实现        默认 ≤ 34 KB(面板可调)
-└── notes.json   实现记录(DAG)      单条 content 默认 ≤ 13 KB(面板可调)
+.agents/domains/
+├── GUIDE.md                       # 会话启动快照；后续流程产物，当前只保留空模板
+├── CONTEXT-MAP.md                 # 生成：Contexts + Relationships
+└── {domain-name}/
+    ├── CONTEXT.md                 # 职责、术语、relations
+    ├── questions/
+    │   ├── index.md               # 生成
+    │   └── 001-中文问题.md
+    ├── adr/
+    │   ├── index.md               # 生成
+    │   └── 001-中文决策.md
+    ├── workflows/
+    │   ├── index.md               # 生成
+    │   └── 001-中文工作流/
+    │       └── 001-中文工作流.md
+    └── plans/{active|reference|archived}/
+        └── YYYY-MM-DD-中文工作名/
+            ├── spec.md
+            ├── notes_index.md     # 生成
+            └── 001-中文标题.md
 ```
 
-`notes.json` 的 `index` 取代旧的 spec `## Notes` 表;`evidence` 是完成凭据. note 有四个状态
-`pending` / `in_progress` / `waiting` / `completed`: `waiting` 表示当下必须等自身之外的东西, 必须带
-`needs`: `review`(等验收, 写"待验证"小节)、`answer`(等人回答, 写"待回答"小节) 或 `blocked`
-(等阻塞解除, 写"待解除"小节并给 `blocked_reason`); `pending` 可直接进 `waiting` 或 `in_progress`,
-`waiting` 与 `in_progress` 可互相转换; `waiting` 仍是未完成(Plan 不迁 `reference`, `ready` 不列它,
-面板与 `resume` 单列"等待回答/等待确认/待阻塞解除"); `complete` 只接受 `waiting` 且 `needs=review`
-的 note, 等到回答或阻塞解除后 `status` 回 `in_progress` 或 `complete`, 内部仍先跑 Plan 校验. 旧文档的
-`awaiting_verification` 读入时折成 `waiting + needs=review`, 旧的 `blocked` 状态不再兼容.
+story 已并入 spec，不再创建 `story.md`。索引文件都是生成物，模型不需要手改；`nano_flow_check`
+每次运行都会按源文档重新生成。
 
-文档无法通过校验时, 不要用文件工具直接改 `notes.json`: 先 `nano_flow_read` 的 `inspect` 看原始
-note 与问题, 再由模型判断, 用 `nano_flow_write` 的 `repair` 提交 `repairs`(按 id 的
-title/description/content)与 `ids`(新 index); 工具不自作主张截断摘要或删除索引项.
+**YAML 头**
 
-一条 note 走两个阶段: 需要人拍板的先置 `waiting + needs=answer`, 用户答完把结论写进"定案",
-再回 `in_progress` 实施, 完成后 `waiting + needs=review` → `completed`; 定案与执行默认不拆成两条.
+所有领域文档以 YAML 头开始，固定包含 `name` 与 `description`；自由扩展放进 `metadata`：
+
+```yaml
+---
+name: 001-取消订单
+description: 客户可以取消未发货订单。
+status: pending
+reason:
+related_noted: []
+next_step: 读取 spec 并确认接口契约
+metadata:
+  owner: 订单组
+---
+```
+
+- `name` 是索引的唯一键；`adr` / `question` / `note` / `workflow` 的 name 必须带三位数字前缀，
+  并与文件名或目录名一致；`related_noted` 引用同一个 Plan 里的 note name。
+- CONTEXT 额外有 `relations: [{ to: 目标域目录名, description: 关系说明 }]`，`CONTEXT-MAP.md`
+  由脚本汇总生成；跨域关系只在源域定义一次。
+- ADR 可选 `status`：`proposed | accepted | deprecated | superseded`。
+- spec 固定 `status`：`pending | in_progress | completed`，由全部 note 派生。
+- note 固定 `status`：`pending | in_progress | blocked | completed`；`blocked` 时 `reason` 必填，
+  其他状态不写；`next_step` 是单行下一步。`related_noted` 只表达关联，不构成 DAG。
+- spec 正文自由组织，只在最后保留 `## 追踪 Note`；check 用未完成 note 自动生成该表。
+  `notes_index.md` 收录全部 note（name / description / related_noted）。
+
+**工具**
+
+- `nano_flow_create`：`kind=domain` 建 `CONTEXT.md`、questions / adr / workflows 与 `GUIDE.md`；
+  `kind=plan` 建 `spec.md` 与 `notes_index.md`；`kind=note` 建一条 note（可自动取下一个三位编号）。
+  只补缺失文件，不覆盖已有内容。
+- `nano_flow_check`：校验 YAML 头、三位 name、篇幅、status / reason / related_noted 与 spec 状态派生；
+  同时生成/更新 `CONTEXT-MAP.md`、`questions/index.md`、`adr/index.md`、`workflows/index.md`、
+  `notes_index.md` 与 spec 的 `## 追踪 Note`。可用 `domain` / `plan` 缩小范围，`strict=false`
+  把旧格式文档记为警告并跳过。
 
 **上限与轮转**
 
-- 所有数字在 **开关旁的下拉设置面板**维护(持久化到
-  `$DSH_HOME/toolkit/nano-flow.json`):story/spec/note/摘要/索引,CONTEXT/QUESTIONS/ADR
-  上限,ADR 数量(默认 55 个)与会话轮转阈值;体积字段在面板里以 **KB** 输入(1 KB = 1024 字节,存储仍是字节),
-  提示词本身不设上限.默认值见 `contract.ts`.
-- 预设不挂载压缩插件.轮转挂在**宿主半**:用户每发一条**排队**消息(queue)时,先按会话 id 找到
-  存活会话,再用日志里最后一条 `agent-preset/selected` 判断它是否跑 Nano Flow(live header 的
-  `agentPreset` 在恢复会话时不可靠),然后读 `tokenMeter.contextPressure` 的
-  `projectedTokens ?? pressureTokens`(本宿主只报 `pressureTokens`,即上一轮 provider 上报的
-  prompt 大小,所以触发点略晚于界面按投影算出的百分比).达到 `rotateAt × contextWindow` 时创建
-  新会话(同一 cwd 与预设),把"上一会话已轮转,只读恢复当前 Plan"的种子与这条消息一起发给它,
-  新 prompt 被接受后**物理删除**旧会话(不是归档).新会话创建或发送失败时回落到旧会话,
-  消息不丢.阈值可在面板里调.
-- 轮转不写在预设行里:预设行读不到 `ctx.agent`(cordis 对服务属性做 inject 守卫),而根插件又
-  不能声明 `agent` 依赖(根上下文里没有 agent).`nano-flow-mount.json` 的 `stages` 记录每一步,
-  挂载/轮转是否生效看这个文件即可.
-- `nano-flow/scripts/check-domain.mjs` 是唯一校验实现,`nano_flow_check` 用
-  `process.execPath` 调用它并把当前设置作为 `--limits` 传入;工具自身只做"不写坏"的写入校验.
-- 四个原样 skill 的哈希记在 `src/nano-flow/assets.lock.json`(随构建复制到 `dist/nano-flow/`),
-  测试逐个比对,防止手滑改动.
+- 所有数字在 **开关旁的下拉设置面板**维护（持久化到 `$DSH_HOME/toolkit/nano-flow.json`）：
+  spec / note / CONTEXT / question / ADR / workflow 体积，名称与描述字数，追踪行数，ADR 数量
+  （默认 55 个）与会话轮转阈值。体积字段在面板里以 **KB** 输入（1 KB = 1024 字节，存储仍是字节）。
+- 预设不挂载压缩插件。轮转挂在**宿主半**：用户每发一条**排队**消息（queue）时，先按会话 id
+  找到存活会话，再用日志里最后一条 `agent-preset/selected` 判断它是否跑 Nano Flow（live header
+  的 `agentPreset` 在恢复会话时不可靠），然后读 `tokenMeter.contextPressure` 的
+  `projectedTokens ?? pressureTokens`。达到 `rotateAt × contextWindow` 时创建新会话（同一 cwd
+  与预设），把"上一会话已轮转，只读恢复当前 Plan"的种子与这条消息一起发给它，新 prompt
+  被接受后**物理删除**旧会话（不是归档）。新会话创建或发送失败时回落到旧会话，消息不丢。
+- 轮转种子只让新会话读 `spec.md` 与 `notes_index.md`，所以每轮结束前必须把检查点写回磁盘：
+  spec 的进度与恢复入口、note 的 status / next_step。
+- 轮转不写在预设行里：预设行读不到 `ctx.agent`（cordis 对服务属性做 inject 守卫），而根插件
+  又不能声明 `agent` 依赖（根上下文里没有 agent）。`nano-flow-mount.json` 的 `stages` 记录每一步，
+  挂载/轮转是否生效看这个文件即可。
+- `nano-flow/scripts/check-domain.mjs` 是唯一校验与索引生成实现，`nano_flow_check` 用
+  `process.execPath` 调用它，并把当前设置作为 `--limits` 传入。
 
-**notes.json 的访问收口(策略级)**
+**已删除的旧能力**
 
-`notes.json` 要经工具才能守住版本校验,索引维护与 `completed` 的入口约束,所以根插件装了两道闸门:
-
-- `tools.guard`:工具层的显式引用. `nano_flow_*` 放行;其余工具只要路径类参数(`file_path` /
-  `path` / `target`)指向 `plans/<lifecycle>/<name>/notes.json`,或 shell 的 `command` / `script`
-  里出现该字面路径,就拒绝. 不扫 `content` / `old_string` / `pattern`:文档里提到路径,搜代码里的
-  `notes.json` 都照常.
-- `ctx.fs` 包装:`readText` / `streamText` / `readBytes` / `readByteRange` / `writeText` /
-  `editText` 按**已解析 target** 拒绝,所以 `read` / `write` / `edit` / `read_image` 与相对路径,
-  别名都绕不过. `nano_flow_*` 自己用 `node:fs`,不受影响.
-
-**这不是安全边界**:`pwsh` / `bash` 子进程,`jobs`,ripgrep 泛搜(搜所有 json),编码过的路径与
-第三方插件都能绕过;策略的目标是挡住模型的常规直读直写,不是对抗本机进程. 保护范围只有
-`plans/<lifecycle>/<name>/notes.json`,工作区里其它同名文件不受影响.
+`nano_flow_read` / `nano_flow_write`、`notes.json` 与 notes DAG、`notes-guard` 的 fs/tools
+收口、ready 面板与 `/api/toolkit/nano-flow-ready`、`story.md`、旧 `QUESTIONS.md` / `INDEX.md`、
+`assets.lock.json`。文档改用普通文件工具读写；`nano_flow_check` 负责机器校验与索引。
 
 **验证**
 
-1. 重新构建并安装插件,重启宿主;新建会话时预设选择器出现"Nano Flow".
-2. 选中该预设:系统提示里出现 Nano Flow 规则,工具目录出现 `nano_flow_*`,skill 目录出现
-   `ask` / `do` / `to-skill` / `code-spec` / `learning` / `kaizen`.
-3. 换一个预设:上述提示词,工具与 skill 全部消失.
-4. 在空工作区让模型建 Plan:首轮出现 `plans/active/<日期>-<名称>/`,`CONTEXT-MAP.md`
-   与领域文档骨架;`nano_flow_check op=workspace` 通过.
-5. 打开 toolkit 面板的"Nano Flow 上限",改一个值并保存;重启后值保持,
-   `nano_flow_check op=limits` 回显新值.
-6. 把轮转阈值调到很低(如 0.05),再发一条排队消息:`.dsh/sessions` 里旧会话目录被删除,
-   客户端列表里换成一个新会话,模型在新会话里只读 `resume` 当前 Plan 并报告进度与可推进队列.
-7. 在 Nano Flow 会话里 `read` Plan 的 `notes.json`:被拒且提示只用 `nano_flow_*`;读其它文件
-   正常,`nano_flow_read` / `nano_flow_write` 正常工作.
-8. 挂载诊断:`$DSH_HOME/toolkit/nano-flow-mount.json` 的 `stages` 应同时有 `entry`
-   (`via: preset`)、`apply`、`ready` 与 `rotation`;缺哪个就说明哪一步没生效.
-9. 把一条 note 置 `waiting`(needs=review):面板摘要出现"N 等待确认", `ready` 不列它,
-   `complete` 在 `in_progress` 时被拒并提示先置 `waiting + needs=review`, 用户确认后才能完成;
-   置 `waiting`(needs=answer) 时 `resume` 单列"等待回答".
+1. 重新构建并安装插件，重启宿主；新建会话时预设选择器出现"Nano Flow"。
+2. 选中该预设：系统提示里出现 Nano Flow 规则；本轮首次请求的上下文中有一句
+   `prompts/user.md`（UI 以 context 卡片显示，不显示为用户消息），后续每轮再追加一次。
+3. 换一个预设：上述提示词、工具与 skill 全部消失。
+4. 在空工作区让模型建 domain、plan、note：出现 `CONTEXT-MAP.md`、域文档骨架、`GUIDE.md`、
+   `spec.md`、`notes_index.md`；`nano_flow_check` 通过并列出更新的索引。
+5. 打开 toolkit 面板的"Nano Flow 设置"，改一个上限并保存；重启后值保持，下一次 check 生效。
+6. 把轮转阈值调到很低（如 0.05），再发一条排队消息：旧会话被物理删除，新会话只读
+   `spec.md` 与 `notes_index.md` 并报告进度。
+7. 挂载诊断：`$DSH_HOME/toolkit/nano-flow-mount.json` 的 `stages` 应同时有 `entry`
+   (`via: preset`)、`apply`、`ready` 与 `rotation`；缺哪个就说明哪一步没生效。
+8. 把一条 note 置 `blocked` 但不写 `reason`：`nano_flow_check` 报"缺少 reason"；补上后通过，
+   spec 的状态与 `## 追踪 Note` 自动更新。
 
 ## 配置
 

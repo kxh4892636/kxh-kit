@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import {
   fetchHiddenSessions,
-  fetchNanoFlowReady,
   fetchToolkitState,
   fetchUndoAvailability,
   HostApiError,
@@ -108,44 +107,6 @@ describe("host api", () => {
     vi.stubGlobal("fetch", fetchMock);
     await expect(fetchHiddenSessions()).resolves.toEqual(["session-a", "session-b"]);
     expect(String(fetchMock.mock.calls[0]?.[0])).toBe("api/toolkit/hidden");
-  });
-
-  it("parses waiting in the ready payload", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn(async () =>
-        json({
-          available: true,
-          plan: { domain: "dsh", lifecycle: "active", name: "2026-11-07-示例工作" },
-          counts: {
-            total: 1,
-            pending: 0,
-            in_progress: 0,
-            waiting: 1,
-            needsBlocked: 0,
-            completed: 0,
-          },
-          groups: [
-            {
-              notes: [
-                {
-                  id: "01",
-                  title: "等真机",
-                  description: "代码已完成",
-                  status: "waiting",
-                  needs: "review",
-                  blocked_by: [],
-                },
-              ],
-            },
-          ],
-        }),
-      ),
-    );
-    const ready = await fetchNanoFlowReady("s1");
-    expect(ready.counts?.waiting).toBe(1);
-    expect(ready.groups?.[0]?.notes[0]?.status).toBe("waiting");
-    expect(ready.groups?.[0]?.notes[0]?.needs).toBe("review");
   });
 
   it("treats an unreachable hidden route as empty", async () => {

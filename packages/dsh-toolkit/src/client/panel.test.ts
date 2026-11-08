@@ -122,14 +122,14 @@ describe("ToolkitPanel", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(createElement(ToolkitPanel));
     const toggle = await screen.findByRole("button", { name: "Nano Flow 设置" });
-    expect(screen.queryByLabelText("story.md KB")).toBeNull();
+    expect(screen.queryByLabelText("spec.md KB")).toBeNull();
     fireEvent.click(toggle);
-    const story = (await screen.findByLabelText("story.md KB")) as HTMLInputElement;
-    expect(story.value).toBe(String(DEFAULT_NANO_FLOW_SETTINGS.storyMaxBytes / 1024));
-    fireEvent.change(story, { target: { value: "2" } });
+    const spec = (await screen.findByLabelText("spec.md KB")) as HTMLInputElement;
+    expect(spec.value).toBe(String(DEFAULT_NANO_FLOW_SETTINGS.specMaxBytes / 1024));
+    fireEvent.change(spec, { target: { value: "2" } });
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(posts).toHaveLength(1));
-    expect((posts[0] as { patch: { storyMaxBytes: number } }).patch.storyMaxBytes).toBe(2048);
+    expect((posts[0] as { patch: { specMaxBytes: number } }).patch.specMaxBytes).toBe(2048);
   });
 
   it("keeps the rotation threshold decimal and accepts thousands separators", async () => {
@@ -150,13 +150,13 @@ describe("ToolkitPanel", () => {
     const rotate = (await screen.findByLabelText("轮转阈值 比例")) as HTMLInputElement;
     expect(rotate.value).toBe(String(DEFAULT_NANO_FLOW_SETTINGS.rotateAt));
     fireEvent.change(rotate, { target: { value: "0.7" } });
-    const story = (await screen.findByLabelText("story.md KB")) as HTMLInputElement;
-    fireEvent.change(story, { target: { value: "1,000" } });
+    const spec = (await screen.findByLabelText("spec.md KB")) as HTMLInputElement;
+    fireEvent.change(spec, { target: { value: "1,000" } });
     fireEvent.click(screen.getByRole("button", { name: "保存" }));
     await waitFor(() => expect(posts).toHaveLength(1));
-    const patch = (posts[0] as { patch: { rotateAt: number; storyMaxBytes: number } }).patch;
+    const patch = (posts[0] as { patch: { rotateAt: number; specMaxBytes: number } }).patch;
     expect(patch.rotateAt).toBe(0.7);
-    expect(patch.storyMaxBytes).toBe(1024000);
+    expect(patch.specMaxBytes).toBe(1024000);
   });
 
   it("hides the settings toggle when Nano Flow is off", async () => {

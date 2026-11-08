@@ -3,7 +3,6 @@ import { clientService, type ClientContext } from "./contract.js";
 import { fetchHiddenSessions, fetchToolkitState } from "./host-api.js";
 import { ToolkitPanel } from "./panel.js";
 import { ToolkitPanelIcon } from "./panel-icon.js";
-import { ReadyPanel } from "./ready-panel.js";
 import { toolkitClientState } from "./state.js";
 import {
   guardTombstones,
@@ -45,16 +44,6 @@ export const apply = (ctx: ClientContext): void => {
         inject: () => ({ ctx }),
       },
       UndoButton,
-    ),
-  );
-  ctx.slots.inject("conversation.input.dock", () =>
-    ctx.slots.register(
-      {
-        name: "conversation.input.dock",
-        id: "nano-flow-ready",
-        order: 10,
-      },
-      ReadyPanel,
     ),
   );
   void fetchToolkitState()
