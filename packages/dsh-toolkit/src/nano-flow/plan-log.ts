@@ -213,14 +213,16 @@ export const buildTurnRecord = (options: {
  * 事件大多带 `data.turn`，但 `user/message` 不带；这类事件按 seq 落在哪个
  * `turn/start` → `turn/end` 窗口内归属。
  * @param events - 一段已提交事件。
+ * @param startTurn - 该段事件之前仍在进行的轮号（分段读取时用于归属无 `turn` 的事件）。
  * @returns turn → 事件列表。
  */
 export const groupByTurn = (
   events: readonly SessionEventLike[],
+  startTurn?: number,
 ): Map<number, SessionEventLike[]> => {
   const ordered = [...events].sort((left, right) => (left.seq ?? 0) - (right.seq ?? 0));
   const turns = new Map<number, SessionEventLike[]>();
-  let current: number | undefined;
+  let current: number | undefined = startTurn;
   for (const event of ordered) {
     const explicit = asRecord(event.data)["turn"];
     const own = typeof explicit === "number" ? explicit : undefined;

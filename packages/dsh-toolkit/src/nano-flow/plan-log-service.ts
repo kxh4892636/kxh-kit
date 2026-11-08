@@ -64,6 +64,8 @@ interface SessionState {
   cursor: number;
   seen: Set<string>;
   headerWritten: boolean;
+  /** 未结束轮的已读事件：跨多次 flush 合并，`turn/end` 到达时一次成型。 */
+  pending: Map<number, SessionEventLike[]>;
   chain: Promise<void>;
 }
 
@@ -142,6 +144,7 @@ export const createPlanLogService = (options: PlanLogOptions): PlanLogService =>
         cursor: -1,
         seen: new Set(),
         headerWritten: false,
+        pending: new Map(),
         chain: Promise.resolve(),
       };
       sessions.set(sessionId, state);
@@ -189,8 +192,12 @@ export const createPlanLogService = (options: PlanLogOptions): PlanLogService =>
     }
     const turns = groupByTurn(snapshot.events);
     const ordered = [...turns.entries()].sort((left, right) => left[0] - right[0]);
+    state.pending.clear();
     for (const [turn, events] of ordered) {
-      if (!events.some((event) => event.type === "turn/end")) continue;
+      if (!events.some((event) => event.type === "turn/end")) {
+        state.pending.set(turn, [...events]);
+        continue;
+      }
       await appendTurn(state, turn, events);
     }
     state.cursor = Math.max(state.cursor, maxSeq);
@@ -237,14 +244,22 @@ export const createPlanLogService = (options: PlanLogOptions): PlanLogService =>
     if (state.binding === undefined || state.handle === undefined) return;
     const start = Math.max(state.cursor + 1, 0);
     const read = await state.handle.read(start, 5_000);
+    if (read.events.length === 0) return;
     let maxSeq = state.cursor;
     for (const event of read.events) {
       if (typeof event.seq === "number" && event.seq > maxSeq) maxSeq = event.seq;
     }
-    const turns = groupByTurn(read.events);
+    const ongoing = [...state.pending.keys()].at(-1);
+    const turns = groupByTurn(read.events, ongoing);
     for (const [turn, events] of [...turns.entries()].sort((left, right) => left[0] - right[0])) {
-      if (!events.some((event) => event.type === "turn/end")) continue;
-      await appendTurn(state, turn, events);
+      const buffered = state.pending.get(turn) ?? [];
+      const merged = [...buffered, ...events];
+      if (!events.some((event) => event.type === "turn/end")) {
+        state.pending.set(turn, merged);
+        continue;
+      }
+      await appendTurn(state, turn, merged);
+      state.pending.delete(turn);
     }
     state.cursor = maxSeq;
   };

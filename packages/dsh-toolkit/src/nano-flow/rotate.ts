@@ -49,14 +49,22 @@ interface SessionControllerLike {
   prompt(request: PromptRequestLike, signal: AbortSignal): Promise<{ accepted: boolean }>;
 }
 
-/** 工作区注册表的最小形状（与撤回共用同一套记账）。 */
+/** 一个工作区记录：会话记账与成员方法。 */
+interface WorkspaceRecordLike {
+  readonly sessionIds: readonly string[];
+  attachSession?(sessionId: string): Promise<void>;
+  insertSessionBefore?(sessionId: string, beforeSessionId?: string): Promise<void>;
+  detachSession(sessionId: string): Promise<void>;
+}
+
+/** 工作区注册表的最小形状（与撤回共用同一套记账；置顶为 0.2 起的新面）。 */
 interface WorkspaceRegistryLike {
-  list(): readonly {
-    readonly sessionIds: readonly string[];
-    detachSession(sessionId: string): Promise<void>;
-  }[];
+  list(): readonly WorkspaceRecordLike[];
   archiveSession(sessionId: string, options?: { stopActivity?: boolean }): Promise<void>;
   unarchiveSession(sessionId: string): Promise<void>;
+  readonly pinnedSessionIds?: readonly string[];
+  pinSession?(sessionId: string): Promise<void>;
+  unpinSession?(sessionId: string): Promise<void>;
 }
 
 /** 工作目录服务。 */
@@ -200,6 +208,46 @@ export const attachRotation = (options: RotationOptions): (() => void) => {
     if (current !== undefined) await current.announceRemoved(sessionId).catch(() => undefined);
   };
 
+  const warnPlacement = (what: string, error: unknown): void => {
+    options.services.logger.warn(
+      `nano-flow: carry ${what} during rotation failed: ${describe(error)}`,
+    );
+  };
+
+  /** 把旧会话的分组与置顶状态过继给新会话；失败只警告，不阻断轮转。 */
+  const inheritPlacement = async (oldId: string, newId: string): Promise<void> => {
+    if (workspaces === undefined) return;
+    let holders: readonly WorkspaceRecordLike[] = [];
+    let pinned = false;
+    try {
+      holders = workspaces.list().filter((record) => record.sessionIds.includes(oldId));
+      pinned = (workspaces.pinnedSessionIds ?? []).includes(oldId);
+    } catch (error) {
+      warnPlacement("read", error);
+    }
+    for (const record of holders) {
+      try {
+        await record.attachSession?.(newId);
+        const index = record.sessionIds.indexOf(oldId);
+        const successor = index >= 0 ? record.sessionIds[index + 1] : undefined;
+        await record.insertSessionBefore?.(newId, successor);
+      } catch (error) {
+        warnPlacement("workspace membership", error);
+      }
+    }
+    if (!pinned) return;
+    try {
+      await workspaces.pinSession?.(newId);
+    } catch (error) {
+      warnPlacement("pin", error);
+    }
+    try {
+      await workspaces.unpinSession?.(oldId);
+    } catch (error) {
+      warnPlacement("unpin", error);
+    }
+  };
+
   const original = controller.prompt.bind(controller);
   const target = controller as unknown as { prompt: SessionControllerLike["prompt"] };
   const previous = target.prompt;
@@ -229,6 +277,7 @@ export const attachRotation = (options: RotationOptions): (() => void) => {
         ...(cwd === undefined ? {} : { cwd }),
         agentPreset: presetId,
       });
+      await inheritPlacement(session.id, created.sessionId);
       const seed = await buildSeed(cwd ?? process.cwd(), domainRoot);
       const result = await original(
         {

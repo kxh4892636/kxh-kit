@@ -28,7 +28,7 @@ const sessionOf = (
   snapshotEvents: () => [{ type: "agent-preset/selected", data: { agentPreset: preset } }],
 });
 
-const makeHarness = () => {
+const makeHarness = (workspaceRegistry?: unknown) => {
   let pressure: Pressure = { pressureTokens: 10, contextWindow: 1000 };
   const sessions = new Map<string, RotationSession>([
     ["session-1", sessionOf("session-1")],
@@ -45,6 +45,7 @@ const makeHarness = () => {
         return { contextPressure: () => pressure };
       }
       if (name === "sessionController") return controller;
+      if (name === "workspaceRegistry") return workspaceRegistry;
       return undefined;
     },
     logger: { warn: vi.fn() },
@@ -74,6 +75,43 @@ const makeHarness = () => {
     sessions,
     setPressure: (next: Pressure) => (pressure = next),
   };
+};
+
+const makeWorkspaceRegistry = () => {
+  const ids = ["session-older", "session-1", "session-later"];
+  const pinned = ["session-1"];
+  const record = {
+    get sessionIds() {
+      return [...ids];
+    },
+    attachSession: vi.fn(async (sessionId: string) => {
+      if (!ids.includes(sessionId)) ids.unshift(sessionId);
+    }),
+    insertSessionBefore: vi.fn(async (sessionId: string, beforeSessionId?: string) => {
+      const without = ids.filter((id) => id !== sessionId);
+      const at = beforeSessionId === undefined ? without.length : without.indexOf(beforeSessionId);
+      const next = [...without.slice(0, at), sessionId, ...without.slice(at)];
+      ids.splice(0, ids.length, ...next);
+    }),
+    detachSession: vi.fn(async (sessionId: string) => {
+      const at = ids.indexOf(sessionId);
+      if (at >= 0) ids.splice(at, 1);
+    }),
+  };
+  const registry = {
+    list: () => [record],
+    archiveSession: vi.fn(async () => {}),
+    unarchiveSession: vi.fn(async () => {}),
+    pinnedSessionIds: pinned,
+    pinSession: vi.fn(async (sessionId: string) => {
+      if (!pinned.includes(sessionId)) pinned.unshift(sessionId);
+    }),
+    unpinSession: vi.fn(async (sessionId: string) => {
+      const at = pinned.indexOf(sessionId);
+      if (at >= 0) pinned.splice(at, 1);
+    }),
+  };
+  return { registry, record, ids, pinned };
 };
 
 describe("selectedPreset", () => {
@@ -150,6 +188,17 @@ describe("attachRotation", () => {
     expect(harness.create).toHaveBeenCalledTimes(1);
     const last = harness.originalPrompt.mock.calls.at(-1)?.[0];
     expect(last?.sessionId).toBe("session-1");
+  });
+
+  it("carries the old session's workspace slot and pin to the new session", async () => {
+    const workspace = makeWorkspaceRegistry();
+    const harness = makeHarness(workspace.registry);
+    harness.setPressure({ projectedTokens: 700, contextWindow: 1000 });
+    await harness.send();
+    expect(workspace.record.attachSession).toHaveBeenCalledWith("session-new");
+    expect(workspace.ids).toEqual(["session-older", "session-1", "session-new", "session-later"]);
+    expect(workspace.registry.pinSession).toHaveBeenCalledWith("session-new");
+    expect(workspace.pinned).toEqual(["session-new"]);
   });
 
   it("restores the original prompt on dispose", () => {

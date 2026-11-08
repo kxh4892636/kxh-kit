@@ -1,12 +1,11 @@
 ---
 name: "009-Plan轨迹日志"
 description: "在每个 Plan 目录追加 log.jsonl，把对应 nano-flow 会话的每轮轨迹（精简）持久化。"
-status: blocked
-reason: "0.5.22 已实现并安装；等待重启宿主验证 live 事件绑定、log.jsonl 落盘与回填"
+status: in_progress
 related_noted:
   - '007-会话内未完成note面板'
   - '008-修复notes事件导致会话历史加载失败'
-next_step: '重启后在 nano-flow 会话聊几轮，确认 <plan>/log.jsonl 出现 session 段头与 turn 记录'
+next_step: '重装 0.5.23 并重启宿主，触发绑定轮，确认记录含完整 user/assistant/tools/usage/seq；再验轮转后新段头'
 ---
 
 # 009-Plan轨迹日志
@@ -91,6 +90,10 @@ next_step: '重启后在 nano-flow 会话聊几轮，确认 <plan>/log.jsonl 出
 - 真实会话探针（`session-80f0ac73`，3146 条事件）：19 轮全部生成记录、518 次工具调用、compact 总计 **945 KB**（原始 7.84 MB）。
 - 构建/安装：0.5.22 已装入 desktop profile，安装包与本地构建 SHA256 一致；插件 peer 解析指向本地 0.2.2 树。
 - **未验证（需重启宿主）**：真实运行时绑定触发、`log.jsonl` 落盘、轮转后续写；因为这些依赖宿主 live 事件与持久化句柄。
+
+## 验收记录
+
+live 验收（0.5.22）与绑定轮修复（0.5.23）见 [011-轨迹日志绑定轮修复](011-轨迹日志绑定轮修复.md)。
 
 ## 第 1 轮拷问
 

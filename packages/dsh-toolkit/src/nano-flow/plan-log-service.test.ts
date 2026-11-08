@@ -114,6 +114,62 @@ describe("createPlanLogService", () => {
     await service.dispose();
   });
 
+  it("keeps the binding turn whole when binding happens mid-turn", async () => {
+    const root = await makeRoot();
+    const plan = planFor(root);
+    const partial = [
+      ...turn(1, 0),
+      event("turn/start", 100, { turn: 2 }),
+      event("user/message", 101, { content: [{ type: "text", text: "问题2" }] }),
+      event("tool/call", 102, {
+        turn: 2,
+        step: 1,
+        callId: "call-read",
+        name: "read",
+        arguments: "{}",
+      }),
+      event("tool/result", 103, {
+        turn: 2,
+        message: { content: [{ type: "text", text: "内容" }], source: { callId: "call-read" } },
+      }),
+      nanoFlowToolCall(2, 104),
+    ];
+    const events = [...partial];
+    const service = makeService(root, () => [plan]);
+    service.attach(makePersistence(events));
+    service.onEvent(session(root), partial[partial.length - 1]);
+    await vi.waitFor(async () => {
+      expect(await readFile(join(plan, "log.jsonl"), "utf8")).toContain('"turn":1');
+    });
+    events.push(
+      event("tool/result", 105, {
+        turn: 2,
+        message: { content: [{ type: "text", text: "ok" }], source: { callId: "call-nf" } },
+      }),
+      event("assistant/message", 106, {
+        turn: 2,
+        step: 2,
+        message: { content: [{ type: "text", text: "回答2" }] },
+      }),
+      event("turn/end", 107, { turn: 2, reason: { kind: "completed" } }),
+    );
+    service.onEvent(session(root), events[events.length - 1]);
+    await vi.waitFor(async () => {
+      expect(await readFile(join(plan, "log.jsonl"), "utf8")).toContain('"turn":2');
+    });
+    const lines = (await readFile(join(plan, "log.jsonl"), "utf8"))
+      .trim()
+      .split("\n")
+      .map((line) => JSON.parse(line) as Record<string, unknown>);
+    const second = lines.find((line) => line["turn"] === 2) as
+      | { user: string; assistant: string; tools: { name: string }[] }
+      | undefined;
+    expect(second?.user).toBe("问题2");
+    expect(second?.assistant).toBe("回答2");
+    expect(second?.tools.map((tool) => tool.name)).toEqual(["read", "nano_flow_check"]);
+    await service.dispose();
+  });
+
   it("does not duplicate turns when the service restarts", async () => {
     const root = await makeRoot();
     const plan = planFor(root);

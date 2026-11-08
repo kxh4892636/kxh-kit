@@ -144,6 +144,11 @@ describe("groupByTurn", () => {
     expect([...groups.keys()].sort((left, right) => left - right)).toEqual([1, 2]);
     expect(groups.get(1)).toHaveLength(2);
   });
+
+  it("keeps a chunk that starts mid-turn attributed to the ongoing turn", () => {
+    const groups = groupByTurn([event("user/message", 11, { content: [] })], 3);
+    expect(groups.get(3)).toHaveLength(1);
+  });
 });
 
 describe("isNanoFlowPreset", () => {

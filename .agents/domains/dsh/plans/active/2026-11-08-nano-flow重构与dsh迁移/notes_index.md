@@ -13,3 +13,5 @@
 | [007-会话内未完成note面板](007-%E4%BC%9A%E8%AF%9D%E5%86%85%E6%9C%AA%E5%AE%8C%E6%88%90note%E9%9D%A2%E6%9D%BF.md) | 在输入框 dock 展示当前会话绑定 Plan 的未完成 note，样式与 TODO 面板一致。 | 006-固定提示词改名为system, 008-修复notes事件导致会话历史加载失败 |
 | [008-修复notes事件导致会话历史加载失败](008-%E4%BF%AE%E5%A4%8Dnotes%E4%BA%8B%E4%BB%B6%E5%AF%BC%E8%87%B4%E4%BC%9A%E8%AF%9D%E5%8E%86%E5%8F%B2%E5%8A%A0%E8%BD%BD%E5%A4%B1%E8%B4%A5.md) | nano-flow 会话写入的 nano-flow/notes 事件没有 ignorable 标记，宿主冷读日志时拒绝加载整个会话。 | 007-会话内未完成note面板 |
 | [009-Plan轨迹日志](009-Plan%E8%BD%A8%E8%BF%B9%E6%97%A5%E5%BF%97.md) | 在每个 Plan 目录追加 log.jsonl，把对应 nano-flow 会话的每轮轨迹（精简）持久化。 | 007-会话内未完成note面板, 008-修复notes事件导致会话历史加载失败 |
+| [010-轮转保留分组与置顶](010-%E8%BD%AE%E8%BD%AC%E4%BF%9D%E7%95%99%E5%88%86%E7%BB%84%E4%B8%8E%E7%BD%AE%E9%A1%B6.md) | 轮转创建的新会话要继承旧会话的工作区分组槽位与置顶状态，不再掉进「未分组」。 | 009-Plan轨迹日志 |
+| [011-轨迹日志绑定轮修复](011-%E8%BD%A8%E8%BF%B9%E6%97%A5%E5%BF%97%E7%BB%91%E5%AE%9A%E8%BD%AE%E4%BF%AE%E5%A4%8D.md) | live 验收发现绑定轮记录不完整；改用按轮 pending 缓冲合并未完成轮事件，待重启复验。 | 009-Plan轨迹日志 |
