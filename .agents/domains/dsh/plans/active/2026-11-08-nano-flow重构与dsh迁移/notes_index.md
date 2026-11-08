@@ -32,3 +32,4 @@
 | [026-dream并行化](026-dream并行化.md) | dream.md 增加按业务域 subagent 并行：子 agent 只写本域，common/GUIDE/check/commit/游标由父会话收口；发布 0.5.32。 | 019-dream机制设计, 023-dream指令与自动化接入, 024-访问信号与剪枝验收 |
 | [027-索引链接恢复中文](027-索引链接恢复中文.md) | 修复 check 生成的索引把中文转成 %E8… 的问题：只转义 ASCII 不安全字符，链接保持中文；发布 0.5.33。 | 022-互链与check扩展, 024-访问信号与剪枝验收 |
 | [028-轮转绑定继承旧会话的Plan](028-轮转绑定继承旧会话的Plan.md) | 轮转后的自动绑定改为继承轮转前会话的 Plan（与工作区 active Plan 数量无关），无绑定或目录失效时跳过；0.5.34。 | 017-轮转后自动校验Plan并绑定看板, 018-恢复Plan开头自动校验, 024-访问信号与剪枝验收 |
+| [029-恢复时显式Plan绑定](029-恢复时显式Plan绑定.md) | 非轮转恢复也能绑定：nano_flow_check 带 plan 时跨 active/reference/archived 定位并绑定本会话；system.md 恢复条款改为已知 Plan 时带 plan。 | 018-恢复Plan开头自动校验, 028-轮转绑定继承旧会话的Plan |
