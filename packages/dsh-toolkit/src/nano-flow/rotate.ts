@@ -112,6 +112,9 @@ export const selectedPreset = (session: RotationSession): string | undefined => 
 
 const ROTATE_DELAY_MS = 150;
 
+/** 命令路径退役旧会话的延迟：让 `command/done` 先写进旧会话日志。 */
+const MANUAL_RETIRE_DELAY_MS = 500;
+
 const delay = (ms: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, ms);
@@ -375,7 +378,12 @@ export const createRotation = (options: RotationOptions): RotationEngine => {
         );
         rotated.add(session.id);
         options.onRotated?.(session.id, created.sessionId);
-        await retire(session.id);
+        // 命令的生命周期事件（command/done）在 handler 返回后才落盘，退役要等它写完。
+        setTimeout(() => {
+          void retire(session.id).catch((error: unknown) => {
+            services.logger.warn(`nano-flow: retire of "${session.id}" failed: ${describe(error)}`);
+          });
+        }, MANUAL_RETIRE_DELAY_MS);
         return result;
       } catch (error) {
         services.logger.warn(`nano-flow: manual rotation failed: ${describe(error)}`);

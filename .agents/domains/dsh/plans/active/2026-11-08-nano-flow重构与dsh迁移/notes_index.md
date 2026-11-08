@@ -17,3 +17,4 @@
 | [011-轨迹日志绑定轮修复](011-%E8%BD%A8%E8%BF%B9%E6%97%A5%E5%BF%97%E7%BB%91%E5%AE%9A%E8%BD%AE%E4%BF%AE%E5%A4%8D.md) | live 验收发现绑定轮记录不完整；改用按轮 pending 缓冲合并未完成轮事件，待重启复验。 | 009-Plan轨迹日志 |
 | [012-rotate命令与轮转输入标注](012-rotate%E5%91%BD%E4%BB%A4%E4%B8%8E%E8%BD%AE%E8%BD%AC%E8%BE%93%E5%85%A5%E6%A0%87%E6%B3%A8.md) | 新增 /rotate 命令手动触发轮转（新会话、自动只读恢复、切过去），并把自动轮转时触发的用户输入用 XML 标注为轮转前输入。 | 010-轮转保留分组与置顶, 011-轨迹日志绑定轮修复 |
 | [013-note状态先行约束](013-note%E7%8A%B6%E6%80%81%E5%85%88%E8%A1%8C%E7%BA%A6%E6%9D%9F.md) | nano-flow 系统提示词要求新建或变更 note 时先落 YAML 头再补正文，使 Note 看板及时反映状态。 | 007-会话内未完成note面板 |
+| [014-nano-flow预设改PTC模式](014-nano-flow%E9%A2%84%E8%AE%BE%E6%94%B9PTC%E6%A8%A1%E5%BC%8F.md) | nano-flow 预设从标准模式改为 PTC 模式基准：加 tool-presentation(ptc) 行，模型经 run_code 调用工具。 | 012-rotate命令与轮转输入标注 |

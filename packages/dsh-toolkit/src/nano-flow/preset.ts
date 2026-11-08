@@ -48,7 +48,8 @@ export const NANO_FLOW_PRESET_ID = "nano-flow";
 export const createNanoFlowPreset = (entryUrl: string): PresetDefinitionLike => ({
   id: NANO_FLOW_PRESET_ID,
   name: "Nano Flow",
-  description: "以 spec + note 为唯一权威状态的交付流程：ask 拷问、do 交付。",
+  description:
+    "以 spec + note 为唯一权威状态的交付流程：ask 拷问、do 交付；工具经 PTC 模式（run_code）呈现。",
   order: 2,
   plugins: [
     {
@@ -65,6 +66,13 @@ export const createNanoFlowPreset = (entryUrl: string): PresetDefinitionLike => 
       config: { maxBytes: 65536 },
     },
     { id: "time-context", name: "@deepseek-ai/dsh-time-context" },
+    // PTC 模式：模型只看到 run_code + 生成的 SDK，工具调用写在一个 TypeScript 程序里。
+    // 需要宿主已挂 codeRuntime（web-app bundle 的 code-runtime 行）。
+    {
+      id: "tool-presentation",
+      name: "@deepseek-ai/dsh-agent-tool-presentation",
+      config: { mode: "ptc" },
+    },
     {
       id: "tool-bash",
       name: "@deepseek-ai/dsh-tool-bash",
