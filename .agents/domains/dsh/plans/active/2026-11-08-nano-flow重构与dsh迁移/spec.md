@@ -1,7 +1,7 @@
 ---
 name: 'nano-flow 重构与 dsh 迁移'
 description: '把 nano-flow 插件重构、dsh 领域文档生成与旧 plans 迁移收进同一个 Plan。'
-status: in_progress
+status: completed
 ---
 
 # nano-flow 重构与 dsh 迁移
@@ -25,13 +25,13 @@ status: in_progress
 - note 004 把生成的 `CONTEXT-MAP.md` 从工作区根迁到 `.agents/domains/`（版本 0.5.11）。
 - note 005 修正旧 Plan 的 119 条失效相对链接：46 条重指、73 条死链降为纯文本。
 - note 006 把固定提示词改名为 `prompts/system.md`，段名改 `nano-flow:system`，顺带消除被当成 `AGENTS.md` 注入的副作用。
-- note 007 新增会话内 Note 面板：`conversation.input.dock` + 宿主路由快照 + 客户端 5s 轮询；行内改为「中文状态名 + note 名称」（`blocked`，等用户确认文本版观感）。
+- note 007 新增会话内 Note 面板：`conversation.input.dock` + 宿主路由快照 + 客户端 5s 轮询；行内为「中文状态名 + note 名称」（已验收）。
 - note 008 定位并修复 `nano-flow/notes` 事件导致的历史加载失败：补 `ignorable` 止血，面板数据改走宿主路由；用户已确认历史加载正常（`completed`）。
 - `nano_flow_check` 通过；插件已安装 0.5.21。
 
 ## 当前进度
 
-note 001–006、008 完成；note 007 处于 `blocked`，只差用户确认 0.5.21 的文本版面板（标题 + 「阻塞/待处理/进行中 + note 名称」+ 收起/展开）。期间定位并修复了面板首帧渲染崩溃（插件 bundle 里 primitives 导出为 `undefined`，React #130）：改为可渲染才复用、否则内联兜底，并按用户要求去掉图标。测试 262 项、`vp check` 通过。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
+全部完成并验收：Note 面板（0.5.21 文本版）与历史加载修复均通过用户确认。测试 262 项、`vp check` 通过。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
 
 ## 恢复入口
 
@@ -43,4 +43,3 @@ note 001–006、008 完成；note 007 处于 `blocked`，只差用户确认 0.5
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [007-会话内未完成note面板](007-%E4%BC%9A%E8%AF%9D%E5%86%85%E6%9C%AA%E5%AE%8C%E6%88%90note%E9%9D%A2%E6%9D%BF.md) | 在输入框 dock 展示当前会话绑定 Plan 的未完成 note，样式与 TODO 面板一致。 | blocked | 0.5.21 已把行内状态改成中文名并去掉图标；等待用户确认文本版面板的最终观感 | 重启后确认面板已显示「阻塞 + note 名称」，确认后置 completed | 006-固定提示词改名为system, 008-修复notes事件导致会话历史加载失败 |

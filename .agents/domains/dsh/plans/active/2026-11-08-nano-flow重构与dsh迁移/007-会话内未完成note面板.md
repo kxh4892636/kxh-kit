@@ -1,12 +1,12 @@
 ---
 name: "007-会话内未完成note面板"
 description: "在输入框 dock 展示当前会话绑定 Plan 的未完成 note，样式与 TODO 面板一致。"
-status: blocked
-reason: "0.5.21 已把行内状态改成中文名并去掉图标；等待用户确认文本版面板的最终观感"
+status: completed
+reason:
 related_noted:
   - '006-固定提示词改名为system'
   - '008-修复notes事件导致会话历史加载失败'
-next_step: '重启后确认面板已显示「阻塞 + note 名称」，确认后置 completed'
+next_step: '已验收：用户确认文本版面板（阻塞 + note 名称）正常'
 ---
 
 # 007-会话内未完成note面板
@@ -141,4 +141,5 @@ next_step: '重启后确认面板已显示「阻塞 + note 名称」，确认后
 ## 验收现状
 
 - 面板已显示（用户截图确认：标题「Note 2 阻塞」+ 两条 blocked）。
-- 待确认：文本版行内状态与折叠文本的最终观感（0.5.21，重启后生效）。
+- 0.5.21 文本版已验收：用户确认「007 也 ok 了」（截图：`阻塞 007-会话内未完成note面板`、右上「收起」）。
+- 结论：验收通过，置 `completed`。
