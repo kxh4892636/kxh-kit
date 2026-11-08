@@ -84,11 +84,9 @@ const SETTING_KEYS = [
   "specMaxBytes",
   "noteMaxBytes",
   "noteDescriptionMaxChars",
-  "indexMaxRows",
   "contextMaxBytes",
   "questionMaxBytes",
   "adrMaxBytes",
-  "adrMaxCount",
   "workflowMaxBytes",
   "rotateAt",
 ] as const;

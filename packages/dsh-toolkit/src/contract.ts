@@ -70,34 +70,28 @@ export interface NanoFlowSettings {
   readonly specMaxBytes: number;
   /** 单条 note 正文上限（字节）。 */
   readonly noteMaxBytes: number;
-  /** 名称/描述/索引单元格的字数上限。 */
+  /** description 的字数上限。 */
   readonly noteDescriptionMaxChars: number;
-  /** spec 追踪 Note 的最大行数。 */
-  readonly indexMaxRows: number;
   /** CONTEXT.md 上限（字节）。 */
   readonly contextMaxBytes: number;
   /** 单个 question 上限（字节）。 */
   readonly questionMaxBytes: number;
   /** 单个 ADR 上限（字节）。 */
   readonly adrMaxBytes: number;
-  /** 单个域的 ADR 数量上限。 */
-  readonly adrMaxCount: number;
   /** 单个 workflow 上限（字节）。 */
   readonly workflowMaxBytes: number;
   /** 上下文占用达到最大上下文的这个比例后轮转会话（0–1）。 */
   readonly rotateAt: number;
 }
 
-/** 默认值（面板按 KB 显示）：34 / 13 KB，144 字，21 行，89 / 13 / 13 / 34 KB，55 个 ADR，轮转阈值 0.618。 */
+/** 默认值（面板按 KB 显示）：34 / 13 KB，233 字，89 / 13 / 13 / 34 KB，轮转阈值 0.618。 */
 export const DEFAULT_NANO_FLOW_SETTINGS: NanoFlowSettings = {
   specMaxBytes: 34 * 1024,
   noteMaxBytes: 13 * 1024,
-  noteDescriptionMaxChars: 144,
-  indexMaxRows: 21,
+  noteDescriptionMaxChars: 233,
   contextMaxBytes: 89 * 1024,
   questionMaxBytes: 13 * 1024,
   adrMaxBytes: 13 * 1024,
-  adrMaxCount: 55,
   workflowMaxBytes: 34 * 1024,
   rotateAt: 0.618,
 };

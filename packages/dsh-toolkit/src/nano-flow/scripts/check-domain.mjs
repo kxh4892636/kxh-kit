@@ -31,12 +31,10 @@ export const ADR_STATUSES = Object.freeze(["proposed", "accepted", "deprecated",
 export const DEFAULT_LIMITS = Object.freeze({
   specMaxBytes: 34 * 1024,
   noteMaxBytes: 13 * 1024,
-  noteDescriptionMaxChars: 144,
-  indexMaxRows: 21,
+  noteDescriptionMaxChars: 233,
   contextMaxBytes: 89 * 1024,
   questionMaxBytes: 13 * 1024,
   adrMaxBytes: 13 * 1024,
-  adrMaxCount: 55,
   workflowMaxBytes: 34 * 1024,
 });
 
@@ -373,27 +371,19 @@ const noteRow = (note, includeStatus) => {
   return cells;
 };
 
-const renderTracked = (notes, limitRows) => {
+const renderTracked = (notes) => {
   const incomplete = notes.filter((note) => note.status !== "completed");
   const priority = { blocked: 0, in_progress: 1, pending: 2, completed: 3 };
   incomplete.sort((left, right) => {
     const gap = (priority[left.status] ?? 9) - (priority[right.status] ?? 9);
     return gap === 0 ? sortByName(left, right) : gap;
   });
-  const shown = incomplete.slice(0, Math.max(0, limitRows));
-  const rows = shown.map((note) => noteRow(note, true));
-  const lines = [
+  const rows = incomplete.map((note) => noteRow(note, true));
+  return [
     GENERATED_MARKER,
     "",
     indexTable(["Name", "Description", "Status", "Reason", "Next Step", "Related Note"], rows),
-  ];
-  if (incomplete.length > shown.length) {
-    lines.push(
-      "",
-      `其余 ${incomplete.length - shown.length} 条未完成 note 见 [notes_index.md](notes_index.md)。`,
-    );
-  }
-  return lines.join("\n");
+  ].join("\n");
 };
 
 const renderNotesIndex = (notes) => {
@@ -526,15 +516,6 @@ const scanNumberedDocuments = (ctx, directory, kind, options) => {
         );
       }
     }
-  }
-  if (kind === "adr" && documents.length > ctx.limits.adrMaxCount) {
-    addIssue(
-      ctx.errors,
-      ctx.rootDir,
-      directory,
-      "count",
-      `ADR 数量 ${documents.length} 超过 ${ctx.limits.adrMaxCount}`,
-    );
   }
   return documents;
 };
@@ -844,7 +825,7 @@ const scanPlan = (ctx, planDirectory, planName) => {
       );
     }
     const range = findTrackedRange(spec.content, ctx, specFile);
-    const tracked = renderTracked(notes, ctx.limits.indexMaxRows);
+    const tracked = renderTracked(notes);
     if (range === null) {
       const next = `${spec.content.replace(/\s+$/u, "")}\n\n## 追踪 Note\n\n${tracked}\n`;
       writeGenerated(ctx, specFile, next);

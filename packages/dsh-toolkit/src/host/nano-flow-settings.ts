@@ -10,11 +10,9 @@ const INTEGER_KEYS = [
   "specMaxBytes",
   "noteMaxBytes",
   "noteDescriptionMaxChars",
-  "indexMaxRows",
   "contextMaxBytes",
   "questionMaxBytes",
   "adrMaxBytes",
-  "adrMaxCount",
   "workflowMaxBytes",
 ] as const;
 

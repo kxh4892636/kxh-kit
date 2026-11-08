@@ -8,8 +8,8 @@
 
 1. 用户显式指定 `/ask`、`/do`，或对应 skill 的内容；
 2. 恢复已有 Plan（用户说“恢复”“继续”且本会话还没加载它）→ 只读恢复，见“恢复与轮转”；
-3. 已报告过 Plan 的接续输入 → `/do skill`；
-4. 其余 → `/ask skill`。
+3. 用户已放行且有可推进的 note → `/do skill`；
+4. 其余(目标、边界或方案未定，或需向用户取证时) → `/ask skill`。
 
 判断后先读对应 skill 再动手；切换循环前先报告。
 
@@ -65,7 +65,7 @@ metadata:
 ```
 
 - `name`：索引的唯一键。`adr`、`question`、`note`、`workflow` 的 name 必须带三位数字前缀，并与文件名/目录名一致，例如 `001-取消订单`。
-- `description`：单行、最多 144 字，索引直接使用。
+- `description`：单行，索引直接使用；上限见启动时注入的「篇幅限制」块。
 - `metadata`：自由字段；check 不解释。
 - CONTEXT 额外有 `relations`：`[{ to: 目标域目录名, description: 关系说明 }]`；跨域关系只在源域定义一次。
 - ADR 可选 `status`：`proposed | accepted | deprecated | superseded`。
@@ -113,7 +113,7 @@ Plan 只有三类文档：`spec.md`、`notes_index.md`（生成）和若干 `001
 - 一条 note 只跟进一个原子化、独立的子任务；不同子任务使用同一模板，正文自由组织，不强制固定章节。按工作性质写清交付、验收与证据，例如“形成有依据的选择及理由”“制定可执行计划”“完成可验证的用户能力”。
 - note 状态流转：`pending → in_progress → completed`，受阻时 `blocked`，解除后回 `in_progress`。`blocked` 用 `reason` 写清“在等什么”和解除条件。
 - `related_noted` 只表达关联，不是依赖，不构成 DAG；选择下一条 note 时看 `status`、`next_step` 与 `related_noted`。
-- `notes_index.md` 收录全部 note（name、description、related_noted）；spec 的 `## 追踪 Note` 只收录未完成 note，按 blocked、in_progress、pending 排序，超出面板上限时指向 notes_index。
+- `notes_index.md` 收录全部 note（name、description、related_noted）；spec 的 `## 追踪 Note` 收录全部未完成 note，按 blocked、in_progress、pending 排序。
 
 ### 生命周期
 
@@ -137,21 +137,8 @@ Plan 只有三类文档：`spec.md`、`notes_index.md`（生成）和若干 `001
 
 每轮形成新事实（用户输入、取证、决策、执行或验证）后，按以下循环跑一次：
 
-1. **定位**：先读 `common` 的 CONTEXT、questions 与 adr，再读所属域的 CONTEXT、questions、adr 与命中的 workflow；恢复任务时读 spec、notes_index 及关联 note，对照工作区事实核对进度。冲突查明来源，未知项保留待定。
-2. **更新**：任务目标、方案和进展就地更新到 Plan；新增业务域或沉淀稳定术语、重复问题、重要决策、可复用 workflow 时更新领域知识。依据新事实创建、修改、删除或合并；删除或合并前把仍有效的需求、证据和未完成工作迁入保留文档。
-3. **对齐**：修正受影响的引用、状态与恢复入口；暂停、交接或上下文切换前，确保仅凭 Plan 能判断目标、理由、进度、证据、缺口和下一步。
-4. **校验**：跑 `nano_flow_check`；历史缺项和未验证内容如实保留，不补造事实。
+1. **更新**：读取并就地更新 common 和所属域的领域文档;
+2. **对齐**：验证领域文档与工作区事实的一致性;
+3. **校验**：跑 `nano_flow_check`；
 
 结论只在所属文档定义一次，其他位置引用。删改有下游的 note 前，先修正 `related_noted`。
-
-## 篇幅
-
-领域文档与 Plan 文档有体积上限，通过 `nano_flow_check` 校验；数字用面板设置，不在提示词里硬编码。超过时先压缩：
-
-- 只允许删除能由 note、领域文档、代码或命令重新查到的内容，并在删除处留下指针；
-- 压缩后仍有事实无处可查时，拆成 note 或领域文档，不把整段工作塞进一个文件。
-
-## ask / do
-
-- 目标、边界或方案未定，或需向用户取证时读 `skills/ask/SKILL.md`，按该 skill 的完整规格推进。
-- 用户已放行且有可推进的 note 时读 `skills/do/SKILL.md`，按该 skill 的完整规格推进；门禁、验证与证据是完成条件，不是收尾时才补的步骤。

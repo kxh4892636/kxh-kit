@@ -14,6 +14,7 @@ import {
   readUserPromptText,
 } from "./assets.js";
 import { DEFAULT_DOMAIN_ROOT, type Config as NanoFlowConfig } from "./config.js";
+import { buildLimitsText } from "./limits.js";
 import { recordMount } from "./mount-report.js";
 import { hostServices, type HostServices, type PromptContext } from "./services.js";
 import { createAssetSkillProvider } from "./skills.js";
@@ -131,7 +132,8 @@ const mountNanoFlow = (target: Context, host: Context, config: NanoFlowConfig): 
     const turnByAgent = new WeakMap<object, number>();
     const promptText = (context: PromptContext): string => {
       const guide = guideOf(context.agent).trim();
-      return guide === "" ? fixedPrompt : `${fixedPrompt}\n\n${guide}`;
+      const limits = buildLimitsText(settings());
+      return [fixedPrompt, guide, limits].filter((part) => part.trim() !== "").join("\n\n");
     };
     const userText = (context: PromptContext): string => {
       const agent = context.agent;

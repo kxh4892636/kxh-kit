@@ -132,6 +132,75 @@ describe("checkWorkspace", () => {
     expect(index).toContain("003-丙");
   });
 
+  it("keeps every incomplete note in the tracked table without a row limit", async () => {
+    const root = await makeRoot();
+    await domain(root, "demo", "演示");
+    const plan = ".agents/domains/demo/plans/active/2026-11-08-多-note";
+    await write(
+      root,
+      `${plan}/spec.md`,
+      [
+        "---",
+        "name: '多 note'",
+        "description: '多 note。'",
+        "status: pending",
+        "---",
+        "",
+        "# 多 note",
+        "",
+      ].join("\n"),
+    );
+    for (let index = 1; index <= 25; index += 1) {
+      const id = String(index).padStart(3, "0");
+      await write(
+        root,
+        `${plan}/${id}-任务${index}.md`,
+        [
+          "---",
+          `name: '${id}-任务${index}'`,
+          `description: '任务 ${index}。'`,
+          "status: pending",
+          "reason:",
+          "related_noted: []",
+          "next_step: '继续'",
+          "---",
+          "",
+          `# ${id}-任务${index}`,
+          "",
+        ].join("\n"),
+      );
+    }
+    const result = checkWorkspace(root);
+    expect(result.ok).toBe(true);
+    const spec = await readFile(join(root, plan, "spec.md"), "utf8");
+    expect(spec).toContain("025-任务25");
+    expect(spec).not.toContain("其余");
+  });
+
+  it("does not cap the number of ADRs", async () => {
+    const root = await makeRoot();
+    await domain(root, "demo", "演示");
+    for (let index = 1; index <= 60; index += 1) {
+      const id = String(index).padStart(3, "0");
+      await write(
+        root,
+        `.agents/domains/demo/adr/${id}-决策${index}.md`,
+        [
+          "---",
+          `name: '${id}-决策${index}'`,
+          `description: '决策 ${index}。'`,
+          "status: accepted",
+          "---",
+          "",
+          `# ${id}-决策${index}`,
+          "",
+        ].join("\n"),
+      );
+    }
+    const result = checkWorkspace(root);
+    expect(result.ok).toBe(true);
+  });
+
   it("reports duplicate names and legacy documents", async () => {
     const root = await makeRoot();
     await domain(root, "demo", "演示");

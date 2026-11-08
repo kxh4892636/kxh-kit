@@ -31,12 +31,10 @@ const SETTING_FIELDS: readonly {
 }[] = [
   { key: "specMaxBytes", label: "spec.md", unit: "KB", scale: KB, integer: true },
   { key: "noteMaxBytes", label: "单条 note", unit: "KB", scale: KB, integer: true },
-  { key: "noteDescriptionMaxChars", label: "名称/描述", unit: "字", scale: 1, integer: true },
-  { key: "indexMaxRows", label: "追踪 Note 行", unit: "行", scale: 1, integer: true },
+  { key: "noteDescriptionMaxChars", label: "描述字数", unit: "字", scale: 1, integer: true },
   { key: "contextMaxBytes", label: "CONTEXT.md", unit: "KB", scale: KB, integer: true },
   { key: "questionMaxBytes", label: "单个 question", unit: "KB", scale: KB, integer: true },
   { key: "adrMaxBytes", label: "单个 ADR", unit: "KB", scale: KB, integer: true },
-  { key: "adrMaxCount", label: "ADR 数量", unit: "个", scale: 1, integer: true },
   { key: "workflowMaxBytes", label: "单个 workflow", unit: "KB", scale: KB, integer: true },
   { key: "rotateAt", label: "轮转阈值", unit: "比例", scale: 1, integer: false },
 ];
