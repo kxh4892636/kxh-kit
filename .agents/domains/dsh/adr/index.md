@@ -10,3 +10,4 @@
 | [004-会话初始化上下文以系统消息注入](004-%E4%BC%9A%E8%AF%9D%E5%88%9D%E5%A7%8B%E5%8C%96%E4%B8%8A%E4%B8%8B%E6%96%87%E4%BB%A5%E7%B3%BB%E7%BB%9F%E6%B6%88%E6%81%AF%E6%B3%A8%E5%85%A5.md) | 会话启动上下文以系统提示词段注入，不伪装成用户消息触发模型调用。 | accepted |
 | [005-fake-ip解析经代理声明修正](005-fake-ip%E8%A7%A3%E6%9E%90%E7%BB%8F%E4%BB%A3%E7%90%86%E5%A3%B0%E6%98%8E%E4%BF%AE%E6%AD%A3.md) | mihomo fake-IP 返回保留网段导致 web fetch 被拒时，用 harness home 代理声明修正。 | accepted |
 | [006-note阻塞态以reason表达](006-note%E9%98%BB%E5%A1%9E%E6%80%81%E4%BB%A5reason%E8%A1%A8%E8%BE%BE.md) | note 用 blocked + reason 表达等待，放弃 waiting/needs 与 DAG，按状态和 next_step 推进。 | accepted |
+| [007-dream由宿主定时任务投递新会话](007-dream%E7%94%B1%E5%AE%BF%E4%B8%BB%E5%AE%9A%E6%97%B6%E4%BB%BB%E5%8A%A1%E6%8A%95%E9%80%92%E6%96%B0%E4%BC%9A%E8%AF%9D.md) | dream 由宿主 Schedule 每日把 dream.md 投到新建的 nano-flow 会话，不内建定时器；游标让至少一次投递变幂等。 | accepted |

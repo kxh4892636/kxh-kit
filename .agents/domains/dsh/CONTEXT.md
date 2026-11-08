@@ -53,8 +53,10 @@ _Avoid_：删除 office 技能、卸载 office 插件
 _Avoid_：流程开关、nano-flow 命令行
 
 **固定提示词**：
-`prompts/agents.md` 的正文，与 `.agents/domains/GUIDE.md` 的会话启动快照、`prompts/limit.md` 生成的篇幅限制块一起作为系统提示词段注入。
+`prompts/system.md` 的正文，与 `.agents/domains/GUIDE.md` 的会话启动快照、`prompts/limit.md` 生成的篇幅限制块一起作为系统提示词段注入。
 _Avoid_：persona、系统提示
+
+> 纠正（2026-11-08，note 006）：本节原写 `prompts/agents.md`；该文件已改名为 `prompts/system.md`，注入段名 `nano-flow:system`（原名会被当作 `AGENTS.md` 自动注入）。
 
 **领域文档**：
 `.agents/domains/{domain}/` 下的 CONTEXT、questions、adr、workflows 与 plans；文档以 YAML 头声明 `name` / `description`，索引由 `nano_flow_check` 生成，模型不改生成物。
@@ -81,8 +83,22 @@ nano-flow 预设会话在输入框上方 dock 显示的未完成 note 列表（�
 _Avoid_：待办面板、todo 面板、任务列表
 
 **Plan 轨迹日志**：
-nano-flow 预设会话每轮结束时向 `<plan>/log.jsonl` 追加的一条 compact 轨迹（user、assistant 最终文本、工具参数/结果摘要、usage、seq 区间）；会话首次调用 `nano_flow_*` 工具时绑定 Plan 并持久化，启动时从宿主持久化日志回填历史轮次，绝不写会话事件。
+nano-flow 预设会话每轮结束时向 `<plan>/log.jsonl` 追加的一条 compact 轨迹（user、assistant 最终文本、工具参数/结果摘要、usage、seq 区间）；会话首次调用 `nano_flow_*` 工具时绑定 Plan 并持久化，启动时从宿主持久化日志回填历史轮次，绝不写会话事件。日志只存本地（`.gitignore` 忽略 `**/plans/**/log.jsonl`），轮转不删、只增量追加。
 _Avoid_：会话转录、原始事件日志、audit log
+
+### 记忆维护（dream）
+
+**记忆分层**：
+nano-flow 记忆的四层：L0 `<plan>/log.jsonl` 轨迹、L1 note 的结论、L2 领域文档与「## 相关」互链、L3 `GUIDE.md` 会话快照（`system.md` 由用户维护）；dream 只写 L2/L3 正文，生成物只由 `nano_flow_check` 写。
+_Avoid_：记忆库、知识图谱、第五层
+
+**dream**：
+后台记忆维护回合：宿主定时任务把 `prompts/dream.md` 全文投递到新建的 nano-flow 会话，按游标把 `log.jsonl` 的新轮次做纠错、提炼、建链、晋升、剪枝，落到领域文档与 `GUIDE.md`。
+_Avoid_：自动复盘、kaizen、离线批处理
+
+**dream 游标**：
+`$DSH_HOME/toolkit/nano-flow-dream.json` 里每个 Plan 已处理到的轮次（`lastSeq` 与 `lastSessionId`/`lastTurn`）；只有 `git commit` 成功后推进，重复投递靠它保持幂等。
+_Avoid_：进度条、checkpoint
 
 ### 会话撤回
 

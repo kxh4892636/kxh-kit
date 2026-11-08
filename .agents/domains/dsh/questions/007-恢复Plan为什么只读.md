@@ -23,4 +23,4 @@ description: '恢复已有 Plan 时模型直接开工，未经确认就改文件
 
 ## 来源
 
-迁移前 dsh 领域文档，原问题 7；`prompts/agents.md` 的恢复与轮转。
+迁移前 dsh 领域文档，原问题 7；`prompts/system.md` 的恢复与轮转（原写 `agents.md`，2026-11-08 note 006 改名）。
