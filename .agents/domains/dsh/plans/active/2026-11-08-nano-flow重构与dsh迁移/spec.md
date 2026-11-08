@@ -37,15 +37,16 @@ status: in_progress
 - note 015 修 Note 看板与 Plan 绑定脱节：宿主路由先查绑定表（未绑定返回 null）、面板默认折叠、绑定改由 `nano_flow_check` 执行时经宿主 facade 写入（0.5.27；web 形态已 live 验收）。
 - note 011 绑定轮修复在 web 形态 live 通过：`log.jsonl` 新增会话段头 + 完整 turn（user/assistant/tools/usage/seq）。
 - note 016 验收「轮转后」的轨迹日志：新会话段头 + turn 1/2 完整（`user` 以 seed 开头、19/24 次工具、usage 五项、seq 连续），旧会话 5 轮未重写（0.5.27，`completed`）。
-- note 017 轮转后自动跑一次 `nano_flow_check`：宿主在 seed 投递前执行校验并把结论写进 seed，同时给新会话写绑定，Note 看板不必等模型调工具就出现（0.5.28，单测 96 例通过，待重启后 live 验收）。
+- note 017 轮转后自动跑一次 `nano_flow_check`：宿主在 seed 投递前执行校验并把结论写进 seed，同时给新会话写绑定，Note 看板不必等模型调工具就出现（0.5.28，单测 96 例通过；2026-11-08 重启后手动 `/rotate` live 验收通过，`completed`）。
+- note 018 恢复 Plan 时开头自动跑一次 `nano_flow_check`：同一目的（校验 + 建看板绑定），约束写进 `prompts/system.md` 的恢复条款（0.5.29，单测 97 例通过，已装入两个 profile，待重启后新会话 live 验收）。
 
 ## 当前进度
 
-note 001–008、011、013、014、015 完成。015 把「新会话也显示 Note 看板」与 PTC 下绑定不触发一起修掉：未绑定会话不出面板、默认折叠、绑定由 `nano_flow_check` 经宿主 facade 写入（事件 firehose 在本宿主不可用）。**web 形态已 live 验收**（web profile 装 0.5.27，`dsh web` + bsk 驱动 Chrome）：新会话无面板 → 发送「运行 nano_flow_check」后绑定表出现该会话、看板出现且折叠、展开后状态与 YAML 头一致；`log.jsonl` 同步新增段头 + 完整绑定轮（user/assistant/tools/usage/seq）。desktop 也已装 0.5.27（浏览器宿主需重启才对用户生效）。用户已手动执行 `/rotate` 做验收（旧会话 `session-17660661` → 新会话 `session-cad2849e`）：010 与 016 都已 `completed`（槽位/置顶继承由宿主状态 + 用户目视确认；新会话段头与 turn 1/2 完整、无重复键）。012 也已 `completed`：命令路径 live 通过，自动路径与手动共用同一 engine、XML 包裹由单测锁定（`vp test src/nano-flow` 13 文件 / 93 例），按用户「手动有，自动就有」采纳。用户随后提出 017：轮转后必须自动跑一次 `nano_flow_check`（校验 Plan + 让看板立即出现），已实现为宿主侧 `autoCheck`、装上 0.5.28，待重启后 `/rotate` 验收。机制补充：轮转会话没有 `agent-preset/selected` 事件，`tool/call` 快路径不触发 flush，日志在 `turn/end` 落盘（详见 016）。绑定语义按用户答复「遵循 011」：只在首次工具调用时绑定，纯聊天不落 log。本轮同时把本地 `vite-plus` 工具树从 0.1.6 升级到 **0.2.2-rc.1**（与运行宿主一致），后续实现与取证都以它为准。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
+note 001–017 完成；018（恢复 Plan 开头自动跑 `nano_flow_check`）已实现并装入 0.5.29，待 live 验收。近几步：015 修通新会话的 Note 看板（绑定由 `nano_flow_check` 经宿主 facade 写入，未绑定不出面板、默认折叠；web 形态已 live 验收）；016 验收轮转后的轨迹日志（新会话段头 + turn 完整、旧会话不重写）；017 在 0.5.28 让轮转在 seed 投递前自动跑一次 `nano_flow_check` 并写绑定——2026-11-08 重启宿主后用户手动 `/rotate` 验收通过（seed 带校验结论、看板立即出现，bindings 在轮转时写入 `session-de913589-3dd9-478c-baeb-b87d9d4843aa`，`boundAt 2026-11-08T10:42:26.340Z`，早于任何工具调用）；018 把同一约束写进 `prompts/system.md` 的恢复条款，0.5.29 已装入两个 profile，等重启后在新会话（非轮转）说「恢复 Plan」验证：模型开头先跑 check、看板出现。插件 desktop / web profile 均为 0.5.29。机制补充：轮转会话没有 `agent-preset/selected` 事件，日志在 `turn/end` 落盘（详见 016）。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
 
 ## 恢复入口
 
-先读 `notes_index.md`；插件细节在 001，领域文档在 002，旧 plans 映射与截断在 003，`CONTEXT-MAP.md` 位置修正在 004，旧 Plan 链接校正在 005，提示词改名在 006，Note 面板在 007，历史加载失败在 008，Plan 轨迹日志的设计、拷问与 live 验收在 009，轮转分组/置顶修复在 010，绑定轮修复在 011，`/rotate` 命令与 XML 标注在 012，状态先行约束在 013，PTC 模式切换在 014，绑定贯通 Note 面板在 015，轨迹日志的轮转验收在 016。
+先读 `notes_index.md`；插件细节在 001，领域文档在 002，旧 plans 映射与截断在 003，`CONTEXT-MAP.md` 位置修正在 004，旧 Plan 链接校正在 005，提示词改名在 006，Note 面板在 007，历史加载失败在 008，Plan 轨迹日志的设计、拷问与 live 验收在 009，轮转分组/置顶修复在 010，绑定轮修复在 011，`/rotate` 命令与 XML 标注在 012，状态先行约束在 013，PTC 模式切换在 014，绑定贯通 Note 面板在 015，轨迹日志的轮转验收在 016，轮转后自动校验与 seed 前绑定在 017，恢复 Plan 开头自动校验在 018。
 
 ## 追踪 Note
 
@@ -53,4 +54,4 @@ note 001–008、011、013、014、015 完成。015 把「新会话也显示 Not
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [017-轮转后自动校验Plan并绑定看板](017-%E8%BD%AE%E8%BD%AC%E5%90%8E%E8%87%AA%E5%8A%A8%E6%A0%A1%E9%AA%8CPlan%E5%B9%B6%E7%BB%91%E5%AE%9A%E7%9C%8B%E6%9D%BF.md) | 轮转创建新会话后自动执行一次 nano_flow_check：校验 Plan 并建立会话↔Plan 绑定，让 Note 看板立即出现。 | blocked | 0.5.28 已构建并装入 desktop/web profile；等用户重启宿主后执行 /rotate 做 live 验收：新会话 seed 带校验结论、看板立即出现、绑定表出现新会话 | 重启宿主后 /rotate；在新会话核对 seed 末尾的校验结论、Note 看板是否立即出现、bindings 表是否有新会话 | 010-轮转保留分组与置顶, 012-rotate命令与轮转输入标注, 015-Plan绑定贯通Note面板 |
+| [018-恢复Plan开头自动校验](018-%E6%81%A2%E5%A4%8DPlan%E5%BC%80%E5%A4%B4%E8%87%AA%E5%8A%A8%E6%A0%A1%E9%AA%8C.md) | 恢复 Plan 时开头自动跑一次 nano_flow_check：校验 Plan 并建立会话↔Plan 看板绑定（同 017 的轮转自动校验），约束写进 prompts/system.md。 | blocked | 0.5.29 已构建并装入 desktop/web profile；等重启宿主后开新会话（非轮转）恢复 Plan 做 live 验收：模型开头先跑 nano_flow_check、看板出现 | 重启宿主 → 新会话说「恢复 Plan dsh/active/2026-11-08-nano-flow重构与dsh迁移」→ 核对模型是否开头跑 check 且看板出现 | 015-Plan绑定贯通Note面板, 017-轮转后自动校验Plan并绑定看板 |

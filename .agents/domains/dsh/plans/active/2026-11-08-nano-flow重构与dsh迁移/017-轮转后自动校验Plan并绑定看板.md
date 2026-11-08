@@ -1,13 +1,11 @@
 ---
 name: "017-轮转后自动校验Plan并绑定看板"
 description: "轮转创建新会话后自动执行一次 nano_flow_check：校验 Plan 并建立会话↔Plan 绑定，让 Note 看板立即出现。"
-status: blocked
-reason: "0.5.28 已构建并装入 desktop/web profile；等用户重启宿主后执行 /rotate 做 live 验收：新会话 seed 带校验结论、看板立即出现、绑定表出现新会话"
+status: completed
 related_noted:
   - '010-轮转保留分组与置顶'
   - '012-rotate命令与轮转输入标注'
   - '015-Plan绑定贯通Note面板'
-next_step: "重启宿主后 /rotate；在新会话核对 seed 末尾的校验结论、Note 看板是否立即出现、bindings 表是否有新会话"
 ---
 
 # 017-轮转后自动校验Plan并绑定看板
@@ -52,10 +50,12 @@ next_step: "重启宿主后 /rotate；在新会话核对 seed 末尾的校验结
 - `vp check`：123 文件格式、94 文件 lint/类型全通过。
 - `vp run build` 成功，`dist/index.mjs` 含 `autoCheck` 与「轮转后自动执行」文案；安装包已替换两个 profile 的 `node_modules`。
 
-## 待 live 验收
+## live 验收（2026-11-08，用户确认）
 
-重启宿主（当前进程仍载 0.5.27）后执行 `/rotate`：
+用户重启宿主（载 0.5.28）后手动 `/rotate`：命令先排队，点击发送后触发轮转。新旧会话都逐条核对：
 
-1. 新会话首条 seed 末尾应有一行「轮转后自动执行 `nano_flow_check`：领域文档校验通过，索引已刷新。」+「本会话的 Note 看板绑定已建立，无需再跑一次。」；
-2. 新会话一打开就应看到 Note 看板（不必等模型调工具）；
-3. `$DSH_HOME/toolkit/nano-flow-plan-bindings.json` 里新会话 id 在轮转时就已出现（不是等首次工具调用）。
+1. **seed 带校验结论**——新会话 `session-de913589-3dd9-478c-baeb-b87d9d4843aa` 首条 seed 末尾两行与 `autoCheck` 输出逐字一致（`index.ts:192` / `:201`）：通过 + 看板绑定已建立。
+2. **看板立即出现**——用户目视确认新会话打开即见 Note 看板，不必等模型调工具。
+3. **绑定表在轮转时写入**——`$DSH_HOME/toolkit/nano-flow-plan-bindings.json` 该会话 `boundAt 2026-11-08T10:42:26.340Z`（本地 18:42:26），早于新会话任何工具调用；种子投递顺序为 create → inheritPlacement → autoCheck → buildSeed（`rotate.ts:303-319`），所以看板数据在首条消息前就已就绪。
+
+旁证：同时段 4 次手动轮转（e9faa350 → 9166bfb7 → 641a7f1d → de913589）每个新会话的 `log.jsonl` 均有独立段头 + turn 1，旧会话按设计被物理删除；新会话段头与 turn 在 `turn/end` 落盘（与 011/016 一致）。

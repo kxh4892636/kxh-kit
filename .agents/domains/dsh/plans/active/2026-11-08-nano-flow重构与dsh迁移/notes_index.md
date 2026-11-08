@@ -21,3 +21,4 @@
 | [015-Plan绑定贯通Note面板](015-Plan%E7%BB%91%E5%AE%9A%E8%B4%AF%E9%80%9ANote%E9%9D%A2%E6%9D%BF.md) | PTC 下首次工具调用即建立会话↔Plan 绑定；Note 面板只对已绑定会话显示，且默认折叠。 | 007-会话内未完成note面板, 009-Plan轨迹日志, 011-轨迹日志绑定轮修复 |
 | [016-轨迹日志轮转验收](016-%E8%BD%A8%E8%BF%B9%E6%97%A5%E5%BF%97%E8%BD%AE%E8%BD%AC%E9%AA%8C%E6%94%B6.md) | 轮转后新会话的 log.jsonl 段头、seed 注入与旧会话回填的 live 验收（随 /rotate 一起做）。 | 009-Plan轨迹日志, 010-轮转保留分组与置顶, 012-rotate命令与轮转输入标注 |
 | [017-轮转后自动校验Plan并绑定看板](017-%E8%BD%AE%E8%BD%AC%E5%90%8E%E8%87%AA%E5%8A%A8%E6%A0%A1%E9%AA%8CPlan%E5%B9%B6%E7%BB%91%E5%AE%9A%E7%9C%8B%E6%9D%BF.md) | 轮转创建新会话后自动执行一次 nano_flow_check：校验 Plan 并建立会话↔Plan 绑定，让 Note 看板立即出现。 | 010-轮转保留分组与置顶, 012-rotate命令与轮转输入标注, 015-Plan绑定贯通Note面板 |
+| [018-恢复Plan开头自动校验](018-%E6%81%A2%E5%A4%8DPlan%E5%BC%80%E5%A4%B4%E8%87%AA%E5%8A%A8%E6%A0%A1%E9%AA%8C.md) | 恢复 Plan 时开头自动跑一次 nano_flow_check：校验 Plan 并建立会话↔Plan 看板绑定（同 017 的轮转自动校验），约束写进 prompts/system.md。 | 015-Plan绑定贯通Note面板, 017-轮转后自动校验Plan并绑定看板 |
