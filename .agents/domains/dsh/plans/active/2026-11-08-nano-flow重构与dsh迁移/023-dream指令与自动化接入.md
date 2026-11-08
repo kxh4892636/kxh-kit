@@ -32,4 +32,5 @@ related_noted:
 
 ## 遗留
 
-- 任务尚未创建：需要用户明确要求，且要重启宿主载入 0.5.30 后创建（旧进程的预设还没有 `tool-schedule` 行）。
+- 任务已创建（2026-11-08，用户明确要求）：`schedule-413189d2-0c33-430f-8a21-f1a723a22fc5`，`DTSTART;TZID=Asia/Shanghai:20261109T080000` + `RRULE:FREQ=DAILY`，首次 2026-11-09 08:00（+08:00），目标「每次新建会话」，preset `nano-flow`，指令 = `prompts/dream.md` 全文。
+- 异常记录：同日 20:07 曾建过同名任务（preset 记为 `ptc`，创建即投递一次到 `session-f4aaa942`，该会话约 20 秒后无产出结束），20:09 从宿主存储消失（`storages/schedule.json` 的 `tasks` 为空），无删除调用；重建后未复现。

@@ -50,7 +50,7 @@ status: in_progress
 
 ## 当前进度
 
-note 001–023、025、026 完成；024（访问信号与剪枝）规则已写入 `prompts/dream.md`，等首次 dream 运行验收。dream v1 已实现并装入 **0.5.32**：L0=`log.jsonl`（compact）、L1=note 结论、L2=领域文档+`## 相关`互链（链接+原因）、L3=`GUIDE.md`（13 KB，设置面板）；check 新增互链与 GUIDE 校验；nano-flow 预设挂载 `dsh-tool-schedule`；`prompts/dream.md` 作为自动化任务指令（每天 08:00 默认）；kaizen skill 已删除、知识归属并入 dream.md（skill 6→5）；多业务域按域 spawn subagent 并行（≤4），common/guide/check/commit/游标由父会话收口。020/021 已把 legacy 领域文档与 10 个旧 plans 迁入 `.agents`（53 条 note、117 条死链清零）；music 截图忽略。插件 desktop / web profile 均为 0.5.32。机制补充：轮转会话没有 `agent-preset/selected` 事件，日志在 `turn/end` 落盘（详见 016）。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。机制补充：轮转会话没有 `agent-preset/selected` 事件，日志在 `turn/end` 落盘（详见 016）。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
+note 001–023、025、026 完成；024（访问信号与剪枝）规则已写入 `prompts/dream.md`，等首次 dream 运行验收。dream v1 已实现并装入 **0.5.32**：L0=`log.jsonl`（compact）、L1=note 结论、L2=领域文档+`## 相关`互链（链接+原因）、L3=`GUIDE.md`（13 KB，设置面板）；check 新增互链与 GUIDE 校验；nano-flow 预设挂载 `dsh-tool-schedule`；`prompts/dream.md` 作为自动化任务指令（每天 08:00 默认）；kaizen skill 已删除、知识归属并入 dream.md（skill 6→5）；多业务域按域 spawn subagent 并行（≤4），common/guide/check/commit/游标由父会话收口。020/021 已把 legacy 领域文档与 10 个旧 plans 迁入 `.agents`（53 条 note、117 条死链清零）；music 截图忽略。插件 desktop / web profile 均为 0.5.32。机制补充：轮转会话没有 `agent-preset/selected` 事件，日志在 `turn/end` 落盘（详见 016）。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。机制补充：轮转会话没有 `agent-preset/selected` 事件，日志在 `turn/end` 落盘（详见 016）。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。dream 自动化任务已建（2026-11-08，`schedule-413189d2`，每日 08:00 Asia/Shanghai，preset `nano-flow`，首次 2026-11-09；详见 023 遗留）。
 
 ## 恢复入口
 
@@ -62,4 +62,4 @@ note 001–023、025、026 完成；024（访问信号与剪枝）规则已写�
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [024-访问信号与剪枝验收](024-%E8%AE%BF%E9%97%AE%E4%BF%A1%E5%8F%B7%E4%B8%8E%E5%89%AA%E6%9E%9D%E9%AA%8C%E6%94%B6.md) | 把访问信号、晋升排序与剪枝规则写进 dream.md；等首次 dream 运行验收实际效果。 | blocked | 访问信号/晋升/剪枝规则已写入 prompts/dream.md；等重启宿主并建 nano-flow dream 任务后跑一次，验收 guide 晋升顺序、剪枝与上限实际生效 | 重启 → 建任务 → run 一次 → 核对 guide 晋升/剪枝与 check 结果 | 019-dream机制设计, 023-dream指令与自动化接入 |
+| [024-访问信号与剪枝验收](024-%E8%AE%BF%E9%97%AE%E4%BF%A1%E5%8F%B7%E4%B8%8E%E5%89%AA%E6%9E%9D%E9%AA%8C%E6%94%B6.md) | 把访问信号、晋升排序与剪枝规则写进 dream.md；等首次 dream 运行验收实际效果。 | blocked | 访问信号/晋升/剪枝规则已写入 prompts/dream.md；nano-flow dream 任务已建（每日 08:00，首次 2026-11-09），等首次运行后验收 guide 晋升顺序、剪枝与上限实际生效 | 等 2026-11-09 08:00 首次 dream 运行 → 核对 guide 晋升/剪枝与 check 结果 | 019-dream机制设计, 023-dream指令与自动化接入 |
