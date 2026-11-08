@@ -4,7 +4,7 @@
 ## 输入
 
 - 游标：`$DSH_HOME/toolkit/nano-flow-dream.json`，形如 `{"version":1,"plans":{"<planPath>":{"lastSeq":0}}}`；文件不存在时视为空。
-- 扫描 `.agents/domains/*/plans/{active,reference,archived}/*/log.jsonl`；每个 Plan 只处理 `seq > lastSeq` 的 turn。
+- 扫描 `.agents/domains/*/plans/{active,reference,archived}/*/log.jsonl`；每个 Plan 只处理 `seq > lastSeq` 的 turn，按所属业务域分组。
 - 同时读该 Plan 的 `spec.md`、note 的「验证/结论」段、所属域文档与 `GUIDE.md`。
 
 ## 知识归属
@@ -25,6 +25,18 @@
 
 只写当前 Plan 所属域与 `common`；其他域只读。
 
+## 并行（多业务域）
+
+业务域之间不跨域写，`common` 是唯一共享面。有多个域需要处理时，父会话只做编排，每个域交给一个 subagent 并行执行：
+
+1. 按所属域分组有新增 log 的 Plan；`common` 留给父会话。
+2. 每个域 spawn 一个 `subagent`，prompt 写明：域、Plan 路径与 seq 范围、写入边界（只写本域，可读 `common` 与其他域）、返回格式。一次最多并行 4 个域，其余按域名字母序分批。
+3. 子 agent 只写本域（`{domain}/CONTEXT.md`、`questions/`、`adr/`、`workflows/`）；不得写 `common`、`GUIDE.md`、游标、生成物、`spec.md` 与 note；不得 `git commit`；不得跑 `nano_flow_check`。
+4. 子 agent 返回：改动文件、处理的 seq 范围、纠错/提炼/建链/剪枝结论、`common` 候选、未处理项。
+5. 父会话汇总：处理 `common` 候选（域→`common` 的链接只写在域内页面）、重写 `GUIDE.md`、跑一次 `nano_flow_check`、一次 `git commit`；成功后推进这些 Plan 的游标，失败的域不推进并报告。
+
+只有一个域有新增时父会话直接处理，不 spawn。
+
 ## 写入边界
 
 - 可写：`{domain}/CONTEXT.md`、`questions/NNN-*.md`、`adr/NNN-*.md`、`workflows/...`、`GUIDE.md`、游标。
@@ -33,9 +45,9 @@
 
 ## 门禁
 
-- 结束前跑 `nano_flow_check`；失败先修本次引入的问题，仍失败则报告、不提交、不推进游标。
+- 结束前由**父会话**跑一次 `nano_flow_check`；失败先修本次引入的问题，仍失败则报告、不提交、不推进游标。
 - 校验 `## 相关` 链接（目标存在、原因非空）与 `GUIDE.md` 是否超过设置里的上限。
-- 改动一次 `git commit`（`docs(dream): …`）；commit 成功后才推进游标。
+- 改动由**父会话**做一次 `git commit`（`docs(dream): …`）；commit 成功后才推进游标。
 - 单次运行的文件数/字节数超过预算时停在该 pass 边界并报告。
 
 ## 退出
