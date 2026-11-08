@@ -25,9 +25,9 @@ from PIL import Image
 
 WIDTH = 800
 HEIGHT = 200
-# The old cover-art masks are 99 px tall at the loudest column, i.e. a 49 px
-# half-height. Comparing half-heights against those full heights was a 2x bug.
-HALF = 49
+# The loudest column spans 3/4 of the 200 px canvas, so the visible waveform
+# fills the block instead of sitting as a thin band in the middle.
+HALF = 75
 
 
 def envelope(path: Path) -> np.ndarray:
