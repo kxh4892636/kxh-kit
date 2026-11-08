@@ -1,12 +1,10 @@
 ---
 name: "018-恢复Plan开头自动校验"
 description: "恢复 Plan 时开头自动跑一次 nano_flow_check：校验 Plan 并建立会话↔Plan 看板绑定（同 017 的轮转自动校验），约束写进 prompts/system.md。"
-status: blocked
-reason: "0.5.29 已构建并装入 desktop/web profile；等重启宿主后开新会话（非轮转）恢复 Plan 做 live 验收：模型开头先跑 nano_flow_check、看板出现"
+status: completed
 related_noted:
   - '015-Plan绑定贯通Note面板'
   - '017-轮转后自动校验Plan并绑定看板'
-next_step: "重启宿主 → 新会话说「恢复 Plan dsh/active/2026-11-08-nano-flow重构与dsh迁移」→ 核对模型是否开头跑 check 且看板出现"
 ---
 
 # 018-恢复Plan开头自动校验
@@ -37,10 +35,8 @@ next_step: "重启宿主 → 新会话说「恢复 Plan dsh/active/2026-11-08-na
 - `plugin.test.ts` 新增用例：注入的固定提示词含「开头先跑一次 `nano_flow_check`」与跳过条件。
 - 版本 0.5.29：`vp check`（123 文件格式、94 文件 lint/类型）通过；`vp test src/nano-flow` 13 文件 / **97 例**通过；`vp run build` 成功（`dist/nano-flow/prompts/system.md` 含条款）；`pnpm pack` 后 `pnpm add` 进 desktop 与 web profile，两份安装副本均为 0.5.29 且 `dist` 条款命中。
 
-## 待 live 验收
+## live 验收（2026-11-08，用户确认）
 
-重启宿主（当前进程仍载 0.5.28）后开新会话（非轮转），说「恢复 Plan dsh/active/2026-11-08-nano-flow重构与dsh迁移」：
+用户重启宿主（desktop 进程 18:49:16 载入 0.5.29）后按上述步骤验证新会话恢复 Plan：模型开头先调 `nano_flow_check`、Note 看板出现，用户确认「已经验证」。工作区当前只有本 Plan 一个 active Plan，check 能按「恰好一个」自动建绑定（`tools/check.ts:33-40`）。
 
-1. 模型第一步调 `nano_flow_check`，而不是先读 spec；
-2. `nano-flow-plan-bindings.json` 出现该会话，Note 看板出现；
-3. 之后才进入只读恢复报告。
+Plan 按用户要求保持 `active`，不迁 `reference`。
