@@ -74,6 +74,10 @@ _Avoid_：压缩、compact、归档旧会话
 用户说“恢复”“继续”且会话还没加载 Plan 时只读加载：读 `spec.md` 与 `notes_index.md`，报告进度与可推进队列，本轮不写文件、不执行 note；恢复报告之后的第一条用户消息才放行。
 _Avoid_：自动续跑、恢复即执行
 
+**note 面板**：
+nano-flow 预设会话在输入框上方 dock 显示的未完成 note 列表（状态图标 + 名称，hover 显示概述）；宿主按会话绑定唯一 active Plan、5s 轮询，只在快照变化时写 `nano-flow/notes` 事件，客户端读会话投影 `nanoFlowNotes` 渲染，样式与 Todo 面板一致。
+_Avoid_：待办面板、todo 面板、任务列表
+
 ### 会话撤回
 
 **撤回**：

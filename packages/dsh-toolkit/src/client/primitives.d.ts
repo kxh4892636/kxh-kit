@@ -70,4 +70,20 @@ declare module "@deepseek-ai/dsh-client-ui-primitives" {
     size?: number;
     className?: string;
   }>;
+
+  /** 14px 清单图标（Todo 面板标题同款）。 */
+  export const IconChecklistOutline14: import("react").ComponentType<{
+    size?: number;
+    className?: string;
+  }>;
+
+  /** 14px 向上/向下箭头（折叠按钮用）。 */
+  export const IconChevronUpOutline14: import("react").ComponentType<{
+    size?: number;
+    className?: string;
+  }>;
+  export const IconChevronDownOutline14: import("react").ComponentType<{
+    size?: number;
+    className?: string;
+  }>;
 }

@@ -101,6 +101,20 @@ export const IconChevronDownOutlineRegular = (props: IconProps): unknown => {
   return createElement("svg", { width: props.size ?? 14, height: props.size ?? 14 });
 };
 
+/** 面板标题图标替身。 */
+export const IconChecklistOutline14 = (props: IconProps): unknown => {
+  return createElement("svg", { width: props.size ?? 14, height: props.size ?? 14 });
+};
+
+/** 折叠按钮图标替身。 */
+export const IconChevronUpOutline14 = (props: IconProps): unknown => {
+  return createElement("svg", { width: props.size ?? 14, height: props.size ?? 14 });
+};
+
+export const IconChevronDownOutline14 = (props: IconProps): unknown => {
+  return createElement("svg", { width: props.size ?? 14, height: props.size ?? 14 });
+};
+
 interface SwitchProps {
   readonly checked: boolean;
   readonly onChange: (checked: boolean) => void;

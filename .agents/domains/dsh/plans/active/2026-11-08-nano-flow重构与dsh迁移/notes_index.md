@@ -9,3 +9,5 @@
 | [003-迁移dsh旧plans](003-%E8%BF%81%E7%A7%BBdsh%E6%97%A7plans.md) | 把 17 个旧 dsh Plan 的 story/spec/notes.json 迁成当前 spec + note 格式。 | 001-nano-flow重构, 002-生成并迁移dsh领域文档 |
 | [004-CONTEXT-MAP迁到.agents目录](004-CONTEXT-MAP%E8%BF%81%E5%88%B0.agents%E7%9B%AE%E5%BD%95.md) | 把生成的 CONTEXT-MAP.md 从工作区根迁到 .agents/domains/，同步实现、提示词、测试与既有文件。 | 001-nano-flow重构 |
 | [005-修正旧Plan失效链接](005-%E4%BF%AE%E6%AD%A3%E6%97%A7Plan%E5%A4%B1%E6%95%88%E9%93%BE%E6%8E%A5.md) | 修正旧 Plan 里 119 条失效相对链接：可映射的重指新路径，死链降为纯文本。 | 004-CONTEXT-MAP迁到.agents目录 |
+| [006-固定提示词改名为system](006-%E5%9B%BA%E5%AE%9A%E6%8F%90%E7%A4%BA%E8%AF%8D%E6%94%B9%E5%90%8D%E4%B8%BAsystem.md) | 把固定提示词 prompts/agents.md 改名为 system.md，同步读取路径、段名与文档引用。 | 007-会话内未完成note面板 |
+| [007-会话内未完成note面板](007-%E4%BC%9A%E8%AF%9D%E5%86%85%E6%9C%AA%E5%AE%8C%E6%88%90note%E9%9D%A2%E6%9D%BF.md) | 在输入框 dock 展示当前会话绑定 Plan 的未完成 note，样式与 TODO 面板一致。 | 006-固定提示词改名为system |

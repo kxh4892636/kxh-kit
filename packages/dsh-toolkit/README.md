@@ -118,14 +118,15 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
 
 开关右侧的箭头按钮(`Nano Flow 设置`)只在开关打开时出现,点开是上限与轮转阈值的下拉面板.
 
-挂载后会话里多出四样东西:
+挂载后会话里多出五样东西:
 
 | 类别       | 内容                                                                                                    |
 | ---------- | ------------------------------------------------------------------------------------------------------- |
-| 固定提示词 | `prompts/agents.md` 与 `.agents/domains/GUIDE.md` 的当前快照拼接, 作为系统提示词段 `order: 1` 注入      |
+| 固定提示词 | `prompts/system.md` 与 `.agents/domains/GUIDE.md` 的当前快照拼接, 作为系统提示词段 `order: 1` 注入      |
 | 每轮提示词 | `prompts/user.md`, 作为运行时上下文在每轮第一次 pre-step 后追加; 不冒充用户消息, UI 以 context 卡片显示 |
 | 工具       | `nano_flow_create`(domain / plan / note 的目录与模板) 与 `nano_flow_check`(校验 + 生成全部索引)         |
 | skill      | `skills/` 动态发现: `ask`,`do`,`to-skill`,`code-spec`,`learning`,`kaizen`                               |
+| Note 面板  | 输入框上方 dock: 当前会话绑定 Plan 的未完成 note(状态图标 + 名称, hover 显示概述), 宿主 5s 轮询         |
 
 **目录布局**
 
@@ -199,7 +200,7 @@ metadata:
   spec / note / CONTEXT / question / ADR / workflow 体积与 description 字数，以及会话轮转阈值。
   体积字段在面板里以 **KB** 输入（1 KB = 1024 字节，存储仍是字节）。ADR 数量与追踪 Note
   行数不再限制；静态规则在 `prompts/limit.md`，具体值由脚本追加，启动时生成
-  「篇幅限制」块拼在 `prompts/agents.md` + `GUIDE.md` 之后注入。压缩与拆分规则统一
+  「篇幅限制」块拼在 `prompts/system.md` + `GUIDE.md` 之后注入。压缩与拆分规则统一
   由 `prompts/limit.md` 维护。
 - 预设不挂载压缩插件。轮转挂在**宿主半**：用户每发一条**排队**消息（queue）时，先按会话 id
   找到存活会话，再用日志里最后一条 `agent-preset/selected` 判断它是否跑 Nano Flow（live header
@@ -236,6 +237,8 @@ metadata:
    (`via: preset`)、`apply`、`ready` 与 `rotation`；缺哪个就说明哪一步没生效。
 8. 把一条 note 置 `blocked` 但不写 `reason`：`nano_flow_check` 报"缺少 reason"；补上后通过，
    spec 的状态与 `## 追踪 Note` 自动更新。
+9. 在 nano-flow 会话里改一条未完成 note 的 `status`：输入框上方的 Note 面板 5s 内更新；
+   hover 显示该 note 的 `description`；note 全部完成或 workspace 里没有唯一 active Plan 时面板消失。
 
 ## 配置
 

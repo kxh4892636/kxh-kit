@@ -5,7 +5,7 @@ description: 对 Plan、ADR、CONTEXT 等文档逐轮拷问时使用；按决策
 
 # Ask
 
-使用同一循环逐轮拷问，复用仍成立的结论和确认；领域文档更新遵循 `prompts/agents.md` 的维护循环。
+使用同一循环逐轮拷问，复用仍成立的结论和确认；领域文档更新遵循 `prompts/system.md` 的维护循环。
 
 ## 逐轮拷问
 

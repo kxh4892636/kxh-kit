@@ -17,6 +17,7 @@ import {
 import { DEFAULT_DOMAIN_ROOT, type Config as NanoFlowConfig } from "./config.js";
 import { buildLimitsText } from "./limits.js";
 import { recordMount } from "./mount-report.js";
+import { createNotesPanel, type ProjectionRegistryLike } from "./notes-panel.js";
 import { hostServices, type HostServices, type PromptContext } from "./services.js";
 import { createAssetSkillProvider } from "./skills.js";
 import { createCheckTool } from "./tools/check.js";
@@ -29,7 +30,7 @@ export { createAssetSkillProvider, ASSET_SKILL_RANK } from "./skills.js";
 export const PROMPT_ORDER = 1;
 
 /** 固定提示词段名；同一作用域内唯一。 */
-export const PROMPT_SECTION = "nano-flow:agents";
+export const PROMPT_SECTION = "nano-flow:system";
 
 /** 每轮用户输入后追加的运行时上下文名。 */
 export const USER_CONTEXT_NAME = "nano-flow:input";
@@ -114,6 +115,22 @@ const mountNanoFlow = (target: Context, host: Context, config: NanoFlowConfig): 
     const domainRoot = config.domainRoot ?? DEFAULT_DOMAIN_ROOT;
     const runtime = createToolRuntime({ services, config, settings, assetsRoot, domainRoot });
 
+    // note 面板：宿主侧投影 + 5s 轮询；投影服务缺席时整体降级（面板不显示）。
+    const notes = createNotesPanel({
+      domainRoot,
+      workspace: config.workspace,
+      logger: services.logger,
+    });
+    host.inject(["sessionProjections"], (child: Context) => {
+      const registry = (child as unknown as { sessionProjections?: ProjectionRegistryLike })
+        .sessionProjections;
+      if (registry === undefined || typeof registry.register !== "function") return;
+      child.effect(
+        () => registry.register(notes.projection) ?? (() => {}),
+        "nano-flow: notes projection",
+      );
+    });
+
     const guideCache = new WeakMap<object, string>();
     const guideOf = (agent: unknown): string => {
       const key = typeof agent === "object" && agent !== null ? agent : undefined;
@@ -180,9 +197,14 @@ const mountNanoFlow = (target: Context, host: Context, config: NanoFlowConfig): 
         ) {
           turnByAgent.set(payload.agent, payload.turn);
         }
+        if (typeof payload?.agent === "object" && payload.agent !== null) {
+          notes.attach(payload.agent);
+          notes.refresh(payload.agent);
+        }
         return result;
       }),
     );
+    disposers.push(() => notes.dispose());
     host.effect(() => {
       return () => {
         for (const dispose of disposers) dispose();

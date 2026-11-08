@@ -416,6 +416,123 @@ const css = `
   color: var(--dsw-alias-state-warn-label);
   font-size: 12px;
 }
+
+/* ── note 面板：输入框上方的未完成 note 列表（度量照 Todo 面板）────────── */
+.dshtk-notes {
+  box-sizing: border-box;
+  flex: none;
+  overflow: hidden;
+  margin: 0 auto;
+  width: calc(
+    100% -
+    var(--dsh-composer-side-clearance) -
+    var(--dsh-composer-side-clearance) -
+    var(--dsh-composer-dock-inset) -
+    var(--dsh-composer-dock-inset) -
+    var(--dsh-composer-dock-inset) -
+    var(--dsh-composer-dock-inset)
+  );
+  max-width: calc(
+    var(--dsh-composer-card-max-width) -
+    var(--dsh-composer-dock-inset) -
+    var(--dsh-composer-dock-inset) -
+    var(--dsh-composer-dock-inset) -
+    var(--dsh-composer-dock-inset)
+  );
+  border: .5px solid var(--dsw-alias-border-l1);
+  border-radius: 12px;
+  background: var(--dsw-specific-tip);
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+.dshtk-notes-body {
+  flex-direction: column;
+  gap: 8px;
+  padding: 6px 12px;
+  display: flex;
+}
+.dshtk-notes-header {
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+}
+.dshtk-notes-lead,
+.dshtk-notes-chevron {
+  display: grid;
+  flex: none;
+  place-items: center;
+  color: var(--dsw-alias-label-tertiary);
+}
+.dshtk-notes-title {
+  flex: none;
+  font-size: 13px;
+  line-height: 24px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
+}
+.dshtk-notes-progress {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dshtk-notes-list {
+  flex-direction: column;
+  gap: 8px;
+  max-height: 180px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+  display: flex;
+}
+.dshtk-notes-item {
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-secondary);
+  display: flex;
+}
+.dshtk-notes-glyph {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+.dshtk-notes-glyph-pending {
+  color: var(--dsw-alias-label-caption);
+}
+.dshtk-notes-glyph-progress {
+  color: var(--dsw-alias-state-business-primary);
+  animation: dshtk-notes-spin 1s linear infinite;
+}
+.dshtk-notes-glyph-blocked {
+  color: var(--dsw-alias-state-error-primary);
+}
+@keyframes dshtk-notes-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.dshtk-notes-content {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 `;
 
 /** 注入一次工具箱样式；没有 DOM（如静态渲染）时静默跳过。 */

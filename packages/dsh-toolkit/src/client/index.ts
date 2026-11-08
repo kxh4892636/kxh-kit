@@ -1,6 +1,7 @@
 import { PANEL_ID, PANEL_LABEL } from "../contract.js";
 import { clientService, type ClientContext } from "./contract.js";
 import { fetchHiddenSessions, fetchToolkitState } from "./host-api.js";
+import { NotesDock } from "./notes-dock.js";
 import { ToolkitPanel } from "./panel.js";
 import { ToolkitPanelIcon } from "./panel-icon.js";
 import { toolkitClientState } from "./state.js";
@@ -44,6 +45,12 @@ export const apply = (ctx: ClientContext): void => {
         inject: () => ({ ctx }),
       },
       UndoButton,
+    ),
+  );
+  ctx.slots.inject("conversation.input.dock", () =>
+    ctx.slots.register(
+      { name: "conversation.input.dock", id: "nano-flow-notes", order: 5 },
+      NotesDock,
     ),
   );
   void fetchToolkitState()

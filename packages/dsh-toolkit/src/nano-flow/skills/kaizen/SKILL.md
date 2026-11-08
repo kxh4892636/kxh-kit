@@ -22,10 +22,10 @@ disable-model-invocation: true
 - 难以逆转、缺少上下文会显得意外、存在真实备选的决策 → `adr/NNN-中文决策.md`；
 - 脱离本次 Plan 仍可复用的业务活动 → `workflows/NNN-中文工作流/NNN-中文工作流.md`。
 
-文档头、命名与准入统一遵循 `prompts/agents.md`。索引文件由 check 生成，不要手改。
+文档头、命名与准入统一遵循 `prompts/system.md`。索引文件由 check 生成，不要手改。
 
 ## 工作流
 
 - 先读取该域 `workflows/index.md` 与已有 workflow，按 `/to-skill skill` 抽象可重复的业务活动；覆盖同一活动时就地完善或合并，不新建近似条目。
 - 新增或变更后，把触发条件写进 workflow 的 `description`；索引由 check 更新。
-- 该域尚无 `workflows/` 时，按 `prompts/agents.md` 的布局创建 `index.md` 与首个 workflow 目录。
+- 该域尚无 `workflows/` 时，按 `prompts/system.md` 的布局创建 `index.md` 与首个 workflow 目录。

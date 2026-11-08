@@ -2,13 +2,13 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const ASSET_MARKER = join("prompts", "agents.md");
+const ASSET_MARKER = join("prompts", "system.md");
 
 /**
  * 定位包内资产目录 `nano-flow/`。
  *
  * 构建产物可能落在 `dist/` 或 `dist/nano-flow/`，所以从模块文件所在目录逐级向上
- * 查找带 `prompts/agents.md` 的 `nano-flow/`，而不是写死相对层级。
+ * 查找带 `prompts/system.md` 的 `nano-flow/`，而不是写死相对层级。
  * @param start - 起始目录；缺省为当前模块文件所在目录。
  * @returns 资产目录的绝对路径。
  */
@@ -30,7 +30,7 @@ export const locateAssetsRoot = (start?: string): string => {
  * @returns 去掉首尾空白的提示词正文。
  */
 export const readPromptText = (assetsRoot: string): string => {
-  return readFileSync(join(assetsRoot, "prompts", "agents.md"), "utf8").trim();
+  return readFileSync(join(assetsRoot, "prompts", "system.md"), "utf8").trim();
 };
 
 /**

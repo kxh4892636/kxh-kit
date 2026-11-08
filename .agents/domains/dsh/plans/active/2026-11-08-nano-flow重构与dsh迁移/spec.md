@@ -24,15 +24,17 @@ status: completed
 - note 003 完成 17 个 dsh 旧 plans 迁移。
 - note 004 把生成的 `CONTEXT-MAP.md` 从工作区根迁到 `.agents/domains/`（版本 0.5.11）。
 - note 005 修正旧 Plan 的 119 条失效相对链接：46 条重指、73 条死链降为纯文本。
-- `nano_flow_check` 通过；插件已安装 0.5.11。
+- note 006 把固定提示词改名为 `prompts/system.md`，段名改 `nano-flow:system`，顺带消除被当成 `AGENTS.md` 注入的副作用。
+- note 007 新增会话内 Note 面板：`conversation.input.dock` + 会话投影 `nanoFlowNotes` + 5s 轮询。
+- `nano_flow_check` 通过；插件已安装 0.5.13。
 
 ## 当前进度
 
-全部完成，等待用户验收（note 004 需重启宿主才看到新提示词）。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
+note 001–007 完成并提交。note 006/007 的插件改动已装为 0.5.13，需重启宿主做真机验收（提示词段名、Note 面板）。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
 
 ## 恢复入口
 
-先读 `notes_index.md`；插件细节在 001，领域文档在 002，旧 plans 映射与截断在 003，`CONTEXT-MAP.md` 位置修正在 004，旧 Plan 链接校正在 005。
+先读 `notes_index.md`；插件细节在 001，领域文档在 002，旧 plans 映射与截断在 003，`CONTEXT-MAP.md` 位置修正在 004，旧 Plan 链接校正在 005，提示词改名在 006，Note 面板设计与拷问记录在 007。
 
 ## 追踪 Note
 

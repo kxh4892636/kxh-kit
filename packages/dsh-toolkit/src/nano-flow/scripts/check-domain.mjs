@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { parse as parseYaml } from "yaml";
 
-/** 默认领域根；与 `prompts/agents.md` 的约定一致。 */
+/** 默认领域根；与 `prompts/system.md` 的约定一致。 */
 export const DOMAINS_DIR = ".agents/domains";
 
 /** 领域索引文件名；与 `GUIDE.md` 同级，宿主据它定位业务域。 */
