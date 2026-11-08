@@ -1039,11 +1039,7 @@ export const checkWorkspace = (rootDirectory, options = {}) => {
   }
   // 单域过滤或宽松模式只做校验，不用不完整的集合覆盖全量 CONTEXT-MAP。
   if ((options.domain === undefined || options.domain === "") && options.strict !== false) {
-    writeGenerated(
-      ctx,
-      path.join(rootDir, "CONTEXT-MAP.md"),
-      `${renderContextMap(ctx, contexts)}\n`,
-    );
+    writeGenerated(ctx, path.join(rootDir, "CONTEXT-MAP.md"), renderContextMap(ctx, contexts));
   }
 
   return {
