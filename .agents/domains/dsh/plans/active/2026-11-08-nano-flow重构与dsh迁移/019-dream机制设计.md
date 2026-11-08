@@ -1,14 +1,13 @@
 ---
 name: "019-dream机制设计"
 description: "dream 的最终设计：L0=compact log、L2=领域文档+「## 相关」互链（链+原因）、L3=guide（默认 13 KB，面板配置）、五 pass 与门禁。"
-status: blocked
-reason: "设计稿已交付，等用户确认后再拆实现 note（020 互链与 check、021 dream 引擎）"
+status: completed
 related_noted:
   - '001-nano-flow重构'
   - '009-Plan轨迹日志'
   - '017-轮转后自动校验Plan并绑定看板'
   - '018-恢复Plan开头自动校验'
-next_step: "用户确认设计后拆 020/021/022 并开始实现"
+  - '020-迁移legacy领域文档'
 ---
 
 # 019-dream机制设计
@@ -21,7 +20,8 @@ next_step: "用户确认设计后拆 020/021/022 并开始实现"
 - L2 = 领域文档（CONTEXT/questions/adr/workflows）+ `## 相关` 互链；生成物由 check 写。
 - L3 = `guide.md`（dream 维护，默认 **13 KB**，上限进设置面板）+ `system.md`（用户维护）。
 - 互链用 A 方案：页面正文的 `## 相关` 段，格式「链接 — 原因」。
-- 直接读写，不做人工 diff；每次运行后 git commit，可回滚可审计。
+- 触发用 **DSH 自动化任务**，默认每天 **08:00**；直接读写，不做人工 diff，每次运行后 git commit。
+- 前置：先把 `.tmp/nano-flow-legacy` 的历史领域文档迁移进 `.agents`（020）。
 
 ## 层与维护者
 
@@ -62,8 +62,9 @@ next_step: "用户确认设计后拆 020/021/022 并开始实现"
 
 ## 触发 / 游标 / 幂等 / 并发
 
-- v1：手动 `/dream`（当前会话按本 note 执行），可带 `plan`/`domain` 参数。
-- v2：宿主侧（与 `autoCheck` 同级）在轮转后 / Plan 完成时触发，或空闲批处理；默认关。
+- 触发：**DSH 自动化任务**按日执行，默认每天 **08:00**；到期时以 dream 入口启动一次会话（可带 `plan`/`domain`）。手动 `/dream` 作为兜底。
+- 调度归属：时间与开关在 DSH 自动化任务面板配置；插件只提供可被任务 prompt 触发的 dream 入口、游标与门禁。
+- v2 可选：轮转后 / 空闲事件触发。
 - 游标：`$DSH_HOME/toolkit/nano-flow-dream.json`，按 Plan 记录 `{ sessionId, turn, seq }`，只消费新增段。
 - 幂等：同一 (sessionId, turn) 只处理一次；写入前校验文档内容 hash，冲突则跳过并报告。
 - 并发：按 workspace 单写者锁；dream 运行期间不轮转。
@@ -79,20 +80,21 @@ next_step: "用户确认设计后拆 020/021/022 并开始实现"
 ## 配置（nano-flow 面板）
 
 - `guideMaxBytes` = **13 × 1024**（新增默认值）。
-- `dreamEnabled`（bool，默认 false；v1 手动不需要）。
+- `dreamEnabled`（bool，默认 false；自动化任务未启用时不跑）。
 - `dreamMaxFiles` / `dreamMaxBytes`（单次预算，先给保守默认）。
+- 自动化任务的触发时间（默认 08:00）在 DSH 自动化面板维护，不存进本插件的设置文件。
 - 落点：`contract.ts` 的 `NanoFlowSettings`、`client/panel.ts:31-33` 的字段表、`$DSH_HOME/toolkit/nano-flow.json`、check 的 limits 入参。
 
 ## v1 / v2
 
-- v1（本设计验收）：互链契约 + check 校验 + guide 预算（面板）；`/dream` 手动跑通一个 Plan。
-- v2：宿主触发（轮转后/空闲）、反链视图、dream 自评（用后续 log 验证上次改动是否被采纳）。
+- v1：互链契约 + check 校验 + guide 预算（面板）；dream 入口接 DSH 自动化任务（每日 08:00），跑通一个 Plan。
+- v2：事件触发（轮转后/空闲）、反链视图、dream 自评（用后续 log 验证上次改动是否被采纳）。
 
 ## 实现拆分（待确认后开 note）
 
-- 020：互链与 check（`## 相关` 解析/校验、死链报错；guide 预算读取配置；面板字段）。
-- 021：dream 引擎（`/dream` 入口、游标、五 pass、门禁、commit）。
-- 022：访问信号与晋升策略（log 读文件统计、guide 排序、剪枝规则）。
+- 021：互链与 check（`## 相关` 解析/校验、死链报错；guide 预算读取配置；面板字段）。
+- 022：dream 引擎（dream 入口、游标、五 pass、门禁、commit；接自动化任务）。
+- 023：访问信号与晋升策略（log 读文件统计、guide 排序、剪枝规则）。
 
 ## 验收
 
