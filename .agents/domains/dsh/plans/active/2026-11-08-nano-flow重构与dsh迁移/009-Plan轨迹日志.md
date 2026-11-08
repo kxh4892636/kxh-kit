@@ -28,10 +28,15 @@ next_step: '按设计实现宿主半：绑定表 + session/event 聚合 + turn/e
 
 ## 取证
 
-- 轮转会**物理删除**旧会话日志：`rotate.ts:195` 调 `deleteSessionLogs`，所以「事后导出」必丢历史，必须边发生边落盘。
-- 实时通道：`dsh-session/lib/types/index.d.ts:62` 的 `'session/event'(this: Scoped<Session>, session, event)` firehose（构造种子不触发）。
-- 受支持的读取面：`ctx.sessionQuery.readSession(id)` 返回回放校验过的完整原始事件（`dsh-session-query/README.zh.md:35`）；`ctx.sessionPersistence.open(id,'read')` 的 `read(offset, length)` 支持增量读（`dsh-session-persistence/README.zh.md:39-49`）；`stat(id)` 给 header/revision/eventCount/sizeBytes。
-- 体积：本会话日志 2.47 MB zstd → **7.84 MB 未压缩**（1493 帧，比值 3.2）；这是不存 raw、只入 compact 的依据。
+> 版本提醒：已安装包树是 `@deepseek-ai/dsh 0.1.6-alpha.1`（`SESSION_FORMAT_VERSION=3`），运行宿主是 Desktop 0.2.2-rc.1（v4，`session.v4.jsonl.zstd`）。下列 API 在 0.2.2 的 asar 里逐一确认仍存在，但字段细节实现时以运行版复核；行号来自 0.1.6 树。
+
+- 轮转会**物理删除**旧会话日志：`rotate.ts:172-201` 走 archive → detach → `deleteSessionLogs`（延迟 150 ms），旧日志目录被删；所以「事后导出」必丢历史，必须边发生边落盘。轮转是**新会话新日志**（`sessionController.create()` 铸新 `session-<uuid>`），不是续写。
+- 实时通道：`ctx.on('session/event', (session, event) => void, { global: true })`，提交后 fire-and-forget；**构造函数 seed 不触发**（`dsh-session/lib/types/index.d.ts:51-62,126-127`），所以恢复会话必须先用快照补齐。
+- 受支持的读取面：`ctx.sessionQuery.observeSession(id)` / `readSession(id)` 返回 `{header, inheritedEventCount, events[]}`（数组快照，非流）；`ctx.sessionPersistence.open(id,'read').read(offset, length)` 支持按 seq 增量读；`stat(id)` 给 header/eventCount/sizeBytes。已弃用且禁止新增：`eventAt` / `snapshotEvents` / `ownEvents`（`dsh-session/README.zh.md:60`）。
+- 会话定位：`header.cwd` 决定工作区；`sessions.get(id).header` 取活会话，`persistence.stat(id).header` 取冷会话。**没有 API 暴露日志路径**，但 `open` / `stat` 会按 id 扫所有项目目录，重启后无活跃会话也能读，所以轨迹日志不需要存宿主日志路径。
+- 官方增量范式：`dsh-api-session-controller/lib/types/history.js:158-178`（开场快照 + `{global:true}` 订阅 + 用快照补 seed 缺口），可作模板。
+- 导出实现可参考：`dsh-session-log-export` 先 `sessions.flush(session)`，再 `persistence.open(id,'read')` + `read(0)` + `serializeSessionLog`（首行 header，其后每行原始事件 JSON）；ZIP 分块与压缩与本需求无关。
+- 规模：单事件均值 2–3 KB、中位 0.3–0.6 KB；本会话 2.47 MB zstd → 7.84 MB 未压缩（1493 帧）；大条目是 `assistant/message` 的 compact stream 与 `tool/result`。10 万事件≈200–300 MB 原始 JSONL，采集时必须边收边截断、避免反复 `read(0)`。
 - 既有约束：不能把这类状态写进会话事件（question 009），绑定信息必须存宿主文件。
 
 ## 设计
@@ -40,10 +45,10 @@ next_step: '按设计实现宿主半：绑定表 + session/event 聚合 + turn/e
 
 1. 绑定表：`$DSH_HOME/toolkit/nano-flow-plan-bindings.json`，形状 `{ sessionId: { planPath, cwd, boundAt } }`。
 2. 绑定时机：会话首次命中——`nano_flow_*` 工具调用、或 `agent/pre-step` 解析到唯一 active Plan（复用 `notes.ts` 的 `notesForWorkspace` / `resolveBoundPlan`）。
-3. 采集：订阅 `session/event`，只处理已绑定且为 nano-flow 预设的会话；按 turn 缓冲 `user/message`、`assistant/message`（最终文本 + usage）、`tool/call` 与 `tool/result`（按 callId 配对）。
-4. 落盘：`turn/end` 时把一条 `turn` 记录 append 到 `<workspace>/<planPath>/log.jsonl`；该文件还没有本会话段头时先写 `session` 行。
+3. 采集：`ctx.on("session/event", handler, { global: true })`，只处理已绑定且为 nano-flow 预设的会话；按 turn 缓冲 `user/message`、`assistant/message`（最终文本 + usage）、`tool/call` 与 `tool/result`（按 callId 配对）。**收到大事件时立刻按 4 KB 截断**再入缓冲，避免整份 tool 结果驻留内存。
+4. 落盘：`turn/end` 时把一条 `turn` 记录 append 到 `<workspace>/<planPath>/log.jsonl`；该文件还没有本会话段头时先写 `session` 行。只用 append，不重读整文件。
 5. 失败策略：写失败只 warn；绑定指向的 Plan 已不存在（被移走）时跳过，保留绑定。
-6. 回填：绑定建立时用 `sessionQuery.readSession(sessionId)` 读已有事件，按同一聚合逻辑补写绑定前轮次；`(sessionId, turn)` 幂等去重。
+6. 回填：绑定建立时先 `sessionQuery.readSession(sessionId)` 取快照（同时覆盖 seed 不落 firehose 的问题），按同一聚合逻辑补写绑定前轮次；`(sessionId, turn)` 幂等去重。之后 live 事件从快照的最后 seq+1 续接。
 
 **记录结构**
 
@@ -60,7 +65,9 @@ next_step: '按设计实现宿主半：绑定表 + session/event 聚合 + turn/e
 - **A4** 幂等键 `(sessionId, turn)`；重复写时跳过。
 - **A5** `log.jsonl` 不自动提交 git，由用户提交；预估 200–500 KB/会话。
 - **A6** 排除 subagent：`header.origin === "subagent"` 或 `delegationDepth > 0`。
-- **A7** 不额外 flush：`turn/end` 一定早于轮转删除；中途崩溃的未完成轮不写（可接受）。
+- **A7** 不额外 flush 宿主日志：轨迹文件由我们自己 append，`turn/end` 一定早于轮转删除；中途崩溃的未完成轮不写（可接受）。
+- **A8** 实时事件里的 `tool/result` / `assistant/message` 可能到 MB 级：采集时立即截断到 4 KB（assistant 8 KB）再缓冲，内存只保留摘要。
+- **A9** 重启/恢复的会话：seed 事件不会出现在 firehose，绑定建立时先 `readSession` 快照补齐，再从最后 seq+1 续接，避免断档。
 
 ## 验收
 
