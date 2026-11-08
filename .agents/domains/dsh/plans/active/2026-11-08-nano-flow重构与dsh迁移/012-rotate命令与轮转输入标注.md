@@ -6,7 +6,7 @@ reason: "手动 /rotate 的命令路径已 live 取证（seed 逐字一致、旧
 related_noted:
   - '010-轮转保留分组与置顶'
   - '011-轨迹日志绑定轮修复'
-next_step: "阈值自动轮转发生时，核对新会话首条用户内容是否包在 <rotation-prior-input> 内"
+next_step: "面板「轮转阈值」临时调低（如 0.05，设置缓存在内存，改文件不生效）→ 发一条消息触发自动轮转 → 新会话核对首条用户内容是否含 <rotation-prior-input> → 调回 0.618"
 ---
 
 # 012-rotate命令与轮转输入标注
@@ -62,4 +62,4 @@ next_step: "阈值自动轮转发生时，核对新会话首条用户内容是�
 - **切换生效**：旧会话行被隐藏（`$DSH_HOME/toolkit/state.json` 的 `hiddenSessionIds` 含 `session-17660661`），新会话已接收用户输入（本轮「go」），说明客户端 `command/executed` → 读 rotation 路由 → `openSession(to)` 链路走通。
 - **旧会话清理**：已从工作区 detach、不在 archived/pinned 集合，落盘日志目录已删除。
 
-未验：自动轮转的 XML 包裹（需阈值触发）。
+未验：自动轮转的 XML 包裹（需阈值触发）。触发办法：面板「轮转阈值」调低（`nano-flow.json` 的 `rotateAt`，默认 0.618；设置缓存在内存，直接改文件不生效，需经面板 `update`）→ 发一条消息 → 新会话首条用户内容应含 `<rotation-prior-input>` → 验完调回 0.618。
