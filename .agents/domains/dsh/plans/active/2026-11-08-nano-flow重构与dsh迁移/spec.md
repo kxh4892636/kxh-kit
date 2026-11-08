@@ -1,7 +1,7 @@
 ---
 name: 'nano-flow 重构与 dsh 迁移'
 description: '把 nano-flow 插件重构、dsh 领域文档生成与旧 plans 迁移收进同一个 Plan。'
-status: completed
+status: in_progress
 ---
 
 # nano-flow 重构与 dsh 迁移
@@ -39,10 +39,11 @@ status: completed
 - note 016 验收「轮转后」的轨迹日志：新会话段头 + turn 1/2 完整（`user` 以 seed 开头、19/24 次工具、usage 五项、seq 连续），旧会话 5 轮未重写（0.5.27，`completed`）。
 - note 017 轮转后自动跑一次 `nano_flow_check`：宿主在 seed 投递前执行校验并把结论写进 seed，同时给新会话写绑定，Note 看板不必等模型调工具就出现（0.5.28，单测 96 例通过；2026-11-08 重启后手动 `/rotate` live 验收通过，`completed`）。
 - note 018 恢复 Plan 时开头自动跑一次 `nano_flow_check`：同一目的（校验 + 建看板绑定），约束写进 `prompts/system.md` 的恢复条款（0.5.29，单测 97 例通过，已装入两个 profile；2026-11-08 重启后新会话 live 验收通过，`completed`）。
+- note 019 定义 dream 机制设计：L0=compact log、L1=note 结论、L2=领域文档+`## 相关`互链（链+原因）、L3=guide（默认 13 KB，面板配置）；五 pass + 游标幂等 + check 门禁 + git commit（待用户确认设计后实现）。
 
 ## 当前进度
 
-全部 18 条 note 完成（001–018），Plan 按用户要求留在 `active`。018 收尾：2026-11-08 用户重启宿主（desktop 载 0.5.29）后开新会话恢复 Plan 验证——模型开头先调 `nano_flow_check`、Note 看板出现，用户确认「已经验证」；插件 desktop / web profile 均为 0.5.29。近几步回顾：015 修通新会话看板（绑定由 `nano_flow_check` 经宿主 facade 写入，未绑定不出面板、默认折叠；web 形态已 live 验收）；016 验收轮转后的轨迹日志；017 让轮转在 seed 投递前自动跑一次 `nano_flow_check` 并写绑定（2026-11-08 手动 `/rotate` live 通过：seed 带校验结论、看板立即出现，bindings 在轮转时写入 `session-de913589-3dd9-478c-baeb-b87d9d4843aa`，`boundAt 2026-11-08T10:42:26.340Z`）；018 把同一约束写进 `prompts/system.md` 恢复条款。机制补充：轮转会话没有 `agent-preset/selected` 事件，日志在 `turn/end` 落盘（详见 016）。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
+note 001–018 完成；019（dream 机制设计）设计稿已交付，等用户确认后拆 020/021/022 实现。018 收尾：2026-11-08 用户重启宿主（desktop 载 0.5.29）后开新会话恢复 Plan 验证——模型开头先调 `nano_flow_check`、Note 看板出现，用户确认「已经验证」；插件 desktop / web profile 均为 0.5.29。019 按逐轮确认的决策定稿：L0=`log.jsonl`（compact，轮转不删、只增量）、L1=note 结论、L2=领域文档+`## 相关`互链（链接+原因）、L3=`guide.md`（默认 13 KB，上限进设置面板）；dream 五 pass（纠错/提炼/建链/晋升/剪枝）、游标幂等、check 门禁（链接与 guide 预算）、每次运行 git commit。机制补充：轮转会话没有 `agent-preset/selected` 事件，日志在 `turn/end` 落盘（详见 016）。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
 
 ## 恢复入口
 
@@ -54,3 +55,4 @@ status: completed
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
+| [019-dream机制设计](019-dream%E6%9C%BA%E5%88%B6%E8%AE%BE%E8%AE%A1.md) | dream 的最终设计：L0=compact log、L2=领域文档+「## 相关」互链（链+原因）、L3=guide（默认 13 KB，面板配置）、五 pass 与门禁。 | blocked | 设计稿已交付，等用户确认后再拆实现 note（020 互链与 check、021 dream 引擎） | 用户确认设计后拆 020/021/022 并开始实现 | 001-nano-flow重构, 009-Plan轨迹日志, 017-轮转后自动校验Plan并绑定看板, 018-恢复Plan开头自动校验 |
