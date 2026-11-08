@@ -112,8 +112,8 @@ body::after {
 #work {
   margin-top: var(--space-2xs);
   font-size: var(--text-display);
-  max-width: 24ch;
-  text-wrap: balance;
+  max-width: 90%;
+  text-wrap: wrap;
 }
 
 .movement {
