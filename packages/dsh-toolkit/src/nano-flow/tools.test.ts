@@ -31,18 +31,25 @@ const services = {
   on: () => () => {},
 } as unknown as HostServices;
 
-const tools = (workspace: string) => {
+const tools = (
+  workspace: string,
+  bind?: (sessionId: string, planDirectory: string, workspace: string) => Promise<void>,
+) => {
   const runtime = createToolRuntime({
     services,
     config: { workspace },
     settings: () => DEFAULT_NANO_FLOW_SETTINGS,
     assetsRoot: locateAssetsRoot(),
     domainRoot: ".agents/domains",
+    ...(bind === undefined ? {} : { bind }),
   });
   return { create: createCreateTool(runtime), check: createCheckTool(runtime) };
 };
 
-const exec = () => ({ signal: new AbortController().signal });
+const exec = (sessionId?: string) => ({
+  signal: new AbortController().signal,
+  ...(sessionId === undefined ? {} : { agent: { session: { id: sessionId } } }),
+});
 
 describe("nano_flow_create", () => {
   it("rejects invalid kinds and domain names", async () => {
@@ -169,6 +176,34 @@ describe("nano_flow_check", () => {
       [
         "session-x",
         join(workspace, ".agents", "domains", "demo", "plans", "active", "2026-11-08-示例"),
+        workspace,
+      ],
+    ]);
+  });
+
+  it("binds an explicit plan across lifecycles, even with several active plans", async () => {
+    const workspace = await makeRoot();
+    const calls: [string, string, string][] = [];
+    const { create, check } = tools(workspace, async (sessionId, planDirectory, root) => {
+      calls.push([sessionId, planDirectory, root]);
+    });
+    await create.execute({ kind: "plan", domain: "demo", name: "2026-11-08-甲" }, exec());
+    await create.execute({ kind: "plan", domain: "demo", name: "2026-11-08-乙" }, exec());
+    await create.execute(
+      { kind: "plan", domain: "demo", name: "2026-11-08-丙", lifecycle: "reference" },
+      exec(),
+    );
+
+    // 两个 active：不带 plan 不绑。
+    await check.execute({}, exec("session-a"));
+    expect(calls).toEqual([]);
+
+    // 显式 plan（reference 也算）→ 绑定到该 Plan。
+    await check.execute({ plan: "2026-11-08-丙" }, exec("session-b"));
+    expect(calls).toEqual([
+      [
+        "session-b",
+        join(workspace, ".agents", "domains", "demo", "plans", "reference", "2026-11-08-丙"),
         workspace,
       ],
     ]);
