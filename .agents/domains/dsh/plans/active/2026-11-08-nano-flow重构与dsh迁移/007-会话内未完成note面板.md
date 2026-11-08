@@ -1,11 +1,11 @@
 ---
 name: "007-会话内未完成note面板"
 description: "在输入框 dock 展示当前会话绑定 Plan 的未完成 note，样式与 TODO 面板一致。"
-status: completed
-reason:
+status: blocked
+reason: "等待用户重启宿主验收 Note 面板：面板出现、5s 刷新、tooltip 与折叠通过后才置 completed"
 related_noted:
   - '006-固定提示词改名为system'
-next_step: '等待用户重启宿主后按 README 验证 9 验收面板；插件已装 0.5.13'
+next_step: '重启后按 README 验证第 9 条确认面板，验收通过再置 completed'
 ---
 
 # 007-会话内未完成note面板

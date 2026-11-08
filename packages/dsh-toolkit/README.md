@@ -181,6 +181,7 @@ metadata:
 - spec 固定 `status`：`pending | in_progress | completed`，由全部 note 派生。
 - note 固定 `status`：`pending | in_progress | blocked | completed`；`blocked` 时 `reason` 必填，
   其他状态不写；`next_step` 是单行下一步。`related_noted` 只表达关联，不构成 DAG。
+  **只有用户验收通过后才写 `completed`**；交付完成但未验收时置 `blocked` 并在 `reason` 写“等待用户验收”。
 - spec 正文自由组织，只在最后保留 `## 追踪 Note`；check 用未完成 note 自动生成该表。
   `notes_index.md` 收录全部 note（name / description / related_noted）。
 

@@ -1,7 +1,7 @@
 ---
 name: 'nano-flow 重构与 dsh 迁移'
 description: '把 nano-flow 插件重构、dsh 领域文档生成与旧 plans 迁移收进同一个 Plan。'
-status: completed
+status: in_progress
 ---
 
 # nano-flow 重构与 dsh 迁移
@@ -25,16 +25,16 @@ status: completed
 - note 004 把生成的 `CONTEXT-MAP.md` 从工作区根迁到 `.agents/domains/`（版本 0.5.11）。
 - note 005 修正旧 Plan 的 119 条失效相对链接：46 条重指、73 条死链降为纯文本。
 - note 006 把固定提示词改名为 `prompts/system.md`，段名改 `nano-flow:system`，顺带消除被当成 `AGENTS.md` 注入的副作用。
-- note 007 新增会话内 Note 面板：`conversation.input.dock` + 会话投影 `nanoFlowNotes` + 5s 轮询。
-- `nano_flow_check` 通过；插件已安装 0.5.13。
+- note 007 新增会话内 Note 面板：`conversation.input.dock` + 会话投影 `nanoFlowNotes` + 5s 轮询（`blocked`，等待重启宿主验收）。
+- `nano_flow_check` 通过；插件已安装 0.5.14。
 
 ## 当前进度
 
-note 001–007 完成并提交。note 006/007 的插件改动已装为 0.5.13，需重启宿主做真机验收（提示词段名、Note 面板）。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
+note 001–006 完成；note 007 处于 `blocked`，等用户重启宿主验收 Note 面板（验收通过才置 `completed`）。插件已装 0.5.14。旧的两个 Plan 归档在 `plans/archived/`；旧 plans 原文保留在 `.tmp/nano-flow-legacy/domains/dsh/plans/`。
 
 ## 恢复入口
 
-先读 `notes_index.md`；插件细节在 001，领域文档在 002，旧 plans 映射与截断在 003，`CONTEXT-MAP.md` 位置修正在 004，旧 Plan 链接校正在 005，提示词改名在 006，Note 面板设计与拷问记录在 007。
+先读 `notes_index.md`；插件细节在 001，领域文档在 002，旧 plans 映射与截断在 003，`CONTEXT-MAP.md` 位置修正在 004，旧 Plan 链接校正在 005，提示词改名在 006，Note 面板设计与验收条件在 007。
 
 ## 追踪 Note
 
@@ -42,3 +42,4 @@ note 001–007 完成并提交。note 006/007 的插件改动已装为 0.5.13，
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
+| [007-会话内未完成note面板](007-%E4%BC%9A%E8%AF%9D%E5%86%85%E6%9C%AA%E5%AE%8C%E6%88%90note%E9%9D%A2%E6%9D%BF.md) | 在输入框 dock 展示当前会话绑定 Plan 的未完成 note，样式与 TODO 面板一致。 | blocked | 等待用户重启宿主验收 Note 面板：面板出现、5s 刷新、tooltip 与折叠通过后才置 completed | 重启后按 README 验证第 9 条确认面板，验收通过再置 completed | 006-固定提示词改名为system |
