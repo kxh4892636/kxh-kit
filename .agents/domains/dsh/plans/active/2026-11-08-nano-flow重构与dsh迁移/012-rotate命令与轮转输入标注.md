@@ -2,11 +2,11 @@
 name: "012-rotate命令与轮转输入标注"
 description: "新增 /rotate 命令手动触发轮转（新会话、自动只读恢复、切过去），并把自动轮转时触发的用户输入用 XML 标注为轮转前输入。"
 status: blocked
-reason: "等用户执行 /rotate 做 live 验收（命令、客户端切换）；自动轮转的 XML 标注需要阈值触发的真实轮转，尚未造出"
+reason: "手动 /rotate 的命令路径已 live 取证（seed 逐字一致、旧行隐藏、新会话已接管）；剩余 XML 标注需要一次阈值触发的自动轮转，尚未造出"
 related_noted:
   - '010-轮转保留分组与置顶'
   - '011-轨迹日志绑定轮修复'
-next_step: "用户执行 /rotate 后核对：命令被接受、客户端切到新会话、新会话拿到 seed；XML 标注待自动轮转时验"
+next_step: "阈值自动轮转发生时，核对新会话首条用户内容是否包在 <rotation-prior-input> 内"
 ---
 
 # 012-rotate命令与轮转输入标注
@@ -54,4 +54,12 @@ next_step: "用户执行 /rotate 后核对：命令被接受、客户端切到�
 - `host/toolkit-routes.ts` + `contract.ts`：新增 `GET /api/toolkit/nano-flow/rotation` 返回 `{rotation: {from,to,at} | null}`。
 - 客户端：`fetchNanoFlowRotation`；订阅 `command/executed`，`rotate` 时读路由、把旧会话记为 tombstone 隐藏、刷新会话目录并 `uiWorkspace.openSession(to)`。
 - 测试：`rotate.test.ts` 新增 XML 包裹、`wrapPriorInput`、命令路径；新增 `rotate-command.test.ts` 4 例；路由测试新增 rotation 路由。**288 例通过**（37 文件）；`vp check` 123 文件格式 + 94 文件 lint/类型通过。
-- **待 live 验证**：重启宿主后在真实会话执行 `/rotate` 与自动轮转，核对切换、分组/置顶、XML 包裹与旧会话清理。
+## 验收（2026-11-08 手动 /rotate，0.5.27）
+
+用户在 `session-17660661` 执行 `/rotate`，产出 `session-cad2849e`：
+
+- **seed 逐字一致**：新会话首条输入 = `buildSeed`（`rotate.ts:149-153`）的三段拼接，plan 引用 `dsh/active/2026-11-08-nano-flow重构与dsh迁移` 正是单 active Plan 分支；没有 `<rotation-prior-input>` → 走命令路径（自动路径在 `rotate.ts:325` 会把旧输入包进该标签）。
+- **切换生效**：旧会话行被隐藏（`$DSH_HOME/toolkit/state.json` 的 `hiddenSessionIds` 含 `session-17660661`），新会话已接收用户输入（本轮「go」），说明客户端 `command/executed` → 读 rotation 路由 → `openSession(to)` 链路走通。
+- **旧会话清理**：已从工作区 detach、不在 archived/pinned 集合，落盘日志目录已删除。
+
+未验：自动轮转的 XML 包裹（需阈值触发）。
