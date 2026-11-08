@@ -24,5 +24,5 @@ status: accepted
 
 ## 相关
 
-- [028-轮转绑定继承旧会话的Plan](../plans/active/2026-11-08-nano-flow重构与dsh迁移/028-轮转绑定继承旧会话的Plan.md) — 实现与验证记录。
+- [028-轮转绑定继承旧会话的Plan](../plans/archived/2026-11-08-nano-flow重构与dsh迁移/028-轮转绑定继承旧会话的Plan.md) — 实现与验证记录。
 - [007-dream由宿主定时任务投递新会话](007-dream由宿主定时任务投递新会话.md) — 同为宿主侧轮转/调度决策。

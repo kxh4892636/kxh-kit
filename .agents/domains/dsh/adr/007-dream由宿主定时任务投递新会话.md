@@ -25,5 +25,5 @@ dream 不是插件代码里的后台定时器，而是一条 DSH 自动化任务
 
 ## 相关
 
-- [023-dream指令与自动化接入](../plans/active/2026-11-08-nano-flow重构与dsh迁移/023-dream指令与自动化接入.md) — 任务配置与首次创建记录，含创建即投递的异常观察。
-- [019-dream机制设计](../plans/active/2026-11-08-nano-flow重构与dsh迁移/019-dream机制设计.md) — 运行形态、游标与五 pass 的完整设计。
+- [023-dream指令与自动化接入](../plans/archived/2026-11-08-nano-flow重构与dsh迁移/023-dream指令与自动化接入.md) — 任务配置与首次创建记录，含创建即投递的异常观察。
+- [019-dream机制设计](../plans/archived/2026-11-08-nano-flow重构与dsh迁移/019-dream机制设计.md) — 运行形态、游标与五 pass 的完整设计。

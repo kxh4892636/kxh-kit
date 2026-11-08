@@ -1,13 +1,11 @@
 ---
 name: "031-删除手动rotate并自动切视图"
 description: "删除 /rotate 命令与手动路径，客户端在根上下文订阅导航选择，自动轮转归档旧会话后视图自动切到新会话。"
-status: blocked
-reason: 等待宿主重启装入 0.5.37 后触发一次自动轮转，真机确认视图自动切到新会话且旧行消失
+status: completed
 related_noted:
   - '012-rotate命令与轮转输入标注'
   - '030-轮转时机与种子内容调整'
   - '032-轮转seed携带上一轮输出'
-next_step: "宿主重启后触发一次自动轮转，确认视图自动切到新会话、旧行消失；之后置 completed"
 ---
 
 # 031-删除手动rotate并自动切视图
@@ -63,3 +61,13 @@ next_step: "宿主重启后触发一次自动轮转，确认视图自动切到�
 - dock 里的 `followRotation` 保留为旧宿主兜底；两者共用 `followed` 集合，保证同一旧会话只切一次。
 - 单测：`rotation-follow.test.ts` 11 例（根级跟随、不抢用户导航、中途切走放弃、重试打开、目录始终没列到时告警且不记账、无订阅退化轮询，以及原 4 例面板兜底）。
 - 两条路径共用 `applyRotation`：先 hide/refresh/guardTombstones，再按 0/600/1800ms 重试 `openSession`；每次打开前重读选择，用户切到第三个会话就放弃；成功后记入 `followed`，失败只 warn。dock 的 5s 轮询由 `rotationFollowInstalled()` 判断——根级跟随装上后不再发请求。
+
+## 2026-11-09 真机验收（0.5.37）
+
+- 环境：desktop / web 两个 profile 的 `dist/client.js` 均为 00:26:24 写入的 0.5.37；宿主 00:28:13 重启，进程启动晚于装入。
+- 00:28:36 用户在旧会话发「rotate 测试」触发自动轮转：旧会话 `session-c2e79eb9` 归档并进入 `state.json` 的 `pendingDeletes` / `hiddenSessionIds`，新会话 `session-6e0c0d4b` 建立，绑定表随即写入本 Plan（`boundAt 16:28:36Z`）。
+- 用户确认：视图在轮转后自动切到新会话、侧栏旧行消失，0.5.37 的根级跟随路径在真机生效，验收通过。
+
+## 结论
+
+根因是「归档即卸载」——跟随必须挂在客户端根上下文，不能依赖会话面板存活。0.5.37 已按此修复并经真机验收。

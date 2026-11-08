@@ -23,7 +23,7 @@
 
 ## 热点入口
 
-- 当前活跃 Plan：[2026-11-08-nano-flow重构与dsh迁移](dsh/plans/active/2026-11-08-nano-flow重构与dsh迁移/spec.md)——本 Plan 的 `log.jsonl` 34 轮里 spec 被读 32 次，是最近最热的一份文档。
+- 最近归档的 Plan（dsh 暂无活跃 Plan）：[2026-11-08-nano-flow重构与dsh迁移](dsh/plans/archived/2026-11-08-nano-flow重构与dsh迁移/spec.md)——0.5.37 已完成真机验收；追溯轮转与 seed 设计从 note 031/032 及其 `log.jsonl` 入手。
 - 插件源码 `packages/dsh-toolkit/src/`：固定提示词 `src/nano-flow/prompts/system.md`，dream 指令 `src/nano-flow/prompts/dream.md`，校验脚本 `src/nano-flow/scripts/check-domain.mjs`。
 - 发布与真机验收：[001-发布dsh-toolkit并真机验收](dsh/workflows/001-发布dsh-toolkit并真机验收/001-发布dsh-toolkit并真机验收.md)。
 - 常见坑：[dsh 问题索引](dsh/questions/index.md)——恢复只读、预设出现但工具缺失、历史加载失败、PATH 上的 dsh 装错 profile。

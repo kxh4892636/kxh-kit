@@ -1,13 +1,11 @@
 ---
 name: "032-轮转seed携带上一轮输出"
 description: "seed 末尾先写恢复要求与校验结论、再放上一轮 assistant 最终文本的 XML 块；用户原文用 `<rotation-prior-input>` 包裹放在消息最末。"
-status: blocked
-reason: 等待宿主重启装入 0.5.37 后做一次自动轮转，真机确认新会话首条消息里 seed 顺序（校验结论 → 输出块 → 原文块）正确
+status: completed
 related_noted:
   - '012-rotate命令与轮转输入标注'
   - '030-轮转时机与种子内容调整'
   - '031-删除手动rotate并自动切视图'
-next_step: "宿主重启后触发一次自动轮转，读新会话首条消息确认 seed 顺序与包裹；之后置 completed"
 ---
 
 # 032-轮转seed携带上一轮输出
@@ -73,3 +71,8 @@ next_step: "宿主重启后触发一次自动轮转，读新会话首条消息�
 - `buildSeed` 增加 `checked` 参数：校验结论成为 seed 的一部分，顺序为「恢复三段 → 校验结论 → `<rotation-last-output>` 块」，`redirect` 不再在 seed 后另贴结论。
 - 单测：`rotate.test.ts` 20 例（包装在 seed 之后、原文是最后一块、图片块留在标签内、校验结论在输出块之前）。
 - 局限不变：输出块 8192 B 保尾；reasoning 与工具调用不进 seed。
+
+## 2026-11-09 真机验收（0.5.37）
+
+- 00:28:36 自动轮转生成的新会话 `session-6e0c0d4b` 首条 user 消息实测，顺序为：恢复三段 → 「轮转后自动执行 `nano_flow_check`」结论 → `<rotation-last-output>` 块（内容即 0.5.37 交付说明）→ 说明行 + `<rotation-prior-input>`（原文 `rotate 测试` 在最末并闭合）。
+- 输出块未截断（远小于 8192 B），校验结论在输出块之前、原文块在消息最末，均与 030 的修订一致，验收通过。
