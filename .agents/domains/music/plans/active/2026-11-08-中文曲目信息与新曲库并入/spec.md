@@ -1,7 +1,7 @@
 ---
 name: "中文曲目信息与新曲库并入"
 description: "站点曲目信息中文化并标准化，并入本机新曲库（207 个 WAV）：全量重算剪影、去重、转 FLAC；先本地验收，确认后上线。"
-status: in_progress
+status: completed
 ---
 
 # 中文曲目信息与新曲库并入
@@ -55,7 +55,7 @@ status: in_progress
 ## 恢复入口
 
 1. 读 [001-中文曲目信息与新曲库并入的决策](001-中文曲目信息与新曲库并入的决策.md) 的结论，再按 notes_index 顺序推进。
-2. 当前进度（2026-11-08 22:00）：002–005 已完成；本地索引 347 条 / 196 部作品，202 个新库 FLAC 4.37 GB，347 张波形剪影；本地服务 http://127.0.0.1:5210/ 已起，单测 55/55、e2e 2/2、音乐包 vp check 全绿。006 本地调试完成，正等用户确认；007 上传线上仍 blocked。
+2. 当前进度（2026-11-08 22:42）：全部完成。线上 <http://123.57.92.26/music/> 为 347 首 / 196 部作品，202 个新库 FLAC 已上传并复验；详见 007 的执行记录与回滚方式。
 3. 代码入口：`apps/music/scripts/build-library.py`、`apps/music/server/data/tracks.json`、`apps/music/shared/tracks.ts`、`apps/music/client/app/components/now-playing.tsx`、`apps/music/client/app/routes/home.tsx`、`apps/music/server/media.ts`、`apps/music/server/config.ts`。
 4. 曲库：老 `C:\Users\kxh\Music\musopen-flac`；新 `C:\Users\kxh\Music\古典音乐精选合辑 无损WAV`；取证产物 `.temp/music-new/`（scan.json、report.txt）。
 5. 本地调试根目录与 FLAC 产物位置在 006 前定稿并写入 note，避免轮转后丢线索。
@@ -66,5 +66,3 @@ status: in_progress
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [006-本地调试与确认](006-%E6%9C%AC%E5%9C%B0%E8%B0%83%E8%AF%95%E4%B8%8E%E7%A1%AE%E8%AE%A4.md) | 本地起服务、截图与差异清单，交给用户确认；不部署。 | blocked | 本地调试已完成，等待用户确认效果后再进入 007 上传。 | 用户确认后解除 007 的阻塞；若要改文案或去重策略，先改数据再复跑。 | 005-索引与界面中文化 |
-| [007-转码上传与线上复验](007-%E8%BD%AC%E7%A0%81%E4%B8%8A%E4%BC%A0%E4%B8%8E%E7%BA%BF%E4%B8%8A%E5%A4%8D%E9%AA%8C.md) | 把新曲库 FLAC 上传服务器，部署索引与波形，线上复验；等 006 用户确认后开始。 | blocked | 等待 006 本地调试经用户确认；确认前不上传线上。 | 确认后上传 .temp/music-new/flac 的 202 个 FLAC（4.37 GB）与 tracks.json/waves，重启 music.service。 | 006-本地调试与确认 |
