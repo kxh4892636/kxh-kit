@@ -21,7 +21,13 @@ import { NANO_FLOW_PRESET_ID, nanoFlowEntryUrl } from "./nano-flow/preset.js";
 import { createRotation, type RotationSession } from "./nano-flow/rotate.js";
 import { registerRotateCommand } from "./nano-flow/rotate-command.js";
 import { createPlanLogService } from "./nano-flow/plan-log-service.js";
-import { BINDINGS_FILE, readBindingsSync } from "./nano-flow/plan-log.js";
+import {
+  BINDINGS_FILE,
+  planRelativePath,
+  readBindings,
+  readBindingsSync,
+  writeBindings,
+} from "./nano-flow/plan-log.js";
 import { listActivePlans } from "./nano-flow/notes.js";
 import { hostServices } from "./nano-flow/services.js";
 import { createNestedSkillTool } from "./host/tools/nested-skill.js";
@@ -86,6 +92,23 @@ export const Config: Schema<Config> = z.object({
   domainRoot: z.string(),
   nanoFlowOnly: z.boolean(),
 });
+
+/** 记录一次会话↔Plan 绑定（已绑定则不动）。 */
+const recordBinding = async (
+  file: string,
+  sessionId: string,
+  planDirectory: string,
+  workspace: string,
+): Promise<void> => {
+  const table = await readBindings(file);
+  if (table[sessionId] !== undefined) return;
+  table[sessionId] = {
+    planPath: planRelativePath(workspace, planDirectory),
+    cwd: workspace,
+    boundAt: new Date().toISOString(),
+  };
+  await writeBindings(file, table);
+};
 
 /** 会话↔Plan 绑定表路径：配置优先，缺省落在 `$DSH_HOME/toolkit`。 */
 const bindingsFilePath = (config: Config): string =>
@@ -208,6 +231,8 @@ interface ToolkitRuntime {
   start(): Promise<void>;
   /** 已撤回、应在客户端隐藏的会话 id。 */
   hiddenSessions(): readonly string[];
+  /** 记录会话↔Plan 绑定（nano_flow 工具成功后调用）。 */
+  bindSession(sessionId: string, planDirectory: string, workspace: string): Promise<void>;
   /** Nano Flow 上限设置（面板路由读写）。 */
   readonly nanoFlow: {
     get(): NanoFlowSettings;
@@ -288,6 +313,8 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
       await store.addPendingDelete(sessionId);
     },
     sessionsRoot: () => sessionsRoot,
+    bindSession: (sessionId: string, planDirectory: string, workspace: string) =>
+      recordBinding(bindingsFilePath(config), sessionId, planDirectory, workspace),
   };
   ctx.effect(() => {
     try {
@@ -340,6 +367,9 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
     rememberRotation(from: string, to: string) {
       lastRotation = { from, to, at: new Date().toISOString() };
     },
+    async bindSession(sessionId, planDirectory, workspace) {
+      await recordBinding(bindingsFilePath(config), sessionId, planDirectory, workspace);
+    },
     async cleanupArchive(child: Context) {
       const workspaces = workspaceRegistry(child);
       if (workspaces === undefined) return;
@@ -368,7 +398,7 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
           ? config.workspace
           : session?.header?.cwd;
       if (workspace === undefined || workspace === "") return null;
-      // 面板只对已绑定 Plan 的会话显示；绑定由 Plan 轨迹日志在首次工具调用时写入。
+      // 面板只对已绑定 Plan 的会话显示；绑定由 nano_flow 工具执行时写入。
       const binding = readBindingsSync(bindingsFilePath(config))[sessionId];
       if (binding === undefined) return null;
       const planDirectory = isAbsolute(binding.planPath)

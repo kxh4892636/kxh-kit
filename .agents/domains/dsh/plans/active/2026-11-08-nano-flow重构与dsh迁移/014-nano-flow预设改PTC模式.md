@@ -39,4 +39,5 @@ nano-flow 预设此前与「标准模式」同构（native 工具表）。用户
 - 宿主主进程 17:34:16 启动，晚于 17:33:19 的安装；本会话即重启后的会话。
 - 本会话预设为 `nano-flow`：注入的系统提示含预设 persona「本会话运行 Nano Flow」与 `nano-flow:system` 固定提示词段；`session_projcache` 的 `agentPreset` 现值为 `nano-flow`（会话日志头的 `agentPreset: ptc` 是恢复时的默认值，`rotate.ts` 已注明 header 不可靠）。
 - 直接可调工具只有 `run_code`，read/write/pwsh 等经程序内 SDK 调用正常（本轮取证本身即由 `run_code` 完成）→ PTC 行已生效。
+- web 形态（0.5.27，见 015 的验证环境）同样只有 `run_code`；`log.jsonl` 里该轮 `tools` 记录为 `run_code`，证明 PTC 外层调用被宿主正确捕获。
 - 遗留：第三条「标准模式会话仍为 native」未另开会话复验，依赖宿主按预设作用域生效（0.2.2 的 `tool-presentation` 语义），不在本插件控制范围内。

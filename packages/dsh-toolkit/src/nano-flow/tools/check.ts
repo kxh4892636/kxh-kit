@@ -1,5 +1,8 @@
+import { basename } from "node:path";
+
 import { assetsCheckScript } from "../assets.js";
 import { formatIssues, runCheck } from "../check-runner.js";
+import { listActivePlans } from "../notes.js";
 import {
   asArguments,
   optionalBoolean,
@@ -27,6 +30,14 @@ const executeCheck = async (
     ...(plan === undefined ? {} : { plan }),
     ...(strict === undefined ? {} : { strict }),
   });
+  const plans = listActivePlans(runtime.domainsDirectory(workspace));
+  const target =
+    plan === undefined
+      ? plans.length === 1
+        ? plans[0]
+        : undefined
+      : plans.find((item) => basename(item) === plan);
+  if (target !== undefined) await runtime.bind?.(exec, target, workspace);
   const lines: string[] = [];
   if (result.ok) {
     lines.push("领域文档校验通过。");

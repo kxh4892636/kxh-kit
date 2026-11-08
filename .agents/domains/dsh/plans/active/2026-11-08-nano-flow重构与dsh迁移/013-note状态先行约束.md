@@ -30,3 +30,4 @@ Note 看板只读 note 的 YAML 头（`status`/`next_step`/`description`），�
 - 已装 `dist/nano-flow/prompts/system.md` 含「状态先行」行；本会话注入的固定提示词同文，条款在场。
 - 看板数据面：`notesForWorkspace` 只在请求时现算 YAML 头（`src/nano-flow/notes.ts:105-124`，注释「每次请求都是当前文件系统状态」）；客户端每 5s 拉一次（`src/client/notes-dock.ts:134`，`NANO_FLOW_NOTES_REFRESH_MS=5_000`），且仅在 `agentPreset=nano-flow` 的会话渲染（同文件 111 行）。
 - 本轮把 014 改为 completed 后，面板应在 5s 内少一条未完成 note（数据源与轮询间隔已按上述代码取证，未改代码）。
+- web 形态实测（0.5.27，bsk 驱动）：绑定后的会话展开看板显示「2 进行中 · 3 阻塞」，与磁盘 YAML 头逐条一致 → 看板确实按 YAML 头渲染。

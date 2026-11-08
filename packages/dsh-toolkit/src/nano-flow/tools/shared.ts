@@ -24,6 +24,8 @@ export interface ToolRuntime {
   workspace(exec: ToolExecContext): Promise<string>;
   /** 领域根的绝对路径。 */
   domainsDirectory(workspace: string): string;
+  /** 把本工具调用所属会话绑定到 Plan；宿主未提供 facade 时静默跳过。 */
+  bind?(exec: ToolExecContext, planDirectory: string, workspace: string): Promise<void>;
 }
 
 /** 统一把工具结果渲染成一段文本。 */
@@ -81,6 +83,8 @@ export const createToolRuntime = (options: {
   settings: () => NanoFlowSettings;
   assetsRoot: string;
   domainRoot: string;
+  /** 宿主侧写绑定表的回调（会话 id → Plan 目录）。 */
+  bind?: (sessionId: string, planDirectory: string, workspace: string) => Promise<void>;
 }): ToolRuntime => {
   const { services, config, settings, assetsRoot, domainRoot } = options;
   const templatesRoot = join(assetsRoot, "templates");
@@ -94,6 +98,15 @@ export const createToolRuntime = (options: {
     templatesRoot,
     domainRoot,
     domainsDirectory,
+    async bind(exec: ToolExecContext, planDirectory: string, workspace: string): Promise<void> {
+      const sessionId = (exec.agent as { session?: { id?: string } } | undefined)?.session?.id;
+      if (sessionId === undefined) return;
+      try {
+        await options.bind?.(sessionId, planDirectory, workspace);
+      } catch (error) {
+        services.logger.warn(`nano-flow: 写绑定失败: ${describeError(error)}`);
+      }
+    },
     async workspace(exec: ToolExecContext): Promise<string> {
       if (config.workspace !== undefined) return config.workspace;
       const workingDirectory = services.get("workingDirectory") as

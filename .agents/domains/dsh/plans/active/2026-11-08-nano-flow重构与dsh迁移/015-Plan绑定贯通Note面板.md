@@ -1,13 +1,11 @@
 ---
 name: "015-Plan绑定贯通Note面板"
 description: "PTC 下首次工具调用即建立会话↔Plan 绑定；Note 面板只对已绑定会话显示，且默认折叠。"
-status: blocked
-reason: "等宿主重启加载 0.5.26 后做 live 验收：新会话不显示看板、首次工具调用后出现且默认折叠"
+status: completed
 related_noted:
   - '007-会话内未完成note面板'
   - '009-Plan轨迹日志'
   - '011-轨迹日志绑定轮修复'
-next_step: "用户重启宿主后，新开 Nano Flow 会话确认无看板；调用一次工具（含 run_code 内的 nano-flow 工具）后确认绑定写入、看板出现且折叠"
 ---
 
 # 015-Plan绑定贯通Note面板
@@ -34,7 +32,9 @@ next_step: "用户重启宿主后，新开 Nano Flow 会话确认无看板；调
 - `vp check`：格式、lint、类型通过（94 文件）。
 - 0.5.26 已构建并装入 desktop profile（`%TEMP%\kxh4892636-dsh-toolkit-0.5.26.tgz`）。
 
-## 待 live
+## live 验收通过（2026-11-08，web 宿主 0.2.2-rc.1 + 0.5.27）
 
-- 重启宿主后：新开 Nano Flow 会话应看不到 Note 看板；调用一次工具后绑定写入，面板出现且默认折叠。
-- 绑定恢复同时解除 009/011 的阻塞：重启后先验证绑定，再读 `log.jsonl` 核对绑定轮完整性。
+- web profile 装 0.5.27（与 desktop 对齐）后 `dsh web`，用 bsk 在 Chrome 驱动作答，验证对象就是同一份 `$DSH_HOME` 的 Plan 与会话。
+- 新开 Nano Flow 会话时**没有** Note 看板（未绑定）→ gate 生效。
+- 发送「运行 nano_flow_check」后：绑定表出现该会话，看板出现且默认折叠（按钮显示「展开」）；展开后为「2 进行中 · 3 阻塞」，行内状态与 YAML 头一致（009/011 进行中，010/012/015 阻塞）。
+- 工具侧绑定是关键路径：事件 firehose 在本宿主下没有给出可用事件，绑定由 `nano_flow_check` 执行时经宿主 facade 写入。

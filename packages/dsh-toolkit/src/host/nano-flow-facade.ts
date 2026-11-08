@@ -20,4 +20,6 @@ export interface ToolkitNanoFlowFacade {
   recordPendingDelete(sessionId: string): Promise<void>;
   /** 会话日志根（`$DSH_HOME/sessions`）。 */
   sessionsRoot(): string;
+  /** 记录会话↔Plan 绑定（nano-flow 工具被调用时由预设半回填）。 */
+  bindSession(sessionId: string, planDirectory: string, workspace: string): Promise<void>;
 }

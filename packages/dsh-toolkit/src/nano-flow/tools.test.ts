@@ -145,6 +145,35 @@ describe("nano_flow_check", () => {
     expect(plan).toContain("Plan 不存在");
   });
 
+  it("binds the calling session to the single active plan", async () => {
+    const workspace = await makeRoot();
+    const calls: [string, string, string][] = [];
+    const runtime = createToolRuntime({
+      services,
+      config: { workspace },
+      settings: () => DEFAULT_NANO_FLOW_SETTINGS,
+      assetsRoot: locateAssetsRoot(),
+      domainRoot: ".agents/domains",
+      bind: async (sessionId, planDirectory, root) => {
+        calls.push([sessionId, planDirectory, root]);
+      },
+    });
+    const create = createCreateTool(runtime);
+    const check = createCheckTool(runtime);
+    await create.execute({ kind: "plan", domain: "demo", name: "2026-11-08-示例" }, exec());
+    await check.execute(
+      {},
+      { signal: new AbortController().signal, agent: { session: { id: "session-x" } } },
+    );
+    expect(calls).toEqual([
+      [
+        "session-x",
+        join(workspace, ".agents", "domains", "demo", "plans", "active", "2026-11-08-示例"),
+        workspace,
+      ],
+    ]);
+  });
+
   it("downgrades legacy documents to warnings in non-strict mode", async () => {
     const workspace = await makeRoot();
     const { check } = tools(workspace);

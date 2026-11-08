@@ -112,7 +112,20 @@ const mountNanoFlow = (target: Context, host: Context, config: NanoFlowConfig): 
     const limitTemplate = readLimitTemplate(assetsRoot);
     const settings = createSettingsReader(services);
     const domainRoot = config.domainRoot ?? DEFAULT_DOMAIN_ROOT;
-    const runtime = createToolRuntime({ services, config, settings, assetsRoot, domainRoot });
+    const runtime = createToolRuntime({
+      services,
+      config,
+      settings,
+      assetsRoot,
+      domainRoot,
+      bind: async (sessionId, planDirectory, workspace) => {
+        const facade = services.get(NANO_FLOW_SERVICE) as
+          | { bindSession?: (id: string, plan: string, root: string) => Promise<void> }
+          | undefined;
+        if (facade === undefined || typeof facade.bindSession !== "function") return;
+        await facade.bindSession(sessionId, planDirectory, workspace);
+      },
+    });
 
     const guideCache = new WeakMap<object, string>();
     const guideOf = (agent: unknown): string => {
