@@ -15,7 +15,7 @@ related_noted:
 
 ## 1. 定位
 
-dream 是**后台记忆维护引擎**：按 Anthropic《The components of agent memory》的四层 + dreaming 闭环，把 nano-flow 的记忆维护从手动 kaizen 升级为定时批处理。它不新增第五层存储，只在现有文档上做纠错、提炼、建链、晋升、剪枝。
+dream 是**后台记忆维护引擎**：按 Anthropic《The components of agent memory》的四层 + dreaming 闭环，把记忆维护从手动复盘升级为定时批处理（原 kaizen skill 已删除，内容并入 dream）。它不新增第五层存储，只在现有文档上做纠错、提炼、建链、晋升、剪枝。
 
 ## 2. 分层与边界
 
@@ -54,7 +54,7 @@ dream 是**后台记忆维护引擎**：按 Anthropic《The components of agent 
 ## 6. 五 pass
 
 1. **纠错**：新增 log 与既有 L2 结论冲突时，就地修正（questions/ADR/CONTEXT），正文写依据 `> 纠正（日期，seq N）：…`。note 是历史快照，不改写。
-2. **提炼（L1→L2）**：按 kaizen 的「知识归属」上浮 note 的稳定结论：术语→CONTEXT、重复问题→questions、难逆决策→ADR、可复用活动→workflow。准入 = 有证据 + 未来会再用 + 不与现有重复；不满足不写，没有新结论就跳过。
+2. **提炼（L1→L2）**：按「知识归属」（dream.md 内嵌）上浮 note 的稳定结论：术语→CONTEXT、重复问题→questions、难逆决策→ADR、可复用活动→workflow。准入 = 有证据 + 未来会再用 + 不与现有重复；不满足不写，没有新结论就跳过。
 3. **建链**：为新增/大改页面补 `## 相关`（相对链接 + 一句原因）；目标被删时重指或删条目。
 4. **晋升（→L3）**：只挑「跨 Plan 反复命中、稳定、与当前 goal 相关」的极少数条目进 guide，以索引/指针为主；按访问信号排序（log 的 `tools[].args` 里读过的文件路径 = 热度/陈旧度）；超 13 KB 先下沉细节再写；整体重写。
 5. **剪枝/降级**：删同因重复、过时、无访问条目；workflow 同活动合并；CONTEXT 术语去重；从 guide 移除但保留在下层。

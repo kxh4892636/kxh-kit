@@ -15,7 +15,8 @@ related_noted:
 - `prompts/system.md`：入口第 5 条——收到 `[nano-flow:dream]` 指令时按指令执行，不进入恢复或拷问。
 - `preset.ts`：nano-flow 预设挂载 `@deepseek-ai/dsh-tool-schedule`，使 agent 能在 nano-flow 会话里创建定时任务。
 - `README.md`：dream 与自动化任务说明。
-- 0.5.30。
+- **删除 kaizen skill**（0.5.31）：知识归属/工作流规则并入 `dream.md`，运行时 skill 列表从 6 降到 5（`runtime.test.ts` 同步），dist 与两个 profile 不再含 kaizen。
+- 0.5.31。
 
 ## 自动化任务配置（重启后由用户建）
 
@@ -27,7 +28,7 @@ related_noted:
 ## 验证
 
 - 构建后 `dist/nano-flow/prompts/dream.md` 存在；preset 测试断言含 `dsh-tool-schedule`。
-- `vp test src` 301 例通过；desktop / web profile 均 0.5.30。
+- `vp test src` 301 例通过；desktop / web profile 均 0.5.31，`dist/nano-flow/skills/kaizen` 不存在。
 
 ## 遗留
 
