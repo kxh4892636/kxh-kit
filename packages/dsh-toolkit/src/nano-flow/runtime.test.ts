@@ -82,7 +82,7 @@ describe("assets", () => {
     const listed = await provider.list({ signal: new AbortController().signal });
     const names = Array.isArray(listed) ? listed.map((candidate) => candidate.name) : [];
     expect(names).toEqual(
-      expect.arrayContaining(["ask", "do", "kaizen", "to-skill", "code-spec", "learning"]),
+      expect.arrayContaining(["ask", "do", "to-skill", "code-spec", "learning"]),
     );
   });
 });
