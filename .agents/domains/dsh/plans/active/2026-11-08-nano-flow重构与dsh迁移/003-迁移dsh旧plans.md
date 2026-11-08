@@ -19,7 +19,7 @@ next_step: '等待用户验收；旧 plans 保留在 .tmp'
 - `blocked_by` → `related_noted`；旧的依赖图不再保留。
 - `reference/2026-10-31-无限故事插件` 没有 `notes.json`，补一条迁移记录 note，使 spec 状态为 `completed`。
 - 超限的 2 个 note 与 1 个 spec 已截断并留 `.tmp` 指针。
-- 旧 active Plan `2026-11-08-note状态机合并waiting与blocked` 保留 active，其 note 映射为 `blocked`；是否归档由用户决定。
+- 旧 active Plan `2026-11-08-note状态机合并waiting与blocked` 已归档到 `plans/archived/`；其 note 映射为 `blocked`，决策被 ADR 006 取代。
 
 ## 验证
 
