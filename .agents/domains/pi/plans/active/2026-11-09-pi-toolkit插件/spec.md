@@ -1,7 +1,7 @@
 ---
 name: 'pi-toolkit插件'
 description: '按 pi 接缝重建工具包：嵌套 skill 与会话命名、DeepSeek 网页工具、ask_questions、Nano Flow 交付流程，全部开关与配置落一个 JSON。'
-status: 'completed'
+status: 'in_progress'
 ---
 
 # pi-toolkit插件
@@ -84,7 +84,7 @@ status: 'completed'
 - 2026-11-09（用户）：`/toolkit` 开关控制 nano-flow 工具是否可用；`/nano-flow` 参考 `/thinking` 的 UI 与交互，on/off，并可保存默认。
 - 2026-11-09（用户）：不新建会话，在原会话继续；按重置时间过滤历史。
 - 2026-11-09（用户）：绑定存会话条目。
-- 2026-11-09（用户）：不写 `log.jsonl`；用 pi 会话 JSONL，每轮结束同步一次。
+- 2026-11-09（用户，2026-11-09 回收确认）：Plan 下要落轨迹文件，但**不沿用 dsh 的 compact log 形态**：内容是 pi 会话条目原样副本，每次 run 末尾（`agent_end`）写一次，不实时写；文件仍在 `.gitignore` 内。
 - 2026-11-09（用户）：Note 侧栏只显示当前绑定 Plan 的未完成 note；行显示中文状态 + note 名；点击出卡片（概述 + reason + 下一步）。
 - 2026-11-09（用户）：skill 仅在 Nano Flow 会话注入；dream 暂不迁移；提问工具统一 `ask_questions`；subagent 段落改为当前 agent 执行；设置只改 JSON。
 - 2026-11-09（用户）：侧栏只做 fullscreen；seed 只包裹上一轮输出，本轮用户输入保留为普通消息。
@@ -108,6 +108,8 @@ status: 'completed'
 - 2026-11-09：`ask_questions` 曾计划换宿主内置组件，用户决定不改，理由记在 005 的「曾讨论未采纳」。
 - 待办：整个 pi-toolkit 改动已随本轮一并提交（pi 包指向仓库路径，重启 pi 即生效）。
 - Plan 已无未完成 note，可按用户意愿迁 `reference`。
+- 2026-11-09（新需求）：新增 013「dream 手动维护命令」—— 移植 dsh 的 dream，但改为 `/dream` 手动触发、不依赖 seq 游标；实现路径见该 note，决策见 [ADR 004](../../../adr/004-dream由命令手动触发且不依赖seq游标.md)。
+- 2026-11-09：013 代码与提示词落地（240 项测试 + check 全绿），`/dream` 待真机验收；014 Plan 轨迹落盘已验收并 `completed`（含一次性 `backfill` 回填 10 段 / 395 条目，清理了 headless 测试记录）。
 
 ## 追踪 Note
 
@@ -115,3 +117,4 @@ status: 'completed'
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
+| [013-dream手动维护命令](013-dream手动维护命令.md) | 新增 /dream 手动命令：扫 .agents 下全部域、每域按目录名日期取最新 21 个 active/reference Plan，把 spec、notes_index 与 plan 轨迹路径交给模型跑五个 pass，自跑 check 并 commit；无 seq 游标、无定时。 | blocked | 代码、提示词与单测已落地（240 项全绿），等你在真机上跑一次 /dream 验收 | 重启 pi 后在一个 nano-flow 会话（工作区干净）执行 /dream，确认五 pass 产出的领域文档改动、nano_flow_check 通过、出现一次 docs(dream): 提交 | — |

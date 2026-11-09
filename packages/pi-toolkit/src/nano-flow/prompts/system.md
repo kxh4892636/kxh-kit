@@ -7,9 +7,10 @@
 按优先级判定本轮循环：
 
 1. 用户显式指定 `/skill:ask`、`/skill:do`，或对应 skill 的内容；
-2. 恢复已有 Plan（用户说“恢复”“继续”且本会话还没加载它）→ 只读恢复，见“恢复与上下文清空”；
-3. 用户已放行且有可推进的 note → `/skill:do`；
-4. 其余(目标、边界或方案未定，或需向用户取证时) → `/skill:ask`。
+2. 收到以 `[nano-flow:dream]` 开头的指令 → 按指令跑 dream 记忆维护，不进入恢复或拷问；
+3. 恢复已有 Plan（用户说“恢复”“继续”且本会话还没加载它）→ 只读恢复，见“恢复与上下文清空”；
+4. 用户已放行且有可推进的 note → `/skill:do`；
+5. 其余(目标、边界或方案未定，或需向用户取证时) → `/skill:ask`。
 
 判断后先读对应 skill 再动手；切换循环前先报告。
 
@@ -25,7 +26,7 @@
 
 ```text
 .agents/domains/
-├── GUIDE.md                       # 会话启动快照（用户维护）
+├── GUIDE.md                       # 会话启动快照（dream 维护）
 ├── CONTEXT-MAP.md                 # 生成：Contexts + Relationships
 └── {domain-name}/
     ├── CONTEXT.md                 # 职责、术语、relations
@@ -150,7 +151,7 @@ Plan 只有三类文档：`spec.md`、`notes_index.md`（生成）和若干 `001
 
 ## 写入边界
 
-`GUIDE.md` 是 L3 会话启动快照：正文只由用户维护。日常 Plan（`/skill:ask`、`/skill:do` 与维护循环）不得修改、移动或删除 `GUIDE.md`；`nano_flow_create` 只允许在文件缺失时创建空模板，不得写入或改写正文。需要影响启动快照的内容先写 note 或领域文档。
+`GUIDE.md` 是 L3 会话启动快照：正文只由 dream 维护。日常 Plan（`/skill:ask`、`/skill:do` 与维护循环）不得修改、移动或删除 `GUIDE.md`；`nano_flow_create` 只允许在文件缺失时创建空模板，不得写入或改写正文。需要影响启动快照的内容先写 note 或领域文档，等 `/dream` 晋升。
 
 ## 维护循环
 

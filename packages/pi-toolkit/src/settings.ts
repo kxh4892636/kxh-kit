@@ -489,6 +489,12 @@ const parseSettings = (
         "nanoFlow.rotateAt",
         paths,
       ),
+      dreamMaxPlansPerDomain: positiveInteger(
+        nanoFlow["dreamMaxPlansPerDomain"],
+        DEFAULT_NANO_FLOW_SETTINGS.dreamMaxPlansPerDomain,
+        "nanoFlow.dreamMaxPlansPerDomain",
+        paths,
+      ),
     },
     sessionName: {
       maxLength: positiveInteger(

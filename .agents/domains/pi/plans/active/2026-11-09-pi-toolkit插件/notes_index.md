@@ -16,3 +16,5 @@
 | [010-上下文清空与恢复seed](010-上下文清空与恢复seed.md) | 达到 rotateAt 时写重置条目，context 按时间过滤历史，并把当前 Plan 与上一轮输出作为 seed 插回；不新建会话。 | — |
 | [011-Note侧栏与详情卡](011-Note侧栏与详情卡.md) | fullscreen 右上角 Note 侧栏只显示当前绑定 Plan 的未完成 note；行显示中文状态 + note 名，点击出概述/原因/下一步详情卡。 | 012-测试与验收 |
 | [012-测试与验收](012-测试与验收.md) | 补齐配置、模式、绑定、seed、校验、侧栏的单测，并做 pi 真机冒烟与领域文档收口。 | 011-Note侧栏与详情卡 |
+| [013-dream手动维护命令](013-dream手动维护命令.md) | 新增 /dream 手动命令：扫 .agents 下全部域、每域按目录名日期取最新 21 个 active/reference Plan，把 spec、notes_index 与 plan 轨迹路径交给模型跑五个 pass，自跑 check 并 commit；无 seq 游标、无定时。 | — |
+| [014-Plan轨迹落盘](014-Plan轨迹落盘.md) | 把每次 run 新增的 pi 会话条目原样复制到 `<plan>/log.jsonl` 一行，run 结束（agent_end）时写一次；文件仍在 .gitignore 内，不进版本库。 | 013-dream手动维护命令 |

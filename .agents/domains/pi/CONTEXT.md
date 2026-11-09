@@ -99,6 +99,19 @@ _Avoid_：摘要、handoff prompt
 fullscreen 右上角 overlay：只列当前绑定 Plan 的未完成 note，行 = 中文状态 + note 名；点击某行后，详情卡悬浮在该行左下侧（顶端与该行对齐、右缘离侧栏 2 列），标题行右端带 `×`，`×` 或 Esc 关闭，`turn_end` 刷新一次。
 _Avoid_：看板、dock、悬浮提示、居中弹窗
 
+**Plan 轨迹**：
+`<plan>/log.jsonl`，每个 run 一行：`{ type: "run", v, sessionId, sessionFile, cwd, planPath, run, startedAt, endedAt, entries }`，`entries` 是本次 run 新增 pi 会话条目的原样副本；run 结束（`agent_end`）时写一次，文件被 gitignore 排除、不进版本库。
+不筛条目：`message/system` 提示词补丁也照抄（实测单行 16–41 KB，其中 80–95% 是它），这是保真的代价。历史缺口用一次性 `type: "backfill"` 段记录补写，与 `type: "run"` 分开编号；代码里不做回填。
+_Avoid_：dsh 的 compact log、seq 游标、实时逐条追加、丢弃 system 条目
+
+**dream**：
+Nano Flow 的记忆维护 pass（纠错 / 提炼 / 建链 / 晋升 / 剪枝），由 `/dream` 命令手动触发一次全量运行；不建定时任务、不用 `seq` 游标；输入是 Plan 轨迹、`spec.md` 与 note。
+_Avoid_：定时任务、后台维护、kaizen
+
+**dream 范围**：
+当前 cwd 的 `.agents/domains/*` 全部域；每域在 `active` + `reference` 里按目录名日期倒序取最新 `dreamMaxPlansPerDomain`（默认 21）个 Plan；`archived` 不参与。
+_Avoid_：全部 Plan、增量游标、当前 Plan
+
 **Nano Flow 设置**：
 `pi-toolkit.json` 的 `nanoFlow` 节：8 项篇幅上限 + `rotateAt` + `always`；只改 JSON，不做设置界面。
 _Avoid_：nano-flow.json、设置弹窗

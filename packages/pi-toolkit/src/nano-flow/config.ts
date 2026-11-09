@@ -7,7 +7,7 @@
 /** 默认领域根；与提示词里的 `.agents/domains` 约定一致。 */
 export const DEFAULT_DOMAIN_ROOT = ".agents/domains";
 
-/** 9 项上限 + 轮转阈值；由 `pi-toolkit.json` 的 `nanoFlow` 节维护。 */
+/** 9 项上限 + 轮转阈值 + dream 扫描范围；由 `pi-toolkit.json` 的 `nanoFlow` 节维护。 */
 export interface NanoFlowSettings {
   /** spec.md 单文件上限（字节）。 */
   readonly specMaxBytes: number;
@@ -27,9 +27,11 @@ export interface NanoFlowSettings {
   readonly guideMaxBytes: number;
   /** 上下文占用达到该比例后清空历史并注入恢复 seed（0–1）。 */
   readonly rotateAt: number;
+  /** dream 在单个业务域里最多处理多少个 Plan（按目录名日期倒序）。 */
+  readonly dreamMaxPlansPerDomain: number;
 }
 
-/** 默认值：34 / 13 KB，233 字，89 / 13 / 13 / 34 / 13 KB，轮转阈值 0.618。 */
+/** 默认值：34 / 13 KB，233 字，89 / 13 / 13 / 34 / 13 KB，轮转阈值 0.618，每域 21 个 Plan。 */
 export const DEFAULT_NANO_FLOW_SETTINGS: NanoFlowSettings = {
   specMaxBytes: 34 * 1024,
   noteMaxBytes: 13 * 1024,
@@ -40,6 +42,7 @@ export const DEFAULT_NANO_FLOW_SETTINGS: NanoFlowSettings = {
   workflowMaxBytes: 34 * 1024,
   guideMaxBytes: 13 * 1024,
   rotateAt: 0.618,
+  dreamMaxPlansPerDomain: 21,
 };
 
 /** 只把数值字段交给校验脚本；`always` / `domainRoot` 不属于篇幅上限。 */

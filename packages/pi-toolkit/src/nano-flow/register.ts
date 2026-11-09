@@ -35,6 +35,9 @@ import {
 } from "./mode.ts";
 import { readUnfinishedNotes } from "./notes.ts";
 import { activePlans, listPlans, planRefOf, resolvePlan, type PlanRef } from "./plan.ts";
+import { buildRunRecord, enqueueAppend, entriesSince, planLogPath } from "./log.ts";
+import { DREAM_ENTRY, buildDreamMessage } from "./dream/prompt.ts";
+import { selectDreamScope } from "./dream/scope.ts";
 import { createBindTool } from "./tools/bind.ts";
 import { createCheckTool } from "./tools/check.ts";
 import { createCreateTool } from "./tools/create.ts";
@@ -56,6 +59,7 @@ const SKILLS_ROOT = join(ROOT, "skills");
 const SYSTEM_PROMPT = readFileSync(join(ROOT, "prompts", "system.md"), "utf8").trim();
 const USER_PROMPT = readFileSync(join(ROOT, "prompts", "user.md"), "utf8").trim();
 const LIMIT_TEMPLATE = readFileSync(join(ROOT, "prompts", "limit.md"), "utf8").trim();
+const DREAM_PROMPT = readFileSync(join(ROOT, "prompts", "dream.md"), "utf8").trim();
 
 /** 依赖：设置读取与 `always` 持久化由根插件注入。 */
 export interface NanoFlowDeps {
@@ -117,6 +121,9 @@ const snapshotOf = (ctx: ExtensionContext): SidebarSnapshot | null => {
 export const registerNanoFlow = (pi: ExtensionAPI, deps: NanoFlowDeps): NanoFlowController => {
   let activeForSession = false;
   const sidebar = createNotesSidebar({ snapshot: snapshotOf });
+  /** 本次 run 开始时的叶子条目 id 与开始时间；`agent_start` 写入，`agent_end` 写盘后清空。 */
+  let runMark: string | undefined;
+  let runStartedAt: number | undefined;
 
   const activeOf = (ctx: ExtensionContext): boolean => {
     const settings = deps.settings();
@@ -232,6 +239,46 @@ export const registerNanoFlow = (pi: ExtensionAPI, deps: NanoFlowDeps): NanoFlow
     sidebar.refresh();
   });
 
+  // Plan 轨迹：run 开始时记下叶子条目，run 结束时把新增条目原样复制到 `<plan>/log.jsonl`。
+  pi.on("agent_start", (_event, ctx) => {
+    runMark = ctx.sessionManager.getLeafId() ?? undefined;
+    runStartedAt = Date.now();
+  });
+
+  pi.on("agent_end", async (_event, ctx) => {
+    const mark = runMark;
+    const startedAt = runStartedAt ?? Date.now();
+    runMark = undefined;
+    runStartedAt = undefined;
+    if (!activeOf(ctx)) return;
+    const binding = bindingOf(branchOf(ctx));
+    if (binding === undefined) return;
+    const directory = resolveBindingDirectory(binding, ctx.cwd);
+    if (!existsSync(directory)) return;
+    const entries = entriesSince(branchOf(ctx) as unknown as readonly { id?: string }[], mark);
+    if (entries.length === 0) return;
+    const planPath = relative(ctx.cwd, directory).replaceAll("\\", "/");
+    try {
+      await enqueueAppend(planLogPath(directory), async (run) =>
+        buildRunRecord({
+          sessionId: ctx.sessionManager.getSessionId(),
+          sessionFile: ctx.sessionManager.getSessionFile() ?? "",
+          cwd: ctx.cwd,
+          planPath,
+          run,
+          startedAt,
+          endedAt: Date.now(),
+          entries,
+        }),
+      );
+    } catch (error) {
+      ctx.ui.notify(
+        `nano-flow: 写 Plan 轨迹失败: ${error instanceof Error ? error.message : String(error)}`,
+        "warning",
+      );
+    }
+  });
+
   pi.on("resources_discover", () => {
     return activeForSession ? { skillPaths: [SKILLS_ROOT] } : undefined;
   });
@@ -297,6 +344,56 @@ export const registerNanoFlow = (pi: ExtensionAPI, deps: NanoFlowDeps): NanoFlow
         `Nano Flow：${choice.enabled ? "开" : "关"}${choice.persist ? "（已设为默认）" : ""}`,
         "info",
       );
+    },
+  });
+
+  // `/dream`：按域跑一次记忆维护。只接受无参数；所有门禁不过就原地报告，不发消息。
+  pi.registerCommand("dream", {
+    description:
+      "Nano Flow：跑一次 dream 记忆维护（扫 .agents 下全部域，每域最新 dreamMaxPlansPerDomain 个 Plan）",
+    handler: async (_args, ctx) => {
+      const settings = deps.settings();
+      if (!settings.tools.nanoFlow) {
+        ctx.ui.notify("dream 未启用：先在 /toolkit 打开 nano-flow 开关。", "warning");
+        return;
+      }
+      if (!activeOf(ctx)) {
+        ctx.ui.notify("当前会话未启用 Nano Flow：先 /nano-flow 开启再跑 /dream。", "warning");
+        return;
+      }
+      if (!ctx.isIdle()) {
+        ctx.ui.notify("dream：等当前轮结束再跑。", "warning");
+        return;
+      }
+      const status = await pi.exec("git", ["status", "--porcelain"], { cwd: ctx.cwd });
+      if (status.code !== 0) {
+        ctx.ui.notify(
+          `dream：工作区不是 git 仓库或 git 不可用（${status.stderr.trim() || status.code}）。`,
+          "warning",
+        );
+        return;
+      }
+      if (status.stdout.trim() !== "") {
+        ctx.ui.notify(
+          "dream：工作区有未提交改动，dream 会自己 commit，请先提交或 stash 再跑。",
+          "warning",
+        );
+        return;
+      }
+      const scope = await selectDreamScope(ctx.cwd, {
+        domainRoot: DEFAULT_DOMAIN_ROOT,
+        maxPlansPerDomain: settings.nanoFlow.dreamMaxPlansPerDomain,
+      });
+      if (scope.totalPlans === 0) {
+        ctx.ui.notify("dream：`.agents/domains` 下没有 active / reference 的 Plan。", "warning");
+        return;
+      }
+      pi.appendEntry(DREAM_ENTRY, {
+        at: Date.now(),
+        domains: scope.domains.map((item) => item.domain),
+        plans: scope.totalPlans,
+      });
+      pi.sendUserMessage(buildDreamMessage(scope, { workspace: ctx.cwd, prompt: DREAM_PROMPT }));
     },
   });
 

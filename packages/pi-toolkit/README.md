@@ -184,6 +184,15 @@ directly; without a plan name it uses the only active Plan (and refuses when the
 - **Skills**: `ask`, `do`, `to-skill`, `code-spec`, `learning` are contributed through
   `resources_discover` only while the session is in Nano Flow. Turning it on mid-session needs
   `/reload` (or a new session) for the skills to appear.
+- **Plan trace**: at `agent_start` the extension remembers the session leaf entry, and at
+  `agent_end` it appends one `<plan>/log.jsonl` record (`type: "run"`) holding a verbatim copy of
+  the entries that run produced. Only increments are written; the file is covered by the root
+  `.gitignore` (`**/plans/**/log.jsonl`).
+- **`/dream`**: runs one memory-maintenance pass over `.agents/domains/*`. Each domain contributes
+  its newest `dreamMaxPlansPerDomain` plans from `active` + `reference` (dated directory names,
+  newest first). It refuses when the switch is off, the session is not in Nano Flow, the agent is
+  busy, or the worktree is dirty, then sends `prompts/dream.md` plus the plan manifest as a user
+  message. The model runs the five passes, calls `nano_flow_check`, and commits `docs(dream): …`.
 
 ### `nanoFlow`
 
@@ -199,6 +208,7 @@ directly; without a plan name it uses the only active Plan (and refuses when the
 | `workflowMaxBytes`        | `34816` | One workflow size cap.                               |
 | `guideMaxBytes`           | `13312` | `GUIDE.md` size cap.                                 |
 | `rotateAt`                | `0.618` | Context ratio that triggers the history reset (0–1). |
+| `dreamMaxPlansPerDomain`  | `21`    | Plans per domain considered by `/dream`.             |
 
 ## Web tools (`pi-deepseek-web`)
 

@@ -35,6 +35,7 @@
     "adrMaxBytes": 13312,
     "workflowMaxBytes": 34816,
     "guideMaxBytes": 13312,
-    "rotateAt": 0.618
+    "rotateAt": 0.618,
+    "dreamMaxPlansPerDomain": 21
   }
 }
