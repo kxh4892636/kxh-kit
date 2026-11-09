@@ -31,7 +31,6 @@ import {
   readBindingsSync,
   writeBindings,
 } from "./nano-flow/plan-log.js";
-import { listActivePlans } from "./nano-flow/notes.js";
 import { planRefFromDirectory } from "./nano-flow/plan.js";
 import { hostServices } from "./nano-flow/services.js";
 import { createNestedSkillTool } from "./host/tools/nested-skill.js";
@@ -96,23 +95,6 @@ export const Config: Schema<Config> = z.object({
   domainRoot: z.string(),
   nanoFlowOnly: z.boolean(),
 });
-
-/** 记录一次会话↔Plan 绑定（已绑定则不动）。 */
-const recordBinding = async (
-  file: string,
-  sessionId: string,
-  planDirectory: string,
-  workspace: string,
-): Promise<void> => {
-  const table = await readBindings(file);
-  if (table[sessionId] !== undefined) return;
-  table[sessionId] = {
-    planPath: planRelativePath(workspace, planDirectory),
-    cwd: workspace,
-    boundAt: new Date().toISOString(),
-  };
-  await writeBindings(file, table);
-};
 
 /** 写入或切换会话↔Plan 绑定；显式绑定工具用，覆盖旧值。 */
 const replaceBinding = async (
@@ -184,9 +166,9 @@ export const apply = (ctx: Context, config: Config = {}): void => {
   ctx.inject(["sessionController"], (child: Context) => {
     child.effect(() => {
       /**
-       * 轮转后自动跑一次校验（等价于执行 `nano_flow_check`）：校验 Plan，并把轮转前会话的
-       * Plan 绑定继承给新会话（与工作区 active Plan 数量无关），让 Note 看板不必等模型
-       * 自己调工具就能出现。返回结论文本与继承到的 Plan，由轮转写进 seed。
+       * 轮转后自动跑一次校验（等价于执行 `nano_flow_check`）：校验领域文档，并把轮转前
+       * 会话绑定的 Plan 作为只读线索写进 seed。新会话不会自动绑定，必须由模型调用
+       * `nano_flow_bind`；返回结论文本与线索 Plan，由轮转写进 seed。
        */
       const autoCheck = async (params: {
         sessionId: string;
@@ -200,16 +182,13 @@ export const apply = (ctx: Context, config: Config = {}): void => {
           domainsPath,
           limits: runtime.nanoFlow.get(),
         });
-        // 绑定继承轮转前会话的 Plan，与工作区有几个 active Plan 无关。
+        // 只读旧绑定作为恢复线索，不写新绑定。
         const inherited = inheritedPlanDirectory(
           await readBindings(bindingsFilePath(config)),
           params.previousSessionId,
           params.workspace,
           (directory) => existsSync(directory),
         );
-        if (inherited !== undefined) {
-          await runtime.bindSession(params.sessionId, inherited, params.workspace);
-        }
         const lines: string[] = [];
         if (result.ok) {
           lines.push("轮转后自动执行 `nano_flow_check`：领域文档校验通过，索引已刷新。");
@@ -221,8 +200,8 @@ export const apply = (ctx: Context, config: Config = {}): void => {
         }
         lines.push(
           inherited !== undefined
-            ? `本会话的 Note 看板绑定已建立（继承轮转前的 Plan：${planRelativePath(params.workspace, inherited)}），无需再跑一次。`
-            : "轮转前会话没有绑定 Plan，未建立看板绑定；恢复时确认 Plan 后跑一次 `nano_flow_check`。",
+            ? `轮转前会话绑定的 Plan：${planRelativePath(params.workspace, inherited)}。新会话不会自动绑定，恢复时先调用 \`nano_flow_bind\` 绑定它。`
+            : "轮转前会话没有绑定 Plan；新会话不会自动绑定，恢复时先确认 Plan，再调用 `nano_flow_bind`。",
         );
         const planReference = inherited === undefined ? undefined : planRefFromDirectory(inherited);
         return {
@@ -260,14 +239,7 @@ export const apply = (ctx: Context, config: Config = {}): void => {
   const planLog = createPlanLogService({
     home: resolveDshHome(),
     bindingsFile: bindingsFilePath(config),
-    domainRoot: config.domainRoot ?? DEFAULT_DOMAIN_ROOT,
     logger: ctx.logger,
-    plansFor: (workspace: string) => {
-      const domainsRoot = isAbsolute(config.domainRoot ?? DEFAULT_DOMAIN_ROOT)
-        ? (config.domainRoot ?? DEFAULT_DOMAIN_ROOT)
-        : join(workspace, config.domainRoot ?? DEFAULT_DOMAIN_ROOT);
-      return listActivePlans(domainsRoot);
-    },
   });
   ctx.effect(() => () => void planLog.dispose(), "toolkit: plan log");
   ctx.inject(["sessionPersistence"], (child: Context) => {
@@ -295,9 +267,7 @@ interface ToolkitRuntime {
   start(): Promise<void>;
   /** 已撤回、应在客户端隐藏的会话 id。 */
   hiddenSessions(): readonly string[];
-  /** 记录会话↔Plan 绑定（nano_flow 工具成功后调用）。 */
-  bindSession(sessionId: string, planDirectory: string, workspace: string): Promise<void>;
-  /** 覆盖会话↔Plan 绑定（nano_flow_bind 切换时调用）。 */
+  /** 写入或切换会话↔Plan 绑定（只有 nano_flow_bind 调用）。 */
   rebindSession(sessionId: string, planDirectory: string, workspace: string): Promise<void>;
   /** Nano Flow 上限设置（面板路由读写）。 */
   readonly nanoFlow: {
@@ -379,8 +349,6 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
       await store.addPendingDelete(sessionId);
     },
     sessionsRoot: () => sessionsRoot,
-    bindSession: (sessionId: string, planDirectory: string, workspace: string) =>
-      recordBinding(bindingsFilePath(config), sessionId, planDirectory, workspace),
     rebindSession: (sessionId: string, planDirectory: string, workspace: string) =>
       replaceBinding(bindingsFilePath(config), sessionId, planDirectory, workspace),
   };
@@ -434,9 +402,6 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
     },
     rememberRotation(from: string, to: string) {
       lastRotation = { from, to, at: new Date().toISOString() };
-    },
-    async bindSession(sessionId, planDirectory, workspace) {
-      await recordBinding(bindingsFilePath(config), sessionId, planDirectory, workspace);
     },
     async rebindSession(sessionId, planDirectory, workspace) {
       await replaceBinding(bindingsFilePath(config), sessionId, planDirectory, workspace);

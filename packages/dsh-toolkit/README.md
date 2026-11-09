@@ -120,14 +120,14 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
 
 挂载后会话里多出五样东西:
 
-| 类别       | 内容                                                                                                                                          |
-| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| 固定提示词 | `prompts/system.md` 与 `.agents/domains/GUIDE.md` 的当前快照拼接, 作为系统提示词段 `order: 1` 注入                                            |
-| 每轮提示词 | `prompts/user.md`, 作为运行时上下文在每轮第一次 pre-step 后追加; 不冒充用户消息, UI 以 context 卡片显示                                       |
-| 工具       | `nano_flow_create`(domain / plan / note 的目录与模板)、`nano_flow_bind`(绑定/切换 Plan) 与 `nano_flow_check`(校验 + 生成全部索引)             |
-| skill      | `skills/` 动态发现: `ask`,`do`,`to-skill`,`code-spec`,`learning`                                                                              |
-| Note 面板  | 输入框上方 dock: 当前会话绑定的 Plan 的未完成 note(中文状态名 + 名称, hover 显示概述), 客户端 5s 轮询宿主路由                                 |
-| Plan 日志  | 每轮把 `<plan>/log.jsonl` 追加一条 compact 轨迹(user/assistant/工具摘要/usage/seq), 绑定表在 `$DSH_HOME/toolkit/nano-flow-plan-bindings.json` |
+| 类别       | 内容                                                                                                                                                    |
+| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 固定提示词 | `prompts/system.md` 与 `.agents/domains/GUIDE.md` 的当前快照拼接, 作为系统提示词段 `order: 1` 注入                                                      |
+| 每轮提示词 | `prompts/user.md`, 作为运行时上下文在每轮第一次 pre-step 后追加; 不冒充用户消息, UI 以 context 卡片显示                                                 |
+| 工具       | `nano_flow_create`(domain / plan / note 的目录与模板)、`nano_flow_bind`(绑定/切换 Plan) 与 `nano_flow_check`(校验 + 生成全部索引)                       |
+| skill      | `skills/` 动态发现: `ask`,`do`,`to-skill`,`code-spec`,`learning`                                                                                        |
+| Note 面板  | 输入框上方 dock: 当前会话绑定的 Plan 的未完成 note(中文状态名 + 名称, hover 显示概述), 客户端 5s 轮询宿主路由                                           |
+| Plan 日志  | 已绑定会话每轮把 `<plan>/log.jsonl` 追加一条 compact 轨迹(user/assistant/工具摘要/usage/seq), 绑定表在 `$DSH_HOME/toolkit/nano-flow-plan-bindings.json` |
 
 **目录布局**
 
@@ -192,13 +192,14 @@ metadata:
 - `nano_flow_create`：`kind=domain` 建 `CONTEXT.md`、questions / adr / workflows 与 `GUIDE.md` 空模板；
   `kind=plan` 建 `spec.md` 与 `notes_index.md`；`kind=note` 建一条 note（可自动取下一个三位编号）。
   只补缺失文件，不覆盖已有内容；GUIDE 正文仍只由 dream 维护。
-- `nano_flow_bind`：把当前会话绑定到指定 Plan（可按 `domain` / `lifecycle` 消歧）。
+- `nano_flow_bind`：把当前会话绑定到指定 Plan（可按 `domain` / `lifecycle` 消歧），是**唯一绑定入口**。
   同一会话只保留一个绑定，再次调用即切换；Note 看板与后续 `log.jsonl` 立即跟随。
+  未绑定时看板不显示、`log.jsonl` 也不落盘。
 - `nano_flow_check`：校验 YAML 头、三位 name、篇幅、status / reason / related_noted 与 spec 状态派生，
   以及页面文末 `## 相关` 互链（目标存在、原因非空）与 `GUIDE.md` 体积；
   同时生成/更新 `CONTEXT-MAP.md`、`questions/index.md`、`adr/index.md`、`workflows/index.md`、
   `notes_index.md` 与 spec 的 `## 追踪 Note`。可用 `domain` / `plan` 缩小范围，`strict=false`
-  把旧格式文档记为警告并跳过。
+  把旧格式文档记为警告并跳过。**check 不写 Plan 绑定**。
 
 **上限与轮转**
 
@@ -215,14 +216,14 @@ metadata:
   找到存活会话，再用日志里最后一条 `agent-preset/selected` 判断它是否跑 Nano Flow（live header
   的 `agentPreset` 在恢复会话时不可靠），然后读 `tokenMeter.contextPressure` 的
   `projectedTokens ?? pressureTokens`。达到 `rotateAt × contextWindow` 时创建新会话（同一 cwd
-  与预设），把 seed（上一会话已轮转、只读恢复当前 Plan、自动校验结论、最末是上一轮模型输出的
-  `<rotation-last-output>` 块）与本次触发原文（包在 `<rotation-prior-input>` 里，紧跟输出块之后）
+  与预设），把 seed（上一会话已轮转、只读恢复当前 Plan、自动校验结论、轮转前绑定的只读线索、
+  最末是上一轮模型输出的 `<rotation-last-output>` 块）与本次触发原文（包在 `<rotation-prior-input>` 里，紧跟输出块之后）
   一起发给它，新 prompt 被接受后**先归档、再物理删除**旧会话（归档会让客户端立刻离开旧会话，
   所以切视图挂在客户端根上下文，见下一段）。新会话创建或发送失败时回落到
   旧会话，消息不丢。轮转只能自动触发，没有手动命令；客户端在根上下文订阅导航选择 store，
   旧会话被归档离开时读 `nano-flow/rotation` 路由切到新会话（会话面板里的 5s 轮询保留为兜底）。
-- 轮转种子只让新会话读 `spec.md` 与 `notes_index.md`，所以每轮结束前必须把检查点写回磁盘：
-  spec 的进度与恢复入口、note 的 status / next_step。
+- 轮转种子不继承绑定：新会话首轮必须先 `nano_flow_bind`，否则看板与日志不出现；seed 同时要求新会话只读
+  `spec.md` 与 `notes_index.md`，所以每轮结束前必须把检查点写回磁盘：spec 的进度与恢复入口、note 的 status / next_step。
 - 轮转不写在预设行里：预设行读不到 `ctx.agent`（cordis 对服务属性做 inject 守卫），而根插件
   又不能声明 `agent` 依赖（根上下文里没有 agent）。`nano-flow-mount.json` 的 `stages` 记录每一步，
   挂载/轮转是否生效看这个文件即可。
@@ -252,7 +253,7 @@ metadata:
    spec 的状态与 `## 追踪 Note` 自动更新。
 9. 在 nano-flow 会话里改一条未完成 note 的 `status`：输入框上方的 Note 面板 5s 内更新；
    hover 显示该 note 的 `description`；note 全部完成，或该会话没有绑定/绑定目录失效时面板消失。
-10. 在 nano-flow 会话里正常对话几轮（至少触发一次工具调用；未绑定时 `nano_flow_check` 也会绑定）：当前 Plan 目录出现
+10. 先在新会话调用 `nano_flow_bind`，再正常对话几轮（至少触发一次工具调用）：当前 Plan 目录出现
     `log.jsonl`，首行是本会话段头，其后每轮一行 `turn`（sessionId/turn/user/assistant/tools/usage/seq）。
     重启/重开会话后历史正常加载，会话日志里不再出现 `nano-flow/notes`。
 11. 在同一会话用 `nano_flow_bind` 切到另一个 Plan：Note 看板立即换 Plan，后续轮次写入新 Plan 的

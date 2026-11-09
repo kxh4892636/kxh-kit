@@ -42,12 +42,12 @@ const turn = (n: number, base: number) => [
   event("turn/end", base + 3, { turn: n, reason: { kind: "completed" } }),
 ];
 
-const nanoFlowToolCall = (turnNumber: number, seq: number) =>
+const nanoFlowToolCall = (turnNumber: number, seq: number, name = "nano_flow_check") =>
   event("tool/call", seq, {
     turn: turnNumber,
     step: 1,
-    callId: "call-nf",
-    name: "nano_flow_check",
+    callId: `call-${name}`,
+    name,
     arguments: "{}",
   });
 
@@ -64,16 +64,23 @@ const makePersistence = (events: { seq: number }[]): PersistenceLike => ({
   },
 });
 
-const makeService = (
-  root: string,
-  plansFor: (workspace: string) => readonly string[],
-): ReturnType<typeof createPlanLogService> =>
+const makeService = (root: string): ReturnType<typeof createPlanLogService> =>
   createPlanLogService({
     home: root,
-    domainRoot: ".agents/domains",
     logger: { warn: () => {} },
-    plansFor,
   });
+
+const bindingsFile = (root: string): string =>
+  join(root, "toolkit", "nano-flow-plan-bindings.json");
+
+/** 绑定时间早于测试事件（事件时间固定为 2023），让回填把全部轮次视为已绑定后产生。 */
+const BOUND_AT = "2020-01-01T00:00:00.000Z";
+
+const bindTo = async (root: string, plan: string): Promise<void> => {
+  await writeBindings(bindingsFile(root), {
+    s1: { planPath: planRelativePath(root, plan), cwd: root, boundAt: BOUND_AT },
+  });
+};
 
 let planCounter = 0;
 const planFor = (root: string): string => {
@@ -86,14 +93,22 @@ const session = (root: string, header: Record<string, unknown> = {}) => ({
   header: { cwd: root, ...header },
 });
 
+const turnsIn = async (plan: string): Promise<number[]> =>
+  (await readFile(join(plan, "log.jsonl"), "utf8"))
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line) as { type: string; turn?: number })
+    .filter((line) => line.type === "turn")
+    .map((line) => line.turn as number);
+
 describe("createPlanLogService", () => {
-  it("binds on a nano-flow tool call, backfills completed turns and appends new ones", async () => {
+  it("backfills a pre-existing binding and appends new turns", async () => {
     const root = await makeRoot();
     const plan = planFor(root);
     const events = [...turn(1, 0), nanoFlowToolCall(2, 100)];
-    const persistence = makePersistence(events);
-    const service = makeService(root, () => [plan]);
-    service.attach(persistence);
+    const service = makeService(root);
+    service.attach(makePersistence(events));
+    await bindTo(root, plan);
     const file = join(plan, "log.jsonl");
     service.onEvent(session(root), events[events.length - 1]);
     await vi.waitFor(async () => {
@@ -114,7 +129,7 @@ describe("createPlanLogService", () => {
     await service.dispose();
   });
 
-  it("binds on the first run_code call once the session selected nano-flow", async () => {
+  it("does not create a binding on its own", async () => {
     const root = await makeRoot();
     const plan = planFor(root);
     const preset = event("agent-preset/selected", 0, { agentPreset: "nano-flow" });
@@ -128,15 +143,13 @@ describe("createPlanLogService", () => {
         arguments: "{}",
       }),
     ];
-    const persistence = makePersistence([preset, ...events]);
-    const service = makeService(root, () => [plan]);
-    service.attach(persistence);
+    const service = makeService(root);
+    service.attach(makePersistence([preset, ...events]));
     service.onEvent(session(root), preset);
     service.onEvent(session(root), events[events.length - 1]);
-    const file = join(root, "toolkit", "nano-flow-plan-bindings.json");
-    await vi.waitFor(async () => {
-      expect(await readBindings(file)).toMatchObject({ s1: { planPath: expect.any(String) } });
-    });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(await readBindings(bindingsFile(root))).toEqual({});
+    await expect(readFile(join(plan, "log.jsonl"), "utf8")).rejects.toThrow();
     await service.dispose();
   });
 
@@ -145,18 +158,20 @@ describe("createPlanLogService", () => {
     const plan = planFor(root);
     const preset = event("agent-preset/selected", 0, { agentPreset: "standard" });
     const events = [...turn(1, 1), nanoFlowToolCall(2, 100)];
-    const service = makeService(root, () => [plan]);
+    const service = makeService(root);
     service.attach(makePersistence([preset, ...events]));
     service.onEvent(session(root), preset);
     service.onEvent(session(root), events[events.length - 1]);
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(await readBindings(join(root, "toolkit", "nano-flow-plan-bindings.json"))).toEqual({});
+    expect(await readBindings(bindingsFile(root))).toEqual({});
+    await expect(readFile(join(plan, "log.jsonl"), "utf8")).rejects.toThrow();
     await service.dispose();
   });
 
-  it("keeps the binding turn whole when binding happens mid-turn", async () => {
+  it("keeps the binding turn whole and does not backfill earlier turns", async () => {
     const root = await makeRoot();
     const plan = planFor(root);
+    const preset = event("agent-preset/selected", -1, { agentPreset: "nano-flow" });
     const partial = [
       ...turn(1, 0),
       event("turn/start", 100, { turn: 2 }),
@@ -172,19 +187,21 @@ describe("createPlanLogService", () => {
         turn: 2,
         message: { content: [{ type: "text", text: "内容" }], source: { callId: "call-read" } },
       }),
-      nanoFlowToolCall(2, 104),
+      nanoFlowToolCall(2, 104, "nano_flow_bind"),
     ];
-    const events = [...partial];
-    const service = makeService(root, () => [plan]);
+    const events = [preset, ...partial];
+    const service = makeService(root);
     service.attach(makePersistence(events));
+    service.onEvent(session(root), preset);
     service.onEvent(session(root), partial[partial.length - 1]);
-    await vi.waitFor(async () => {
-      expect(await readFile(join(plan, "log.jsonl"), "utf8")).toContain('"turn":1');
-    });
+    await bindTo(root, plan);
     events.push(
       event("tool/result", 105, {
         turn: 2,
-        message: { content: [{ type: "text", text: "ok" }], source: { callId: "call-nf" } },
+        message: {
+          content: [{ type: "text", text: "ok" }],
+          source: { callId: "call-nano_flow_bind" },
+        },
       }),
       event("assistant/message", 106, {
         turn: 2,
@@ -197,6 +214,8 @@ describe("createPlanLogService", () => {
     await vi.waitFor(async () => {
       expect(await readFile(join(plan, "log.jsonl"), "utf8")).toContain('"turn":2');
     });
+    // 绑定发生在 turn 1 之后：turn 1 不属于该 Plan，只有整轮 turn 2 被写入。
+    expect(await turnsIn(plan)).toEqual([2]);
     const lines = (await readFile(join(plan, "log.jsonl"), "utf8"))
       .trim()
       .split("\n")
@@ -206,7 +225,27 @@ describe("createPlanLogService", () => {
       | undefined;
     expect(second?.user).toBe("问题2");
     expect(second?.assistant).toBe("回答2");
-    expect(second?.tools.map((tool) => tool.name)).toEqual(["read", "nano_flow_check"]);
+    expect(second?.tools.map((tool) => tool.name)).toEqual(["read", "nano_flow_bind"]);
+    await service.dispose();
+  });
+
+  it("discards completed turns while unbound and starts logging after bind", async () => {
+    const root = await makeRoot();
+    const plan = planFor(root);
+    const events = [...turn(1, 0)];
+    const service = makeService(root);
+    service.attach(makePersistence(events));
+    service.onEvent(session(root), events[events.length - 1]);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await expect(readFile(join(plan, "log.jsonl"), "utf8")).rejects.toThrow();
+
+    await bindTo(root, plan);
+    events.push(...turn(2, 100));
+    service.onEvent(session(root), events[events.length - 1]);
+    await vi.waitFor(async () => {
+      expect(await readFile(join(plan, "log.jsonl"), "utf8")).toContain('"turn":2');
+    });
+    expect(await turnsIn(plan)).toEqual([2]);
     await service.dispose();
   });
 
@@ -215,7 +254,8 @@ describe("createPlanLogService", () => {
     const plan = planFor(root);
     const events = [...turn(1, 0), nanoFlowToolCall(2, 100)];
     const file = join(plan, "log.jsonl");
-    const first = makeService(root, () => [plan]);
+    await bindTo(root, plan);
+    const first = makeService(root);
     first.attach(makePersistence(events));
     first.onEvent(session(root), events[events.length - 1]);
     await vi.waitFor(async () => {
@@ -223,7 +263,7 @@ describe("createPlanLogService", () => {
     });
     await first.dispose();
 
-    const second = makeService(root, () => [plan]);
+    const second = makeService(root);
     second.attach(makePersistence(events));
     second.onEvent(session(root), events[events.length - 1]);
     await new Promise((resolve) => setTimeout(resolve, 50));
@@ -239,23 +279,12 @@ describe("createPlanLogService", () => {
     const root = await makeRoot();
     const plan = planFor(root);
     const events = [nanoFlowToolCall(1, 10)];
-    const service = makeService(root, () => [plan]);
+    const service = makeService(root);
     service.attach(makePersistence(events));
     service.onEvent(session(root, { origin: "subagent" }), events[0]);
     await new Promise((resolve) => setTimeout(resolve, 50));
     await expect(readFile(join(plan, "log.jsonl"), "utf8")).rejects.toThrow();
-    expect(await readBindings(join(root, "toolkit", "nano-flow-plan-bindings.json"))).toEqual({});
-    await service.dispose();
-  });
-
-  it("refuses to bind while several active plans exist", async () => {
-    const root = await makeRoot();
-    const events = [nanoFlowToolCall(1, 10)];
-    const service = makeService(root, () => [join(root, "plan-a"), join(root, "plan-b")]);
-    service.attach(makePersistence(events));
-    service.onEvent(session(root), events[0]);
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(await readBindings(join(root, "toolkit", "nano-flow-plan-bindings.json"))).toEqual({});
+    expect(await readBindings(bindingsFile(root))).toEqual({});
     await service.dispose();
   });
 
@@ -263,48 +292,31 @@ describe("createPlanLogService", () => {
     const root = await makeRoot();
     const planA = planFor(root);
     const planB = planFor(root);
-    const bindings = join(root, "toolkit", "nano-flow-plan-bindings.json");
-    const bindTo = async (plan: string): Promise<void> => {
-      await writeBindings(bindings, {
-        s1: {
-          planPath: planRelativePath(root, plan),
-          cwd: root,
-          boundAt: new Date().toISOString(),
-        },
-      });
-    };
     const events = [...turn(1, 0)];
-    const service = makeService(root, () => []);
+    const service = makeService(root);
     service.attach(makePersistence(events));
 
-    await bindTo(planA);
-    service.onEvent(session(root), events[events.length - 1] as never);
+    await bindTo(root, planA);
+    service.onEvent(session(root), events[events.length - 1]);
     await vi.waitFor(async () => {
       expect(await readFile(join(planA, "log.jsonl"), "utf8")).toContain('"turn":1');
     });
 
     events.push(...turn(2, 100));
-    service.onEvent(session(root), events[events.length - 1] as never);
+    service.onEvent(session(root), events[events.length - 1]);
     await vi.waitFor(async () => {
       expect(await readFile(join(planA, "log.jsonl"), "utf8")).toContain('"turn":2');
     });
 
-    await bindTo(planB);
+    await bindTo(root, planB);
     events.push(...turn(3, 200));
-    service.onEvent(session(root), events[events.length - 1] as never);
+    service.onEvent(session(root), events[events.length - 1]);
     await vi.waitFor(async () => {
       expect(await readFile(join(planB, "log.jsonl"), "utf8")).toContain('"turn":3');
     });
 
-    const turns = async (plan: string): Promise<number[]> =>
-      (await readFile(join(plan, "log.jsonl"), "utf8"))
-        .trim()
-        .split("\n")
-        .map((line) => JSON.parse(line) as { type: string; turn?: number })
-        .filter((line) => line.type === "turn")
-        .map((line) => line.turn as number);
-    expect(await turns(planA)).toEqual([1, 2]);
-    expect(await turns(planB)).toEqual([3]);
+    expect(await turnsIn(planA)).toEqual([1, 2]);
+    expect(await turnsIn(planB)).toEqual([3]);
     await service.dispose();
   });
 });

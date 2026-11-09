@@ -17,7 +17,7 @@
 ## 工具
 
 - `nano_flow_create`：创建 domain 的目录结构与模板文件；`kind` 为 `domain`、`plan` 或 `note`。
-- `nano_flow_bind`：把本会话绑定到指定 Plan；同一会话只保留一个绑定，再次调用即切换，Note 看板与后续 `log.jsonl` 跟随。
+- `nano_flow_bind`：把本会话绑定到指定 Plan，是**唯一的绑定入口**；同一会话只保留一个绑定，再次调用即切换，Note 看板与后续 `log.jsonl` 跟随。
 - `nano_flow_check`：校验领域文档；同时自动创建/更新 `CONTEXT-MAP.md`、`questions/index.md`、`adr/index.md`、`workflows/index.md`、`notes_index.md` 与 spec 的 `## 追踪 Note`。
 
 索引文件是生成物，不要手改；文档本身用普通文件工具读写。每轮形成新事实后跑一次 `nano_flow_check`。
@@ -128,14 +128,14 @@ Plan 只有三类文档：`spec.md`、`notes_index.md`（生成）和若干 `001
 
 ### 建 Plan
 
-当前域没有 active 的 Plan，或用户提出与当前 Plan 无关的新目标时，用 `nano_flow_create` 的 `kind=plan` 建 Plan；否则新输入作为 note 追加到当前 Plan。一个会话默认只有一个 Plan。
+当前域没有 active 的 Plan，或用户提出与当前 Plan 无关的新目标时，用 `nano_flow_create` 的 `kind=plan` 建 Plan，建好后调用 `nano_flow_bind` 绑定本会话；否则新输入作为 note 追加到当前 Plan。一个会话默认只有一个 Plan。
 
 ### 恢复与轮转
 
-- 已绑定会话要换 Plan 时用 `nano_flow_bind`；`nano_flow_check` 不会改绑。
-- 恢复已有 Plan（“恢复”“继续”且本会话还没加载它）：**开头先跑一次 `nano_flow_check`**（校验 Plan 并建立本会话↔Plan 的看板绑定；已知 Plan 时带 `plan: '<Plan 目录名>'`，这样多 active Plan 的工作区也能绑定，reference / archived 同样可绑。它只重写生成的索引与追踪表，是本轮唯一的写操作）。轮转新会话的 seed 已带校验结论时跳过。然后按“业务域”确认业务域，读 `spec.md` 与 `notes_index.md`，核对已完成步骤与工作区事实；本轮**严格只读**：只读文件与取证命令，不写 Plan、不动任何文件、不执行 note、不跑构建测试或安装；报告目标、进度、可推进队列、阻塞项与下一步候选后结束本轮。
+- 绑定只有一条路径：调用 `nano_flow_bind`；`nano_flow_check` 与 plan-log 都不会写绑定。
+- 恢复已有 Plan（“恢复”“继续”且本会话还没加载它）：**开头先调用 `nano_flow_bind` 绑定目标 Plan**（未绑定时看板与 log 不会出现），再跑一次 `nano_flow_check` 校验并刷新索引（它只重写生成的索引与追踪表；除 bind 的绑定表外，是本轮唯一的文件写操作）。轮转新会话的 seed 已带校验结论时跳过 check。然后按“业务域”确认业务域，读 `spec.md` 与 `notes_index.md`，核对已完成步骤与工作区事实；本轮**只读 Plan**：除 bind 的会话绑定外，不写 Plan、不动任何文件、不执行 note、不跑构建测试或安装；报告目标、进度、可推进队列、阻塞项与下一步候选后结束本轮。
 - 放行：恢复报告之后，用户的第一条后续消息即放行，按 `/do skill` 继续；若那条消息是新的澄清需求则按 `/ask skill`。
-- 轮转建好的新会话，插件会先自动跑一次 `nano_flow_check`：结论写进 seed（在上一轮输出块之前），并把**轮转前会话的 Plan 绑定**继承给新会话（与工作区有几个 active Plan 无关；旧会话没绑定就跳过），Note 看板立即出现。看到「校验失败」先修文档再推进；看到「校验通过」就不必重复跑。
+- 轮转建好的新会话，插件会先自动跑一次 `nano_flow_check`：校验结论与**轮转前会话绑定的 Plan 线索**写进 seed（在上一轮输出块之前），但**不继承绑定**。首轮先用 `nano_flow_bind` 绑定 seed 指出的 Plan，看板与 log 才会出现。看到「校验失败」先修文档再推进；看到「校验通过」就不必重复跑。
 - 插件在用户每发一条消息时检查上下文压力，达到阈值就创建新会话、把 seed 与这次输入一起投过去，并物理删除旧会话（轮转只能自动触发，没有手动命令）。新会话只收到 seed（“只读恢复当前 Plan”+ 上一轮模型输出 + 本次输入），所以每轮结束前必须把检查点写回磁盘：spec 的当前进度与恢复入口、note 的状态与 next_step。仅凭 Plan 就能判断目标、理由、进度、证据、缺口和下一步，才算可以安全轮转。
 
 ## 互链

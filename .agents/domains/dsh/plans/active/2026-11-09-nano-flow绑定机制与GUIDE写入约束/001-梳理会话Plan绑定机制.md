@@ -36,13 +36,13 @@ next_step: "已交付；改动绑定前先读本清单的缺陷与证据。"
 
 ## 已知缺陷与风险
 
-- **R1 domain 过滤不参与绑定目标**：`check({domain:"x"})` 仍按全工作区 active Plan 计算目标，可能把会话绑到另一个域的唯一 Plan（[`nano-flow/tools/check.ts:34`](../../../../../../packages/dsh-toolkit/src/nano-flow/tools/check.ts#L34)）。
+- **R1 domain 过滤不参与绑定目标**：`check({domain:"x"})` 仍按全工作区 active Plan 计算目标，可能把会话绑到另一个域的唯一 Plan（[`nano-flow/tools/check.ts:34`](../../../../../../packages/dsh-toolkit/src/nano-flow/tools/check.ts#L34)）。已随 004 移除 check 绑定而消失。
 - **R2 同会话无法换 Plan**：`recordBinding` 先写先赢，而 system.md 允许同一会话在「新目标」下建新 Plan；看板与日志会继续留在旧 Plan（[`index.ts:100`](../../../../../../packages/dsh-toolkit/src/index.ts#L100)）。已由 003 的 `nano_flow_bind` 解决（显式覆盖）。
 - **R3 生命周期迁移后绑定失效**：active→reference/archived 移动目录后，绑定仍指旧路径；看板变空，plan-log 继续向旧路径追加，`mkdir` 会重建已移走的目录并留下孤儿 `log.jsonl`（[`nano-flow/plan-log-service.ts:224`](../../../../../../packages/dsh-toolkit/src/nano-flow/plan-log-service.ts#L224)、[`plan-log.ts:312`](../../../../../../packages/dsh-toolkit/src/plan-log.ts#L312)）。
 - **R4 死条目无回收**：会话删除或轮转后条目只增不减；ADR 008 已明确承认，留待维护回收。
-- **R5 自动绑定可能违背意图**：nano-flow 会话只是问一个问题、工作区又恰好一个 active Plan 时，首个工具调用就会绑定（[`nano-flow/plan-log-service.ts:171`](../../../../../../packages/dsh-toolkit/src/nano-flow/plan-log-service.ts#L171)）。
+- **R5 自动绑定可能违背意图**：nano-flow 会话只是问一个问题、工作区又恰好一个 active Plan 时，首个工具调用就会绑定（[`nano-flow/plan-log-service.ts:171`](../../../../../../packages/dsh-toolkit/src/nano-flow/plan-log-service.ts#L171)）。已随 004 移除 plan-log 自动绑定而消失。
 - **R6 cwd 漂移**：绑定保存写入时的 `cwd`，`notesOf` 优先用它；而 `inheritedPlanDirectory` 用 `join(workspace, planPath)`，对绝对 `planPath` 不兼容（[`index.ts:452`](../../../../../../packages/dsh-toolkit/src/index.ts#L452)、[`plan-log.ts:302`](../../../../../../packages/dsh-toolkit/src/plan-log.ts#L302)）。
-- **R7 遗留启发式**：`notesForWorkspace` 仍保留「唯一 active Plan」逻辑但没有生产调用（[`nano-flow/notes.ts:105`](../../../../../../packages/dsh-toolkit/src/nano-flow/notes.ts#L105)）。
+- **R7 遗留启发式**：`notesForWorkspace` 仍保留「唯一 active Plan」逻辑但没有生产调用（[`nano-flow/notes.ts:105`](../../../../../../packages/dsh-toolkit/src/nano-flow/notes.ts#L105)）。绑定写入路径已全部移除，但这段死代码仍待清理。
 
 ## 证据
 

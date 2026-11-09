@@ -8,9 +8,7 @@ import {
   groupByTurn,
   isNanoFlowPreset,
   planLogPath,
-  planRelativePath,
   readBindings,
-  writeBindings,
   type BindingTable,
   type CompactTurn,
   type PlanBinding,
@@ -46,11 +44,7 @@ export interface PlanLogOptions {
   readonly home: string;
   /** 绑定表路径；缺省 `$DSH_HOME/toolkit/<BINDINGS_FILE>`。 */
   readonly bindingsFile?: string;
-  /** 领域根（相对工作区或绝对路径）。 */
-  readonly domainRoot: string;
   readonly logger: { warn(message: string): void };
-  /** 列出工作区下所有 active Plan 目录。 */
-  readonly plansFor: (workspace: string) => readonly string[];
 }
 
 /** 轨迹日志服务。 */
@@ -84,10 +78,11 @@ const asEvent = (value: unknown): SessionEventLike | undefined =>
 const turnedKey = (sessionId: string, turn: number): string => `${sessionId}#${turn}`;
 
 /**
- * 创建 Plan 轨迹日志服务：绑定、回填、逐轮追加。
+ * 创建 Plan 轨迹日志服务：读绑定、回填、逐轮追加。
  *
  * 只读持久化句柄 + 会话事件 firehose，绝不写会话事件（question 009 的教训）。
- * @param options - 领域根、绑定表位置与 Plan 枚举器。
+ * 绑定不由本服务写入；未绑定时只跟踪事件，绑定后从当前轮开始落盘。
+ * @param options - 绑定表位置与日志器。
  * @returns 服务实例。
  */
 export const createPlanLogService = (options: PlanLogOptions): PlanLogService => {
@@ -158,28 +153,9 @@ export const createPlanLogService = (options: PlanLogOptions): PlanLogService =>
   /** 绑定身份：cwd 或 planPath 变化时视为切换。 */
   const bindingKey = (binding: PlanBinding): string => `${binding.cwd}\u0000${binding.planPath}`;
 
-  const ensureBound = async (
-    session: PlanLogSession,
-    state: SessionState,
-    allowBind: boolean,
-  ): Promise<void> => {
-    const sessionId = state.sessionId;
-    const cwd = session.header?.cwd ?? "";
+  const ensureBound = async (state: SessionState): Promise<void> => {
     const table = await loadBindings();
-    let next = table[sessionId];
-    if (next === undefined) {
-      if (!allowBind) return;
-      const plans = options.plansFor(cwd);
-      if (plans.length !== 1) {
-        warn(`skip bind for ${sessionId}: expected exactly one active plan, got ${plans.length}`);
-        return;
-      }
-      const plan = plans[0];
-      if (plan === undefined) return;
-      next = { planPath: planRelativePath(cwd, plan), cwd, boundAt: new Date().toISOString() };
-      table[sessionId] = next;
-      await writeBindings(bindingsFile, table);
-    }
+    const next = table[state.sessionId];
     if (next === undefined) return;
     const previous = state.binding;
     if (previous !== undefined && bindingKey(previous) === bindingKey(next)) return;
@@ -187,17 +163,24 @@ export const createPlanLogService = (options: PlanLogOptions): PlanLogService =>
     Object.assign(state, { binding: next });
     const index = await scanLog(planLogPath(next));
     state.seen = new Set(index.seen);
-    state.headerWritten = index.headers.has(sessionId);
-    // 切换绑定不把旧 Plan 的历史轮次回填到新 Plan：保留持久化句柄、游标与当前轮缓冲。
+    state.headerWritten = index.headers.has(state.sessionId);
     if (switching) return;
+    // 只有服务启动时就已绑定才回填；绑定前产生的轮次不属于该 Plan。
+    if (state.handle !== undefined || state.cursor >= 0) return;
     if (persistence === undefined) return;
-    const handle = await persistence.open(sessionId, "read");
+    const handle = await persistence.open(state.sessionId, "read");
     state.handle = handle;
     const snapshot = await handle.read(0);
     let maxSeq = -1;
     for (const event of snapshot.events) {
       if (typeof event.seq === "number" && event.seq > maxSeq) maxSeq = event.seq;
     }
+    const boundAt = Date.parse(next.boundAt);
+    const owned = (events: readonly SessionEventLike[]): boolean => {
+      if (!Number.isFinite(boundAt)) return true;
+      const endedAt = events.find((event) => event.type === "turn/end")?.time;
+      return typeof endedAt !== "number" || endedAt >= boundAt;
+    };
     const turns = groupByTurn(snapshot.events);
     const ordered = [...turns.entries()].sort((left, right) => left[0] - right[0]);
     state.pending.clear();
@@ -206,6 +189,7 @@ export const createPlanLogService = (options: PlanLogOptions): PlanLogService =>
         state.pending.set(turn, [...events]);
         continue;
       }
+      if (!owned(events)) continue;
       await appendTurn(state, turn, events);
     }
     state.cursor = Math.max(state.cursor, maxSeq);
@@ -243,13 +227,12 @@ export const createPlanLogService = (options: PlanLogOptions): PlanLogService =>
     state.seen.add(key);
   };
 
-  const flush = async (
-    state: SessionState,
-    session: PlanLogSession,
-    allowBind: boolean,
-  ): Promise<void> => {
-    await ensureBound(session, state, allowBind);
-    if (state.binding === undefined || state.handle === undefined) return;
+  const flush = async (state: SessionState): Promise<void> => {
+    await ensureBound(state);
+    if (state.handle === undefined) {
+      if (persistence === undefined) return;
+      state.handle = await persistence.open(state.sessionId, "read");
+    }
     const start = Math.max(state.cursor + 1, 0);
     const read = await state.handle.read(start, 5_000);
     if (read.events.length === 0) return;
@@ -266,7 +249,8 @@ export const createPlanLogService = (options: PlanLogOptions): PlanLogService =>
         state.pending.set(turn, merged);
         continue;
       }
-      await appendTurn(state, turn, merged);
+      // 未绑定：完整轮次直接丢弃，只保留进行中的轮缓冲，供随后绑定接管。
+      if (state.binding !== undefined) await appendTurn(state, turn, merged);
       state.pending.delete(turn);
     }
     state.cursor = maxSeq;
@@ -295,18 +279,18 @@ export const createPlanLogService = (options: PlanLogOptions): PlanLogService =>
     const data = event.type === "tool/call" && isRecord(event.data) ? event.data : {};
     const name = typeof data["name"] === "string" ? data["name"] : "";
     const nanoTool = name.startsWith("nano_flow_");
-    // 绑定只发生在本插件的会话：预设已知为 nano-flow 时，PTC 的首个 `run_code` 调用即绑定；
-    // 预设未知（老宿主没有预设选择事件）时退回「只认 nano_flow_* 调用」。
+    // 绑定只由 nano_flow_bind 写入；这里只决定是否跟踪会话事件。
     if (
       event.type === "tool/call" &&
       !nanoTool &&
-      (state.binding !== undefined || nanoFlow !== true)
-    )
+      nanoFlow !== true &&
+      state.binding === undefined
+    ) {
       return;
-    const allowBind = event.type === "tool/call" && (nanoTool || nanoFlow === true);
+    }
     state.chain = state.chain.then(
-      () => flush(state, session, allowBind),
-      () => flush(state, session, allowBind),
+      () => flush(state),
+      () => flush(state),
     );
     state.chain.catch((error: unknown) => {
       warn(`flush failed for ${state.sessionId}: ${String(error)}`);

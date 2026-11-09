@@ -119,13 +119,6 @@ const mountNanoFlow = (target: Context, host: Context, config: NanoFlowConfig): 
       settings,
       assetsRoot,
       domainRoot,
-      bind: async (sessionId, planDirectory, workspace) => {
-        const facade = services.get(NANO_FLOW_SERVICE) as
-          | { bindSession?: (id: string, plan: string, root: string) => Promise<void> }
-          | undefined;
-        if (facade === undefined || typeof facade.bindSession !== "function") return;
-        await facade.bindSession(sessionId, planDirectory, workspace);
-      },
       rebind: async (sessionId, planDirectory, workspace) => {
         const facade = services.get(NANO_FLOW_SERVICE) as
           | { rebindSession?: (id: string, plan: string, root: string) => Promise<void> }

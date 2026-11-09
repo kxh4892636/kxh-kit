@@ -1,10 +1,12 @@
 ---
 name: '008-轮转绑定继承旧会话的Plan'
 description: '轮转后的自动绑定继承轮转前会话的 Plan，与工作区 active Plan 数量无关；无绑定或目录失效时跳过。'
-status: accepted
+status: superseded
 ---
 
 # 008-轮转绑定继承旧会话的Plan
+
+> 已被 [009-Plan绑定只经bind工具](009-Plan绑定只经bind工具.md) 取代：绑定不再继承，也不再由 check 或 plan-log 写入。
 
 轮转（阈值触发，只能自动）后，新会话的看板绑定不再取「工作区唯一 active Plan」，而是从绑定表里读出被轮转会话的 `planPath`，目录仍存在就绑定给新会话。工作区因此可以同时有多个 active Plan：每个会话记录自己的 Plan，轮转只继承自己那条。
 

@@ -1,12 +1,11 @@
 ---
 name: "003-提供Plan绑定工具"
 description: "新增 nano_flow_bind：同一会话只保留一个绑定，再次调用即切换，并让看板与 log 跟随。"
-status: blocked
-reason: "等待用户验收 nano_flow_bind：绑定/切换、看板与 log 跟随已实现并通过测试"
+status: completed
 related_noted:
   - "001-梳理会话Plan绑定机制"
   - "002-为GUIDE增加仅dream可写约束"
-next_step: "用户验收后置 completed；未覆盖的 check domain 过滤与生命周期迁移缺陷另开 note。"
+next_step: "已验收；check/plan-log 隐式路径已由 004 移除。"
 ---
 
 # 003-提供Plan绑定工具
@@ -36,6 +35,10 @@ next_step: "用户验收后置 completed；未覆盖的 check domain 过滤与�
 - `plan-log-service.test.ts` 新增切换用例：turn 1–2 写旧 Plan，切换后 turn 3 只写新 Plan，旧 Plan 保留 `[1, 2]`。
 - `pnpm -C packages/dsh-toolkit test`：38 个测试文件、325 项全部通过。
 - `pnpm -C packages/dsh-toolkit check`：格式、lint 与类型检查通过。
+
+## 后续
+
+[004-移除全部隐式绑定路径](004-移除全部隐式绑定路径.md) 已删除 check 与 plan-log 的隐式绑定：绑定表只剩本工具一个写入口。
 
 ## 未覆盖
 

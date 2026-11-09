@@ -67,7 +67,7 @@ _Avoid_：wiki、知识库、notes.json
 _Avoid_：story、DAG、任务列表
 
 **会话↔Plan 绑定**：
-`$DSH_HOME/toolkit/nano-flow-plan-bindings.json` 中按会话 id 记录的唯一 Plan（`planPath` / `cwd` / `boundAt`）；同一会话只保留一个绑定，`nano_flow_bind` 可显式切换，供 Note 看板、`log.jsonl` 轨迹与轮转继承使用，不参与 note 状态判定。
+`$DSH_HOME/toolkit/nano-flow-plan-bindings.json` 中按会话 id 记录的唯一 Plan（`planPath` / `cwd` / `boundAt`）；同一会话只保留一个绑定，只有 `nano_flow_bind` 写它，再次调用即切换。供 Note 看板与 `log.jsonl` 使用，不参与 note 状态判定。
 _Avoid_：当前 Plan、任务上下文
 
 **生效上限**：
@@ -75,19 +75,19 @@ toolkit 面板「Nano Flow 设置」维护的数值来源，持久化在 `$DSH_H
 _Avoid_：魔法数字、硬编码阈值
 
 **会话轮转**：
-预设不挂压缩插件；用户每发一条 queue 消息时读上下文压力，达到 `rotateAt × contextWindow` 就创建新会话（同一 cwd 与预设），新 prompt 被接受后先归档、再物理删除旧会话（归档会让客户端立刻离开旧会话，切视图因此挂在客户端根上下文），失败回落旧会话。新会话不继承旧会话的对话历史（历史只由 `<plan>/log.jsonl` 留存），拿到的只有：以用户消息投递的 seed（「已轮转」+ 当前 Plan 线索 + 只读恢复要求 + 轮转后自动校验结论与「绑定已继承旧会话 Plan」一行 + 最末的上一轮模型输出 `<rotation-last-output>` 块）、包在 `<rotation-prior-input>` 里并紧跟其后的本次触发原文，以及过继来的工作区槽位与置顶。轮转只能自动触发；客户端在根上下文订阅导航选择 store，旧会话被归档离开时读轮转路由切到新会话（会话面板的 5s 轮询只作兜底）。
+预设不挂压缩插件；用户每发一条 queue 消息时读上下文压力，达到 `rotateAt × contextWindow` 就创建新会话（同一 cwd 与预设），新 prompt 被接受后先归档、再物理删除旧会话（归档会让客户端立刻离开旧会话，切视图因此挂在客户端根上下文），失败回落旧会话。新会话不继承旧会话的对话历史（历史只由 `<plan>/log.jsonl` 留存），拿到的只有：以用户消息投递的 seed（「已轮转」+ 当前 Plan 线索 + 只读恢复要求 + 轮转后自动校验结论与「轮转前会话绑定的 Plan」只读线索 +「新会话不会自动绑定」+ 最末的上一轮模型输出 `<rotation-last-output>` 块）、包在 `<rotation-prior-input>` 里并紧跟其后的本次触发原文，以及过继来的工作区槽位与置顶。绑定不继承，新会话首轮先调用 `nano_flow_bind`。轮转只能自动触发；客户端在根上下文订阅导航选择 store，旧会话被归档离开时读轮转路由切到新会话（会话面板的 5s 轮询只作兜底）。
 _Avoid_：压缩、compact、归档旧会话
 
 **恢复只读**：
-用户说“恢复”“继续”且会话还没加载 Plan 时只读加载：读 `spec.md` 与 `notes_index.md`，报告进度与可推进队列，本轮不写文件、不执行 note；恢复报告之后的第一条用户消息才放行。
+用户说“恢复”“继续”且会话还没加载 Plan 时先调用 `nano_flow_bind` 绑定目标 Plan，再只读加载：读 `spec.md` 与 `notes_index.md`，报告进度与可推进队列；除 bind 的会话绑定外不写文件、不执行 note。恢复报告之后的第一条用户消息才放行。
 _Avoid_：自动续跑、恢复即执行
 
 **note 面板**：
-nano-flow 预设会话在输入框上方 dock 显示的未完成 note 列表（中文状态名 + 名称，hover 显示概述）；客户端按当前 `sessionId` 每 5s 轮询宿主 `GET /api/toolkit/nano-flow/notes`，宿主按该会话的绑定定位 Plan（未绑定、目录失效或没有未完成 note 时不显示），快照不写会话日志，样式与 Todo 面板一致。
+nano-flow 预设会话在输入框上方 dock 显示的未完成 note 列表（中文状态名 + 名称，hover 显示概述）；客户端按当前 `sessionId` 每 5s 轮询宿主 `GET /api/toolkit/nano-flow/notes`，宿主按该会话的绑定定位 Plan（未调用 `nano_flow_bind`、目录失效或没有未完成 note 时不显示），快照不写会话日志，样式与 Todo 面板一致。
 _Avoid_：待办面板、todo 面板、任务列表
 
 **Plan 轨迹日志**：
-nano-flow 预设会话每轮结束时向 `<plan>/log.jsonl` 追加的一条 compact 轨迹（user、assistant 最终文本、工具参数/结果摘要、usage、seq 区间）；会话在首个 `tool/call` 时按「已有绑定或工作区唯一 active Plan」建立绑定并持久化（预设未知时只认 `nano_flow_*` 调用）；`nano_flow_bind` 切换后，后续轮次写入新 Plan，旧 Plan 不再追加。启动时从宿主持久化日志回填历史轮次，绝不写会话事件。日志只存本地（`.gitignore` 忽略 `**/plans/**/log.jsonl`），轮转不删、只增量追加。
+nano-flow 预设会话每轮结束时向 `<plan>/log.jsonl` 追加的一条 compact 轨迹（user、assistant 最终文本、工具参数/结果摘要、usage、seq 区间）；只有 `nano_flow_bind` 写绑定，未绑定时服务只跟踪事件、不落盘；绑定后写当前轮与后续轮次，绑定前已完成的轮次不回填；切换后后续轮次写新 Plan，旧 Plan 不再追加。启动时从宿主持久化日志回填已绑定且归该 Plan 的历史轮次，绝不写会话事件。日志只存本地（`.gitignore` 忽略 `**/plans/**/log.jsonl`），轮转不删、只增量追加。
 _Avoid_：会话转录、原始事件日志、audit log
 
 ### 记忆维护（dream）

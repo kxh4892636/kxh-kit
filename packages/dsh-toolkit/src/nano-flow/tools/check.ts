@@ -1,7 +1,5 @@
 import { assetsCheckScript } from "../assets.js";
 import { formatIssues, runCheck } from "../check-runner.js";
-import { listActivePlans } from "../notes.js";
-import { listPlans } from "../plan.js";
 import {
   asArguments,
   optionalBoolean,
@@ -29,17 +27,7 @@ const executeCheck = async (
     ...(plan === undefined ? {} : { plan }),
     ...(strict === undefined ? {} : { strict }),
   });
-  // 不带 plan：沿用「唯一 active Plan」的启发式；带 plan：跨生命周期按目录名定位，
-  // 这样多 active Plan 的工作区恢复 reference/archived 也能建立看板绑定。
-  const plans = listActivePlans(runtime.domainsDirectory(workspace));
-  const target =
-    plan === undefined
-      ? plans.length === 1
-        ? plans[0]
-        : undefined
-      : (await listPlans(workspace, runtime.domainRoot)).find((item) => item.name === plan)
-          ?.directory;
-  if (target !== undefined) await runtime.bind?.(exec, target, workspace);
+  // 校验不写绑定；绑定只由 nano_flow_bind 负责。
   const lines: string[] = [];
   if (result.ok) {
     lines.push("领域文档校验通过。");
@@ -66,7 +54,7 @@ const executeCheck = async (
 export const createCheckTool = (runtime: ToolRuntime): ToolDefinitionLike => ({
   name: "nano_flow_check",
   description:
-    "校验 Nano Flow 的领域文档（YAML 头、三位数字 name、篇幅、status/reason/related_noted、Plan 状态派生），并自动创建/更新 CONTEXT-MAP.md、questions/adr/workflows 的 index.md、notes_index.md 与 spec 的 ## 追踪 Note。domain 过滤只校验该域且不重写 CONTEXT-MAP；plan 过滤只校验该 Plan。本会话尚未绑定 Plan 时顺带绑定到它（含 reference/archived）；已绑定则不改绑，切换用 nano_flow_bind。",
+    "校验 Nano Flow 的领域文档（YAML 头、三位数字 name、篇幅、status/reason/related_noted、Plan 状态派生），并自动创建/更新 CONTEXT-MAP.md、questions/adr/workflows 的 index.md、notes_index.md 与 spec 的 ## 追踪 Note。domain 过滤只校验该域且不重写 CONTEXT-MAP；plan 过滤只校验该 Plan。本工具不写 Plan 绑定——绑定与切换只用 nano_flow_bind。",
   parameters: {
     type: "object",
     additionalProperties: false,

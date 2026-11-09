@@ -362,7 +362,7 @@ describe("attachRotation", () => {
 
 describe("autoCheck after rotation", () => {
   const summary =
-    "轮转后自动执行 `nano_flow_check`：领域文档校验通过，索引已刷新。\n本会话的 Note 看板绑定已建立，无需再跑一次。";
+    "轮转后自动执行 `nano_flow_check`：领域文档校验通过，索引已刷新。\n新会话不会自动绑定，恢复时先调用 `nano_flow_bind`。";
 
   it("runs the check for the new session and appends the result to the seed", async () => {
     const autoCheck = vi.fn(async () => ({ text: summary }));
@@ -401,7 +401,7 @@ describe("autoCheck after rotation", () => {
     expect(seed.trimEnd().endsWith(`</${LAST_OUTPUT_TAG}>`)).toBe(true);
   });
 
-  it("uses the inherited plan as the seed plan reference", async () => {
+  it("uses the previous binding as a read-only seed plan reference", async () => {
     const autoCheck = vi.fn(async () => ({
       text: summary,
       planReference: "dsh/active/2026-11-08-示例",

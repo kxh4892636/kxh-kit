@@ -126,12 +126,12 @@ describe("applyNanoFlow", () => {
     expect(harness.listeners).toHaveLength(1);
   });
 
-  it("requires nano_flow_check at the start of a Plan recovery", async () => {
+  it("requires nano_flow_bind at the start of a Plan recovery", async () => {
     const workspace = await makeRoot();
     const harness = makeHarness();
     applyNanoFlow(harness.ctx, { workspace });
     const text = sectionText(harness)({ agent: { session: { header: { cwd: workspace } } } });
-    expect(text).toContain("开头先跑一次 `nano_flow_check`");
+    expect(text).toContain("开头先调用 `nano_flow_bind` 绑定目标 Plan");
     expect(text).toContain("seed 已带校验结论时跳过");
   });
 

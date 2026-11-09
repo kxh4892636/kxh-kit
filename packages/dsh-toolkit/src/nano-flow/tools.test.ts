@@ -33,7 +33,7 @@ const services = {
 
 const tools = (
   workspace: string,
-  bind?: (sessionId: string, planDirectory: string, workspace: string) => Promise<void>,
+  rebind?: (sessionId: string, planDirectory: string, workspace: string) => Promise<void>,
 ) => {
   const runtime = createToolRuntime({
     services,
@@ -41,7 +41,7 @@ const tools = (
     settings: () => DEFAULT_NANO_FLOW_SETTINGS,
     assetsRoot: locateAssetsRoot(),
     domainRoot: ".agents/domains",
-    ...(bind === undefined ? {} : { bind }),
+    ...(rebind === undefined ? {} : { rebind }),
   });
   return { create: createCreateTool(runtime), check: createCheckTool(runtime) };
 };
@@ -152,36 +152,7 @@ describe("nano_flow_check", () => {
     expect(plan).toContain("Plan 不存在");
   });
 
-  it("binds the calling session to the single active plan", async () => {
-    const workspace = await makeRoot();
-    const calls: [string, string, string][] = [];
-    const runtime = createToolRuntime({
-      services,
-      config: { workspace },
-      settings: () => DEFAULT_NANO_FLOW_SETTINGS,
-      assetsRoot: locateAssetsRoot(),
-      domainRoot: ".agents/domains",
-      bind: async (sessionId, planDirectory, root) => {
-        calls.push([sessionId, planDirectory, root]);
-      },
-    });
-    const create = createCreateTool(runtime);
-    const check = createCheckTool(runtime);
-    await create.execute({ kind: "plan", domain: "demo", name: "2026-11-08-示例" }, exec());
-    await check.execute(
-      {},
-      { signal: new AbortController().signal, agent: { session: { id: "session-x" } } },
-    );
-    expect(calls).toEqual([
-      [
-        "session-x",
-        join(workspace, ".agents", "domains", "demo", "plans", "active", "2026-11-08-示例"),
-        workspace,
-      ],
-    ]);
-  });
-
-  it("binds an explicit plan across lifecycles, even with several active plans", async () => {
+  it("does not write a Plan binding itself", async () => {
     const workspace = await makeRoot();
     const calls: [string, string, string][] = [];
     const { create, check } = tools(workspace, async (sessionId, planDirectory, root) => {
@@ -194,19 +165,11 @@ describe("nano_flow_check", () => {
       exec(),
     );
 
-    // 两个 active：不带 plan 不绑。
+    // 不带 plan 的唯一 active 启发式不再绑定。
     await check.execute({}, exec("session-a"));
-    expect(calls).toEqual([]);
-
-    // 显式 plan（reference 也算）→ 绑定到该 Plan。
+    // 显式 plan 也只校验，不绑定。
     await check.execute({ plan: "2026-11-08-丙" }, exec("session-b"));
-    expect(calls).toEqual([
-      [
-        "session-b",
-        join(workspace, ".agents", "domains", "demo", "plans", "reference", "2026-11-08-丙"),
-        workspace,
-      ],
-    ]);
+    expect(calls).toEqual([]);
   });
 
   it("downgrades legacy documents to warnings in non-strict mode", async () => {

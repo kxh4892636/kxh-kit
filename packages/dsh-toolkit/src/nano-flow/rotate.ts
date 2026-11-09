@@ -233,7 +233,7 @@ interface SeedParts {
   readonly lastOutput?: string;
   /** 轮转后自动校验结论；没有 autoCheck 时省略。 */
   readonly checked?: string;
-  /** 继承到的 Plan（`<domain>/<lifecycle>/<name>`）；有值时不再走「唯一 active Plan」启发式。 */
+  /** 轮转前会话绑定的 Plan（`<domain>/<lifecycle>/<name>`），只作恢复线索，不写绑定。 */
   readonly planReference?: string;
 }
 
@@ -259,7 +259,7 @@ const buildSeed = async (
   const parts = [
     "（上一会话因上下文达到阈值已轮转；Plan 在磁盘上，状态不丢。）",
     `${head}。`,
-    "先读 spec.md 与 notes_index.md，只读报告进度与可推进队列，等用户放行后再执行。",
+    "先确认 Plan 并调用 `nano_flow_bind` 绑定（未绑定时看板与 log 不会出现），再读 spec.md 与 notes_index.md，只读报告进度与可推进队列，等用户放行后再执行。",
   ];
   if (seed.checked !== undefined) parts.push(`\n\n${seed.checked}`);
   if (seed.lastOutput !== undefined) {

@@ -11,4 +11,5 @@
 | [005-fake-ip解析经代理声明修正](005-fake-ip解析经代理声明修正.md) | mihomo fake-IP 返回保留网段导致 web fetch 被拒时，用 harness home 代理声明修正。 | accepted |
 | [006-note阻塞态以reason表达](006-note阻塞态以reason表达.md) | note 用 blocked + reason 表达等待，放弃 waiting/needs 与 DAG，按状态和 next_step 推进。 | accepted |
 | [007-dream由宿主定时任务投递新会话](007-dream由宿主定时任务投递新会话.md) | dream 由宿主 Schedule 每日把 dream.md 投到新建的 nano-flow 会话，不内建定时器；游标让至少一次投递变幂等。 | accepted |
-| [008-轮转绑定继承旧会话的Plan](008-轮转绑定继承旧会话的Plan.md) | 轮转后的自动绑定继承轮转前会话的 Plan，与工作区 active Plan 数量无关；无绑定或目录失效时跳过。 | accepted |
+| [008-轮转绑定继承旧会话的Plan](008-轮转绑定继承旧会话的Plan.md) | 轮转后的自动绑定继承轮转前会话的 Plan，与工作区 active Plan 数量无关；无绑定或目录失效时跳过。 | superseded |
+| [009-Plan绑定只经bind工具](009-Plan绑定只经bind工具.md) | 会话↔Plan 绑定只由 nano_flow_bind 写入；check、plan-log 与轮转都不自动绑定。 | accepted |
