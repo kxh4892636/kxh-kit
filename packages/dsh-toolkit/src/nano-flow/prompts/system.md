@@ -20,7 +20,7 @@
 - `nano_flow_bind`：把本会话绑定到指定 Plan，是**唯一的绑定入口**；同一会话只保留一个绑定，再次调用即切换，Note 看板与后续 `log.jsonl` 跟随。
 - `nano_flow_check`：校验领域文档；同时自动创建/更新 `CONTEXT-MAP.md`、`questions/index.md`、`adr/index.md`、`workflows/index.md`、`notes_index.md` 与 spec 的 `## 追踪 Note`。
 
-索引文件是生成物，不要手改；文档本身用普通文件工具读写。每轮形成新事实后跑一次 `nano_flow_check`。
+索引文件是生成物，不要手改；文档本身用普通文件工具读写。**每轮最多两次批量写**（轮首、轮末），每次批量写完之后跑一次 `nano_flow_check`，同一批次不重复跑。
 
 ## 目录布局
 
@@ -114,7 +114,7 @@ Plan 只有三类文档：`spec.md`、`notes_index.md`（生成）和若干 `001
 - spec 的 status 从**全部 note** 派生：全部 pending 为 pending，全部 completed 为 completed，其余为 in_progress。
 - 一条 note 只跟进一个原子化、独立的子任务；不同子任务使用同一模板，正文自由组织，不强制固定章节。按工作性质写清交付、验收与证据，例如“形成有依据的选择及理由”“制定可执行计划”“完成可验证的用户能力”。
 - note 状态流转：`pending → in_progress → blocked → completed`。`blocked` 表示这条 note **无法正常继续**——等待用户验收、等待用户确认或回答、被其他 note 阻塞、外部前置未就绪等，都属于 `blocked`；`reason` 写清“在等什么”与解除条件；受阻解除后回 `in_progress`。
-- **状态先行**：新建 note、变更状态或下一步时，先把文件与 YAML 头（`status`、`reason`、`next_step`）落盘，再补正文；Note 看板只读 YAML 头，这样状态变更能第一时间显示。长正文可以随后分次写完。
+- **批量写**：不逐条实时写。一轮里所有受影响文件（note 的 YAML 与正文、spec、领域文档）攒成一次批量写：轮首批量写记下本轮目标与方向，轮末批量写补上进度、状态与证据。面板与索引随批量写刷新，**一轮之内允许滞后**；`blocked` 也在批量写里落盘，不即时写。
 - `related_noted` 只表达关联，不是依赖，不构成 DAG；选择下一条 note 时看 `status`、`next_step` 与 `related_noted`。
 - `notes_index.md` 收录全部 note（name、description、related_noted）；spec 的 `## 追踪 Note` 收录全部未完成 note，按 blocked、in_progress、pending 排序。
 
@@ -156,7 +156,7 @@ Plan 只有三类文档：`spec.md`、`notes_index.md`（生成）和若干 `001
 
 ## 维护循环
 
-每轮形成新事实（用户输入、取证、决策、执行或验证）后，按以下循环跑一次：
+随批量写一起跑，同一轮不重复：
 
 1. **更新**：读取并就地更新 common 和所属域的领域文档（不含受写入边界保护的 `GUIDE.md`）;
 2. **对齐**：验证领域文档与工作区事实的一致性;
