@@ -114,6 +114,7 @@ status: 'completed'
 - 2026-11-09：013 代码与提示词落地（240 项测试 + check 全绿），`/dream` 待真机验收；014 Plan 轨迹落盘已验收并 `completed`（含一次性 `backfill` 回填 10 段 / 395 条目，清理了 headless 测试记录）。
 - 2026-11-09（新需求）：每日定时跑 `/dream`。取证发现 print 模式发起扩展命令里的 run 会空转（1 ms resolve、零事件、无会话文件），RPC 模式可用；决策与实现路径见 [015](015-定时触发dream.md)，新决策见 [ADR 006](../../../adr/006-定时dream由系统定时器加RPC客户端触发.md)，ADR 004 的「触发」条被其替换。
 - 2026-11-09：015 完成并验收。脚本落工作区 `script/dream-daily.mjs`（+ `dream-targets.json`、`script/systemd/`），目标目录按用户指定为 `/home/kongxiaohan.xiaoyu/projects/kxh-workspace`；timer 已启用（下次 2026-11-10 08:01），手动真机一次 3.7 min 跑完，dream 自己提交 `c0f9f47`（11 文件，`GUIDE.md` 从空写成 5737 字节）。真机还暴露一个缺陷：Plan 迁生命周期后 `log.jsonl` 残留旧目录会让 check 报 `spec.md` 缺失，处置与修法见 [问题 001](../../../questions/001-Plan迁生命周期后log残留旧目录.md)。
+- 2026-11-09：016 完成。`nano_flow_check` 新增自动修复，按用户选择只做 5 条（spec 状态派生、name 对齐文件名并联动 `related_noted`、非 blocked 去掉 reason、多行头字段折成单行、缺 `questions/` 建目录），输出新增「已自动修复 N 项」；其余一律只报。
 
 ## 追踪 Note
 

@@ -170,8 +170,13 @@ directly; without a plan name it uses the only active Plan (and refuses when the
   numeric limits block are injected as the `nano-flow` system-prompt section. A per-input reminder
   is injected as a hidden custom message.
 - **Tools**: `nano_flow_create`, `nano_flow_bind`, `nano_flow_check`. `create` scaffolds domains,
-  plans, and notes from templates; `bind` is the only binding entry; `check` validates docs and
-  regenerates every index from `scripts/check-domain.mjs` (imported directly, no subprocess).
+  plans, and notes from templates; `bind` is the only binding entry; `check` validates docs,
+  regenerates every index, and auto-fixes the mechanical problems it can settle from existing facts
+  (`scripts/check-domain.mjs`, imported directly, no subprocess). Auto-fixed today: spec status
+  derived from notes, `name` aligned to the file name (with `related_noted` references rewritten),
+  `reason` dropped on non-blocked notes, multi-line header fields folded to one line, and a missing
+  `questions/` directory created. Everything else — sizes, duplicate names, structure, related-link
+  targets — is still only reported.
 - **Binding**: `nano-flow-binding` custom entries in the session; the last one wins, so resuming a
   session keeps its Plan without a global table.
 - **Context reset**: when `tokens / contextWindow >= rotateAt` on a user input, the extension

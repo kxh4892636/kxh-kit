@@ -53,6 +53,11 @@ const addIssue = (issueList, rootDir, targetPath, rule, message) => {
   issueList.push({ path: relativePath(rootDir, targetPath), rule, message });
 };
 
+/** 记录一条自动修复，调用方据此只回「修了什么」。 */
+const addFixed = (fixedList, rootDir, targetPath, rule, message) => {
+  fixedList.push({ path: relativePath(rootDir, targetPath), rule, message });
+};
+
 const describe = (error) => (error instanceof Error ? error.message : String(error));
 
 const readText = (targetPath, ctx) => {
@@ -74,6 +79,40 @@ const readEntries = (targetPath, ctx) => {
 };
 
 const exists = (targetPath) => fs.existsSync(targetPath);
+
+/**
+ * 把内容写进工作区内的文件，越界或失败记 error。
+ * @returns `written` | `unchanged` | `rejected`
+ */
+const writeInsideWorkspace = (ctx, file, content) => {
+  const resolved = path.resolve(file);
+  if (!resolved.startsWith(`${path.resolve(ctx.rootDir)}${path.sep}`)) {
+    addIssue(ctx.errors, ctx.rootDir, file, "write", "目标不在工作区内，拒绝写入");
+    return "rejected";
+  }
+  try {
+    fs.mkdirSync(path.dirname(resolved), { recursive: true });
+    const parentReal = fs.realpathSync(path.dirname(resolved));
+    const rootReal = fs.realpathSync(ctx.rootDir);
+    if (parentReal !== rootReal && !parentReal.startsWith(`${rootReal}${path.sep}`)) {
+      addIssue(ctx.errors, ctx.rootDir, file, "write", "目标解析到工作区外，拒绝写入");
+      return "rejected";
+    }
+    if (exists(resolved)) {
+      const fileReal = fs.realpathSync(resolved);
+      if (fileReal !== rootReal && !fileReal.startsWith(`${rootReal}${path.sep}`)) {
+        addIssue(ctx.errors, ctx.rootDir, file, "write", "目标文件解析到工作区外，拒绝写入");
+        return "rejected";
+      }
+      if (fs.readFileSync(resolved, "utf8") === content) return "unchanged";
+    }
+    fs.writeFileSync(resolved, content, "utf8");
+    return "written";
+  } catch (error) {
+    addIssue(ctx.errors, ctx.rootDir, file, "write", `写入失败: ${describe(error)}`);
+    return "rejected";
+  }
+};
 
 const byteLength = (text) => Buffer.byteLength(text, "utf8");
 
@@ -138,6 +177,8 @@ export {
   HAN,
   relativePath,
   addIssue,
+  addFixed,
+  writeInsideWorkspace,
   describe,
   readText,
   readEntries,

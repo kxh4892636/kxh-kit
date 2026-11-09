@@ -8,6 +8,7 @@ export interface CheckResult {
   readonly ok: boolean;
   readonly errors: readonly CheckIssue[];
   readonly warnings: readonly CheckIssue[];
+  readonly fixed: readonly CheckIssue[];
   readonly updated: readonly string[];
 }
 

@@ -1,12 +1,10 @@
-import fs from "node:fs";
 import path from "node:path";
 import {
   GENERATED_MARKER,
   KEBAB,
   relativePath,
   addIssue,
-  describe,
-  exists,
+  writeInsideWorkspace,
   normalizeCell,
   sortByName,
 } from "./base.mjs";
@@ -109,32 +107,8 @@ const findTrackedRange = (content, ctx, file) => {
 };
 
 const writeGenerated = (ctx, file, content) => {
-  const resolved = path.resolve(file);
-  if (!resolved.startsWith(`${path.resolve(ctx.rootDir)}${path.sep}`)) {
-    addIssue(ctx.errors, ctx.rootDir, file, "write", "目标不在工作区内，拒绝写入");
-    return;
-  }
-  try {
-    fs.mkdirSync(path.dirname(resolved), { recursive: true });
-    const parentReal = fs.realpathSync(path.dirname(resolved));
-    const rootReal = fs.realpathSync(ctx.rootDir);
-    if (parentReal !== rootReal && !parentReal.startsWith(`${rootReal}${path.sep}`)) {
-      addIssue(ctx.errors, ctx.rootDir, file, "write", "目标解析到工作区外，拒绝写入");
-      return;
-    }
-    if (exists(resolved)) {
-      const fileReal = fs.realpathSync(resolved);
-      if (fileReal !== rootReal && !fileReal.startsWith(`${rootReal}${path.sep}`)) {
-        addIssue(ctx.errors, ctx.rootDir, file, "write", "目标文件解析到工作区外，拒绝写入");
-        return;
-      }
-      const current = fs.readFileSync(resolved, "utf8");
-      if (current === content) return;
-    }
-    fs.writeFileSync(resolved, content, "utf8");
-    ctx.updated.push(relativePath(ctx.rootDir, resolved));
-  } catch (error) {
-    addIssue(ctx.errors, ctx.rootDir, file, "write", `写入失败: ${describe(error)}`);
+  if (writeInsideWorkspace(ctx, file, content) === "written") {
+    ctx.updated.push(relativePath(ctx.rootDir, path.resolve(file)));
   }
 };
 const renderContextMap = (ctx, contexts) => {

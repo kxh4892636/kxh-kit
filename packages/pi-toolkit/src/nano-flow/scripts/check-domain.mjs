@@ -11,7 +11,9 @@ import {
   KEBAB,
   PLAN_NAME,
   HAN,
+  SPEC_STATUSES,
   addIssue,
+  addFixed,
   describe,
   readEntries,
   exists,
@@ -20,6 +22,7 @@ import {
   LIFECYCLES,
 } from "./lib/base.mjs";
 import { checkHanName, readDocument } from "./lib/checks.mjs";
+import { propagateRenames, setFrontmatterScalar, writeFixed } from "./lib/fix.mjs";
 import {
   renderTracked,
   renderNotesIndex,
@@ -30,6 +33,7 @@ import {
   renderAdrIndex,
   renderWorkflowsIndex,
 } from "./lib/render.mjs";
+import { parseArgs, formatText } from "./lib/report.mjs";
 
 export { LIFECYCLES } from "./lib/base.mjs";
 const scanNumberedDocuments = (ctx, directory, kind, options) => {
@@ -62,9 +66,9 @@ const scanNumberedDocuments = (ctx, directory, kind, options) => {
       continue;
     }
     const file = path.join(directory, entry.name);
-    const document = readDocument(ctx, file, kind, { required: true });
-    if (document === null) continue;
     const base = entry.name.slice(0, -3);
+    const document = readDocument(ctx, file, kind, { required: true, expectedName: base });
+    if (document === null) continue;
     if (document.data.name !== base) {
       addIssue(
         ctx.errors,
@@ -130,7 +134,7 @@ const scanWorkflows = (ctx, directory) => {
     }
     const base = entry.name;
     const file = path.join(directory, base, `${base}.md`);
-    const document = readDocument(ctx, file, "workflow", { required: true });
+    const document = readDocument(ctx, file, "workflow", { required: true, expectedName: base });
     if (document === null) continue;
     if (document.data.name !== base) {
       addIssue(
@@ -221,7 +225,10 @@ const scanPlan = (ctx, planDirectory, planName) => {
       continue;
     }
     const file = path.join(planDirectory, entry.name);
-    const document = readDocument(ctx, file, "note", { required: true });
+    const document = readDocument(ctx, file, "note", {
+      required: true,
+      expectedName: entry.name.slice(0, -3),
+    });
     if (document === null) continue;
     if (document.data.name !== entry.name.slice(0, -3)) {
       addIssue(
@@ -249,9 +256,15 @@ const scanPlan = (ctx, planDirectory, planName) => {
       content: document.content,
       file,
       fileName: entry.name,
+      renamedFrom: document.renamedFrom,
     });
   }
   notes.sort(sortByName);
+  const renames = new Map();
+  for (const note of notes) {
+    if (note.renamedFrom !== "") renames.set(note.renamedFrom, note.name);
+  }
+  if (renames.size > 0) propagateRenames(ctx, notes, renames);
   for (const note of notes) {
     for (const related of note.related) {
       if (related === note.name) {
@@ -268,20 +281,33 @@ const scanPlan = (ctx, planDirectory, planName) => {
     }
   }
   if (spec !== null) {
-    const specStatus = spec.data.status;
+    let specStatus = spec.data.status;
     const expected = notes.every((note) => note.status === "pending")
       ? "pending"
       : notes.every((note) => note.status === "completed")
         ? "completed"
         : "in_progress";
     if (specStatus !== expected) {
-      addIssue(
-        ctx.errors,
-        ctx.rootDir,
-        specFile,
-        "status",
-        `spec 状态应为 ${expected}，实际为 ${specStatus}`,
-      );
+      // 只在原值是合法枚举时改；缺键或拼错仍报，避免猜。
+      const rewritten = SPEC_STATUSES.includes(specStatus)
+        ? setFrontmatterScalar(spec.content, "status", expected)
+        : null;
+      if (
+        rewritten !== null &&
+        writeFixed(ctx, specFile, rewritten, "status", `spec 状态按 note 派生改为 ${expected}`)
+      ) {
+        spec.content = rewritten;
+        specStatus = expected;
+        spec.data.status = expected;
+      } else {
+        addIssue(
+          ctx.errors,
+          ctx.rootDir,
+          specFile,
+          "status",
+          `spec 状态应为 ${expected}，实际为 ${specStatus}`,
+        );
+      }
     }
     const range = findTrackedRange(spec.content, ctx, specFile);
     const tracked = renderTracked(notes);
@@ -387,7 +413,22 @@ const scanDomain = (ctx, domainEntry) => {
           body: document.body,
           content: document.content,
         };
-  const questions = scanNumberedDocuments(ctx, path.join(domainPath, "questions"), "question", {
+  const questionsDirectory = path.join(domainPath, "questions");
+  if (!exists(questionsDirectory)) {
+    try {
+      fs.mkdirSync(questionsDirectory, { recursive: true });
+      addFixed(ctx.fixed, ctx.rootDir, questionsDirectory, "missing", "创建 questions 目录");
+    } catch (error) {
+      addIssue(
+        ctx.errors,
+        ctx.rootDir,
+        questionsDirectory,
+        "write",
+        `创建目录失败: ${describe(error)}`,
+      );
+    }
+  }
+  const questions = scanNumberedDocuments(ctx, questionsDirectory, "question", {
     required: true,
     continuous: true,
   });
@@ -447,6 +488,7 @@ export const checkWorkspace = (rootDirectory, options = {}) => {
     limits,
     errors: [],
     warnings: [],
+    fixed: [],
     updated: [],
     domainFilter: options.domain,
     planFilter: options.plan,
@@ -455,7 +497,13 @@ export const checkWorkspace = (rootDirectory, options = {}) => {
 
   if (!exists(domainsRoot)) {
     addIssue(ctx.errors, rootDir, domainsRoot, "missing", "领域根不存在；先运行 nano_flow_create");
-    return { ok: false, errors: ctx.errors, warnings: ctx.warnings, updated: ctx.updated };
+    return {
+      ok: false,
+      errors: ctx.errors,
+      warnings: ctx.warnings,
+      fixed: ctx.fixed,
+      updated: ctx.updated,
+    };
   }
 
   const guideFile = path.join(domainsRoot, "GUIDE.md");
@@ -519,50 +567,9 @@ export const checkWorkspace = (rootDirectory, options = {}) => {
     ok: ctx.errors.length === 0,
     errors: ctx.errors,
     warnings: ctx.warnings,
+    fixed: [...ctx.fixed].sort((left, right) => left.path.localeCompare(right.path)),
     updated: [...new Set(ctx.updated)].sort((left, right) => left.localeCompare(right)),
   };
-};
-
-const formatIssues = (issues) =>
-  issues.map((issue) => `${issue.path}: [${issue.rule}] ${issue.message}`).join("\n");
-
-const formatText = (result) => {
-  const lines = [];
-  if (result.ok) {
-    lines.push("领域文档校验通过。");
-  } else {
-    lines.push(`领域文档校验失败，共 ${result.errors.length} 项：`);
-    lines.push(formatIssues(result.errors));
-  }
-  if (result.warnings.length > 0) {
-    lines.push(`警告 ${result.warnings.length} 项：`);
-    lines.push(formatIssues(result.warnings));
-  }
-  if (result.updated.length > 0) {
-    lines.push(`已更新索引 ${result.updated.length} 个：`);
-    lines.push(result.updated.map((file) => `- ${file}`).join("\n"));
-  }
-  return lines.join("\n");
-};
-
-const parseArgs = (argv) => {
-  const options = { rootDirectory: argv[0] ?? process.cwd(), json: false, strict: true };
-  for (let index = 1; index < argv.length; index += 1) {
-    const arg = argv[index];
-    if (arg === "--json") options.json = true;
-    else if (arg === "--domains") options.domainsPath = argv[(index += 1)];
-    else if (arg === "--limits") {
-      try {
-        options.limits = JSON.parse(argv[(index += 1)] ?? "{}");
-      } catch {
-        options.limits = {};
-      }
-    } else if (arg === "--domain") options.domain = argv[(index += 1)];
-    else if (arg === "--plan") options.plan = argv[(index += 1)];
-    else if (arg === "--strict") options.strict = true;
-    else if (arg === "--no-strict") options.strict = false;
-  }
-  return options;
 };
 
 const runDomainCheck = ({
