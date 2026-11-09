@@ -12,9 +12,11 @@ dsh 的 dream 是「宿主 Schedule 每天 08:00 把 `prompts/dream.md` 投给�
 
 pi 侧的现实：没有 Schedule 接缝；也没有内置 subagent。移植 dream 时必须重新决定触发、输入与幂等。Plan 目录下的轨迹文件是后加的（ADR 005），形态已换成 pi 会话条目副本而不是 dsh 的 compact 摘要。
 
+> 修订（2026-11-09）：下面的「触发」条已被 [ADR 006](006-定时dream由系统定时器加RPC客户端触发.md) 替换 —— 需求改为每日定时，触发改由 systemd user timer 调 wrapper、wrapper 用 `pi --mode rpc` 发 `/dream` 完成，dream 自身仍无定时器与游标。004 的其余条目继续有效。
+
 ## 决策
 
-- **触发**：只暴露 `/dream` 命令，手动执行一次；不做定时、不做后台环。
+- **触发**：只暴露 `/dream` 命令，手动执行一次；不做定时、不做后台环。（已被 ADR 006 替换）
 - **输入**：读 `<plan>/log.jsonl`（ADR 005，run 级 pi 条目副本）与 `spec.md` / `notes_index.md`；不扫会话目录、不建会话归属索引。没有轨迹的老 Plan 退回只读 spec 与 note。
 - **范围**：当前 cwd 的 `.agents/domains/*`；每域在 `active` + `reference` 里按目录名日期倒序取最新 `dreamMaxPlansPerDomain`（默认 21）个 Plan，`archived` 不参与。
 - **幂等**：不留游标，每次全量；幂等靠「检查现有文档再决定是否写」与人工重跑验收（无新结论时报告无改动）。
@@ -40,5 +42,6 @@ pi 侧的现实：没有 Schedule 接缝；也没有内置 subagent。移植 dre
 
 ## 相关
 
+- [006-定时dream由系统定时器加RPC客户端触发](006-定时dream由系统定时器加RPC客户端触发.md) — 替换本 ADR 的「触发」条，定时与客户端放在宿主侧。
 - [013-dream手动维护命令](../plans/active/2026-11-09-pi-toolkit插件/013-dream手动维护命令.md) — 本决策的实现路径、测试与验收步骤。
 - [003-模式与绑定存会话条目](003-模式与绑定存会话条目.md) — Plan 归属的会话映射正是由这些绑定条目建立的。

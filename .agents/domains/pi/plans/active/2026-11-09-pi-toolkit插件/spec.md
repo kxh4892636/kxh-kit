@@ -112,6 +112,8 @@ status: 'completed'
 - 2026-11-09（用户）：删掉 `prompts/system.md` 的整个「## 入口」章节（优先级判定与「先读对应 skill」），nano-flow 提示词以「工具 / 目录布局 / 语言 / 互链 / 写入边界 / 维护循环」为主干；`[nano-flow:dream]` 前缀也一并从 `prompts/dream.md` 删掉，dream 注入文本改由首句「你是 Nano Flow 的 dream 维护者…」自述身份。同轮执行 `pi install ./packages/pi-toolkit -a` 重新注册包，`settings.json` 无变化。
 - 2026-11-09：013 `/dream` 真机验收通过，产出提交 `b814d50`（GUIDE 重写 + common/dsh/music/pi 四域改动）；用户要求本 Plan 全部 note 完成后**继续留在 active**，不迁 reference。
 - 2026-11-09：013 代码与提示词落地（240 项测试 + check 全绿），`/dream` 待真机验收；014 Plan 轨迹落盘已验收并 `completed`（含一次性 `backfill` 回填 10 段 / 395 条目，清理了 headless 测试记录）。
+- 2026-11-09（新需求）：每日定时跑 `/dream`。取证发现 print 模式发起扩展命令里的 run 会空转（1 ms resolve、零事件、无会话文件），RPC 模式可用；决策与实现路径见 [015](015-定时触发dream.md)，新决策见 [ADR 006](../../../adr/006-定时dream由系统定时器加RPC客户端触发.md)，ADR 004 的「触发」条被其替换。
+- 2026-11-09：015 完成并验收。脚本落工作区 `script/dream-daily.mjs`（+ `dream-targets.json`、`script/systemd/`），目标目录按用户指定为 `/home/kongxiaohan.xiaoyu/projects/kxh-workspace`；timer 已启用（下次 2026-11-10 08:01），手动真机一次 3.7 min 跑完，dream 自己提交 `c0f9f47`（11 文件，`GUIDE.md` 从空写成 5737 字节）。真机还暴露一个缺陷：Plan 迁生命周期后 `log.jsonl` 残留旧目录会让 check 报 `spec.md` 缺失，处置与修法见 [问题 001](../../../questions/001-Plan迁生命周期后log残留旧目录.md)。
 
 ## 追踪 Note
 

@@ -18,3 +18,4 @@
 | [012-测试与验收](012-测试与验收.md) | 补齐配置、模式、绑定、seed、校验、侧栏的单测，并做 pi 真机冒烟与领域文档收口。 | 011-Note侧栏与详情卡 |
 | [013-dream手动维护命令](013-dream手动维护命令.md) | 新增 /dream 手动命令：扫 .agents 下全部域、每域按目录名日期取最新 21 个 active/reference Plan，把 spec、notes_index 与 plan 轨迹路径交给模型跑五个 pass，自跑 check 并 commit；无 seq 游标、无定时。 | — |
 | [014-Plan轨迹落盘](014-Plan轨迹落盘.md) | 把每次 run 新增的 pi 会话条目原样复制到 `<plan>/log.jsonl` 一行，run 结束（agent_end）时写一次；文件仍在 .gitignore 内，不进版本库。 | 013-dream手动维护命令 |
+| [015-定时触发dream](015-定时触发dream.md) | 用 systemd user timer 加 RPC 客户端每日在清单目录跑 /dream；print 模式实测空转，wrapper 负责锁、干净预检、超时与日志。 | 013-dream手动维护命令, 014-Plan轨迹落盘 |

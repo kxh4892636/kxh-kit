@@ -9,3 +9,4 @@
 | [003-模式与绑定存会话条目](003-模式与绑定存会话条目.md) | Nano Flow 的开关状态与 Plan 绑定写 session 自定义条目；不建全局绑定表、不做死会话清理。 | accepted |
 | [004-dream由命令手动触发且不依赖seq游标](004-dream由命令手动触发且不依赖seq游标.md) | dream 由 /dream 手动触发，不建定时任务、不用 seq 游标；输入是 plan 目录的轨迹副本与 spec/note，GUIDE.md 归 dream 维护。 | accepted |
 | [005-plan轨迹用会话条目副本按run落盘](005-plan轨迹用会话条目副本按run落盘.md) | 每个 Plan 目录下写 `<plan>/log.jsonl`：每个 run 一行、entries 是 pi 会话条目原样副本，run 结束写一次；gitignore 排除，不进版本库。 | accepted |
+| [006-定时dream由系统定时器加RPC客户端触发](006-定时dream由系统定时器加RPC客户端触发.md) | dream 定时触发放在宿主侧：systemd user timer 调 wrapper，wrapper 用 pi --mode rpc 发 /dream；dream 自身仍无定时器，print 模式不可用。 | accepted |
