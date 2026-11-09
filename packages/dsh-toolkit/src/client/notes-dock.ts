@@ -7,7 +7,7 @@ import {
   type FC,
   type ReactNode,
 } from "react";
-import { HoverCard } from "@deepseek-ai/dsh-client-ui-primitives";
+import { Tooltip } from "@deepseek-ai/dsh-client-ui-primitives";
 
 import {
   NANO_FLOW_NOTES_REFRESH_MS,
@@ -57,54 +57,10 @@ const isRenderable = (value: unknown): boolean =>
     typeof (value as { readonly $$typeof?: unknown }).$$typeof !== "undefined");
 
 /**
- * 提示内容：描述在最前，原因与下一步各占一行。
- * @param note - 面板条目。
- * @returns 卡片内容节点。
- */
-const noteTip = (note: PanelNote): ReactNode =>
-  createElement(
-    "div",
-    { className: "dshtk-note-tip", "data-note": note.name },
-    createElement("p", { className: "dshtk-note-tip-desc" }, note.description),
-    note.reason === undefined
-      ? null
-      : createElement(
-          "p",
-          { className: "dshtk-note-tip-row" },
-          createElement("span", { className: "dshtk-note-tip-key" }, "原因"),
-          note.reason,
-        ),
-    note.nextStep === undefined
-      ? null
-      : createElement(
-          "p",
-          { className: "dshtk-note-tip-row" },
-          createElement("span", { className: "dshtk-note-tip-key" }, "下一步"),
-          note.nextStep,
-        ),
-  );
-
-/**
- * 悬浮卡片：优先用宿主 `HoverCard` 的 `preview` 变体（浅色卡片，自带 portal、
- * 定位与阴影），宿主没导出时退回原生 `title`。
- */
-const NotesTooltip: FC<{ readonly note: PanelNote; readonly children?: ReactNode }> = isRenderable(
-  HoverCard,
-)
-  ? ({ note, children }) =>
-      createElement(HoverCard, {
-        anchor: children,
-        content: noteTip(note),
-        openDelayMs: 150,
-        // preview 变体的宽度取自锚点（整行减两侧 24px），内容铺满卡片。
-        variant: "preview",
-      })
-  : ({ note, children }) => createElement("span", { title: tooltipLabel(note) }, children);
-
-/**
  * 悬浮提示的多行文本：描述在最前，有原因与下一步时各占一行。
  *
- * 只给宿主缺 `HoverCard` 时的 `title` 兜底用；`\n` 在原生提示与宿主气泡里都按行渲染。
+ * 宿主 `Tooltip` 的气泡是 `white-space: pre-line`，`\n` 会渲染成换行；
+ * 原生 `title` 兜底同样按行显示。
  * @param note - 面板条目。
  * @returns 以换行分隔的标签。
  */
@@ -114,6 +70,21 @@ const tooltipLabel = (note: PanelNote): string => {
   if (note.nextStep !== undefined) lines.push(`下一步：${note.nextStep}`);
   return lines.join("\n");
 };
+
+/**
+ * 悬浮提示：宿主 `Tooltip` 的深色气泡（`--dsw-alias-tooltip-bg` + 白字），
+ * 锚点由调用方给的整行元素承担；宿主没导出时退回原生 `title`。
+ */
+const NotesTooltip: FC<{ readonly note: PanelNote; readonly children?: ReactNode }> = isRenderable(
+  Tooltip,
+)
+  ? ({ note, children }) =>
+      createElement(
+        Tooltip,
+        { label: tooltipLabel(note), side: "top", delayMs: 200, portal: true },
+        children,
+      )
+  : ({ note, children }) => createElement("span", { title: tooltipLabel(note) }, children);
 
 /** 渲染错误边界：面板内部异常时降级为不渲染，不拖垮整个插槽。 */
 interface BoundaryProps {

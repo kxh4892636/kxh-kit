@@ -65,23 +65,6 @@ declare module "@deepseek-ai/dsh-client-ui-primitives" {
     children?: import("react").ReactNode;
   }>;
 
-  /**
-   * 原生悬浮卡片：`anchor` 就地渲染并作为悬浮锚点，`content` 作为卡片内容。
-   * 卡片会 portal 到 `document.body`（`position: fixed`），因此不受祖先 `overflow` 影响。
-   * `variant: "preview"` 是浅色卡片（`--dsw-alias-bg-layer-1` 背景 + 主色文字）。
-   */
-  export const HoverCard: import("react").ComponentType<{
-    anchor: import("react").ReactNode;
-    content: import("react").ReactNode;
-    openDelayMs?: number;
-    disabled?: boolean;
-    grouped?: boolean;
-    variant?: "compact" | "preview";
-    widthAnchorRef?: { current: HTMLElement | null };
-    inline?: boolean;
-    fitContent?: boolean;
-  }>;
-
   /** 描边图标：向下箭头。 */
   export const IconChevronDownOutlineRegular: import("react").ComponentType<{
     size?: number;

@@ -97,15 +97,18 @@ describe("NotesDock", () => {
     render(createElement(NotesDock, props("nano-flow")));
     await screen.findByTestId("nano-flow-notes-panel");
     fireEvent.click(screen.getByRole("button", { name: /Note/u }));
-    // 悬浮卡片内容：描述 + 有值时的原因/下一步；行锚点覆盖状态名与标题。
-    const tipOf = (name: string): Element => {
-      const tip = document.querySelector(`[data-note="${name}"]`);
-      if (tip === null) throw new Error("tip not found");
-      return tip;
+    // 气泡标签：描述 + 有值时的原因/下一步；锚点是包含状态名与标题的整行。
+    const anchorOf = (name: string): Element => {
+      const row = screen.getByText(name).closest(".dshtk-notes-row");
+      const anchor = row?.parentElement;
+      if (anchor === null || anchor === undefined) throw new Error("anchor not found");
+      return anchor;
     };
-    expect(tipOf("001-进行中").textContent).toBe("进行中的概述下一步继续改代码");
-    expect(tipOf("002-阻塞").textContent).toBe("阻塞的概述原因等待用户验收下一步重启后逐项确认");
-    expect(screen.getByText("阻塞").closest(".dshtk-notes-row")).not.toBeNull();
+    expect(anchorOf("001-进行中").getAttribute("title")).toBe("进行中的概述\n下一步：继续改代码");
+    expect(anchorOf("002-阻塞").getAttribute("title")).toBe(
+      "阻塞的概述\n原因：等待用户验收\n下一步：重启后逐项确认",
+    );
+    expect(anchorOf("002-阻塞").contains(screen.getByText("阻塞"))).toBe(true);
   });
 
   it("starts collapsed and unfolds on header click", async () => {

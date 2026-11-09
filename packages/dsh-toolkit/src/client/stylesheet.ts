@@ -514,29 +514,7 @@ const css = `
 .dshtk-notes-item:hover .dshtk-notes-content {
   color: var(--dsw-alias-label-primary);
 }
-/* 悬浮卡片内容：宿主 HoverCard 的 preview 变体负责底色/阴影/圆角，这里只排版。 */
-.dshtk-note-tip {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  box-sizing: border-box;
-  width: 100%;
-  padding: 10px 12px;
-  font-size: 13px;
-  line-height: 20px;
-  color: var(--dsw-alias-label-primary);
-}
-.dshtk-note-tip-desc {
-  margin: 0;
-}
-.dshtk-note-tip-row {
-  margin: 0;
-  color: var(--dsw-alias-label-secondary);
-}
-.dshtk-note-tip-key {
-  margin-right: 6px;
-  color: var(--dsw-alias-label-tertiary);
-}
+
 .dshtk-notes-status {
   flex: none;
   font-size: 13px;
