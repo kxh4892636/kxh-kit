@@ -27,5 +27,5 @@ status: accepted
 ## 相关
 
 - [008-轮转绑定继承旧会话的Plan](008-轮转绑定继承旧会话的Plan.md) — 被本决策取代的轮转继承方案。
-- [003-提供Plan绑定工具](../plans/active/2026-11-09-nano-flow绑定机制与GUIDE写入约束/003-提供Plan绑定工具.md) — bind 工具的实现记录。
-- [004-移除全部隐式绑定路径](../plans/active/2026-11-09-nano-flow绑定机制与GUIDE写入约束/004-移除全部隐式绑定路径.md) — 本决策的实现与验证。
+- [003-提供Plan绑定工具](../plans/active/2026-11-09-nano-flow优化迭代/003-提供Plan绑定工具.md) — bind 工具的实现记录。
+- [004-移除全部隐式绑定路径](../plans/active/2026-11-09-nano-flow优化迭代/004-移除全部隐式绑定路径.md) — 本决策的实现与验证。

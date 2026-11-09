@@ -1,7 +1,7 @@
 ---
 name: "010-单会话复用绑定Plan的规则"
 description: "会话内默认所有内容都追加到当前绑定的 Plan；新建 Plan 必须先得到用户显式确认。"
-status: in_progress
+status: completed
 related_noted:
   - "009-调研Plan写入现状与惰性化取舍"
 next_step: "改固定提示词的「建 Plan」段并同步 skill 口径，装包后核对注入文本。"
@@ -33,6 +33,12 @@ next_step: "改固定提示词的「建 Plan」段并同步 skill 口径，装�
 
 - 源码与 `dist/nano-flow/prompts/system.md` 都含新句。
 - 行为上：后续同类新目标先追加 note，需要新 Plan 时先问用户。
+
+## 安装记录
+
+2026-11-09 15:2x：随 `0.5.44` 一起装进 web profile。核对：安装副本版本 `0.5.44`、`dist/nano-flow/prompts/system.md` 含「新建 Plan 必须先得到用户显式确认」1 处；`dist/client.js` 已无 `HoverCard`、仍含 `dshtk-notes-row`（008 的回退同批生效）。
+
+当前会话仍挂着 0.5.43 的注入文本，新规则对新会话/重启后的会话生效。
 
 ## 相关
 
