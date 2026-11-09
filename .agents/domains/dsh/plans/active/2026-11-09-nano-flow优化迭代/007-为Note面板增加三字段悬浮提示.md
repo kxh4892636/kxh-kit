@@ -1,12 +1,13 @@
 ---
-name: "001-为Note面板增加三字段悬浮提示"
+name: "007-为Note面板增加三字段悬浮提示"
 description: "悬浮某条 note 时显示 description、reason（有才显示）与 next_step；宿主 Tooltip 按 pre-line 渲染多行。"
 status: completed
-related_noted: []
-next_step: "已交付；改这块先读正文的「宽度口径」与宿主 HoverCard 的 preview 分支约束。"
+related_noted:
+  - "008-改回深色Tooltip气泡"
+next_step: "已交付；宿主气泡口径见 008（已改回深色 Tooltip）。"
 ---
 
-# 001-为Note面板增加三字段悬浮提示
+# 007-为Note面板增加三字段悬浮提示
 
 交付：悬浮面板里的某条 note 时，气泡显示 `description`，有 `reason` 时追加一行「原因：…」，有 `next_step` 时追加一行「下一步：…」。验收：三条字段都能端到端出现；缺字段时对应行不出现；面板与路由的既有行为不变。
 

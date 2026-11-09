@@ -128,7 +128,7 @@ Plan 只有三类文档：`spec.md`、`notes_index.md`（生成）和若干 `001
 
 ### 建 Plan
 
-当前域没有 active 的 Plan，或用户提出与当前 Plan 无关的新目标时，用 `nano_flow_create` 的 `kind=plan` 建 Plan，建好后调用 `nano_flow_bind` 绑定本会话；否则新输入作为 note 追加到当前 Plan。一个会话默认只有一个 Plan。
+**默认追加 note**：一个会话里的内容都复用当前绑定的 Plan——新输入写成它的一条 note（或并入已有 note），不新建 Plan。**新建 Plan 必须先得到用户显式确认**：向用户说明理由并等待同意，未获同意前只能追加 note；获准后仍用 `nano_flow_create` 的 `kind=plan` 建 Plan，再用 `nano_flow_bind` 绑定。一个会话只保留一个绑定。
 
 ### 恢复与轮转
 
