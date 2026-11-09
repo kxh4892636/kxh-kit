@@ -1,7 +1,7 @@
 ---
 name: 'pi-toolkit插件'
 description: '按 pi 接缝重建工具包：嵌套 skill 与会话命名、DeepSeek 网页工具、ask_questions、Nano Flow 交付流程，全部开关与配置落一个 JSON。'
-status: 'in_progress'
+status: 'completed'
 ---
 
 # pi-toolkit插件
@@ -110,6 +110,7 @@ status: 'in_progress'
 - Plan 已无未完成 note，可按用户意愿迁 `reference`。
 - 2026-11-09（新需求）：新增 013「dream 手动维护命令」—— 移植 dsh 的 dream，但改为 `/dream` 手动触发、不依赖 seq 游标；实现路径见该 note，决策见 [ADR 004](../../../adr/004-dream由命令手动触发且不依赖seq游标.md)。
 - 2026-11-09（用户）：删掉 `prompts/system.md` 的整个「## 入口」章节（优先级判定与「先读对应 skill」），nano-flow 提示词以「工具 / 目录布局 / 语言 / 互链 / 写入边界 / 维护循环」为主干；`[nano-flow:dream]` 前缀也一并从 `prompts/dream.md` 删掉，dream 注入文本改由首句「你是 Nano Flow 的 dream 维护者…」自述身份。同轮执行 `pi install ./packages/pi-toolkit -a` 重新注册包，`settings.json` 无变化。
+- 2026-11-09：013 `/dream` 真机验收通过，产出提交 `b814d50`（GUIDE 重写 + common/dsh/music/pi 四域改动）；用户要求本 Plan 全部 note 完成后**继续留在 active**，不迁 reference。
 - 2026-11-09：013 代码与提示词落地（240 项测试 + check 全绿），`/dream` 待真机验收；014 Plan 轨迹落盘已验收并 `completed`（含一次性 `backfill` 回填 10 段 / 395 条目，清理了 headless 测试记录）。
 
 ## 追踪 Note
@@ -118,4 +119,3 @@ status: 'in_progress'
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [013-dream手动维护命令](013-dream手动维护命令.md) | 新增 /dream 手动命令：扫 .agents 下全部域、每域按目录名日期取最新 21 个 active/reference Plan，把 spec、notes_index 与 plan 轨迹路径交给模型跑五个 pass，自跑 check 并 commit；无 seq 游标、无定时。 | blocked | 代码、提示词与单测已落地（240 项全绿），等你在真机上跑一次 /dream 验收 | 重启 pi 后在一个 nano-flow 会话（工作区干净）执行 /dream，确认五 pass 产出的领域文档改动、nano_flow_check 通过、出现一次 docs(dream): 提交 | — |

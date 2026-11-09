@@ -1,9 +1,7 @@
 ---
 name: '013-dream手动维护命令'
 description: '新增 /dream 手动命令：扫 .agents 下全部域、每域按目录名日期取最新 21 个 active/reference Plan，把 spec、notes_index 与 plan 轨迹路径交给模型跑五个 pass，自跑 check 并 commit；无 seq 游标、无定时。'
-status: 'blocked'
-reason: '代码、提示词与单测已落地（240 项全绿），等你在真机上跑一次 /dream 验收'
-next_step: '重启 pi 后在一个 nano-flow 会话（工作区干净）执行 /dream，确认五 pass 产出的领域文档改动、nano_flow_check 通过、出现一次 docs(dream): 提交'
+status: 'completed'
 ---
 
 # dream 手动维护命令
@@ -210,3 +208,16 @@ next_step: '重启 pi 后在一个 nano-flow 会话（工作区干净）执行 /
 - 配置：`nanoFlow.dreamMaxPlansPerDomain`（默认 21）进 `config.ts` / `settings.ts` / `pi-toolkit.example.json` / README。
 - 测试：`src/nano-flow/dream.test.ts`（范围排序/截断/域排序/轨迹大小/清单文本）+ `register.test.ts`（成功路径与四条拒绝路径）；`pnpm --filter @kxh4892636/pi-toolkit test` 240 项通过，`check` 无 lint / 类型问题。
 - 未做：多域并行（pi 无内置 subagent）、游标、自动定时。
+
+## 验收（2026-11-09，真机）
+
+用户在真实 nano-flow 会话里跑通 `/dream`，产出提交 `b814d50 docs(dream): common/dsh/pi/music 领域文档维护`，11 个文件：
+
+- **GUIDE 重写（晋升 pass）**：领域索引改为 pi / DSH / nano-flow / common / 产品域四段，约定段补上「一条 note = 一个交付单元」「每轮两次批量写」「绑定只由 `nano_flow_bind` 写」「GUIDE 正文只由 dream 重写」「上下文续接：DSH 轮转 / pi 清空」。
+- **common**：新增 workflow `001-vite-plus大版本升级`。
+- **dsh**：CONTEXT 补词条、新增 question `010-宿主悬浮提示的锚点与宽度`。
+- **music**：新增 workflow `001-部署曲库与站点到服务器`。
+- **pi**：新增 workflow `001-安装pi-toolkit并真机验收`、ADR 004 微调。
+- 门禁按要求走通：`nano_flow_check` 通过后才提交，提交信息为 `docs(dream): …`。
+
+用户同时确认：本 Plan 全部 note 完成后**继续留在 `active`**，不迁 `reference`。
