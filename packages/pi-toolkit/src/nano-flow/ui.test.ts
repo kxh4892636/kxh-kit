@@ -5,8 +5,14 @@ import { describe, expect, it } from "vite-plus/test";
 import { pickNanoFlowMode, modeItems } from "./ui/selector.ts";
 import { createNotesSidebar, type SidebarSnapshot } from "./ui/sidebar.ts";
 
+/** 记下 fg 用到的主题 token，断言「关闭图标单独着色」用。 */
+const fgTokens: string[] = [];
+
 const theme = {
-  fg: (_token: string, text: string) => text,
+  fg: (token: string, text: string) => {
+    fgTokens.push(token);
+    return text;
+  },
   bold: (text: string) => text,
 };
 
@@ -131,12 +137,16 @@ describe("notes sidebar", () => {
     expect(detail).toContain("001-待处理");
     expect(detail).toContain("待处理描述");
     expect(detail).toContain("下一步：继续");
-    // 标题行带 ×，且每行都是 48 列（标题行曾比边框窄 2 列）。
-    expect(detailLines[1]).toContain("×");
+    // 标题行带加粗的大叉，且每行都是 48 列（标题行曾比边框窄 2 列）。
+    expect(detailLines[1]).toContain("✕");
     expect(detailLines.every((line) => visibleWidth(line) === 48)).toBe(true);
-    // × 落在标题行右端（第 45 列），点击命中区间为末 3 列。
+    // ✕ 落在标题行右端（第 45 列），点击命中区间为末 4 列。
     const titleLine = detailLines[1] ?? "";
-    expect(visibleWidth(titleLine.slice(0, titleLine.indexOf("×")))).toBe(45);
+    expect(visibleWidth(titleLine.slice(0, titleLine.indexOf("✕")))).toBe(45);
+    // 图标用 warning 单独着色，而不是跟着整行走 border。
+    fgTokens.length = 0;
+    overlays[1]?.component.render(80);
+    expect(fgTokens).toContain("warning");
     // 悬浮在所点 note 行左下侧：顶端对齐该行，右缘在侧栏左缘左侧。
     expect(overlays[1]?.options?.row).toBe(12);
     expect(overlays[1]?.options?.col).toBe(160 - 10 - 48 - 2);

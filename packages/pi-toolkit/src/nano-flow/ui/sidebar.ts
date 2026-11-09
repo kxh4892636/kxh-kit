@@ -65,8 +65,12 @@ interface DetailCardOptions {
 const DETAIL_WIDTH = 48;
 /** 详情卡与侧栏之间的列间距。 */
 const DETAIL_GAP = 2;
-/** × 命中区间宽度（列），从标题行右端算起。 */
-const CLOSE_HIT_COLUMNS = 3;
+/** 关闭图标：比 `×` 更宽更重的叉，1 列宽。 */
+const CLOSE_GLYPH = "✕";
+/** 关闭图标的主题色：与青色边框区分明显的黄。 */
+const CLOSE_COLOR = "warning";
+/** 关闭命中区间宽度（列，从标题行右端算起）：图标加左右各一列空白，点偏了也算。 */
+const CLOSE_HIT_COLUMNS = 4;
 
 const cardLines = (note: NanoNote, theme: Theme): string[] => {
   const inner = DETAIL_WIDTH - 2;
@@ -80,15 +84,19 @@ const cardLines = (note: NanoNote, theme: Theme): string[] => {
   add("Esc 关闭");
   const heading = `◇ note ${note.name} · ${STATUS_LABEL[note.status]}`;
   const title = truncateToWidth(heading, inner - 4, "…");
-  // 末两列留给「 ×」；标题行与正文行同宽，保持 48 列。
+  // 末两列留给「 ✕」；标题行与正文行同宽，保持 48 列。
   const pad = " ".repeat(Math.max(0, inner - 3 - visibleWidth(title)));
-  const lines = [`┌${"─".repeat(inner)}┐`, `│ ${title}${pad}× │`, `│${" ".repeat(inner)}│`];
+  // 关闭图标单独着色并加粗：整行都用边框色时它太不显眼。
+  const titleRow = `${theme.fg("border", `│ ${title}${pad}`)}${theme.bold(
+    theme.fg(CLOSE_COLOR, CLOSE_GLYPH),
+  )}${theme.fg("border", " │")}`;
+  const lines = [`┌${"─".repeat(inner)}┐`, titleRow, `│${" ".repeat(inner)}│`];
   for (const line of body) {
     const clipped = truncateToWidth(line, inner - 2, "…");
     lines.push(`│ ${clipped}${" ".repeat(Math.max(0, inner - visibleWidth(clipped) - 2))} │`);
   }
   lines.push(`└${"─".repeat(inner)}┘`);
-  return lines.map((line) => theme.fg("border", line));
+  return lines.map((line, index) => (index === 1 ? line : theme.fg("border", line)));
 };
 
 const createDetailCard = (options: DetailCardOptions): Component => ({
@@ -96,6 +104,7 @@ const createDetailCard = (options: DetailCardOptions): Component => ({
     return cardLines(options.note(), options.theme);
   },
   handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
+    // 标题行末几列（含图标两侧的空白）都算点击关闭：图标只有 1 列，命中区给宽一点。
     if (isClick(event) && event.y === 1 && event.x >= DETAIL_WIDTH - CLOSE_HIT_COLUMNS) {
       options.onClose();
     }

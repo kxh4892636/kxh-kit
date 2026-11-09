@@ -11,7 +11,7 @@ related_noted: ['012-测试与验收']
 
 - 简化旧 orchestrator 的 overlay：去掉 worker 分组、实时流与定时轮询；保留 40 列右上角与 Esc 关闭。
 - 只显示 `pending / in_progress / blocked` 的 note；行 = 中文状态 + note 名；无绑定、目录失效或无未完成 note 时不显示。
-- 点击行打开详情卡：标题行右端带 `×`，正文依次是概述、`原因：`、`下一步：`；点击 `×` 或 Esc 关闭。
+- 点击行打开详情卡：标题行右端带关闭图标（`✕`，`warning` 色并加粗，命中区为末 4 列），正文依次是概述、`原因：`、`下一步：`；点击图标或 Esc 关闭。
 - 详情卡悬浮在所点 note 行的左下侧：顶端与该行对齐，右缘在侧栏左缘左侧 2 列（`DETAIL_GAP`），由点击事件的 `screenX/screenY` 算出 `row/col`，不再居中。
 - `turn_end` 时重读磁盘一次；`/nano-flow on`、session_start 也刷新；regular 模式不挂载。
 
@@ -30,3 +30,4 @@ fullscreen 下侧栏随绑定 Plan 出现；点击条目出卡片，卡片在 no
 - 改动位置：`src/nano-flow/ui/sidebar.ts`（`cardLines` / `createDetailCard` / `detailOrigin` / `openDetail`）、`ui.test.ts`。
 - 待用户重新走查：`×` 点击、卡片位置、Esc、`turn_end` 刷新。
 - 2026-11-09 第二轮走查：用户确认全部通过，本条置 `completed`。
+- 2026-11-09 视觉调整（用户反馈）：图标从单薄、与边框同色的 `×` 换成 `✕` 并单独用 `warning`（黄）加粗着色 —— 原来整行走 `border` 青色，图标几乎看不见。
