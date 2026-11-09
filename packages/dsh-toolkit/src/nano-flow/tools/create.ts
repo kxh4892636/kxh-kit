@@ -109,7 +109,9 @@ const scaffoldDomain = async (
     await mkdir(join(domainPath, "plans", lifecycle), { recursive: true });
   }
 
-  // GUIDE.md 是 dream 独有的 L3 快照，日常流程（包括建 domain）不创建也不改写。
+  // GUIDE.md 的正文只由 dream 维护；这里只在缺失时落空模板，绝不覆盖已有文件。
+  const guide = await readTemplate(runtime, "guide.md");
+  await writeIfMissing(join(domainsRoot, "GUIDE.md"), guide, report, workspace);
   const map = await readTemplate(runtime, "context-map.md");
   await writeIfMissing(join(domainsRoot, "CONTEXT-MAP.md"), map, report, workspace);
 
@@ -294,7 +296,7 @@ const executeCreate = async (
 export const createCreateTool = (runtime: ToolRuntime): ToolDefinitionLike => ({
   name: "nano_flow_create",
   description:
-    "创建 Nano Flow 的目录与模板文件：kind=domain 建 CONTEXT/questions/adr/workflows；kind=plan 建 spec 与 notes_index；kind=note 建一条 note。只补缺失文件，不覆盖已有内容。GUIDE.md 只由 dream 维护，本工具不创建。",
+    "创建 Nano Flow 的目录与模板文件：kind=domain 建 CONTEXT/questions/adr/workflows 与 GUIDE 空模板；kind=plan 建 spec 与 notes_index；kind=note 建一条 note。只补缺失文件，不覆盖已有内容；GUIDE 正文只由 dream 维护。",
   parameters: {
     type: "object",
     additionalProperties: false,

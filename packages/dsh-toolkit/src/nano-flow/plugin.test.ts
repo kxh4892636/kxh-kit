@@ -116,11 +116,11 @@ describe("createSettingsReader", () => {
 });
 
 describe("applyNanoFlow", () => {
-  it("mounts two tools, the prompt section, the runtime context and the skill provider", async () => {
+  it("mounts three tools, the prompt section, the runtime context and the skill provider", async () => {
     const workspace = await makeRoot();
     const harness = makeHarness();
     applyNanoFlow(harness.ctx, { workspace });
-    expect(harness.tests).toEqual(["nano_flow_create", "nano_flow_check"]);
+    expect(harness.tests).toEqual(["nano_flow_create", "nano_flow_bind", "nano_flow_check"]);
     expect(harness.sections.map((section) => section.name)).toEqual([PROMPT_SECTION]);
     expect(harness.contexts.map((context) => context.name)).toEqual([USER_CONTEXT_NAME]);
     expect(harness.listeners).toHaveLength(1);

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 import { createPlanLogService, type PersistenceLike } from "./plan-log-service.js";
-import { readBindings } from "./plan-log.js";
+import { planRelativePath, readBindings, writeBindings } from "./plan-log.js";
 
 const roots: string[] = [];
 
@@ -256,6 +256,55 @@ describe("createPlanLogService", () => {
     service.onEvent(session(root), events[0]);
     await new Promise((resolve) => setTimeout(resolve, 50));
     expect(await readBindings(join(root, "toolkit", "nano-flow-plan-bindings.json"))).toEqual({});
+    await service.dispose();
+  });
+
+  it("moves later turns to the new plan after an explicit binding switch", async () => {
+    const root = await makeRoot();
+    const planA = planFor(root);
+    const planB = planFor(root);
+    const bindings = join(root, "toolkit", "nano-flow-plan-bindings.json");
+    const bindTo = async (plan: string): Promise<void> => {
+      await writeBindings(bindings, {
+        s1: {
+          planPath: planRelativePath(root, plan),
+          cwd: root,
+          boundAt: new Date().toISOString(),
+        },
+      });
+    };
+    const events = [...turn(1, 0)];
+    const service = makeService(root, () => []);
+    service.attach(makePersistence(events));
+
+    await bindTo(planA);
+    service.onEvent(session(root), events[events.length - 1] as never);
+    await vi.waitFor(async () => {
+      expect(await readFile(join(planA, "log.jsonl"), "utf8")).toContain('"turn":1');
+    });
+
+    events.push(...turn(2, 100));
+    service.onEvent(session(root), events[events.length - 1] as never);
+    await vi.waitFor(async () => {
+      expect(await readFile(join(planA, "log.jsonl"), "utf8")).toContain('"turn":2');
+    });
+
+    await bindTo(planB);
+    events.push(...turn(3, 200));
+    service.onEvent(session(root), events[events.length - 1] as never);
+    await vi.waitFor(async () => {
+      expect(await readFile(join(planB, "log.jsonl"), "utf8")).toContain('"turn":3');
+    });
+
+    const turns = async (plan: string): Promise<number[]> =>
+      (await readFile(join(plan, "log.jsonl"), "utf8"))
+        .trim()
+        .split("\n")
+        .map((line) => JSON.parse(line) as { type: string; turn?: number })
+        .filter((line) => line.type === "turn")
+        .map((line) => line.turn as number);
+    expect(await turns(planA)).toEqual([1, 2]);
+    expect(await turns(planB)).toEqual([3]);
     await service.dispose();
   });
 });

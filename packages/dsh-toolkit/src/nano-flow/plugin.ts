@@ -19,6 +19,7 @@ import { buildLimitsText } from "./limits.js";
 import { recordMount } from "./mount-report.js";
 import { hostServices, type HostServices, type PromptContext } from "./services.js";
 import { createAssetSkillProvider } from "./skills.js";
+import { createBindTool } from "./tools/bind.js";
 import { createCheckTool } from "./tools/check.js";
 import { createCreateTool } from "./tools/create.js";
 import { createToolRuntime } from "./tools/shared.js";
@@ -125,6 +126,15 @@ const mountNanoFlow = (target: Context, host: Context, config: NanoFlowConfig): 
         if (facade === undefined || typeof facade.bindSession !== "function") return;
         await facade.bindSession(sessionId, planDirectory, workspace);
       },
+      rebind: async (sessionId, planDirectory, workspace) => {
+        const facade = services.get(NANO_FLOW_SERVICE) as
+          | { rebindSession?: (id: string, plan: string, root: string) => Promise<void> }
+          | undefined;
+        if (facade === undefined || typeof facade.rebindSession !== "function") {
+          throw new Error("宿主未提供 Plan 绑定能力");
+        }
+        await facade.rebindSession(sessionId, planDirectory, workspace);
+      },
     });
 
     const guideCache = new WeakMap<object, string>();
@@ -165,6 +175,7 @@ const mountNanoFlow = (target: Context, host: Context, config: NanoFlowConfig): 
         interpolate: false,
       }),
       services.tools.register(createCreateTool(runtime)),
+      services.tools.register(createBindTool(runtime)),
       services.tools.register(createCheckTool(runtime)),
       host.skills.registerProvider(() => createAssetSkillProvider(assetsSkillsRoot(assetsRoot))),
     ];

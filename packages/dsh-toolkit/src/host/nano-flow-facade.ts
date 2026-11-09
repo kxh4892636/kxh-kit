@@ -22,4 +22,6 @@ export interface ToolkitNanoFlowFacade {
   sessionsRoot(): string;
   /** 记录会话↔Plan 绑定（nano-flow 工具被调用时由预设半回填）。 */
   bindSession(sessionId: string, planDirectory: string, workspace: string): Promise<void>;
+  /** 覆盖会话↔Plan 绑定；同一会话只保留一个，显式切换时使用。 */
+  rebindSession(sessionId: string, planDirectory: string, workspace: string): Promise<void>;
 }

@@ -26,6 +26,8 @@ export interface ToolRuntime {
   domainsDirectory(workspace: string): string;
   /** 把本工具调用所属会话绑定到 Plan；宿主未提供 facade 时静默跳过。 */
   bind?(exec: ToolExecContext, planDirectory: string, workspace: string): Promise<void>;
+  /** 写入或切换本会话的 Plan 绑定；失败时抛错（显式工具要让用户看到）。 */
+  rebind?(exec: ToolExecContext, planDirectory: string, workspace: string): Promise<void>;
 }
 
 /** 统一把工具结果渲染成一段文本。 */
@@ -85,6 +87,8 @@ export const createToolRuntime = (options: {
   domainRoot: string;
   /** 宿主侧写绑定表的回调（会话 id → Plan 目录）。 */
   bind?: (sessionId: string, planDirectory: string, workspace: string) => Promise<void>;
+  /** 宿主侧覆盖绑定的回调（显式切换）。 */
+  rebind?: (sessionId: string, planDirectory: string, workspace: string) => Promise<void>;
 }): ToolRuntime => {
   const { services, config, settings, assetsRoot, domainRoot } = options;
   const templatesRoot = join(assetsRoot, "templates");
@@ -106,6 +110,12 @@ export const createToolRuntime = (options: {
       } catch (error) {
         services.logger.warn(`nano-flow: 写绑定失败: ${describeError(error)}`);
       }
+    },
+    async rebind(exec: ToolExecContext, planDirectory: string, workspace: string): Promise<void> {
+      const sessionId = (exec.agent as { session?: { id?: string } } | undefined)?.session?.id;
+      if (sessionId === undefined) throw new Error("无法确定当前会话，不能绑定 Plan");
+      if (options.rebind === undefined) throw new Error("当前宿主未提供 Plan 绑定能力");
+      await options.rebind(sessionId, planDirectory, workspace);
     },
     async workspace(exec: ToolExecContext): Promise<string> {
       if (config.workspace !== undefined) return config.workspace;

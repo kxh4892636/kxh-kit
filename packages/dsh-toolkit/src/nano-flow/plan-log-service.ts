@@ -155,6 +155,9 @@ export const createPlanLogService = (options: PlanLogOptions): PlanLogService =>
     return state;
   };
 
+  /** 绑定身份：cwd 或 planPath 变化时视为切换。 */
+  const bindingKey = (binding: PlanBinding): string => `${binding.cwd}\u0000${binding.planPath}`;
+
   const ensureBound = async (
     session: PlanLogSession,
     state: SessionState,
@@ -162,12 +165,9 @@ export const createPlanLogService = (options: PlanLogOptions): PlanLogService =>
   ): Promise<void> => {
     const sessionId = state.sessionId;
     const cwd = session.header?.cwd ?? "";
-    let binding: PlanBinding | undefined;
     const table = await loadBindings();
-    const stored = table[sessionId];
-    if (stored !== undefined) {
-      binding = stored;
-    } else {
+    let next = table[sessionId];
+    if (next === undefined) {
       if (!allowBind) return;
       const plans = options.plansFor(cwd);
       if (plans.length !== 1) {
@@ -176,15 +176,20 @@ export const createPlanLogService = (options: PlanLogOptions): PlanLogService =>
       }
       const plan = plans[0];
       if (plan === undefined) return;
-      binding = { planPath: planRelativePath(cwd, plan), cwd, boundAt: new Date().toISOString() };
-      table[sessionId] = binding;
+      next = { planPath: planRelativePath(cwd, plan), cwd, boundAt: new Date().toISOString() };
+      table[sessionId] = next;
       await writeBindings(bindingsFile, table);
     }
-    Object.assign(state, { binding });
-    const file = planLogPath(binding);
-    const index = await scanLog(file);
+    if (next === undefined) return;
+    const previous = state.binding;
+    if (previous !== undefined && bindingKey(previous) === bindingKey(next)) return;
+    const switching = previous !== undefined;
+    Object.assign(state, { binding: next });
+    const index = await scanLog(planLogPath(next));
     state.seen = new Set(index.seen);
     state.headerWritten = index.headers.has(sessionId);
+    // 切换绑定不把旧 Plan 的历史轮次回填到新 Plan：保留持久化句柄、游标与当前轮缓冲。
+    if (switching) return;
     if (persistence === undefined) return;
     const handle = await persistence.open(sessionId, "read");
     state.handle = handle;
@@ -243,7 +248,7 @@ export const createPlanLogService = (options: PlanLogOptions): PlanLogService =>
     session: PlanLogSession,
     allowBind: boolean,
   ): Promise<void> => {
-    if (state.binding === undefined) await ensureBound(session, state, allowBind);
+    await ensureBound(session, state, allowBind);
     if (state.binding === undefined || state.handle === undefined) return;
     const start = Math.max(state.cursor + 1, 0);
     const read = await state.handle.read(start, 5_000);

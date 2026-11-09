@@ -17,6 +17,7 @@
 ## 工具
 
 - `nano_flow_create`：创建 domain 的目录结构与模板文件；`kind` 为 `domain`、`plan` 或 `note`。
+- `nano_flow_bind`：把本会话绑定到指定 Plan；同一会话只保留一个绑定，再次调用即切换，Note 看板与后续 `log.jsonl` 跟随。
 - `nano_flow_check`：校验领域文档；同时自动创建/更新 `CONTEXT-MAP.md`、`questions/index.md`、`adr/index.md`、`workflows/index.md`、`notes_index.md` 与 spec 的 `## 追踪 Note`。
 
 索引文件是生成物，不要手改；文档本身用普通文件工具读写。每轮形成新事实后跑一次 `nano_flow_check`。
@@ -131,6 +132,7 @@ Plan 只有三类文档：`spec.md`、`notes_index.md`（生成）和若干 `001
 
 ### 恢复与轮转
 
+- 已绑定会话要换 Plan 时用 `nano_flow_bind`；`nano_flow_check` 不会改绑。
 - 恢复已有 Plan（“恢复”“继续”且本会话还没加载它）：**开头先跑一次 `nano_flow_check`**（校验 Plan 并建立本会话↔Plan 的看板绑定；已知 Plan 时带 `plan: '<Plan 目录名>'`，这样多 active Plan 的工作区也能绑定，reference / archived 同样可绑。它只重写生成的索引与追踪表，是本轮唯一的写操作）。轮转新会话的 seed 已带校验结论时跳过。然后按“业务域”确认业务域，读 `spec.md` 与 `notes_index.md`，核对已完成步骤与工作区事实；本轮**严格只读**：只读文件与取证命令，不写 Plan、不动任何文件、不执行 note、不跑构建测试或安装；报告目标、进度、可推进队列、阻塞项与下一步候选后结束本轮。
 - 放行：恢复报告之后，用户的第一条后续消息即放行，按 `/do skill` 继续；若那条消息是新的澄清需求则按 `/ask skill`。
 - 轮转建好的新会话，插件会先自动跑一次 `nano_flow_check`：结论写进 seed（在上一轮输出块之前），并把**轮转前会话的 Plan 绑定**继承给新会话（与工作区有几个 active Plan 无关；旧会话没绑定就跳过），Note 看板立即出现。看到「校验失败」先修文档再推进；看到「校验通过」就不必重复跑。
@@ -150,7 +152,7 @@ Plan 只有三类文档：`spec.md`、`notes_index.md`（生成）和若干 `001
 
 ## 写入边界
 
-`GUIDE.md` 是只由 dream 维护的 L3 会话启动快照：只有 dream 父会话可以整体重写它。日常 Plan（`/ask`、`/do`、维护循环与 `nano_flow_create` 等任何流程）不得创建、修改、移动或删除 `GUIDE.md`；需要影响启动快照的内容先写 note 或领域文档，等 dream 晋升。dream 的子 agent 也不得写 `GUIDE.md`。
+`GUIDE.md` 是只由 dream 维护正文的 L3 会话启动快照：正文只有 dream 父会话可以整体重写。日常 Plan（`/ask`、`/do` 与维护循环）不得修改、移动或删除 `GUIDE.md`；`nano_flow_create` 只允许在文件缺失时创建空模板，不得写入或改写正文。需要影响启动快照的内容先写 note 或领域文档，等 dream 晋升。
 
 ## 维护循环
 

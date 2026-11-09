@@ -76,6 +76,7 @@ describe("assets", () => {
     expect(readLimitTemplate(assetsRoot)).toContain("## 篇幅限制");
     expect((await stat(join(assetsRoot, "prompts", "limit.md"))).isFile()).toBe(true);
     expect((await stat(join(assetsRoot, "templates", "spec.md"))).isFile()).toBe(true);
+    expect((await stat(join(assetsRoot, "templates", "guide.md"))).isFile()).toBe(true);
     expect((await stat(assetsCheckScript(assetsRoot))).isFile()).toBe(true);
     const dream = await readFile(join(assetsRoot, "prompts", "dream.md"), "utf8");
     expect(dream).toContain("[nano-flow:dream]");
@@ -131,7 +132,7 @@ describe("plugin entry", () => {
       },
     } as unknown as Context;
     applyNanoFlow(ctx, { workspace: "/tmp" });
-    expect(toolNames).toEqual(["nano_flow_create", "nano_flow_check"]);
+    expect(toolNames).toEqual(["nano_flow_create", "nano_flow_bind", "nano_flow_check"]);
     expect(sections).toHaveLength(1);
     expect(sections[0]).toMatchObject({ name: PROMPT_SECTION, order: 1 });
     expect(contexts).toHaveLength(1);
@@ -226,8 +227,10 @@ describe("tools", () => {
       ),
     );
     expect(domain).toContain("已创建/检查 domain: demo");
-    // GUIDE.md 只由 dream 维护：建 domain 不再落空模板。
-    expect(existsSync(join(workspace, ".agents", "domains", "GUIDE.md"))).toBe(false);
+    // GUIDE.md 正文只由 dream 维护：建 domain 只落空模板，不写内容。
+    const guide = join(workspace, ".agents", "domains", "GUIDE.md");
+    expect((await stat(guide)).isFile()).toBe(true);
+    expect(await readFile(guide, "utf8")).toBe("");
     expect((await stat(join(workspace, ".agents", "domains", "CONTEXT-MAP.md"))).isFile()).toBe(
       true,
     );

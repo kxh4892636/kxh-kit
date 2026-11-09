@@ -67,7 +67,7 @@ _Avoid_：wiki、知识库、notes.json
 _Avoid_：story、DAG、任务列表
 
 **会话↔Plan 绑定**：
-`$DSH_HOME/toolkit/nano-flow-plan-bindings.json` 中按会话 id 记录的唯一 Plan（`planPath` / `cwd` / `boundAt`）；每个会话只写一次，供 Note 看板、`log.jsonl` 轨迹与轮转继承使用，不参与 note 状态判定。
+`$DSH_HOME/toolkit/nano-flow-plan-bindings.json` 中按会话 id 记录的唯一 Plan（`planPath` / `cwd` / `boundAt`）；同一会话只保留一个绑定，`nano_flow_bind` 可显式切换，供 Note 看板、`log.jsonl` 轨迹与轮转继承使用，不参与 note 状态判定。
 _Avoid_：当前 Plan、任务上下文
 
 **生效上限**：
@@ -87,13 +87,13 @@ nano-flow 预设会话在输入框上方 dock 显示的未完成 note 列表（�
 _Avoid_：待办面板、todo 面板、任务列表
 
 **Plan 轨迹日志**：
-nano-flow 预设会话每轮结束时向 `<plan>/log.jsonl` 追加的一条 compact 轨迹（user、assistant 最终文本、工具参数/结果摘要、usage、seq 区间）；会话在首个 `tool/call` 时按「已有绑定或工作区唯一 active Plan」建立绑定并持久化（预设未知时只认 `nano_flow_*` 调用），启动时从宿主持久化日志回填历史轮次，绝不写会话事件。日志只存本地（`.gitignore` 忽略 `**/plans/**/log.jsonl`），轮转不删、只增量追加。
+nano-flow 预设会话每轮结束时向 `<plan>/log.jsonl` 追加的一条 compact 轨迹（user、assistant 最终文本、工具参数/结果摘要、usage、seq 区间）；会话在首个 `tool/call` 时按「已有绑定或工作区唯一 active Plan」建立绑定并持久化（预设未知时只认 `nano_flow_*` 调用）；`nano_flow_bind` 切换后，后续轮次写入新 Plan，旧 Plan 不再追加。启动时从宿主持久化日志回填历史轮次，绝不写会话事件。日志只存本地（`.gitignore` 忽略 `**/plans/**/log.jsonl`），轮转不删、只增量追加。
 _Avoid_：会话转录、原始事件日志、audit log
 
 ### 记忆维护（dream）
 
 **记忆分层**：
-nano-flow 记忆的四层：L0 `<plan>/log.jsonl` 轨迹、L1 note 的结论、L2 领域文档与「## 相关」互链、L3 `GUIDE.md` 会话快照（`system.md` 由用户维护）；dream 只写 L2/L3 正文，其中 L3 只由 dream 父会话整体重写，生成物只由 `nano_flow_check` 写。
+nano-flow 记忆的四层：L0 `<plan>/log.jsonl` 轨迹、L1 note 的结论、L2 领域文档与「## 相关」互链、L3 `GUIDE.md` 会话快照（`system.md` 由用户维护）；dream 只写 L2/L3 正文，其中 L3 正文只由 dream 父会话整体重写、`nano_flow_create` 仅在缺失时补空模板，生成物只由 `nano_flow_check` 写。
 _Avoid_：记忆库、知识图谱、第五层
 
 **dream**：

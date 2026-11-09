@@ -124,7 +124,7 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
 | 固定提示词 | `prompts/system.md` 与 `.agents/domains/GUIDE.md` 的当前快照拼接, 作为系统提示词段 `order: 1` 注入                                            |
 | 每轮提示词 | `prompts/user.md`, 作为运行时上下文在每轮第一次 pre-step 后追加; 不冒充用户消息, UI 以 context 卡片显示                                       |
-| 工具       | `nano_flow_create`(domain / plan / note 的目录与模板) 与 `nano_flow_check`(校验 + 生成全部索引)                                               |
+| 工具       | `nano_flow_create`(domain / plan / note 的目录与模板)、`nano_flow_bind`(绑定/切换 Plan) 与 `nano_flow_check`(校验 + 生成全部索引)             |
 | skill      | `skills/` 动态发现: `ask`,`do`,`to-skill`,`code-spec`,`learning`                                                                              |
 | Note 面板  | 输入框上方 dock: 当前会话绑定的 Plan 的未完成 note(中文状态名 + 名称, hover 显示概述), 客户端 5s 轮询宿主路由                                 |
 | Plan 日志  | 每轮把 `<plan>/log.jsonl` 追加一条 compact 轨迹(user/assistant/工具摘要/usage/seq), 绑定表在 `$DSH_HOME/toolkit/nano-flow-plan-bindings.json` |
@@ -133,7 +133,7 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
 
 ```text
 .agents/domains/
-├── GUIDE.md                       # 会话启动快照（L3）；只由 dream 维护
+├── GUIDE.md                       # 会话启动快照（L3）；正文只由 dream 维护，create 仅补空模板
 ├── CONTEXT-MAP.md                 # 生成：Contexts + Relationships
 └── {domain-name}/
     ├── CONTEXT.md                 # 职责、术语、relations
@@ -189,9 +189,11 @@ metadata:
 
 **工具**
 
-- `nano_flow_create`：`kind=domain` 建 `CONTEXT.md`、questions / adr / workflows；
+- `nano_flow_create`：`kind=domain` 建 `CONTEXT.md`、questions / adr / workflows 与 `GUIDE.md` 空模板；
   `kind=plan` 建 `spec.md` 与 `notes_index.md`；`kind=note` 建一条 note（可自动取下一个三位编号）。
-  只补缺失文件，不覆盖已有内容。
+  只补缺失文件，不覆盖已有内容；GUIDE 正文仍只由 dream 维护。
+- `nano_flow_bind`：把当前会话绑定到指定 Plan（可按 `domain` / `lifecycle` 消歧）。
+  同一会话只保留一个绑定，再次调用即切换；Note 看板与后续 `log.jsonl` 立即跟随。
 - `nano_flow_check`：校验 YAML 头、三位 name、篇幅、status / reason / related_noted 与 spec 状态派生，
   以及页面文末 `## 相关` 互链（目标存在、原因非空）与 `GUIDE.md` 体积；
   同时生成/更新 `CONTEXT-MAP.md`、`questions/index.md`、`adr/index.md`、`workflows/index.md`、
@@ -239,8 +241,8 @@ metadata:
 2. 选中该预设：系统提示里出现 Nano Flow 规则；本轮首次请求的上下文中有一句
    `prompts/user.md`（UI 以 context 卡片显示，不显示为用户消息），后续每轮再追加一次。
 3. 换一个预设：上述提示词、工具与 skill 全部消失。
-4. 在空工作区让模型建 domain、plan、note：出现 `CONTEXT-MAP.md`、域文档骨架、
-   `spec.md`、`notes_index.md`；`nano_flow_check` 通过并列出更新的索引（`GUIDE.md` 只由 dream 创建）。
+4. 在空工作区让模型建 domain、plan、note：出现 `CONTEXT-MAP.md`、域文档骨架、`GUIDE.md` 空模板、
+   `spec.md`、`notes_index.md`；`nano_flow_check` 通过并列出更新的索引。
 5. 打开 toolkit 面板的"Nano Flow 设置"，改一个上限并保存；重启后值保持，下一次 check 生效。
 6. 把轮转阈值调到很低（如 0.05），再发一条排队消息：旧会话被物理删除，新会话只读
    `spec.md` 与 `notes_index.md` 并报告进度。
@@ -250,9 +252,11 @@ metadata:
    spec 的状态与 `## 追踪 Note` 自动更新。
 9. 在 nano-flow 会话里改一条未完成 note 的 `status`：输入框上方的 Note 面板 5s 内更新；
    hover 显示该 note 的 `description`；note 全部完成，或该会话没有绑定/绑定目录失效时面板消失。
-10. 在 nano-flow 会话里正常对话几轮（至少触发一次工具调用；`nano_flow_check` 会显式绑定）：当前 Plan 目录出现
+10. 在 nano-flow 会话里正常对话几轮（至少触发一次工具调用；未绑定时 `nano_flow_check` 也会绑定）：当前 Plan 目录出现
     `log.jsonl`，首行是本会话段头，其后每轮一行 `turn`（sessionId/turn/user/assistant/tools/usage/seq）。
     重启/重开会话后历史正常加载，会话日志里不再出现 `nano-flow/notes`。
+11. 在同一会话用 `nano_flow_bind` 切到另一个 Plan：Note 看板立即换 Plan，后续轮次写入新 Plan 的
+    `log.jsonl`；旧 Plan 的日志保留已写入的轮次，不再追加。
 
 ## 配置
 

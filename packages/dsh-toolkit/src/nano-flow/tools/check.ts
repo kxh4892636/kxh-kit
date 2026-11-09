@@ -66,7 +66,7 @@ const executeCheck = async (
 export const createCheckTool = (runtime: ToolRuntime): ToolDefinitionLike => ({
   name: "nano_flow_check",
   description:
-    "校验 Nano Flow 的领域文档（YAML 头、三位数字 name、篇幅、status/reason/related_noted、Plan 状态派生），并自动创建/更新 CONTEXT-MAP.md、questions/adr/workflows 的 index.md、notes_index.md 与 spec 的 ## 追踪 Note。domain 过滤只校验该域且不重写 CONTEXT-MAP；plan 过滤只校验该 Plan，并把本会话绑定到它（含 reference/archived）。",
+    "校验 Nano Flow 的领域文档（YAML 头、三位数字 name、篇幅、status/reason/related_noted、Plan 状态派生），并自动创建/更新 CONTEXT-MAP.md、questions/adr/workflows 的 index.md、notes_index.md 与 spec 的 ## 追踪 Note。domain 过滤只校验该域且不重写 CONTEXT-MAP；plan 过滤只校验该 Plan。本会话尚未绑定 Plan 时顺带绑定到它（含 reference/archived）；已绑定则不改绑，切换用 nano_flow_bind。",
   parameters: {
     type: "object",
     additionalProperties: false,

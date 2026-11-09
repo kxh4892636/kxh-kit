@@ -114,6 +114,22 @@ const recordBinding = async (
   await writeBindings(file, table);
 };
 
+/** 写入或切换会话↔Plan 绑定；显式绑定工具用，覆盖旧值。 */
+const replaceBinding = async (
+  file: string,
+  sessionId: string,
+  planDirectory: string,
+  workspace: string,
+): Promise<void> => {
+  const table = await readBindings(file);
+  table[sessionId] = {
+    planPath: planRelativePath(workspace, planDirectory),
+    cwd: workspace,
+    boundAt: new Date().toISOString(),
+  };
+  await writeBindings(file, table);
+};
+
 /** 会话↔Plan 绑定表路径：配置优先，缺省落在 `$DSH_HOME/toolkit`。 */
 const bindingsFilePath = (config: Config): string =>
   config.bindingsFile !== undefined && config.bindingsFile !== ""
@@ -281,6 +297,8 @@ interface ToolkitRuntime {
   hiddenSessions(): readonly string[];
   /** 记录会话↔Plan 绑定（nano_flow 工具成功后调用）。 */
   bindSession(sessionId: string, planDirectory: string, workspace: string): Promise<void>;
+  /** 覆盖会话↔Plan 绑定（nano_flow_bind 切换时调用）。 */
+  rebindSession(sessionId: string, planDirectory: string, workspace: string): Promise<void>;
   /** Nano Flow 上限设置（面板路由读写）。 */
   readonly nanoFlow: {
     get(): NanoFlowSettings;
@@ -363,6 +381,8 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
     sessionsRoot: () => sessionsRoot,
     bindSession: (sessionId: string, planDirectory: string, workspace: string) =>
       recordBinding(bindingsFilePath(config), sessionId, planDirectory, workspace),
+    rebindSession: (sessionId: string, planDirectory: string, workspace: string) =>
+      replaceBinding(bindingsFilePath(config), sessionId, planDirectory, workspace),
   };
   ctx.effect(() => {
     try {
@@ -417,6 +437,9 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
     },
     async bindSession(sessionId, planDirectory, workspace) {
       await recordBinding(bindingsFilePath(config), sessionId, planDirectory, workspace);
+    },
+    async rebindSession(sessionId, planDirectory, workspace) {
+      await replaceBinding(bindingsFilePath(config), sessionId, planDirectory, workspace);
     },
     async cleanupArchive(child: Context) {
       const workspaces = workspaceRegistry(child);

@@ -1,32 +1,41 @@
 ---
 name: "nano-flow绑定机制与GUIDE写入约束"
-description: "梳理会话↔Plan 绑定机制及其依赖，并为 GUIDE.md 增加仅 dream 维护的约束。"
+description: "梳理会话↔Plan 绑定机制及其依赖，新增绑定工具，并为 GUIDE.md 增加仅 dream 维护正文的约束。"
 status: in_progress
 ---
 
 # nano-flow绑定机制与GUIDE写入约束
 
-优化迭代 nano-flow 的两个入口问题：先查清会话与 Plan 的绑定机制及依赖，再把「GUIDE.md 只能由 dream 维护」从约定变成可执行约束。
+优化迭代 nano-flow：查清会话与 Plan 的绑定机制及依赖，新增可切换的绑定工具，并把「GUIDE.md 正文只由 dream 维护」落成约束（保留空模板初始化）。
 
 ## 范围
 
-- 只读梳理：绑定表、写入时机、消费方与现存缺陷，见 [001-梳理会话Plan绑定机制.md](001-梳理会话Plan绑定机制.md)。
-- 已实施、待验收：GUIDE.md 的日常写入约束，见 [002-为GUIDE增加仅dream可写约束.md](002-为GUIDE增加仅dream可写约束.md)。
-- 绑定机制是否本轮修改、先修哪些缺陷，待用户选择后建 note。
+- [001-梳理会话Plan绑定机制](001-梳理会话Plan绑定机制.md)：只读梳理绑定表、写入时机、消费方与缺陷。
+- [002-为GUIDE增加仅dream可写约束](002-为GUIDE增加仅dream可写约束.md)：正文写入边界，已完成。
+- [003-提供Plan绑定工具](003-提供Plan绑定工具.md)：`nano_flow_bind` 绑定/切换，待用户验收。
+- 剩余绑定缺陷（check 的 domain 过滤、生命周期迁移后的旧路径、死条目回收）待另开 note。
 
 ## 当前结论
 
-绑定表位于 `$DSH_HOME/toolkit/nano-flow-plan-bindings.json`，键为会话 id，值为 `{planPath, cwd, boundAt}`。写入只有三条路径：`nano_flow_check` 成功后的显式/唯一 active Plan 绑定、plan-log 服务在首个工具调用时的自动绑定、轮转时继承旧会话绑定。写入是每会话一次（已存在即跳过），消费方是 Note 看板、`log.jsonl` 轨迹与轮转 seed。
+绑定表位于 `$DSH_HOME/toolkit/nano-flow-plan-bindings.json`，键为会话 id，值为 `{planPath, cwd, boundAt}`。写入路径：
 
-GUIDE.md 已按严格方案落地：固定提示词新增写入边界，`nano_flow_create` 不再创建 GUIDE，空模板已删除；测试、类型检查与 `nano_flow_check` 均通过。等用户验收后把 002 置 completed。
+1. `nano_flow_bind` 显式覆盖，同一会话只保留一个绑定，再次调用即切换；
+2. `nano_flow_check` 在未绑定时按显式 `plan` 或唯一 active Plan 绑定；
+3. plan-log 在首个工具调用时按「已有绑定或唯一 active Plan」自动绑定；
+4. 轮转时继承旧会话绑定。
+
+消费方是 Note 看板、`log.jsonl` 轨迹与轮转 seed。显式切换后看板立即跟随，后续轮次写入新 Plan 的日志；旧 Plan 保留已写入轮次，不回填、不迁移。
+
+GUIDE 的正文只由 dream 父会话整体重写；日常 Plan 不得修改、移动或删除。`nano_flow_create` 只在文件缺失时创建空模板，不写正文。
 
 ## 待确认
 
-- 绑定机制：本轮只记录事实，还是同时修确定性缺陷（domain 过滤绑错、生命周期迁移后日志写回旧路径）？
+- 验收 [003-提供Plan绑定工具](003-提供Plan绑定工具.md)。
+- 是否继续修绑定缺陷：R1（check domain 过滤绑错）、R3（生命周期迁移后日志写回旧路径）、R4（死条目回收）。
 
 ## 恢复入口
 
-先读 [001-梳理会话Plan绑定机制.md](001-梳理会话Plan绑定机制.md) 的事实清单与 [002-为GUIDE增加仅dream可写约束.md](002-为GUIDE增加仅dream可写约束.md) 的验收状态；用户确认绑定范围后再决定是否新建修复 note。
+读 [003-提供Plan绑定工具](003-提供Plan绑定工具.md) 的决策与验证，再读 [001-梳理会话Plan绑定机制](001-梳理会话Plan绑定机制.md) 的缺陷清单；用户确认后续范围后新建 note。
 
 ## 追踪 Note
 
@@ -34,4 +43,4 @@ GUIDE.md 已按严格方案落地：固定提示词新增写入边界，`nano_fl
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [002-为GUIDE增加仅dream可写约束](002-为GUIDE增加仅dream可写约束.md) | 确定约束落点与强度，修正日常流程与 nano_flow_create 对 GUIDE.md 的写入。 | blocked | 等待用户验收严格方案：已禁止日常写入并移除 nano_flow_create 对 GUIDE 的创建 | 用户验收后置 completed；若改选仅提示词方案，回退 create.ts 与 runtime.test.ts 的改动。 | 001-梳理会话Plan绑定机制 |
+| [003-提供Plan绑定工具](003-提供Plan绑定工具.md) | 新增 nano_flow_bind：同一会话只保留一个绑定，再次调用即切换，并让看板与 log 跟随。 | blocked | 等待用户验收 nano_flow_bind：绑定/切换、看板与 log 跟随已实现并通过测试 | 用户验收后置 completed；未覆盖的 check domain 过滤与生命周期迁移缺陷另开 note。 | 001-梳理会话Plan绑定机制, 002-为GUIDE增加仅dream可写约束 |
