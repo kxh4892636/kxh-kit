@@ -44,4 +44,4 @@ ADR：[008-轮转绑定继承旧会话的Plan](../../../adr/008-轮转绑定继�
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [004-移除全部隐式绑定路径](004-移除全部隐式绑定路径.md) | 删除 check、plan-log 与轮转的自动绑定，绑定表只剩 nano_flow_bind 一个写入口。 | blocked | 等待用户验收：check、plan-log 与轮转的隐式写绑定已全部移除 | 用户验收后置 completed；剩余 R3 生命周期迁移与 R4 死条目另开 note。 | 001-梳理会话Plan绑定机制, 003-提供Plan绑定工具 |
+| [004-移除全部隐式绑定路径](004-移除全部隐式绑定路径.md) | 删除 check、plan-log 与轮转的自动绑定，绑定表只剩 nano_flow_bind 一个写入口。 | blocked | 等待用户验收：check、plan-log 与轮转的隐式写绑定已全部移除 | 重启宿主后按「验收步骤」逐项确认，通过后置 completed；R3/R4 另开 note。 | 001-梳理会话Plan绑定机制, 003-提供Plan绑定工具 |
