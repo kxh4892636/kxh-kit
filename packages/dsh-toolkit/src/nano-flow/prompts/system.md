@@ -25,7 +25,7 @@
 
 ```text
 .agents/domains/
-├── GUIDE.md                       # 会话启动快照
+├── GUIDE.md                       # 会话启动快照（仅 dream 维护）
 ├── CONTEXT-MAP.md                 # 生成：Contexts + Relationships
 └── {domain-name}/
     ├── CONTEXT.md                 # 职责、术语、relations
@@ -148,11 +148,15 @@ Plan 只有三类文档：`spec.md`、`notes_index.md`（生成）和若干 `001
 
 每条 = 相对链接 + `—` + 一句原因；原因必填，只链 `.md`。`nano_flow_check` 校验目标存在与原因非空；反向链接不手写。这个段由 dream 维护；没有互链时可以不写。
 
+## 写入边界
+
+`GUIDE.md` 是只由 dream 维护的 L3 会话启动快照：只有 dream 父会话可以整体重写它。日常 Plan（`/ask`、`/do`、维护循环与 `nano_flow_create` 等任何流程）不得创建、修改、移动或删除 `GUIDE.md`；需要影响启动快照的内容先写 note 或领域文档，等 dream 晋升。dream 的子 agent 也不得写 `GUIDE.md`。
+
 ## 维护循环
 
 每轮形成新事实（用户输入、取证、决策、执行或验证）后，按以下循环跑一次：
 
-1. **更新**：读取并就地更新 common 和所属域的领域文档;
+1. **更新**：读取并就地更新 common 和所属域的领域文档（不含受写入边界保护的 `GUIDE.md`）;
 2. **对齐**：验证领域文档与工作区事实的一致性;
 3. **校验**：跑 `nano_flow_check`；
 

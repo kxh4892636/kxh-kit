@@ -66,6 +66,10 @@ _Avoid_：wiki、知识库、notes.json
 一个会话默认维护的工作单元，包含 `spec.md`、`notes_index.md`（生成）与若干 `NNN-中文标题.md` 的 note；note 用 `pending` / `in_progress` / `blocked` / `completed` 表达进度，`blocked` 时以 `reason` 说明在等什么。交付完成但未验收一律 `blocked`，只有用户验收后才置 `completed`。
 _Avoid_：story、DAG、任务列表
 
+**会话↔Plan 绑定**：
+`$DSH_HOME/toolkit/nano-flow-plan-bindings.json` 中按会话 id 记录的唯一 Plan（`planPath` / `cwd` / `boundAt`）；每个会话只写一次，供 Note 看板、`log.jsonl` 轨迹与轮转继承使用，不参与 note 状态判定。
+_Avoid_：当前 Plan、任务上下文
+
 **生效上限**：
 toolkit 面板「Nano Flow 设置」维护的数值来源，持久化在 `$DSH_HOME/toolkit/nano-flow.json`；启动时由它生成「篇幅限制」块，不把具体数字写死在提示词里。
 _Avoid_：魔法数字、硬编码阈值
@@ -79,17 +83,17 @@ _Avoid_：压缩、compact、归档旧会话
 _Avoid_：自动续跑、恢复即执行
 
 **note 面板**：
-nano-flow 预设会话在输入框上方 dock 显示的未完成 note 列表（中文状态名 + 名称，hover 显示概述）；客户端按当前 `sessionId` 每 5s 轮询宿主 `GET /api/toolkit/nano-flow/notes`，宿主从会话 cwd 现算唯一 active Plan 的快照，快照不写会话日志，样式与 Todo 面板一致。
+nano-flow 预设会话在输入框上方 dock 显示的未完成 note 列表（中文状态名 + 名称，hover 显示概述）；客户端按当前 `sessionId` 每 5s 轮询宿主 `GET /api/toolkit/nano-flow/notes`，宿主按该会话的绑定定位 Plan（未绑定、目录失效或没有未完成 note 时不显示），快照不写会话日志，样式与 Todo 面板一致。
 _Avoid_：待办面板、todo 面板、任务列表
 
 **Plan 轨迹日志**：
-nano-flow 预设会话每轮结束时向 `<plan>/log.jsonl` 追加的一条 compact 轨迹（user、assistant 最终文本、工具参数/结果摘要、usage、seq 区间）；会话首次调用 `nano_flow_*` 工具时绑定 Plan 并持久化，启动时从宿主持久化日志回填历史轮次，绝不写会话事件。日志只存本地（`.gitignore` 忽略 `**/plans/**/log.jsonl`），轮转不删、只增量追加。
+nano-flow 预设会话每轮结束时向 `<plan>/log.jsonl` 追加的一条 compact 轨迹（user、assistant 最终文本、工具参数/结果摘要、usage、seq 区间）；会话在首个 `tool/call` 时按「已有绑定或工作区唯一 active Plan」建立绑定并持久化（预设未知时只认 `nano_flow_*` 调用），启动时从宿主持久化日志回填历史轮次，绝不写会话事件。日志只存本地（`.gitignore` 忽略 `**/plans/**/log.jsonl`），轮转不删、只增量追加。
 _Avoid_：会话转录、原始事件日志、audit log
 
 ### 记忆维护（dream）
 
 **记忆分层**：
-nano-flow 记忆的四层：L0 `<plan>/log.jsonl` 轨迹、L1 note 的结论、L2 领域文档与「## 相关」互链、L3 `GUIDE.md` 会话快照（`system.md` 由用户维护）；dream 只写 L2/L3 正文，生成物只由 `nano_flow_check` 写。
+nano-flow 记忆的四层：L0 `<plan>/log.jsonl` 轨迹、L1 note 的结论、L2 领域文档与「## 相关」互链、L3 `GUIDE.md` 会话快照（`system.md` 由用户维护）；dream 只写 L2/L3 正文，其中 L3 只由 dream 父会话整体重写，生成物只由 `nano_flow_check` 写。
 _Avoid_：记忆库、知识图谱、第五层
 
 **dream**：

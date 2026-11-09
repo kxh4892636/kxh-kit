@@ -39,7 +39,8 @@
 
 ## 写入边界
 
-- 可写：`{domain}/CONTEXT.md`、`questions/NNN-*.md`、`adr/NNN-*.md`、`workflows/...`、`GUIDE.md`、游标。
+- 可写：`{domain}/CONTEXT.md`、`questions/NNN-*.md`、`adr/NNN-*.md`、`workflows/...`、`GUIDE.md`（仅父会话整体重写）、游标。
+- `GUIDE.md` 是 L3 快照，只有 dream 父会话可写；日常会话（含被维护 Plan 的执行过程）不得创建、修改、移动或删除它。
 - 只读：`spec.md`、note、全部生成物（`CONTEXT-MAP.md`、各 `index.md`、`notes_index.md`、spec `## 追踪 Note`）、`system.md`。
 - 每条改动带出处（note 名或 `sessionId/turn`）。
 
