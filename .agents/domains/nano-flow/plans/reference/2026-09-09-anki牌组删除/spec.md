@@ -1,6 +1,6 @@
 ---
 name: 'anki牌组删除'
-description: '`nnf anki decks` 目前只有 `list` / `stats` / `create` / `move`，桌面端能做的牌组清理在 CLI 上没有出口。需要让 CLI 能删除牌组（连同其卡片与子牌组），并保持既有安全基线：不可逆操作需显式确认、JSON-only 输出、只读模式拦截、`--dry-run` 可预演。 已知约束： - AnkiConnect `deleteDecks(decks, cardsToo)` 强制 `cardsToo=true…'
+description: '给 nnf anki decks 增加删除能力（连同卡片与子牌组），保持不可逆需确认、JSON 输出、只读拦截与 --dry-run 预演。'
 status: completed
 ---
 

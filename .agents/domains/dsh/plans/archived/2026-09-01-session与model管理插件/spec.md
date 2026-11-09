@@ -1,6 +1,6 @@
 ---
 name: 'session与model管理插件'
-description: 'DSH Web 的会话内 agent 无法读取、搜索、派生、投递其他 session，也无法列出与设置模型——这些能力只存在于 Host 内部服务与 GUI。用户需要以「模型工具」面提供对 session 与 model 的 CRUD：读取其他 session 内容、创建新 session（携带默认系统消息=预置指令）并选择指定模型、列出全部 session 与模型、向其他 session 发送消息。'
+description: '为会话内 agent 补齐 session 与 model 的工具面：读取、搜索、派生其他会话，创建带预置指令的会话，列模型并投递消息。'
 status: completed
 ---
 

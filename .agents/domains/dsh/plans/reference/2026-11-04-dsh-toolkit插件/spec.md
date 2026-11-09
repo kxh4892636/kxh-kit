@@ -1,6 +1,6 @@
 ---
 name: 'dsh-toolkit插件'
-description: '现有插件 `@kxh4892636/dsh-nested-skill` 只做一件事（嵌套 skill 发现），无法承载新工具，也没有任何界面入口。需要把它重构为可承载多工具的 `@kxh4892636/dsh-toolkit`：一个侧边栏 `toolkit` 面板逐项开关工具，嵌套 skill 发现成为其中一个工具，并新增「撤回」工具——在会话 composer 工具栏、模型选择器左侧，确认后撤销正在执行或已经完成的一轮会话。见 story 的 US-001~…'
+description: '把单功能的 dsh-nested-skill 重构为可承载多工具的 dsh-toolkit：侧边栏逐项开关工具，嵌套 skill 成为其中一个，并新增撤回工具。'
 status: in_progress
 ---
 

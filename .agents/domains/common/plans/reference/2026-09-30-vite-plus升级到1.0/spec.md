@@ -1,6 +1,6 @@
 ---
 name: 'vite-plus升级到1.0'
-description: '工作区统一工具链停留在 `vite-plus@0.2.6`（`vite` 别名指向 `@voidzero-dev/vite-plus-core@0.2.6`，`vitest@^4.1.10`），与已发布的 Vite+ 1.0.0（内置 Vitest 5.0.1、tsdown 0.23）存在两个大版本差距。需要把工作区对齐到 1.0.0，且不破坏 14 个包的应用、测试与库构建行为。关联 US-001 / US-002 / US-003。'
+description: '把工作区工具链从 vite-plus@0.2.6 对齐到 1.0.0（内置 Vitest 5、tsdown），不破坏 14 个包的应用、测试与库构建。'
 status: completed
 ---
 

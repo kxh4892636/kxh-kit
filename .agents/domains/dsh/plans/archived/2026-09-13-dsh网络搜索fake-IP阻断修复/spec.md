@@ -1,6 +1,6 @@
 ---
 name: 'dsh网络搜索fake-IP阻断修复'
-description: '用户在本机 3080 实例上执行网络抓取时报错： ```text Error: URL hostname "www.weather.com.cn" resolves to a non-public IP address ``` 取证结论：这不是字符串解析缺陷，而是**本机 DNS 形态与 DSH 代理声明缺失的组合**。 - 报错唯一来源是 `@deepseek-ai/dsh-web-fetch-http/lib/index.js:70`：`resolvePu…'
+description: '定位并修复本机抓取报 non-public IP 的原因：fake-IP DNS 与 DSH 代理声明缺失的组合，补上代理口径并验证。'
 status: completed
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: 'nano-flow命令行收口'
-description: '仓库同时维护 Nano Flow skill 分发源和独立 `anki-cli`，使用者需要分别安装、记忆和更新多个入口。需要交付一个 TypeScript npm 包 `@kxh4892636/nano-flow`，以 `nf` bin 收口内建子命令：MVP 提供 `self` 的 CLI/skill 生命周期管理，并将现有 Anki 能力破坏性迁移为 `nf anki`。 命令树必须只使用命名选项，在各级支持 `--help`，全局支持默认真实执行的 `…'
+description: '交付 @kxh4892636/nano-flow 的 nf bin：self 做 CLI 与 skill 生命周期管理，现有 Anki 能力破坏性迁为 nf anki。'
 status: completed
 ---
 

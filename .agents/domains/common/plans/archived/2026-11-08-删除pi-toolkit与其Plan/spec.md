@@ -1,6 +1,6 @@
 ---
 name: '删除pi-toolkit与其Plan'
-description: '**A. 仓库包** - `packages/pi-toolkit/`：git 跟踪 96 个文件、约 1.16 MB；`src/{naming,orchestrator,skills,web}`（orchestrator 62 文件）+ `scripts/`；`package.json`（`@kxh4892636/pi-toolkit` 1.0.0，非 private）、`pi-toolkit.example.json`、`README.md`、`tscon…'
+description: '删除已废弃的 packages/pi-toolkit（约 1.16 MB、96 个文件）及其 Plan，保留历史提交与迁移说明。'
 status: in_progress
 ---
 

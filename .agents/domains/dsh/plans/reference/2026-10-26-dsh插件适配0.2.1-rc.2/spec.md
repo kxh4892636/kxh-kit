@@ -1,6 +1,6 @@
 ---
 name: 'dsh插件适配0.2.1-rc.2'
-description: '`packages/dsh-nested-skill` 的声明与代码按 dsh `0.1.5-rc.1` 写成，而本机运行的宿主已是 `0.2.1-rc.2`（`npm exec @deepseek-ai/dsh@latest web`，`latest` 通道）。逐包比对 `0.1.5-rc.1` tarball 与运行中 `0.2.1-rc.2` 安装树的 `lib/types/*.d.ts` 与 `lib/index.js` 后确认：**provider …'
+description: '把 dsh-nested-skill 从宿主 0.1.5-rc.1 适配到 0.2.1-rc.2：比对类型声明与实现，修掉 provider 差异。'
 status: completed
 ---
 

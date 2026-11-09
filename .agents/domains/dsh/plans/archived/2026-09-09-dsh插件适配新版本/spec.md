@@ -1,6 +1,6 @@
 ---
 name: 'dsh插件适配新版本'
-description: '`packages/dsh-nested-skill` 与 `packages/dsh-session-manager` 是按 DSH `0.1.2-alpha.2` 写的插件，宿主已升到 `latest` 发布通道的 `0.1.2-rc.1`。逐包比对 10 个相关上游包的 `lib/types/*.d.ts` 后确认：alpha.2 → rc.1 **没有破坏性 API 变更**（差异仅为 branded 类型、`seedLength` → `isSeed…'
+description: '把按 0.1.2-alpha.2 写的 dsh-nested-skill 与 dsh-session-manager 适配到宿主 0.1.2-rc.1：无破坏性 API 变更。'
 status: completed
 ---
 

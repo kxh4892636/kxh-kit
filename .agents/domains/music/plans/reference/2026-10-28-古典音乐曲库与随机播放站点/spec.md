@@ -1,6 +1,6 @@
 ---
 name: '古典音乐曲库与随机播放站点'
-description: '用户要把 Internet Archive 上的 Musopen 镜像整包下载到本地，并在此之上做一个随机播放网站。关联 [US-001](spec.md#us-001-整包落到本地并可校验)、[US-002](spec.md#us-002-打开即随机播放)、[US-003](spec.md#us-003-曲目信息来自索引而非文件名)。 已知约束： 1. 数据体积 9.61 GB / 580 个文件，不适合进 Git，仓库只留脚本与文档。 2. 本机对外…'
+description: '把 Internet Archive 上的 Musopen 镜像（9.61 GB / 580 个文件）落到本地，并做一个打开即随机播放、曲目信息取自索引的站点。'
 status: completed
 ---
 

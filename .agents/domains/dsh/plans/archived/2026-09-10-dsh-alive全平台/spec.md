@@ -1,6 +1,6 @@
 ---
 name: 'dsh-alive全平台'
-description: '`packages/dsh-keep-alive`（CLI `dsh-alive`）目前只在 Windows 上可用：`main.ts` 对任何非 win32 平台直接抛出 `dsh-alive currently supports Windows only`，`package.json` 用 `"os": ["win32"]` 让 npm 在 Linux/macOS 上拒绝安装，`paths.ts` 依赖 `%LOCALAPPDATA%` 与 Windows…'
+description: '让 dsh-alive 脱离 Windows：去掉 win32 安装限制与 %LOCALAPPDATA% 依赖，在 Linux 与 macOS 上同样可安装、可受管运行。'
 status: completed
 ---
 

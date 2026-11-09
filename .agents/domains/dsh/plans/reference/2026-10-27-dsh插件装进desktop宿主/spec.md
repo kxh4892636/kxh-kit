@@ -1,6 +1,6 @@
 ---
 name: 'dsh插件装进desktop宿主'
-description: '用户要把 `packages/dsh-nested-skill` 装进本机 desktop 版 DSH，让桌面宿主会话能看到 `.agents` 树任意深度的嵌套 skill。与 rc.2 那轮相比，宿主换成了 desktop 应用，事实如下： 1. **宿主版本变了**：`DeepSeek Harness.exe` 文件版本为 `0.2.1-rc.3`，其内置 dsh 运行时 `dsh/package.json` 也是 `0.2.1-rc.3`（cordis…'
+description: '把 dsh-nested-skill 装进 desktop 版 DSH（0.2.1-rc.3），让桌面宿主会话能看到 .agents 树任意深度的嵌套 skill。'
 status: completed
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: "nano-flow绑定机制与GUIDE写入约束"
 description: "梳理会话↔Plan 绑定机制，收口为 nano_flow_bind 单一写入口，并约束 GUIDE 正文只由 dream 维护。"
-status: in_progress
+status: completed
 ---
 
 # nano-flow绑定机制与GUIDE写入约束
@@ -13,8 +13,9 @@ status: in_progress
 - [001-梳理会话Plan绑定机制](001-梳理会话Plan绑定机制.md)：只读梳理与缺陷清单。
 - [002-为GUIDE增加仅dream可写约束](002-为GUIDE增加仅dream可写约束.md)：正文写入边界，已完成。
 - [003-提供Plan绑定工具](003-提供Plan绑定工具.md)：`nano_flow_bind` 与切换语义，已完成。
-- [004-移除全部隐式绑定路径](004-移除全部隐式绑定路径.md)：check/plan-log/轮转不再写绑定，待验收。
-- 剩余缺陷（R3 生命周期迁移后的旧路径、R4 死条目、R6/R7 清理）待另开 note。
+- [004-移除全部隐式绑定路径](004-移除全部隐式绑定路径.md)：check/plan-log/轮转不再写绑定，**2026-11-09 真机验收通过**。
+- [005-收敛绑定表生命周期与遗留缺陷](005-收敛绑定表生命周期与遗留缺陷.md)：R3/R4/R6/R7 已修复或删除，已完成。
+- [006-清理超长Plan描述](006-清理超长Plan描述.md)：21 条超限 description 已修剪，已完成。
 
 ## 当前结论
 
@@ -27,16 +28,18 @@ status: in_progress
 
 GUIDE 的正文只由 dream 父会话整体重写；日常 Plan 不得修改、移动或删除。`nano_flow_create` 只在文件缺失时创建空模板，不写正文。
 
+绑定表生命周期：Plan 目录解析统一走 `resolvePlanDirectory`（绝对路径直通，相对路径先试绑定 cwd、失效退回工作区）；目录不在时 plan-log 跳过写入并只 warn 一次，不重建旧路径；`nano_flow_bind` 收尾顺带回收宿主已不存在的会话条目——存活集合取「持久化列表 ∪ 仍存活的会话」，无列表、列表抛错或为空时一律不动表。
+
 ADR：[008-轮转绑定继承旧会话的Plan](../../../adr/008-轮转绑定继承旧会话的Plan.md) 已 superseded，[009-Plan绑定只经bind工具](../../../adr/009-Plan绑定只经bind工具.md) 记录本决策。
 
-## 待确认
+## 遗留
 
-- 验收 [004-移除全部隐式绑定路径](004-移除全部隐式绑定路径.md)。
-- 后续是否清理 R3/R4/R6/R7。
+- 测试覆盖率：`test:coverage` 分支 79.04%，低于仓库 80% 门槛（改动前 78.74%），主要在 undo/archive 与 `rotate.ts`，需单独一轮补测。
+- R4 的回收只在 `nano_flow_bind` 时触发，从不 bind 的 `$DSH_HOME` 不会自发清理死条目。
 
 ## 恢复入口
 
-先调用 `nano_flow_bind` 绑定本 Plan，再读 [004-移除全部隐式绑定路径](004-移除全部隐式绑定路径.md) 的移除清单与验证；用户确认后再决定是否开清理 note。
+6 条 note 全部 completed，本 Plan 可转 reference。若要继续，先读 [005-收敛绑定表生命周期与遗留缺陷](005-收敛绑定表生命周期与遗留缺陷.md) 的「遗留」与本节。
 
 ## 追踪 Note
 
@@ -44,4 +47,3 @@ ADR：[008-轮转绑定继承旧会话的Plan](../../../adr/008-轮转绑定继�
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [004-移除全部隐式绑定路径](004-移除全部隐式绑定路径.md) | 删除 check、plan-log 与轮转的自动绑定，绑定表只剩 nano_flow_bind 一个写入口。 | blocked | 等待用户验收：check、plan-log 与轮转的隐式写绑定已全部移除 | 重启宿主后按「验收步骤」逐项确认，通过后置 completed；R3/R4 另开 note。 | 001-梳理会话Plan绑定机制, 003-提供Plan绑定工具 |

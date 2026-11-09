@@ -1,6 +1,6 @@
 ---
 name: '预设提示词评审'
-description: '评审固定提示词的优化空间并落地定案修订；把 `ready` 改成按依赖关系分组的 todo 列表，补并行执行论述，在会话输入框上方提供可折叠的 ready 面板，并按策略收口 `notes.json` 的访问。后续扩展：恢复已有 Plan 只读、note 增加 `awaiting_verification`（等待验证）状态，以及把 `docs/` 下全部业务域迁到 `.agents/domains`。'
+description: '评审并落地固定提示词修订：ready 面板按依赖分组与并行执行论述、notes.json 访问收口，并把业务域迁到 .agents/domains。'
 status: completed
 ---
 

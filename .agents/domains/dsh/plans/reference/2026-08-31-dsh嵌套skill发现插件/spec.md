@@ -1,6 +1,6 @@
 ---
 name: 'dsh嵌套skill发现插件'
-description: 'DSH 内建 provider 只发现 `.agents/skills/<skill>/SKILL.md` 的一层形态；Nano Flow 等技能把主流程 skill 嵌套在 `references/skills/` 下（如 `.agents/skills/nano-flow/references/skills/*/SKILL.md`），DSH 目录完全不可见。用户需要 DSH 在 `.agents` 目录内任意深度发现嵌套 skill，并以独立插件交付、安装…'
+description: '交付独立插件，让 DSH 在 .agents 树任意深度发现嵌套 skill（如 references/skills/*/SKILL.md），不再受一层形态限制。'
 status: completed
 ---
 

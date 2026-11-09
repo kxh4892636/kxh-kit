@@ -1,6 +1,6 @@
 ---
 name: 'nano-flow等待确认状态'
-description: '把 `dsh-toolkit` nano-flow 的 `awaiting_verification` 改名为 `waiting`（等待确认），语义扩为「等待用户确认」（验收与提问都算），并照搬 pi 的 `needs=answer|review`；在此基础上补 `inspect + repair` 的坏文档修复、一条 note 两阶段的约定，并把 ask / do 循环的完整论述下沉到随包 skill。'
+description: '把 nano-flow 的 awaiting_verification 改为 waiting（等待确认），补 inspect/repair 与 note 两阶段约定，论述下沉到随包 skill。'
 status: completed
 ---
 

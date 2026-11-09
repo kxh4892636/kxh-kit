@@ -1,6 +1,6 @@
 ---
 name: 'dsh插件适配0.1.5-rc.1'
-description: '`packages/dsh-nested-skill` 与 `packages/dsh-session-manager` 按 DSH `0.1.2-rc.1` 写成；宿主 `latest` 发布通道已跳到 `0.1.5-rc.1`（`dsh.log` `2026-09-10T14:24:58Z`）。逐包比对 0.1.2-rc.1 tarball 与运行中 0.1.5-rc.1 安装树的 `lib/types/*.d.ts` 后确认：**没有任何导致插件加载失败…'
+description: '把 dsh-nested-skill 与 dsh-session-manager 从宿主 0.1.2-rc.1 适配到 0.1.5-rc.1：逐包比对类型声明后确认无需改代码。'
 status: completed
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: '合并为单一etf应用'
-description: '`apps/etf-dashboard` 与 `apps/etf-service` 分别维护依赖、脚本、类型配置与运行入口，跨端共用的类型只能靠 workspace 包 `exports` 传递。用户要求合并为单一 `apps/etf` 应用：前端技术栈不变（React + Vite + antd + Tailwind），代码与目录可调整；后端继续使用 TypeScript + Hono，以 RPC 形式暴露 API，并采用 Hono 面向大型应用的 RPC …'
+description: '把 etf-dashboard 与 etf-service 合并为单一 apps/etf：前端栈不变，后端 Hono 以 RPC 暴露 API，共用类型不再靠 workspace 包透传。'
 status: completed
 ---
 
