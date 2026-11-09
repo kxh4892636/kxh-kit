@@ -1,7 +1,7 @@
 ---
 name: "nano-flow优化迭代"
 description: "nano-flow 迭代主线：绑定机制收口、Note 面板提示、单会话 Plan 复用与写入节奏改惰性。"
-status: completed
+status: in_progress
 ---
 
 # nano-flow优化迭代
@@ -20,6 +20,7 @@ status: completed
 - [008-改回深色Tooltip气泡](008-改回深色Tooltip气泡.md)：气泡换回宿主深色 Tooltip，保留整行锚点。
 - [009-调研Plan写入现状与惰性化取舍](009-调研Plan写入现状与惰性化取舍.md)：把「及时写」改成「惰性写」的取舍。
 - [010-单会话复用绑定Plan的规则](010-单会话复用绑定Plan的规则.md)：默认追加 note，新建 Plan 需用户确认。
+- [011-改note划分原则为交付单元](011-改note划分原则为交付单元.md)：note 改按可独立验收的交付单元划分。
 
 ## 当前结论
 
@@ -41,6 +42,10 @@ GUIDE 正文只由 dream 父会话整体重写；日常 Plan 不得修改、移�
 ### Note 面板提示（007–008）
 
 面板条目透传 `reason` 与 `nextStep`，悬浮整行时由宿主 `Tooltip` 显示三行：描述、`原因：…`、`下一步：…`（缺字段不出现）。锚点是整行 `.dshtk-notes-row`，否则只有标题文字能触发。宿主气泡是深色（`--dsw-alias-tooltip-bg`）且 `white-space: pre-line`，换行有效、`position: fixed` 不受面板 `overflow` 影响。浅色 `HoverCard preview` 方案试过并回退：它的宽度恒等于锚点宽减 48px，靠内容自适应改不动。
+
+### note 划分（011）
+
+一条 note = 一个可独立验收的交付单元：同一单元内的返工、补测、修正与验证并入原 note，不新开；只有验收条件或状态需要分别表达（会单独 `blocked`、单独验收）时才拆。面板只显示未完成状态，按主题硬合并会把「主体已完成、某项仍在等验收」压成一个状态而失真。判据：这条 note 会不会单独 blocked？会就拆。
 
 ### 单会话与新建 Plan（010）
 
@@ -72,3 +77,4 @@ GUIDE 正文只由 dream 父会话整体重写；日常 Plan 不得修改、移�
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
+| [011-改note划分原则为交付单元](011-改note划分原则为交付单元.md) | 把「原子化子任务」改成「可独立验收的交付单元」：同单元返工并入，只有状态需分别表达才拆。 | in_progress | — | 等用户确认改动后 build/装包，让提示词与 skill 生效。 | 010-单会话复用绑定Plan的规则 |

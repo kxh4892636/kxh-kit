@@ -13,3 +13,4 @@
 | [007-dream由宿主定时任务投递新会话](007-dream由宿主定时任务投递新会话.md) | dream 由宿主 Schedule 每日把 dream.md 投到新建的 nano-flow 会话，不内建定时器；游标让至少一次投递变幂等。 | accepted |
 | [008-轮转绑定继承旧会话的Plan](008-轮转绑定继承旧会话的Plan.md) | 轮转后的自动绑定继承轮转前会话的 Plan，与工作区 active Plan 数量无关；无绑定或目录失效时跳过。 | superseded |
 | [009-Plan绑定只经bind工具](009-Plan绑定只经bind工具.md) | 会话↔Plan 绑定只由 nano_flow_bind 写入；check、plan-log 与轮转都不自动绑定。 | accepted |
+| [010-note按交付单元划分](010-note按交付单元划分.md) | note 以可独立验收的交付单元划分：同单元返工并入，只有验收或状态需分别表达时才拆。 | accepted |
