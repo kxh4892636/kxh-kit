@@ -153,7 +153,8 @@ describe("registerNanoFlow", () => {
     const discovered = harness.fire("resources_discover", ctx) as Array<{
       skillPaths?: string[];
     }>;
-    expect(discovered[0]?.skillPaths?.[0]).toMatch(/nano-flow\/skills$/u);
+    // Windows joins these paths with `\`, so the assertion must accept both separators.
+    expect(discovered[0]?.skillPaths?.[0]).toMatch(/nano-flow[/\\]skills$/u);
 
     const off = setup({ switchOn: false, always: true });
     const offCtx = off.ctx();
