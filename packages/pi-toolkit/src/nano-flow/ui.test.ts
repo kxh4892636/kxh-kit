@@ -34,6 +34,8 @@ interface OverlayOptions {
   readonly col?: number;
   readonly anchor?: string;
   readonly width?: number;
+  readonly visible?: (width: number, height: number) => boolean;
+  readonly margin?: { top?: number; right?: number; bottom?: number; left?: number };
 }
 
 interface Overlay {
@@ -122,21 +124,32 @@ describe("notes sidebar", () => {
     const sidebar = createNotesSidebar({ snapshot });
     sidebar.sync(ctx, true);
     expect(widgets.has("nano-flow-notes")).toBe(true);
-    expect(overlays).toHaveLength(1);
+    // 两个 overlay：列表在 0，右上角图标在 1。
+    expect(overlays).toHaveLength(2);
 
     const list = overlays[0]?.component;
+    const icon = overlays[1]?.component;
     const lines = list?.render(80) ?? [];
-    // 图标行在边框之上、与侧栏右缘对齐，且每行都是 40 列。
-    expect((lines[0] ?? "").trimEnd().endsWith("▤")).toBe(true);
+    // 框体每行都是 40 列；图标不再占框体行，边框外不铺空格。
+    expect(lines).toHaveLength(5);
     expect(lines.every((line) => visibleWidth(line) === 40)).toBe(true);
     expect(lines.join("\n")).toContain("Note · 2026-11-09-示例");
     expect(lines.join("\n")).toContain("待处理 · 001-待处理");
     expect(lines.join("\n")).toContain("阻塞 · 002-阻塞");
+    // 图标是 1 列 overlay：整行只有字形本身，没有前导空格（否则会抹掉底行背景）。
+    const iconLines = icon?.render(1) ?? [];
+    expect(iconLines).toEqual(["▤"]);
+    expect(overlays[1]?.options?.width).toBe(1);
+    expect(overlays[1]?.options?.visible?.(200, 50)).toBe(true);
+    // 图标与框体同在 top: 1，右缘对齐：`▤` 占的就是上边框右上角 `┐` 那一格，
+    // 因此那格底色属于卡片本身，不会在边框外留下一块悬空的默认底色。
+    expect(overlays[0]?.options?.margin).toEqual({ top: 1, right: 1, bottom: 1, left: 1 });
+    expect(overlays[1]?.options?.margin).toEqual({ top: 1, right: 1 });
 
-    // 第 0 行是右上角图标行，第 1 行上边框，第 2 行标题；note 从第 3 行开始。
-    list?.handleMouse?.({ type: "click", x: 10, y: 3, screenX: 160, screenY: 12 });
-    expect(overlays).toHaveLength(2);
-    const detailLines = overlays[1]?.component.render(80) ?? [];
+    // 第 0 行上边框、第 1 行标题；note 从第 2 行开始。
+    list?.handleMouse?.({ type: "click", x: 10, y: 2, screenX: 160, screenY: 12 });
+    expect(overlays).toHaveLength(3);
+    const detailLines = overlays[2]?.component.render(80) ?? [];
     const detail = detailLines.join("\n");
     expect(detail).toContain("001-待处理");
     expect(detail).toContain("待处理描述");
@@ -149,18 +162,18 @@ describe("notes sidebar", () => {
     expect(visibleWidth(titleLine.slice(0, titleLine.indexOf("✕")))).toBe(45);
     // 图标用 warning 单独着色，而不是跟着整行走 border。
     fgTokens.length = 0;
-    overlays[1]?.component.render(80);
+    overlays[2]?.component.render(80);
     expect(fgTokens).toContain("warning");
     // 悬浮在所点 note 行左下侧：顶端对齐该行，右缘在侧栏左缘左侧。
-    expect(overlays[1]?.options?.row).toBe(12);
-    expect(overlays[1]?.options?.col).toBe(160 - 10 - 48 - 2);
+    expect(overlays[2]?.options?.row).toBe(12);
+    expect(overlays[2]?.options?.col).toBe(160 - 10 - 48 - 2);
 
-    list?.handleMouse?.({ type: "click", x: 10, y: 4, screenX: 160, screenY: 13 });
-    expect(overlays[1]?.component.render(80).join("\n")).toContain("原因：等验收");
+    list?.handleMouse?.({ type: "click", x: 10, y: 3, screenX: 160, screenY: 13 });
+    expect(overlays[2]?.component.render(80).join("\n")).toContain("原因：等验收");
 
     // 点击标题行右端的 × 关闭卡片。
-    overlays[1]?.component.handleMouse?.({ type: "click", x: 45, y: 1, screenX: 110, screenY: 13 });
-    expect(overlays[1]?.hidden).toBe(true);
+    overlays[2]?.component.handleMouse?.({ type: "click", x: 45, y: 1, screenX: 110, screenY: 13 });
+    expect(overlays[2]?.hidden).toBe(true);
 
     listeners[0]?.("\u001b");
     expect(overlays.at(-1)?.hidden).toBe(true);
@@ -177,14 +190,14 @@ describe("notes sidebar", () => {
     });
     sidebar.sync(ctx, true);
     const lines = overlays[0]?.component.render(80) ?? [];
-    // 图标行 + 上边框 + 标题行 + 空态行 + 下边框。
-    expect(lines).toHaveLength(5);
-    expect(lines[2]).toContain("Note · 2026-11-09-示例");
-    expect(lines[3]).toContain("全部完成");
+    // 上边框 + 标题行 + 空态行 + 下边框。
+    expect(lines).toHaveLength(4);
+    expect(lines[1]).toContain("Note · 2026-11-09-示例");
+    expect(lines[2]).toContain("全部完成");
     expect(lines.every((line) => visibleWidth(line) === 40)).toBe(true);
     // 空态行不是 note 行，点了不出卡片。
-    overlays[0]?.component.handleMouse?.({ type: "click", x: 10, y: 3, screenX: 160, screenY: 13 });
-    expect(overlays).toHaveLength(1);
+    overlays[0]?.component.handleMouse?.({ type: "click", x: 10, y: 2, screenX: 160, screenY: 13 });
+    expect(overlays).toHaveLength(2);
     sidebar.dispose();
   });
 
@@ -194,26 +207,26 @@ describe("notes sidebar", () => {
     const sidebar = createNotesSidebar({ snapshot });
     sidebar.sync(ctx, true);
     const list = overlays[0]?.component;
-    const expanded = list?.render(80) ?? [];
-    // 图标行 + 上边框 + 标题行 + 两条 note + 下边框。
-    expect(expanded).toHaveLength(6);
+    const icon = overlays[1]?.component;
+    // 上边框 + 标题行 + 两条 note + 下边框。
+    expect(list?.render(80)).toHaveLength(5);
 
-    // 点标题行中间不折叠。
+    // 折叠：点图标后框体不再渲染任何行，只剩图标本身。
+    icon?.handleMouse?.({ type: "click", x: 0, y: 0 });
+    expect(list?.render(80)).toEqual([]);
+    expect(icon?.render(1)).toEqual(["▤"]);
+
+    // 折叠态点原 note 位置不出卡片。
     list?.handleMouse?.({ type: "click", x: 10, y: 2 });
-    expect(list?.render(80)).toHaveLength(6);
+    expect(overlays).toHaveLength(2);
 
-    // 图标命中区为右端 3 列（第 38–40 列）。
-    list?.handleMouse?.({ type: "click", x: 38, y: 0 });
-    const collapsed = list?.render(80) ?? [];
-    expect(collapsed).toHaveLength(1);
-    expect((collapsed[0] ?? "").trimEnd().endsWith("▤")).toBe(true);
-    expect(visibleWidth(collapsed[0] ?? "")).toBe(40);
+    // 再点图标展开。
+    icon?.handleMouse?.({ type: "click", x: 0, y: 0 });
+    expect(list?.render(80)).toHaveLength(5);
 
-    // 折叠态点 note 行不出卡片、点图标再展开。
-    list?.handleMouse?.({ type: "click", x: 10, y: 3 });
-    expect(overlays).toHaveLength(1);
-    list?.handleMouse?.({ type: "click", x: 39, y: 0 });
-    expect(list?.render(80)).toHaveLength(6);
+    // 展开后点 note 行照常出卡片。
+    list?.handleMouse?.({ type: "click", x: 10, y: 2 });
+    expect(overlays).toHaveLength(3);
     sidebar.dispose();
   });
 
@@ -222,7 +235,10 @@ describe("notes sidebar", () => {
     const { ctx } = fakeCtx(tui);
     const sidebar = createNotesSidebar({ snapshot: () => null });
     sidebar.sync(ctx, true);
-    expect(overlays[0]?.component.render(80)).toEqual([]);
+    const lines = overlays[0]?.component.render(80) ?? [];
+    expect(lines).toEqual([]);
+    // 图标 overlay 的可见性由谓词控制：没有绑定 Plan 时整块都不出现。
+    expect(overlays[1]?.options?.visible?.(200, 50)).toBe(false);
     sidebar.dispose();
   });
 });
