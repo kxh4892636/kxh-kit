@@ -1,10 +1,10 @@
 ---
 name: "011-改note划分原则为交付单元"
 description: "把「原子化子任务」改成「可独立验收的交付单元」：同单元返工并入，只有状态需分别表达才拆。"
-status: in_progress
+status: completed
 related_noted:
   - "010-单会话复用绑定Plan的规则"
-next_step: "等用户确认改动后 build/装包，让提示词与 skill 生效。"
+next_step: "已交付；口径见 ADR 010，别再按子任务拆 note。"
 ---
 
 # 011-改note划分原则为交付单元
@@ -35,6 +35,10 @@ next_step: "等用户确认改动后 build/装包，让提示词与 skill 生效
 - `pnpm -C packages/dsh-toolkit test` 与 `check`：见交付回复（本轮只改文本，测试不受影响）。
 - `nano_flow_check`（全工作区）：本 note 与 ADR 010 加入后应通过。
 - 提示词在插件挂载时读取，改动要 build + 装包 + 重启宿主才生效（本轮按用户要求不 commit、不打包）。
+
+## 安装记录
+
+2026-11-09 15:45：随 `0.5.46` 装进 web profile。核对：安装版本 `0.5.46`、`dist/nano-flow/prompts/system.md` 含「可独立验收的交付单元」1 处、`dist/nano-flow/skills/ask/SKILL.md` 含「按交付单元聚合」1 处。提示词在挂载时读取，**重启宿主后生效**。
 
 ## 相关
 

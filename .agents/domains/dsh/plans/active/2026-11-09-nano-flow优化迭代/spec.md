@@ -1,7 +1,7 @@
 ---
 name: "nano-flow优化迭代"
 description: "nano-flow 迭代主线：绑定机制收口、Note 面板提示、单会话 Plan 复用与写入节奏改惰性。"
-status: in_progress
+status: completed
 ---
 
 # nano-flow优化迭代
@@ -77,4 +77,3 @@ GUIDE 正文只由 dream 父会话整体重写；日常 Plan 不得修改、移�
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [011-改note划分原则为交付单元](011-改note划分原则为交付单元.md) | 把「原子化子任务」改成「可独立验收的交付单元」：同单元返工并入，只有状态需分别表达才拆。 | in_progress | — | 等用户确认改动后 build/装包，让提示词与 skill 生效。 | 010-单会话复用绑定Plan的规则 |
