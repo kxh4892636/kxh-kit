@@ -73,6 +73,20 @@ _Avoid_：Anthropic web_search server tool、直连抓取、MCP 工具、web sea
 向用户提出一个或多个问题并阻塞等待作答的模型工具；每题最多 3 个预设选项，也可自定义回答或跳过。TUI 用单个组件管理全部题目（切题、回改、独立的「提交」页），rpc / print 退回顺序问答，无交互界面时返回 `needs=answer` 登记而不报错。
 _Avoid_：问答表单、确认弹窗、orchestrator 工具
 
+### provider
+
+**Command Code provider**：
+`pi-toolkit` 注册的 `commandcode` provider，一个网关同时提供 OpenAI Chat Completions 与 Anthropic Messages 两套协议；11 个 `claude-*` 走 `anthropic-messages`（baseUrl `https://api.commandcode.ai/provider`），其余 85 个走 `openai-completions`（`.../provider/v1`），差异来自各 SDK 自己追加 `/v1/messages` 与 `/chat/completions`。
+_Avoid_：拆成两个 provider、静态 models.json 清单
+
+**provider 目录发现**：
+`refreshModels` 每次刷新先拉 `GET /provider/v1/models`（免鉴权）取 id 与上下文窗口，再合并价格页内嵌 JSON 补 `cost`（归一化 id 前缀匹配），成功后用 `context.publish({ persist })` 存快照；断网或上游失败时回退快照，没有快照则把错误抛给 pi。价格缺失只降级为 0 价。
+_Avoid_：手写模型清单、把价格当成目录的前置条件
+
+**provider 凭据链路**：
+注册时不写 `apiKey`，pi 据此生成默认 API key 登录方式，`commandcode` 因此出现在 `/login` 的 API key 列表，凭据落 `~/.pi/agent/auth.json`；未登录时它在 `/model` 与 `pi --list-models` 中都不可见。
+_Avoid_：`$CMD_API_KEY` 环境变量、明文 key 写进配置
+
 ### Nano Flow
 
 **Nano Flow 会话**：
@@ -96,7 +110,7 @@ _Avoid_：会话轮转、会话删除、压缩
 _Avoid_：摘要、handoff prompt
 
 **Note 侧栏**：
-fullscreen 右上角 overlay：只列当前绑定 Plan 的未完成 note，行 = 中文状态 + note 名；点击某行后，详情卡悬浮在该行左下侧（顶端与该行对齐、右缘离侧栏 2 列），标题行右端带 `×`，`×` 或 Esc 关闭，`turn_end` 刷新一次。
+fullscreen 右上角 overlay：**已绑定 Plan 时常驻**，列当前绑定 Plan 的未完成 note（可为空，空时框内留一行 dim `全部完成`），行 = 中文状态 + note 名；点击某行后，详情卡悬浮在该行左下侧（顶端与该行对齐、右缘离侧栏 2 列），标题行右端带 `×`，`×` 或 Esc 关闭，`turn_end` 刷新一次。边框之上、与侧栏右缘对齐处有一个与边框同色的 `▤` 图标，点击把整块收成这一个图标，再点展开（折叠状态存内存，不落盘）。
 _Avoid_：看板、dock、悬浮提示、居中弹窗
 
 **Plan 轨迹**：

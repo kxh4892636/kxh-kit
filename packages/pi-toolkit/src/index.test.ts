@@ -45,6 +45,7 @@ interface SessionContext {
 
 interface Harness {
   readonly tools: RegisteredTool[];
+  readonly providers: Map<string, { apiKey?: string; refreshModels?: unknown }>;
   readonly active: () => string[];
   readonly commands: Map<string, { description?: string; handler: Handler }>;
   fire(event: string, ctx: SessionContext, payload?: unknown): unknown[];
@@ -98,8 +99,12 @@ const setup = (
   const tools: RegisteredTool[] = [];
   const handlers = new Map<string, Handler[]>();
   const registeredCommands = new Map<string, { description?: string; handler: Handler }>();
+  const providers = new Map<string, { apiKey?: string; refreshModels?: unknown }>();
   let active = [...initialActive];
   const fake = {
+    registerProvider: (id: string, config: { apiKey?: string; refreshModels?: unknown }) => {
+      providers.set(id, config);
+    },
     registerTool: (definition: RegisteredTool) => {
       tools.push(definition);
     },
@@ -122,6 +127,7 @@ const setup = (
   piToolkit(fake, options);
   return {
     tools,
+    providers,
     active: () => [...active],
     commands: registeredCommands,
     fire: (event, ctx, payload) => {
@@ -164,6 +170,14 @@ describe("piToolkit", () => {
     expect(harness.commands.get("toolkit")?.description).toMatch(/enable or disable/iu);
     const webSearch = harness.tools.find((tool) => tool.name === "web_search");
     expect(Object.keys(webSearch?.parameters.properties ?? {})).toEqual(["queries"]);
+  });
+
+  it("registers the Command Code provider without an api key", () => {
+    const harness = setup();
+    const provider = harness.providers.get("commandcode");
+    expect(provider).toBeDefined();
+    expect(provider?.apiKey).toBeUndefined();
+    expect(provider?.refreshModels).toBeTypeOf("function");
   });
 
   it("leaves everything off without a config file", async () => {
