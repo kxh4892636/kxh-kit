@@ -96,16 +96,15 @@ const NotesTooltip: FC<{ readonly note: PanelNote; readonly children?: ReactNode
         anchor: children,
         content: noteTip(note),
         openDelayMs: 150,
+        // preview 变体的宽度取自锚点（整行减两侧 24px），内容铺满卡片。
         variant: "preview",
-        fitContent: true,
       })
   : ({ note, children }) => createElement("span", { title: tooltipLabel(note) }, children);
 
 /**
  * 悬浮提示的多行文本：描述在最前，有原因与下一步时各占一行。
  *
- * 宿主 Tooltip 的气泡是 `white-space: pre-line`、`position: fixed`，
- * 因此 `\n` 会渲染成换行，也不会被面板的 `overflow: hidden` 裁掉。
+ * 只给宿主缺 `HoverCard` 时的 `title` 兜底用；`\n` 在原生提示与宿主气泡里都按行渲染。
  * @param note - 面板条目。
  * @returns 以换行分隔的标签。
  */

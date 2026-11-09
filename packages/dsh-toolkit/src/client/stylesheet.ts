@@ -520,8 +520,7 @@ const css = `
   flex-direction: column;
   gap: 4px;
   box-sizing: border-box;
-  min-width: 180px;
-  max-width: 320px;
+  width: 100%;
   padding: 10px 12px;
   font-size: 13px;
   line-height: 20px;
@@ -531,13 +530,11 @@ const css = `
   margin: 0;
 }
 .dshtk-note-tip-row {
-  display: flex;
-  gap: 6px;
   margin: 0;
   color: var(--dsw-alias-label-secondary);
 }
 .dshtk-note-tip-key {
-  flex: none;
+  margin-right: 6px;
   color: var(--dsw-alias-label-tertiary);
 }
 .dshtk-notes-status {
