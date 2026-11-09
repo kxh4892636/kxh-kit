@@ -234,6 +234,10 @@ export const registerNanoFlow = (pi: ExtensionAPI, deps: NanoFlowDeps): NanoFlow
     return { messages: [seed, ...kept] };
   });
 
+  // Nano Flow 激活时禁用压缩：清空由 rotateAt 负责，压缩会把清空前的历史摘要式带回上下文。
+  // 手动 `/compact`（manual）、阈值（threshold）与溢出恢复（overflow）一律取消。
+  pi.on("session_before_compact", (_event, ctx) => (activeOf(ctx) ? { cancel: true } : undefined));
+
   pi.on("turn_end", () => {
     sidebar.refresh();
   });
