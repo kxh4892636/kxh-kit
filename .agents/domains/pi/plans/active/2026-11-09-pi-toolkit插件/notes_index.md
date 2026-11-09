@@ -20,3 +20,4 @@
 | [014-Plan轨迹落盘](014-Plan轨迹落盘.md) | 把每次 run 新增的 pi 会话条目原样复制到 `<plan>/log.jsonl` 一行，run 结束（agent_end）时写一次；文件仍在 .gitignore 内，不进版本库。 | 013-dream手动维护命令 |
 | [015-定时触发dream](015-定时触发dream.md) | 用 systemd user timer 加 RPC 客户端每日在清单目录跑 /dream；print 模式实测空转，wrapper 负责锁、干净预检、超时与日志。 | 013-dream手动维护命令, 014-Plan轨迹落盘 |
 | [016-校验项自动修复清单](016-校验项自动修复清单.md) | 把 nano_flow_check 的问题按确定性分三档：已自动修、可机械修（含联动风险）、无法自动修；待用户选定批次后实现。 | 015-定时触发dream |
+| [017-注入ponytail两个skill](017-注入ponytail两个skill.md) | 把 ponytail 的 audit 与 review 两个 skill 注入 nano-flow：audit 用 disable-model-invocation 设为只能手动调用，review 由 do 的代码交付引用。 | 016-校验项自动修复清单 |
