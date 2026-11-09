@@ -81,13 +81,32 @@ next_step: "硬刷新页面（缓存未换就重启宿主）→ 悬浮 Note 行�
 
 2026-11-09 14:42：升 `0.5.41` → build（`dist/client.js` 57 004 字节）→ `pnpm pack` 出 `~/.dsh/pkgs/kxh4892636-dsh-toolkit-0.5.41.tgz` → 装进 web profile。核对：安装版本 `0.5.41`，`dist/client.js` 含 `dshtk-notes-row` 2 处。
 
+## 宽度修正（0.5.43）
+
+用户回执：浅色卡片生效，但「内部内容宽度错误」，宽度应占整行。查宿主 `HoverCard` 的 preview 分支：
+
+```text
+kt = min(锚点宽 - 24*2, 视口宽 - 8*2)   // 卡片宽度直接取锚点（整行）宽度
+Z({ left: 锚点左 + 24, top: ..., width: kt })
+```
+
+也就是说卡片本来就是整行宽（左右各内缩 24px），错的是内容：`.dshtk-note-tip` 当时带 `max-width: 320px`，于是宽卡片里只有一条窄文本列，右侧大片留白。修正：
+
+- 去掉 `min/max-width`，改用 `width: 100%`，内容跟随卡片宽度；
+- 「原因 / 下一步」从 flex 两列改成块级行内标签（`原因` + 空格 + 正文），换行后与首行左对齐，不再出现悬挂缩进；
+- 去掉 `fitContent`——preview 分支不认它，宽度恒等于锚点宽。
+
 ## 安装记录（0.5.42）
 
 2026-11-09 14:52：升 `0.5.42` → build（`dist/client.js` 58 168 字节，含 `dshtk-note-tip` 6 处、`HoverCard` 3 处）→ pack 出 `~/.dsh/pkgs/kxh4892636-dsh-toolkit-0.5.42.tgz` → 装进 web profile。核对安装版本 `0.5.42`。
 
+## 安装记录（0.5.43）
+
+2026-11-09 15:00：升 `0.5.43` → build（`dist/client.js` 58 051 字节）→ pack → 装进 web profile。核对：安装版本 `0.5.43`、`dshtk-note-tip-row` 2 处、已无 `max-width:320px`。
+
 ## 遗留
 
-- 真机未验（0.5.42）：硬刷新页面后看浅色卡片。
+- 真机未验（0.5.43）：硬刷新后看内容是否铺满整行。
 - 宿主 `Tooltip` 不可用时退回原生 `title`，同样保留换行。
 - `reason` 目前只在 `blocked` 时存在，因此「原因：」实际只在阻塞行出现。
 
