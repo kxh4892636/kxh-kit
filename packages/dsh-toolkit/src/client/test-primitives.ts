@@ -92,6 +92,22 @@ export const Tooltip = (props: TooltipProps): unknown => {
   return createElement("span", { title: props.label }, props.children as never);
 };
 
+interface HoverCardProps {
+  readonly anchor: unknown;
+  readonly content: unknown;
+  readonly openDelayMs?: number;
+  readonly variant?: string;
+  readonly fitContent?: boolean;
+  readonly inline?: boolean;
+  readonly disabled?: boolean;
+}
+
+/** 替身：锚点与内容都直接渲染，内容常驻以便断言。 */
+export const HoverCard = (props: HoverCardProps): unknown => {
+  if (props.disabled === true) return props.anchor as never;
+  return createElement("span", null, props.anchor as never, props.content as never);
+};
+
 interface IconProps {
   readonly size?: number;
   readonly className?: string;

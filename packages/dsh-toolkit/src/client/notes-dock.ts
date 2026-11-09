@@ -7,7 +7,7 @@ import {
   type FC,
   type ReactNode,
 } from "react";
-import { Tooltip } from "@deepseek-ai/dsh-client-ui-primitives";
+import { HoverCard } from "@deepseek-ai/dsh-client-ui-primitives";
 
 import {
   NANO_FLOW_NOTES_REFRESH_MS,
@@ -57,17 +57,49 @@ const isRenderable = (value: unknown): boolean =>
     typeof (value as { readonly $$typeof?: unknown }).$$typeof !== "undefined");
 
 /**
- * 宿主 Tooltip 可用就用宿主组件，否则退回原生 `title`。
- *
- * `portal` 必须开：气泡默认渲染在锚点旁边，composer dock 的祖先可能有
- * `transform`/`overflow`，会把 `position: fixed` 的气泡裁掉或压在下面。
+ * 提示内容：描述在最前，原因与下一步各占一行。
+ * @param note - 面板条目。
+ * @returns 卡片内容节点。
  */
-const NotesTooltip: FC<{ readonly label: string; readonly children?: ReactNode }> = isRenderable(
-  Tooltip,
+const noteTip = (note: PanelNote): ReactNode =>
+  createElement(
+    "div",
+    { className: "dshtk-note-tip", "data-note": note.name },
+    createElement("p", { className: "dshtk-note-tip-desc" }, note.description),
+    note.reason === undefined
+      ? null
+      : createElement(
+          "p",
+          { className: "dshtk-note-tip-row" },
+          createElement("span", { className: "dshtk-note-tip-key" }, "原因"),
+          note.reason,
+        ),
+    note.nextStep === undefined
+      ? null
+      : createElement(
+          "p",
+          { className: "dshtk-note-tip-row" },
+          createElement("span", { className: "dshtk-note-tip-key" }, "下一步"),
+          note.nextStep,
+        ),
+  );
+
+/**
+ * 悬浮卡片：优先用宿主 `HoverCard` 的 `preview` 变体（浅色卡片，自带 portal、
+ * 定位与阴影），宿主没导出时退回原生 `title`。
+ */
+const NotesTooltip: FC<{ readonly note: PanelNote; readonly children?: ReactNode }> = isRenderable(
+  HoverCard,
 )
-  ? ({ label, children }) =>
-      createElement(Tooltip, { label, side: "top", delayMs: 200, portal: true }, children)
-  : ({ label, children }) => createElement("span", { title: label }, children);
+  ? ({ note, children }) =>
+      createElement(HoverCard, {
+        anchor: children,
+        content: noteTip(note),
+        openDelayMs: 150,
+        variant: "preview",
+        fitContent: true,
+      })
+  : ({ note, children }) => createElement("span", { title: tooltipLabel(note) }, children);
 
 /**
  * 悬浮提示的多行文本：描述在最前，有原因与下一步时各占一行。
@@ -210,7 +242,7 @@ const NotesPanelView: FC<{
                 // 悬浮区是整行：状态名与标题都算「对应项」，只挂在标题上会漏掉大部分行宽。
                 createElement(
                   NotesTooltip,
-                  { label: tooltipLabel(note) },
+                  { note },
                   createElement(
                     "span",
                     { className: "dshtk-notes-row" },
