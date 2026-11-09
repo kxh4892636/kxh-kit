@@ -3,7 +3,7 @@ import type { Dirent } from "node:fs";
 import { join } from "node:path";
 import type { FileSystem, FsTarget } from "@deepseek-ai/dsh-fs";
 
-export type FsKind = "file" | "directory";
+type FsKind = "file" | "directory";
 
 /** 目录项的模型可见路径，供后续读取复用。 */
 export interface FsEntry {
@@ -110,7 +110,7 @@ export const fsServiceHostFs = (fs: FileSystem): HostFs => {
   };
 };
 
-export const isMissingPathError = (error: unknown): boolean => {
+const isMissingPathError = (error: unknown): boolean => {
   return (
     hasErrorCode(error, "ENOENT") ||
     hasErrorCode(error, "ENOTDIR") ||

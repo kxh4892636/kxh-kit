@@ -20,9 +20,11 @@ import {
 } from "../contract.js";
 import { UnknownToolError, type ToolkitRegistry } from "./toolkit-registry.js";
 import { UndoUnavailableError } from "./undo/undo-turn.js";
+import { describeError } from "../shared/errors.js";
+import { isRecord } from "../shared/record.js";
 
 /** 宿主路由注册所需的能力。 */
-export interface ToolkitRoutesOptions {
+interface ToolkitRoutesOptions {
   readonly registry: ToolkitRegistry;
   /** 撤回能力；宿主缺 `sessionController` 时缺省，此时撤回路由返回不可用。 */
   readonly undo?: {
@@ -127,7 +129,9 @@ const handleNotes = (options: ToolkitRoutesOptions, request: Request): Promise<R
   try {
     return Promise.resolve(json<NanoFlowNotesResponse>({ snapshot: options.notes.of(sessionId) }));
   } catch (error) {
-    options.logger.warn(`toolkit: notes snapshot for "${sessionId}" failed: ${describe(error)}`);
+    options.logger.warn(
+      `toolkit: notes snapshot for "${sessionId}" failed: ${describeError(error)}`,
+    );
     return Promise.resolve(failure(500, "internal", "the notes snapshot could not be read"));
   }
 };
@@ -149,7 +153,7 @@ const handleNanoFlow = async (
   try {
     return json<NanoFlowSettingsResponse>({ settings: await options.nanoFlow.update(patch) });
   } catch (error) {
-    return failure(400, "invalid-settings", describe(error));
+    return failure(400, "invalid-settings", describeError(error));
   }
 };
 
@@ -168,7 +172,7 @@ const handleState = async (options: ToolkitRoutesOptions, request: Request): Pro
     if (error instanceof UnknownToolError) {
       return failure(400, "unknown-tool", error.message);
     }
-    options.logger.warn(`toolkit: toggling "${change.id}" failed: ${describe(error)}`);
+    options.logger.warn(`toolkit: toggling "${change.id}" failed: ${describeError(error)}`);
     return failure(500, "internal", "the tool could not be toggled");
   }
 };
@@ -193,7 +197,7 @@ const handleUndo = async (options: ToolkitRoutesOptions, request: Request): Prom
     if (error instanceof UndoUnavailableError) {
       return failure(409, error.reason, error.message);
     }
-    options.logger.warn(`toolkit: undo of "${sessionId}" failed: ${describe(error)}`);
+    options.logger.warn(`toolkit: undo of "${sessionId}" failed: ${describeError(error)}`);
     return failure(500, "internal", "the turn could not be undone");
   }
 };
@@ -207,7 +211,7 @@ const inspectUndo = (options: ToolkitRoutesOptions, request: Request): Response 
     const availability = options.undo?.inspect(sessionId);
     return json<UndoAvailability>(availability ?? { available: false, reason: "unsupported-host" });
   } catch (error) {
-    options.logger.warn(`toolkit: undo probe for "${sessionId}" failed: ${describe(error)}`);
+    options.logger.warn(`toolkit: undo probe for "${sessionId}" failed: ${describeError(error)}`);
     return json<UndoAvailability>({ available: false, reason: "unavailable" });
   }
 };
@@ -215,10 +219,6 @@ const inspectUndo = (options: ToolkitRoutesOptions, request: Request): Response 
 const stateOf = (options: ToolkitRoutesOptions): ToolkitStateResponse => ({
   tools: options.registry.list(),
 });
-
-const isRecord = (value: unknown): value is Record<string, unknown> => {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-};
 
 const json = <T>(body: T, status = 200): Response => {
   return new Response(JSON.stringify(body), {
@@ -255,8 +255,4 @@ const asSessionId = (value: unknown): string | undefined => {
   if (typeof value !== "object" || value === null) return undefined;
   const sessionId = (value as { sessionId?: unknown }).sessionId;
   return typeof sessionId === "string" && sessionId !== "" ? sessionId : undefined;
-};
-
-const describe = (error: unknown): string => {
-  return error instanceof Error ? error.message : String(error);
 };

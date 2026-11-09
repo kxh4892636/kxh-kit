@@ -3,15 +3,11 @@ import { randomUUID } from "node:crypto";
 import type { NanoFlowSettings } from "../contract.js";
 import { NANO_FLOW_SERVICE, type ToolkitNanoFlowFacade } from "../host/nano-flow-facade.js";
 import { deleteSessionLogs } from "../host/undo/purge.js";
-import {
-  asRecord,
-  ASSISTANT_LIMIT,
-  groupByTurn,
-  textOf,
-  type SessionEventLike,
-} from "./plan-log.js";
+import { ASSISTANT_LIMIT, groupByTurn, textOf, type SessionEventLike } from "./plan-log.js";
+import { asRecord } from "../shared/record.js";
 import { activePlans, listPlans, planRefOf } from "./plan.js";
 import type { HostServices } from "./services.js";
+import { describeError } from "../shared/errors.js";
 
 /** 会话的最小形状：id、header 与日志快照。 */
 export interface RotationSession {
@@ -37,7 +33,7 @@ interface TokenMeterLike {
 }
 
 /** 一次用户 prompt 里本插件需要保留的字段。 */
-export interface PromptContentLike {
+interface PromptContentLike {
   readonly type: string;
   readonly [key: string]: unknown;
 }
@@ -80,7 +76,7 @@ interface WorkingDirectoryLike {
 }
 
 /** 轮转所需依赖。 */
-export interface RotationOptions {
+interface RotationOptions {
   readonly services: HostServices;
   readonly config: { readonly presetId?: string; readonly workspace?: string };
   readonly domainRoot: string;
@@ -136,9 +132,6 @@ const delay = (ms: number): Promise<void> =>
     setTimeout(resolve, ms);
   });
 
-const describe = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
-
 const service = <T>(services: HostServices, name: string): T | undefined => {
   try {
     const value = services.get(name);
@@ -162,9 +155,7 @@ export const PRIOR_INPUT_TAG = "rotation-prior-input";
  * @param content - 用户这次提交的内容块（文本、图片等原样保留）。
  * @returns 追加了说明与包裹标签的内容块数组。
  */
-export const wrapPriorInput = (
-  content: readonly PromptContentLike[],
-): readonly PromptContentLike[] => [
+const wrapPriorInput = (content: readonly PromptContentLike[]): readonly PromptContentLike[] => [
   { type: "text", text: "以下 XML 块是轮转前用户在旧会话发出的输入：" },
   { type: "text", text: `<${PRIOR_INPUT_TAG}>` },
   ...content,
@@ -271,7 +262,7 @@ const buildSeed = async (
 };
 
 /** 轮转引擎：只挂压力触发的 prompt 包装（轮转只能自动触发）。 */
-export interface RotationEngine {
+interface RotationEngine {
   /** 挂上压力触发的 prompt 包装；返回 disposer。 */
   attach(): () => void;
 }
@@ -309,12 +300,16 @@ export const createRotation = (options: RotationOptions): RotationEngine => {
       try {
         await workspaces.archiveSession(sessionId, { stopActivity: true });
       } catch (error) {
-        services.logger.warn(`nano-flow: archive of "${sessionId}" failed: ${describe(error)}`);
+        services.logger.warn(
+          `nano-flow: archive of "${sessionId}" failed: ${describeError(error)}`,
+        );
       }
       for (const record of workspaces.list()) {
         if (!record.sessionIds.includes(sessionId)) continue;
         await record.detachSession(sessionId).catch((error: unknown) => {
-          services.logger.warn(`nano-flow: detach of "${sessionId}" failed: ${describe(error)}`);
+          services.logger.warn(
+            `nano-flow: detach of "${sessionId}" failed: ${describeError(error)}`,
+          );
         });
       }
     }
@@ -330,7 +325,9 @@ export const createRotation = (options: RotationOptions): RotationEngine => {
   };
 
   const warnPlacement = (what: string, error: unknown): void => {
-    services.logger.warn(`nano-flow: carry ${what} during rotation failed: ${describe(error)}`);
+    services.logger.warn(
+      `nano-flow: carry ${what} during rotation failed: ${describeError(error)}`,
+    );
   };
 
   /** 把旧会话的分组与置顶状态过继给新会话；失败只警告，不阻断轮转。 */
@@ -378,9 +375,9 @@ export const createRotation = (options: RotationOptions): RotationEngine => {
     try {
       return await check({ sessionId, previousSessionId, workspace });
     } catch (error) {
-      services.logger.warn(`nano-flow: auto check after rotation failed: ${describe(error)}`);
+      services.logger.warn(`nano-flow: auto check after rotation failed: ${describeError(error)}`);
       return {
-        text: `轮转后自动执行 \`nano_flow_check\` 失败：${describe(error)}。先手工跑一次确认 Plan 状态。`,
+        text: `轮转后自动执行 \`nano_flow_check\` 失败：${describeError(error)}。先手工跑一次确认 Plan 状态。`,
       };
     }
   };
@@ -447,7 +444,7 @@ export const createRotation = (options: RotationOptions): RotationEngine => {
       await retire(session.id);
       return result;
     } catch (error) {
-      services.logger.warn(`nano-flow: rotation failed: ${describe(error)}`);
+      services.logger.warn(`nano-flow: rotation failed: ${describeError(error)}`);
       return fallback();
     } finally {
       rotating.delete(session.id);

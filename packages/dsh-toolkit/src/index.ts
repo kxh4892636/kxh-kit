@@ -34,6 +34,7 @@ import {
   writeBindings,
 } from "./nano-flow/plan-log.js";
 import { planRefFromDirectory } from "./nano-flow/plan.js";
+import { resolveWorkspace } from "./nano-flow/workspace.js";
 import { hostServices } from "./nano-flow/services.js";
 import { createNestedSkillTool } from "./host/tools/nested-skill.js";
 import { createOfficeSkillsTool } from "./host/tools/office-skills.js";
@@ -61,6 +62,7 @@ import { DEFAULT_EXCLUDED_DIRS, type NestedSkillOptions } from "./nested-skill/p
 export { NESTED_SKILL_RANKS, nestedRank, PROVIDER_NAME } from "./nested-skill/provider.js";
 export type { NestedSkillSource } from "./nested-skill/provider.js";
 export { TOOL_IDS } from "./contract.js";
+import { describeError } from "./shared/errors.js";
 
 /** 插件配置：嵌套 skill 工具的选项 + 工具目录状态与会话日志根的位置覆盖。 */
 export type Config = NestedSkillOptions & {
@@ -133,7 +135,7 @@ const pruneDeadBindings = async (
   try {
     stored = (await persistence.list()).map((snapshot) => snapshot.header.id);
   } catch (error) {
-    logger.warn(`toolkit: listing sessions for binding cleanup failed: ${describe(error)}`);
+    logger.warn(`toolkit: listing sessions for binding cleanup failed: ${describeError(error)}`);
     return;
   }
   const table = await readBindings(file);
@@ -148,7 +150,9 @@ const pruneDeadBindings = async (
       }
     }
   } catch (error) {
-    logger.warn(`toolkit: checking live sessions for binding cleanup failed: ${describe(error)}`);
+    logger.warn(
+      `toolkit: checking live sessions for binding cleanup failed: ${describeError(error)}`,
+    );
     return;
   }
   if (alive.size === 0) return;
@@ -372,13 +376,13 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
       logger,
       announceRemoved: (sessionId: string) => {
         void store.addHiddenSession(sessionId).catch((error: unknown) => {
-          logger.warn(`toolkit: recording hidden session failed: ${describe(error)}`);
+          logger.warn(`toolkit: recording hidden session failed: ${describeError(error)}`);
         });
         try {
           // 宿主「会话已销毁」用的同一条广播：客户端据此把那一行摘掉。
           registerRemoval?.(sessionId);
         } catch (error) {
-          logger.warn(`toolkit: announcing removal failed: ${describe(error)}`);
+          logger.warn(`toolkit: announcing removal failed: ${describeError(error)}`);
         }
       },
     };
@@ -395,7 +399,7 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
     workspace: string,
   ): Promise<void> => {
     await pruneDeadBindings(ctx, bindingsFilePath(config), logger).catch((error: unknown) => {
-      logger.warn(`toolkit: pruning bindings failed: ${describe(error)}`);
+      logger.warn(`toolkit: pruning bindings failed: ${describeError(error)}`);
     });
     await replaceBinding(bindingsFilePath(config), sessionId, planDirectory, workspace);
   };
@@ -423,7 +427,7 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
           }
         : () => {};
     } catch (error) {
-      logger.warn(`toolkit: providing ${NANO_FLOW_SERVICE} failed: ${describe(error)}`);
+      logger.warn(`toolkit: providing ${NANO_FLOW_SERVICE} failed: ${describeError(error)}`);
       return () => {};
     }
   }, "toolkit: nano-flow service");
@@ -451,7 +455,7 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
               },
         );
       } catch (error) {
-        logger.warn(`toolkit: start failed: ${describe(error)}`);
+        logger.warn(`toolkit: start failed: ${describeError(error)}`);
       }
     },
     hiddenSessions() {
@@ -477,7 +481,7 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
         );
         await sweepOrphanArchives(child, workspaces, logger);
       } catch (error) {
-        logger.warn(`toolkit: archive cleanup failed: ${describe(error)}`);
+        logger.warn(`toolkit: archive cleanup failed: ${describeError(error)}`);
       }
     },
     async dispose() {
@@ -487,11 +491,11 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
       const sessions = serviceOf<HostSessionStore>(ctx, "sessions");
       if (!hasMethod<HostSessionStore>(sessions, "get")) return null;
       const session = sessions.get(sessionId);
-      const workspace =
-        config.workspace !== undefined && config.workspace !== ""
-          ? config.workspace
-          : session?.header?.cwd;
-      if (workspace === undefined || workspace === "") return null;
+      const workspace = resolveWorkspace({
+        configured: config.workspace,
+        sessionCwd: session?.header?.cwd,
+      });
+      if (workspace === undefined) return null;
       // 面板只对已绑定 Plan 的会话显示；绑定由 nano_flow 工具执行时写入。
       const binding = readBindingsSync(bindingsFilePath(config))[sessionId];
       if (binding === undefined) return null;
@@ -501,7 +505,7 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
       try {
         return buildNotesSnapshot(workspace, planDirectory);
       } catch (error) {
-        logger.warn(`toolkit: notes snapshot failed: ${describe(error)}`);
+        logger.warn(`toolkit: notes snapshot failed: ${describeError(error)}`);
         return null;
       }
     },
@@ -543,7 +547,9 @@ const sweepOrphanArchives = async (
     try {
       await workspaces.unarchiveSession(sessionId);
     } catch (error) {
-      logger.warn(`toolkit: dropping orphan archive "${sessionId}" failed: ${describe(error)}`);
+      logger.warn(
+        `toolkit: dropping orphan archive "${sessionId}" failed: ${describeError(error)}`,
+      );
     }
   }
 };
@@ -579,8 +585,4 @@ const nestedOptions = (config: Config): NestedSkillOptions => {
   if (config.excludedDirs !== undefined) options.excludedDirs = config.excludedDirs;
   if (config.extraRoots !== undefined) options.extraRoots = config.extraRoots;
   return options;
-};
-
-const describe = (error: unknown): string => {
-  return error instanceof Error ? error.message : String(error);
 };

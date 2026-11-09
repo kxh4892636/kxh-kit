@@ -5,7 +5,7 @@ import { parse as parseYaml } from "yaml";
 const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
 /** frontmatter 校验通过后的 skill 正文，解析规则与内建 filesystem provider 一致。 */
-export interface ParsedSkill {
+interface ParsedSkill {
   name: string;
   description: string;
   whenToUse?: string;

@@ -2,10 +2,10 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
 /** 状态文件格式版本；读取到其它版本只保留可识别字段。 */
-export const TOOLKIT_STATE_VERSION = 1;
+const TOOLKIT_STATE_VERSION = 1;
 
 /** 状态文件内容：逐工具开关 + 待删除的原会话 id。 */
-export interface ToolkitStateDoc {
+interface ToolkitStateDoc {
   version: number;
   tools: Record<string, boolean>;
   pendingDeletes: string[];

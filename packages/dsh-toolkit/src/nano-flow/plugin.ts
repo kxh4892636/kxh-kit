@@ -18,6 +18,7 @@ import { DEFAULT_DOMAIN_ROOT, type Config as NanoFlowConfig } from "./config.js"
 import { buildLimitsText } from "./limits.js";
 import { recordMount } from "./mount-report.js";
 import { hostServices, type HostServices, type PromptContext } from "./services.js";
+import { resolveWorkspace } from "./workspace.js";
 import { createAssetSkillProvider } from "./skills.js";
 import { createBindTool } from "./tools/bind.js";
 import { createCheckTool } from "./tools/check.js";
@@ -25,9 +26,10 @@ import { createCreateTool } from "./tools/create.js";
 import { createToolRuntime } from "./tools/shared.js";
 
 export { createAssetSkillProvider, ASSET_SKILL_RANK } from "./skills.js";
+import { describeError } from "../shared/errors.js";
 
 /** 固定提示词段的排序位：紧跟 harness identity 与 persona，早于任务内容。 */
-export const PROMPT_ORDER = 1;
+const PROMPT_ORDER = 1;
 
 /** 固定提示词段名；同一作用域内唯一。 */
 export const PROMPT_SECTION = "nano-flow:system";
@@ -68,10 +70,14 @@ export const createSettingsReader = (services: HostServices): (() => NanoFlowSet
 };
 
 const workspaceOf = (agent: unknown, config: NanoFlowConfig): string => {
-  if (config.workspace !== undefined && config.workspace !== "") return config.workspace;
   const candidate = agent as AgentLike | undefined;
-  const cwd = candidate?.session?.header?.cwd;
-  return cwd === undefined || cwd === "" ? process.cwd() : cwd;
+  return (
+    resolveWorkspace({
+      configured: config.workspace,
+      sessionCwd: candidate?.session?.header?.cwd,
+      fallback: process.cwd(),
+    }) ?? process.cwd()
+  );
 };
 
 const guideFileOf = (workspace: string, domainRoot: string): string => {
@@ -216,7 +222,7 @@ const mountNanoFlow = (target: Context, host: Context, config: NanoFlowConfig): 
     });
   } catch (error) {
     recordMount("error", {
-      message: describe(error),
+      message: describeError(error),
       stack: error instanceof Error ? (error.stack ?? null) : null,
     });
     throw error;
@@ -237,6 +243,3 @@ const serviceSnapshot = (ctx: Context): Record<string, boolean> => {
   ];
   return Object.fromEntries(names.map((name) => [name, serviceOf(ctx, name) !== undefined]));
 };
-
-const describe = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);

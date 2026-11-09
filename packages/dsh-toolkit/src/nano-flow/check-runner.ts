@@ -1,14 +1,14 @@
 import { execFile } from "node:child_process";
 
 /** 一条校验问题。 */
-export interface CheckIssue {
+interface CheckIssue {
   readonly path: string;
   readonly rule: string;
   readonly message: string;
 }
 
 /** 一次校验的结果。 */
-export interface CheckResult {
+interface CheckResult {
   readonly ok: boolean;
   readonly errors: readonly CheckIssue[];
   readonly warnings: readonly CheckIssue[];

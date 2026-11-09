@@ -18,9 +18,10 @@ import {
   type SessionEventLike,
   type SessionHeader,
 } from "./plan-log.js";
+import { isRecord } from "../shared/record.js";
 
 /** 会话最小的结构形状（宿主 Session）。 */
-export interface PlanLogSession {
+interface PlanLogSession {
   readonly id?: string;
   readonly header?: {
     readonly cwd?: string;
@@ -31,7 +32,7 @@ export interface PlanLogSession {
 }
 
 /** 只读持久化句柄（`sessionPersistence.open(id,'read')` 的结果）。 */
-export interface ReadHandleLike {
+interface ReadHandleLike {
   read(offset?: number, length?: number): Promise<{ readonly events: readonly SessionEventLike[] }>;
   close(): void | Promise<void>;
 }
@@ -42,7 +43,7 @@ export interface PersistenceLike {
 }
 
 /** 轨迹日志服务选项。 */
-export interface PlanLogOptions {
+interface PlanLogOptions {
   /** `$DSH_HOME`。 */
   readonly home: string;
   /** 绑定表路径；缺省 `$DSH_HOME/toolkit/<BINDINGS_FILE>`。 */
@@ -51,7 +52,7 @@ export interface PlanLogOptions {
 }
 
 /** 轨迹日志服务。 */
-export interface PlanLogService {
+interface PlanLogService {
   attach(persistence: PersistenceLike): void;
   onEvent(session: unknown, event: unknown): void;
   dispose(): Promise<void>;
@@ -74,9 +75,6 @@ interface SessionState {
   pending: Map<number, SessionEventLike[]>;
   chain: Promise<void>;
 }
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
 
 const asSession = (value: unknown): PlanLogSession | undefined =>
   isRecord(value) ? (value as PlanLogSession) : undefined;

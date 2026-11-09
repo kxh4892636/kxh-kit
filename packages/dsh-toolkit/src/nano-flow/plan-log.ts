@@ -1,15 +1,16 @@
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile, appendFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative } from "node:path";
+import { asRecord, isRecord } from "../shared/record.js";
 
 /** Plan 轨迹文件名：与 spec.md 同级。 */
-export const PLAN_LOG_FILE = "log.jsonl";
+const PLAN_LOG_FILE = "log.jsonl";
 
 /** 工具参数截断上限（字节）。 */
-export const ARG_LIMIT = 4096;
+const ARG_LIMIT = 4096;
 
 /** 工具结果截断上限（字节）。 */
-export const RESULT_LIMIT = 4096;
+const RESULT_LIMIT = 4096;
 
 /** 单轮 assistant 文本上限（字节）。 */
 export const ASSISTANT_LIMIT = 8192;
@@ -18,7 +19,7 @@ export const ASSISTANT_LIMIT = 8192;
 export const BINDINGS_FILE = "nano-flow-plan-bindings.json";
 
 /** 会话里的一条工具调用摘要。 */
-export interface CompactTool {
+interface CompactTool {
   readonly name: string;
   readonly args: string;
   readonly ok: boolean;
@@ -129,10 +130,6 @@ export const textOf = (content: unknown): string =>
     .filter((block) => block.type === "text" && typeof block.text === "string")
     .map((block) => block.text)
     .join("\n");
-
-/** 把未知值收窄成对象；非对象返回空对象。 */
-export const asRecord = (value: unknown): Record<string, unknown> =>
-  typeof value === "object" && value !== null ? (value as Record<string, unknown>) : {};
 
 /**
  * 把一轮里的事件压成一条 compact 记录。
@@ -289,12 +286,20 @@ export const appendJsonLine = async (file: string, value: unknown): Promise<void
   await appendFile(file, `${JSON.stringify(value)}\n`, "utf8");
 };
 
+/** 解析绑定表文本；损坏或形状不对时返回空表。 */
+const parseBindings = (raw: string): BindingTable => {
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    return isRecord(parsed) ? (parsed as BindingTable) : {};
+  } catch {
+    return {};
+  }
+};
+
 /** 读取绑定表；文件缺失或损坏时返回空表。 */
 export const readBindings = async (file: string): Promise<BindingTable> => {
   try {
-    const raw = await readFile(file, "utf8");
-    const parsed = JSON.parse(raw) as unknown;
-    return typeof parsed === "object" && parsed !== null ? (parsed as BindingTable) : {};
+    return parseBindings(await readFile(file, "utf8"));
   } catch {
     return {};
   }
@@ -303,8 +308,7 @@ export const readBindings = async (file: string): Promise<BindingTable> => {
 /** 同步读取绑定表；文件缺失或损坏时返回空表（宿主路由是同步返回快照的）。 */
 export const readBindingsSync = (file: string): BindingTable => {
   try {
-    const parsed = JSON.parse(readFileSync(file, "utf8")) as unknown;
-    return typeof parsed === "object" && parsed !== null ? (parsed as BindingTable) : {};
+    return parseBindings(readFileSync(file, "utf8"));
   } catch {
     return {};
   }

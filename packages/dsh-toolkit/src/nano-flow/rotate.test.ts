@@ -351,6 +351,39 @@ describe("attachRotation", () => {
     expect(workspace.pinned).toEqual(["session-new"]);
   });
 
+  it("keeps the rotation when workspace bookkeeping throws", async () => {
+    const failing = {
+      list: () => [
+        {
+          sessionIds: ["session-1"],
+          attachSession: async () => {
+            throw new Error("attach failed");
+          },
+          insertSessionBefore: async () => {
+            throw new Error("insert failed");
+          },
+          detachSession: async () => {},
+        },
+      ],
+      pinnedSessionIds: ["session-1"],
+      archiveSession: async () => {},
+      unarchiveSession: async () => {},
+      pinSession: async () => {
+        throw new Error("pin failed");
+      },
+      unpinSession: async () => {
+        throw new Error("unpin failed");
+      },
+    };
+    const harness = makeHarness(failing);
+    harness.setPressure({ projectedTokens: 700, contextWindow: 1000 });
+    await harness.send();
+    // 工作区记账失败只 warn，轮转本身照常完成。
+    expect(harness.create).toHaveBeenCalledTimes(1);
+    expect(harness.warn).toHaveBeenCalled();
+    expect(String(harness.originalPrompt.mock.calls[0]?.[0].sessionId)).toBe("session-new");
+  });
+
   it("restores the original prompt on dispose", () => {
     const harness = makeHarness();
     const wrapped = harness.controller.prompt;

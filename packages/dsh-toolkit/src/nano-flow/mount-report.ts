@@ -12,13 +12,13 @@ import { resolveDshHome } from "@deepseek-ai/dsh-home-paths";
  */
 
 /** 诊断文件名。 */
-export const MOUNT_REPORT_FILE = "nano-flow-mount.json";
+const MOUNT_REPORT_FILE = "nano-flow-mount.json";
 
 /** 一次挂载的阶段：进入插件入口、进入预设半、注册完成、抛错，以及宿主侧的轮转挂载。 */
-export type MountStage = "entry" | "apply" | "ready" | "error" | "rotation";
+type MountStage = "entry" | "apply" | "ready" | "error" | "rotation";
 
 /** 落盘的报告形状：同一进程内按阶段合并。 */
-export interface MountReport {
+interface MountReport {
   readonly at: string;
   readonly pid: number;
   readonly stages: Readonly<Record<string, Readonly<Record<string, unknown>>>>;

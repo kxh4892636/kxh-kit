@@ -89,7 +89,7 @@ const resolveOptions = (options: NestedSkillOptions): ResolvedOptions => {
 };
 
 /** 创建递归 watcher 的工厂；测试可注入以模拟启动失败。 */
-export type WatchFactory = (path: string, options: ChokidarOptions) => FSWatcher;
+type WatchFactory = (path: string, options: ChokidarOptions) => FSWatcher;
 
 const defaultWatchFactory: WatchFactory = (path, options) => chokidar.watch(path, options);
 

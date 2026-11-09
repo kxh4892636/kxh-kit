@@ -2,6 +2,7 @@ import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import { DEFAULT_NANO_FLOW_SETTINGS, type NanoFlowSettings } from "../contract.js";
+import { isRecord } from "../shared/record.js";
 
 export { DEFAULT_NANO_FLOW_SETTINGS };
 export type { NanoFlowSettings };
@@ -15,10 +16,6 @@ const INTEGER_KEYS = [
   "adrMaxBytes",
   "workflowMaxBytes",
 ] as const;
-
-const isRecord = (value: unknown): value is Record<string, unknown> => {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-};
 
 /**
  * 校验并合并一份设置：未知键忽略，已知键必须是正整数，`rotateAt` 必须在 (0, 1]。
@@ -87,7 +84,7 @@ const serialize = (settings: NanoFlowSettings): string => {
 };
 
 /** 设置存储：内存快照 + 串行落盘。 */
-export interface NanoFlowSettingsStore {
+interface NanoFlowSettingsStore {
   /** 当前生效值（加载完成前是默认值）。 */
   current(): NanoFlowSettings;
   /** 从磁盘加载；损坏时回落默认值。 */

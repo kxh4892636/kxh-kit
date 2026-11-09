@@ -21,7 +21,7 @@ import { toolkitClientState } from "./state.js";
 import { ensureToolkitStyles } from "./stylesheet.js";
 
 /** 撤回按钮的 props：slot 标准 props + 注册时注入的客户端上下文。 */
-export interface UndoButtonProps {
+interface UndoButtonProps {
   readonly sessionId: string;
   readonly ctx: ClientContext;
   /** 会话快照选择器（`conversation.input.right` 的标准 props），用于感知轮次起止。 */
@@ -31,13 +31,13 @@ export interface UndoButtonProps {
 }
 
 /** composer 动作面里本插件用到的两个写草稿入口（宿主 `InputActions`）。 */
-export interface InputActionsLike {
+interface InputActionsLike {
   readonly setDraft?: (text: string) => void;
   readonly persistDraft?: () => void;
 }
 
 /** 只声明要读的会话快照字段（宿主 `SessionSnapshot`）。 */
-export interface SessionSnapshotLike {
+interface SessionSnapshotLike {
   readonly running?: boolean;
   readonly blank?: boolean;
   readonly pendingSubmissions?: readonly unknown[];

@@ -1,7 +1,7 @@
 ---
 name: "nano-flow优化迭代"
 description: "nano-flow 迭代主线：绑定机制收口、Note 面板提示、单会话 Plan 复用与写入节奏改惰性。"
-status: completed
+status: in_progress
 ---
 
 # nano-flow优化迭代
@@ -21,6 +21,11 @@ status: completed
 - [009-调研Plan写入现状与惰性化取舍](009-调研Plan写入现状与惰性化取舍.md)：把「及时写」改成「惰性写」的取舍。
 - [010-单会话复用绑定Plan的规则](010-单会话复用绑定Plan的规则.md)：默认追加 note，新建 Plan 需用户确认。
 - [011-改note划分原则为交付单元](011-改note划分原则为交付单元.md)：note 改按可独立验收的交付单元划分。
+- [012-nano-flow代码治理评估](012-nano-flow代码治理评估.md)：功能面重构方案（无用代码、重复实现、大文件、门禁）。
+- [013-清理无用导出与死代码](013-清理无用导出与死代码.md)：导出 301→239，删 6 处死声明。
+- [014-收敛重复实现](014-收敛重复实现.md)：describe / record / frontmatter / Plan 扫描 / 绑定读取 / 工作区解析。
+- [015-拆分校验脚本与插件装配](015-拆分校验脚本与插件装配.md)：check-domain.mjs 1248 行与 index.ts 586 行拆分 + 分层断言。
+- [016-修复质量门禁](016-修复质量门禁.md)：覆盖率、测试拆分、宿主契约、硬规则断言。
 
 ## 当前结论
 
@@ -67,6 +72,17 @@ GUIDE 正文只由 dream 父会话整体重写；日常 Plan 不得修改、移�
 - 绑定表回收只在 `nano_flow_bind` 时触发；从不 bind 的 `$DSH_HOME` 不会自发清理死条目。
 - 宿主 `HoverCard preview` 的宽度口径（锚点宽 − 48px）已记在 007，将来若要窄卡片得换锚点。
 
+## 代码治理（012–016）
+
+用户要求的「清理历史包袱」四阶段已全部交付：
+
+- **013 死代码**：导出 301 → 239，删 6 处死声明，内部符号去 `export`；
+- **014 去重**：`describeError` 9→1、`isRecord/asRecord` 5→1、绑定表解析 2→1、工作区解析 3→1；frontmatter 与 Plan 扫描保留两份（独立进程脚本不能 import TS），由 `check-domain.test.ts` 与 `plan.test.ts` 对齐语义；
+- **015 拆文件与分层**：`check-domain.mjs` 1248 → 593 行，拆出 `scripts/lib/{base,checks,render}.mjs`；`index.ts` 588 行未超限故不拆；新增 `layering.test.ts` 固定分层；
+- **016 门禁**：覆盖率分支 79.04% → **80.47%**（门禁转绿）；`index.test.ts` 657 → 420 行（替身移到 `index.test-support.ts`）；`primitives.d.ts` 补齐 Tooltip 契约；新增硬规则关键字断言。
+
+规模变化：测试 38 → 41 个文件、337 → 353 项。
+
 ## 恢复入口
 
 先 `nano_flow_bind` 绑定本 Plan，再读 `notes_index.md`：优先推进 009（写入节奏，等价于本 Plan 的收口条件）与 010（新规则落进提示词），008 只等真机确认。
@@ -77,3 +93,4 @@ GUIDE 正文只由 dream 父会话整体重写；日常 Plan 不得修改、移�
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
+| [012-nano-flow代码治理评估](012-nano-flow代码治理评估.md) | 按功能面盘点 nano-flow 的历史包袱：105 个无用导出、13 处 describe、三套 frontmatter 解析、两套 Plan 扫描等重构方案。 | in_progress | — | 等用户确认重构范围后，按 F1 死代码 → F2 去重 → F3 拆文件 → F4 门禁 的顺序拆 note。 | 005-收敛绑定表生命周期与遗留缺陷 |

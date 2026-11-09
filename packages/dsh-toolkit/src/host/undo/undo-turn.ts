@@ -8,9 +8,10 @@ import type {
 } from "../services.js";
 import { deleteSessionLogs, type SessionLogIo } from "./purge.js";
 import { findUndoTarget, type UndoTarget } from "./turn-boundary.js";
+import { describeError } from "../../shared/errors.js";
 
 /** 撤回不可用的原因；路由层转成 409 与 `reason` 字段。 */
-export type UndoUnavailableReason = "session-not-live" | "no-previous-turn" | "unsupported-host";
+type UndoUnavailableReason = "session-not-live" | "no-previous-turn" | "unsupported-host";
 
 /** 撤回不可用：UI 据此置灰按钮或提示。 */
 export class UndoUnavailableError extends Error {
@@ -121,7 +122,7 @@ const adoptPlacement = async (
     try {
       await placement.record.insertSessionBefore(childId, placement.siblingId);
     } catch (error) {
-      deps.logger.warn(`toolkit: placing "${childId}" failed: ${describe(error)}`);
+      deps.logger.warn(`toolkit: placing "${childId}" failed: ${describeError(error)}`);
     }
   }
   if (placement.pinIndex < 0 || deps.workspaces === undefined) return;
@@ -143,7 +144,7 @@ const restorePin = async (deps: UndoDeps, childId: string, pinIndex: number): Pr
     for (const id of Array.from(workspaces.pinnedSessionIds)) await workspaces.unpinSession(id);
     for (const id of Array.from(desired).reverse()) await workspaces.pinSession(id);
   } catch (error) {
-    deps.logger.warn(`toolkit: restoring pin for "${childId}" failed: ${describe(error)}`);
+    deps.logger.warn(`toolkit: restoring pin for "${childId}" failed: ${describeError(error)}`);
   }
 };
 
@@ -154,7 +155,7 @@ const archive = async (deps: UndoDeps, sessionId: string): Promise<boolean> => {
     await deps.workspaces.archiveSession(sessionId, { stopActivity: true });
     return true;
   } catch (error) {
-    deps.logger.warn(`toolkit: archive of "${sessionId}" failed: ${describe(error)}`);
+    deps.logger.warn(`toolkit: archive of "${sessionId}" failed: ${describeError(error)}`);
     return false;
   }
 };
@@ -196,7 +197,7 @@ const unarchive = async (deps: UndoDeps, sessionId: string): Promise<void> => {
   try {
     await deps.workspaces.unarchiveSession(sessionId);
   } catch (error) {
-    deps.logger.warn(`toolkit: unarchive of "${sessionId}" failed: ${describe(error)}`);
+    deps.logger.warn(`toolkit: unarchive of "${sessionId}" failed: ${describeError(error)}`);
     await deps.store.addPendingUnarchive(sessionId);
   }
 };
@@ -207,11 +208,7 @@ const detachFromWorkspace = (deps: UndoDeps, sessionId: string): void => {
   for (const record of deps.workspaces.list()) {
     if (!record.sessionIds.includes(sessionId)) continue;
     void record.detachSession(sessionId).catch((error: unknown) => {
-      deps.logger.warn(`toolkit: detach of "${sessionId}" failed: ${describe(error)}`);
+      deps.logger.warn(`toolkit: detach of "${sessionId}" failed: ${describeError(error)}`);
     });
   }
-};
-
-const describe = (error: unknown): string => {
-  return error instanceof Error ? error.message : String(error);
 };

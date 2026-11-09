@@ -3,7 +3,7 @@ import { Button, Modal } from "@deepseek-ai/dsh-client-ui-primitives";
 import { ensureToolkitStyles } from "./stylesheet.js";
 
 /** 确认弹窗的属性：全部由撤回按钮控制，弹窗自身无状态。 */
-export interface ConfirmModalProps {
+interface ConfirmModalProps {
   readonly open: boolean;
   readonly title: string;
   /** 结论性说明，走宿主 `Modal` 的 `description` 位（原生排版）。 */

@@ -1,6 +1,7 @@
 import { readdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { isSessionId, type ToolkitStateStore } from "../toolkit-state.js";
+import { describeError } from "../../shared/errors.js";
 
 /** 一次 `removeDir` 的结果：真删掉了，还是本来就不存在（幂等删除）。 */
 export type RemoveOutcome = "removed" | "absent";
@@ -38,7 +39,7 @@ export const nodeSessionLogIo: SessionLogIo = {
 };
 
 /** 一次删除尝试的结果：已删掉的与仍留待下次启动处理的。 */
-export interface PurgeResult {
+interface PurgeResult {
   readonly deleted: readonly string[];
   readonly retained: readonly string[];
 }
@@ -49,7 +50,7 @@ export interface PurgeResult {
  * @param value - 目录名。
  * @returns 是否可安全拼进路径。
  */
-export const isSafeDirName = (value: string): boolean => {
+const isSafeDirName = (value: string): boolean => {
   return value !== "." && value !== ".." && /^[A-Za-z0-9._-]+$/u.test(value);
 };
 
@@ -107,7 +108,7 @@ export const runPendingPurge = async (
   try {
     result = await deleteSessionLogs(root, pending, io);
   } catch (error) {
-    logger.warn(`toolkit: pending session purge failed: ${describe(error)}`);
+    logger.warn(`toolkit: pending session purge failed: ${describeError(error)}`);
     return { deleted: [], retained: [...pending] };
   }
   if (result.retained.length !== pending.length) {
@@ -123,7 +124,7 @@ export const runPendingPurge = async (
     try {
       await unarchive(id);
     } catch (error) {
-      logger.warn(`toolkit: unarchive of "${id}" failed: ${describe(error)}`);
+      logger.warn(`toolkit: unarchive of "${id}" failed: ${describeError(error)}`);
       await store.addPendingUnarchive(id);
     }
   }
@@ -154,7 +155,7 @@ export const runPendingUnarchive = async (
       await unarchive(id);
       done.push(id);
     } catch (error) {
-      logger.warn(`toolkit: unarchive of "${id}" failed: ${describe(error)}`);
+      logger.warn(`toolkit: unarchive of "${id}" failed: ${describeError(error)}`);
       retained.push(id);
     }
   }
@@ -164,8 +165,4 @@ export const runPendingUnarchive = async (
 
 const isMissing = (error: unknown): boolean => {
   return typeof error === "object" && error !== null && "code" in error && error.code === "ENOENT";
-};
-
-const describe = (error: unknown): string => {
-  return error instanceof Error ? error.message : String(error);
 };

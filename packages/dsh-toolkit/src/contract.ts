@@ -30,11 +30,6 @@ export interface UndoAvailability {
   readonly prompt?: string;
 }
 
-/** `POST /api/toolkit/undo-turn` 的请求体。 */
-export interface UndoTurnRequest {
-  readonly sessionId: string;
-}
-
 /** `POST /api/toolkit/undo-turn` 的响应。 */
 export interface UndoTurnResponse {
   readonly childSessionId: string;

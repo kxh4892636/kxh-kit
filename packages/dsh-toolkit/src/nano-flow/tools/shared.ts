@@ -8,6 +8,9 @@ import type {
   ToolTextBlock,
   WorkingDirectoryService,
 } from "../services.js";
+import { describeError } from "../../shared/errors.js";
+import { isRecord } from "../../shared/record.js";
+import { resolveWorkspace } from "../workspace.js";
 
 /** 两个工具共享的运行期依赖。 */
 export interface ToolRuntime {
@@ -31,10 +34,6 @@ export interface ToolRuntime {
 /** 统一把工具结果渲染成一段文本。 */
 export const textBlocks = (value: unknown): readonly ToolTextBlock[] => {
   return [{ type: "text", text: String(value) }];
-};
-
-const isRecord = (value: unknown): value is Record<string, unknown> => {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
 };
 
 /** 把模型传入的参数收窄成对象。 */
@@ -69,9 +68,6 @@ export const optionalBoolean = (
   return value;
 };
 
-const describeError = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
-
 /**
  * 把 cordis 上下文解析成共享运行期依赖。
  * @param options - 宿主能力、配置、上限、资产目录与领域根。
@@ -105,7 +101,8 @@ export const createToolRuntime = (options: {
       await options.rebind(sessionId, planDirectory, workspace);
     },
     async workspace(exec: ToolExecContext): Promise<string> {
-      if (config.workspace !== undefined) return config.workspace;
+      const configured = resolveWorkspace({ configured: config.workspace });
+      if (configured !== undefined) return configured;
       const workingDirectory = services.get("workingDirectory") as
         | WorkingDirectoryService
         | undefined;

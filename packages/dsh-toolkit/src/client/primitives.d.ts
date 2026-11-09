@@ -58,10 +58,19 @@ declare module "@deepseek-ai/dsh-client-ui-primitives" {
   export const Tooltip: import("react").ComponentType<{
     label: string;
     side?: "top" | "right" | "bottom" | "left";
+    /** 气泡相对锚点的对齐方式（宿主实现默认 center）。 */
+    align?: "start" | "center" | "end";
+    /** 与锚点的间距，宿主默认 8px。 */
+    gap?: number;
     delayMs?: number;
     focusDelayMs?: number;
+    /** 气泡的最大宽度；宿主缺省沿用内置上限。 */
+    maxWidth?: number;
+    /** 交给宿主渲染在 `document.body`，避免被祖先 overflow 裁掉。 */
     portal?: boolean;
     openOnClick?: boolean;
+    /** 只在锚点被裁剪（ellipsis）时才显示，宿主默认关闭。 */
+    onlyWhenClipped?: boolean;
     children?: import("react").ReactNode;
   }>;
 

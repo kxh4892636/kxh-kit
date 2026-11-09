@@ -18,17 +18,12 @@ export interface ClientSlotOptions {
 }
 
 /** slot 组件签名；`never` 参数让它接受任意自有 props 类型。 */
-export type ClientSlotComponent = (props: never) => unknown;
+type ClientSlotComponent = (props: never) => unknown;
 
 /** `ctx.slots`：注册与「等声明出现再注册」（`dsh-client-ui-renderer/lib/client.js:1368-1394`）。 */
-export interface ClientSlots {
+interface ClientSlots {
   inject(key: string, contribute: () => (() => void) | void): void;
   register(options: ClientSlotOptions, component: ClientSlotComponent): () => void;
-}
-
-/** 客户端会话服务：只用 `binding` 把草稿初始化落到具体会话。 */
-export interface ClientSessions {
-  binding(sessionId: string): unknown;
 }
 
 /**
@@ -54,22 +49,6 @@ export interface ClientWorkspace {
   readonly selection?: ClientSelectionStore;
 }
 
-/** 草稿初始化选项（`dsh-client-ui-conversation/lib/client.js:15107-15121`）。 */
-export interface DraftInitializationOptions {
-  readonly prompt?: string;
-  readonly whenDraftExists?: "replace" | "append" | "keep";
-}
-
-/** `conversation` 服务上初始化草稿的入口。 */
-export interface ClientConversation {
-  readonly input: {
-    requestDraftInitialization(
-      binding: unknown,
-      options: DraftInitializationOptions,
-    ): "applied" | "preserved" | "blocked";
-  };
-}
-
 /** 客户端根上下文里本插件会用到的部分。 */
 export interface ClientContext {
   readonly slots: ClientSlots;
@@ -79,11 +58,6 @@ export interface ClientContext {
   on?(event: string, handler: (...args: readonly unknown[]) => void): () => void;
   /** 依赖注入：服务就绪后回调子上下文（与 `ui-agent-preset` 等客户端插件同一套 cordis API）。 */
   inject?(dependencies: readonly string[], callback: (scope: ClientContext) => void): unknown;
-}
-
-/** 会话作用域 slot 的标准 props（`conversation.input.right` 由 composer 送出）。 */
-export interface SessionScopeProps {
-  readonly sessionId: string;
 }
 
 /** 按名字取服务，缺失时返回 undefined。 */

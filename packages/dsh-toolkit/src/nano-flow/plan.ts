@@ -6,7 +6,7 @@ import { isAbsolute, join } from "node:path";
 export const PLAN_LIFECYCLES = ["active", "reference", "archived"] as const;
 
 /** 生命周期类型。 */
-export type PlanLifecycle = (typeof PLAN_LIFECYCLES)[number];
+type PlanLifecycle = (typeof PLAN_LIFECYCLES)[number];
 
 /** 一个 Plan 的定位信息。 */
 export interface PlanRef {

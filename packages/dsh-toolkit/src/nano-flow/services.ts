@@ -35,7 +35,7 @@ export interface ToolDefinitionLike {
 }
 
 /** 工具注册表。 */
-export interface ToolRegistry {
+interface ToolRegistry {
   register(definition: ToolDefinitionLike): () => void;
 }
 
@@ -46,7 +46,7 @@ export interface PromptContext {
 }
 
 /** 一个系统提示词段；`interpolate: false` 保证正文按字面量注入。 */
-export interface PromptSection {
+interface PromptSection {
   readonly name: string;
   readonly order: number;
   readonly text: string | ((context: PromptContext) => string);
@@ -63,7 +63,7 @@ export interface PromptContextEntry {
 }
 
 /** 系统提示词注册表。 */
-export interface PromptRegistry {
+interface PromptRegistry {
   section(section: PromptSection): () => void;
   context?(entry: PromptContextEntry): () => void;
 }

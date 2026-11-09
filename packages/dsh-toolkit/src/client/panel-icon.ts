@@ -1,7 +1,7 @@
 import { createElement, type FC } from "react";
 
 /** 侧边栏图标收到的 owner props：边长与是否选中（`sidebar.panellist` 的契约）。 */
-export interface PanelIconProps {
+interface PanelIconProps {
   readonly size?: number;
   readonly active?: boolean;
 }

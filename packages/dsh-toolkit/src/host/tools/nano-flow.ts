@@ -3,14 +3,12 @@ import type { Context } from "@deepseek-ai/cordis";
 import { TOOL_IDS } from "../../contract.js";
 import { createNanoFlowPreset, type PresetDefinitionLike } from "../../nano-flow/preset.js";
 import type { ToolkitTool } from "../toolkit-registry.js";
+import { describeError } from "../../shared/errors.js";
 
 /** 宿主预设注册表的最小形状。 */
 interface AgentPresetRegistryLike {
   register(definition: PresetDefinitionLike): Promise<() => Promise<void>>;
 }
-
-const describe = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
 
 /**
  * 「Nano Flow 预设」开关：打开时把预设注册进宿主 roster，关闭时注销。
@@ -44,7 +42,7 @@ export const createNanoFlowTool = (options: { entryUrl: string }): ToolkitTool =
           unregister = stop;
         })
         .catch((error: unknown) => {
-          ctx.logger.warn(`toolkit: nano-flow preset registration failed: ${describe(error)}`);
+          ctx.logger.warn(`toolkit: nano-flow preset registration failed: ${describeError(error)}`);
         });
     });
     return () => {

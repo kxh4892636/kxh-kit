@@ -14,7 +14,7 @@ import { parseSkillText } from "../nested-skill/parse.js";
 export const ASSET_SKILL_RANK = 200;
 
 /** provider 名称；与 filesystem provider 区分。 */
-export const ASSET_SKILL_PROVIDER = "nano-flow-assets";
+const ASSET_SKILL_PROVIDER = "nano-flow-assets";
 
 interface AssetLocator {
   readonly file: string;

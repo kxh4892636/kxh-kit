@@ -23,10 +23,10 @@ import type { ClientContext } from "./contract.js";
 export type { NotesSnapshot, PanelNote, PanelNoteStatus } from "../contract.js";
 
 /** 只挂本面板的 Agent 预设 id。 */
-export const NANO_FLOW_PRESET = "nano-flow";
+const NANO_FLOW_PRESET = "nano-flow";
 
 /** `conversation.input.dock` 会话插槽的标准 props（只声明本组件用到的）。 */
-export interface NotesDockProps {
+interface NotesDockProps {
   /** 当前会话 id；标准 session 插槽会传入。 */
   readonly sessionId?: string;
   /** 预设投影读取函数；标准 session 插槽会传入。 */
@@ -38,7 +38,7 @@ export interface NotesDockProps {
 }
 
 /** 只声明本组件用到的会话快照字段。 */
-export interface NotesSessionSnapshot {
+interface NotesSessionSnapshot {
   readonly sessionId: string;
 }
 

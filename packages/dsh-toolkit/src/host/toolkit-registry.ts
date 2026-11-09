@@ -1,6 +1,7 @@
 import type { Context } from "@deepseek-ai/cordis";
 import type { ToolkitToolInfo } from "../contract.js";
 import type { ToolkitStateStore } from "./toolkit-state.js";
+import { describeError } from "../shared/errors.js";
 
 /** 一个工具：目录信息 + 启停实现；`apply` 返回的 disposer 负责彻底卸载。 */
 export interface ToolkitTool {
@@ -13,7 +14,7 @@ export interface ToolkitTool {
 }
 
 /** 注册表所需的宿主能力；只依赖 cordis 上下文与日志，便于测试注入。 */
-export interface ToolkitRegistryOptions {
+interface ToolkitRegistryOptions {
   readonly ctx: Context;
   readonly tools: readonly ToolkitTool[];
   readonly store: ToolkitStateStore;
@@ -112,7 +113,9 @@ export class ToolkitRegistry {
     try {
       this.applied.set(tool.id, tool.apply(this.options.ctx));
     } catch (error) {
-      this.options.logger.warn(`toolkit: tool "${tool.id}" failed to apply: ${describe(error)}`);
+      this.options.logger.warn(
+        `toolkit: tool "${tool.id}" failed to apply: ${describeError(error)}`,
+      );
     }
   }
 
@@ -123,7 +126,7 @@ export class ToolkitRegistry {
     try {
       dispose();
     } catch (error) {
-      this.options.logger.warn(`toolkit: tool "${id}" failed to dispose: ${describe(error)}`);
+      this.options.logger.warn(`toolkit: tool "${id}" failed to dispose: ${describeError(error)}`);
     }
   }
 
@@ -144,7 +147,3 @@ export class UnknownToolError extends Error {
     this.toolId = toolId;
   }
 }
-
-const describe = (error: unknown): string => {
-  return error instanceof Error ? error.message : String(error);
-};

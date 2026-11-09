@@ -11,7 +11,7 @@ import { hasMethod, serviceOf } from "./services.js";
 export const DSH_OFFICE_PROVIDER = "dsh-office";
 
 /** 屏蔽判据：只看目录里读得到的摘要字段，不加载正文。 */
-export type SkillBlocklist = (skill: SkillSummary) => boolean;
+type SkillBlocklist = (skill: SkillSummary) => boolean;
 
 /**
  * dsh 自带的 office 技能：provider 固定为 `dsh-office`；provider 被改名时，

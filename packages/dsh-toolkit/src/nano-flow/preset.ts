@@ -7,7 +7,7 @@
  */
 
 /** 预设里一行子插件；字段与宿主的 EntryOptions 同形。 */
-export interface PresetRow {
+interface PresetRow {
   readonly id: string;
   readonly name: string;
   /** 子插件配置或 group 的子行数组。 */

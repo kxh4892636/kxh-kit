@@ -1,7 +1,7 @@
 import type { ToolkitToolInfo } from "../contract.js";
 
 /** 客户端持有的工具目录快照：面板写入，撤回按钮读取。 */
-export interface ToolkitClientSnapshot {
+interface ToolkitClientSnapshot {
   readonly tools: readonly ToolkitToolInfo[];
   readonly loaded: boolean;
 }
