@@ -1,7 +1,7 @@
 ---
 name: "nano-flow优化迭代"
 description: "nano-flow 迭代主线：绑定机制收口、Note 面板提示、单会话 Plan 复用与写入节奏改惰性。"
-status: in_progress
+status: completed
 ---
 
 # nano-flow优化迭代
@@ -93,4 +93,3 @@ GUIDE 正文只由 dream 父会话整体重写；日常 Plan 不得修改、移�
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [012-nano-flow代码治理评估](012-nano-flow代码治理评估.md) | 按功能面盘点 nano-flow 的历史包袱：105 个无用导出、13 处 describe、三套 frontmatter 解析、两套 Plan 扫描等重构方案。 | in_progress | — | 等用户确认重构范围后，按 F1 死代码 → F2 去重 → F3 拆文件 → F4 门禁 的顺序拆 note。 | 005-收敛绑定表生命周期与遗留缺陷 |

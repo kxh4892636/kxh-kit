@@ -1,10 +1,10 @@
 ---
 name: "012-nano-flow代码治理评估"
-description: "按功能面盘点 nano-flow 的历史包袱：105 个无用导出、13 处 describe、三套 frontmatter 解析、两套 Plan 扫描等重构方案。"
-status: in_progress
+description: "按功能面盘点 nano-flow 的历史包袱（无用导出、重复实现、大文件与门禁），给出 F1–F4 重构方案与结果。"
+status: completed
 related_noted:
   - "005-收敛绑定表生命周期与遗留缺陷"
-next_step: "等用户确认重构范围后，按 F1 死代码 → F2 去重 → F3 拆文件 → F4 门禁 的顺序拆 note。"
+next_step: "已交付；结论收敛在 013–016，本 note 只留盘点与方案。"
 ---
 
 # 012-nano-flow代码治理评估
@@ -15,9 +15,9 @@ next_step: "等用户确认重构范围后，按 F1 死代码 → F2 去重 → 
 
 ## 盘点
 
-### F1 无用代码：301 个导出里 105 个没有生产引用
+### F1 无用代码：301 个导出里 105 个没有生产引用（细分后真正该删的只有 5 个）
 
-扫描 `src` 全部 92 个文件：`export` 的 `const/function/class/interface/type` 共 **301** 个，其中 **105** 个在非测试代码里零引用。典型：
+扫描 `src` 全部 92 个文件：`export` 的 `const/function/class/interface/type` 共 **301** 个，其中 **105** 个在非测试代码里零引用。**实施时细分**：真死 5 个 + 只在本文件用 57 个（去 `export` 即可）+ 只有测试用 43 个（测试钩子，保留）。典型：
 
 - 组件 props 与内部类型被顺手 `export`（`NotesDockProps`、`PanelIconProps`、`UndoButtonProps`、`SessionSnapshotLike`、`InputActionsLike`）；
 - `client/contract.ts` 里一整组客户端插槽类型（`ClientSlots`、`ClientSlotComponent`、`ClientSessions`、`ClientConversation`…）没有实现方；
@@ -64,6 +64,17 @@ next_step: "等用户确认重构范围后，按 F1 死代码 → F2 去重 → 
 - `check-domain.mjs` 是唯一守门人，重构必须逐段搬、每段跑全量 `nano_flow_check` 对比输出；
 - 删除导出要区分"真死"与"测试钩子/对外 API"；`index.ts` 的公共面在删除前先确认宿主侧没有按名取值；
 - 覆盖率没修好之前，重构后无法用覆盖率证明"没删逻辑"，只能靠测试与文档校验。
+
+## 结果
+
+| 阶段 | note | 结果 |
+| --- | --- | --- |
+| F1 死代码 | [013](013-清理无用导出与死代码.md) | 导出 301 → 239，删 6 处声明，内部符号去 `export` |
+| F2 去重 | [014](014-收敛重复实现.md) | `describeError` 9→1、`isRecord/asRecord` 5→1、绑定解析 2→1、工作区解析 3→1；frontmatter 与 Plan 扫描保留两份并靠测试对齐 |
+| F3 拆文件与分层 | [015](015-拆分校验脚本与插件装配.md) | `check-domain.mjs` 1248 → 593（拆 base/checks/render），`index.ts` 588 未超限不拆；新增分层断言 |
+| F4 门禁 | [016](016-修复质量门禁.md) | 覆盖率分支 79.04% → 80.47%，`index.test.ts` 657 → 420，契约补齐，硬规则断言 |
+
+测试规模 38 文件 337 项 → 41 文件 353 项。用户要求忽略的跨包重复资产（旧 `packages/nano-flow`）按指示未动。
 
 ## 相关
 
