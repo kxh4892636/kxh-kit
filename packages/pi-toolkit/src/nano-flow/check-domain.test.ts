@@ -190,4 +190,30 @@ describe("不在清单里的问题仍然只报", () => {
     expect(rulesOf(result.errors)).toContain("header");
     expect(result.fixed.map((issue) => issue.rule)).not.toContain("header");
   });
+
+  it("大写 INDEX.md 与真实编号缺口仍然只报", () => {
+    const workspace = seedWorkspace();
+    writeSpec(workspace, "pending");
+    const adrDir = join(workspace, domainRoot, "demo", "adr");
+    writeFileSync(
+      join(adrDir, "001-甲.md"),
+      frontmatter("name: '001-甲'\ndescription: '甲'"),
+      "utf8",
+    );
+    writeFileSync(
+      join(adrDir, "003-丙.md"),
+      frontmatter("name: '003-丙'\ndescription: '丙'"),
+      "utf8",
+    );
+    writeFileSync(
+      join(adrDir, "INDEX.md"),
+      frontmatter("name: '索引'\ndescription: '索引'"),
+      "utf8",
+    );
+    const result = check(workspace);
+    expect(rulesOf(result.errors)).toContain("index");
+    expect(rulesOf(result.errors)).toContain("number");
+    expect(result.fixed).toHaveLength(0);
+    expect(read(workspace, domainRoot, "demo", "adr", "003-丙.md")).toContain("name: '003-丙'");
+  });
 });
