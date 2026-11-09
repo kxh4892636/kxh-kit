@@ -47,4 +47,20 @@ pi.on("session_before_compact", (_event, ctx) => {
 - `register.test.ts` 新增 `cancels manual, threshold and overflow compaction while Nano Flow is active`：三种 `reason` 都返回 `{ cancel: true }`；`switchOn: false` 与 `always: false` 两种关闭路径都返回 `undefined`。
 - `README.md` 补 `Compaction disabled while active` 一条；`pi/CONTEXT.md` 的「上下文清空」词条补一句「是过滤不是截断，所以激活期间取消一切压缩」。
 - 门禁：`test` 284 项全过，`check` 全绿。
-- 未处理的风险保持原样（等真机）：阈值提示可能每轮出现；`overflow` 被取消后撞上限会直接失败。
+- 未处理的风险保持原样：阈值提示可能每轮出现；`overflow` 被取消后撞上限会直接失败。
+
+## 真机验证（2026-11-09，headless + RPC）
+
+在临时工作区（`%TEMP%
+f-verify`，不绑定任何 Plan）用 `pi --mode rpc` + `{"type":"compact"}` / `{"type":"prompt"}` 驱动真实会话，构造了三份合成会话文件：
+
+| 会话 | 形态 | 观察 |
+| --- | --- | --- |
+| A `sess-active` | 80 条消息，本机配置 `always: true` → 激活 | `compaction_start{reason:"manual"}` → `compaction_end{aborted:true}`，响应 `success:false, error:"Compaction cancelled"`，会话里 `compaction` 条目 0 条 |
+| B `sess-off` | 同上，末尾追加 `nano-flow-mode {enabled:false}` | 真实压缩成功（28s 摘要），会话末尾新增 1 条 `compaction` 条目 |
+| C `sess-threshold` | 200 条消息，项目级 `.pi/settings.json` 把 `compaction.reserveTokens` 设为 940000 → 阈值降到 60k | 发 `prompt` 后自动压缩触发：`compaction_start{reason:"threshold"}` → `compaction_end{aborted:true}`，无 `compaction` 条目 |
+
+- A/C 两组是「取消」，B 是对照（证明开关一通就恢复、且合成会话确实够大到需要压缩）。
+- C 组在 `compaction_end` 一出现就 kill 进程，避免真把 150k tokens 发给模型。
+- `overflow` 路径没有单独复现：它与 `threshold` 共用 `_runAutoCompaction()` 的同一段 `session_before_compact` 处理，单测已覆盖 `reason: "overflow"` 返回 `{ cancel: true }`。
+- 未污染仓库：临时目录已删除，`git status` 干净，没有 Plan 的 `log.jsonl` 被写入。

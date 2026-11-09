@@ -61,7 +61,7 @@ status: completed
 | 折叠图标（002） | 已实现：与边框同色 + 独立 1 列 overlay + 与上边框同行顶掉 `┐` + 折叠只剩图标 |
 | 真机走查（003） | 用户 2026-11-09 回执验收完成 |
 | 领域文档 | `packages/pi-toolkit/README.md` 与 `pi/CONTEXT.md` 的 Note 侧栏词条已同步；新增 [pi 002 问题](../../../questions/002-overlay格子一律回落到终端默认底色.md) |
-| 禁用压缩（004） | 已实现：三种 `reason` 一律 `{ cancel: true }`，284 项单测通过 |
+| 禁用压缩（004） | 已实现 + 真机验证：manual / threshold 取消、关闭后恢复（对照 A/B/C 三组会话），`overflow` 由同一代码路径与单测覆盖 |
 
 ## 追踪 Note
 
