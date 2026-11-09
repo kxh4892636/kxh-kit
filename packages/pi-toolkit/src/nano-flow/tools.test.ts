@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it } from "vite-plus/test";
 
 import { DEFAULT_NANO_FLOW_SETTINGS } from "./config.ts";
 import { createBindTool } from "./tools/bind.ts";
-import { createCheckTool } from "./tools/check.ts";
+import { createCheckTool, renderCheckReport } from "./tools/check.ts";
 import { createCreateTool } from "./tools/create.ts";
 import type { NanoDeps } from "./tools/shared.ts";
 
@@ -134,5 +134,17 @@ describe("nano_flow_check", () => {
     const failed = await run(tool, { domain: "demo" }, workspace);
     expect(failed).toContain("校验失败");
     expect(failed).toContain("reason");
+  });
+});
+
+describe("check 报告的形状守卫", () => {
+  it("缺 fixed 的旧结果给出重启提示，而不是底层 TypeError", () => {
+    const legacy = { ok: true, errors: [], warnings: [], updated: [] } as never;
+    expect(() => renderCheckReport(legacy)).toThrow(/缺少 fixed.*重启 pi 或 \/reload/);
+  });
+
+  it("字段齐全时渲染通过文案", () => {
+    const result = { ok: true, errors: [], warnings: [], updated: [], fixed: [] };
+    expect(renderCheckReport(result as never)).toBe("领域文档校验通过。");
   });
 });
