@@ -1,7 +1,8 @@
 /**
- * Note 侧栏（fullscreen）：当前绑定 Plan 的未完成 note，点击出详情卡。
- * 只做三件事：右上角 overlay、鼠标命中与 Esc 关闭；没有分组、实时流、
- * 图标切换与定时轮询。数据由 register 在 turn_end 时刷新一次。
+ * Note 侧栏（fullscreen）：已绑定 Plan 时始终挂载，列出未完成 note，点击出详情卡。
+ * 右上角图标在边框之外、与侧栏右缘对齐，点击整块收放（折叠只留图标）。
+ * 只做三件事：overlay、鼠标命中与 Esc 关闭；没有分组、实时流与定时轮询。
+ * 数据由 register 在 turn_end 时刷新一次。
  * @module @kxh4892636/pi-toolkit/nano-flow/ui/sidebar
  */
 
@@ -29,8 +30,14 @@ const TEXT_WIDTH = SIDEBAR_WIDTH - 4;
 export const SIDEBAR_MIN_COLUMNS = 110;
 /** 承载侧栏的 widget 键。 */
 export const SIDEBAR_WIDGET_KEY = "nano-flow-notes";
-/** 侧栏标题。 */
-const SIDEBAR_TITLE = "▤ Note";
+/** 侧栏标题；书本图标已移到框外右上角，标题不再带前缀。 */
+const SIDEBAR_TITLE = "Note";
+/** 折叠图标：放在边框之上的右上角，与侧栏右缘对齐；折叠时整块只剩它。 */
+const TOGGLE_GLYPH = "▤";
+/** 图标命中区间宽度（列，从右端算起）：图标只有 1 列，点偏一点也算。 */
+const TOGGLE_HIT_COLUMNS = 3;
+/** 空态文案：未完成 note 为 0 时占一行，不可点击。 */
+const EMPTY_TEXT = "全部完成";
 
 /** 侧栏一帧的数据。 */
 export interface SidebarSnapshot {
@@ -128,9 +135,9 @@ export interface NotesSidebarDeps {
   readonly snapshot: (ctx: ExtensionContext) => SidebarSnapshot | null;
 }
 
-/** 一行：标题或一条 note。 */
+/** 一行：标题、空态文案或一条 note。 */
 interface Row {
-  readonly kind: "title" | "note";
+  readonly kind: "title" | "empty" | "note";
   readonly text: string;
   readonly note?: NanoNote;
 }
@@ -156,6 +163,7 @@ export const createNotesSidebar = (deps: NotesSidebarDeps): NotesSidebar => {
   let detailNote: NanoNote | undefined;
   let removeInputListener: (() => void) | undefined;
   let mounted = false;
+  let collapsed = false;
   let rows: Row[] = [];
 
   const requestRender = (): void => {
@@ -195,29 +203,49 @@ export const createNotesSidebar = (deps: NotesSidebarDeps): NotesSidebar => {
     requestRender();
   };
 
+  /** 空数组＝不挂载内容（没绑定 Plan 或目录失效）；否则标题行常驻。 */
   const view = (): Row[] => {
     const snapshot = ctx === undefined ? null : deps.snapshot(ctx);
-    if (snapshot === null || snapshot.notes.length === 0) return [];
-    const title = truncateToWidth(`${SIDEBAR_TITLE} · ${snapshot.planName}`, TEXT_WIDTH, "…");
-    return [
-      { kind: "title", text: title },
-      ...snapshot.notes.map((note) => ({
-        kind: "note" as const,
+    if (snapshot === null) return [];
+    const rows: Row[] = [
+      {
+        kind: "title",
+        text: truncateToWidth(`${SIDEBAR_TITLE} · ${snapshot.planName}`, TEXT_WIDTH, "…"),
+      },
+    ];
+    if (snapshot.notes.length === 0) {
+      rows.push({ kind: "empty", text: EMPTY_TEXT });
+      return rows;
+    }
+    for (const note of snapshot.notes) {
+      rows.push({
+        kind: "note",
         note,
         text: truncateToWidth(`${STATUS_LABEL[note.status]} · ${note.name}`, TEXT_WIDTH, "…"),
-      })),
-    ];
+      });
+    }
+    return rows;
   };
 
-  const rowText = (row: Row, localTheme: Theme): string =>
-    row.kind === "title"
-      ? localTheme.bold(row.text)
-      : statusStyle((row.note as NanoNote).status, localTheme, row.text);
+  const rowText = (row: Row, localTheme: Theme): string => {
+    if (row.kind === "title") return localTheme.bold(row.text);
+    if (row.kind === "empty") return localTheme.fg("dim", row.text);
+    return statusStyle((row.note as NanoNote).status, localTheme, row.text);
+  };
+
+  /** 图标行：宽度与侧栏一致，图标落在最右列，压在边框右缘上方；颜色与边框同色。 */
+  const iconLine = (localTheme: Theme): string =>
+    `${" ".repeat(Math.max(0, SIDEBAR_WIDTH - visibleWidth(TOGGLE_GLYPH)))}${localTheme.fg(
+      "border",
+      TOGGLE_GLYPH,
+    )}`;
 
   const renderLines = (localTheme: Theme): string[] => {
+    // 折叠态：整块只剩右上角图标。
+    if (collapsed) return [iconLine(localTheme)];
     const inner = SIDEBAR_WIDTH - 2;
     const border = (text: string): string => localTheme.fg("border", text);
-    const lines = [border(`┌${"─".repeat(inner)}┐`)];
+    const lines = [iconLine(localTheme), border(`┌${"─".repeat(inner)}┐`)];
     for (const row of rows) {
       const text = rowText(row, localTheme);
       const clipped = truncateToWidth(text, inner - 2, "");
@@ -229,6 +257,12 @@ export const createNotesSidebar = (deps: NotesSidebarDeps): NotesSidebar => {
     return lines.map((line) => truncateToWidth(line, SIDEBAR_WIDTH, ""));
   };
 
+  const toggleCollapsed = (): void => {
+    collapsed = !collapsed;
+    if (collapsed) closeDetail();
+    requestRender();
+  };
+
   const mountOverlays = (): void => {
     const localTui = tui;
     const localTheme = theme;
@@ -238,8 +272,14 @@ export const createNotesSidebar = (deps: NotesSidebarDeps): NotesSidebar => {
         render: () => (rows.length === 0 ? [] : renderLines(localTheme)),
         handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
           if (!isClick(event)) return { handled: true };
-          // 第 0 行是上边框，第 1 行是标题；note 从第 2 行开始。
-          const row = rows[event.y - 1];
+          // 第 0 行是右上角图标行：点它收放整块。
+          if (event.y === 0) {
+            if ((event.x ?? 0) >= SIDEBAR_WIDTH - TOGGLE_HIT_COLUMNS) toggleCollapsed();
+            return { handled: true };
+          }
+          if (collapsed) return { handled: true };
+          // 第 1 行是上边框，第 2 行是标题；note 从第 3 行开始。
+          const row = rows[event.y - 2];
           if (row?.kind === "note" && row.note !== undefined)
             openDetail(row.note, detailOrigin(event));
           return { handled: true };
@@ -278,7 +318,9 @@ export const createNotesSidebar = (deps: NotesSidebarDeps): NotesSidebar => {
 
   const refresh = (): void => {
     rows = view();
-    if (rows.length === 0) closeDetail();
+    // 侧栏常驻后 rows 不再为空，改按「卡片所指 note 是否还在列表里」关卡片。
+    const openName = detailNote?.name;
+    if (openName !== undefined && !rows.some((row) => row.note?.name === openName)) closeDetail();
     requestRender();
   };
 

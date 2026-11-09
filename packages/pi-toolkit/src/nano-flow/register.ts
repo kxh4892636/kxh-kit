@@ -107,14 +107,13 @@ const readGuide = (cwd: string): string => {
 const branchOf = (ctx: ExtensionContext): BranchEntryLike[] =>
   ctx.sessionManager.getBranch() as unknown as BranchEntryLike[];
 
-/** 当前 Plan 侧栏快照；没有绑定、目录失效或没有未完成 note 时返回 null。 */
+/** 当前 Plan 侧栏快照；没有绑定或目录失效时返回 null（未完成 note 可以为空，侧栏仍常驻）。 */
 const snapshotOf = (ctx: ExtensionContext): SidebarSnapshot | null => {
   const binding = bindingOf(branchOf(ctx));
   if (binding === undefined) return null;
   const directory = resolveBindingDirectory(binding, ctx.cwd);
   if (!existsSync(directory)) return null;
-  const notes = readUnfinishedNotes(directory);
-  return notes.length === 0 ? null : { planName: basename(directory), notes };
+  return { planName: basename(directory), notes: readUnfinishedNotes(directory) };
 };
 
 /** 注册 Nano Flow 的开关、命令、提示词、工具、skill 与侧栏。 */
