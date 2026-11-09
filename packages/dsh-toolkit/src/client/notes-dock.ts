@@ -56,11 +56,17 @@ const isRenderable = (value: unknown): boolean =>
     value !== null &&
     typeof (value as { readonly $$typeof?: unknown }).$$typeof !== "undefined");
 
-/** 宿主 Tooltip 可用就用宿主组件，否则退回原生 `title`。 */
+/**
+ * 宿主 Tooltip 可用就用宿主组件，否则退回原生 `title`。
+ *
+ * `portal` 必须开：气泡默认渲染在锚点旁边，composer dock 的祖先可能有
+ * `transform`/`overflow`，会把 `position: fixed` 的气泡裁掉或压在下面。
+ */
 const NotesTooltip: FC<{ readonly label: string; readonly children?: ReactNode }> = isRenderable(
   Tooltip,
 )
-  ? ({ label, children }) => createElement(Tooltip, { label, side: "top", delayMs: 200 }, children)
+  ? ({ label, children }) =>
+      createElement(Tooltip, { label, side: "top", delayMs: 200, portal: true }, children)
   : ({ label, children }) => createElement("span", { title: label }, children);
 
 /**
@@ -201,15 +207,20 @@ const NotesPanelView: FC<{
                   className: "dshtk-notes-item",
                   "data-status": note.status,
                 },
-                createElement(
-                  "span",
-                  { className: "dshtk-notes-status" },
-                  STATUS_LABEL[note.status],
-                ),
+                // 悬浮区是整行：状态名与标题都算「对应项」，只挂在标题上会漏掉大部分行宽。
                 createElement(
                   NotesTooltip,
                   { label: tooltipLabel(note) },
-                  createElement("span", { className: "dshtk-notes-content" }, note.name),
+                  createElement(
+                    "span",
+                    { className: "dshtk-notes-row" },
+                    createElement(
+                      "span",
+                      { className: "dshtk-notes-status" },
+                      STATUS_LABEL[note.status],
+                    ),
+                    createElement("span", { className: "dshtk-notes-content" }, note.name),
+                  ),
                 ),
               ),
             ),

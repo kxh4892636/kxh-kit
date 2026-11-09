@@ -497,13 +497,22 @@ const css = `
   display: flex;
 }
 .dshtk-notes-item {
-  align-items: center;
-  gap: 8px;
   min-width: 0;
   font-size: 13px;
   line-height: 20px;
   color: var(--dsw-alias-label-secondary);
+}
+/* 悬浮锚点覆盖整行，提示才对得上「悬浮到这一项」。 */
+.dshtk-notes-row {
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
   display: flex;
+  cursor: default;
+}
+.dshtk-notes-item:hover .dshtk-notes-content {
+  color: var(--dsw-alias-label-primary);
 }
 .dshtk-notes-status {
   flex: none;
