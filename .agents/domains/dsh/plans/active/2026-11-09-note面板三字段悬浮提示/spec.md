@@ -24,4 +24,4 @@ Note 面板（输入框上方的未完成 note 列表）现在只在悬浮时显
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [001-为Note面板增加三字段悬浮提示](001-为Note面板增加三字段悬浮提示.md) | 悬浮某条 note 时显示 description、reason（有才显示）与 next_step；宿主 Tooltip 按 pre-line 渲染多行。 | blocked | 等待真机验收：改动已提交，但宿主仍挂旧构建，需重新打包安装并重启后再看悬浮提示 | 按 004 的打包安装流程升 patch → pack → 装进 web profile → 重启，悬浮检查三条 note 的气泡。 | — |
+| [001-为Note面板增加三字段悬浮提示](001-为Note面板增加三字段悬浮提示.md) | 悬浮某条 note 时显示 description、reason（有才显示）与 next_step；宿主 Tooltip 按 pre-line 渲染多行。 | blocked | 等待真机验收：0.5.40 已装进 web profile，重启宿主后悬浮检查三字段气泡 | 重启宿主 → 新建 nano-flow 会话 → 展开 Note 面板，悬浮阻塞行与普通行各一次，确认三行/两行文本。 | — |

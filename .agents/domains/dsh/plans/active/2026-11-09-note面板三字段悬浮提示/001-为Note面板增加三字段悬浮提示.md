@@ -2,9 +2,9 @@
 name: "001-为Note面板增加三字段悬浮提示"
 description: "悬浮某条 note 时显示 description、reason（有才显示）与 next_step；宿主 Tooltip 按 pre-line 渲染多行。"
 status: blocked
-reason: "等待真机验收：改动已提交，但宿主仍挂旧构建，需重新打包安装并重启后再看悬浮提示"
+reason: "等待真机验收：0.5.40 已装进 web profile，重启宿主后悬浮检查三字段气泡"
 related_noted: []
-next_step: "按 004 的打包安装流程升 patch → pack → 装进 web profile → 重启，悬浮检查三条 note 的气泡。"
+next_step: "重启宿主 → 新建 nano-flow 会话 → 展开 Note 面板，悬浮阻塞行与普通行各一次，确认三行/两行文本。"
 ---
 
 # 001-为Note面板增加三字段悬浮提示
@@ -40,9 +40,22 @@ next_step: "按 004 的打包安装流程升 patch → pack → 装进 web profi
 - 新增用例：`notes.test.ts` 两条（带 `reason`/`next_step` 全量透传；空串与空白视为没有）、`host-api.test.ts` 两条（可选字段透传；非字符串被丢弃且不报错）、`notes-dock.test.ts` 一条（两行 note 的 `title` 分别是「描述 + 下一步」「描述 + 原因 + 下一步」）。
 - 断言方式：`getByTitle` 会归一化空白，改用取 `[title]` 的原始属性值比较换行。
 
+## 安装记录
+
+2026-11-09 14:29：版本升到 `0.5.40`，`pnpm pack` 出 `~/.dsh/pkgs/kxh4892636-dsh-toolkit-0.5.40.tgz`（102 615 字节），用 `dsh plugin --profile web add` 装进 web profile。
+
+核对安装副本：
+
+- 版本 `0.5.40`；
+- `dist/client.js` 含「原因：」与「下一步：」各 1 处；
+- `dist/index.mjs` 含 `nextStep` 2 处、`nano_flow_bind` 7 处；
+- `dist/nano-flow/templates/guide.md` 仍为 0 字节。
+
+宿主尚未重启，当前会话仍是旧挂载。
+
 ## 遗留
 
-- 真机未验：宿主仍挂 0.5.39 旧构建，面板效果要重新打包安装并重启后才可见。
+- 真机未验：等重启宿主后看气泡。
 - 宿主 `Tooltip` 不可用时退回原生 `title`，同样保留换行。
 - `reason` 目前只在 `blocked` 时存在，因此「原因：」实际只在阻塞行出现。
 
