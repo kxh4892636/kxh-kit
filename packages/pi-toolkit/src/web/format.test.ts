@@ -66,7 +66,7 @@ describe("formatSearchOutput", () => {
 });
 
 describe("formatFetchOutput", () => {
-  it("renders the harness header, notice, and body", () => {
+  it("renders the header, notice, and body", () => {
     const text = formatFetchOutput(
       {
         url: "https://a.example",

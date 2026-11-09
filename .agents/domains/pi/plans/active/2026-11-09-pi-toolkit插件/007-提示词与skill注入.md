@@ -1,9 +1,7 @@
 ---
-name: '002-提示词与skill注入'
+name: '007-提示词与skill注入'
 description: '在 Nano Flow 会话注入固定提示词、GUIDE 快照、篇幅限制与每轮提醒；随包 skill 按会话通过 resources_discover 注入。'
-status: 'blocked'
-reason: '等待用户验收'
-next_step: '新会话确认 system/user 提示词与 5 个 skill 出现；普通会话确认不可见'
+status: 'completed'
 related_noted: []
 ---
 

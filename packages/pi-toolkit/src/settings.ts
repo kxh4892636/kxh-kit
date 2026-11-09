@@ -16,6 +16,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
+import { DEFAULT_NANO_FLOW_SETTINGS, type NanoFlowSettings } from "./nano-flow/config.ts";
 import { DEFAULT_EXCLUDED_DIRS } from "./skills/discover.ts";
 
 /** Config file name in the agent dir and the project `.pi` dir. */
@@ -71,6 +72,8 @@ export interface ToolToggles {
   readonly sessionName: boolean;
   /** The `ask_questions` tool for blocking, multi-question prompts. */
   readonly askQuestions: boolean;
+  /** The Nano Flow workflow: prompts, tools, skills, notes sidebar. */
+  readonly nanoFlow: boolean;
 }
 
 /** Toggle order used by the `/toolkit` panel. */
@@ -79,6 +82,7 @@ export const TOOL_TOGGLE_KEYS = [
   "sessionName",
   "webTools",
   "askQuestions",
+  "nanoFlow",
 ] as const;
 
 /** One switch key. */
@@ -114,6 +118,12 @@ export interface NestedSkillSettings {
   readonly excludedDirs: readonly string[];
 }
 
+/** Nano Flow settings: the 8 size caps, the rotate threshold, and the new-session default. */
+export interface NanoFlowConfig extends NanoFlowSettings {
+  /** Whether a new session starts in Nano Flow. `/nano-flow` Ctrl+S writes this. */
+  readonly always: boolean;
+}
+
 /** Session-naming settings. */
 export interface SessionNameSettings {
   /** Maximum name length in Unicode code points. */
@@ -130,6 +140,7 @@ export interface ToolkitSettings {
   readonly web: WebSettings;
   readonly nestedSkill: NestedSkillSettings;
   readonly sessionName: SessionNameSettings;
+  readonly nanoFlow: NanoFlowConfig;
 }
 
 /** Every capability off: the toolkit does nothing until `/toolkit` enables it. */
@@ -138,6 +149,7 @@ export const DEFAULT_TOOLS: ToolToggles = {
   nestedSkills: false,
   sessionName: false,
   askQuestions: false,
+  nanoFlow: false,
 };
 
 /** Defaults used for every field a config file leaves out. */
@@ -156,6 +168,7 @@ export const DEFAULT_SETTINGS: ToolkitSettings = {
     fetchMaxOutputChars: DEFAULT_FETCH_MAX_OUTPUT_CHARS,
   },
   nestedSkill: { excludedDirs: DEFAULT_EXCLUDED_DIRS },
+  nanoFlow: { ...DEFAULT_NANO_FLOW_SETTINGS, always: false },
   sessionName: {
     maxLength: DEFAULT_SESSION_NAME_MAX_LENGTH,
     timeoutMs: DEFAULT_SESSION_NAME_TIMEOUT_MS,
@@ -302,6 +315,19 @@ export const requireApiKey = (web: WebSettings, paths: readonly string[]): strin
   );
 };
 
+/**
+ * Persist the Nano Flow new-session default, preserving every other key.
+ * @param path - file returned as `writePath` by {@link loadSettings}.
+ * @param always - whether new sessions start in Nano Flow.
+ */
+export const saveNanoFlowAlways = (path: string, always: boolean): void => {
+  const existing = readConfigFile(path) ?? {};
+  const current = existing["nanoFlow"];
+  existing["nanoFlow"] = { ...(isRecord(current) ? current : {}), always };
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${JSON.stringify(existing, null, 2)}\n`, "utf-8");
+};
+
 /** Merge one parsed file into the accumulator, recursing into plain objects. */
 const mergeInto = (target: Record<string, unknown>, source: Record<string, unknown>): void => {
   for (const [key, value] of Object.entries(source)) {
@@ -321,6 +347,7 @@ const parseSettings = (
   const web = section(merged, "web", paths);
   const nestedSkill = section(merged, "nestedSkill", paths);
   const sessionName = section(merged, "sessionName", paths);
+  const nanoFlow = section(merged, "nanoFlow", paths);
 
   const apiKeyEnv = nonEmptyString(web["apiKeyEnv"]) ?? DEFAULT_API_KEY_ENV;
   const literalKey = nonEmptyString(web["apiKey"]);
@@ -347,6 +374,7 @@ const parseSettings = (
         "tools.askQuestions",
         paths,
       ),
+      nanoFlow: booleanOption(tools["nanoFlow"], DEFAULT_TOOLS.nanoFlow, "tools.nanoFlow", paths),
     },
     web: {
       apiKey: literalKey ?? envKey,
@@ -402,6 +430,63 @@ const parseSettings = (
         nestedSkill["excludedDirs"],
         DEFAULT_EXCLUDED_DIRS,
         "nestedSkill.excludedDirs",
+        paths,
+      ),
+    },
+    nanoFlow: {
+      always: booleanOption(nanoFlow["always"], false, "nanoFlow.always", paths),
+      specMaxBytes: positiveInteger(
+        nanoFlow["specMaxBytes"],
+        DEFAULT_NANO_FLOW_SETTINGS.specMaxBytes,
+        "nanoFlow.specMaxBytes",
+        paths,
+      ),
+      noteMaxBytes: positiveInteger(
+        nanoFlow["noteMaxBytes"],
+        DEFAULT_NANO_FLOW_SETTINGS.noteMaxBytes,
+        "nanoFlow.noteMaxBytes",
+        paths,
+      ),
+      noteDescriptionMaxChars: positiveInteger(
+        nanoFlow["noteDescriptionMaxChars"],
+        DEFAULT_NANO_FLOW_SETTINGS.noteDescriptionMaxChars,
+        "nanoFlow.noteDescriptionMaxChars",
+        paths,
+      ),
+      contextMaxBytes: positiveInteger(
+        nanoFlow["contextMaxBytes"],
+        DEFAULT_NANO_FLOW_SETTINGS.contextMaxBytes,
+        "nanoFlow.contextMaxBytes",
+        paths,
+      ),
+      questionMaxBytes: positiveInteger(
+        nanoFlow["questionMaxBytes"],
+        DEFAULT_NANO_FLOW_SETTINGS.questionMaxBytes,
+        "nanoFlow.questionMaxBytes",
+        paths,
+      ),
+      adrMaxBytes: positiveInteger(
+        nanoFlow["adrMaxBytes"],
+        DEFAULT_NANO_FLOW_SETTINGS.adrMaxBytes,
+        "nanoFlow.adrMaxBytes",
+        paths,
+      ),
+      workflowMaxBytes: positiveInteger(
+        nanoFlow["workflowMaxBytes"],
+        DEFAULT_NANO_FLOW_SETTINGS.workflowMaxBytes,
+        "nanoFlow.workflowMaxBytes",
+        paths,
+      ),
+      guideMaxBytes: positiveInteger(
+        nanoFlow["guideMaxBytes"],
+        DEFAULT_NANO_FLOW_SETTINGS.guideMaxBytes,
+        "nanoFlow.guideMaxBytes",
+        paths,
+      ),
+      rotateAt: ratioOption(
+        nanoFlow["rotateAt"],
+        DEFAULT_NANO_FLOW_SETTINGS.rotateAt,
+        "nanoFlow.rotateAt",
         paths,
       ),
     },
@@ -491,6 +576,19 @@ const booleanOption = (
   if (value === undefined) return fallback;
   if (typeof value !== "boolean") {
     throw new Error(`Config ${name} must be a boolean (from ${paths.join(", ")})`);
+  }
+  return value;
+};
+
+const ratioOption = (
+  value: unknown,
+  fallback: number,
+  name: string,
+  paths: readonly string[],
+): number => {
+  if (value === undefined) return fallback;
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0 || value > 1) {
+    throw new Error(`Config ${name} must be a number in (0, 1] (from ${paths.join(", ")})`);
   }
   return value;
 };

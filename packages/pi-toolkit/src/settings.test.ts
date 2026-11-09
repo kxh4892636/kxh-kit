@@ -95,6 +95,7 @@ describe("loadSettings", () => {
       nestedSkills: false,
       sessionName: false,
       askQuestions: false,
+      nanoFlow: false,
     });
     expect(settings.web.baseURL).toBe(DEFAULT_BASE_URL);
     expect(settings.web.apiKeyEnv).toBe(DEFAULT_API_KEY_ENV);
@@ -204,6 +205,7 @@ describe("saveToggles", () => {
       nestedSkills: false,
       sessionName: true,
       askQuestions: false,
+      nanoFlow: false,
     });
     const written = JSON.parse(readFileSync(path, "utf-8")) as Record<string, unknown>;
     expect(written["tools"]).toEqual({
@@ -211,6 +213,7 @@ describe("saveToggles", () => {
       nestedSkills: false,
       sessionName: true,
       askQuestions: false,
+      nanoFlow: false,
     });
   });
 
@@ -225,6 +228,7 @@ describe("saveToggles", () => {
       nestedSkills: false,
       sessionName: true,
       askQuestions: false,
+      nanoFlow: false,
     });
     const written = JSON.parse(readFileSync(path, "utf-8")) as {
       tools: Record<string, boolean>;
@@ -235,6 +239,7 @@ describe("saveToggles", () => {
       nestedSkills: false,
       sessionName: true,
       askQuestions: false,
+      nanoFlow: false,
     });
     expect(written.web).toEqual({ apiKey: "k", searchCount: 4 });
   });
@@ -249,6 +254,7 @@ describe("saveToggles", () => {
         nestedSkills: true,
         sessionName: true,
         askQuestions: false,
+        nanoFlow: false,
       }),
     ).toThrow(/not valid JSON/u);
   });

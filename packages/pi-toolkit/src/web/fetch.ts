@@ -1,5 +1,5 @@
 /**
- * DeepSeek official Fetch API client, normalized to the DeepSeek Harness web
+ * DeepSeek official Fetch API client, normalized to the toolkit's portable web
  * contract: `{ url, statusCode, body: { kind: "text", content }, truncated }`.
  * The API reports neither the target's status nor a final URL, and it fails
  * when the target yields no usable content, so a success is the requested page

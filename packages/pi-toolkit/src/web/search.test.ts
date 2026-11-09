@@ -94,7 +94,7 @@ describe("mapSearchResponse", () => {
     for (const body of [null, {}, { results: null }]) {
       expect(() => mapSearchResponse(body)).toThrow(/unreadable results list/u);
     }
-    // `title`, `snippet`, and `date` are required by the harness provider.
+    // `title`, `snippet`, and `date` are required by the provider contract.
     expect(() => mapSearchResponse({ results: [{ url: "https://a.example" }] })).toThrow(
       /unreadable results list/u,
     );
@@ -109,7 +109,7 @@ describe("mapSearchResponse", () => {
 });
 
 describe("deepSeekSearch", () => {
-  it("sends the harness request body with deployment limits", async () => {
+  it("sends the request body with deployment limits with deployment limits", async () => {
     const fetchImpl = vi.fn<typeof fetch>(async () =>
       jsonResponse({ results: [result("https://a.example")] }),
     );

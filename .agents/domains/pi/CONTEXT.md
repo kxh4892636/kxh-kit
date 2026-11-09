@@ -96,8 +96,8 @@ _Avoid_：会话轮转、会话删除、压缩
 _Avoid_：摘要、handoff prompt
 
 **Note 侧栏**：
-fullscreen 右上角 overlay：只列当前绑定 Plan 的未完成 note，行 = 中文状态 + note 名；点击出概述 / 原因 / 下一步详情卡，`turn_end` 刷新一次。
-_Avoid_：看板、dock、悬浮提示
+fullscreen 右上角 overlay：只列当前绑定 Plan 的未完成 note，行 = 中文状态 + note 名；点击某行后，详情卡悬浮在该行左下侧（顶端与该行对齐、右缘离侧栏 2 列），标题行右端带 `×`，`×` 或 Esc 关闭，`turn_end` 刷新一次。
+_Avoid_：看板、dock、悬浮提示、居中弹窗
 
 **Nano Flow 设置**：
 `pi-toolkit.json` 的 `nanoFlow` 节：8 项篇幅上限 + `rotateAt` + `always`；只改 JSON，不做设置界面。

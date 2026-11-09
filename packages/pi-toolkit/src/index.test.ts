@@ -154,6 +154,9 @@ describe("piToolkit", () => {
     const harness = setup();
     expect(harness.tools.map((tool) => tool.name).sort()).toEqual([
       "ask_questions",
+      "nano_flow_bind",
+      "nano_flow_check",
+      "nano_flow_create",
       "web_fetch",
       "web_search",
     ]);
@@ -282,7 +285,11 @@ describe("piToolkit", () => {
     const off = setup({ agentDir, homeDir, env: {} });
     const offCtx = sessionContext(project);
     off.fire("session_start", offCtx);
-    expect(off.fire("resources_discover", offCtx)).toEqual([undefined]);
+    expect(
+      (off.fire("resources_discover", offCtx) as unknown[]).filter(
+        (contribution) => contribution !== undefined,
+      ),
+    ).toEqual([]);
 
     writeAgentConfig(agentDir, { tools: { nestedSkills: true } });
     const on = setup({ agentDir, homeDir, env: {} });

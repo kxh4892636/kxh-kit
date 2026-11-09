@@ -1,9 +1,7 @@
 ---
-name: '004-会话模式与Plan绑定'
+name: '009-会话模式与Plan绑定'
 description: '用会话条目保存 nano-flow-mode 与 nano-flow-binding；/nano-flow 开关与 nano_flow_bind 是唯一写入方。'
-status: 'blocked'
-reason: '等待用户验收'
-next_step: '绑定 Plan 后重启会话，确认侧栏与 seed 仍指向同一 Plan'
+status: 'completed'
 related_noted: []
 ---
 

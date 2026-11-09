@@ -1,7 +1,7 @@
 ---
 name: 'pi-toolkit插件'
-description: '按 dsh-toolkit 的设计重建 pi 工具包：嵌套 skill 与 $ 引用、会话自动命名、DeepSeek 网页工具、ask_questions，由 /toolkit 面板逐项开关，全部配置落一个 JSON。'
-status: 'in_progress'
+description: '按 pi 接缝重建工具包：嵌套 skill 与会话命名、DeepSeek 网页工具、ask_questions、Nano Flow 交付流程，全部开关与配置落一个 JSON。'
+status: 'completed'
 ---
 
 # pi-toolkit插件
@@ -41,13 +41,73 @@ status: 'in_progress'
 
 - `packages/pi-toolkit` 源码、单测、示例配置与 README（含 `ask_questions`）。
 - 本机 `~/.pi` 的失效包声明清理，安装 `packages/pi-toolkit`，并用非交互会话冒烟。
+- Nano Flow 迁移：提示词与 skill、三个文档工具与校验、会话模式与绑定、上下文清空、Note 侧栏。
 - 本域文档（CONTEXT、ADR、Plan 与 note）。
 
 ## 非范围
 
-- `log.jsonl` 轨迹、nano-flow 工具与预设的移植。
 - 修改 pi 上游或引入自定义 provider seam。
 - npm 发布与真机 TUI 的逐键验收；面板交互由单测覆盖，最终以用户验收为准。
+
+## Nano Flow 迁移（合并）
+
+### 问题
+
+`dsh-toolkit/src/nano-flow` 是 DSH 的 Agent 预设：固定提示词 + GUIDE 快照 + 篇幅限制、`nano_flow_create` / `bind` / `check`、5 个随包 skill、Note 看板、Plan 绑定与轨迹日志、上下文轮转，以及一套只在该预设会话生效的作用域。pi 没有 Agent 预设选择器、没有可自动新建会话的事件接缝、没有会话删除 API，TUI 也没有浏览器 dock 与 hover。需要按 pi 的接缝逐项适配后迁移。
+
+### 方案
+
+- **作用域**：`/toolkit` 新增 `nano-flow` 开关（默认关）决定是否可用；`/nano-flow` 命令按 `/thinking` 的交互给出「开 / 关」，Enter 只改当前会话，`Ctrl+S` 同时写 `nanoFlow.always` 作为新会话默认。会话级状态存 `nano-flow-mode` 自定义条目，生效值 = 开关 ∧ (会话条目 ?? `always`)。
+- **提示词**：`before_agent_start` 在生效会话注入 `system.md` + `GUIDE.md` 快照 + `limit.md` 数值块（`systemPromptOptions.sections`）；用户消息触发的 run 追加 `user.md` 提醒。
+- **工具**：`nano_flow_create` / `nano_flow_bind` / `nano_flow_check` 以 `defaultActive:false` 注册，生效会话加入激活集合，`execute` 再检查一次；名称保持 snake_case。
+- **校验**：直接 import `scripts/check-domain.mjs` 的 `checkWorkspace`，不启子进程；规则、索引生成、模板全部保留。
+- **绑定**：`nano_flow_bind` 用 `pi.appendEntry("nano-flow-binding", { planPath, cwd, boundAt })` 写会话条目，最后一条生效；不再有全局绑定表与死条目清理。
+- **上下文清空**：`before_agent_start` 读 `ctx.getContextUsage()`，`tokens / contextWindow >= rotateAt` 时写 `nano-flow-reset { at, seed }` 并提示；`context` 事件按 `at` 过滤消息，把 seed 作为首条 user 消息插回。seed = 当前 Plan + 上一轮 assistant 输出（`<rotation-last-output>` 包裹）；本轮用户输入原样保留为普通消息。
+- **skill**：`resources_discover` 仅在当前会话生效时返回随包 skills 根；`/nano-flow on` 中途打开时 skill 需要 `/reload` 或新会话才出现，命令提示这一点。
+- **Note 侧栏**：只做 fullscreen overlay（右上角 40 列）：当前绑定 Plan 的未完成 note，行 = 中文状态 + note 名；点击出详情卡（概述 / `原因：` / `下一步：`），`×` 或 Esc 关闭。`turn_end` 时重读一次磁盘，不做定时轮询；regular 模式不显示。
+- **设置**：9 项上限与 `rotateAt` 全部放进 `pi-toolkit.json` 的 `nanoFlow` 节，只改 JSON，不做设置界面。
+- **提示词与 skill 适配**：`ask_user_question` → `ask_questions`；ask / do skill 里委派 subagent 的段落改为当前 agent 用只读工具自查；dream 不迁移。
+- **日志**：不写 `log.jsonl`；pi 会话 JSONL 就是轨迹，`turn_end` 同步侧栏一次。
+
+### 已排除的备选
+
+- **保留 Agent 预设选择器**：pi 没有该接缝；用 `/toolkit` 开关 + 会话模式条目替代。
+- **自动新建会话完成轮转**：`ctx.newSession` 只在命令上下文可用，事件处理器无法自动调用。
+- **物理删除旧会话**：pi 会话是只追加文件，`SessionManager` 无删除 API。
+- **独立 `nano-flow.json`**：与「pi-toolkit 全部配置一个 JSON」冲突。
+- **Note 面板走浏览器 dock / hover**：pi 是 TUI；改为 fullscreen overlay + 点击卡片。
+- **迁移 `log.jsonl` / dream**：当前没有消费方；dream 明确暂不迁移。
+- **迁移 PTC / subagent / schedule / present**：DSH 宿主插件，pi 没有对应物。
+
+### 约束与澄清
+
+- 2026-11-09（用户）：`/toolkit` 开关控制 nano-flow 工具是否可用；`/nano-flow` 参考 `/thinking` 的 UI 与交互，on/off，并可保存默认。
+- 2026-11-09（用户）：不新建会话，在原会话继续；按重置时间过滤历史。
+- 2026-11-09（用户）：绑定存会话条目。
+- 2026-11-09（用户）：不写 `log.jsonl`；用 pi 会话 JSONL，每轮结束同步一次。
+- 2026-11-09（用户）：Note 侧栏只显示当前绑定 Plan 的未完成 note；行显示中文状态 + note 名；点击出卡片（概述 + reason + 下一步）。
+- 2026-11-09（用户）：skill 仅在 Nano Flow 会话注入；dream 暂不迁移；提问工具统一 `ask_questions`；subagent 段落改为当前 agent 执行；设置只改 JSON。
+- 2026-11-09（用户）：侧栏只做 fullscreen；seed 只包裹上一轮输出，本轮用户输入保留为普通消息。
+
+### 范围
+
+- `packages/pi-toolkit/src/nano-flow/`：提示词、skill、模板、校验脚本、三个工具、模式与绑定、上下文清空、Note 侧栏。
+- `src/settings.ts` / `src/panel.ts` / `src/index.ts`：新增 `tools.nanoFlow`、`nanoFlow` 配置节、开关行、命令与接缝。
+- 单元测试与真机冒烟；`pi-toolkit.example.json` 与 README。
+- 本域文档：CONTEXT 术语、ADR、本 Plan 与 note。
+
+### 非范围
+
+- dream 记忆维护、`log.jsonl`、轮转跟随客户端、PTC / subagent / schedule / present。
+- 新会话创建、会话删除、Agent 预设选择器。
+- Note 侧栏在 regular 模式的展示。
+
+## 进度
+
+- 2026-11-09：12 条 note 全部 `completed`。001-010 首轮验收通过；011（Note 侧栏）首轮验收后修了 `×` 与卡片位置（改为悬浮在所点行左下侧），二轮走查通过；012 随之收口。
+- 2026-11-09：`ask_questions` 曾计划换宿主内置组件，用户决定不改，理由记在 005 的「曾讨论未采纳」。
+- 待办：整个 pi-toolkit 改动已随本轮一并提交（pi 包指向仓库路径，重启 pi 即生效）。
+- Plan 已无未完成 note，可按用户意愿迁 `reference`。
 
 ## 追踪 Note
 
@@ -55,8 +115,3 @@ status: 'in_progress'
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [001-嵌套skill发现与$引用](001-嵌套skill发现与$引用.md) | 通过 resources_discover 补交内建扫描看不见的嵌套 SKILL.md，并在输入中用 $skill-name 补全与展开为宿主同形 skill 块。 | blocked | 等待用户验收 | 在工作区打开 nestedSkills 后输入 $nano-flow-cli 验证补全与展开 | 004-toolkit开关面板与单一配置 |
-| [002-会话自动命名](002-会话自动命名.md) | 首个用户输入到达时用当前模型生成短标题并经 pi.setSessionName 落库，失败退化为确定性截断，且不覆盖手写名称。 | blocked | 等待用户验收 | 打开 sessionName 后新建会话发送首条输入，确认会话选择器出现模型生成的标题 | 004-toolkit开关面板与单一配置 |
-| [003-DeepSeek网页工具](003-DeepSeek网页工具.md) | web_search 与 web_fetch 走 DeepSeek 官方 Search/Fetch API，限额来自 JSON 配置，多查询轮转合并、按 URL 去重并封顶。 | blocked | 等待用户验收 | 配置 web.apiKey 后打开 webTools，各调用一次 web_search 与 web_fetch | 004-toolkit开关面板与单一配置 |
-| [004-toolkit开关面板与单一配置](004-toolkit开关面板与单一配置.md) | /toolkit 复用 pi /settings 的 SettingsList 与主题，三行开关写回 pi-toolkit.json，其余参数留在同一 JSON。 | blocked | 等待用户验收 | 在交互式 pi 里运行 /toolkit，逐个切换开关并确认 JSON 写回与重启后保持 | 001-嵌套skill发现与$引用, 002-会话自动命名, 003-DeepSeek网页工具 |
-| [005-ask-questions工具](005-ask-questions工具.md) | 新增独立的 ask_questions 模型工具：多题、选项、自定义回答与跳过；TUI 单组件切题与提交页，非交互降级，不引入 orchestrator 逻辑。 | blocked | 等待用户验收 | 打开 askQuestions 后在交互式会话让模型调用 ask_questions，验证切题、提交与未答拦截 | 004-toolkit开关面板与单一配置 |

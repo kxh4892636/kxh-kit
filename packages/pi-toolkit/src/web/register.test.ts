@@ -114,7 +114,7 @@ afterEach(() => {
 });
 
 describe("registerWebTools", () => {
-  it("registers the harness tool schemas inactive", () => {
+  it("registers the web tool schemas inactive", () => {
     const { tools } = setup(tempDir(), { apiKey: "k" });
     expect(tools.map((tool) => tool.name).sort()).toEqual(["web_fetch", "web_search"]);
     for (const tool of tools) expect(tool.defaultActive).toBe(false);
@@ -215,7 +215,7 @@ describe("registerWebTools", () => {
     ).rejects.toThrow(/at most 2/u);
   });
 
-  it("executes web_fetch with the harness result shape", async () => {
+  it("executes web_fetch with the web result shape", async () => {
     const dir = tempDir();
     const { tools } = setup(dir, { apiKey: "k", fetchMaxOutputChars: 1_000 });
     const fetchImpl = vi.fn<typeof fetch>(async () =>
@@ -299,7 +299,13 @@ describe("applyWebToolActivation", () => {
 
   const settings = (webTools: boolean): ToolkitSettings => ({
     ...loadSettings({ cwd: tempDir(), agentDir: tempDir(), env: {} }).settings,
-    tools: { webTools, nestedSkills: false, sessionName: false, askQuestions: false },
+    tools: {
+      webTools,
+      nestedSkills: false,
+      sessionName: false,
+      askQuestions: false,
+      nanoFlow: false,
+    },
   });
 
   it("adds both web tools when the switch is on", () => {

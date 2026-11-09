@@ -30,7 +30,7 @@ describe("validateUrl", () => {
 });
 
 describe("fetchPage", () => {
-  it("posts the URL and returns the harness result shape", async () => {
+  it("posts the URL and returns the web result shape", async () => {
     const fetchImpl = vi.fn<typeof fetch>(async () =>
       jsonResponse({ title: "  Example  ", content: "# Hello" }),
     );

@@ -41,6 +41,12 @@ export const TOGGLE_DESCRIPTORS: readonly ToggleDescriptor[] = [
     label: "ask_questions",
     description: "Ask the user one or more questions and wait for answers before continuing.",
   },
+  {
+    id: "nanoFlow",
+    label: "nano-flow",
+    description:
+      "Nano Flow workflow: prompts, plan tools, per-session skills, and the notes sidebar.",
+  },
 ];
 
 /** Values a switch cycles through; the first is "on" so Enter flips it. */

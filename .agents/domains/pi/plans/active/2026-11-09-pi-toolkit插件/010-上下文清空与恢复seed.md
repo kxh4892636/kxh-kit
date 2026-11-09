@@ -1,9 +1,7 @@
 ---
-name: '005-上下文清空与恢复seed'
+name: '010-上下文清空与恢复seed'
 description: '达到 rotateAt 时写重置条目，context 按时间过滤历史，并把当前 Plan 与上一轮输出作为 seed 插回；不新建会话。'
-status: 'blocked'
-reason: '等待用户验收'
-next_step: '把 rotateAt 调到 0.0001，连续两轮确认 reset 条目与过滤后的上下文'
+status: 'completed'
 related_noted: []
 ---
 

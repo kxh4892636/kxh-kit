@@ -3,7 +3,8 @@
     "nestedSkills": false,
     "sessionName": false,
     "webTools": false,
-    "askQuestions": false
+    "askQuestions": false,
+    "nanoFlow": false
   },
   "web": {
     "apiKey": "sk-your-deepseek-api-key",
@@ -23,5 +24,17 @@
     "maxLength": 21,
     "timeoutMs": 5000,
     "maxTokens": 256
+  },
+  "nanoFlow": {
+    "always": false,
+    "specMaxBytes": 34816,
+    "noteMaxBytes": 13312,
+    "noteDescriptionMaxChars": 233,
+    "contextMaxBytes": 91136,
+    "questionMaxBytes": 13312,
+    "adrMaxBytes": 13312,
+    "workflowMaxBytes": 34816,
+    "guideMaxBytes": 13312,
+    "rotateAt": 0.618
   }
 }

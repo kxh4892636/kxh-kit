@@ -1,6 +1,6 @@
 /**
  * Model-visible text for the `web_search` and `web_fetch` tools, matching the
- * DeepSeek Harness web contract.
+ * toolkit's portable web contract.
  */
 
 import type { WebFetchResult } from "./fetch.ts";

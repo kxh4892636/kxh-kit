@@ -6,6 +6,7 @@
  * - Nested skill discovery, `$skill-name` completion, and `$` expansion.
  * - Automatic session naming from the first user input.
  * - `ask_questions` — blocking, multi-question prompts for user decisions.
+ * - Nano Flow — prompted plan workflow with plan tools, skills, notes sidebar, context reset.
  *
  * Every capability starts off. `/toolkit` opens a `/settings`-style switch
  * panel; switches apply immediately where the pi event model allows and are
@@ -15,11 +16,13 @@
 
 import type { ExtensionAPI, ExtensionContext } from "@earendil-works/pi-coding-agent";
 import { applyAskToolActivation, registerAskTool } from "./ask/register.ts";
+import { registerNanoFlow } from "./nano-flow/register.ts";
 import { registerSessionNaming } from "./naming/register.ts";
 import { openToolkitPanel } from "./panel.ts";
 import {
   DEFAULT_SETTINGS,
   loadSettings,
+  saveNanoFlowAlways,
   saveToggles,
   type LoadedSettings,
   type ToolkitSettings,
@@ -63,6 +66,14 @@ const piToolkit = (pi: ExtensionAPI, options: ToolkitOptions = {}): void => {
   });
   registerSessionNaming(pi, { settings: settingsAt });
   registerAskTool(pi, { settings: settingsAt });
+  const nanoFlow = registerNanoFlow(pi, {
+    settings: settingsAt,
+    saveAlways: (always: boolean) => {
+      const target = loaded?.writePath;
+      if (target !== undefined) saveNanoFlowAlways(target, always);
+      settings = { ...settings, nanoFlow: { ...settings.nanoFlow, always } };
+    },
+  });
 
   pi.registerCommand("toolkit", {
     description: "Enable or disable pi-toolkit tools",
@@ -81,6 +92,7 @@ const piToolkit = (pi: ExtensionAPI, options: ToolkitOptions = {}): void => {
           settings = { ...settings, tools: { ...settings.tools, [key]: enabled } };
           applyWebToolActivation(pi, settings);
           applyAskToolActivation(pi, settings);
+          nanoFlow.sync(ctx);
           try {
             saveToggles(resolved.writePath, settings.tools);
           } catch (error) {
@@ -103,6 +115,7 @@ const piToolkit = (pi: ExtensionAPI, options: ToolkitOptions = {}): void => {
     }
     applyWebToolActivation(pi, settings);
     applyAskToolActivation(pi, settings);
+    nanoFlow.sync(ctx);
   });
 };
 

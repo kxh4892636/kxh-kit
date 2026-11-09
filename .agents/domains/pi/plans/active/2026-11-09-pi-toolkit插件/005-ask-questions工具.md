@@ -1,9 +1,7 @@
 ---
 name: '005-ask-questions工具'
 description: '新增独立的 ask_questions 模型工具：多题、选项、自定义回答与跳过；TUI 单组件切题与提交页，非交互降级，不引入 orchestrator 逻辑。'
-status: 'blocked'
-reason: '等待用户验收'
-next_step: '打开 askQuestions 后在交互式会话让模型调用 ask_questions，验证切题、提交与未答拦截'
+status: 'completed'
 related_noted: ['004-toolkit开关面板与单一配置']
 ---
 
@@ -23,3 +21,11 @@ related_noted: ['004-toolkit开关面板与单一配置']
 - `src/ask/ask.test.ts` 覆盖参数解析、候选项与概述渲染、切题/直选/提交页、未答拦截、自定义回答空值与取消、非交互降级与文本格式。
 - `src/index.test.ts` 覆盖默认不激活、开关打开后进入激活集合、关闭时 `execute` 拒绝调用。
 - `pnpm --filter @kxh4892636/pi-toolkit test`：199 项通过；`check` 无 lint / 类型问题。
+
+## 曾讨论未采纳（2026-11-09）
+
+用户先提出「不用自定义 UI、不要空行、改用 pi 内置组件」，比过两种落法（只换渲染为宿主 `SelectList`、或改成逐题 `ctx.ui.select`）后决定**不改**：保留 `ctx.ui.custom` 自绘两行选项与空行。
+
+- 不改的理由：要保留标题行下一行缩进概述与项间留白，宿主 `SelectList` 做不到两行，`ctx.ui.select` 只收纯字符串、还会丢掉多题 tab 与提交页。
+- 后续不要重提同一改法；真要改先回到用户确认交互降级是否可接受。
+- 事实核对：`ctx.ui.select(title, options: string[])` 无 description 字段；`pi-tui` 的 `SelectList` 支持 description，但每项只占一行，宽度 ≤ 40 时只显示 label。

@@ -1,9 +1,7 @@
 ---
 name: '004-toolkit开关面板与单一配置'
 description: '/toolkit 复用 pi /settings 的 SettingsList 与主题，三行开关写回 pi-toolkit.json，其余参数留在同一 JSON。'
-status: 'blocked'
-reason: '等待用户验收'
-next_step: '在交互式 pi 里运行 /toolkit，逐个切换开关并确认 JSON 写回与重启后保持'
+status: 'completed'
 related_noted: ['001-嵌套skill发现与$引用', '002-会话自动命名', '003-DeepSeek网页工具']
 ---
 

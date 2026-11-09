@@ -1,7 +1,7 @@
 {
   "name": "@kxh4892636/pi-toolkit",
   "version": "1.0.0",
-  "description": "pi extension toolkit: nested skill discovery with $skill-name references, automatic session naming, and DeepSeek web search/fetch, each behind a /toolkit switch in one JSON config.",
+  "description": "pi extension toolkit: nested skill discovery, session naming, DeepSeek web search/fetch, ask_questions, and the Nano Flow plan workflow, each behind a /toolkit switch in one JSON config.",
   "keywords": [
     "pi-package"
   ],
@@ -16,6 +16,9 @@
     "check": "vp check",
     "test": "vp test",
     "test:coverage": "vp test --run --coverage"
+  },
+  "dependencies": {
+    "yaml": "^2.9.0"
   },
   "devDependencies": {
     "@earendil-works/pi-coding-agent": "catalog:",

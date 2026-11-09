@@ -1,9 +1,7 @@
 ---
 name: '003-DeepSeek网页工具'
 description: 'web_search 与 web_fetch 走 DeepSeek 官方 Search/Fetch API，限额来自 JSON 配置，多查询轮转合并、按 URL 去重并封顶。'
-status: 'blocked'
-reason: '等待用户验收'
-next_step: '配置 web.apiKey 后打开 webTools，各调用一次 web_search 与 web_fetch'
+status: 'completed'
 related_noted: ['004-toolkit开关面板与单一配置']
 ---
 

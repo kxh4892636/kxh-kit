@@ -1,9 +1,7 @@
 ---
 name: '001-嵌套skill发现与$引用'
 description: '通过 resources_discover 补交内建扫描看不见的嵌套 SKILL.md，并在输入中用 $skill-name 补全与展开为宿主同形 skill 块。'
-status: 'blocked'
-reason: '等待用户验收'
-next_step: '在工作区打开 nestedSkills 后输入 $nano-flow-cli 验证补全与展开'
+status: 'completed'
 related_noted: ['004-toolkit开关面板与单一配置']
 ---
 

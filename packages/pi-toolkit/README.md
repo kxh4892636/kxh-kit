@@ -1,14 +1,15 @@
 # @kxh4892636/pi-toolkit
 
-One [pi](https://pi.dev) extension bundling this workspace's four pi tools, each behind a
+One [pi](https://pi.dev) extension bundling this workspace's five pi tools, each behind a
 switch in a single JSON file:
 
-| Tool              | Switch         | What it enables                                                                     |
-| ----------------- | -------------- | ----------------------------------------------------------------------------------- |
-| `nested-skill`    | `nestedSkills` | Nested `SKILL.md` discovery, `$skill-name` completion, and `$` reference expansion. |
-| `session-name`    | `sessionName`  | Automatic session naming from the first user input.                                 |
-| `pi-deepseek-web` | `webTools`     | The `web_search` and `web_fetch` model tools (DeepSeek official Search/Fetch APIs). |
-| `ask_questions`   | `askQuestions` | One or more blocking questions to the user, with options, custom answers, or skips. |
+| Tool              | Switch         | What it enables                                                                       |
+| ----------------- | -------------- | ------------------------------------------------------------------------------------- |
+| `nested-skill`    | `nestedSkills` | Nested `SKILL.md` discovery, `$skill-name` completion, and `$` reference expansion.   |
+| `session-name`    | `sessionName`  | Automatic session naming from the first user input.                                   |
+| `pi-deepseek-web` | `webTools`     | The `web_search` and `web_fetch` model tools (DeepSeek official Search/Fetch APIs).   |
+| `ask_questions`   | `askQuestions` | One or more blocking questions to the user, with options, custom answers, or skips.   |
+| `nano-flow`       | `nanoFlow`     | Prompted Plan workflow: plan tools, per-session skills, notes sidebar, context reset. |
 
 **Every switch starts off.** Nothing is registered as active, discovered, expanded, or named until
 you turn it on.
@@ -25,14 +26,16 @@ pi-tui, and typebox are peer dependencies.
 ## `/toolkit`
 
 Run `/toolkit` to open a switch panel modeled on pi's own `/settings` screen: a bordered, searchable
-`SettingsList` listing the four tools in panel order (`nested-skill`, `session-name`,
-`pi-deepseek-web`, `ask_questions`). Up/Down move, Enter/Space flips a switch, Esc closes, typing filters.
+`SettingsList` listing the five tools in panel order (`nested-skill`, `session-name`,
+`pi-deepseek-web`, `ask_questions`, `nano-flow`). Up/Down move, Enter/Space flips a switch, Esc closes, typing filters.
 
 - `nestedSkills` covers discovery, completion, and expansion. Completion and expansion apply on the
   next input; discovery runs at startup and on `/reload`, so turning it on takes effect there.
 - `sessionName` applies on the next input.
 - `webTools` and `askQuestions` apply immediately: the tools are added to or removed from the active
   tool set, and each call re-checks the switch.
+- `nanoFlow` gates the Nano Flow feature; the per-session mode is switched with `/nano-flow`. See
+  [Nano Flow](#nano-flow).
 
 Switch changes are written back to the config file named in the panel header (see precedence below),
 preserving every other key in that file.
@@ -48,7 +51,8 @@ screen for the values; edit the file.
     "nestedSkills": false,
     "sessionName": false,
     "webTools": false,
-    "askQuestions": false
+    "askQuestions": false,
+    "nanoFlow": false
   },
   "web": {
     "apiKey": "sk-...",
@@ -69,6 +73,18 @@ screen for the values; edit the file.
     "maxLength": 21,
     "timeoutMs": 5000,
     "maxTokens": 256
+  },
+  "nanoFlow": {
+    "always": false,
+    "specMaxBytes": 34816,
+    "noteMaxBytes": 13312,
+    "noteDescriptionMaxChars": 233,
+    "contextMaxBytes": 91136,
+    "questionMaxBytes": 13312,
+    "adrMaxBytes": 13312,
+    "workflowMaxBytes": 34816,
+    "guideMaxBytes": 13312,
+    "rotateAt": 0.618
   }
 }
 ```
@@ -89,6 +105,7 @@ creates `~/.pi/agent/pi-toolkit.json`. `pi-toolkit.example.json` shows every fie
 | `sessionName`  | `false` | Name each session from its first input.                                           |
 | `webTools`     | `false` | Enable the `web_search` and `web_fetch` tools.                                    |
 | `askQuestions` | `false` | Enable the `ask_questions` tool.                                                  |
+| `nanoFlow`     | `false` | Enable the Nano Flow feature (per-session via `/nano-flow`).                      |
 
 ### `web`
 
@@ -142,9 +159,50 @@ The tool is `executionMode: "sequential"`, so it never overlaps another tool cal
 interactive UI is available it does not throw: it returns a structured `needs=answer` registration
 so the caller knows the question was not answered.
 
+## Nano Flow
+
+`nanoFlow` is a fifth switch. It gates the whole workflow; the current session still has to be
+turned on with `/nano-flow`, which mirrors `/thinking`: a two-item list, Enter changes this session,
+`Ctrl+S` also writes the new-session default. `/nano-flow bind [plan]` binds the current session
+directly; without a plan name it uses the only active Plan (and refuses when there are several).
+
+- **Prompts**: `src/nano-flow/prompts/system.md`, the `.agents/domains/GUIDE.md` snapshot, and the
+  numeric limits block are injected as the `nano-flow` system-prompt section. A per-input reminder
+  is injected as a hidden custom message.
+- **Tools**: `nano_flow_create`, `nano_flow_bind`, `nano_flow_check`. `create` scaffolds domains,
+  plans, and notes from templates; `bind` is the only binding entry; `check` validates docs and
+  regenerates every index from `scripts/check-domain.mjs` (imported directly, no subprocess).
+- **Binding**: `nano-flow-binding` custom entries in the session; the last one wins, so resuming a
+  session keeps its Plan without a global table.
+- **Context reset**: when `tokens / contextWindow >= rotateAt` on a user input, the extension
+  appends a `nano-flow-reset` entry and the `context` hook drops older messages, prepending a seed
+  with the current Plan and the previous assistant output (`<rotation-last-output>`). The session
+  JSONL keeps the full history; this session is not replaced.
+- **Notes sidebar**: fullscreen-only overlay in the top-right. It shows unfinished notes of the
+  bound Plan (`pending` / `in_progress` / `blocked`); click a row for a card with the description,
+  `原因：`, and `下一步：`. It refreshes once at `turn_end`.
+- **Skills**: `ask`, `do`, `to-skill`, `code-spec`, `learning` are contributed through
+  `resources_discover` only while the session is in Nano Flow. Turning it on mid-session needs
+  `/reload` (or a new session) for the skills to appear.
+
+### `nanoFlow`
+
+| Field                     | Default | Meaning                                              |
+| ------------------------- | ------- | ---------------------------------------------------- |
+| `always`                  | `false` | Start new sessions in Nano Flow.                     |
+| `specMaxBytes`            | `34816` | `spec.md` size cap.                                  |
+| `noteMaxBytes`            | `13312` | One note size cap.                                   |
+| `noteDescriptionMaxChars` | `233`   | `description` length cap.                            |
+| `contextMaxBytes`         | `91136` | `CONTEXT.md` size cap.                               |
+| `questionMaxBytes`        | `13312` | One question size cap.                               |
+| `adrMaxBytes`             | `13312` | One ADR size cap.                                    |
+| `workflowMaxBytes`        | `34816` | One workflow size cap.                               |
+| `guideMaxBytes`           | `13312` | `GUIDE.md` size cap.                                 |
+| `rotateAt`                | `0.618` | Context ratio that triggers the history reset (0–1). |
+
 ## Web tools (`pi-deepseek-web`)
 
-Both tools follow the DeepSeek Harness `tool-web` contract and are backed only by DeepSeek's official
+Both tools follow the toolkit's portable web contract and are backed only by DeepSeek's official
 [Search and Fetch APIs](https://api-docs.deepseek.com/zh-cn/guides/search):
 
 - **`web_search`** — `POST /v1/tools/search`. The only model argument is `queries: string[]`; their

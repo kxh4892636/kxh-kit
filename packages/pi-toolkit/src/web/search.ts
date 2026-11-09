@@ -1,5 +1,5 @@
 /**
- * DeepSeek official Search API client, normalized to the DeepSeek Harness web
+ * DeepSeek official Search API client, normalized to the toolkit's portable web
  * contract: one request per query, sources projected to the portable
  * `{ url, title?, snippet?, summary?, publishedAt? }` shape, and multi-query
  * results merged round-robin, deduplicated by URL, and capped.
@@ -115,7 +115,7 @@ export const boundQuestion = (question: string | undefined): string | undefined 
 
 /**
  * Map the official response to the portable source vocabulary. Mirrors the
- * harness provider: `title`, `url`, and `snippet` are required strings; `date`
+ * provider contract: `title`, `url`, and `snippet` are required strings; `date`
  * is a string or null; ranking-only fields are dropped.
  *
  * @param response - parsed Search API body, treated as untrusted.

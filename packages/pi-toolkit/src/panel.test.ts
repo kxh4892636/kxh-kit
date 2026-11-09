@@ -105,7 +105,7 @@ describe("openToolkitPanel", () => {
 });
 
 describe("panelItems", () => {
-  it("renders exactly four on/off rows, one per bundled tool", () => {
+  it("renders exactly five on/off rows, one per bundled tool", () => {
     const items = panelItems(DEFAULT_TOOLS);
     expect(items.map((item) => item.id)).toEqual([...TOOL_TOGGLE_KEYS]);
     expect(items.map((item) => item.label)).toEqual([
@@ -113,6 +113,7 @@ describe("panelItems", () => {
       "session-name",
       "pi-deepseek-web",
       "ask_questions",
+      "nano-flow",
     ]);
     for (const item of items) {
       expect(item.values).toEqual(["on", "off"]);
