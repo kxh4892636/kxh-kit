@@ -27,7 +27,7 @@ description: '改动 packages/pi-toolkit 后要装进本机 pi 时：先 check/t
 - **中途打开 Nano Flow 拿不到随包 skill**：skill 经 `resources_discover` 注入，`/nano-flow on` 之后需要 `/reload` 或新会话才出现；命令提示里已写明这一点。
 - **headless 冒烟会污染 Plan 轨迹**：在仓库内用 headless 会话冒烟时，若该会话绑定过真实 Plan，`agent_end` 会把测试记录写进那个 Plan 的 `log.jsonl`。冒烟用 `/tmp` 下造的会话文件，事后按 `id` 去重并重编号，别留下测试 run。
 - **改提示词后先看 `dist` 不适用**：pi 不做构建，检查安装副本要看 `~/.pi/agent/settings.json` 指向的包路径与源文件，而不是 `dist`。
-- 旧会话仍挂着旧的扩展实例与旧提示词；验收必须用重启后的新会话。
+- 旧会话仍挂着旧的扩展实例与旧提示词；验收必须用重启后的新会话。典型症状：`nano_flow_check` 报 `Cannot read properties of undefined (reading 'length')` 这类底层 TypeError，而同一份代码在新进程里跑通 —— 那是工具与 `scripts/check-domain.mjs` 模块版本错配，`/reload` 或重启后重试；工具本身会先报出「缺少某个字段…重启 pi 或 /reload」。
 
 ## 相关
 
