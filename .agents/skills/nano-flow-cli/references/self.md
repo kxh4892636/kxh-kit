@@ -16,7 +16,7 @@
 
 ## 目标目录与变更边界
 
-- 默认根目录为工作区 `.agents/skills`，管理其下 `nano-flow` 和 `nano-flow-cli`；`--target <root>` 指定其他根目录，不能传具体 skill 文件夹。
+- 默认根目录为工作区 `.agents/skills`，当前仅管理其下的 `nano-flow-cli`；`--target <root>` 指定其他根目录，不能传具体 skill 文件夹。
 - 安装会替换同名目标，即使内容未变；先用同参数 `--dry-run` 核对 `target`。
 - 更新与卸载遇到本地修改时保留现场并报错；只有明确要覆盖或删除这些修改时才使用 `--force`。
 - `nnf self update` 同步 npm 包和已经安装的受管 skills；失败会回滚。可先运行 `nnf self update --dry-run` 查看 CLI 与 skill 的完整计划。

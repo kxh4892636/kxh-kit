@@ -13,7 +13,7 @@ description: 领域索引与关系。
 - [DSH](./dsh/CONTEXT.md) - 工作区自研 DeepSeek Harness 扩展的业务域：独立插件包、可开关工具与 Nano Flow 预设。
 - [ETF](./etf/CONTEXT.md) - ETF 行情产品：证券目录、日线缓存、图表与虚拟均线。
 - [Music](./music/CONTEXT.md) - 本地古典曲库（Musopen 与本地收藏）与消费该曲库的随机播放站点。
-- [Nano Flow](./nano-flow/CONTEXT.md) - Nano Flow 业务域：从想法路由到经门禁验证交付的 Flow，以单一 CLI 收口内建子命令并管理 Nano Flow 与 CLI 路由 skill。
+- [Nano Flow](./nano-flow/CONTEXT.md) - Nano Flow 业务域：以单一 nnf CLI 提供 AnkiConnect 自动化与受管 skill 分发；文档流程已由 pi / dsh 域的 nano-flow 实现取代。
 - [Pi](./pi/CONTEXT.md) - pi 编码代理的扩展业务域：一个 @kxh4892636/pi-toolkit 包按开关提供嵌套 skill 发现与 $ 引用、会话自动命名、DeepSeek 网页搜索与抓取、向用户提问、Nano Flow 交付流程。
 - [video](./video/CONTEXT.md) - 把图片、文字稿与录音合成为可发布视频的代码化渲染管线。
 

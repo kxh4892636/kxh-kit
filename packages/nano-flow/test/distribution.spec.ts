@@ -192,25 +192,6 @@ const helpPaths = [
     leaf,
   ]),
   ["self", "update"],
-  ["workspace"],
-  ["workspace", "config"],
-  ...["init", "add", "list", "update", "remove"].map((leaf: string): string[] => [
-    "workspace",
-    "config",
-    leaf,
-  ]),
-  ["workspace", "repository"],
-  ...["clone", "status", "pull", "remove"].map((leaf: string): string[] => [
-    "workspace",
-    "repository",
-    leaf,
-  ]),
-  ["workspace", "worktree"],
-  ...["add", "list", "switch", "remove", "prune"].map((leaf: string): string[] => [
-    "workspace",
-    "worktree",
-    leaf,
-  ]),
   ["anki"],
   ...Object.entries({
     decks: ["list", "stats", "create", "move", "delete"],
@@ -326,15 +307,9 @@ const verifyDistributionSurface = async (fixture: DistributionFixture): Promise<
     "README.md",
     "LICENSE",
     "THIRD_PARTY_NOTICES.md",
-    "skills/nano-flow/SKILL.md",
-    "skills/nano-flow/references/skills/domain/SKILL.md",
-    "skills/nano-flow/references/skills/domain/KNOWLEDGE.md",
-    "skills/nano-flow/references/skills/domain/PLAN.md",
-    "skills/nano-flow/references/skills/domain/STORY.md",
-    "skills/nano-flow/references/skills/domain/SPEC.md",
-    "skills/nano-flow/references/skills/domain/NOTES.md",
-    "skills/nano-flow/scripts/check-domain.mjs",
     "skills/nano-flow-cli/SKILL.md",
+    "skills/nano-flow-cli/references/self.md",
+    "skills/nano-flow-cli/references/anki.md",
   ];
   await Promise.all(
     assets.map((file: string): Promise<void> =>
@@ -372,15 +347,13 @@ const verifySkillLifecycle = async (fixture: DistributionFixture): Promise<void>
   const invoke = async (arguments_: readonly string[]): Promise<Record<string, unknown>> =>
     invokeJson(fixture, ["self", "skill", ...arguments_, "--target", target, "--compact"]);
   expect(await invoke(["list"])).toMatchObject({
-    skills: [
-      { name: "nano-flow", status: "not_installed" },
-      { name: "nano-flow-cli", status: "not_installed" },
-    ],
+    skills: [{ name: "nano-flow-cli", status: "not_installed" }],
   });
   await invoke(["install", "--all"]);
-  for (const name of ["nano-flow", "nano-flow-cli"]) {
-    expect(await invoke(["check", "--name", name])).toMatchObject({ name, status: "current" });
-  }
+  expect(await invoke(["check", "--name", "nano-flow-cli"])).toMatchObject({
+    name: "nano-flow-cli",
+    status: "current",
+  });
   const before = await collectTree(target);
   expect(before.every((file: string): boolean => !file.includes(".test.mjs:"))).toBe(true);
   expect(
@@ -388,21 +361,18 @@ const verifySkillLifecycle = async (fixture: DistributionFixture): Promise<void>
       (file: string): boolean => !file.replaceAll("\\", "/").includes("/scripts/testing/"),
     ),
   ).toBe(true);
-  expect(await invoke(["update", "--name", "nano-flow", "--dry-run"])).toMatchObject({
+  expect(await invoke(["update", "--name", "nano-flow-cli", "--dry-run"])).toMatchObject({
     dryRun: true,
-    preview: { changes: [{ action: "update", name: "nano-flow" }] },
+    preview: { changes: [{ action: "update", name: "nano-flow-cli" }] },
   });
   expect(await invoke(["uninstall", "--all", "--dry-run"])).toMatchObject({
     dryRun: true,
-    preview: { changes: [{ action: "uninstall" }, { action: "uninstall" }] },
+    preview: { changes: [{ action: "uninstall" }] },
   });
   expect(await collectTree(target)).toEqual(before);
   await invoke(["uninstall", "--all"]);
   expect(await invoke(["list"])).toMatchObject({
-    skills: [
-      { name: "nano-flow", status: "not_installed" },
-      { name: "nano-flow-cli", status: "not_installed" },
-    ],
+    skills: [{ name: "nano-flow-cli", status: "not_installed" }],
   });
 };
 
@@ -509,7 +479,7 @@ describe("installed Nano Flow distribution", (): void => {
     await verifyDistributionSurface(getFixture());
   }, 120_000);
 
-  test("manages both packaged skills from the installed bin", async (): Promise<void> => {
+  test("manages the packaged skill from the installed bin", async (): Promise<void> => {
     await verifySkillLifecycle(getFixture());
   }, 120_000);
 
