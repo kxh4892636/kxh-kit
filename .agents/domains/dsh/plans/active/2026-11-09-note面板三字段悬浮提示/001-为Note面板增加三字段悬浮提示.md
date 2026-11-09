@@ -1,10 +1,9 @@
 ---
 name: "001-为Note面板增加三字段悬浮提示"
 description: "悬浮某条 note 时显示 description、reason（有才显示）与 next_step；宿主 Tooltip 按 pre-line 渲染多行。"
-status: blocked
-reason: "等待真机验收：0.5.41 已装进 web profile，硬刷新页面后悬浮整行检查三字段气泡"
+status: completed
 related_noted: []
-next_step: "硬刷新页面（缓存未换就重启宿主）→ 悬浮 Note 行任意位置，确认两行/三行文本。"
+next_step: "已交付；改这块先读正文的「宽度口径」与宿主 HoverCard 的 preview 分支约束。"
 ---
 
 # 001-为Note面板增加三字段悬浮提示
@@ -104,9 +103,14 @@ Z({ left: 锚点左 + 24, top: ..., width: kt })
 
 2026-11-09 15:00：升 `0.5.43` → build（`dist/client.js` 58 051 字节）→ pack → 装进 web profile。核对：安装版本 `0.5.43`、`dshtk-note-tip-row` 2 处、已无 `max-width:320px`。
 
+## 验收
+
+2026-11-09 15:0x 用户回执：0.5.43 上悬浮整行，浅色卡片 + 三字段 + 内容铺满整行，均无问题，本 note 置 `completed`。
+
 ## 遗留
 
-- 真机未验（0.5.43）：硬刷新后看内容是否铺满整行。
+- 若以后要「窄卡片」：preview 变体的宽度恒等于锚点宽减 48px，唯一旋钮是把锚点换窄（或用 `widthAnchorRef` 指定宽度基准），悬浮区会跟着缩。
+- 宿主缺 `HoverCard` 的老版本上退回原生 `title`，样式不受控但内容齐全。
 - 宿主 `Tooltip` 不可用时退回原生 `title`，同样保留换行。
 - `reason` 目前只在 `blocked` 时存在，因此「原因：」实际只在阻塞行出现。
 

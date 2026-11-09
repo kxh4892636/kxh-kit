@@ -1,7 +1,7 @@
 ---
 name: "note面板三字段悬浮提示"
 description: "Note 面板悬浮到某条 note 时，用提示气泡展示 description、reason（有才显示）与 next_step。"
-status: in_progress
+status: completed
 ---
 
 # note面板三字段悬浮提示
@@ -26,4 +26,3 @@ Note 面板（输入框上方的未完成 note 列表）现在只在悬浮时显
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [001-为Note面板增加三字段悬浮提示](001-为Note面板增加三字段悬浮提示.md) | 悬浮某条 note 时显示 description、reason（有才显示）与 next_step；宿主 Tooltip 按 pre-line 渲染多行。 | blocked | 等待真机验收：0.5.41 已装进 web profile，硬刷新页面后悬浮整行检查三字段气泡 | 硬刷新页面（缓存未换就重启宿主）→ 悬浮 Note 行任意位置，确认两行/三行文本。 | — |
