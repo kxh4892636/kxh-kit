@@ -66,6 +66,14 @@ _Avoid_：wiki、知识库、notes.json
 一个会话默认维护的工作单元，包含 `spec.md`、`notes_index.md`（生成）与若干 `NNN-中文标题.md` 的 note；note 用 `pending` / `in_progress` / `blocked` / `completed` 表达进度，`blocked` 时以 `reason` 说明在等什么。交付完成但未验收一律 `blocked`，只有用户验收后才置 `completed`。
 _Avoid_：story、DAG、任务列表
 
+**交付单元**：
+note 的划分单位：一个可独立验收的交付物；同一单元内的返工、补测、修正与验证并入原 note，只有验收条件或状态需要分别表达（会单独 `blocked`、单独验收）时才拆（[ADR 010](adr/010-note按交付单元划分.md)）。
+_Avoid_：原子子任务、按主题聚合
+
+**批量写**：
+Plan 与领域文档的写入节奏：每轮最多两次（轮首记本轮目标与方向，轮末补进度、状态、证据与 spec），每次批量写完之后跑一次 `nano_flow_check`，同一批次不重复跑；面板与索引在一轮之内允许滞后。
+_Avoid_：状态先行、实时逐条写
+
 **会话↔Plan 绑定**：
 `$DSH_HOME/toolkit/nano-flow-plan-bindings.json` 中按会话 id 记录的唯一 Plan（`planPath` / `cwd` / `boundAt`）；同一会话只保留一个绑定，只有 `nano_flow_bind` 写它，再次调用即切换。供 Note 看板与 `log.jsonl` 使用，不参与 note 状态判定。
 

@@ -32,10 +32,11 @@ pi 侧的现实：没有 Schedule 接缝；也没有内置 subagent。移植 dre
 
 ## 约束
 
-- 会话里的 `planPath` 是相对绑定时的 `cwd` 的路径；换机器或换目录后失配的会话只报告「未归属」，不阻塞运行。
+> 纠正（2026-11-09，[014-Plan轨迹落盘](../plans/active/2026-11-09-pi-toolkit插件/014-Plan轨迹落盘.md)）：原约束写「会话里的 `planPath` 失配时只报告未归属」，那是「扫会话找绑定」方案的说法；该方案已随 ADR 005 取消，dream 只读 Plan 目录下的 `log.jsonl`，不再有会话归属与未归属计数。下面这条 `SessionManager.list()` 的代价保留为当时排除该方案的依据。
+
 - 不能用 `SessionManager.list()`：它为算 `firstMessage` / `allMessagesText` 会逐行 `JSON.parse` 每个会话，代价与文件总量成正比；也不能用子串匹配绑定——`custom_message` 条目与消息正文里都会出现 `nano-flow` 字样（实测一个会话 1 条真绑定、6 条 `custom_message`、100 条正文命中）。
-- 模型读会话必须走 `bash` + `python3` / `grep -o`：`read` 工具 2000 行 / 50 KB 上限会截断单行（实测单行最长 405 KB），本机无 `jq`。
-- 全量范围是「21 个 Plan × 域数」，成本控制靠 dream.md 要求「先读 spec 与 notes_index，再挑会话」。
+- 模型读轨迹必须走 `bash` + `python3` / `grep -o`：`read` 工具 2000 行 / 50 KB 上限会截断单行（实测单行最长 405 KB），本机无 `jq`。
+- 全量范围是「21 个 Plan × 域数」，成本控制靠 dream.md 要求「先读 spec 与 notes_index，再挑轨迹」。
 
 ## 相关
 
