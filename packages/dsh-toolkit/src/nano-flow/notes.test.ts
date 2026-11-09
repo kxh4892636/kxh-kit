@@ -65,6 +65,65 @@ describe("readPanelNotes", () => {
     expect(notes[0]?.description).toBe("001-第一个.md 概述");
   });
 
+  it("carries reason and next_step so the panel can show them", async () => {
+    const root = await makeRoot();
+    const plan = "2026-11-08-演示";
+    const directory = planDirectory(root, plan);
+    await mkdir(directory, { recursive: true });
+    await writeFile(
+      join(directory, "001-阻塞.md"),
+      [
+        "---",
+        "name: '001-阻塞'",
+        "description: '阻塞的概述'",
+        "status: blocked",
+        "reason: '等待用户验收'",
+        "next_step: '重启后逐项确认'",
+        "---",
+        "",
+        "# 001-阻塞",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    expect(readPanelNotes(directory)).toEqual([
+      {
+        name: "001-阻塞",
+        status: "blocked",
+        description: "阻塞的概述",
+        reason: "等待用户验收",
+        nextStep: "重启后逐项确认",
+      },
+    ]);
+  });
+
+  it("omits an empty reason and next_step instead of sending blank lines", async () => {
+    const root = await makeRoot();
+    const plan = "2026-11-08-演示";
+    const directory = planDirectory(root, plan);
+    await mkdir(directory, { recursive: true });
+    await writeFile(
+      join(directory, "001-空字段.md"),
+      [
+        "---",
+        "name: '001-空字段'",
+        "description: '没有附加信息'",
+        "status: pending",
+        "reason: ''",
+        "next_step: '  '",
+        "---",
+        "",
+      ].join("\n"),
+      "utf8",
+    );
+    const [note] = readPanelNotes(directory);
+    expect(note).toEqual({
+      name: "001-空字段",
+      status: "pending",
+      description: "没有附加信息",
+    });
+  });
+
   it("returns an empty list for a missing directory", async () => {
     const root = await makeRoot();
     expect(readPanelNotes(join(root, "missing"))).toEqual([]);

@@ -75,13 +75,33 @@ describe("NotesDock", () => {
     expect(screen.getByText("待处理")).toBeDefined();
   });
 
-  it("shows the note description as the row tooltip", async () => {
-    fetchNotes.mockResolvedValue(snapshot);
+  it("shows description, reason and next step in the row tooltip", async () => {
+    fetchNotes.mockResolvedValue({
+      ...snapshot,
+      notes: [
+        {
+          name: "001-进行中",
+          status: "in_progress",
+          description: "进行中的概述",
+          nextStep: "继续改代码",
+        },
+        {
+          name: "002-阻塞",
+          status: "blocked",
+          description: "阻塞的概述",
+          reason: "等待用户验收",
+          nextStep: "重启后逐项确认",
+        },
+      ],
+    });
     render(createElement(NotesDock, props("nano-flow")));
     await screen.findByTestId("nano-flow-notes-panel");
     fireEvent.click(screen.getByRole("button", { name: /Note/u }));
-    const tooltip = screen.getByTitle("进行中的概述");
-    expect(tooltip.textContent).toBe("001-进行中");
+    // 描述、原因、下一步各占一行；没有 reason 的行不出现「原因：」。
+    const titleOf = (name: string): string | null =>
+      screen.getByText(name).closest("[title]")?.getAttribute("title") ?? null;
+    expect(titleOf("001-进行中")).toBe("进行中的概述\n下一步：继续改代码");
+    expect(titleOf("002-阻塞")).toBe("阻塞的概述\n原因：等待用户验收\n下一步：重启后逐项确认");
   });
 
   it("starts collapsed and unfolds on header click", async () => {

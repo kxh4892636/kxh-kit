@@ -8,6 +8,13 @@ import { PANEL_STATUSES, type NotesSnapshot, type PanelNote } from "../contract.
 const isPanelStatus = (value: unknown): value is PanelNote["status"] =>
   typeof value === "string" && (PANEL_STATUSES as readonly string[]).includes(value);
 
+/** 取一行可选文本：缺失、非字符串或空白一律视为没有。 */
+const optionalLine = (value: unknown): string | undefined => {
+  if (typeof value !== "string") return undefined;
+  const text = value.trim();
+  return text === "" ? undefined : text;
+};
+
 const readFrontmatter = (file: string): Record<string, unknown> | null => {
   let text: string;
   try {
@@ -49,7 +56,15 @@ export const readPanelNotes = (planDirectory: string): PanelNote[] => {
     if (!isPanelStatus(status)) continue;
     const name = typeof header["name"] === "string" ? header["name"] : file.replace(/\.md$/u, "");
     const description = typeof header["description"] === "string" ? header["description"] : "";
-    notes.push({ name, status, description });
+    const reason = optionalLine(header["reason"]);
+    const nextStep = optionalLine(header["next_step"]);
+    notes.push({
+      name,
+      status,
+      description,
+      ...(reason === undefined ? {} : { reason }),
+      ...(nextStep === undefined ? {} : { nextStep }),
+    });
   }
   return notes;
 };

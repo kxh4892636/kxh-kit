@@ -123,6 +123,10 @@ export interface PanelNote {
   readonly name: string;
   readonly status: PanelNoteStatus;
   readonly description: string;
+  /** `blocked` 时写清在等什么；其他状态没有这个字段。 */
+  readonly reason?: string;
+  /** 单行下一步；缺省表示没有。 */
+  readonly nextStep?: string;
 }
 
 /** 面板快照；`planPath` 相对工作区。 */

@@ -50,7 +50,16 @@ describe("host api", () => {
     const snapshot = {
       planName: "2026-11-08-演示",
       planPath: ".agents/domains/dsh/plans/active/2026-11-08-演示",
-      notes: [{ name: "001-第一个", status: "pending", description: "概述" }],
+      notes: [
+        { name: "001-第一个", status: "pending", description: "概述" },
+        {
+          name: "002-阻塞",
+          status: "blocked",
+          description: "卡住的概述",
+          reason: "等待用户验收",
+          nextStep: "重启后确认",
+        },
+      ],
     };
     const fetchMock = vi.fn(async () => json({ snapshot }));
     vi.stubGlobal("fetch", fetchMock);
@@ -79,6 +88,26 @@ describe("host api", () => {
       ),
     );
     await expect(fetchNanoFlowNotes("s1")).rejects.toMatchObject({ code: "invalid-response" });
+  });
+
+  it("drops a non-string reason or next step instead of failing the snapshot", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        json({
+          snapshot: {
+            planName: "p",
+            planPath: "p",
+            notes: [{ name: "n", status: "blocked", description: "d", reason: 42, nextStep: null }],
+          },
+        }),
+      ),
+    );
+    await expect(fetchNanoFlowNotes("s1")).resolves.toEqual({
+      planName: "p",
+      planPath: "p",
+      notes: [{ name: "n", status: "blocked", description: "d" }],
+    });
   });
 
   it("surfaces host error bodies", async () => {

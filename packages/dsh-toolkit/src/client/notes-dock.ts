@@ -63,6 +63,21 @@ const NotesTooltip: FC<{ readonly label: string; readonly children?: ReactNode }
   ? ({ label, children }) => createElement(Tooltip, { label, side: "top", delayMs: 200 }, children)
   : ({ label, children }) => createElement("span", { title: label }, children);
 
+/**
+ * 悬浮提示的多行文本：描述在最前，有原因与下一步时各占一行。
+ *
+ * 宿主 Tooltip 的气泡是 `white-space: pre-line`、`position: fixed`，
+ * 因此 `\n` 会渲染成换行，也不会被面板的 `overflow: hidden` 裁掉。
+ * @param note - 面板条目。
+ * @returns 以换行分隔的标签。
+ */
+const tooltipLabel = (note: PanelNote): string => {
+  const lines = [note.description.trim()].filter((line) => line !== "");
+  if (note.reason !== undefined) lines.push(`原因：${note.reason}`);
+  if (note.nextStep !== undefined) lines.push(`下一步：${note.nextStep}`);
+  return lines.join("\n");
+};
+
 /** 渲染错误边界：面板内部异常时降级为不渲染，不拖垮整个插槽。 */
 interface BoundaryProps {
   readonly children?: ReactNode;
@@ -193,7 +208,7 @@ const NotesPanelView: FC<{
                 ),
                 createElement(
                   NotesTooltip,
-                  { label: note.description },
+                  { label: tooltipLabel(note) },
                   createElement("span", { className: "dshtk-notes-content" }, note.name),
                 ),
               ),

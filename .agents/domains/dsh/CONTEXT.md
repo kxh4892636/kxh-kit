@@ -85,7 +85,7 @@ _Avoid_：压缩、compact、归档旧会话
 _Avoid_：自动续跑、恢复即执行
 
 **note 面板**：
-nano-flow 预设会话在输入框上方 dock 显示的未完成 note 列表（中文状态名 + 名称，hover 显示概述）；客户端按当前 `sessionId` 每 5s 轮询宿主 `GET /api/toolkit/nano-flow/notes`，宿主按该会话的绑定定位 Plan（未调用 `nano_flow_bind`、目录失效或没有未完成 note 时不显示），快照不写会话日志，样式与 Todo 面板一致。
+nano-flow 预设会话在输入框上方 dock 显示的未完成 note 列表（中文状态名 + 名称，hover 显示描述 + 有值时的「原因」「下一步」三行）；客户端按当前 `sessionId` 每 5s 轮询宿主 `GET /api/toolkit/nano-flow/notes`，宿主按该会话的绑定定位 Plan（未调用 `nano_flow_bind`、目录失效或没有未完成 note 时不显示），快照不写会话日志，样式与 Todo 面板一致。
 _Avoid_：待办面板、todo 面板、任务列表
 
 **Plan 轨迹日志**：

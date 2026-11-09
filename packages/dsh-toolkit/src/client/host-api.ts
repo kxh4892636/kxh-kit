@@ -263,10 +263,15 @@ const parseNotesSnapshot = (body: unknown): NotesSnapshot | null => {
     ) {
       throw new HostApiError("invalid-response", "unexpected notes payload");
     }
+    // 两个新字段都是可选的：宿主老版本不带，类型不对时按缺省处理，不因此整包失败。
+    const reason = typeof note["reason"] === "string" ? note["reason"] : undefined;
+    const nextStep = typeof note["nextStep"] === "string" ? note["nextStep"] : undefined;
     notes.push({
       name: note["name"],
       status: status as PanelNote["status"],
       description: note["description"],
+      ...(reason === undefined ? {} : { reason }),
+      ...(nextStep === undefined ? {} : { nextStep }),
     });
   }
   return { planName: record["planName"], planPath: record["planPath"], notes };
