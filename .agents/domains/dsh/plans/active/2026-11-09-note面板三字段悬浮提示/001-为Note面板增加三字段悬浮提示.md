@@ -2,9 +2,9 @@
 name: "001-为Note面板增加三字段悬浮提示"
 description: "悬浮某条 note 时显示 description、reason（有才显示）与 next_step；宿主 Tooltip 按 pre-line 渲染多行。"
 status: blocked
-reason: "等待真机验收：0.5.40 已装进 web profile，重启宿主后悬浮检查三字段气泡"
+reason: "等待真机验收：0.5.41 已装进 web profile，硬刷新页面后悬浮整行检查三字段气泡"
 related_noted: []
-next_step: "重启宿主 → 新建 nano-flow 会话 → 展开 Note 面板，悬浮阻塞行与普通行各一次，确认三行/两行文本。"
+next_step: "硬刷新页面（缓存未换就重启宿主）→ 悬浮 Note 行任意位置，确认两行/三行文本。"
 ---
 
 # 001-为Note面板增加三字段悬浮提示
@@ -53,9 +53,25 @@ next_step: "重启宿主 → 新建 nano-flow 会话 → 展开 Note 面板，�
 
 宿主尚未重启，当前会话仍是旧挂载。
 
+## 首次真机反馈：悬浮无气泡
+
+2026-11-09 14:39 用户截图反馈 0.5.40 上面板展开后悬浮没有任何气泡。查宿主实现（`dist/assets/index-*.js` 的 `Mn`）：
+
+- 宿主 `Tooltip` 把 `onPointerEnter/Leave/Down`、`onClick/Focus/Blur` 与 `ref` `cloneElement` 到**子元素**上，气泡锚点就是该子元素的 `getBoundingClientRect()`；`portal` 默认 `false`，气泡作为兄弟节点就近渲染。
+- 我们的子元素只是标题文字那个 `span`，所以**只有把指针挪到文字上**才会触发；悬浮在行的其它位置必然没反应。
+
+因此改为：
+
+1. 悬浮锚点换成整行的 `.dshtk-notes-row`（状态名 + 标题都算「对应项」），并加 `.dshtk-notes-item:hover` 提亮标题作为可交互线索；
+2. 给 `Tooltip` 开 `portal`，气泡投到 `document.body` —— 原位渲染时 composer dock 祖先的 `transform`/`overflow` 可能把 `position: fixed` 的气泡裁掉或压在下面。
+
+## 安装记录（0.5.41）
+
+2026-11-09 14:42：升 `0.5.41` → build（`dist/client.js` 57 004 字节）→ `pnpm pack` 出 `~/.dsh/pkgs/kxh4892636-dsh-toolkit-0.5.41.tgz` → 装进 web profile。核对：安装版本 `0.5.41`，`dist/client.js` 含 `dshtk-notes-row` 2 处。
+
 ## 遗留
 
-- 真机未验：等重启宿主后看气泡。
+- 真机未验：硬刷新页面后看气泡；若仍是旧行为，说明客户端 bundle 被宿主缓存，需重启宿主。
 - 宿主 `Tooltip` 不可用时退回原生 `title`，同样保留换行。
 - `reason` 目前只在 `blocked` 时存在，因此「原因：」实际只在阻塞行出现。
 
