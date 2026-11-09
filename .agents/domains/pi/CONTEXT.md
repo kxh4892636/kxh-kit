@@ -102,7 +102,7 @@ _Avoid_：开关状态、preset
 _Avoid_：全局绑定表、当前 Plan
 
 **上下文清空**：
-达到 `rotateAt × contextWindow` 时写 `nano-flow-reset { at, seed }`；`context` 钩子丢掉早于 `at` 的消息并注入 seed，会话 JSONL 保留完整历史。
+达到 `rotateAt × contextWindow` 时写 `nano-flow-reset { at, seed }`；`context` 钩子丢掉早于 `at` 的消息并注入 seed，会话 JSONL 保留完整历史。它是**过滤**而不是截断，所以激活期间用 `session_before_compact` 取消一切压缩（`manual` / `threshold` / `overflow`）——否则 pi 会按磁盘全史做摘要，把清空前的内容带回上下文。
 _Avoid_：会话轮转、会话删除、压缩
 
 **恢复 seed**：
