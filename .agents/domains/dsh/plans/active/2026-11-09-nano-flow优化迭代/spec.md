@@ -1,7 +1,7 @@
 ---
 name: "nano-flow优化迭代"
 description: "nano-flow 迭代主线：绑定机制收口、Note 面板提示、单会话 Plan 复用与写入节奏改惰性。"
-status: in_progress
+status: completed
 ---
 
 # nano-flow优化迭代
