@@ -1,0 +1,27 @@
+{
+  "tools": {
+    "nestedSkills": false,
+    "sessionName": false,
+    "webTools": false,
+    "askQuestions": false
+  },
+  "web": {
+    "apiKey": "sk-your-deepseek-api-key",
+    "baseURL": "https://api.deepseek.com",
+    "searchCount": 10,
+    "searchMaxQueries": 10,
+    "searchMaxResults": 10,
+    "searchSummaryMaxChars": 800,
+    "searchTimeoutMs": 30000,
+    "fetchTimeoutMs": 30000,
+    "fetchMaxOutputChars": 200000
+  },
+  "nestedSkill": {
+    "excludedDirs": ["node_modules", ".git", "dist", "build", "coverage", "out"]
+  },
+  "sessionName": {
+    "maxLength": 21,
+    "timeoutMs": 5000,
+    "maxTokens": 256
+  }
+}
