@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { isAbsolute, join } from "node:path";
+import { join } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import { resolveDshHome } from "@deepseek-ai/dsh-home-paths";
 import z from "@deepseek-ai/schemastery";
@@ -27,8 +27,10 @@ import {
   BINDINGS_FILE,
   inheritedPlanDirectory,
   planRelativePath,
+  pruneBindings,
   readBindings,
   readBindingsSync,
+  resolvePlanDirectory,
   writeBindings,
 } from "./nano-flow/plan-log.js";
 import { planRefFromDirectory } from "./nano-flow/plan.js";
@@ -110,6 +112,49 @@ const replaceBinding = async (
     boundAt: new Date().toISOString(),
   };
   await writeBindings(file, table);
+};
+
+/**
+ * 清掉绑定表里的死条目：宿主已不存在的会话不再占位。
+ *
+ * 宿主不提供会话列表、列举失败或列表为空时跳过——宁可留着旧条目，也不清空整张表。
+ * @param ctx - 用于取 `sessionPersistence`。
+ * @param file - 绑定表路径。
+ * @param logger - 告警出口。
+ */
+const pruneDeadBindings = async (
+  ctx: Context,
+  file: string,
+  logger: { warn(message: string): void },
+): Promise<void> => {
+  const persistence = serviceOf<HostSessionPersistence>(ctx, "sessionPersistence");
+  if (!hasMethod<HostSessionPersistence>(persistence, "list")) return;
+  let stored: readonly string[];
+  try {
+    stored = (await persistence.list()).map((snapshot) => snapshot.header.id);
+  } catch (error) {
+    logger.warn(`toolkit: listing sessions for binding cleanup failed: ${describe(error)}`);
+    return;
+  }
+  const table = await readBindings(file);
+  const alive = new Set(stored);
+  // 持久化只覆盖「有日志的会话」：仍存活但还没落盘日志的会话也算，别把它的绑定删掉。
+  const sessions = serviceOf<HostSessionStore>(ctx, "sessions");
+  try {
+    for (const sessionId of Object.keys(table)) {
+      if (alive.has(sessionId)) continue;
+      if (hasMethod<HostSessionStore>(sessions, "get") && sessions.get(sessionId) !== undefined) {
+        alive.add(sessionId);
+      }
+    }
+  } catch (error) {
+    logger.warn(`toolkit: checking live sessions for binding cleanup failed: ${describe(error)}`);
+    return;
+  }
+  if (alive.size === 0) return;
+  const pruned = pruneBindings(table, alive);
+  if (Object.keys(pruned).length === Object.keys(table).length) return;
+  await writeBindings(file, pruned);
 };
 
 /** 会话↔Plan 绑定表路径：配置优先，缺省落在 `$DSH_HOME/toolkit`。 */
@@ -338,6 +383,22 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
       },
     };
   };
+  /**
+   * 写入或切换绑定：`nano_flow_bind` 的唯一落点。
+   *
+   * 顺带回收死条目。绑定表按 `$DSH_HOME` 共享，因此「存活」以各实例自己的
+   * 持久化列表为准：同一 DSH_HOME 上跑多个宿主时，列表只覆盖本实例见过的会话。
+   */
+  const rebindSession = async (
+    sessionId: string,
+    planDirectory: string,
+    workspace: string,
+  ): Promise<void> => {
+    await pruneDeadBindings(ctx, bindingsFilePath(config), logger).catch((error: unknown) => {
+      logger.warn(`toolkit: pruning bindings failed: ${describe(error)}`);
+    });
+    await replaceBinding(bindingsFilePath(config), sessionId, planDirectory, workspace);
+  };
   const nanoFlow: ToolkitNanoFlowFacade = {
     settings: () => settings.current(),
     updateSettings: (patch: unknown) => settings.update(patch),
@@ -349,8 +410,7 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
       await store.addPendingDelete(sessionId);
     },
     sessionsRoot: () => sessionsRoot,
-    rebindSession: (sessionId: string, planDirectory: string, workspace: string) =>
-      replaceBinding(bindingsFilePath(config), sessionId, planDirectory, workspace),
+    rebindSession,
   };
   ctx.effect(() => {
     try {
@@ -403,9 +463,7 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
     rememberRotation(from: string, to: string) {
       lastRotation = { from, to, at: new Date().toISOString() };
     },
-    async rebindSession(sessionId, planDirectory, workspace) {
-      await replaceBinding(bindingsFilePath(config), sessionId, planDirectory, workspace);
-    },
+    rebindSession,
     async cleanupArchive(child: Context) {
       const workspaces = workspaceRegistry(child);
       if (workspaces === undefined) return;
@@ -437,9 +495,9 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
       // 面板只对已绑定 Plan 的会话显示；绑定由 nano_flow 工具执行时写入。
       const binding = readBindingsSync(bindingsFilePath(config))[sessionId];
       if (binding === undefined) return null;
-      const planDirectory = isAbsolute(binding.planPath)
-        ? binding.planPath
-        : join(binding.cwd === "" ? workspace : binding.cwd, binding.planPath);
+      // 绑定时的 cwd 可能已失效（换机器、迁移目录）：解析不到就算了，别指向不存在的目录。
+      const planDirectory = resolvePlanDirectory(binding, workspace);
+      if (!existsSync(planDirectory)) return null;
       try {
         return buildNotesSnapshot(workspace, planDirectory);
       } catch (error) {

@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
@@ -9,8 +10,10 @@ import {
   isNanoFlowPreset,
   planLogPath,
   readBindings,
+  resolvePlanDirectory,
   type BindingTable,
   type CompactTurn,
+  type DirectoryExists,
   type PlanBinding,
   type SessionEventLike,
   type SessionHeader,
@@ -56,11 +59,17 @@ export interface PlanLogService {
 
 interface SessionState {
   readonly sessionId: string;
+  /** 会话的 cwd；绑定 `cwd` 失效时用它兜底。 */
+  readonly workspace: string;
   readonly binding?: PlanBinding;
+  /** 绑定解析出的 Plan 目录；写日志前确认它还在。 */
+  planDirectory?: string;
   handle?: ReadHandleLike;
   cursor: number;
   seen: Set<string>;
   headerWritten: boolean;
+  /** 目录丢失的告警只报一次，避免每轮刷屏。 */
+  skipWarned?: boolean;
   /** 未结束轮的已读事件：跨多次 flush 合并，`turn/end` 到达时一次成型。 */
   pending: Map<number, SessionEventLike[]>;
   chain: Promise<void>;
@@ -87,6 +96,7 @@ const turnedKey = (sessionId: string, turn: number): string => `${sessionId}#${t
  */
 export const createPlanLogService = (options: PlanLogOptions): PlanLogService => {
   const bindingsFile = options.bindingsFile ?? join(options.home, "toolkit", BINDINGS_FILE);
+  const exists: DirectoryExists = existsSync;
   const sessions = new Map<string, SessionState>();
   let persistence: PersistenceLike | undefined;
 
@@ -139,6 +149,7 @@ export const createPlanLogService = (options: PlanLogOptions): PlanLogService =>
     if (state === undefined) {
       state = {
         sessionId,
+        workspace: cwd,
         cursor: -1,
         seen: new Set(),
         headerWritten: false,
@@ -160,8 +171,9 @@ export const createPlanLogService = (options: PlanLogOptions): PlanLogService =>
     const previous = state.binding;
     if (previous !== undefined && bindingKey(previous) === bindingKey(next)) return;
     const switching = previous !== undefined;
-    Object.assign(state, { binding: next });
-    const index = await scanLog(planLogPath(next));
+    const planDirectory = resolvePlanDirectory(next, state.workspace, exists);
+    Object.assign(state, { binding: next, planDirectory, skipWarned: false });
+    const index = await scanLog(planLogPath(planDirectory));
     state.seen = new Set(index.seen);
     state.headerWritten = index.headers.has(state.sessionId);
     if (switching) return;
@@ -201,7 +213,16 @@ export const createPlanLogService = (options: PlanLogOptions): PlanLogService =>
     events: readonly SessionEventLike[],
   ): Promise<void> => {
     const binding = state.binding;
-    if (binding === undefined) return;
+    const planDirectory = state.planDirectory;
+    if (binding === undefined || planDirectory === undefined) return;
+    // Plan 迁移到别的生命周期目录后旧路径不该被重建：目录不在就跳过，别留下孤儿 log.jsonl。
+    if (!exists(planDirectory)) {
+      if (state.skipWarned !== true) {
+        state.skipWarned = true;
+        warn(`plan directory missing, skip logging: ${planDirectory}`);
+      }
+      return;
+    }
     const key = turnedKey(state.sessionId, turn);
     if (state.seen.has(key)) return;
     const record: CompactTurn | null = buildTurnRecord({
@@ -210,13 +231,14 @@ export const createPlanLogService = (options: PlanLogOptions): PlanLogService =>
       events,
     });
     if (record === null) return;
-    const file = planLogPath(binding);
+    const file = planLogPath(planDirectory);
     if (!state.headerWritten) {
       const header: SessionHeader = {
         type: "session",
         v: 1,
         sessionId: state.sessionId,
-        cwd: binding.cwd,
+        // 写文件真实落在 session 的 cwd 上；绑定时的 cwd 可能已失效。
+        cwd: state.workspace,
         planPath: binding.planPath,
         boundAt: binding.boundAt,
       };

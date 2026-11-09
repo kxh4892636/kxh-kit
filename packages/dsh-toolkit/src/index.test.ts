@@ -1,9 +1,10 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import { apply, Config, inject, name, TOOL_IDS } from "./index.js";
 import { TOOLKIT_NANO_FLOW_NOTES_PATH, TOOLKIT_STATE_PATH, TOOLKIT_UNDO_PATH } from "./contract.js";
+import { NANO_FLOW_SERVICE } from "./host/nano-flow-facade.js";
 import { serviceOf } from "./host/services.js";
 
 interface HarnessOptions {
@@ -21,6 +22,13 @@ interface HarnessOptions {
     readonly stored: readonly string[];
     readonly live: readonly string[];
   };
+  /** 持久化里还有日志的会话 id；用于绑定表的死条目回收。`fail` 让 `list()` 抛错。 */
+  readonly persistence?: {
+    readonly stored: readonly string[];
+    readonly fail?: boolean;
+  };
+  /** 仍存活、但可能还没有日志的会话 id。 */
+  readonly liveSessions?: readonly string[];
 }
 
 interface Harness {
@@ -34,16 +42,104 @@ interface Harness {
   readonly inserted: { sessionId: string; before: string | undefined }[];
   readonly emitted: (readonly [string, ...unknown[]])[];
   readonly warns: ReturnType<typeof vi.fn>;
+  /** `ctx.provide` 提供的服务，按名字取。 */
+  readonly provided: Record<string, unknown>;
 }
+
+/** 测试里可观察的宿主副作用（归档、置顶、记账顺序）。 */
+interface HostFixture {
+  readonly archived: string[];
+  readonly unarchived: string[];
+  readonly pinned: string[];
+  readonly inserted: { sessionId: string; before: string | undefined }[];
+}
+
+/** 会话控制与工作区替身：undo 与归档清扫用。 */
+const applySessionControl = (
+  options: HarnessOptions,
+  services: Record<string, unknown>,
+  fixture: HostFixture,
+): void => {
+  if (options.sessionControl !== true && options.archiveSweep === undefined) return;
+  services["sessions"] = {
+    get: () => ({
+      snapshotEvents: () => [
+        { type: "turn/start", seq: 0 },
+        { type: "user/message", seq: 1, data: { content: [{ type: "text", text: "one" }] } },
+        { type: "turn/end", seq: 2 },
+        { type: "turn/start", seq: 3 },
+        { type: "user/message", seq: 4, data: { content: [{ type: "text", text: "two" }] } },
+      ],
+    }),
+  };
+  services["sessionController"] = {
+    fork: async () => ({ sessionId: "session-child" }),
+  };
+  services["workspaceRegistry"] = {
+    list: () => [
+      {
+        sessionIds: ["session-source", "session-after"],
+        insertSessionBefore: async (sessionId: string, before: string | undefined) => {
+          fixture.inserted.push({ sessionId, before });
+        },
+        detachSession: async () => {},
+      },
+    ],
+    archivedSessionIds: [...(options.archiveSweep?.archived ?? [])],
+    get pinnedSessionIds() {
+      return [...fixture.pinned];
+    },
+    unarchiveSession: async (sessionId: string) => {
+      fixture.unarchived.push(sessionId);
+    },
+    archiveSession: async (sessionId: string) => {
+      fixture.archived.push(sessionId);
+      const index = fixture.pinned.indexOf(sessionId);
+      if (index >= 0) fixture.pinned.splice(index, 1);
+    },
+    pinSession: async (sessionId: string) => {
+      if (!fixture.pinned.includes(sessionId)) fixture.pinned.unshift(sessionId);
+    },
+    unpinSession: async (sessionId: string) => {
+      const index = fixture.pinned.indexOf(sessionId);
+      if (index >= 0) fixture.pinned.splice(index, 1);
+    },
+  };
+};
+
+/** 归档清扫与绑定回收的持久化替身；最后装配，覆盖更早的替身。 */
+const applyPersistence = (options: HarnessOptions, services: Record<string, unknown>): void => {
+  if (options.archiveSweep !== undefined) {
+    services["sessions"] = {
+      get: (id: string) => (options.archiveSweep?.live.includes(id) === true ? {} : undefined),
+    };
+    services["sessionPersistence"] = {
+      list: async () =>
+        (options.archiveSweep?.stored ?? []).map((id: string) => ({ header: { id } })),
+    };
+  }
+  if (options.persistence !== undefined) {
+    services["sessionPersistence"] = {
+      list: async () => {
+        if (options.persistence?.fail === true) throw new Error("list failed");
+        return (options.persistence?.stored ?? []).map((id: string) => ({ header: { id } }));
+      },
+    };
+  }
+  if (options.liveSessions !== undefined) {
+    const live = new Set(options.liveSessions);
+    services["sessions"] = {
+      get: (id: string) => (live.has(id) ? { header: {} } : undefined),
+    };
+  }
+};
 
 const makeHarness = (options: HarnessOptions = {}): Harness => {
   const routes = new Map<string, (request: Request) => Promise<Response>>();
   const providerNames: string[] = [];
   const disposers: (() => void)[] = [];
-  const archived: string[] = [];
-  const unarchived: string[] = [];
-  const pinned: string[] = [];
-  const inserted: { sessionId: string; before: string | undefined }[] = [];
+  const fixture: HostFixture = { archived: [], unarchived: [], pinned: [], inserted: [] };
+  const { archived, unarchived, pinned, inserted } = fixture;
   const services: Record<string, unknown> = {
     connection:
       options.connection === false
@@ -60,71 +156,25 @@ const makeHarness = (options: HarnessOptions = {}): Harness => {
             },
           },
   };
-  if (options.notesSession !== undefined && services["sessions"] === undefined) {
+  if (options.notesSession !== undefined) {
     services["sessions"] = {
       get: (id: string) =>
         id === options.notesSession?.id ? { header: { cwd: options.notesSession.cwd } } : undefined,
     };
   }
-  if (options.sessionControl === true || options.archiveSweep !== undefined) {
-    services["sessions"] = {
-      get: () => ({
-        snapshotEvents: () => [
-          { type: "turn/start", seq: 0 },
-          { type: "user/message", seq: 1, data: { content: [{ type: "text", text: "one" }] } },
-          { type: "turn/end", seq: 2 },
-          { type: "turn/start", seq: 3 },
-          { type: "user/message", seq: 4, data: { content: [{ type: "text", text: "two" }] } },
-        ],
-      }),
-    };
-    services["sessionController"] = {
-      fork: async () => ({ sessionId: "session-child" }),
-    };
-    services["workspaceRegistry"] = {
-      list: () => [
-        {
-          sessionIds: ["session-source", "session-after"],
-          insertSessionBefore: async (sessionId: string, before: string | undefined) => {
-            inserted.push({ sessionId, before });
-          },
-          detachSession: async () => {},
-        },
-      ],
-      archivedSessionIds: [...(options.archiveSweep?.archived ?? [])],
-      get pinnedSessionIds() {
-        return [...pinned];
-      },
-      unarchiveSession: async (sessionId: string) => {
-        unarchived.push(sessionId);
-      },
-      archiveSession: async (sessionId: string) => {
-        archived.push(sessionId);
-        const index = pinned.indexOf(sessionId);
-        if (index >= 0) pinned.splice(index, 1);
-      },
-      pinSession: async (sessionId: string) => {
-        if (!pinned.includes(sessionId)) pinned.unshift(sessionId);
-      },
-      unpinSession: async (sessionId: string) => {
-        const index = pinned.indexOf(sessionId);
-        if (index >= 0) pinned.splice(index, 1);
-      },
-    };
-  }
-  if (options.archiveSweep !== undefined) {
-    services["sessions"] = {
-      get: (id: string) => (options.archiveSweep?.live.includes(id) === true ? {} : undefined),
-    };
-    services["sessionPersistence"] = {
-      list: async () =>
-        (options.archiveSweep?.stored ?? []).map((id: string) => ({ header: { id } })),
-    };
-  }
+  applySessionControl(options, services, fixture);
+  applyPersistence(options, services);
   const warns = vi.fn();
   const emitted: (readonly [string, ...unknown[]])[] = [];
+  const provided: Record<string, unknown> = {};
   const ctx: Record<string, unknown> = {
     logger: { warn: warns, info: vi.fn() },
+    provide: (key: string, value: unknown) => {
+      provided[key] = value;
+      return () => {
+        delete provided[key];
+      };
+    },
     emit: (event: string, ...args: unknown[]) => {
       emitted.push([event, ...args]);
     },
@@ -167,6 +217,7 @@ const makeHarness = (options: HarnessOptions = {}): Harness => {
     unarchived,
     emitted,
     warns,
+    provided,
   };
 };
 
@@ -284,6 +335,199 @@ describe("toolkit plugin entry", () => {
       new Request(`http://127.0.0.1${TOOLKIT_NANO_FLOW_NOTES_PATH}?sessionId=session-2`),
     );
     await expect(missing?.json()).resolves.toEqual({ snapshot: null });
+  });
+
+  it("resolves the notes snapshot from the workspace when the bound cwd is gone", async () => {
+    const directory = await tempDir();
+    const plan = join(directory, ".agents", "domains", "dsh", "plans", "active", "2026-11-09-迁移");
+    await mkdir(plan, { recursive: true });
+    await writeFile(
+      join(plan, "001-第一个.md"),
+      "---\nname: '001-第一个'\ndescription: '概述'\nstatus: pending\n---\n",
+      "utf8",
+    );
+    const bindings = join(directory, "bindings.json");
+    const { ctx, routes } = makeHarness({ notesSession: { id: "session-1", cwd: directory } });
+    apply(ctx as never, {
+      stateFile: join(directory, "state.json"),
+      sessionsRoot: directory,
+      bindingsFile: bindings,
+    });
+    await vi.waitFor(() => expect(routes.size).toBe(6));
+    await writeFile(
+      bindings,
+      JSON.stringify({
+        "session-1": {
+          planPath: ".agents/domains/dsh/plans/active/2026-11-09-迁移",
+          cwd: join(directory, "gone"),
+          boundAt: "2026-11-09T00:00:00.000Z",
+        },
+      }),
+      "utf8",
+    );
+    const response = await routes.get(TOOLKIT_NANO_FLOW_NOTES_PATH)?.(
+      new Request(`http://127.0.0.1${TOOLKIT_NANO_FLOW_NOTES_PATH}?sessionId=session-1`),
+    );
+    expect(await response?.json()).toMatchObject({
+      snapshot: { planName: "2026-11-09-迁移" },
+    });
+  });
+
+  it("prunes bindings of sessions the host no longer has when a session binds", async () => {
+    const directory = await tempDir();
+    const plan = join(directory, ".agents", "domains", "dsh", "plans", "active", "2026-11-09-演示");
+    await mkdir(plan, { recursive: true });
+    const bindings = join(directory, "bindings.json");
+    const dead = {
+      planPath: ".agents/domains/dsh/plans/active/2026-11-09-演示",
+      cwd: directory,
+      boundAt: "2026-11-08T00:00:00.000Z",
+    };
+    await writeFile(bindings, JSON.stringify({ ghost: dead, ghost2: dead }), "utf8");
+    const { ctx, routes, provided } = makeHarness({ persistence: { stored: ["session-1"] } });
+    apply(ctx as never, {
+      stateFile: join(directory, "state.json"),
+      sessionsRoot: directory,
+      bindingsFile: bindings,
+    });
+    await vi.waitFor(() => expect(routes.size).toBe(6));
+    const facade = provided[NANO_FLOW_SERVICE] as {
+      rebindSession(id: string, plan: string, workspace: string): Promise<void>;
+    };
+    await facade.rebindSession("session-1", plan, directory);
+    const table = JSON.parse(await readFile(bindings, "utf8")) as Record<string, unknown>;
+    expect(Object.keys(table)).toEqual(["session-1"]);
+  });
+
+  it("keeps bindings of sessions that are alive but not persisted yet", async () => {
+    const directory = await tempDir();
+    const plan = join(
+      directory,
+      ".agents",
+      "domains",
+      "dsh",
+      "plans",
+      "active",
+      "2026-11-09-活会话",
+    );
+    await mkdir(plan, { recursive: true });
+    const bindings = join(directory, "bindings.json");
+    const entry = {
+      planPath: ".agents/domains/dsh/plans/active/2026-11-09-活会话",
+      cwd: directory,
+      boundAt: "2026-11-08T00:00:00.000Z",
+    };
+    await writeFile(bindings, JSON.stringify({ "live-1": entry, ghost: entry }), "utf8");
+    const { ctx, routes, provided } = makeHarness({
+      persistence: { stored: [] },
+      liveSessions: ["live-1"],
+    });
+    apply(ctx as never, {
+      stateFile: join(directory, "state.json"),
+      sessionsRoot: directory,
+      bindingsFile: bindings,
+    });
+    await vi.waitFor(() => expect(routes.size).toBe(6));
+    const facade = provided[NANO_FLOW_SERVICE] as {
+      rebindSession(id: string, plan: string, workspace: string): Promise<void>;
+    };
+    await facade.rebindSession("session-1", plan, directory);
+    const table = JSON.parse(await readFile(bindings, "utf8")) as Record<string, unknown>;
+    expect(Object.keys(table).sort()).toEqual(["live-1", "session-1"]);
+  });
+
+  it("keeps every binding when the host cannot list sessions", async () => {
+    const directory = await tempDir();
+    const plan = join(
+      directory,
+      ".agents",
+      "domains",
+      "dsh",
+      "plans",
+      "active",
+      "2026-11-09-无列表",
+    );
+    await mkdir(plan, { recursive: true });
+    const bindings = join(directory, "bindings.json");
+    const entry = {
+      planPath: ".agents/domains/dsh/plans/active/2026-11-09-无列表",
+      cwd: directory,
+      boundAt: "2026-11-08T00:00:00.000Z",
+    };
+    await writeFile(bindings, JSON.stringify({ ghost: entry }), "utf8");
+    const { ctx, routes, provided } = makeHarness();
+    apply(ctx as never, {
+      stateFile: join(directory, "state.json"),
+      sessionsRoot: directory,
+      bindingsFile: bindings,
+    });
+    await vi.waitFor(() => expect(routes.size).toBe(6));
+    const facade = provided[NANO_FLOW_SERVICE] as {
+      rebindSession(id: string, plan: string, workspace: string): Promise<void>;
+    };
+    await facade.rebindSession("session-1", plan, directory);
+    const table = JSON.parse(await readFile(bindings, "utf8")) as Record<string, unknown>;
+    expect(Object.keys(table).sort()).toEqual(["ghost", "session-1"]);
+  });
+
+  it("keeps every binding when the session list throws", async () => {
+    const directory = await tempDir();
+    const plan = join(directory, ".agents", "domains", "dsh", "plans", "active", "2026-11-09-抛错");
+    await mkdir(plan, { recursive: true });
+    const bindings = join(directory, "bindings.json");
+    const entry = {
+      planPath: ".agents/domains/dsh/plans/active/2026-11-09-抛错",
+      cwd: directory,
+      boundAt: "2026-11-08T00:00:00.000Z",
+    };
+    await writeFile(bindings, JSON.stringify({ ghost: entry }), "utf8");
+    const { ctx, routes, provided, warns } = makeHarness({
+      persistence: { stored: [], fail: true },
+    });
+    apply(ctx as never, {
+      stateFile: join(directory, "state.json"),
+      sessionsRoot: directory,
+      bindingsFile: bindings,
+    });
+    await vi.waitFor(() => expect(routes.size).toBe(6));
+    const facade = provided[NANO_FLOW_SERVICE] as {
+      rebindSession(id: string, plan: string, workspace: string): Promise<void>;
+    };
+    await facade.rebindSession("session-1", plan, directory);
+    const table = JSON.parse(await readFile(bindings, "utf8")) as Record<string, unknown>;
+    expect(Object.keys(table).sort()).toEqual(["ghost", "session-1"]);
+    expect(warns).toHaveBeenCalled();
+  });
+
+  it("keeps bindings when the host lists no sessions", async () => {
+    const directory = await tempDir();
+    const plan = join(directory, ".agents", "domains", "dsh", "plans", "active", "2026-11-09-空表");
+    await mkdir(plan, { recursive: true });
+    const bindings = join(directory, "bindings.json");
+    await writeFile(
+      bindings,
+      JSON.stringify({
+        kept: {
+          planPath: ".agents/domains/dsh/plans/active/2026-11-09-空表",
+          cwd: directory,
+          boundAt: "2026-11-08T00:00:00.000Z",
+        },
+      }),
+      "utf8",
+    );
+    const { ctx, routes, provided } = makeHarness({ persistence: { stored: [] } });
+    apply(ctx as never, {
+      stateFile: join(directory, "state.json"),
+      sessionsRoot: directory,
+      bindingsFile: bindings,
+    });
+    await vi.waitFor(() => expect(routes.size).toBe(6));
+    const facade = provided[NANO_FLOW_SERVICE] as {
+      rebindSession(id: string, plan: string, workspace: string): Promise<void>;
+    };
+    await facade.rebindSession("session-1", plan, directory);
+    const table = JSON.parse(await readFile(bindings, "utf8")) as Record<string, unknown>;
+    expect(Object.keys(table).sort()).toEqual(["kept", "session-1"]);
   });
 
   it("mounts the nested-skill provider once the tool is enabled", async () => {

@@ -12,7 +12,9 @@ import {
   isNanoFlowPreset,
   planLogPath,
   planRelativePath,
+  pruneBindings,
   readBindings,
+  resolvePlanDirectory,
   truncateText,
   writeBindings,
   type SessionEventLike,
@@ -98,6 +100,15 @@ describe("inheritedPlanDirectory", () => {
       inheritedPlanDirectory(table, "session-unknown", "C:\\work", () => true),
     ).toBeUndefined();
     expect(inheritedPlanDirectory(table, "session-old", "C:\\work", () => false)).toBeUndefined();
+  });
+
+  it("finds the plan in the new workspace after the old cwd disappeared", () => {
+    const newPlan = join("D:\\work", ".agents/domains/dsh/plans/active/x");
+    expect(inheritedPlanDirectory(table, "session-old", "D:\\work", (dir) => dir === newPlan)).toBe(
+      newPlan,
+    );
+    // 新旧路径都不存在：继承不出 Plan，seed 退回「没有绑定线索」。
+    expect(inheritedPlanDirectory(table, "session-old", "D:\\work", () => false)).toBeUndefined();
   });
 });
 
@@ -214,8 +225,56 @@ describe("paths", () => {
       cwd: root,
       boundAt: "t",
     };
-    expect(planLogPath(binding)).toBe(join(root, binding.planPath, "log.jsonl"));
+    expect(planLogPath(join(root, binding.planPath))).toBe(
+      join(root, binding.planPath, "log.jsonl"),
+    );
     expect(planRelativePath(root, join(root, binding.planPath))).toBe(binding.planPath);
+  });
+});
+
+describe("resolvePlanDirectory", () => {
+  const binding = {
+    planPath: ".agents/domains/dsh/plans/active/demo",
+    cwd: "/old/work",
+    boundAt: "t",
+  };
+
+  it("prefers the cwd recorded at bind time while it still exists", () => {
+    expect(
+      resolvePlanDirectory(
+        binding,
+        "/new/work",
+        (directory) => directory === "/old/work/.agents/domains/dsh/plans/active/demo",
+      ),
+    ).toBe(join("/old/work", binding.planPath));
+  });
+
+  it("falls back to the current workspace when the bound cwd is gone", () => {
+    expect(resolvePlanDirectory(binding, "/new/work", () => false)).toBe(
+      join("/new/work", binding.planPath),
+    );
+  });
+
+  it("keeps an absolute planPath as is", () => {
+    const absolute = { ...binding, planPath: "/abs/plan" };
+    expect(resolvePlanDirectory(absolute, "/new/work", () => false)).toBe("/abs/plan");
+  });
+
+  it("ignores an empty bound cwd", () => {
+    const empty = { ...binding, cwd: "" };
+    expect(resolvePlanDirectory(empty, "/new/work", () => false)).toBe(
+      join("/new/work", binding.planPath),
+    );
+  });
+});
+
+describe("pruneBindings", () => {
+  it("drops entries whose session no longer exists", () => {
+    const table = {
+      kept: { planPath: "p", cwd: "/w", boundAt: "t" },
+      ghost: { planPath: "p", cwd: "/w", boundAt: "t" },
+    };
+    expect(pruneBindings(table, new Set(["kept"]))).toEqual({ kept: table.kept });
   });
 });
 

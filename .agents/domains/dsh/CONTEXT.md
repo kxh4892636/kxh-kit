@@ -68,6 +68,8 @@ _Avoid_：story、DAG、任务列表
 
 **会话↔Plan 绑定**：
 `$DSH_HOME/toolkit/nano-flow-plan-bindings.json` 中按会话 id 记录的唯一 Plan（`planPath` / `cwd` / `boundAt`）；同一会话只保留一个绑定，只有 `nano_flow_bind` 写它，再次调用即切换。供 Note 看板与 `log.jsonl` 使用，不参与 note 状态判定。
+
+绑定的 Plan 目录由 `resolvePlanDirectory` 统一解析：绝对 `planPath` 直通；相对路径先试绑定时的 `cwd`，该目录不在就退回当前工作区。Plan 迁走后目录解析不到，看板返回空、`log.jsonl` 跳过写入（不重建旧路径），不会产生孤儿日志；`nano_flow_bind` 收尾会回收宿主已不存在的会话条目，存活性以「持久化列表 ∪ 仍存活的会话」判断，拿不到列表时不动表。
 _Avoid_：当前 Plan、任务上下文
 
 **生效上限**：

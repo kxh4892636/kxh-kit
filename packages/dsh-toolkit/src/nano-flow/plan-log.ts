@@ -1,6 +1,6 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile, appendFile } from "node:fs/promises";
-import { dirname, join, relative } from "node:path";
+import { dirname, isAbsolute, join, relative } from "node:path";
 
 /** Plan 轨迹文件名：与 spec.md 同级。 */
 export const PLAN_LOG_FILE = "log.jsonl";
@@ -61,6 +61,39 @@ export interface PlanBinding {
 
 /** 绑定表：sessionId → 绑定。 */
 export type BindingTable = Record<string, PlanBinding>;
+
+/** 判断一个绝对路径是不是可用的 Plan 目录（测试可注入）。 */
+export type DirectoryExists = (directory: string) => boolean;
+
+/**
+ * 解析绑定指向的 Plan 目录。
+ *
+ * 绝对 `planPath` 直接用；相对路径优先绑定时的 `cwd`（换机器或迁移后可能已不存在），
+ * 该目录不在了再退回当前工作区。
+ * @param binding - 绑定条目。
+ * @param workspace - 当前工作区根。
+ * @param exists - 目录存在性判断。
+ * @returns Plan 目录的绝对路径（不保证存在）。
+ */
+export const resolvePlanDirectory = (
+  binding: PlanBinding,
+  workspace: string,
+  exists: DirectoryExists = existsSync,
+): string => {
+  if (isAbsolute(binding.planPath)) return binding.planPath;
+  const bound = binding.cwd === "" ? undefined : join(binding.cwd, binding.planPath);
+  if (bound !== undefined && exists(bound)) return bound;
+  return join(workspace, binding.planPath);
+};
+
+/**
+ * 删掉绑定表里宿主已不存在的会话。
+ * @param table - 当前绑定表。
+ * @param alive - 仍然存在的会话 id。
+ * @returns 只含存活会话的新表。
+ */
+export const pruneBindings = (table: BindingTable, alive: ReadonlySet<string>): BindingTable =>
+  Object.fromEntries(Object.entries(table).filter(([sessionId]) => alive.has(sessionId)));
 
 /** 截断文本；`bytes` 是原文 UTF-8 字节数。 */
 export const truncateText = (
@@ -296,11 +329,11 @@ export const inheritedPlanDirectory = (
   table: BindingTable,
   previousSessionId: string,
   workspace: string,
-  exists: (directory: string) => boolean = () => true,
+  exists: DirectoryExists = existsSync,
 ): string | undefined => {
   const binding = table[previousSessionId];
   if (binding === undefined) return undefined;
-  const directory = join(workspace, binding.planPath);
+  const directory = resolvePlanDirectory(binding, workspace, exists);
   return exists(directory) ? directory : undefined;
 };
 
@@ -308,6 +341,5 @@ export const inheritedPlanDirectory = (
 export const planRelativePath = (workspace: string, planDirectory: string): string =>
   relative(workspace, planDirectory).replaceAll("\\", "/");
 
-/** 定位绑定对应的 log.jsonl。 */
-export const planLogPath = (binding: PlanBinding): string =>
-  join(binding.cwd, binding.planPath, PLAN_LOG_FILE);
+/** 定位 Plan 目录下的 log.jsonl。 */
+export const planLogPath = (planDirectory: string): string => join(planDirectory, PLAN_LOG_FILE);

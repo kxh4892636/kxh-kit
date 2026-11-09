@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { isAbsolute, join, relative } from "node:path";
+import { join, relative } from "node:path";
 
 import { parse as parseYaml } from "yaml";
 
@@ -55,36 +55,6 @@ export const readPanelNotes = (planDirectory: string): PanelNote[] => {
 };
 
 /**
- * 列出领域根下所有 active Plan 目录。
- * @param domainsDirectory - `.agents/domains` 的绝对路径。
- * @returns Plan 目录绝对路径，按字典序。
- */
-export const listActivePlans = (domainsDirectory: string): string[] => {
-  let domains: string[];
-  try {
-    domains = readdirSync(domainsDirectory, { withFileTypes: true })
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name);
-  } catch {
-    return [];
-  }
-  domains.sort((left, right) => left.localeCompare(right));
-  const plans: string[] = [];
-  for (const domain of domains) {
-    const active = join(domainsDirectory, domain, "plans", "active");
-    try {
-      const entries = readdirSync(active, { withFileTypes: true }).filter((entry) =>
-        entry.isDirectory(),
-      );
-      for (const entry of entries) plans.push(join(active, entry.name));
-    } catch {
-      continue;
-    }
-  }
-  return plans;
-};
-
-/**
  * 组装面板快照。
  * @param workspace - 工作区根。
  * @param planDirectory - Plan 目录。
@@ -100,26 +70,4 @@ export const buildNotesSnapshot = (
   const segments = planPath.split("/");
   const planName = segments[segments.length - 1] ?? planPath;
   return { planName, planPath, notes };
-};
-
-/**
- * 按工作区与领域根现算面板快照。
- *
- * 只有领域根下**恰好一个** active Plan 时才显示；多个 Plan 并存时返回 `null`，
- * 等用户明确指定。快照不写会话日志，每次请求都是当前文件系统状态。
- * @param options - 工作区、领域根（可为相对工作区的路径）。
- * @returns 面板快照或 `null`。
- */
-export const notesForWorkspace = (options: {
-  readonly workspace: string;
-  readonly domainRoot: string;
-}): NotesSnapshot | null => {
-  const domainsDirectory = isAbsolute(options.domainRoot)
-    ? options.domainRoot
-    : join(options.workspace, options.domainRoot);
-  const plans = listActivePlans(domainsDirectory);
-  if (plans.length !== 1) return null;
-  const plan = plans[0];
-  if (plan === undefined) return null;
-  return buildNotesSnapshot(options.workspace, plan);
 };

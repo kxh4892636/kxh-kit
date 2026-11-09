@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -77,8 +77,18 @@ const bindingsFile = (root: string): string =>
 const BOUND_AT = "2020-01-01T00:00:00.000Z";
 
 const bindTo = async (root: string, plan: string): Promise<void> => {
+  // 真实绑定总指向已存在的 Plan 目录：目录不存在时服务会跳过写入（见 R3）。
+  await mkdir(plan, { recursive: true });
   await writeBindings(bindingsFile(root), {
     s1: { planPath: planRelativePath(root, plan), cwd: root, boundAt: BOUND_AT },
+  });
+};
+
+/** 绑定时的 cwd 已失效（换机器 / 迁移）：Plan 只在当前工作区里可解析。 */
+const bindToStaleCwd = async (root: string, plan: string): Promise<void> => {
+  await mkdir(plan, { recursive: true });
+  await writeBindings(bindingsFile(root), {
+    s1: { planPath: planRelativePath(root, plan), cwd: join(root, "gone"), boundAt: BOUND_AT },
   });
 };
 
@@ -285,6 +295,50 @@ describe("createPlanLogService", () => {
     await new Promise((resolve) => setTimeout(resolve, 50));
     await expect(readFile(join(plan, "log.jsonl"), "utf8")).rejects.toThrow();
     expect(await readBindings(bindingsFile(root))).toEqual({});
+    await service.dispose();
+  });
+
+  it("falls back to the session workspace when the bound cwd is gone", async () => {
+    const root = await makeRoot();
+    const plan = planFor(root);
+    const events = [...turn(1, 0), nanoFlowToolCall(2, 100)];
+    const service = makeService(root);
+    service.attach(makePersistence(events));
+    await bindToStaleCwd(root, plan);
+    service.onEvent(session(root), events[events.length - 1]);
+    await vi.waitFor(async () => {
+      expect(await readFile(join(plan, "log.jsonl"), "utf8")).toContain('"turn":1');
+    });
+    await service.dispose();
+  });
+
+  it("skips logging instead of recreating a plan directory that moved away", async () => {
+    const root = await makeRoot();
+    const plan = planFor(root);
+    const events = [...turn(1, 0), nanoFlowToolCall(2, 100)];
+    const warns: string[] = [];
+    const service = createPlanLogService({
+      home: root,
+      logger: { warn: (message: string) => warns.push(message) },
+    });
+    service.attach(makePersistence(events));
+    await bindTo(root, plan);
+    service.onEvent(session(root), events[events.length - 1]);
+    await vi.waitFor(async () => {
+      expect(await readFile(join(plan, "log.jsonl"), "utf8")).toContain('"turn":1');
+    });
+    // 模拟 active → reference/archived：目录被移走，旧路径不该被重建。
+    await rm(plan, { recursive: true, force: true });
+    events.push(...turn(2, 200));
+    service.onEvent(session(root), events[events.length - 1]);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await expect(readFile(join(plan, "log.jsonl"), "utf8")).rejects.toThrow();
+    // 再跑一轮：告警只报一次，目录仍不被重建。
+    events.push(...turn(3, 300));
+    service.onEvent(session(root), events[events.length - 1]);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await expect(readFile(join(plan, "log.jsonl"), "utf8")).rejects.toThrow();
+    expect(warns.filter((line) => line.includes("plan directory missing"))).toHaveLength(1);
     await service.dispose();
   });
 

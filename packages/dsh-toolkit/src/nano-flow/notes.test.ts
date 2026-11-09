@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
-import { buildNotesSnapshot, listActivePlans, notesForWorkspace, readPanelNotes } from "./notes.js";
+import { buildNotesSnapshot, readPanelNotes } from "./notes.js";
 
 const roots: string[] = [];
 
@@ -89,39 +89,5 @@ describe("buildNotesSnapshot", () => {
     const plan = "2026-11-08-演示";
     await writeNote(root, plan, "001-完成.md", "completed");
     expect(buildNotesSnapshot(root, planDirectory(root, plan))).toBeNull();
-  });
-});
-
-describe("notesForWorkspace", () => {
-  it("returns the snapshot when exactly one active plan exists", async () => {
-    const root = await makeRoot();
-    await writeNote(root, "2026-11-08-唯一", "001-第一个.md", "pending");
-    expect(notesForWorkspace({ workspace: root, domainRoot: ".agents/domains" })).toEqual({
-      planName: "2026-11-08-唯一",
-      planPath: ".agents/domains/dsh/plans/active/2026-11-08-唯一",
-      notes: [{ name: "001-第一个", status: "pending", description: "001-第一个.md 概述" }],
-    });
-  });
-
-  it("returns null when several active plans exist", async () => {
-    const root = await makeRoot();
-    await writeNote(root, "2026-11-08-甲", "001-甲.md", "pending");
-    await writeNote(root, "2026-11-08-乙", "001-乙.md", "pending");
-    expect(listActivePlans(join(root, ".agents", "domains"))).toHaveLength(2);
-    expect(notesForWorkspace({ workspace: root, domainRoot: ".agents/domains" })).toBeNull();
-  });
-
-  it("returns null when every note is completed", async () => {
-    const root = await makeRoot();
-    await writeNote(root, "2026-11-08-完成", "001-完成.md", "completed");
-    expect(notesForWorkspace({ workspace: root, domainRoot: ".agents/domains" })).toBeNull();
-  });
-
-  it("supports an absolute domain root", async () => {
-    const root = await makeRoot();
-    await writeNote(root, "2026-11-08-绝对", "001-第一个.md", "pending");
-    expect(
-      notesForWorkspace({ workspace: root, domainRoot: join(root, ".agents", "domains") }),
-    ).not.toBeNull();
   });
 });
