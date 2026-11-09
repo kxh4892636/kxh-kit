@@ -10,7 +10,7 @@ status: 'accepted'
 
 [ADR 004](004-dream由命令手动触发且不依赖seq游标.md) 当时决定「只暴露 `/dream`，不做定时、不做后台环」，理由是 pi 没有 Schedule 接缝、进程生命周期不保证常驻。
 
-2026-11-09 需求改为每天定时跑。要在不动 dream 内部实现的前提下满足它，必须先确定「谁能把 `/dream` 送到一个活着的 pi 会话里」。实测（[015](../plans/active/2026-11-09-pi-toolkit插件/015-定时触发dream.md)）：
+2026-11-09 需求改为每天定时跑。要在不动 dream 内部实现的前提下满足它，必须先确定「谁能把 `/dream` 送到一个活着的 pi 会话里」。实测（[015](../plans/reference/2026-11-09-pi-toolkit插件/015-定时触发dream.md)）：
 
 - print / json 模式不行：扩展命令 handler 返回后进程即 dispose，命令里 `pi.sendUserMessage()` 起的 run 被丢掉（1 ms resolve、零事件、无会话文件）。
 - RPC 模式可行：`prompt` 响应 `disposition: handled` 后真实起 run 并跑到 `agent_settled`；`ctx.ui.notify` 以 `extension_ui_request` 事件出现在 stdout，可落日志。
@@ -38,4 +38,4 @@ status: 'accepted'
 ## 相关
 
 - [004-dream由命令手动触发且不依赖seq游标](004-dream由命令手动触发且不依赖seq游标.md) — 本决策只替换其「触发」条，其余结论仍有效。
-- [015-定时触发dream](../plans/active/2026-11-09-pi-toolkit插件/015-定时触发dream.md) — 实现路径、wrapper 设计、unit 模板与验收条件。
+- [015-定时触发dream](../plans/reference/2026-11-09-pi-toolkit插件/015-定时触发dream.md) — 实现路径、wrapper 设计、unit 模板与验收条件。

@@ -36,5 +36,5 @@ pi 侧的会话 JSONL 已经是完整轨迹，但它在 `~/.pi/agent/sessions/--
 
 ## 相关
 
-- [014-Plan轨迹落盘](../plans/active/2026-11-09-pi-toolkit插件/014-Plan轨迹落盘.md) — 实现、测试与验收步骤。
+- [014-Plan轨迹落盘](../plans/reference/2026-11-09-pi-toolkit插件/014-Plan轨迹落盘.md) — 实现、测试与验收步骤。
 - [004-dream由命令手动触发且不依赖seq游标](004-dream由命令手动触发且不依赖seq游标.md) — dream 以此为轨迹输入，因此不需要会话归属索引。

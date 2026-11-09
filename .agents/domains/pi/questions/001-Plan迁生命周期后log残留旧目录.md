@@ -40,4 +40,4 @@ description: 'Plan 目录搬 active→archived 时被 gitignore 的 log.jsonl �
 
 ## 来源
 
-[015-定时触发dream](../plans/active/2026-11-09-pi-toolkit插件/015-定时触发dream.md) 的真机验收。
+[015-定时触发dream](../plans/reference/2026-11-09-pi-toolkit插件/015-定时触发dream.md) 的真机验收。
