@@ -65,13 +65,29 @@ next_step: "硬刷新页面（缓存未换就重启宿主）→ 悬浮 Note 行�
 1. 悬浮锚点换成整行的 `.dshtk-notes-row`（状态名 + 标题都算「对应项」），并加 `.dshtk-notes-item:hover` 提亮标题作为可交互线索；
 2. 给 `Tooltip` 开 `portal`，气泡投到 `document.body` —— 原位渲染时 composer dock 祖先的 `transform`/`overflow` 可能把 `position: fixed` 的气泡裁掉或压在下面。
 
+## UI 调整：改浅色卡片（0.5.42）
+
+用户回执：气泡已出现、三字段都在，但深色底白字与界面不协调，要求改白底黑字并复用 DSH 原生组件/样式。
+
+查宿主 `primitives` 导出表：`Tooltip`（`Mn`）气泡固定用 `--dsw-alias-tooltip-bg` + `--dsw-static-neutral-bluish-00`，没有浅色变体，也没法局部覆盖（哈希类名 + 全局选择器会误伤其它提示）。`HoverCard`（`z4`）的 `variant: "preview"` 才是原生浅色卡片：`background: var(--dsw-alias-bg-layer-1)`、`color: var(--dsw-alias-label-primary)`、`box-shadow: var(--dsw-elevation-panel)`，并且卡片本身 portal 到 `document.body`。
+
+因此：
+
+- `NotesDock` 用 `HoverCard`（`anchor` = 整行、`content` = 三字段、`openDelayMs: 150`、`variant: "preview"`、`fitContent: true`）；
+- 卡片只提供底色/阴影/定位，排版用 `.dshtk-note-tip` 按 token 定义（13px/20px、键名 tertiary、正文 secondary、描述 primary）；
+- `primitives.d.ts` 增补 `HoverCard` 声明；`test-primitives.ts` 加替身（锚点与内容都渲染，便于断言）；宿主没有 `HoverCard` 时退回 `title`。
+
 ## 安装记录（0.5.41）
 
 2026-11-09 14:42：升 `0.5.41` → build（`dist/client.js` 57 004 字节）→ `pnpm pack` 出 `~/.dsh/pkgs/kxh4892636-dsh-toolkit-0.5.41.tgz` → 装进 web profile。核对：安装版本 `0.5.41`，`dist/client.js` 含 `dshtk-notes-row` 2 处。
 
+## 安装记录（0.5.42）
+
+2026-11-09 14:52：升 `0.5.42` → build（`dist/client.js` 58 168 字节，含 `dshtk-note-tip` 6 处、`HoverCard` 3 处）→ pack 出 `~/.dsh/pkgs/kxh4892636-dsh-toolkit-0.5.42.tgz` → 装进 web profile。核对安装版本 `0.5.42`。
+
 ## 遗留
 
-- 真机未验：硬刷新页面后看气泡；若仍是旧行为，说明客户端 bundle 被宿主缓存，需重启宿主。
+- 真机未验（0.5.42）：硬刷新页面后看浅色卡片。
 - 宿主 `Tooltip` 不可用时退回原生 `title`，同样保留换行。
 - `reason` 目前只在 `blocked` 时存在，因此「原因：」实际只在阻塞行出现。
 
