@@ -97,9 +97,9 @@ describe("dream message", () => {
     seedPlan(workspace, "demo", "active", "2026-11-09-示例", { log: 4096 });
     const message = buildDreamMessage(await scope(workspace), {
       workspace,
-      prompt: "[nano-flow:dream]\n# dream",
+      prompt: "# dream\n\n维护者说明。",
     });
-    expect(message.startsWith("[nano-flow:dream]")).toBe(true);
+    expect(message.startsWith("# dream")).toBe(true);
     expect(message).toContain("## 本次运行");
     expect(message).toContain("- 域 `demo`：1 个 Plan");
     expect(message).toContain(
@@ -116,7 +116,7 @@ describe("dream message", () => {
     seedPlan(workspace, "demo", "active", "2026-11-09-示例");
     const message = buildDreamMessage(await scope(workspace), {
       workspace,
-      prompt: "[nano-flow:dream]",
+      prompt: "# dream",
     });
     expect(message).toContain("无轨迹（尚无 log.jsonl）");
     expect(message).toContain("无轨迹的 Plan：1 个");

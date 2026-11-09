@@ -109,6 +109,7 @@ status: 'in_progress'
 - 待办：整个 pi-toolkit 改动已随本轮一并提交（pi 包指向仓库路径，重启 pi 即生效）。
 - Plan 已无未完成 note，可按用户意愿迁 `reference`。
 - 2026-11-09（新需求）：新增 013「dream 手动维护命令」—— 移植 dsh 的 dream，但改为 `/dream` 手动触发、不依赖 seq 游标；实现路径见该 note，决策见 [ADR 004](../../../adr/004-dream由命令手动触发且不依赖seq游标.md)。
+- 2026-11-09（用户）：删掉 `prompts/system.md` 的整个「## 入口」章节（优先级判定与「先读对应 skill」），nano-flow 提示词以「工具 / 目录布局 / 语言 / 互链 / 写入边界 / 维护循环」为主干；`[nano-flow:dream]` 前缀也一并从 `prompts/dream.md` 删掉，dream 注入文本改由首句「你是 Nano Flow 的 dream 维护者…」自述身份。同轮执行 `pi install ./packages/pi-toolkit -a` 重新注册包，`settings.json` 无变化。
 - 2026-11-09：013 代码与提示词落地（240 项测试 + check 全绿），`/dream` 待真机验收；014 Plan 轨迹落盘已验收并 `completed`（含一次性 `backfill` 回填 10 段 / 395 条目，清理了 headless 测试记录）。
 
 ## 追踪 Note

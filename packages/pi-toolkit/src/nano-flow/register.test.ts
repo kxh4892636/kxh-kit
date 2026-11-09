@@ -339,7 +339,7 @@ describe("registerNanoFlow", () => {
 
     expect(harness.entries.some((entry) => entry.customType === "nano-flow-dream")).toBe(true);
     expect(harness.sent).toHaveLength(1);
-    expect(harness.sent[0]).toContain("[nano-flow:dream]");
+    expect(harness.sent[0]).toContain("你是 Nano Flow 的 dream 维护者");
     expect(harness.sent[0]).toContain("2026-11-09-示例");
   });
 

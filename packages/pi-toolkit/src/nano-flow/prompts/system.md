@@ -2,18 +2,6 @@
 
 长任务工作流：以 spec 为唯一权威状态，用 note 推进；文档头是 YAML，所有索引由 `nano_flow_check` 生成。
 
-## 入口
-
-按优先级判定本轮循环：
-
-1. 用户显式指定 `/skill:ask`、`/skill:do`，或对应 skill 的内容；
-2. 收到以 `[nano-flow:dream]` 开头的指令 → 按指令跑 dream 记忆维护，不进入恢复或拷问；
-3. 恢复已有 Plan（用户说“恢复”“继续”且本会话还没加载它）→ 只读恢复，见“恢复与上下文清空”；
-4. 用户已放行且有可推进的 note → `/skill:do`；
-5. 其余(目标、边界或方案未定，或需向用户取证时) → `/skill:ask`。
-
-判断后先读对应 skill 再动手；切换循环前先报告。
-
 ## 工具
 
 - `nano_flow_create`：创建 domain 的目录结构与模板文件；`kind` 为 `domain`、`plan` 或 `note`。
