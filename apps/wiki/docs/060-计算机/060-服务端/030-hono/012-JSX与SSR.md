@@ -31,8 +31,11 @@ const Layout = (props: { title: string; children: any }) => html`
 { "compilerOptions": { "jsx": "react-jsx", "jsxImportSource": "hono/jsx" } }
 ```
 
-- 文件改 `.tsx`, `dev` 脚本入口同步改; 不想动 tsconfig 就用 `/** @jsxImportSource hono/jsx */` 文件级注释;
-- 组件: `FC` 定义组件、`PropsWithChildren` 带 `children`、`<>...</>` 当 Fragment; 原始 HTML 用 `dangerouslySetInnerHTML`;
+- 文件: 改成 `.tsx`, `dev` 脚本入口同步改;
+- 不动 tsconfig 时: 加 `/** @jsxImportSource hono/jsx */` 文件级注释;
+- 定义组件: `FC`; 带 children: `PropsWithChildren`;
+- Fragment: `<>...</>`;
+- 原始 HTML: 用 `dangerouslySetInnerHTML`;
 - 样式: `hono/css` 的 `css` 标签生成类名并在 SSR 时收集;
 
 ## 布局、上下文与错误页怎么组织？
@@ -55,7 +58,10 @@ const User = () => {
 ```
 
 - `jsxRenderer` 是 `c.setRenderer()` 的语法糖; 布局只挂页面路径, 不影响 JSON 接口;
-- 深层组件用 `useRequestContext()` 取 `Context`, 数据仍由 Handler 或中间件放进 `c.var`;
-- 布局参数: 模块增强 `ContextRenderer` 后 `c.render(content, { title })`; `<title>`/`<meta>` 会自动提升到 `<head>`, 布局与页面别重复写;
+- 深层组件: 用 `useRequestContext()` 取 `Context`;
+- 数据: 仍由 Handler 或中间件放进 `c.var`;
+- 布局参数: 模块增强 `ContextRenderer` 后可用 `c.render(content, { title })`;
+- 自动提升: `<title>` 与 `<meta>` 会提到 `<head>`;
+- 约定: 布局与页面不要重复写;
 - 错误分流: `onError` 里按 `Accept` 返回 HTML 或 JSON, 生产不要把堆栈渲染进页面;
 - 水合: 服务端 `renderToString`（`hono/jsx/dom/server`）+ 浏览器 `hydrateRoot`（`hono/jsx/dom/client`）;

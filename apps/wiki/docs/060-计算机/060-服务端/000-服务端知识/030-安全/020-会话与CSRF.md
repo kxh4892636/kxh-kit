@@ -13,16 +13,22 @@ anki: true
 
 ## 会话 Cookie 与 session id 怎么设才安全？
 
-- `HttpOnly` 禁止 JS 读、`Secure` 只走 HTTPS、`SameSite` 限制跨站携带、`Path` 限制路径;
+- 属性分工: `HttpOnly` 禁 JS 读, `Secure` 只走 HTTPS;
+- 还管: `SameSite` 限制跨站携带, `Path` 限制路径;
 - 登录成功、权限提升后更换 session id, 防会话固定;
 - session id 用密码学随机数, 长度足够, 不用可预测的自增 ID;
 - Cookie 名可用 `__Host-` 前缀, 限制作用域与 `Secure`;
 
 ## CSRF 为什么不能只靠 SameSite？
 
-- Cookie 会被浏览器自动携带, 攻击站点可以借用户的登录态发请求; `SameSite=Lax` 挡不住同站子域与部分跨站场景, token 仍是必要补充;
-- 防护组合: `SameSite` + CSRF token + `Origin`/`Referer` 校验;
-- CSRF token 与 session 绑定, 每个会话一个, 或每个表单一个, 服务端校验后一次性使用;
+- 风险: 浏览器自动带 Cookie, 攻击站点能借登录态发请求;
+- `SameSite=Lax`: 挡不住同站子域与部分跨站场景;
+- 结论: token 仍是必要补充;
+- 防护组合: `SameSite` 加 CSRF token;
+- 再加: `Origin` 或 `Referer` 校验;
+- 绑定方式: CSRF token 与 session 绑定;
+- 粒度: 每个会话一个, 或每个表单一个;
+- 使用: 服务端校验后一次性作废;
 - 安全方法（GET/HEAD/OPTIONS）不修改状态, 否则预取和爬虫会触发写操作;
 
 ## 会话从登录到登出怎么走？

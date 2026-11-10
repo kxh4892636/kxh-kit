@@ -6,7 +6,9 @@ id: 2dcd32b0-55e7-5456-85ae-f8e094243301
 
 ## panic 是什么, 何时使用 panic？
 
-- panic: 中断当前正常控制流, 并沿当前 goroutine 的调用栈展开; 未恢复时会终止整个程序;
+- panic: 中断当前正常控制流;
+- 展开: 沿当前 goroutine 的调用栈;
+- 未恢复: 会终止整个程序;
 - 传播入口: defer 顺序与未恢复后果见本篇传播流程;
 - 使用场景: 程序无法继续的严重错误, 违反内部不变量;
 
@@ -44,7 +46,8 @@ func main() {
 |    3 | 向调用方传播, 并执行调用方的 `defer` |
 |    4 | 未被恢复时终止整个程序               |
 
-- 规范依据: [Go 规范: 处理 panic](https://go.dev/ref/spec#Handling_panics); 它不会替其他 goroutine 逐一执行清理再正常退出;
+- 规范依据: [Go 规范: 处理 panic](https://go.dev/ref/spec#Handling_panics);
+- 边界: 它不会替其他 goroutine 清理后再正常退出;
 
 ## 何时用 error, 何时用 panic？
 

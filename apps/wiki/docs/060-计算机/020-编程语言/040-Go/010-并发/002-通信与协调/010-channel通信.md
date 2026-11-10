@@ -20,7 +20,8 @@ func main() {
 }
 ```
 
-- 零值边界: nil channel 的发送与接收会一直阻塞; 通常先用 `make` 创建, 再把它交给需要通信的 goroutine;
+- 零值边界: nil channel 的发送与接收会一直阻塞;
+- 做法: 先 `make` 创建, 再交给需要通信的 goroutine;
 
 ## 无缓冲 channel 的同步语义是什么？
 
@@ -47,7 +48,8 @@ func main() {
 
 - buffered channel: 拥有固定容量缓冲区;
 - 发送阻塞: 缓冲区满时阻塞;
-- 接收阻塞: channel 未关闭且缓冲区为空时阻塞; 关闭后的接收规则见[channel 关闭与接收](./030-channel关闭与接收.md);
+- 接收阻塞: 未关闭且缓冲区为空时阻塞;
+- 关闭后的规则: 见[channel 关闭与接收](./030-channel关闭与接收.md);
 
 ```go
 func main() {

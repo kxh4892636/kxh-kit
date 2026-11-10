@@ -28,7 +28,8 @@ println(<-receiveOnly) // 7
 
 ## 如何用 `chan<- T` 表达发送方向？
 
-- 发送能力: `chan<- T` 参数只能发送, 不能接收; 它也允许 close, 但是否负责关闭仍须由所有权约定决定;
+- 发送能力: `chan<- T` 只能发送, 不能接收;
+- 允许 close: 但谁负责关闭仍看所有权约定;
 
 ```go
 func send(ch chan<- int) {
@@ -38,7 +39,9 @@ func send(ch chan<- int) {
 
 ## 如何用 `<-chan T` 表达接收方向？
 
-- 接收能力: `<-chan T` 参数不能发送或关闭; 双向 channel 可以传给单向参数, 函数内的限制不会改变底层通道;
+- 接收能力: `<-chan T` 不能发送, 也不能关闭;
+- 转换: 双向 channel 可以传给单向参数;
+- 边界: 函数内的限制不改变底层通道;
 
 ```go
 func recv(ch <-chan int) int {

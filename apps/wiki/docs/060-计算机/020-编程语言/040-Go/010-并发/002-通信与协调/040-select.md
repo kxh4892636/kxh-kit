@@ -26,7 +26,9 @@ func main() {
 }
 ```
 
-- nil 分支: nil channel 的收发永远不会就绪, 可用它暂时禁用分支; 已关闭 channel 的接收持续就绪, 需要处理 `ok=false` 后退出或禁用;
+- nil 分支: nil channel 的收发永远不会就绪, 可用来禁用分支;
+- 已关闭 channel: 接收持续就绪;
+- 处理: 收到 `ok=false` 后退出或禁用;
 
 ## default 分支的作用是什么？
 

@@ -9,7 +9,8 @@ id: 11ca99a8-30be-4df1-9d5c-a9730c6fe1fb
 - `sync/atomic`: 将一次读取, 写入或更新作为不可分割的操作, 避免并发 goroutine 看到中间状态;
 - 使用场景: 简单计数器, 状态标记, 指针或只读配置快照;
 - 适用边界: 只保护单个值的一次操作, 多个字段需要共同满足不变量时优先使用 `Mutex`;
-- 类型化 API: 优先使用 `atomic.Int64`, `atomic.Bool`, `atomic.Pointer[T]` 等类型, 比 `atomic.AddInt64(&n, 1)` 一类函数更易用且不易出错;
+- 类型化 API: 优先用 `atomic.Int64`、`atomic.Bool`、`atomic.Pointer[T]`;
+- 相比: `atomic.AddInt64(&n, 1)` 一类函数更易错;
 - 复制限制: 原子类型使用后不可复制, 应通过指针传递包含它们的结构体;
 
 ## 如何选择一次原子读写或条件更新操作？
@@ -29,9 +30,12 @@ id: 11ca99a8-30be-4df1-9d5c-a9730c6fe1fb
 - `atomic.Uint32`, `atomic.Uint64`, `atomic.Uintptr`: 无符号整数或位标记;
 - `atomic.Bool`: 布尔状态标记;
 - `atomic.Pointer[T]`: 类型安全地发布和替换 `*T`;
-- `atomic.Value`: 保存任意类型的只读快照; 首次 `Store` 后, 后续 `Store` 必须使用相同的具体类型, 且不能存储 `nil`;
+- `atomic.Value`: 保存任意类型的只读快照;
+- 首次 `Store` 后: 后续 `Store` 必须用相同具体类型, 且不能存 `nil`;
 
-- 快照约束: 原子发布只保护指针或 Value 的替换, 不能自动保护 Config 字段或 slice 元素; 发布后保持内容只读, 更新时构造新快照;
+- 快照约束: 原子发布只保护指针或 Value 的替换;
+- 不保护: Config 字段与 slice 元素;
+- 约定: 发布后保持只读, 更新时构造新快照;
 
 ## 如何原子发布计数、状态与只读快照？
 

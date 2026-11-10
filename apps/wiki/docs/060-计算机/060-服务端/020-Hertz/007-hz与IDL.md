@@ -16,7 +16,8 @@ hz --version
 
 ## IDL 里怎么把 HTTP 方法和路径声明出来？
 
-- 方法级注解 `api.get/post/put/delete` 定方法与路径, 参数结构体上的注解定参数来源;
+- 方法级注解: `api.get/post/put/delete` 定方法与路径;
+- 参数结构体注解: 定参数来源;
 
 ```thrift
 struct GetArticleRequest {
@@ -50,11 +51,14 @@ service ArticleService {
 | `api.raw_body`            | 原始请求体      | 自行解析               |
 
 - 没有 `api.file` 注解: 文件上传用 RequestContext 的文件 API, 不要臆造注解;
-- 注解写错不会报错, 只会生成错的路由或绑不到的字段; 生成后用 `hz` 的路由表与 `ut.PerformRequest` 各验一次;
+- 注解写错: 不报错, 只生成错路由或绑不到的字段;
+- 验证: 用 `hz` 路由表与 `ut.PerformRequest` 各验一次;
 
 ## hz 生成的目录里哪些能改、哪些不能？如何只定义路由？
 
-- 能改: `biz/handler` 的实现与根 `main.go`; `biz/model`、`biz/router`、`router_gen.go` 是生成物, 只看 diff, 不写业务;
+- 可改: `biz/handler` 的实现与根 `main.go`;
+- 生成物: `biz/model`、`biz/router`、`router_gen.go`;
+- 约定: 生成物只看 diff, 不写业务;
 
 ```text
 article-api/
@@ -77,8 +81,10 @@ func main() {
 }
 ```
 
-- `hz update` 不记住 `new` 时传的 `model_dir`/`handler_dir`, 每次带相同参数, 否则目录会重排;
-- 自定义路由写 `router.go`, 不要塞进 `router_gen.go`, 否则下次生成会被覆盖;
+- `hz update`: 不记 `new` 时传的 `model_dir` 与 `handler_dir`;
+- 要求: 每次带相同参数, 否则目录会重排;
+- 自定义路由: 写 `router.go`;
+- 反例: 塞进 `router_gen.go` 会在下次生成时被覆盖;
 
 ## IDL 改完契约怎么更新？
 

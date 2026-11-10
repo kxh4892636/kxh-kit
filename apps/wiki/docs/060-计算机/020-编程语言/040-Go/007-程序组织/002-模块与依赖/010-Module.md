@@ -14,7 +14,9 @@ id: 21fd7a38-20f9-57eb-be76-6994decc9c13
 | `go.mod` | 声明 module 身份、Go 版本与直接或间接依赖要求 |
 | `go.sum` | 保存依赖内容的校验信息                        |
 
-- 校验边界: `go.sum` 保存依赖模块及其 go.mod 内容的校验值, 用于检测下载内容变化; 它不是记录完整解析版本图的锁文件;
+- 校验边界: `go.sum` 保存依赖模块及其 go.mod 的校验值;
+- 用途: 检测下载内容变化;
+- 澄清: 它不是记录完整版本图的锁文件;
 
 ```text
 module path: example.com/hello
@@ -25,7 +27,8 @@ module path: example.com/hello
 
 ## 如何创建模块？ go mod init 做了什么？
 
-- 初始化: 在项目根目录执行 `go mod init <module path>`, 创建 go.mod 并确定后续包导入路径的前缀;
+- 初始化: 在项目根目录执行 `go mod init <module path>`;
+- 结果: 创建 go.mod, 并确定包导入路径前缀;
 
 ```bash
 mkdir hello
@@ -35,11 +38,14 @@ go mod init example.com/hello # 创建 go.mod 并写入 module path
 
 ## go.mod 中 replace 的作用是什么？ 适用哪些场景？
 
-- replace: 在主模块配置中把依赖的内容来源换成本地目录或其他模块版本, 常用于联调与临时 fork; 替换目标仍须符合预期模块布局;
+- replace: 把依赖的内容来源换成本地目录或其他版本;
+- 常见用途: 联调与临时 fork;
+- 前提: 替换目标仍须符合预期的模块布局;
 
 ```text
 // 替换为本地目录;常用于本地联调或临时 fork
 replace example.com/lib => ../lib
 ```
 
-- 生效边界: `replace` 本身不添加依赖, 仍需相应的 `require`; 依赖模块自己的 replace 不会传递给主模块;
+- 生效边界: `replace` 不添加依赖, 仍需对应的 `require`;
+- 不会传递: 依赖模块自己的 replace;

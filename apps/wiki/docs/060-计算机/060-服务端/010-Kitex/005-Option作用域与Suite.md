@@ -36,5 +36,7 @@ func newOrgClient() (userservice.Client, error) {
 }
 ```
 
-- 实现 `Options() []client.Option` 即是一个 Client Suite; Server 侧同型, 返回 `[]server.Option`;
-- 代价: 默认值被藏进 Suite, 排查时看不出实际生效值; 必须留覆盖方式并固定 Suite 版本;
+- Client Suite: 实现 `Options() []client.Option`;
+- Server 侧: 同型, 返回 `[]server.Option`;
+- 代价: 默认值藏进 Suite, 排查时看不出实际生效值;
+- 要求: 留出覆盖方式, 并固定 Suite 版本;
