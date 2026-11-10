@@ -48,6 +48,12 @@ status: completed
 - 合并后验证：`check` 通过（98 个文件格式 + 67 个文件 lint/类型），`test` 25 个文件 / 290 个用例全绿；第 1 条的复现脚本重跑后 spec 的 md5 仍恒定。
 - 恢复入口：读 `notes_index.md`。本轮工作已完成，无待推进项；报告第 7 条（dsh 副本）按用户决定留到后续。
 
+## 追加：Command Code provider 收窄（note 011）
+
+- 需求变更：provider 只上架 DeepSeek（97 → 7），并把思考作为默认能力（reasoning、text+image、DeepSeek effort 映射、OpenAI 协议 compat）。
+- 验证：`check` 通过，`test` 296 个用例全绿；真实网关目录走一遍过滤器后只剩 7 条，字段按预期。
+- 未验证：网关是否接受 `thinking.type` + `reasoning_effort`（需一次真实请求）；6 个非视觉模型标了 image，贴图失败会报错。两条都记在 note 011。
+
 ## 追踪 Note
 
 <!-- 由 nano_flow_check 生成，请勿手改 -->
