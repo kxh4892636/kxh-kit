@@ -1,12 +1,20 @@
 # Nano Flow
 
-长任务工作流：以 spec 为唯一权威状态，用 note 推进；文档头是 YAML，所有索引由 `nano_flow_check` 生成。
+长任务工作流：以 spec 为唯一权威状态，用 note 推进；文档头是 YAML，索引由 `nano_flow_check` 生成。
 
 ## 工具
 
 - `nano_flow_create`：创建 domain 的目录结构与模板文件；`kind` 为 `domain`、`plan` 或 `note`。
 - `nano_flow_bind`：把本会话绑定到指定 Plan，是**唯一的绑定入口**；同一会话只保留一个绑定，再次调用即切换，Note 侧栏跟随。
-- `nano_flow_check`：校验领域文档；同时自动创建/更新 `CONTEXT-MAP.md`、`questions/index.md`、`adr/index.md`、`workflows/index.md`、`notes_index.md` 与 spec 的 `## 追踪 Note`。
+- `nano_flow_check`：校验领域文档，并创建/更新 `CONTEXT-MAP.md`、questions / adr / workflows 的 `index.md`、`notes_index.md` 与 spec 的 `## 追踪 Note`。
+
+文档本身用普通文件工具读写。
+
+## 写入节奏
+
+- **生成物**：上面列出的索引与追踪表只由 `nano_flow_check` 写，不手改。
+- **批量写**：每轮最多两次批量写——轮首记本轮目标与方向，轮末补交付、验收、状态与 `next_step`；spec 与领域文档同批处理。每次批量写之后跑一次 `nano_flow_check`，同一批不重复跑。面板与索引随批量写刷新，一轮之内允许滞后；`blocked` 也在轮末落盘。
+- **建 note 不入批量写**：识别出一条可独立验收的交付单元就调 `nano_flow_create` 建出。它只落骨架，正文与状态仍按批量写填。
 
 ## 目录布局
 
@@ -33,7 +41,7 @@
             └── 001-中文标题.md
 ```
 
-domain-name 使用 kebab-case；共享领域为 `common`。Plan 内不嵌套目录；正文使用中文，链接从当前文件计算相对路径。story 已并入 spec，不创建 story.md。
+domain-name 使用 kebab-case；共享领域为 `common`。Plan 内不嵌套目录；正文使用中文，链接从当前文件计算相对路径。不创建 `story.md`，内容已并入 `spec.md`。
 
 ## YAML 头
 
@@ -58,7 +66,7 @@ metadata:
 - CONTEXT 额外有 `relations`：`[{ to: 目标域目录名, description: 关系说明 }]`；跨域关系只在源域定义一次。
 - ADR 可选 `status`：`proposed | accepted | deprecated | superseded`。
 - spec 固定 `status`：`pending | in_progress | completed`，由全部 note 派生。
-- note 固定 `status`：`pending | in_progress | blocked | completed`；`blocked` 时 `reason` 必填，其他状态不写 reason；`related_noted` 是 name 数组；`next_step` 是单行下一步（completed 可省略）。
+- note 固定 `status`：`pending | in_progress | blocked | completed`；`blocked` 时必写 `reason`，其他状态不写；`related_noted` 是 name 数组；非 completed 的 note 必写 `next_step`（单行）。
 
 ## 业务域
 
@@ -96,7 +104,7 @@ workflow 是脱离单次 Plan 仍可复用的业务域工作流；一次性结�
 
 Plan 只有三类文档：`spec.md`、`notes_index.md`（生成）和若干 `001-中文标题.md` 的 note。
 
-- `spec.md` 正文自由组织，不再强制固定章节；只在最后保留 `## 追踪 Note`，check 会用未完成 note 自动生成该表。可选写问题、方案、范围、决策、进度与恢复入口。
+- `spec.md` 正文自由组织（问题、方案、范围、决策、进度、恢复入口皆可），只在最后保留 `## 追踪 Note`，check 会用未完成 note 生成该表。
 - spec 的 status 从**全部 note** 派生：全部 pending 为 pending，全部 completed 为 completed，其余为 in_progress。
 - 一条 note = **一个可独立验收的交付单元**：同一交付单元内的返工、补测、修正与验证并入原 note，不新开；只有「验收条件或状态需要分别表达」（会单独 `blocked`、单独验收）时才拆。正文自由组织，按工作性质写清交付、验收与证据，例如“形成有依据的选择及理由”“制定可执行计划”“完成可验证的用户能力”。
 - note 状态流转：`pending → in_progress → blocked → completed`。`blocked` 表示这条 note **无法正常继续**——等待用户验收、等待用户确认或回答、被其他 note 阻塞、外部前置未就绪等，都属于 `blocked`；`reason` 写清“在等什么”与解除条件；受阻解除后回 `in_progress`。
@@ -140,10 +148,10 @@ Plan 只有三类文档：`spec.md`、`notes_index.md`（生成）和若干 `001
 
 ## 维护循环
 
-不逐条实时维护。轮首和轮末各自动跑一次维护循环：
+随批量写一起跑，同一批不重复：
 
-1. **更新**：读取并就地更新 common 和所属域的领域文档（不含受写入边界保护的 `GUIDE.md`）;
-2. **对齐**：验证领域文档与工作区事实的一致性;
-3. **校验**：跑 `nano_flow_check`；
+1. **更新**：就地更新 common 与所属域的领域文档，`GUIDE.md` 除外；
+2. **对齐**：核对领域文档与工作区事实一致；
+3. **校验**：跑 `nano_flow_check`。
 
 结论只在所属文档定义一次，其他位置引用。删改有下游的 note 前，先修正 `related_noted`。
