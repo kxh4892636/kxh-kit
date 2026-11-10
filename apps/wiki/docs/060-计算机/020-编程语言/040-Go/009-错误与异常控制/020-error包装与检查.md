@@ -20,7 +20,7 @@ func load() error {
 }
 ```
 
-- 上下文价值: 包装说明“哪一步失败”，原始错误保留“具体为什么失败”，调用者仍可通过 Is/As 作结构化判断;
+- 上下文价值: 包装说明“哪一步失败”, 原始错误保留“具体为什么失败”, 调用者仍可通过 Is/As 作结构化判断;
 
 ```go
 err := fmt.Errorf("read config: %w", os.ErrNotExist)
@@ -38,7 +38,7 @@ if errors.Is(err, os.ErrNotExist) {
 }
 ```
 
-- 匹配边界: `errors.Is` 会检查包装关系，也支持错误类型自定义的 Is 匹配规则；直接 `err == target` 无法替代包装后的检查;
+- 匹配边界: `errors.Is` 会检查包装关系, 也支持错误类型自定义的 Is 匹配规则; 直接 `err == target` 无法替代包装后的检查;
 
 ## 如何提取错误类型？ errors.As 的作用是什么？
 
@@ -51,4 +51,4 @@ if errors.As(err, &pathErr) {
 }
 ```
 
-- 目标参数: `errors.As` 的 target 必须是非 nil 指针，指向错误类型或接口；传 `&pathErr` 才能让函数写入提取结果;
+- 目标参数: `errors.As` 的 target 必须是非 nil 指针, 指向错误类型或接口; 传 `&pathErr` 才能让函数写入提取结果;

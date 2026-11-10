@@ -14,7 +14,7 @@ anki: true
 | `callopt.Option` | RPC 方法尾参 | 单次调用        | 临时超时、目标地址、标签     |
 
 - 优先级: 单次 Call Option 覆盖同类 Client Option;
-- 稳定默认值放构造期，请求特例才放尾参。
+- 稳定默认值放构造期, 请求特例才放尾参;
 
 ## Suite 怎么打包组织级默认值？
 
@@ -36,5 +36,5 @@ func newOrgClient() (userservice.Client, error) {
 }
 ```
 
-- 实现 `Options() []client.Option` 即是一个 Client Suite；Server 侧同型，返回 `[]server.Option`;
-- 代价: 默认值被藏进 Suite，排查时看不出实际生效值；必须留覆盖方式并固定 Suite 版本。
+- 实现 `Options() []client.Option` 即是一个 Client Suite; Server 侧同型, 返回 `[]server.Option`;
+- 代价: 默认值被藏进 Suite, 排查时看不出实际生效值; 必须留覆盖方式并固定 Suite 版本;

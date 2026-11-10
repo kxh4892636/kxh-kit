@@ -25,7 +25,7 @@ func main() {
 
 ## 无表达式 switch 如何使用, 等价于什么写法？
 
-- 条件列表: 省略 switch 表达式等价于 `switch true`，适合把多个互斥条件写成平行分支；只执行首个匹配项;
+- 条件列表: 省略 switch 表达式等价于 `switch true`, 适合把多个互斥条件写成平行分支; 只执行首个匹配项;
 
 ```go
 func main() {
@@ -43,7 +43,7 @@ func main() {
 
 ## fallthrough 有什么规则与使用建议？
 
-- `fallthrough`: 作为表达式 switch 某个非末尾分支的最后一条非空语句，直接进入下一分支而不再检查其条件；不能用于 type switch;
+- `fallthrough`: 作为表达式 switch 某个非末尾分支的最后一条非空语句, 直接进入下一分支而不再检查其条件; 不能用于 type switch;
 - 使用建议: 少用, 避免破坏 switch 默认清晰语义;
 
 ```go

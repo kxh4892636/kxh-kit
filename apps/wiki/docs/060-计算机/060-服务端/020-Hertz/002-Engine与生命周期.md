@@ -7,7 +7,7 @@ anki: true
 
 ## server.Default 和 server.New 差在哪？
 
-- Default 多装 `recovery.Recovery()`，New 一个默认中间件都不装;
+- Default 多装 `recovery.Recovery()`, New 一个默认中间件都不装;
 
 ```go
 h := server.Default(server.WithHostPorts(":8888")) // Default = New + Recovery
@@ -23,7 +23,7 @@ h = server.New(
 h.Use(recovery.Recovery()) // New 必须自己装
 ```
 
-- Option 只在构造时生效: 地址、超时、body 上限、退出等待都要在 `Spin` 前定完。
+- Option 只在构造时生效: 地址、超时、body 上限、退出等待都要在 `Spin` 前定完;
 
 ## 不同类型的超时如何配置？
 
@@ -32,7 +32,7 @@ h.Use(recovery.Recovery()) // New 必须自己装
 
 ## HTTP/2 与 H2C 怎么开才生效？
 
-- 两步: 加 `WithALPN`/`WithH2C`，再 `AddProtocol("h2", ...)` 注册协议工厂；只改请求头不会升级协议;
+- 两步: 加 `WithALPN`/`WithH2C`, 再 `AddProtocol("h2", ...)` 注册协议工厂; 只改请求头不会升级协议;
 
 ```go
 h := server.Default(
@@ -45,11 +45,11 @@ h = server.Default(server.WithH2C(true)) // 明文 HTTP/2，只在受控网络
 h.AddProtocol("h2", factory.NewServerFactory())
 ```
 
-- 没注册协议工厂时，H2C 连接回退 HTTP/1.1;
+- 没注册协议工厂时, H2C 连接回退 HTTP/1.1;
 
-## 服务从启动到退出按什么顺序走？如何配置优雅退出?
+## 服务从启动到退出按什么顺序走？如何配置优雅退出？
 
-- 启动: 读配置 → 初始化依赖 → 注册中间件与路由 → `Spin`；依赖就绪后才打开 readiness;
+- 启动: 读配置 → 初始化依赖 → 注册中间件与路由 → `Spin`; 依赖就绪后才打开 readiness;
 - `WithExitWaitTime` 配置优雅退出时间; DB 在 `Spin` 返回后关;
 - `OnShutdown` 早于在途 Handler 结束, 仅发送停止通知;
 - `SetCustomSignalWaiter` 执行摘流操作;

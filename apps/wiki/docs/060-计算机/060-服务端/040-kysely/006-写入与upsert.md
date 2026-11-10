@@ -21,7 +21,7 @@ await db
   .execute();
 ```
 
-- 要插入后的行加 `.returningAll()`，只要部分列用 `.returning([...])`。
+- 要插入后的行加 `.returningAll()`, 只要部分列用 `.returning([...])`;
 
 ## 更新、删除怎么写？
 
@@ -46,10 +46,10 @@ Number(deleted.numDeletedRows); // 1
 await db.deleteFrom("pet").where("name", "=", "Catto").returningAll().execute(); // 拿回被删的行
 ```
 
-- `.where()` 必写。漏了就是整表改或清库，Kysely 不拦。
-- 要改后的行就 `.returning([...])`，此时不再返回影响行数。
-- 建表写了 `onDelete('cascade')` 才会级联删子行。
-- SQLite 没有 `truncate`。清空整表用 `sql` 模板执行 `delete from`。
+- `.where()` 必写; 漏了就是整表改或清库, Kysely 不拦;
+- 要改后的行就 `.returning([...])`, 此时不再返回影响行数;
+- 建表写了 `onDelete('cascade')` 才会级联删子行;
+- SQLite 没有 `truncate`; 清空整表用 `sql` 模板执行 `delete from`;
 
 ## 冲突时怎么写？
 
@@ -86,8 +86,8 @@ await db
   .execute();
 ```
 
-- 冲突目标: 单列 `.column()`、复合键 `.columns([...])`、具名约束 `.constraint()`。指定列必须有唯一索引或主键，否则报「没有匹配的冲突目标」，见 [003](./003-建表与增删改查.md)。
-- `.doUpdateSet(...).where("excluded.species", "!=", "cat")` 条件为假时既不更新也不报错；批量 upsert 一次 `.values(rows)` 加同样的 `.onConflict(...)`。
+- 冲突目标: 单列 `.column()`、复合键 `.columns([...])`、具名约束 `.constraint()`; 指定列必须有唯一索引或主键, 否则报「没有匹配的冲突目标」, 见 [003](./003-建表与增删改查.md);
+- `.doUpdateSet(...).where("excluded.species", "!=", "cat")` 条件为假时既不更新也不报错; 批量 upsert 一次 `.values(rows)` 加同样的 `.onConflict(...)`;
 
 ## 一次写很多行怎么办？
 
@@ -102,4 +102,4 @@ await db.transaction().execute(async (trx) => {
 });
 ```
 
-- 单语句参数上限 32766，按「列数 × 行数 < 3 万」切批，超了报 `too many SQL variables`。批量写要包一个事务，否则每条语句各提交一次。事务边界见 [Repository 与事务](../000-服务端知识/050-数据访问/010-Repository与事务.md)。
+- 单语句参数上限 32766, 按「列数 × 行数 < 3 万」切批, 超了报 `too many SQL variables`; 批量写要包一个事务, 否则每条语句各提交一次; 事务边界见 [Repository 与事务](../000-服务端知识/050-数据访问/010-Repository与事务.md);

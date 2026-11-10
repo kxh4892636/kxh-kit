@@ -8,7 +8,8 @@ anki: false
 ## 如何直接调试当前打开的 TypeScript 文件？
 
 - 前置: 安装 `tsx`;
-- 配置: 把 `runtimeExecutable` 指向项目内的 `tsx`, `program` 指向 `${file}`;
+- 配置: `runtimeExecutable` 指向项目内的 `tsx`;
+- 同时: `program` 指向 `${file}`;
 
 ```json
 {

@@ -7,7 +7,7 @@ anki: true
 
 ## hz 的作用是什么？版本不一致会怎样？
 
-- `hz` 决定模型、路由、Handler 骨架与目录布局，版本不同生成物不同;
+- `hz` 决定模型、路由、Handler 骨架与目录布局, 版本不同生成物不同;
 
 ```bash
 go install github.com/cloudwego/hertz/cmd/hz@v0.9.7
@@ -16,7 +16,7 @@ hz --version
 
 ## IDL 里怎么把 HTTP 方法和路径声明出来？
 
-- 方法级注解 `api.get/post/put/delete` 定方法与路径，参数结构体上的注解定参数来源;
+- 方法级注解 `api.get/post/put/delete` 定方法与路径, 参数结构体上的注解定参数来源;
 
 ```thrift
 struct GetArticleRequest {
@@ -41,20 +41,20 @@ service ArticleService {
 
 | 注解                      | 绑到什么        | 典型用途               |
 | ------------------------- | --------------- | ---------------------- |
-| `api.get/post/put/delete` | HTTP 方法与路径 | 方法级，一个方法一个   |
-| `api.path`                | 路径变量        | 资源 ID，与 `:id` 对应 |
+| `api.get/post/put/delete` | HTTP 方法与路径 | 方法级, 一个方法一个   |
+| `api.path`                | 路径变量        | 资源 ID, 与 `:id` 对应 |
 | `api.query`               | 查询串          | 分页、过滤、排序       |
 | `api.header`              | Header          | 认证、幂等键           |
 | `api.body`                | JSON body 字段  | 最常用                 |
 | `api.form`                | 表单字段        | 上传元数据             |
 | `api.raw_body`            | 原始请求体      | 自行解析               |
 
-- 没有 `api.file` 注解: 文件上传用 RequestContext 的文件 API，不要臆造注解;
-- 注解写错不会报错，只会生成错的路由或绑不到的字段; 生成后用 `hz` 的路由表与 `ut.PerformRequest` 各验一次。
+- 没有 `api.file` 注解: 文件上传用 RequestContext 的文件 API, 不要臆造注解;
+- 注解写错不会报错, 只会生成错的路由或绑不到的字段; 生成后用 `hz` 的路由表与 `ut.PerformRequest` 各验一次;
 
-## hz 生成的目录里哪些能改、哪些不能？如何只定义路由?
+## hz 生成的目录里哪些能改、哪些不能？如何只定义路由？
 
-- 能改: `biz/handler` 的实现与根 `main.go`；`biz/model`、`biz/router`、`router_gen.go` 是生成物，只看 diff，不写业务;
+- 能改: `biz/handler` 的实现与根 `main.go`; `biz/model`、`biz/router`、`router_gen.go` 是生成物, 只看 diff, 不写业务;
 
 ```text
 article-api/
@@ -67,7 +67,7 @@ article-api/
 └─ main.go                # Engine 组装与进程入口
 ```
 
-- 入口可以搬到 `cmd/`，但要自己在 `main` 里调用生成的注册函数:
+- 入口可以搬到 `cmd/`, 但要自己在 `main` 里调用生成的注册函数:;
 
 ```go
 func main() {
@@ -77,12 +77,12 @@ func main() {
 }
 ```
 
-- `hz update` 不记住 `new` 时传的 `model_dir`/`handler_dir`，每次带相同参数，否则目录会重排;
-- 自定义路由写 `router.go`，不要塞进 `router_gen.go`，否则下次生成会被覆盖。
+- `hz update` 不记住 `new` 时传的 `model_dir`/`handler_dir`, 每次带相同参数, 否则目录会重排;
+- 自定义路由写 `router.go`, 不要塞进 `router_gen.go`, 否则下次生成会被覆盖;
 
 ## IDL 改完契约怎么更新？
 
-- 一条命令重生成，随后看生成 diff、再跑测试;
+- 一条命令重生成, 随后看生成 diff、再跑测试;
 
 ```bash
 hz update -idl idl/article.thrift
