@@ -10,6 +10,9 @@ anki: false
 - 适用信号: 多个事件都维护同一组状态规则;
 - 症状: setter 分散后, 难追踪发生什么导致怎样变化;
 - 职责分离: 事件处理器描述发生的动作;
+
+## reducer 的职责与取舍是什么？
+
 - reducer: 按旧 state 与 action 算出新 state;
 - 取舍: 简单独立值用 `useState` 更直接;
 - 复杂迁移: 用 reducer, 更易读懂、调试与独立验证;

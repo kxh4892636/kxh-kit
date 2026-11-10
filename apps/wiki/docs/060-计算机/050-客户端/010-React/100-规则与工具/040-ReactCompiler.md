@@ -37,6 +37,9 @@ module.exports = {
 - Infer: 默认按 React 命名与使用模式识别组件和 Hook, 适合常规项目;
 - Annotation: 只编译函数体开头带 'use memo' 的函数, 适合逐步启用;
 - Syntax: 面向 Flow 的 component/hook 语法;
+
+## Syntax 与 All 两种模式差在哪？
+
 - 边界: 不适用于普通 TypeScript 代码;
 - All: 编译所有顶层函数;
 - 代价: 普通工具函数会有不必要成本, 不作常规默认;
@@ -46,6 +49,9 @@ module.exports = {
 - 'use memo': 在函数体开头请求编译;
 - 前提: 该函数仍要满足可分析与正确性要求, 它不会忽略错误;
 - 'use no memo': 跳过该函数编译, 用于定位问题或划清边界;
+
+## use no memo 该在什么时候用？
+
 - 反例: 不要在整文件里随手用它;
 - 指令位置: 指令是函数开头的字符串语句, 与 RSC 文件级指令解决不同问题;
 

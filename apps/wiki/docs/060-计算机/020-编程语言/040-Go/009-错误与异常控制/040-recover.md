@@ -9,6 +9,9 @@ id: 30cab41a-0e9b-4e67-9063-9fcdd39f63aa
 - recover: 捕获当前 goroutine 正在传播的 panic;
 - 调用位置: 必须在 defer 函数中直接调用;
 - 返回值: 存在 panic 时返回传给 `panic` 的值, 否则返回 nil;
+
+## recover 之后控制流怎么走？
+
 - 恢复效果: 捕获后停止 panic 继续向上传播;
 - 执行恢复: 不会回到 `panic` 后继续执行, 当前函数从 defer 后返回;
 

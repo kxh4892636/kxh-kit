@@ -34,6 +34,9 @@ const Layout = (props: { title: string; children: any }) => html`
 - 文件: 改成 `.tsx`, `dev` 脚本入口同步改;
 - 不动 tsconfig 时: 加 `/** @jsxImportSource hono/jsx */` 文件级注释;
 - 定义组件: `FC`; 带 children: `PropsWithChildren`;
+
+## JSX 里还有哪些常用写法？
+
 - Fragment: `<>...</>`;
 - 原始 HTML: 用 `dangerouslySetInnerHTML`;
 - 样式: `hono/css` 的 `css` 标签生成类名并在 SSR 时收集;

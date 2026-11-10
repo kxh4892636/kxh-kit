@@ -44,6 +44,9 @@ function NameForm({ saveName }) {
 - Action 上下文: 把 `dispatchAction` 交给 form action, 或在 `startTransition` 内手动调用;
 - 反例: 在普通事件里裸调, 拿不到完整的 Transition 行为;
 - 队列顺序: 同一 Hook 的多次派发按顺序执行;
+
+## 队列顺序与引用稳定怎么保证？
+
 - 顺序: 后一次 previousState 是前一次的结果;
 - 引用: `dispatchAction` 保持稳定;
 - 返回类型: 返回值与初始状态应保持一致的数据类型和形状, 否则后续操作与界面会难以处理;

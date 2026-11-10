@@ -9,6 +9,9 @@ id: 46d45d9d-ae43-4060-a470-97ea34b9674e
 - 挂起边界: 后代读到尚未就绪的受支持资源时, 最近的 Suspense 先给 fallback;
 - 之后: 资源就绪再重试内容;
 - 支持来源: `lazy` 的组件代码、`use` 读取的缓存 Promise;
+
+## 还有哪些资源能触发 Suspense？
+
 - 也包括: 支持 Suspense 的框架数据集成;
 - 非自动检测: Effect 或点击处理器里的普通 fetch 不会触发 Suspense;
 - 做法: 自己做加载状态, 或用合适的数据层;

@@ -10,6 +10,9 @@ anki: true
 - 关键: `new WebSocketServer({ noServer: true })`;
 - 升级: 交给适配器按路由判断;
 - 用 `@hono/node-server` 的 `upgradeWebSocket`;
+
+## 旧包与升级入口该怎么选？
+
 - 注意: 旧包 `@hono/node-ws` 已废弃;
 
 ```ts

@@ -28,6 +28,9 @@ npm install -D typescript @types/react @types/react-dom
 - Props: 用对象类型或 interface 描述参数;
 - 表达约束: 必填、可选与联合类型;
 - 返回类型: 通常交给编译器推断;
+
+## children 与样式类型怎么写？
+
 - `ReactNode`: 表示可渲染内容;
 - `ReactElement`: 只接受 React 元素, 不含字符串等全部节点;
 - 样式: 内联样式使用 `CSSProperties`, 以获得属性名与值的类型提示;

@@ -9,6 +9,9 @@ id: 792798de-9e3d-4166-bbfa-03c92f49e785
 - `useLocation`: 返回 `pathname`、`search`、`hash`、`state` 与位置标识;
 - 用途: 感知实际导航;
 - 路径参数: 用 `useParams` 读实体 ID; 查询条件: 用 `useSearchParams`;
+
+## 参数读取与更新语义怎么定？
+
 - 避免: 手工拼拆 URL;
 - 更新语义: 位置变化本身就是路由状态变化;
 - 反例: 不用再存一份 `pathname` 然后用 Effect 同步;

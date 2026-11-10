@@ -41,6 +41,9 @@ function Chat({ roomId, theme, connect, notify }) {
 - 允许位置: 同一组件的 `useEffect`、`useLayoutEffect` 内部;
 - 也允许: `useInsertionEffect` 内;
 - 也允许: 其他 Effect Event 建立的逻辑中;
+
+## Effect Event 不能在哪用？
+
 - 禁止用途: 不在渲染或普通点击处理器里调用;
 - 也不: 传给其他组件或 Hook, 或当作通用稳定回调;
 - 引用契约: 返回函数的身份并不稳定, 排除在依赖数组外; 依赖检查器会帮助约束正确使用;

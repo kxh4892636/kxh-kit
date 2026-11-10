@@ -16,6 +16,9 @@ func main() {
 - string 底层: 只读字节序列;
 - 编码约定: Go 源码中的字符串字面量通常为 UTF-8;
 - 索引结果: `s[i]` 返回 byte, 不返回 rune;
+
+## string 为什么不能原地修改？
+
 - 修改限制: string 不可原地修改;
 
 ```go

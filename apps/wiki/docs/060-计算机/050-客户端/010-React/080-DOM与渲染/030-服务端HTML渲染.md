@@ -9,6 +9,9 @@ id: e057f5b5-377c-4f83-b042-e2720038d099
 - 页面导航: 访问 `https://example.com/` 时浏览器自动发 `GET /`;
 - 澄清: `/` 是页面 URL 的路径, 不是 React 额外发的数据请求;
 - 路由匹配: Express 等服务端用 `server.get("/", handler)` 收请求;
+
+## handler 里怎么渲染首屏？
+
 - handler: 准备首屏数据并渲染 React 树;
 - 响应边界: 服务端返回的不是组件片段;
 - 而是: 浏览器能解析的 HTML 文档或 HTML 流;
@@ -59,6 +62,9 @@ id: e057f5b5-377c-4f83-b042-e2720038d099
 - 不等全部资源: 图片等未完成时浏览器也能展示已解析内容;
 - SSR 优势: 主要 HTML 不必等客户端 React 生成;
 - 可见不等于可交互: `client.js` 和水合尚未完成时, 按钮可能已显示但事件尚未接管;
+
+## SSR 与水合的边界在哪？
+
 - 水合边界: DOM 复用、事件恢复与首次内容一致性见 [客户端 root 与水合](./020-root与水合.md);
 
 ```jsx
@@ -90,6 +96,9 @@ hydrateRoot(document.getElementById("root"), <App />);
 - Node.js 流: `renderToPipeableStream` 立即返回 `pipe` 与 `abort`;
 - 但 HTML 仍异步产生, 外壳就绪后才接 HTTP 响应;
 - Web Streams: `await renderToReadableStream` 得到可用于 `Response` 的流;
+
+## Web Streams 适合什么运行环境？
+
 - 适用: 支持 Web Streams 的运行环境;
 - Suspense: 外壳与已就绪内容先输出, 挂起边界先给 fallback;
 - 之后: 真实内容就绪再补充;

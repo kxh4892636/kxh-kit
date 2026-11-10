@@ -26,6 +26,9 @@ function selectTab(nextTab) {
 - Action: Transition 中执行的函数可含异步工作;
 - `isPending`: 持续到相关工作与最终 UI 更新完成;
 - await 边界: 目前 `await` 之后的 setter 要再包一层 `startTransition` 才算 Transition;
+
+## setTimeout 里的更新也算 Transition 吗？
+
 - 同理: `setTimeout` 里的更新也不自动继承原范围;
 - 请求顺序: 多个请求可能乱序完成, Transition 本身不保证业务顺序;
 - 做法: 用 `useActionState` 的队列, 或自行取消、排序;

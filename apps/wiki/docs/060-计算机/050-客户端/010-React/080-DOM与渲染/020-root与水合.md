@@ -33,6 +33,9 @@ root.render(<App />);
 - 再次 render: 更新同一个 root 里的树, 能匹配的组件仍保留 state;
 - 澄清: 它不等于重建整个应用;
 - 非同步保证: `render` 后的下一行, 渲染组件的 Effect 未必已执行;
+
+## 怎么在测试里等渲染完成？
+
 - 测试同步: 用 `act`; 特殊 DOM 集成: 评估 `flushSync`;
 - 卸载: `root.unmount` 清理组件、Effect 与事件处理;
 - 限制: 已卸载的 root 不能再 `render`, 要新建;
@@ -42,6 +45,9 @@ root.render(<App />);
 - `hydrateRoot`: 对服务端生成的 React HTML 水合;
 - 做法: 在已有 DOM 上建组件树、状态与事件, 不重建节点;
 - 可见与可交互: HTML 到达即可显示;
+
+## 如何让已有服务端 HTML？
+
 - 但直到入口运行 `hydrateRoot`: `onClick`、state 与 Effect 才接管界面;
 - 内容一致: 客户端首次渲染要与服务端一致;
 - 常见原因: 时间、随机数、浏览器分支与不同数据;

@@ -26,6 +26,8 @@ func main() {
 }
 ```
 
+## Stop 之后 ticker.C 还开着吗？
+
 - 停止含义: `Stop` 阻止后续 tick, 但不关闭 `ticker.C`;
 - 结论: 不能靠遍历 channel 等待结束;
 - 处理速度: 接收方处理过慢时, ticker 会调整或丢弃 tick, 不保证补发每一次间隔;

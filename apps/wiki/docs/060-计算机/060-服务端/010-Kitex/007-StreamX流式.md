@@ -10,6 +10,9 @@ anki: true
 - 生成门槛: Kitex tool v0.13.0 起;
 - 流式 IDL: 生成时加 `-streamx`;
 - Thrift: 选 TTHeader Streaming 或 gRPC Streaming;
+
+## Protobuf 只能用哪种流式协议？
+
 - Protobuf: 只能用 gRPC Streaming;
 - 需要才用: 一段数据分多次发送、结果持续返回或双向会话; 一次请求一次响应的接口不用流;
 - 选型边界见 [流式选型](../000-服务端知识/070-通信/020-选型与边界.md);

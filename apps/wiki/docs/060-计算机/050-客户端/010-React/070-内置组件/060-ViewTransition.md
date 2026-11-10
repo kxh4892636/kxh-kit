@@ -9,6 +9,9 @@ id: 962d5c5f-8f8f-4ec2-bf35-d48b804e2b0b
 - 视图快照: 协调浏览器对切换前后界面的快照动画;
 - 澄清: 它不是逐个元素的布局动画引擎;
 - 触发范围: Transition、Suspense 或延迟值驱动的更新可激活动画;
+
+## 哪些更新不会触发动效？
+
 - 反例: 普通立即 `setState` 不会自动激活;
 - 平台条件: 目前面向 DOM, 先确认 React 与浏览器支持范围;
 - 分工: React 负责协调浏览器过渡, 不再手动调 `startViewTransition`;
@@ -45,6 +48,9 @@ function Tabs({ tab, setTab }) {
 - 类型标记: 在 `startTransition` 里调 `addTransitionType('next')` 给提交附上业务原因;
 - 合并: 多个 Transition 会收集全部类型;
 - 样式入口: `enter`、`exit`、`update`、`share`、`default` 可指定动画类或按类型映射;
+
+## auto 与 none 各是什么效果？
+
 - 特殊值: `auto` 用默认效果, `none` 禁用;
 - 生命周期: 类型在每次提交后重置;
 - 注意: fallback 提交的类型不会自动留到内容揭示;

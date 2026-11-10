@@ -68,6 +68,9 @@ function Screen() {
 - 比较方式: React 用 `Object.is` 比前后 value;
 - 变化时: 更新读取它的后代, 中间组件不读也能传下去;
 - Memo 边界: `memo` 不能阻止消费者收到新的 Context;
+
+## Context 值的引用怎么保持稳定？
+
 - 引用稳定性: 对象与函数 value 的问题见 Context 与 Ref 参考;
 - 身份一致: 提供与读取必须用同一个 Context 对象;
 - 风险: 模块副本重复时, 两端同名却连不上;

@@ -25,6 +25,9 @@ id: 3f492a3d-ff10-400d-a6ab-23a284445d31
 - FragmentInstance: ref 关联的是一组节点的操作接口;
 - 澄清: 不是额外 div, 也不是单个 `HTMLElement`;
 - 焦点操作: `focus`、`focusLast`、`blur` 控制组内焦点;
+
+## Fragment 组内的焦点怎么找？
+
 - 顺序: 按嵌套子节点的深度优先找可聚焦节点;
 - 版本条件: 用 Fragment ref 前先确认当前 React 版本提供该接口;
 - 反例: 支持基本语法不等于支持 ref;

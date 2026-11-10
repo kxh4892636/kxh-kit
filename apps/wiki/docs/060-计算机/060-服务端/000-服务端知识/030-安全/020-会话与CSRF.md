@@ -30,6 +30,9 @@ anki: true
 - 防护组合: `SameSite` 加 CSRF token;
 - 再加: `Origin` 或 `Referer` 校验;
 - 绑定方式: CSRF token 与 session 绑定;
+
+## CSRF token 的粒度与用法怎么定？
+
 - 粒度: 每个会话一个, 或每个表单一个;
 - 使用: 服务端校验后一次性作废;
 - 安全方法（GET/HEAD/OPTIONS）不修改状态, 否则预取和爬虫会触发写操作;
