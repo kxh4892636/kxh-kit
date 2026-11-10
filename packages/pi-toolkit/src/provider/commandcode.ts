@@ -62,20 +62,21 @@ export interface PriceEntry {
  * thinking model — the vendor's model table describes each one as reasoning —
  * so the capability is a constant rather than a per-model guess.
  *
- * Only `reasoning_effort` is sent. `thinkingFormat` stays unset on purpose: the
- * `thinking.type` switch is a DeepSeek-native field, and this gateway documents
- * no request contract for it, so sending it could fail every request. The cost is
- * that `off` cannot disable thinking, so `off` is marked unsupported here and the
- * lowest selectable level is `minimal` (→ `low`).
+ * Only `reasoning_effort` is sent; `thinkingFormat` stays unset on purpose. The
+ * gateway validates that field against `off|low|medium|high|xhigh|max` (an invalid
+ * value answers 400 naming the parameter), so `off` turns thinking off through the
+ * standard field. The DeepSeek-native `thinking.type` switch is accepted but
+ * ignored by the gateway — `{"type":"disabled"}` still produced a full reasoning
+ * trace — so it is not sent at all.
  *
- * `requiresReasoningContentOnAssistantMessages` is not optional: with tools in the
- * request DeepSeek answers 400 when a replayed assistant turn drops
- * `reasoning_content`.
+ * `requiresReasoningContentOnAssistantMessages` keeps every replayed assistant
+ * turn carrying `reasoning_content`, which DeepSeek documents as mandatory once
+ * tools are in the request.
  *
  * @see https://api-docs.deepseek.com/zh-cn/guides/thinking_mode
  */
 const DEEPSEEK_THINKING_LEVEL_MAP = {
-  off: null,
+  off: "off",
   minimal: "low",
   low: "low",
   medium: "high",

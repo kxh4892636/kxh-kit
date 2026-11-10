@@ -192,7 +192,7 @@ describe("toProviderModels", () => {
         requiresReasoningContentOnAssistantMessages: true,
       });
       expect(model.thinkingLevelMap).toEqual({
-        off: null,
+        off: "off",
         minimal: "low",
         low: "low",
         medium: "high",

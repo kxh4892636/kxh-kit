@@ -265,16 +265,18 @@ tool, and stays unavailable in `/model` until you run `/login commandcode` (the 
   models are the only ones listed. A snapshot persisted by an older version still names other
   vendors; it is filtered on restore, and a model you had selected from another vendor disappears
   from `/model` — pick a DeepSeek model once after upgrading.
-- **Thinking on**: every listed model is marked as a thinking model, with pi's thinking levels mapped
-  onto DeepSeek's `reasoning_effort` (`minimal`/`low` → `low`, `medium`/`high`/`xhigh` → `high`,
-  `max` → `max`). Only that standard OpenAI field is sent — the DeepSeek-native `thinking` switch is
-  not, because this gateway publishes no request contract for it — so thinking cannot be turned off:
-  `off` is not offered and the lowest selectable level is `minimal`.
+- **Thinking, with effort levels**: every listed model is marked as a thinking model, with pi's
+  thinking levels mapped onto DeepSeek's `reasoning_effort` (`off` → `off`, `minimal`/`low` → `low`,
+  `medium`/`high`/`xhigh` → `high`, `max` → `max`). Only that standard OpenAI field is sent: the
+  gateway validates it against `off|low|medium|high|xhigh|max` and rejects anything else with a 400
+  naming the parameter. The DeepSeek-native `thinking` switch is _not_ sent — the gateway accepts it
+  but ignores it, so a `thinking: disabled` request still reasons.
 - **Text and image input** on every model. The vendor's model table only says "with vision" for
   `deepseek/deepseek-v4-flash-vision-exp` and `deepseek/deepseek-v4.1-flash`, so an image sent to one
   of the others may be refused upstream.
-- `requiresReasoningContentOnAssistantMessages` is set: with tools in the request DeepSeek answers
-  400 when a replayed assistant turn drops `reasoning_content`.
+- `requiresReasoningContentOnAssistantMessages` is set: DeepSeek documents a 400 when a replayed
+  assistant turn drops `reasoning_content` while tools are in the request. (Measured on this
+  gateway: a replay without it was accepted, so the flag is belt-and-braces rather than required.)
 
 The catalog comes from `https://api.commandcode.ai/provider/v1/models` and the per-model rates from
 the pricing page; a failed catalog keeps the last good list, and a failed pricing page only costs the
