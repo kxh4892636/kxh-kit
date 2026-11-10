@@ -6,10 +6,15 @@ id: e9ad6f56-0a75-467b-a344-bc6af857bb53
 
 ## 如何启动一个没有服务端 React HTML 的根？
 
-- createRoot: 在浏览器容器中创建 React root, 再用 root.render 从头生成 DOM; 首次渲染会接管并清理容器内现有内容;
-- 启动时机: 不必等待所有数据或资源, 只要目标容器已解析且客户端 JS 已执行; JS 前通常只看到空容器或手写占位;
-- Root 选择: 整个应用通常一个 root, 渐进接入的独立区域可以多个 root, 嵌套组件无需各自创建 root;
-- 调用参数: root 选项传给 createRoot, 不传给 root.render; 框架项目通常由框架负责入口;
+- `createRoot`: 在浏览器容器里建 React root, 再用 `root.render` 从头生成 DOM;
+- 首次渲染: 接管并清理容器内已有内容;
+- 启动时机: 不必等所有数据或资源;
+- 条件: 目标容器已解析, 且客户端 JS 已执行;
+- JS 之前: 通常只看到空容器或手写占位;
+- Root 选择: 整个应用通常一个 root;
+- 渐进接入: 独立区域可有多个 root, 嵌套组件不必各自建 root;
+- 调用参数: root 选项传给 `createRoot`, 不传给 `root.render`;
+- 框架项目: 入口通常由框架负责;
 
 ```jsx
 import { createRoot } from "react-dom/client";
@@ -22,15 +27,21 @@ root.render(<App />);
 
 ## root.render 与 unmount 有什么生命周期含义？
 
-- 再次 render: 更新同一个 root 中的树, 能匹配的组件身份仍可保留 state, 不等同于重新创建整个应用;
-- 非同步保证: render 后的下一行代码, 不保证渲染组件的 Effect 已执行, 需要测试同步时使用 act, 特殊 DOM 集成评估 flushSync;
-- 卸载: root.unmount 清理组件、Effect 和事件处理; 同一个已卸载 root 不能再次 render, 需要新建 root;
+- 再次 render: 更新同一个 root 里的树, 能匹配的组件仍保留 state;
+- 澄清: 它不等于重建整个应用;
+- 非同步保证: `render` 后的下一行, 渲染组件的 Effect 未必已执行;
+- 测试同步: 用 `act`; 特殊 DOM 集成: 评估 `flushSync`;
+- 卸载: `root.unmount` 清理组件、Effect 与事件处理;
+- 限制: 已卸载的 root 不能再 `render`, 要新建;
 
 ## 如何让已有服务端 HTML 变得可交互？
 
-- hydrateRoot: 对服务端已生成的 React HTML 进行水合, 在已有 DOM 上建立组件树、状态与事件, 而非重建节点;
-- 可见与可交互: HTML 到达后即可显示, 但直到客户端入口运行 hydrateRoot 后, onClick、state 和 Effect 才接管界面;
-- 内容一致: 客户端首次渲染应与服务端内容一致, 时间、随机数、浏览器分支和不同数据都可能造成不匹配;
+- `hydrateRoot`: 对服务端生成的 React HTML 水合;
+- 做法: 在已有 DOM 上建组件树、状态与事件, 不重建节点;
+- 可见与可交互: HTML 到达即可显示;
+- 但直到入口运行 `hydrateRoot`: `onClick`、state 与 Effect 才接管界面;
+- 内容一致: 客户端首次渲染要与服务端一致;
+- 常见原因: 时间、随机数、浏览器分支与不同数据;
 - 避免提前覆盖: 水合完成前调用 root.render 可能清空服务端内容并切换成客户端渲染;
 
 ```jsx
@@ -44,7 +55,8 @@ const root = hydrateRoot(document.getElementById("root"), <App />, {
 });
 ```
 
-- 根节点: 服务端输出整份 html 文档时使用 `hydrateRoot(document, <App />)`; 只渲染某个容器时, 客户端传入同一容器;
+- 根节点: 服务端输出整份 html 时用 `hydrateRoot(document, <App />)`;
+- 只渲染容器: 客户端传入同一容器;
 
 ## createRoot 与 hydrateRoot 的根本区别是什么？
 
@@ -53,8 +65,10 @@ const root = hydrateRoot(document.getElementById("root"), <App />, {
 | createRoot  | 客户端 React 生成 | 创建 DOM 并建立交互        |
 | hydrateRoot | 服务端 React 生成 | 复用 DOM 并恢复 React 交互 |
 
-- 共同点: 两者都需要浏览器执行客户端 React; hydrateRoot 只是让内容在 JS 到达前已可见;
-- 用词边界: 水合不是把 JS 字符串注入 HTML, 而是客户端 React 对服务端 DOM 建立运行时关系;
+- 共同点: 两者都要浏览器执行客户端 React;
+- 差别: `hydrateRoot` 让内容在 JS 到达前已可见;
+- 用词边界: 水合不是把 JS 字符串注入 HTML;
+- 实质: 客户端 React 对服务端 DOM 建立运行时关系;
 
 ## App 中的网络请求会在哪里执行？
 
