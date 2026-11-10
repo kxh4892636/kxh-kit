@@ -2,7 +2,6 @@
 name: "{{name}}"
 description: "{{description}}"
 status: pending
-reason:
 related_noted: []
 next_step: "{{next_step}}"
 ---

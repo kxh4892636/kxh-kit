@@ -18,6 +18,9 @@ export const PLAN_LOG_FILE = "log.jsonl";
 /** 轨迹记录版本。 */
 const RECORD_VERSION = 1;
 
+/** 我们写出的 run 记录固定以它开头（`type` 是 `buildRunRecord` 的第一个键）。 */
+const RUN_LINE_PREFIX = '{"type":"run"';
+
 /** 定位 Plan 目录下的 log.jsonl。 */
 export const planLogPath = (planDirectory: string): string => join(planDirectory, PLAN_LOG_FILE);
 
@@ -84,23 +87,18 @@ export const entriesSince = <T extends { readonly id?: string }>(
   return at === -1 ? [] : entries.slice(at + 1);
 };
 
-/** 数一下已有轨迹里的 run 条数：用于给新记录编号。 */
+/**
+ * 数一下已有轨迹里的 run 条数：用于给新记录编号。
+ *
+ * `buildRunRecord` 的 `type` 是第一个键，所以我们的每条记录都以固定前缀开头。
+ * 轨迹文件只追加，而一条 run 记录里带着整轮会话条目（本仓实测单个 Plan 已有 3.5 MB），
+ * 逐行 JSON.parse 只为数个数会把轮末变慢，且开销随 Plan 年龄变大。
+ * @param raw - 轨迹文件全文。
+ */
 export const countRuns = (raw: string): number => {
   let count = 0;
   for (const line of raw.split("\n")) {
-    if (line.trim() === "") continue;
-    try {
-      const parsed = JSON.parse(line) as unknown;
-      if (
-        typeof parsed === "object" &&
-        parsed !== null &&
-        (parsed as { type?: unknown }).type === "run"
-      ) {
-        count += 1;
-      }
-    } catch {
-      // 坏行跳过：轨迹是追加文件，个别行损坏不该挡住后续写入。
-    }
+    if (line.startsWith(RUN_LINE_PREFIX)) count += 1;
   }
   return count;
 };

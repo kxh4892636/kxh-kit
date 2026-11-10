@@ -1,8 +1,5 @@
-#!/usr/bin/env node
-
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import {
   DOMAINS_DIR,
@@ -21,7 +18,7 @@ import {
   sortByName,
   LIFECYCLES,
 } from "./lib/base.mjs";
-import { checkHanName, readDocument } from "./lib/checks.mjs";
+import { readDocument } from "./lib/checks.mjs";
 import { propagateRenames, setFrontmatterScalar, writeFixed } from "./lib/fix.mjs";
 import {
   renderTracked,
@@ -33,9 +30,19 @@ import {
   renderAdrIndex,
   renderWorkflowsIndex,
 } from "./lib/render.mjs";
-import { parseArgs, formatText } from "./lib/report.mjs";
 
-export { LIFECYCLES } from "./lib/base.mjs";
+/** 名字规则与 YAML 头解析只有 `lib/` 一处实现；这里转出给扩展侧的 TypeScript 用。 */
+export {
+  HAN,
+  KEBAB,
+  LIFECYCLES,
+  NUMBERED_NAME,
+  PLAN_NAME,
+  isValidDate,
+  nameProblem,
+  parseFrontmatter,
+} from "./lib/base.mjs";
+
 const scanNumberedDocuments = (ctx, directory, kind, options) => {
   if (!exists(directory)) {
     if (options.required === true) {
@@ -82,7 +89,6 @@ const scanNumberedDocuments = (ctx, directory, kind, options) => {
       addIssue(ctx.errors, ctx.rootDir, file, "name", `name 重复 ${document.data.name}`);
     }
     names.add(document.data.name);
-    checkHanName(document.data.name, ctx, file);
     documents.push({
       name: document.data.name,
       description: document.data.description,
@@ -149,7 +155,6 @@ const scanWorkflows = (ctx, directory) => {
       addIssue(ctx.errors, ctx.rootDir, file, "name", `name 重复 ${document.data.name}`);
     }
     names.add(document.data.name);
-    checkHanName(document.data.name, ctx, file);
     documents.push({
       name: document.data.name,
       description: document.data.description,
@@ -243,7 +248,6 @@ const scanPlan = (ctx, planDirectory, planName) => {
       addIssue(ctx.errors, ctx.rootDir, file, "name", `name 重复 ${document.data.name}`);
     }
     names.add(document.data.name);
-    checkHanName(document.data.name, ctx, file);
     notes.push({
       name: document.data.name,
       description: document.data.description,
@@ -311,10 +315,10 @@ const scanPlan = (ctx, planDirectory, planName) => {
     }
     const range = findTrackedRange(spec.content, ctx, specFile);
     const tracked = renderTracked(notes);
-    if (range === null) {
+    if (range.kind === "missing") {
       const next = `${spec.content.replace(/\s+$/u, "")}\n\n## 追踪 Note\n\n${tracked}\n`;
       writeGenerated(ctx, specFile, next);
-    } else {
+    } else if (range.kind === "found") {
       const next = `${spec.content.slice(0, range.start)}## 追踪 Note\n\n${tracked}\n`;
       writeGenerated(ctx, specFile, next);
     }
@@ -571,30 +575,3 @@ export const checkWorkspace = (rootDirectory, options = {}) => {
     updated: [...new Set(ctx.updated)].sort((left, right) => left.localeCompare(right)),
   };
 };
-
-const runDomainCheck = ({
-  rootDirectory,
-  args = process.argv.slice(2),
-  stdout = (message) => console.log(message),
-  stderr = (message) => console.error(message),
-} = {}) => {
-  try {
-    const root = rootDirectory ?? args[0] ?? process.cwd();
-    const options = parseArgs([root, ...args.slice(1)]);
-    const result = checkWorkspace(options.rootDirectory, options);
-    if (options.json === true) {
-      stdout(JSON.stringify(result));
-    } else if (result.ok) {
-      stdout(formatText(result));
-    } else {
-      stderr(formatText(result));
-    }
-    return result.ok ? 0 : 1;
-  } catch (error) {
-    stderr(`领域文档校验异常: ${error instanceof Error ? error.stack : String(error)}`);
-    return 1;
-  }
-};
-
-const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : "";
-if (invokedPath === fileURLToPath(import.meta.url)) process.exitCode = runDomainCheck();

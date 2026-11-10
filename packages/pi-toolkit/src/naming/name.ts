@@ -70,17 +70,34 @@ export const fallbackName = (input: string, maxLength: number = MAX_NAME_LENGTH)
   cleanTitle(input, maxLength);
 
 /**
+ * Remove every expanded `<skill …>…</skill>` block from `raw`.
+ *
+ * The host expands both `/skill:name` and `$name` into such a block before the
+ * message is stored, so anything that wants the user's own words has to strip
+ * them first: session titles, and the `ori_question` sent with a web search.
+ *
+ * @param raw - a user message, possibly already expanded.
+ * @returns the remaining text and the removed skill names, in order.
+ */
+export const stripSkillBlocks = (raw: string): { text: string; skills: string[] } => {
+  const skills: string[] = [];
+  const text = raw.replace(SKILL_BLOCK, (_block: string, name: string) => {
+    if (name.length > 0) skills.push(name);
+    return " ";
+  });
+  return { text, skills };
+};
+
+/**
  * Return the text a session name should be derived from: every invoked skill
  * is removed, so a `<skill>` block or `/skill:name` command cannot leak into
  * the title. A bare invocation with no remaining request falls back to the
  * first skill name.
  */
 export const namingInput = (raw: string): string => {
-  const skills: string[] = [];
-  let rest = raw.replace(SKILL_BLOCK, (_block: string, name: string) => {
-    if (name.length > 0) skills.push(name);
-    return " ";
-  });
+  const stripped = stripSkillBlocks(raw);
+  const skills = stripped.skills;
+  let rest = stripped.text;
   const command = rest.match(SKILL_COMMAND);
   if (command !== null) {
     // The forced command is the primary invocation; argument skills come second.

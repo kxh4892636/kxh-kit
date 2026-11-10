@@ -7,7 +7,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { parse as parseYaml } from "yaml";
+import { parseFrontmatter } from "./scripts/check-domain.mjs";
 
 /** 侧栏展示的 note 状态；完成的 note 不进侧栏。 */
 export const PANEL_STATUSES = ["pending", "in_progress", "blocked"] as const;
@@ -34,24 +34,16 @@ const optionalLine = (value: unknown): string | undefined => {
   return text === "" ? undefined : text;
 };
 
+/** 读 YAML 头；解析器与校验脚本是同一份实现，读不了返回 null。 */
 const readFrontmatter = (file: string): Record<string, unknown> | null => {
   let text: string;
   try {
-    text = readFileSync(file, "utf8").replaceAll("\r\n", "\n");
+    text = readFileSync(file, "utf8");
   } catch {
     return null;
   }
-  if (!text.startsWith("---\n")) return null;
-  const end = text.indexOf("\n---", 4);
-  if (end < 0) return null;
-  try {
-    const data: unknown = parseYaml(text.slice(4, end));
-    return typeof data === "object" && data !== null && !Array.isArray(data)
-      ? (data as Record<string, unknown>)
-      : null;
-  } catch {
-    return null;
-  }
+  const parsed = parseFrontmatter(text);
+  return parsed.kind === "ok" ? parsed.data : null;
 };
 
 /**

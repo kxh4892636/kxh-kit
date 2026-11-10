@@ -609,6 +609,27 @@ describe("ask_questions tool", () => {
     expect(text).toContain("A3: （跳过）");
   });
 
+  it("空的自定义回答不算答案：重问直到有内容", async () => {
+    const inputs = ["", "   ", "自己写"];
+    const ctx = {
+      mode: "rpc",
+      ui: {
+        select: async (_title: string, labels: string[]) =>
+          labels.find((label) => label === "✎ 自定义回答"),
+        input: async () => inputs.shift(),
+      },
+    };
+    const result = (await createAskQuestionsTool().execute?.(
+      "id",
+      params([{ question: "第一题" }]),
+      undefined,
+      undefined,
+      ctx as never,
+    )) as { content: { text: string }[] };
+    const text = result.content[0]?.text ?? "";
+    expect(text).toContain("A1: 自己写（自定义）");
+  });
+
   it("marks the result cancelled when the user escapes", async () => {
     const ctx = {
       mode: "rpc",

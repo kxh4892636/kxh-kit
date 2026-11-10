@@ -277,6 +277,8 @@ export const createNotesSidebar = (deps: NotesSidebarDeps): NotesSidebar => {
   };
 
   const refresh = (): void => {
+    // 侧栏没挂上（未启用、非 fullscreen 或已 teardown）时不读盘：轮末会被无条件调用。
+    if (!mounted) return;
     rows = view();
     if (rows.length === 0) closeDetail();
     requestRender();

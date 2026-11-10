@@ -12,6 +12,7 @@
 import type { ExtensionAPI, ExtensionToolContext } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { applyToolActivation } from "../activation.ts";
+import { stripSkillBlocks } from "../naming/name.ts";
 import { requireApiKey, type ToolkitSettings } from "../settings.ts";
 import { fetchPage } from "./fetch.ts";
 import { formatFetchOutput, formatSearchOutput } from "./format.ts";
@@ -28,10 +29,16 @@ export interface WebToolDeps {
   readonly configPaths: () => readonly string[];
 }
 
-/** Extract the plain text of one user message, ignoring non-text blocks. */
+/**
+ * Extract the plain text of one user message, ignoring non-text blocks.
+ *
+ * Expanded `<skill …>` blocks are dropped: the host inserts them for
+ * `/skill:name` and `$name`, and they would otherwise become the `ori_question`
+ * sent to the search API instead of what the user actually asked.
+ */
 const messageText = (message: { role?: unknown; content?: unknown }): string => {
   const content = message.content;
-  if (typeof content === "string") return content;
+  if (typeof content === "string") return stripSkillBlocks(content).text;
   if (!Array.isArray(content)) return "";
   const parts: string[] = [];
   for (const block of content as readonly unknown[]) {
@@ -41,7 +48,7 @@ const messageText = (message: { role?: unknown; content?: unknown }): string => 
       parts.push(candidate.text);
     }
   }
-  return parts.join("\n");
+  return stripSkillBlocks(parts.join("\n")).text;
 };
 
 /** Latest user question on the active branch, used as `ori_question`. */

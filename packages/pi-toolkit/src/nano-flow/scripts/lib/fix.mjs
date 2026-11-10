@@ -32,6 +32,22 @@ const quoteOf = (raw) => {
 };
 
 /**
+ * 标量续行的范围：`index` 之后所有「缩进行或空行」，直到下一个顶格行。
+ *
+ * 空行也得跟着删：块标量（`|` / `>-`）里允许空行，漏掉它就会把后面的续行
+ * 留在文件里，字段仍然是多行，下次校验再折一遍、再抄一遍，永不收敛。
+ */
+const continuationEnd = (lines, index) => {
+  let cursor = index + 1;
+  while (cursor < lines.length) {
+    const line = lines[cursor] ?? "";
+    if (line.trim() !== "" && !/^[ \t]/u.test(line)) break;
+    cursor += 1;
+  }
+  return cursor;
+};
+
+/**
  * 改写 YAML 头里的一个标量字段，保持原引号风格；键不存在时按单引号追加到头部末尾。
  * @returns 新内容；没有 YAML 头时返回 null。
  */
@@ -46,10 +62,8 @@ const setFrontmatterScalar = (content, key, value) => {
   } else {
     const raw = pattern.exec(lines[index])?.[1] ?? "";
     lines[index] = `${key}: ${quoteValue(value, quoteOf(raw))}`;
-    // 块标量（`|` / `>-`）的续行要一起删，否则折成单行后会被当成同一个标量的接续。
-    let cursor = index + 1;
-    while (cursor < lines.length && /^[ \t]+\S/u.test(lines[cursor])) cursor += 1;
-    if (cursor > index + 1) lines.splice(index + 1, cursor - index - 1);
+    const end = continuationEnd(lines, index);
+    if (end > index + 1) lines.splice(index + 1, end - index - 1);
   }
   return `---\n${lines.join("\n")}\n---\n${content.slice(range.end)}`;
 };
@@ -65,8 +79,7 @@ const removeFrontmatterKey = (content, key) => {
   const pattern = new RegExp(`^${key}:[ \\t]*(.*)$`, "u");
   const index = lines.findIndex((line) => pattern.test(line));
   if (index === -1) return content;
-  let cursor = index + 1;
-  while (cursor < lines.length && /^[ \t]+\S/u.test(lines[cursor])) cursor += 1;
+  const cursor = continuationEnd(lines, index);
   const keep = [...lines.slice(0, index), ...lines.slice(cursor)];
   return `---\n${keep.join("\n")}\n---\n${content.slice(range.end)}`;
 };

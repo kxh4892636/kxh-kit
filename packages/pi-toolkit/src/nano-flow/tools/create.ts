@@ -11,27 +11,20 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { Type } from "typebox";
 
 import { DEFAULT_DOMAIN_ROOT } from "../config.ts";
+// 名字规则只有 `scripts/lib/base.mjs` 一处实现：create 造出的名字必须能过 check。
+import {
+  HAN,
+  KEBAB,
+  NUMBERED_NAME,
+  PLAN_NAME,
+  isValidDate,
+  nameProblem,
+} from "../scripts/check-domain.mjs";
 import type { NanoDeps } from "./shared.ts";
 import { asArguments, optionalString, requiredString } from "./shared.ts";
 
 const KINDS = ["domain", "plan", "note"] as const;
 const LIFECYCLES = ["active", "reference", "archived"] as const;
-const KEBAB = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const PLAN_NAME = /^(\d{4}-\d{2}-\d{2})-(.+)$/u;
-const NUMBERED_NAME = /^(\d{3})-(.+)$/u;
-const HAN = /\p{Script=Han}/u;
-
-const isValidDate = (value: string): boolean => {
-  const [year, month, day] = value.split("-").map(Number);
-  const date = new Date(Date.UTC(year ?? 0, (month ?? 1) - 1, day ?? 1));
-  return (
-    [
-      date.getUTCFullYear().toString().padStart(4, "0"),
-      (date.getUTCMonth() + 1).toString().padStart(2, "0"),
-      date.getUTCDate().toString().padStart(2, "0"),
-    ].join("-") === value
-  );
-};
 
 const yamlValue = (value: string): string =>
   value.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replace(/\r?\n/gu, " ");
@@ -272,7 +265,8 @@ const executeCreate = async (
       ? undefined
       : await nextNoteName(planDirectory, title.trim()));
   if (name === undefined) throw new Error("name 或 title 至少提供一个");
-  if (!NUMBERED_NAME.test(name)) throw new Error(`note name 必须是 NNN-中文标题: ${name}`);
+  const problem = nameProblem(name, "note");
+  if (problem !== null) throw new Error(`note name 不合规（${problem.message}）: ${name}`);
   const file = ensureInside(planDirectory, join(planDirectory, `${name}.md`));
   if (existsSync(file)) throw new Error(`note 已存在: ${displayPath(workspace, file)}`);
   const values = {

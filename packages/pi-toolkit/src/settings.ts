@@ -13,7 +13,7 @@
  * @module @kxh4892636/pi-toolkit/settings
  */
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { CONFIG_DIR_NAME, getAgentDir } from "@earendil-works/pi-coding-agent";
 import { DEFAULT_NANO_FLOW_SETTINGS, type NanoFlowSettings } from "./nano-flow/config.ts";
@@ -284,6 +284,26 @@ export const writePathFor = (paths: readonly string[]): string => {
 };
 
 /**
+ * Write a file so an interrupted write cannot leave it truncated: write a
+ * sibling temp file, then rename it over the target (atomic on POSIX).
+ *
+ * @param path - absolute target path.
+ * @param text - complete file content.
+ * @throws when the temp file cannot be written or renamed.
+ */
+const writeFileAtomic = (path: string, text: string): void => {
+  mkdirSync(dirname(path), { recursive: true });
+  const temp = `${path}.tmp`;
+  try {
+    writeFileSync(temp, text, "utf-8");
+    renameSync(temp, path);
+  } catch (error) {
+    rmSync(temp, { force: true });
+    throw error;
+  }
+};
+
+/**
  * Persist the tool switches, preserving every other key in the file.
  *
  * @param path - file returned as `writePath` by {@link loadSettings}.
@@ -294,8 +314,7 @@ export const saveToggles = (path: string, toggles: ToolToggles): void => {
   const existing = readConfigFile(path) ?? {};
   const currentTools = existing["tools"];
   existing["tools"] = { ...(isRecord(currentTools) ? currentTools : {}), ...toggles };
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${JSON.stringify(existing, null, 2)}\n`, "utf-8");
+  writeFileAtomic(path, `${JSON.stringify(existing, null, 2)}\n`);
 };
 
 /**
@@ -324,8 +343,7 @@ export const saveNanoFlowAlways = (path: string, always: boolean): void => {
   const existing = readConfigFile(path) ?? {};
   const current = existing["nanoFlow"];
   existing["nanoFlow"] = { ...(isRecord(current) ? current : {}), always };
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${JSON.stringify(existing, null, 2)}\n`, "utf-8");
+  writeFileAtomic(path, `${JSON.stringify(existing, null, 2)}\n`);
 };
 
 /** Merge one parsed file into the accumulator, recursing into plain objects. */

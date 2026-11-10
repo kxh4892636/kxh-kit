@@ -520,15 +520,21 @@ const askSequential = async (
     const picked = await pickSequential(ctx, item, index, questions.length);
     if (picked === undefined) return { answers, cancelled: true };
     if (picked === CUSTOM_LABEL) {
-      const text = await ctx.ui.input(item.question, "输入回答");
-      if (text === undefined) return { answers, cancelled: true };
-      answers.push({
-        question: item.question,
-        questionIndex: index,
-        answer: text.trim(),
-        skipped: false,
-        custom: true,
-      });
+      // 与 TUI 同一条规则：空输入不算答案，留在本题重问；取消（undefined）才离开。
+      for (;;) {
+        const text = await ctx.ui.input(item.question, "输入回答");
+        if (text === undefined) return { answers, cancelled: true };
+        const trimmed = text.trim();
+        if (trimmed === "") continue;
+        answers.push({
+          question: item.question,
+          questionIndex: index,
+          answer: trimmed,
+          skipped: false,
+          custom: true,
+        });
+        break;
+      }
       continue;
     }
     answers.push(answerFrom(item, index, picked));

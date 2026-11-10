@@ -3,50 +3,26 @@ import {
   NOTE_STATUSES,
   SPEC_STATUSES,
   ADR_STATUSES,
-  NAME_MAX_CHARS,
   REASON_MAX_CHARS,
   NEXT_STEP_MAX_CHARS,
-  NUMBERED_NAME,
-  HAN,
   addIssue,
   addFixed,
   readText,
   exists,
   byteLength,
   isSingleLine,
+  nameProblem,
   parseFrontmatter,
   writeInsideWorkspace,
 } from "./base.mjs";
 import { collapseToSingleLine, removeFrontmatterKey, setFrontmatterScalar } from "./fix.mjs";
 
+/** 校验 name；规则只来自 `base.mjs` 的 `nameProblem`（create 用的是同一份）。 */
 const checkName = (value, kind, ctx, file) => {
-  if (typeof value !== "string" || value.trim() === "") {
-    addIssue(ctx.errors, ctx.rootDir, file, "header", "缺少 name");
-    return false;
-  }
-  if (!isSingleLine(value)) {
-    addIssue(ctx.errors, ctx.rootDir, file, "header", "name 必须是单行");
-    return false;
-  }
-  if (value.length > NAME_MAX_CHARS) {
-    addIssue(
-      ctx.errors,
-      ctx.rootDir,
-      file,
-      "header",
-      `name 共 ${value.length} 字，超过 ${NAME_MAX_CHARS}`,
-    );
-  }
-  if (["adr", "question", "note", "workflow"].includes(kind) && !NUMBERED_NAME.test(value)) {
-    addIssue(ctx.errors, ctx.rootDir, file, "header", "name 必须是三位数字前缀，例如 001-标题");
-  }
-  return true;
-};
-
-const checkHanName = (value, ctx, file) => {
-  if (typeof value === "string" && !HAN.test(value)) {
-    addIssue(ctx.errors, ctx.rootDir, file, "name", "名称必须包含中文标题");
-  }
+  const problem = nameProblem(value, kind);
+  if (problem === null) return true;
+  addIssue(ctx.errors, ctx.rootDir, file, problem.rule, problem.message);
+  return !problem.blocking;
 };
 
 const checkDescription = (value, ctx, file) => {
@@ -385,7 +361,6 @@ const readDocument = (ctx, file, kind, options = {}) => {
 
 export {
   checkName,
-  checkHanName,
   checkDescription,
   checkMetadata,
   checkSingleLineField,

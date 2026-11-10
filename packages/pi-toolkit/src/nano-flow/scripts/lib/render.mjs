@@ -89,21 +89,28 @@ const renderNotesIndex = (notes) => {
   ].join("\n");
 };
 
+/**
+ * 定位 `## 追踪 Note`：区分「没有」和「有但不合法」。
+ *
+ * 两者不能都返回空——调用方对「没有」会追加一张新表，对「有但不合法」必须只报错，
+ * 否则每跑一次校验就多追加一张，spec 会无限增长。
+ * @returns `{ kind: "missing" }` / `{ kind: "invalid" }` / `{ kind: "found", start }`。
+ */
 const findTrackedRange = (content, ctx, file) => {
   const matches = [...content.matchAll(/^## 追踪 Note\s*$/gm)];
   if (matches.length > 1) {
     addIssue(ctx.errors, ctx.rootDir, file, "spec", "只允许一个「## 追踪 Note」章节");
-    return null;
+    return { kind: "invalid" };
   }
-  if (matches.length === 0) return null;
   const match = matches[0];
+  if (match === undefined) return { kind: "missing" };
   const start = match.index ?? 0;
   const after = content.slice(start + match[0].length);
   if (/^#{2,6} /m.test(after)) {
     addIssue(ctx.errors, ctx.rootDir, file, "spec", "「## 追踪 Note」必须是最后一个章节");
-    return null;
+    return { kind: "invalid" };
   }
-  return { start, end: content.length };
+  return { kind: "found", start };
 };
 
 const writeGenerated = (ctx, file, content) => {

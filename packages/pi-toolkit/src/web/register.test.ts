@@ -201,6 +201,31 @@ describe("registerWebTools", () => {
     }
   });
 
+  it("drops expanded skill blocks from ori_question", async () => {
+    const dir = tempDir();
+    const { tools } = setup(dir, { apiKey: "k", searchMaxResults: 1 });
+    const fetchImpl = vi.fn<typeof fetch>(async () =>
+      jsonResponse({ results: [result("https://a1.example")] }),
+    );
+    vi.stubGlobal("fetch", fetchImpl);
+    const expanded =
+      '<skill name="code-spec" location="/s/.agents/skills/code-spec/SKILL.md">\n' +
+      "References are relative to /s/.agents/skills/code-spec.\n\n正文\n</skill>\n\n" +
+      "pi 的 codemode 怎么开？";
+
+    await toolNamed(tools, "web_search").execute(
+      "id",
+      { queries: ["a"] },
+      undefined,
+      undefined,
+      contextFor(dir, expanded),
+    );
+
+    expect(bodyOf(fetchImpl.mock.calls[0])).toMatchObject({
+      ori_question: "pi 的 codemode 怎么开？",
+    });
+  });
+
   it("enforces searchMaxQueries from the JSON config", async () => {
     const dir = tempDir();
     const { tools } = setup(dir, { apiKey: "k", searchMaxQueries: 2 });

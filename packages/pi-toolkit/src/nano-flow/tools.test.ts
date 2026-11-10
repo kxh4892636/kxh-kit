@@ -87,6 +87,22 @@ describe("nano_flow_create", () => {
       run(tool, { kind: "plan", domain: "demo", name: "wrong-name" }, workspace),
     ).rejects.toThrow(/YYYY-MM-DD/u);
   });
+
+  it("拒绝 check 会判不合规的 note 名字（名字规则只有一份）", async () => {
+    const workspace = tempDir();
+    const tool = createCreateTool(deps());
+    await run(tool, { kind: "plan", domain: "demo", name: "2026-11-09-示例" }, workspace);
+    await expect(
+      run(
+        tool,
+        { kind: "note", domain: "demo", plan: "2026-11-09-示例", name: "001-setup" },
+        workspace,
+      ),
+    ).rejects.toThrow(/中文标题/u);
+    expect(
+      existsSync(join(workspace, ".agents/domains/demo/plans/active/2026-11-09-示例/001-setup.md")),
+    ).toBe(false);
+  });
 });
 
 describe("nano_flow_bind", () => {

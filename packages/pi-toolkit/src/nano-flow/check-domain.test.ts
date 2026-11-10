@@ -217,3 +217,73 @@ describe("不在清单里的问题仍然只报", () => {
     expect(read(workspace, domainRoot, "demo", "adr", "003-丙.md")).toContain("name: '003-丙'");
   });
 });
+
+describe("自动修复：「## 追踪 Note」位置或数量不合法时不再追加", () => {
+  const specFileOf = (workspace: string): string => join(planDirOf(workspace), "spec.md");
+
+  it("不在最后一节：只报错，文件一字不改，重复校验也不增长", () => {
+    const workspace = seedWorkspace();
+    writeSpec(workspace, "pending");
+    const specFile = specFileOf(workspace);
+    writeFileSync(
+      specFile,
+      `${readFileSync(specFile, "utf8")}\n## 追踪 Note\n\n手写一行。\n\n## 附录\n\n尾部正文。\n`,
+      "utf8",
+    );
+    const before = readFileSync(specFile, "utf8");
+
+    const first = check(workspace);
+    expect(first.errors.map((issue) => issue.message).join("\n")).toContain("最后一个章节");
+    expect(readFileSync(specFile, "utf8")).toBe(before);
+
+    const second = check(workspace);
+    expect(second.errors.map((issue) => issue.message).join("\n")).toContain("最后一个章节");
+    expect(readFileSync(specFile, "utf8")).toBe(before);
+  });
+
+  it("重复出现：只报错，不再追加第三节", () => {
+    const workspace = seedWorkspace();
+    writeSpec(workspace, "pending");
+    const specFile = specFileOf(workspace);
+    writeFileSync(
+      specFile,
+      `${readFileSync(specFile, "utf8")}\n## 追踪 Note\n\nA\n\n## 追踪 Note\n\nB\n`,
+      "utf8",
+    );
+    const before = readFileSync(specFile, "utf8");
+
+    const first = check(workspace);
+    expect(first.errors.map((issue) => issue.message).join("\n")).toContain("只允许一个");
+    expect(readFileSync(specFile, "utf8")).toBe(before);
+
+    check(workspace);
+    const sections = readFileSync(specFile, "utf8").split("## 追踪 Note").length - 1;
+    expect(sections).toBe(2);
+  });
+});
+
+describe("自动修复：块标量里的空行不会让折叠反复抄写", () => {
+  it("一次折成单行，再跑不再改文件", () => {
+    const workspace = seedWorkspace();
+    writeSpec(workspace, "in_progress");
+    writeFileSync(
+      join(planDirOf(workspace), "001-甲.md"),
+      frontmatter(
+        "name: '001-甲'\ndescription: |\n  第一行\n\n  第二行\nstatus: 'pending'\nnext_step: '继续'",
+      ),
+      "utf8",
+    );
+
+    const first = check(workspace);
+    expect(rulesOf(first.errors)).not.toContain("header");
+    const text = read(workspace, domainRoot, "demo", "plans", "active", planName, "001-甲.md");
+    expect(text).toContain("description: 第一行 第二行");
+    expect(text).not.toContain("  第二行");
+
+    const second = check(workspace);
+    expect(second.fixed).toHaveLength(0);
+    expect(read(workspace, domainRoot, "demo", "plans", "active", planName, "001-甲.md")).toBe(
+      text,
+    );
+  });
+});

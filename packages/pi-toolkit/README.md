@@ -186,9 +186,9 @@ directly; without a plan name it uses the only active Plan (and refuses when the
 - **Notes sidebar**: fullscreen-only overlay in the top-right. It shows unfinished notes of the
   bound Plan (`pending` / `in_progress` / `blocked`); click a row for a card with the description,
   `原因：`, and `下一步：`. It refreshes once at `turn_end`.
-- **Skills**: `ask`, `do`, `to-skill`, `code-spec`, `learning` are contributed through
-  `resources_discover` only while the session is in Nano Flow. Turning it on mid-session needs
-  `/reload` (or a new session) for the skills to appear.
+- **Skills**: `ask`, `do`, `to-skill`, `code-spec`, `learning`, `ponytail-review`,
+  `ponytail-audit` are contributed through `resources_discover` only while the session is in Nano
+  Flow. Turning it on mid-session needs `/reload` (or a new session) for the skills to appear.
 - **Plan trace**: at `agent_start` the extension remembers the session leaf entry, and at
   `agent_end` it appends one `<plan>/log.jsonl` record (`type: "run"`) holding a verbatim copy of
   the entries that run produced. Only increments are written; the file is covered by the root
