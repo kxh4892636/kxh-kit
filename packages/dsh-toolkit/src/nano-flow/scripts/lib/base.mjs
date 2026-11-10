@@ -31,7 +31,7 @@ const DEFAULT_LIMITS = Object.freeze({
   noteDescriptionMaxChars: 233,
   contextMaxBytes: 89 * 1024,
   questionMaxBytes: 13 * 1024,
-  adrMaxBytes: 13 * 1024,
+  adrMaxBytes: 8 * 1024,
   workflowMaxBytes: 34 * 1024,
   guideMaxBytes: 13 * 1024,
 });

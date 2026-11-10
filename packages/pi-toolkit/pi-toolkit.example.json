@@ -32,7 +32,7 @@
     "noteDescriptionMaxChars": 233,
     "contextMaxBytes": 91136,
     "questionMaxBytes": 13312,
-    "adrMaxBytes": 13312,
+    "adrMaxBytes": 8192,
     "workflowMaxBytes": 34816,
     "guideMaxBytes": 13312,
     "rotateAt": 0.618,

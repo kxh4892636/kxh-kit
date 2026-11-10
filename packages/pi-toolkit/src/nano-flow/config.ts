@@ -31,14 +31,14 @@ export interface NanoFlowSettings {
   readonly dreamMaxPlansPerDomain: number;
 }
 
-/** 默认值：34 / 13 KB，233 字，89 / 13 / 13 / 34 / 13 KB，轮转阈值 0.618，每域 21 个 Plan。 */
+/** 默认值：34 / 13 KB，233 字，89 / 13 / 8 / 34 / 13 KB，轮转阈值 0.618，每域 21 个 Plan。 */
 export const DEFAULT_NANO_FLOW_SETTINGS: NanoFlowSettings = {
   specMaxBytes: 34 * 1024,
   noteMaxBytes: 13 * 1024,
   noteDescriptionMaxChars: 233,
   contextMaxBytes: 89 * 1024,
   questionMaxBytes: 13 * 1024,
-  adrMaxBytes: 13 * 1024,
+  adrMaxBytes: 8 * 1024,
   workflowMaxBytes: 34 * 1024,
   guideMaxBytes: 13 * 1024,
   rotateAt: 0.618,

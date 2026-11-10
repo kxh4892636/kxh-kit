@@ -208,7 +208,7 @@ describe("settings", () => {
       noteDescriptionMaxChars: 233,
       contextMaxBytes: 91136,
       questionMaxBytes: 13312,
-      adrMaxBytes: 13312,
+      adrMaxBytes: 8192,
       workflowMaxBytes: 34816,
       rotateAt: 0.618,
     });

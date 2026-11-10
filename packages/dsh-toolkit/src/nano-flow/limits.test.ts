@@ -21,7 +21,7 @@ describe("buildLimitsText", () => {
     expect(text).toContain("description ≤ 233 字");
     expect(text).toContain("CONTEXT.md ≤ 89 KB");
     expect(text).toContain("question ≤ 13 KB");
-    expect(text).toContain("ADR ≤ 13 KB");
+    expect(text).toContain("ADR ≤ 8 KB");
     expect(text).toContain("workflow ≤ 34 KB");
     expect(text).toContain("GUIDE.md ≤ 13 KB");
   });

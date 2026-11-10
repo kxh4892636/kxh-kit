@@ -81,7 +81,7 @@ screen for the values; edit the file.
     "noteDescriptionMaxChars": 233,
     "contextMaxBytes": 91136,
     "questionMaxBytes": 13312,
-    "adrMaxBytes": 13312,
+    "adrMaxBytes": 8192,
     "workflowMaxBytes": 34816,
     "guideMaxBytes": 13312,
     "rotateAt": 0.618
@@ -217,7 +217,7 @@ directly; without a plan name it uses the only active Plan (and refuses when the
 | `noteDescriptionMaxChars` | `233`   | `description` length cap.                            |
 | `contextMaxBytes`         | `91136` | `CONTEXT.md` size cap.                               |
 | `questionMaxBytes`        | `13312` | One question size cap.                               |
-| `adrMaxBytes`             | `13312` | One ADR size cap.                                    |
+| `adrMaxBytes`             | `8192`  | One ADR size cap.                                    |
 | `workflowMaxBytes`        | `34816` | One workflow size cap.                               |
 | `guideMaxBytes`           | `13312` | `GUIDE.md` size cap.                                 |
 | `rotateAt`                | `0.618` | Context ratio that triggers the history reset (0–1). |
