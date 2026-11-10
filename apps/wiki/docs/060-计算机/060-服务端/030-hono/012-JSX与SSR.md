@@ -64,5 +64,8 @@ const User = () => {
 - 布局参数: 模块增强 `ContextRenderer` 后可用 `c.render(content, { title })`;
 - 自动提升: `<title>` 与 `<meta>` 会提到 `<head>`;
 - 约定: 布局与页面不要重复写;
+
+## 错误页与水合怎么接？
+
 - 错误分流: `onError` 里按 `Accept` 返回 HTML 或 JSON, 生产不要把堆栈渲染进页面;
 - 水合: 服务端 `renderToString`（`hono/jsx/dom/server`）+ 浏览器 `hydrateRoot`（`hono/jsx/dom/client`）;

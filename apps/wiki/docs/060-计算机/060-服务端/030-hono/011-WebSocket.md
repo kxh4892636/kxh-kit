@@ -31,6 +31,9 @@ serve({ fetch: app.fetch, websocket: { server: wss } });
 
 - 生命周期: `onOpen`、`onMessage`、`onClose`、`onError`;
 - `onClose` 里必做: `clearInterval` 与退出房间;
+
+## 与中间件同挂会冲突吗？
+
 - 冲突: `upgradeWebSocket` 会改响应头;
 - 同挂会改头的中间件, 如 CORS、compress: 可能报 `headers immutable`;
 - 做法: WebSocket 路径单独挂;

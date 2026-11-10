@@ -24,6 +24,9 @@ anki: true
 - 风险: 浏览器自动带 Cookie, 攻击站点能借登录态发请求;
 - `SameSite=Lax`: 挡不住同站子域与部分跨站场景;
 - 结论: token 仍是必要补充;
+
+## CSRF 防护怎么组合？
+
 - 防护组合: `SameSite` 加 CSRF token;
 - 再加: `Origin` 或 `Referer` 校验;
 - 绑定方式: CSRF token 与 session 绑定;
