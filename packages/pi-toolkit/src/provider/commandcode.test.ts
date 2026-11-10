@@ -5,6 +5,7 @@ import {
   extractPrices,
   matchPrice,
   normalizeKey,
+  isDeepSeekModel,
   parseCatalog,
   toProviderModels,
   type CatalogEntry,
@@ -38,16 +39,24 @@ const catalogPayload = {
  */
 const pricingHtml = `self.__next_f.push([1,"[{\\\\"id\\\\":\\\\"claude-sonnet-5\\\\",\\\\"name\\\\":\\\\"Claude Sonnet 5\\\\",\\\\"category\\\\":\\\\"premium\\\\",\\\\"provider\\\\":\\\\"Anthropic\\\\",\\\\"inputCost\\\\":3,\\\\"outputCost\\\\":15,\\\\"cacheReadCost\\\\":0.3,\\\\"cacheWriteCost\\\\":3.75},{\\\\"id\\\\":\\\\"deepseek-v4-flash\\\\",\\\\"name\\\\":\\\\"DeepSeek V4 Flash (latest)\\\\",\\\\"category\\\\":\\\\"opensource\\\\",\\\\"provider\\\\":\\\\"DeepSeek\\\\",\\\\"inputCost\\\\":0.15,\\\\"outputCost\\\\":0.6,\\\\"cacheReadCost\\\\":0.003,\\\\"timeOfDay\\\\":{\\\\"peak\\\\":{\\\\"inputCost\\\\":0.3}}},{\\\\"id\\\\":\\\\"qwen-3.6-max\\\\",\\\\"name\\\\":\\\\"Qwen 3.6 Max Preview\\\\",\\\\"category\\\\":\\\\"opensource\\\\",\\\\"provider\\\\":\\\\"Alibaba\\\\",\\\\"inputCost\\\\":1.3,\\\\"outputCost\\\\":7.8}]"])`;
 
+describe("isDeepSeekModel", () => {
+  it("accepts the vendor prefix and a bare deepseek- id", () => {
+    expect(isDeepSeekModel("deepseek/deepseek-v4-flash")).toBe(true);
+    expect(isDeepSeekModel("DeepSeek/deepseek-v4-pro")).toBe(true);
+    expect(isDeepSeekModel("deepseek-v4.1-flash")).toBe(true);
+  });
+
+  it("rejects every other vendor", () => {
+    expect(isDeepSeekModel("claude-sonnet-5")).toBe(false);
+    expect(isDeepSeekModel("Qwen/Qwen3.8-Omni-Flash")).toBe(false);
+    expect(isDeepSeekModel("gpt-5.4")).toBe(false);
+  });
+});
+
 describe("parseCatalog", () => {
   it("keeps id, name, context window and endpoint paths", () => {
     const entries = parseCatalog(catalogPayload);
     expect(entries).toEqual([
-      {
-        id: "claude-sonnet-5",
-        name: "Claude Sonnet 5",
-        contextLength: 1_000_000,
-        endpoints: ["/messages"],
-      },
       {
         id: "deepseek/deepseek-v4-flash",
         name: "DeepSeek V4 Flash",
@@ -167,12 +176,31 @@ describe("toProviderModels", () => {
     expect(models[1]?.cost).toEqual({ input: 0, output: 0, cacheRead: 0, cacheWrite: 0 });
   });
 
-  it("grants image input only to models whose id says so", () => {
+  it("marks every DeepSeek model as thinking with text and image input", () => {
     const models = toProviderModels(entries, extractPrices(pricingHtml));
-    expect(models[0]?.input).toEqual(["text"]);
-    expect(models[1]?.input).toEqual(["text"]);
-    expect(models[2]?.input).toEqual(["text", "image"]);
-    expect(models[2]?.reasoning).toBe(true);
-    expect(models[0]?.reasoning).toBe(false);
+    for (const model of models) {
+      expect(model.reasoning).toBe(true);
+      expect(model.input).toEqual(["text", "image"]);
+    }
+  });
+
+  it("maps pi thinking levels onto DeepSeek reasoning_effort", () => {
+    const models = toProviderModels(entries, new Map());
+    // 只给 OpenAI 协议挂思考字段：Anthropic 路径发的是另一套参数。
+    expect(models[0]?.compat).toBeUndefined();
+    expect(models[0]?.thinkingLevelMap).toBeUndefined();
+    expect(models[1]?.compat).toEqual({
+      thinkingFormat: "deepseek",
+      supportsReasoningEffort: true,
+      requiresReasoningContentOnAssistantMessages: true,
+    });
+    expect(models[1]?.thinkingLevelMap).toEqual({
+      minimal: "low",
+      low: "low",
+      medium: "high",
+      high: "high",
+      xhigh: "high",
+      max: "max",
+    });
   });
 });

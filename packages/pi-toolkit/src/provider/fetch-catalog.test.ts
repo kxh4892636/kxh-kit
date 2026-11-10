@@ -45,12 +45,29 @@ const routeFetch = (routes: { models?: () => Response; pricing?: () => Response 
   });
 
 describe("fetchCatalog", () => {
-  it("requests the catalog endpoint and normalises the models", async () => {
+  it("requests the catalog endpoint and normalises the DeepSeek models", async () => {
     const fetchImpl = routeFetch({ models: () => jsonResponse(catalogBody) });
     const entries = await fetchCatalog({ fetchImpl });
-    expect(entries).toHaveLength(2);
-    expect(entries[0]?.endpoints).toEqual(["/messages"]);
+    // claude-sonnet-5 在同一个响应里，但 provider 只上架 deepseek。
+    expect(entries.map((entry) => entry.id)).toEqual(["deepseek/deepseek-v4-flash"]);
+    expect(entries[0]?.endpoints).toEqual(["/chat/completions"]);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails when the catalog lists no DeepSeek model", async () => {
+    const onlyOtherVendors = routeFetch({
+      models: () =>
+        jsonResponse({
+          data: [
+            {
+              id: "claude-sonnet-5",
+              name: "Claude Sonnet 5",
+              supported_endpoints: ["/messages"],
+            },
+          ],
+        }),
+    });
+    await expect(fetchCatalog({ fetchImpl: onlyOtherVendors })).rejects.toThrow(/no models/u);
   });
 
   it("names the endpoint when the response is an error", async () => {
@@ -95,18 +112,15 @@ describe("loadCommandCodeModels", () => {
       if (urlOf(input) === MODELS_URL) return jsonResponse(catalogBody);
       if (urlOf(input) === PRICING_URL) {
         return htmlResponse(
-          'self.__next_f.push([1,"[{\\"id\\":\\"claude-sonnet-5\\",\\"inputCost\\":3,\\"outputCost\\":15,\\"cacheReadCost\\":0.3}]"])',
+          'self.__next_f.push([1,"[{\\"id\\":\\"deepseek-v4-flash\\",\\"inputCost\\":0.15,\\"outputCost\\":0.6}]"])',
         );
       }
       return jsonResponse({}, 500);
     });
     const models = await loadCommandCodeModels({ fetchImpl });
-    expect(models.map((model) => model.id)).toEqual([
-      "claude-sonnet-5",
-      "deepseek/deepseek-v4-flash",
-    ]);
-    expect(models[0]?.cost.input).toBe(3);
-    expect(models[1]?.cost.input).toBe(0);
+    expect(models.map((model) => model.id)).toEqual(["deepseek/deepseek-v4-flash"]);
+    expect(models[0]?.cost.input).toBe(0.15);
+    expect(models[0]?.cost.output).toBe(0.6);
   });
 
   it("still returns the catalog when pricing cannot be reached", async () => {
@@ -115,7 +129,7 @@ describe("loadCommandCodeModels", () => {
       throw new Error("offline");
     });
     const models = await loadCommandCodeModels({ fetchImpl });
-    expect(models).toHaveLength(2);
+    expect(models).toHaveLength(1);
     expect(models[0]?.cost.input).toBe(0);
   });
 });

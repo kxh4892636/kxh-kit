@@ -11,7 +11,14 @@
  */
 
 import type { ExtensionAPI, ProviderConfig } from "@earendil-works/pi-coding-agent";
-import { ANTHROPIC_BASE_URL, OPENAI_BASE_URL, PROVIDER_ID, PROVIDER_NAME } from "./commandcode.ts";
+import {
+  ANTHROPIC_BASE_URL,
+  OPENAI_BASE_URL,
+  PROVIDER_ID,
+  PROVIDER_NAME,
+  deepSeekCapability,
+  isDeepSeekModel,
+} from "./commandcode.ts";
 import type { ProviderChatModelConfig } from "./commandcode.ts";
 import { loadCommandCodeModels, type CatalogTransport } from "./fetch-catalog.ts";
 
@@ -50,6 +57,10 @@ export interface CommandCodeDeps {
 const narrowApi = (api: string | undefined): "anthropic-messages" | "openai-completions" =>
   api === "anthropic-messages" ? "anthropic-messages" : "openai-completions";
 
+/** True for the two protocols this provider speaks; rejects a stored unknown api. */
+const isChatApi = (value: unknown): value is "anthropic-messages" | "openai-completions" =>
+  value === "anthropic-messages" || value === "openai-completions";
+
 /** Map a provider model definition onto the raw model shape pi persists. */
 const toStored = (model: ProviderChatModelConfig): StoredModel => ({
   type: "chat",
@@ -71,7 +82,7 @@ const fromStored = (model: unknown): ProviderChatModelConfig | undefined => {
   const candidate = model as Partial<ProviderChatModelConfig>;
   if (typeof candidate.id !== "string" || typeof candidate.name !== "string") return undefined;
   const api = candidate.api;
-  if (api !== "anthropic-messages" && api !== "openai-completions") return undefined;
+  if (!isChatApi(api)) return undefined;
   if (candidate.cost === undefined || !Array.isArray(candidate.input)) return undefined;
   if (typeof candidate.contextWindow !== "number" || typeof candidate.maxTokens !== "number") {
     return undefined;
@@ -83,21 +94,27 @@ const fromStored = (model: unknown): ProviderChatModelConfig | undefined => {
     api,
     baseUrl:
       candidate.baseUrl ?? (api === "anthropic-messages" ? ANTHROPIC_BASE_URL : OPENAI_BASE_URL),
-    reasoning: candidate.reasoning === true,
-    input: candidate.input.filter((item: "text" | "image") => item === "text" || item === "image"),
+    // Capability is derived, never read back: an old snapshot gains thinking as
+    // soon as the code does, without waiting for a network refresh.
+    ...deepSeekCapability(api),
     cost: candidate.cost,
     contextWindow: candidate.contextWindow,
     maxTokens: candidate.maxTokens,
   };
 };
 
-/** Restore the persisted catalog, dropping anything that no longer parses. */
+/**
+ * Restore the persisted catalog, dropping anything that no longer parses and any
+ * model from another vendor (a snapshot written before the provider was narrowed
+ * to DeepSeek still lists them).
+ */
 const restoreStored = (context: RefreshContext): ProviderChatModelConfig[] => {
   const stored = context.stored?.models ?? [];
   const models: ProviderChatModelConfig[] = [];
   for (const entry of stored) {
     const model = fromStored(entry);
-    if (model !== undefined) models.push(model);
+    if (model === undefined || !isDeepSeekModel(model.id)) continue;
+    models.push(model);
   }
   return models;
 };

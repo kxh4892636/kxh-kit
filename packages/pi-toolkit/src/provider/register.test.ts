@@ -6,6 +6,7 @@ import {
   OPENAI_BASE_URL,
   PROVIDER_ID,
   PRICING_URL,
+  type ProviderChatModelConfig,
 } from "./commandcode.ts";
 import { registerCommandCodeProvider } from "./register.ts";
 
@@ -89,19 +90,28 @@ const pricingResponse = (): Response =>
     },
   );
 
-/** A stored model as the previous run persisted it. */
+/** A stored model as an older run persisted it: no capability, text only. */
 const storedModel = {
   type: "chat",
-  id: "claude-sonnet-5",
-  name: "Claude Sonnet 5",
-  api: "anthropic-messages",
+  id: "deepseek/deepseek-v4-flash",
+  name: "DeepSeek V4 Flash",
+  api: "openai-completions",
   provider: PROVIDER_ID,
-  baseUrl: ANTHROPIC_BASE_URL,
+  baseUrl: OPENAI_BASE_URL,
   input: ["text"],
-  cost: { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
+  cost: { input: 0.15, output: 0.6, cacheRead: 0.003, cacheWrite: 0.15 },
   reasoning: false,
   contextWindow: 1_000_000,
   maxTokens: 64_000,
+};
+
+/** A stored model from another vendor, as a snapshot written before the narrowing. */
+const storedOtherVendor = {
+  ...storedModel,
+  id: "claude-sonnet-5",
+  name: "Claude Sonnet 5",
+  api: "anthropic-messages",
+  baseUrl: ANTHROPIC_BASE_URL,
 };
 
 describe("registerCommandCodeProvider", () => {
@@ -140,13 +150,11 @@ describe("refreshModels", () => {
       urlOf(input) === MODELS_URL ? jsonResponse(catalogBody) : pricingResponse(),
     );
     const models = await refresh({ fetchImpl }, harness);
-    expect(models.map((model) => model.id)).toEqual([
-      "claude-sonnet-5",
-      "deepseek/deepseek-v4-flash",
-    ]);
+    // 目录里还有 claude，provider 只上架 deepseek。
+    expect(models.map((model) => model.id)).toEqual(["deepseek/deepseek-v4-flash"]);
     expect(harness.published).toHaveLength(1);
     const persisted = harness.published[0]?.persist as { models: unknown[] } | undefined;
-    expect(persisted?.models).toHaveLength(2);
+    expect(persisted?.models).toHaveLength(1);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
@@ -155,7 +163,7 @@ describe("refreshModels", () => {
     const fetchImpl = vi.fn<typeof fetch>();
     const models = await refresh({ fetchImpl }, harness);
     expect(models).toHaveLength(1);
-    expect(models[0]?.api).toBe("anthropic-messages");
+    expect(models[0]?.api).toBe("openai-completions");
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(harness.published).toHaveLength(0);
   });
@@ -164,7 +172,7 @@ describe("refreshModels", () => {
     const harness = refreshHarness({ stored: [storedModel] });
     const fetchImpl = vi.fn<typeof fetch>(async () => jsonResponse({ error: "boom" }, 502));
     const models = await refresh({ fetchImpl }, harness);
-    expect(models.map((model) => model.id)).toEqual(["claude-sonnet-5"]);
+    expect(models.map((model) => model.id)).toEqual(["deepseek/deepseek-v4-flash"]);
     expect(harness.published).toHaveLength(0);
   });
 
@@ -179,6 +187,27 @@ describe("refreshModels", () => {
     const harness = refreshHarness({ allowNetwork: false, stored: [{ id: "x" }, storedModel] });
     const models = await refresh({}, harness);
     expect(models).toHaveLength(1);
+  });
+
+  it("drops persisted models from another vendor", async () => {
+    const harness = refreshHarness({
+      allowNetwork: false,
+      stored: [storedOtherVendor, storedModel],
+    });
+    const models = await refresh({}, harness);
+    expect(models.map((model) => model.id)).toEqual(["deepseek/deepseek-v4-flash"]);
+  });
+
+  it("re-derives the thinking capability for a snapshot that predates it", async () => {
+    const harness = refreshHarness({ allowNetwork: false, stored: [storedModel] });
+    const models = (await refresh({}, harness)) as ProviderChatModelConfig[];
+    expect(models[0]?.reasoning).toBe(true);
+    expect(models[0]?.input).toEqual(["text", "image"]);
+    expect(models[0]?.compat).toEqual({
+      thinkingFormat: "deepseek",
+      supportsReasoningEffort: true,
+      requiresReasoningContentOnAssistantMessages: true,
+    });
   });
 
   it("returns the persisted catalog when the refresh was cancelled", async () => {

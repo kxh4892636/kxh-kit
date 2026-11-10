@@ -26,6 +26,9 @@ export const MODELS_URL = "https://api.commandcode.ai/provider/v1/models";
 /** Human-readable pricing page; per-model rates are embedded in its payload. */
 export const PRICING_URL = "https://commandcode.ai/docs/resources/pricing-limits";
 
+/** The only vendor this provider offers; every other catalog entry is dropped. */
+const DEEPSEEK_VENDOR = "deepseek";
+
 /** Base URL for OpenAI-protocol models: the SDK appends `/chat/completions`. */
 export const OPENAI_BASE_URL = "https://api.commandcode.ai/provider/v1";
 
@@ -59,15 +62,68 @@ export interface PriceEntry {
 }
 
 /**
- * Capability hints the gateway's catalog does not publish. Each rule is added
- * only after it was verified against the live endpoint; unlisted models stay
- * text-only without thinking so pi never sends fields the upstream rejects.
+ * Capability hints the gateway's catalog does not publish.
+ *
+ * The catalog only names ids, context windows and endpoint paths, so nothing in
+ * the payload says which model thinks. Every DeepSeek model on the gateway is a
+ * thinking model, so the capability is a constant rather than a per-model guess.
+ * `thinkingLevelMap` follows DeepSeek's own effort mapping (minimal/low → low,
+ * medium/high/xhigh → high, max → max); `off` stays unmapped because it is sent
+ * as `thinking.type: "disabled"`.
+ *
+ * `requiresReasoningContentOnAssistantMessages` is not optional: with tools in the
+ * request DeepSeek answers 400 when a replayed assistant turn drops
+ * `reasoning_content`.
+ *
+ * @see https://api-docs.deepseek.com/zh-cn/guides/thinking_mode
  */
-const CAPABILITY_RULES: readonly {
-  readonly pattern: RegExp;
-  readonly image?: boolean;
-  readonly reasoning?: boolean;
-}[] = [{ pattern: /vision|-vl$|omni/iu, image: true, reasoning: true }];
+const DEEPSEEK_THINKING_LEVEL_MAP = {
+  minimal: "low",
+  low: "low",
+  medium: "high",
+  high: "high",
+  xhigh: "high",
+  max: "max",
+};
+
+/** DeepSeek's thinking controls in OpenAI format: `thinking.type` + `reasoning_effort`. */
+const DEEPSEEK_COMPAT = {
+  thinkingFormat: "deepseek" as const,
+  supportsReasoningEffort: true,
+  requiresReasoningContentOnAssistantMessages: true,
+};
+
+/** Every DeepSeek model on the gateway takes text and images. */
+const DEEPSEEK_INPUT: ("text" | "image")[] = ["text", "image"];
+
+/**
+ * True for a DeepSeek model id. The gateway names them `deepseek/<model>`; a bare
+ * `deepseek-<model>` id also counts so a catalog without vendor prefixes still works.
+ */
+export const isDeepSeekModel = (id: string): boolean => {
+  const [vendor = ""] = id.split("/");
+  return (
+    vendor.toLowerCase() === DEEPSEEK_VENDOR || id.toLowerCase().startsWith(`${DEEPSEEK_VENDOR}-`)
+  );
+};
+
+/**
+ * Capability of one DeepSeek model: thinking always on, text and images in.
+ *
+ * The thinking compat only applies to the OpenAI protocol — it names OpenAI request
+ * fields (`thinking.type`, `reasoning_effort`) that the Anthropic path never sends.
+ * @param api - protocol the model is reached on.
+ * @returns the capability fields to spread into a model definition.
+ */
+export const deepSeekCapability = (
+  api: "anthropic-messages" | "openai-completions",
+): Pick<ProviderChatModelConfig, "reasoning" | "input" | "thinkingLevelMap" | "compat"> => ({
+  reasoning: true,
+  ...(api === "openai-completions"
+    ? { thinkingLevelMap: { ...DEEPSEEK_THINKING_LEVEL_MAP }, compat: { ...DEEPSEEK_COMPAT } }
+    : {}),
+  input: [...DEEPSEEK_INPUT],
+});
 
 /** Read a string field, or undefined when the payload holds something else. */
 const stringAt = (value: unknown, key: string): string | undefined => {
@@ -93,7 +149,9 @@ const endpointPaths = (value: unknown): readonly string[] => {
 
 /**
  * Reduce one `/models` response body to catalog entries. Entries without a
- * usable id are dropped: sending an empty model id would only fail later.
+ * usable id, or from a vendor this provider does not serve, are dropped:
+ * sending an empty model id would only fail later, and listing another vendor's
+ * model under this provider would bill the wrong upstream.
  */
 export const parseCatalog = (payload: unknown): CatalogEntry[] => {
   if (typeof payload !== "object" || payload === null) return [];
@@ -102,7 +160,7 @@ export const parseCatalog = (payload: unknown): CatalogEntry[] => {
   const entries: CatalogEntry[] = [];
   for (const item of data) {
     const id = stringAt(item, "id");
-    if (id === undefined) continue;
+    if (id === undefined || !isDeepSeekModel(id)) continue;
     const name = stringAt(item, "name");
     const contextLength = numberAt(item, "context_length");
     entries.push({
@@ -234,22 +292,13 @@ const baseUrlFor = (api: "anthropic-messages" | "openai-completions"): string =>
 const maxTokensFor = (contextWindow: number): number =>
   Math.max(4_096, Math.min(Math.floor(contextWindow / 8), MAX_OUTPUT_CEILING));
 
-/** Apply the verified capability rules to one model id. */
-const capabilitiesFor = (id: string): { image: boolean; reasoning: boolean } => {
-  let image = false;
-  let reasoning = false;
-  for (const rule of CAPABILITY_RULES) {
-    if (!rule.pattern.test(id)) continue;
-    image = image || rule.image === true;
-    reasoning = reasoning || rule.reasoning === true;
-  }
-  return { image, reasoning };
-};
-
 /**
  * Turn catalog entries plus prices into pi model definitions. Models without a
  * price keep zero rates so they stay selectable; the footer then understates
  * their cost instead of hiding them.
+ *
+ * Only DeepSeek models reach this point (the catalog boundary filters), so the
+ * capability comes from one constant instead of per-model guesses.
  */
 export const toProviderModels = (
   entries: readonly CatalogEntry[],
@@ -259,15 +308,13 @@ export const toProviderModels = (
     const api = apiFor(entry);
     const price = matchPrice(entry.id, prices);
     const contextWindow = entry.contextLength ?? DEFAULT_CONTEXT_WINDOW;
-    const capabilities = capabilitiesFor(entry.id);
     return {
       type: "chat",
       id: entry.id,
       name: entry.name ?? entry.id,
       api,
       baseUrl: baseUrlFor(api),
-      reasoning: capabilities.reasoning,
-      input: capabilities.image ? ["text", "image"] : ["text"],
+      ...deepSeekCapability(api),
       cost: {
         input: price?.input ?? 0,
         output: price?.output ?? 0,
