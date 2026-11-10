@@ -7,6 +7,7 @@
  * - Automatic session naming from the first user input.
  * - `ask_questions` — blocking, multi-question prompts for user decisions.
  * - Nano Flow — prompted plan workflow with plan tools, skills, notes sidebar, context reset.
+ * - Command Code provider — a `/login`-authenticated gateway with a live model catalog.
  *
  * Every capability starts off. `/toolkit` opens a `/settings`-style switch
  * panel; switches apply immediately where the pi event model allows and are
@@ -19,6 +20,7 @@ import { applyAskToolActivation, registerAskTool } from "./ask/register.ts";
 import { registerNanoFlow } from "./nano-flow/register.ts";
 import { registerSessionNaming } from "./naming/register.ts";
 import { openToolkitPanel } from "./panel.ts";
+import { registerCommandCodeProvider } from "./provider/register.ts";
 import {
   DEFAULT_SETTINGS,
   loadSettings,
@@ -58,6 +60,7 @@ const piToolkit = (pi: ExtensionAPI, options: ToolkitOptions = {}): void => {
   const settingsAt = (): ToolkitSettings => settings;
   const configPathsAt = (): readonly string[] => loaded?.configPaths ?? [];
 
+  registerCommandCodeProvider(pi);
   registerWebTools(pi, { settings: settingsAt, configPaths: configPathsAt });
   registerNestedSkills(pi, {
     settings: settingsAt,

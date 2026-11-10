@@ -183,9 +183,17 @@ directly; without a plan name it uses the only active Plan (and refuses when the
   appends a `nano-flow-reset` entry and the `context` hook drops older messages, prepending a seed
   with the current Plan and the previous assistant output (`<rotation-last-output>`). The session
   JSONL keeps the full history; this session is not replaced.
-- **Notes sidebar**: fullscreen-only overlay in the top-right. It shows unfinished notes of the
-  bound Plan (`pending` / `in_progress` / `blocked`); click a row for a card with the description,
-  `原因：`, and `下一步：`. It refreshes once at `turn_end`.
+- **Compaction disabled while active**: the reset above is a `context`-level filter, so pi's own
+  compaction would summarize the pre-reset history and hand it back. While the session is in Nano
+  Flow, `session_before_compact` returns `{ cancel: true }` for `manual` (`/compact`), `threshold`
+  and `overflow` alike. Turning Nano Flow off restores pi's normal compaction.
+- **Notes sidebar**: fullscreen-only overlay in the top-right, always mounted once a Plan is bound.
+  It lists the unfinished notes of the bound Plan (`pending` / `in_progress` / `blocked`) and keeps
+  the frame with a dim `全部完成` line when the list is empty; click a row for a card with the
+  description, `原因：`, and `下一步：`. The border-colored `▤` glyph at the top-right corner (its own
+  one-column overlay, sharing the top border row so the glyph takes the `┐` cell) collapses the whole
+  block to just that glyph. It refreshes once at `turn_end`, and that refresh is a no-op while the
+  sidebar is not mounted.
 - **Skills**: `ask`, `do`, `to-skill`, `code-spec`, `learning`, `ponytail-review`,
   `ponytail-audit` are contributed through `resources_discover` only while the session is in Nano
   Flow. Turning it on mid-session needs `/reload` (or a new session) for the skills to appear.

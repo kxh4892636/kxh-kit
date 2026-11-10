@@ -153,7 +153,8 @@ describe("registerNanoFlow", () => {
     const discovered = harness.fire("resources_discover", ctx) as Array<{
       skillPaths?: string[];
     }>;
-    expect(discovered[0]?.skillPaths?.[0]).toMatch(/nano-flow\/skills$/u);
+    // Windows joins these paths with `\`, so the assertion must accept both separators.
+    expect(discovered[0]?.skillPaths?.[0]).toMatch(/nano-flow[/\\]skills$/u);
 
     const off = setup({ switchOn: false, always: true });
     const offCtx = off.ctx();
@@ -200,6 +201,24 @@ describe("registerNanoFlow", () => {
     expect(context?.messages).toHaveLength(2);
     expect(context?.messages[0]?.content[0]?.text).toContain("nano_flow_bind");
     expect(context?.messages[1]?.content[0]?.text).toBe("本轮输入");
+  });
+
+  it("cancels manual, threshold and overflow compaction while Nano Flow is active", () => {
+    const harness = setup();
+    const ctx = harness.ctx();
+    for (const reason of ["manual", "threshold", "overflow"]) {
+      expect(harness.fire("session_before_compact", ctx, { reason })).toEqual([{ cancel: true }]);
+    }
+
+    // 关闭 Nano Flow（开关或会话模式任一为假）后压缩恢复默认行为。
+    const off = setup({ switchOn: false, always: true });
+    expect(off.fire("session_before_compact", off.ctx(), { reason: "manual" })).toEqual([
+      undefined,
+    ]);
+    const notInMode = setup({ switchOn: true, always: false });
+    expect(notInMode.fire("session_before_compact", notInMode.ctx(), { reason: "manual" })).toEqual(
+      [undefined],
+    );
   });
 
   it("binds the plan through a session entry", async () => {

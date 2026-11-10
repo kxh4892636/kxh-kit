@@ -148,7 +148,7 @@ describe("self skill query interface", (): void => {
     const target = await createTarget();
     const result = await invoke(target, ["list", "--dry-run"]);
     expect(result).toEqual({
-      skills: ["nano-flow", "nano-flow-cli"].map((name: string): Record<string, string> => ({
+      skills: ["nano-flow-cli"].map((name: string): Record<string, string> => ({
         name,
         status: "not_installed",
         target: path.join(target, name),
@@ -157,20 +157,15 @@ describe("self skill query interface", (): void => {
     });
   });
 
-  test("packages the document workflow and domain validation tools", (): void => {
-    const nanoFlow = generatedSkills.find((skill) => skill.name === "nano-flow");
-    if (nanoFlow === undefined) throw new Error("Missing nano-flow generated skill");
-    const paths = nanoFlow.files.map((file) => file.path);
+  test("packages the nano-flow-cli routing skill", (): void => {
+    const routing = generatedSkills.find((skill) => skill.name === "nano-flow-cli");
+    if (routing === undefined) throw new Error("Missing nano-flow-cli generated skill");
+    const paths = routing.files.map((file) => file.path);
 
     expect(paths).toContain("SKILL.md");
-    expect(paths).toContain("references/skills/code-delivery/SKILL.md");
-    expect(paths).toContain("references/skills/code-spec/SKILL.md");
-    expect(paths).toContain("scripts/check-domain.mjs");
-    expect(paths).toContain("scripts/plan-document.mjs");
-    expect(paths).not.toContain("FLOW.md");
-    expect(paths.some((filePath) => /^scripts\/flow(?:[.-])/.test(filePath))).toBe(false);
-    expect(paths.some((filePath) => filePath.startsWith("references/subskills/"))).toBe(false);
-    expect(paths.some((filePath) => filePath.startsWith("extensions/"))).toBe(false);
+    expect(paths).toContain("references/self.md");
+    expect(paths).toContain("references/anki.md");
+    expect(generatedSkills).toHaveLength(1);
   });
 
   test("installs, checks, and uninstalls nano-flow-cli", async (): Promise<void> => {
@@ -193,17 +188,11 @@ describe("self skill query interface", (): void => {
     const target = await createTarget();
     await invoke(target, ["install", "--all"]);
     expect(await invoke(target, ["list"])).toMatchObject({
-      skills: [
-        { name: "nano-flow", status: "current" },
-        { name: "nano-flow-cli", status: "current" },
-      ],
+      skills: [{ name: "nano-flow-cli", status: "current" }],
     });
     await invoke(target, ["uninstall", "--all"]);
     expect(await invoke(target, ["list"])).toMatchObject({
-      skills: [
-        { name: "nano-flow", status: "not_installed" },
-        { name: "nano-flow-cli", status: "not_installed" },
-      ],
+      skills: [{ name: "nano-flow-cli", status: "not_installed" }],
     });
   });
 

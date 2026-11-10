@@ -1,7 +1,9 @@
 /**
- * Note 侧栏（fullscreen）：当前绑定 Plan 的未完成 note，点击出详情卡。
- * 只做三件事：右上角 overlay、鼠标命中与 Esc 关闭；没有分组、实时流、
- * 图标切换与定时轮询。数据由 register 在 turn_end 时刷新一次。
+ * Note 侧栏（fullscreen）：已绑定 Plan 时始终挂载，列出未完成 note，点击出详情卡。
+ * 右上角图标在边框之外、与侧栏右缘对齐（单独一个 1 列 overlay，边框外不铺空格以免
+ * 抹掉底行背景），点击整块收放（折叠只留图标）。
+ * 只做三件事：overlay、鼠标命中与 Esc 关闭；没有分组、实时流与定时轮询。
+ * 数据由 register 在 turn_end 时刷新一次。
  * @module @kxh4892636/pi-toolkit/nano-flow/ui/sidebar
  */
 
@@ -13,7 +15,6 @@ import {
   wrapTextWithAnsi,
   type Component,
   type OverlayHandle,
-  type OverlayMargin,
   type TUI,
   type TuiMouseEvent,
   type TuiMouseEventResult,
@@ -29,8 +30,12 @@ const TEXT_WIDTH = SIDEBAR_WIDTH - 4;
 export const SIDEBAR_MIN_COLUMNS = 110;
 /** 承载侧栏的 widget 键。 */
 export const SIDEBAR_WIDGET_KEY = "nano-flow-notes";
-/** 侧栏标题。 */
-const SIDEBAR_TITLE = "▤ Note";
+/** 侧栏标题；书本图标已移到框外右上角，标题不再带前缀。 */
+const SIDEBAR_TITLE = "Note";
+/** 折叠图标：边框之上的右上角、与侧栏右缘对齐；折叠时整块只剩它。 */
+const TOGGLE_GLYPH = "▤";
+/** 空态文案：未完成 note 为 0 时占一行，不可点击。 */
+const EMPTY_TEXT = "全部完成";
 
 /** 侧栏一帧的数据。 */
 export interface SidebarSnapshot {
@@ -52,8 +57,6 @@ const statusStyle = (status: PanelStatus, theme: Theme, text: string): string =>
     : status === "in_progress"
       ? theme.fg("accent", text)
       : theme.fg("dim", text);
-
-const margin = (): OverlayMargin => ({ top: 1, right: 1, bottom: 1, left: 1 });
 
 /** 详情卡片：标题行带 ×、正文为概述/原因/下一步，Esc 或点击 × 关闭。 */
 interface DetailCardOptions {
@@ -128,9 +131,9 @@ export interface NotesSidebarDeps {
   readonly snapshot: (ctx: ExtensionContext) => SidebarSnapshot | null;
 }
 
-/** 一行：标题或一条 note。 */
+/** 一行：标题、空态文案或一条 note。 */
 interface Row {
-  readonly kind: "title" | "note";
+  readonly kind: "title" | "empty" | "note";
   readonly text: string;
   readonly note?: NanoNote;
 }
@@ -152,10 +155,12 @@ export const createNotesSidebar = (deps: NotesSidebarDeps): NotesSidebar => {
   let tui: TUI | undefined;
   let theme: Theme | undefined;
   let listHandle: OverlayHandle | undefined;
+  let iconHandle: OverlayHandle | undefined;
   let detailHandle: OverlayHandle | undefined;
   let detailNote: NanoNote | undefined;
   let removeInputListener: (() => void) | undefined;
   let mounted = false;
+  let collapsed = false;
   let rows: Row[] = [];
 
   const requestRender = (): void => {
@@ -195,24 +200,35 @@ export const createNotesSidebar = (deps: NotesSidebarDeps): NotesSidebar => {
     requestRender();
   };
 
+  /** 空数组＝不挂载内容（没绑定 Plan 或目录失效）；否则标题行常驻。 */
   const view = (): Row[] => {
     const snapshot = ctx === undefined ? null : deps.snapshot(ctx);
-    if (snapshot === null || snapshot.notes.length === 0) return [];
-    const title = truncateToWidth(`${SIDEBAR_TITLE} · ${snapshot.planName}`, TEXT_WIDTH, "…");
-    return [
-      { kind: "title", text: title },
-      ...snapshot.notes.map((note) => ({
-        kind: "note" as const,
+    if (snapshot === null) return [];
+    const rows: Row[] = [
+      {
+        kind: "title",
+        text: truncateToWidth(`${SIDEBAR_TITLE} · ${snapshot.planName}`, TEXT_WIDTH, "…"),
+      },
+    ];
+    if (snapshot.notes.length === 0) {
+      rows.push({ kind: "empty", text: EMPTY_TEXT });
+      return rows;
+    }
+    for (const note of snapshot.notes) {
+      rows.push({
+        kind: "note",
         note,
         text: truncateToWidth(`${STATUS_LABEL[note.status]} · ${note.name}`, TEXT_WIDTH, "…"),
-      })),
-    ];
+      });
+    }
+    return rows;
   };
 
-  const rowText = (row: Row, localTheme: Theme): string =>
-    row.kind === "title"
-      ? localTheme.bold(row.text)
-      : statusStyle((row.note as NanoNote).status, localTheme, row.text);
+  const rowText = (row: Row, localTheme: Theme): string => {
+    if (row.kind === "title") return localTheme.bold(row.text);
+    if (row.kind === "empty") return localTheme.fg("dim", row.text);
+    return statusStyle((row.note as NanoNote).status, localTheme, row.text);
+  };
 
   const renderLines = (localTheme: Theme): string[] => {
     const inner = SIDEBAR_WIDTH - 2;
@@ -229,15 +245,26 @@ export const createNotesSidebar = (deps: NotesSidebarDeps): NotesSidebar => {
     return lines.map((line) => truncateToWidth(line, SIDEBAR_WIDTH, ""));
   };
 
+  const toggleCollapsed = (): void => {
+    collapsed = !collapsed;
+    if (collapsed) closeDetail();
+    requestRender();
+  };
+
   const mountOverlays = (): void => {
     const localTui = tui;
     const localTheme = theme;
     if (localTui === undefined || localTheme === undefined) return;
+    // overlay 是逐字符合成的，铺空格就会把底行背景抹成默认底色；
+    // 所以图标单独用一个 1 列 overlay 画，边框外不再占任何空格。
+    const visible = (width: number): boolean =>
+      localTui.mode === "fullscreen" && width >= SIDEBAR_MIN_COLUMNS && rows.length > 0;
     listHandle = localTui.showOverlay(
       {
-        render: () => (rows.length === 0 ? [] : renderLines(localTheme)),
+        render: () => (rows.length === 0 || collapsed ? [] : renderLines(localTheme)),
         handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
           if (!isClick(event)) return { handled: true };
+          if (collapsed) return { handled: true };
           // 第 0 行是上边框，第 1 行是标题；note 从第 2 行开始。
           const row = rows[event.y - 1];
           if (row?.kind === "note" && row.note !== undefined)
@@ -250,9 +277,28 @@ export const createNotesSidebar = (deps: NotesSidebarDeps): NotesSidebar => {
         anchor: "top-right",
         width: SIDEBAR_WIDTH,
         maxHeight: "100%",
-        margin: margin(),
+        // 顶部留一行给图标，图标落在框体右缘正上方。
+        margin: { top: 1, right: 1, bottom: 1, left: 1 },
         nonCapturing: true,
-        visible: (width) => localTui.mode === "fullscreen" && width >= SIDEBAR_MIN_COLUMNS,
+        visible,
+      },
+    );
+    iconHandle = localTui.showOverlay(
+      {
+        render: () => [localTheme.fg("border", TOGGLE_GLYPH)],
+        handleMouse(event: TuiMouseEvent): TuiMouseEventResult | undefined {
+          if (isClick(event)) toggleCollapsed();
+          return { handled: true };
+        },
+        invalidate: () => undefined,
+      },
+      {
+        anchor: "top-right",
+        width: 1,
+        maxHeight: 1,
+        margin: { top: 1, right: 1 },
+        nonCapturing: true,
+        visible,
       },
     );
     removeInputListener = localTui.addInputListener((data) => {
@@ -271,6 +317,8 @@ export const createNotesSidebar = (deps: NotesSidebarDeps): NotesSidebar => {
     closeDetail();
     listHandle?.hide();
     listHandle = undefined;
+    iconHandle?.hide();
+    iconHandle = undefined;
     tui = undefined;
     theme = undefined;
     rows = [];
@@ -280,7 +328,9 @@ export const createNotesSidebar = (deps: NotesSidebarDeps): NotesSidebar => {
     // 侧栏没挂上（未启用、非 fullscreen 或已 teardown）时不读盘：轮末会被无条件调用。
     if (!mounted) return;
     rows = view();
-    if (rows.length === 0) closeDetail();
+    // 侧栏常驻后 rows 不再为空，改按「卡片所指 note 是否还在列表里」关卡片。
+    const openName = detailNote?.name;
+    if (openName !== undefined && !rows.some((row) => row.note?.name === openName)) closeDetail();
     requestRender();
   };
 

@@ -10,7 +10,7 @@ description: 使用 nnf 管理 CLI 与受管 skills，或通过 AnkiConnect 操�
 - CLI 与受管 skill 管理：[self](references/self.md)。
 - 本机 Anki 操作：[Anki](references/anki.md)。
 
-需求、计划与交付由 `nano-flow` 工作流路由。
+需求、计划与交付不由 `nnf` 承担，也不在本 skill 范围内。
 
 ## 共享契约
 

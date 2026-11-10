@@ -1,6 +1,6 @@
 # Nano Flow CLI
 
-`nnf` 是 TypeScript/npm 命令行包，统一管理 Nano Flow 自身、受管 skills 与 AnkiConnect 自动化。MVP 从本地包安装；后续发布到 npm 时，CLI 与包内 skills 使用同一版本。
+`nnf` 是 TypeScript/npm 命令行包，提供 AnkiConnect 自动化与自身受管 skill 管理。MVP 从本地包安装；后续发布到 npm 时，CLI 与包内 skills 使用同一版本。
 
 ## 本地打包与安装
 
@@ -18,6 +18,8 @@ nnf --help
 ```
 
 重新打包后对同一路径执行 `npm install --global $nfArchive` 即可替换本地安装。卸载使用 `npm uninstall --global @kxh4892636/nano-flow`。
+
+也可以全局安装到 pnpm（`pnpm add -g ./kxh4892636-nano-flow-0.0.1.tgz`）：pnpm 的全局 bin 目录写全 `nnf`、`nnf.CMD`、`nnf.ps1` 三件套，bash 与 Windows 原生 shell 都能直接调用；npm 的全局 bin 目录在 vite+ 托管 node 下是版本钉死的 `data/js_runtime/node/<ver>/`，不在 PATH 上。
 
 ## 命令发现与执行契约
 
@@ -39,15 +41,15 @@ nnf anki notes add --help
 
 ## 管理 Nano Flow 与 skills
 
-包内分发 `nano-flow` 和 `nano-flow-cli` 两个受管 skills。默认根目录是当前工作区 `.agents/skills`，也可用 `--target <root>` 指定其他根目录：
+包内只分发 `nano-flow-cli` 一个受管 skill（文档流程 skill 已下线，流程由 pi-toolkit / dsh-toolkit 的 nano-flow 提供）。默认根目录是当前工作区 `.agents/skills`，也可用 `--target <root>` 指定其他根目录：
 
 ```powershell
 nnf self skill list
-nnf self skill check --name nano-flow
-nnf self skill install --all --dry-run
-nnf self skill install --all
+nnf self skill check --name nano-flow-cli
+nnf self skill install --name nano-flow-cli --dry-run
+nnf self skill install --name nano-flow-cli
 nnf self skill update --name nano-flow-cli
-nnf self skill uninstall --all
+nnf self skill uninstall --name nano-flow-cli
 ```
 
 安装会先移除同名目标再写入包内版本，即使文件未变化。更新和卸载会保护本地修改，只有明确接受覆盖时才加 `--force`。

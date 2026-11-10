@@ -1,6 +1,6 @@
 ---
 name: 'Nano Flow'
-description: 'Nano Flow 业务域：从想法路由到经门禁验证交付的 Flow，以单一 CLI 收口内建子命令并管理 Nano Flow 与 CLI 路由 skill。'
+description: 'Nano Flow 业务域：以单一 nnf CLI 提供 AnkiConnect 自动化与受管 skill 分发；文档流程已由 pi / dsh 域的 nano-flow 实现取代。'
 relations:
   - to: 'common'
     description: 'Nano Flow 将跨业务域共享的基础约定贡献到 Common，并使用 Common 维护的共享基础能力。'
@@ -8,35 +8,21 @@ relations:
 
 # Nano Flow
 
-Nano Flow 把开发任务收敛为可验收的 Plan 与交付：以 `manual` 或 `auto` 模式维护 story、spec 和 notes，串联逐轮拷问、可选垂直切片与带门禁的代码交付；同时以单一 TypeScript CLI 收口内建子命令并管理配套受管 skill。Anki 能力归属本域，以 `nnf anki` 子命令提供。
+本域以单一 TypeScript CLI（`nnf`）提供两项能力：`nnf anki` 经 AnkiConnect 自动化本机 Anki，`nnf self` 分发与校验包内受管 skill。Anki 能力归属本域。
+
+文档流程（story/spec/notes、`manual`/`auto` 模式、逐轮拷问与门禁交付）不再由本域 CLI 承载：那套 `nano-flow` 流程 skill 与 `nnf workspace` 命令已下线，现行流程由 pi 与 dsh 域的 nano-flow 实现提供。
 
 ## Language
 
-### Flow
-
-**模式**：
-一次工作的推进约定：`manual` 每轮由用户确认，`auto` 由 agent 自动推进；两者均在 `dev gate` 停止并等待用户确认。
-_Avoid_：phase、cursor
+### Plan 与 note
 
 **Plan**：
-承载一次工作的文档集合，由 story、spec 和 notes 组成，位于 `docs/{domain-name}/plans/{lifecycle}/`；生命周期为 `planning`、`implementing`、`reference`、`archived`。
+承载一次工作的文档集合，由 spec 与 notes 组成，位于 `.agents/domains/{domain}/plans/{active|reference|archived}/`；生命周期表达工作阶段，note 状态表达子任务进度。本域不再定义这套模型，只沿用 pi / dsh 域 nano-flow 的实现。
 _Avoid_：flow、工作流实例、issue 图
 
 **note**：
-Plan 内推进一个原子子任务（讨论、调查、计划或实现）的文档；状态为 `pending`、`in_progress`、`blocked` 或 `completed`。
+Plan 内推进一个可独立验收的交付单元（讨论、调查、计划或实现）的文档；状态为 `pending`、`in_progress`、`blocked` 或 `completed`。
 _Avoid_：task、ticket
-
-**拷问**：
-按决策依赖逐轮取证、提问并修订假设的收敛过程，结论记入 note 的「拷问记录」。
-_Avoid_：澄清、访谈
-
-**垂直切片**：
-把实现方案拆成可独立验收且贯穿所需层级的用户结果，并标明直接依赖；拆分结果写入 notes。
-_Avoid_：拆任务、里程碑
-
-**dev gate**：
-交付前依据 story、spec 或已确认设计明确的交付基线：工作环境、执行契约与质量门禁；未确认时等待用户。
-_Avoid_：准入检查、交付前置
 
 ### CLI
 
@@ -48,38 +34,12 @@ _Avoid_：nnf-cli、CLI 集合、命令集合器
 随 Nano Flow npm 包一起建立和分发的顶层命令能力，如 `self` 和 `anki`。MVP 不从运行时加载第三方插件。
 _Avoid_：独立 CLI、插件、tool
 
-### Workspace 管理
-
-**工作区配置**：
-`workspace.yaml`，工作区根目录下声明子仓集合（name/url/path/branch）的文件；`path` 是子仓克隆相对工作区根的路径。从 cwd 向上查找的第一个即生效，其所在目录即工作区根。
-_Avoid_：仓库清单、manifest
-
-**子仓克隆**：
-工作区配置所声明的远程子仓在 `path` 上的普通浅克隆（`--depth 1` + 基准分支）；额外 worktree 均以它为生成基础。
-_Avoid_：缓存、镜像
-
-**物化**：
-把工作区配置中的远程子仓克隆到其 `path`，使子仓克隆在工作区中可用。额外 worktree 不是物化的默认产物。
-_Avoid_：同步、初始化
-
-**工作分支**：
-worktree 从基准分支创建的本地分支，默认命名 `worktree/<仓库名>-<yyyymmddhhmmss>`；与远程分支命名空间隔离。
-_Avoid_：开发分支
-
 ### Skill 管理
 
 **受管 skill** 与 **skill 安装状态** 为 common 共享术语（见 [common](../common/CONTEXT.md)），Nano Flow 沿用其语义。
 
-**流程 skill**：
-以 `nano-flow` 为名的受管 skill，按模式维护 Plan，并串联拷问、垂直切片与代码交付。
-_Avoid_：主 skill、入口 skill
-
-**子 skill**：
-随 `nano-flow` 一起分发、经流程 skill 或用户显式调用进入的 skill（如 `domain`、`questing`、`to-issues`、`code-delivery`、`code-spec`、`to-skill`、`kaizen`、`learning`）。
-_Avoid_：reference skill、内部 skill
-
 **CLI 路由 skill**：
-以 `nano-flow-cli` 为名的受管 skill，识别 CLI 任务意图并路由到正确的 `nnf` 内建子命令。
+以 `nano-flow-cli` 为名的受管 skill，识别 CLI 任务意图并路由到正确的 `nnf` 内建子命令；它是包内唯一分发的受管 skill。
 _Avoid_：anki-cli skill、子命令 skill
 
 ### Anki 通道

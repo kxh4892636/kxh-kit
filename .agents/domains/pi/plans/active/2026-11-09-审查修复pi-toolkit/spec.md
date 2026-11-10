@@ -42,8 +42,11 @@ status: completed
 - 轮首：Plan 与 10 条 note 已建、已绑定本会话；spec 写入目标、来源、范围与验收。
 - 轮末：10 条 note 全部 completed。`pnpm --filter @kxh4892636/pi-toolkit check` 通过（格式 + lint + 类型），`test` 257 个用例全绿（原 251，新增 6）。
 - 验证方法：每条新测试都用 `git checkout HEAD -- <被改文件>` 退回旧实现跑一遍，确认会失败，再恢复新实现确认转绿；第 1、2 条另在临时工作区用真实文件复现了「修复前每跑一次文件变大 / 修复后多跑一次 md5 不变」。
+- 已提交：`3c54c28`（代码与测试）+ 一个 `docs(pi)`（本 Plan）。
+- 已合入 `origin/main`（`dc336cd` 及以前，含「禁用压缩」「侧栏常驻与折叠」「Command Code provider」）：唯一文本冲突在 README 的 Nano Flow 段落，保留上游两条新内容并保留本轮的 skill 清单修正；`ui/sidebar.ts` 自动合入，`refresh` 的 `mounted` 守卫在新结构里含义不变（
+  挂上才刷新），已重跑测试确认。
+- 合并后验证：`check` 通过（98 个文件格式 + 67 个文件 lint/类型），`test` 25 个文件 / 290 个用例全绿；第 1 条的复现脚本重跑后 spec 的 md5 仍恒定。
 - 恢复入口：读 `notes_index.md`。本轮工作已完成，无待推进项；报告第 7 条（dsh 副本）按用户决定留到后续。
-- 待用户确认：改动尚未提交（`git status` 有 17 个改动文件 + 本 Plan 目录），提交信息候选 `fix(pi-toolkit): 收敛校验器自动修复与命名规则`。
 
 ## 追踪 Note
 

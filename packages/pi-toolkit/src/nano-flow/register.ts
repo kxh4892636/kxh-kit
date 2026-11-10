@@ -107,14 +107,13 @@ const readGuide = (cwd: string): string => {
 const branchOf = (ctx: ExtensionContext): BranchEntryLike[] =>
   ctx.sessionManager.getBranch() as unknown as BranchEntryLike[];
 
-/** 当前 Plan 侧栏快照；没有绑定、目录失效或没有未完成 note 时返回 null。 */
+/** 当前 Plan 侧栏快照；没有绑定或目录失效时返回 null（未完成 note 可以为空，侧栏仍常驻）。 */
 const snapshotOf = (ctx: ExtensionContext): SidebarSnapshot | null => {
   const binding = bindingOf(branchOf(ctx));
   if (binding === undefined) return null;
   const directory = resolveBindingDirectory(binding, ctx.cwd);
   if (!existsSync(directory)) return null;
-  const notes = readUnfinishedNotes(directory);
-  return notes.length === 0 ? null : { planName: basename(directory), notes };
+  return { planName: basename(directory), notes: readUnfinishedNotes(directory) };
 };
 
 /** 注册 Nano Flow 的开关、命令、提示词、工具、skill 与侧栏。 */
@@ -234,6 +233,10 @@ export const registerNanoFlow = (pi: ExtensionAPI, deps: NanoFlowDeps): NanoFlow
     } as (typeof event.messages)[number];
     return { messages: [seed, ...kept] };
   });
+
+  // Nano Flow 激活时禁用压缩：清空由 rotateAt 负责，压缩会把清空前的历史摘要式带回上下文。
+  // 手动 `/compact`（manual）、阈值（threshold）与溢出恢复（overflow）一律取消。
+  pi.on("session_before_compact", (_event, ctx) => (activeOf(ctx) ? { cancel: true } : undefined));
 
   pi.on("turn_end", () => {
     sidebar.refresh();
