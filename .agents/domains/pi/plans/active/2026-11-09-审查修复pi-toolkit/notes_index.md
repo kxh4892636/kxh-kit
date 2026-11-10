@@ -14,4 +14,4 @@
 | [008-模板与README对齐规则](008-模板与README对齐规则.md) | note 模板自带只有 blocked 才能写的 reason:，README 的随包 skill 清单少了 ponytail-audit 与 ponytail-review。两处按实际规则与目录改正。 | — |
 | [009-侧栏关闭后不再读盘](009-侧栏关闭后不再读盘.md) | turn_end 无条件刷新侧栏，即使侧栏已拆掉或 nano-flow 关着，仍然每轮重读绑定 Plan 的 note 文件。refresh 加 mounted 守卫。 | — |
 | [010-合并frontmatter解析器](010-合并frontmatter解析器.md) | 侧栏 notes.ts 与校验脚本 base.mjs 各有一个 YAML 头解析器，规则会各改各的。保留 base.mjs 的实现，notes.ts 改为复用。 | 007-删除不可达CLI与重复渲染 |
-| [011-provider只上架DeepSeek并默认思考](011-provider只上架DeepSeek并默认思考.md) | Command Code provider 只上架 DeepSeek 模型，思考默认开启并按 DeepSeek 官方映射发 reasoning_effort；离线快照从代码重新推导能力。已按 ponytail-review 的 10 条发现收口。 | — |
+| [011-provider只上架DeepSeek并默认思考](011-provider只上架DeepSeek并默认思考.md) | Command Code provider 只上架 DeepSeek 模型，思考默认开启、强度按 DeepSeek 官方映射发 reasoning_effort（off 也走该字段）；离线快照从代码重推导能力。已用真实网关请求验证。 | — |

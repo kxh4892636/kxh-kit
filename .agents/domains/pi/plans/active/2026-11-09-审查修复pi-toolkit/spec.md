@@ -51,9 +51,10 @@ status: completed
 ## 追加：Command Code provider 收窄（note 011）
 
 - 需求变更：provider 只上架 DeepSeek（97 → 7），思考默认开启，思考强度按 DeepSeek 官方映射。
-- 按 code review 的 10 条发现逐条收口：只发标准 OpenAI 字段（不发 `thinking.type`，代价是 `off` 不可用）、删不可达的 Anthropic 分支、修正 `no DeepSeek models` 文案、补回退测试、合并重复的 api 判断、删掉无用的形状校验、README 补 provider 段。
-- 门禁：`check` 通过；`test` 298 个用例全绿；全局覆盖率 91.33/81.9/92.83/93.63；增量覆盖率 9/9 = 100%。
-- 未验证：网关是否真的把 `reasoning_effort` 转发给上游（只发标准字段，风险已最小）；6→5 个非视觉模型贴图可能被拒（用户已定为已知限制）。
+- 按 code review 的 10 条发现逐条收口：只发标准 OpenAI 字段（不发 `thinking.type`）、`off` 走 `reasoning_effort: "off"`、删不可达的 Anthropic 分支、修正 `no DeepSeek models` 文案、补回退测试、合并重复的 api 判断、删掉无用的形状校验、README 补 provider 段。
+- 门禁：`check` 通过；`test` 298 个用例全绿；全局覆盖率 91.33/81.9/92.83/93.63。
+- 真机验证（`deepseek/deepseek-v4.1-flash`，16 个极小请求 ≈ $0.0025）：`reasoning_effort` 被网关校验（非法值 400 并列出枚举 `off|low|medium|high|xhigh|max`）；`off` → 0 字思考、`high` → 288 字，确实能关；`thinking.type: disabled` 被接受但**被忽略**（仍有 441 字思考），所以不发它；带 tools 回放缺 `reasoning_content` 本网关不强制 400（flag 保留作为兜底）。
+- 未验证：各档位的思考量差异（同 prompt 两轮的噪声大于档位差）；非视觉模型贴图是否被拒。
 
 ## 追踪 Note
 
