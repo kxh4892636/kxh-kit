@@ -10,6 +10,9 @@ id: 8517385e-62cc-4bb1-9589-ac443a0b205a
 - 核心: 构建完整模块图, 而不是只检查单个文件;
 - 结构能力: 死代码、依赖问题、循环与架构边界;
 - 复杂度能力: 圈复杂度、认知复杂度、维护性指数与变更热点;
+
+## Fallow 的能力覆盖哪些方面？
+
 - 其他能力: 重复逻辑、特性开关、样式与设计令牌漂移;
 - 边界: 格式化器管外观, linter 管文件内规则;
 - 类型: TypeScript 管类型检查;
@@ -20,6 +23,9 @@ id: 8517385e-62cc-4bb1-9589-ac443a0b205a
 - 体验: 直接执行 `npx fallow`;
 - 常用安装: `npm install -g fallow`;
 - 其他渠道: pnpm、Yarn、Cargo、Docker;
+
+## 还可以通过哪些渠道安装？
+
 - 还有: GitHub Release 的预编译二进制;
 - 起步: 零配置即可运行;
 - 固化: 需要入口、忽略、阈值或规则时执行 `fallow init`;
@@ -62,6 +68,9 @@ npx fallow fix --dry-run
 - CLI: 通用回退方式, 用 `--format json --quiet` 拿结构化输出;
 - MCP: 给支持 MCP 的 Agent 提供类型化工具;
 - MCP 工具面: analyze、check_changed、audit、health;
+
+## MCP 给 Agent 提供哪些工具？
+
 - MCP 也提供: dupes、security、inspect;
 - Agent Skills: 教 Agent 何时跑哪个命令、如何解读、避免误用;
 
@@ -70,6 +79,9 @@ npx fallow fix --dry-run
 - 一键接入: `fallow agent install --dry-run` 先预览;
 - 安装内容: AGENTS.md 任务映射、skill、MCP;
 - 还含: commit/push gate;
+
+## Claude Code 的门禁怎么装？
+
 - Claude Code: 用 `fallow hooks install --target agent`;
 - 预览: 先加 `--dry-run`;
 - 效果: 安装 PreToolUse 门禁;
@@ -80,6 +92,9 @@ npx fallow fix --dry-run
 - 影响面: `fallow inspect <symbol>` 查影响证据;
 - 编码中: VS Code / Neovim 实时提示, 或 `fallow watch` 重跑;
 - 提交前: `fallow review` 找审查重点;
+
+## 提交前与守门环节怎么做？
+
 - 守门: `fallow audit --base <ref>` 给出 pass / warn / fail;
 - 修复后: 重跑分析, 再执行项目自身的 lint、类型检查、测试与构建;
 - 团队层: 用 baseline 或 `audit.gate: "new-only"` 渐进接入;

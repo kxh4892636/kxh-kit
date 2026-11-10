@@ -15,6 +15,9 @@ id: d549cac1-258c-4b5d-a65a-8dd5842b63c2
 - 追踪能力: 多级 `export *`、动态 import glob、命名空间成员;
 - 也覆盖: 类继承与部分装饰器语义;
 - 产出: 未使用文件、导出、类型、枚举与类成员、依赖;
+
+## 分析会产出哪些报告？
+
 - 附带报告: 无法解析的 import、未声明依赖、循环与边界违规;
 - 生产模式: `--production` 排除测试、story、mock 与开发脚本;
 - 生产模式还报告: 应移到 `devDependencies` 的纯类型依赖;
@@ -25,6 +28,9 @@ id: d549cac1-258c-4b5d-a65a-8dd5842b63c2
 - 模式: `strict`、`mild`、`weak`、`semantic`;
 - 选项: near-miss、跨语言、最小 token/行数/出现次数与基准;
 - `similar-code`: 用本地固定模型找意图相似的函数;
+
+## 相似函数候选怎么处理？
+
 - 输出性质: 只是候选, 必须审查后单独记录 verdict;
 - `health`: 综合复杂度、维护性指数、fan-in 与 fan-out;
 - 还看: 死代码比、Git churn、热点、测试覆盖与重构优先级;
@@ -34,6 +40,9 @@ id: d549cac1-258c-4b5d-a65a-8dd5842b63c2
 - 文件: JS/TS 之外自动读取 HTML、Vue、Svelte、Astro;
 - 也读: MDX、GraphQL、CSS Modules;
 - 还读: SCSS 与 React Native 约定;
+
+## 样式追踪覆盖哪些体系？
+
 - 样式: 追踪 SCSS `@use` / `@forward` / `@import` 与 CSS Module 类;
 - Tailwind: 追踪 v3/v4 依赖与 `@theme` 令牌消费者;
 
@@ -43,6 +52,9 @@ id: d549cac1-258c-4b5d-a65a-8dd5842b63c2
 - 查看: `fallow list --plugins` 列出实际激活项;
 - React/Next.js: 查 Server Components 指令与 App Router 冲突;
 - 还查: Server Action 可达性、组件 fan-in 与可选 props 规则;
+
+## 框架与内部插件分别查什么？
+
 - 内部框架: 用 JSONC、JSON 或 TOML 自定义插件;
 - 声明内容: 检测条件、入口、配置文件、已使用导出与类成员;
 - 还要声明: manifest 入口;
@@ -52,6 +64,9 @@ id: d549cac1-258c-4b5d-a65a-8dd5842b63c2
 - 首选: `.fallowrc.json` → `.fallowrc.jsonc`;
 - 其次: `fallow.toml` → `.fallow.toml`;
 - 选取: 同目录按此优先级取首个;
+
+## monorepo 与配置文件怎么取舍？
+
 - monorepo: 自动识别 npm/Yarn/pnpm/Deno workspace;
 - 能力: 解析跨包 import;
 - 收窄范围: `--workspace`、`--changed-workspaces` 或包内配置;
@@ -75,6 +90,9 @@ id: d549cac1-258c-4b5d-a65a-8dd5842b63c2
 - 预设: `bulletproof`、`layered`、`hexagonal`、`feature-sliced`;
 - 用途: 用预设快速建立分层;
 - zone: 由 glob 匹配, 首个命中者生效;
+
+## zone 匹配与豁免怎么生效？
+
 - 豁免: 同 zone 之间的 import 永远允许;
 - 例外: 未命中 zone 的文件不受限;
 

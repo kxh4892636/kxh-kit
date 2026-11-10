@@ -16,6 +16,9 @@ id: 44bdff8b-4ce7-4a93-a071-b25646d5b2b7
 - solution 配置: 不直接检查源码;
 - 写法: 用 `files: []` 加 `references` 汇总下级项目;
 - shared baseline: 通过 `extends` 被继承的基线;
+
+## 共享基线放哪些规则？
+
 - 只放: 跨项目成立的严格性与一致性规则;
 - 叶项目: 真正包含源码, 决定运行环境、源码范围与缓存位置;
 
@@ -47,6 +50,9 @@ id: 44bdff8b-4ce7-4a93-a071-b25646d5b2b7
 - `target` / `lib`: 按运行环境支持范围锁定, 不依赖编译器默认值;
 - `types`: 只列出项目允许的 ambient type packages;
 - 目的: 防止依赖偶然注入 globals;
+
+## ambient types 是什么、为什么只放白名单？
+
 - ambient types: 不需要 `import` 就进入全局的类型声明;
 - 例子: 某些测试框架提供的全局 API;
 
@@ -55,6 +61,9 @@ id: 44bdff8b-4ce7-4a93-a071-b25646d5b2b7
 - 源码边界: `include` 或 `files` 选择根输入;
 - `exclude`: 调整 include 的匹配;
 - `rootDir`: 只约束输出目录布局, 不过滤输入;
+
+## rootDir 与 include 的职责差在哪？
+
 - 注意: 已被 import 的文件仍可能进入项目;
 - `paths`: 不设 `baseUrl` 时, 相对路径以当前 `tsconfig` 所在目录为基准;
 - `allowJs`: 源码已全部 TypeScript 化时显式关闭;
@@ -65,6 +74,9 @@ id: 44bdff8b-4ce7-4a93-a071-b25646d5b2b7
 - `isolatedDeclarations`: 只在声明生成链路确有需求时启用;
 - 反例: 不要为满足规则引入低收益注解;
 - `noEmit`: 保留完整类型检查, 禁止输出 JavaScript;
+
+## noEmit 与 declaration 怎么配合？
+
 - 也不输出: `.d.ts` 与 source map;
 - `declaration`: 生成类型声明文件;
 - 失效条件: `noEmit: true` 时该选项无效;
