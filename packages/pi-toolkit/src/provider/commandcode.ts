@@ -1,8 +1,7 @@
 /**
- * Command Code's provider API shape. The gateway speaks two protocols on one
- * host: OpenAI Chat Completions (and Responses) under `/provider/v1`, Anthropic
- * Messages under `/provider/v1` as reached by the Anthropic SDK's own
- * `/v1/messages` suffix.
+ * Command Code's provider API shape. Only DeepSeek models are offered, and only
+ * over OpenAI Chat Completions under `/provider/v1`: every DeepSeek entry in the
+ * live catalog serves `/chat/completions`, so the Anthropic path is not wired.
  *
  * Everything here is pure: it turns the gateway's catalog and pricing pages into
  * pi model definitions, and never touches the network or the filesystem.
@@ -29,14 +28,8 @@ export const PRICING_URL = "https://commandcode.ai/docs/resources/pricing-limits
 /** The only vendor this provider offers; every other catalog entry is dropped. */
 const DEEPSEEK_VENDOR = "deepseek";
 
-/** Base URL for OpenAI-protocol models: the SDK appends `/chat/completions`. */
+/** Base URL; the OpenAI SDK appends `/chat/completions`. */
 export const OPENAI_BASE_URL = "https://api.commandcode.ai/provider/v1";
-
-/** Base URL for Anthropic-protocol models: the SDK appends `/v1/messages`. */
-export const ANTHROPIC_BASE_URL = "https://api.commandcode.ai/provider";
-
-/** Anthropic protocol models always answer on this path and only on it. */
-const ANTHROPIC_ENDPOINT = "/messages";
 
 /** Fallbacks for catalog entries that omit a context window. */
 const DEFAULT_CONTEXT_WINDOW = 128_000;
@@ -49,7 +42,7 @@ export interface CatalogEntry {
   readonly id: string;
   readonly name?: string;
   readonly contextLength?: number;
-  /** Endpoint paths the model serves, e.g. `["/messages"]`. */
+  /** Endpoint paths the model serves, e.g. `["/chat/completions"]`. */
   readonly endpoints: readonly string[];
 }
 
@@ -66,10 +59,14 @@ export interface PriceEntry {
  *
  * The catalog only names ids, context windows and endpoint paths, so nothing in
  * the payload says which model thinks. Every DeepSeek model on the gateway is a
- * thinking model, so the capability is a constant rather than a per-model guess.
- * `thinkingLevelMap` follows DeepSeek's own effort mapping (minimal/low → low,
- * medium/high/xhigh → high, max → max); `off` stays unmapped because it is sent
- * as `thinking.type: "disabled"`.
+ * thinking model — the vendor's model table describes each one as reasoning —
+ * so the capability is a constant rather than a per-model guess.
+ *
+ * Only `reasoning_effort` is sent. `thinkingFormat` stays unset on purpose: the
+ * `thinking.type` switch is a DeepSeek-native field, and this gateway documents
+ * no request contract for it, so sending it could fail every request. The cost is
+ * that `off` cannot disable thinking, so `off` is marked unsupported here and the
+ * lowest selectable level is `minimal` (→ `low`).
  *
  * `requiresReasoningContentOnAssistantMessages` is not optional: with tools in the
  * request DeepSeek answers 400 when a replayed assistant turn drops
@@ -78,6 +75,7 @@ export interface PriceEntry {
  * @see https://api-docs.deepseek.com/zh-cn/guides/thinking_mode
  */
 const DEEPSEEK_THINKING_LEVEL_MAP = {
+  off: null,
   minimal: "low",
   low: "low",
   medium: "high",
@@ -86,14 +84,18 @@ const DEEPSEEK_THINKING_LEVEL_MAP = {
   max: "max",
 };
 
-/** DeepSeek's thinking controls in OpenAI format: `thinking.type` + `reasoning_effort`. */
+/** Request fields for DeepSeek thinking: the effort map does the rest. */
 const DEEPSEEK_COMPAT = {
-  thinkingFormat: "deepseek" as const,
   supportsReasoningEffort: true,
   requiresReasoningContentOnAssistantMessages: true,
 };
 
-/** Every DeepSeek model on the gateway takes text and images. */
+/**
+ * Input modalities. Every DeepSeek model here is marked image-capable, which is
+ * the workspace's standing decision; the vendor's model table only says "with
+ * vision" for `deepseek/deepseek-v4-flash-vision-exp` and `deepseek/deepseek-v4.1-flash`,
+ * so an image sent to one of the other five may be refused upstream.
+ */
 const DEEPSEEK_INPUT: ("text" | "image")[] = ["text", "image"];
 
 /**
@@ -108,20 +110,16 @@ export const isDeepSeekModel = (id: string): boolean => {
 };
 
 /**
- * Capability of one DeepSeek model: thinking always on, text and images in.
- *
- * The thinking compat only applies to the OpenAI protocol — it names OpenAI request
- * fields (`thinking.type`, `reasoning_effort`) that the Anthropic path never sends.
- * @param api - protocol the model is reached on.
+ * Capability of one DeepSeek model: thinking on, effort selectable, images in.
  * @returns the capability fields to spread into a model definition.
  */
-export const deepSeekCapability = (
-  api: "anthropic-messages" | "openai-completions",
-): Pick<ProviderChatModelConfig, "reasoning" | "input" | "thinkingLevelMap" | "compat"> => ({
+export const deepSeekCapability = (): Pick<
+  ProviderChatModelConfig,
+  "reasoning" | "input" | "thinkingLevelMap" | "compat"
+> => ({
   reasoning: true,
-  ...(api === "openai-completions"
-    ? { thinkingLevelMap: { ...DEEPSEEK_THINKING_LEVEL_MAP }, compat: { ...DEEPSEEK_COMPAT } }
-    : {}),
+  thinkingLevelMap: { ...DEEPSEEK_THINKING_LEVEL_MAP },
+  compat: { ...DEEPSEEK_COMPAT },
   input: [...DEEPSEEK_INPUT],
 });
 
@@ -280,14 +278,6 @@ export const matchPrice = (
   return bestKey.length > 0 ? prices.get(bestKey) : undefined;
 };
 
-/** Pick the protocol for one catalog entry from the endpoints it serves. */
-export const apiFor = (entry: CatalogEntry): "anthropic-messages" | "openai-completions" =>
-  entry.endpoints.includes(ANTHROPIC_ENDPOINT) ? "anthropic-messages" : "openai-completions";
-
-/** Base URL that pairs with `apiFor`. */
-const baseUrlFor = (api: "anthropic-messages" | "openai-completions"): string =>
-  api === "anthropic-messages" ? ANTHROPIC_BASE_URL : OPENAI_BASE_URL;
-
 /** Output limit derived from the context window until the real one is probed. */
 const maxTokensFor = (contextWindow: number): number =>
   Math.max(4_096, Math.min(Math.floor(contextWindow / 8), MAX_OUTPUT_CEILING));
@@ -305,16 +295,15 @@ export const toProviderModels = (
   prices: ReadonlyMap<string, PriceEntry>,
 ): ProviderChatModelConfig[] =>
   entries.map((entry) => {
-    const api = apiFor(entry);
     const price = matchPrice(entry.id, prices);
     const contextWindow = entry.contextLength ?? DEFAULT_CONTEXT_WINDOW;
     return {
       type: "chat",
       id: entry.id,
       name: entry.name ?? entry.id,
-      api,
-      baseUrl: baseUrlFor(api),
-      ...deepSeekCapability(api),
+      api: "openai-completions",
+      baseUrl: OPENAI_BASE_URL,
+      ...deepSeekCapability(),
       cost: {
         input: price?.input ?? 0,
         output: price?.output ?? 0,

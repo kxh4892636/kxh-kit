@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
-  ANTHROPIC_BASE_URL,
   OPENAI_BASE_URL,
   extractPrices,
   matchPrice,
@@ -154,12 +153,12 @@ describe("toProviderModels", () => {
     },
   ];
 
-  it("routes Anthropic-only models to the Anthropic base and the rest to the OpenAI base", () => {
+  it("always uses the OpenAI protocol, whatever endpoints an entry lists", () => {
     const models = toProviderModels(entries, extractPrices(pricingHtml));
-    expect(models[0]?.api).toBe("anthropic-messages");
-    expect(models[0]?.baseUrl).toBe(ANTHROPIC_BASE_URL);
-    expect(models[1]?.api).toBe("openai-completions");
-    expect(models[1]?.baseUrl).toBe(OPENAI_BASE_URL);
+    for (const model of models) {
+      expect(model.api).toBe("openai-completions");
+      expect(model.baseUrl).toBe(OPENAI_BASE_URL);
+    }
   });
 
   it("carries the catalog context window and a derived output limit", () => {
@@ -186,21 +185,21 @@ describe("toProviderModels", () => {
 
   it("maps pi thinking levels onto DeepSeek reasoning_effort", () => {
     const models = toProviderModels(entries, new Map());
-    // 只给 OpenAI 协议挂思考字段：Anthropic 路径发的是另一套参数。
-    expect(models[0]?.compat).toBeUndefined();
-    expect(models[0]?.thinkingLevelMap).toBeUndefined();
-    expect(models[1]?.compat).toEqual({
-      thinkingFormat: "deepseek",
-      supportsReasoningEffort: true,
-      requiresReasoningContentOnAssistantMessages: true,
-    });
-    expect(models[1]?.thinkingLevelMap).toEqual({
-      minimal: "low",
-      low: "low",
-      medium: "high",
-      high: "high",
-      xhigh: "high",
-      max: "max",
-    });
+    for (const model of models) {
+      // 只发标准 OpenAI 字段：`thinking.type` 是 DeepSeek 原生字段，网关契约未公布。
+      expect(model.compat).toEqual({
+        supportsReasoningEffort: true,
+        requiresReasoningContentOnAssistantMessages: true,
+      });
+      expect(model.thinkingLevelMap).toEqual({
+        off: null,
+        minimal: "low",
+        low: "low",
+        medium: "high",
+        high: "high",
+        xhigh: "high",
+        max: "max",
+      });
+    }
   });
 });

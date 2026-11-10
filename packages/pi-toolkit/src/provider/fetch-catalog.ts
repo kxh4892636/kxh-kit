@@ -62,7 +62,7 @@ export const fetchCatalog = async (transport: CatalogTransport = {}): Promise<Ca
   }
   const entries = parseCatalog(payload);
   if (entries.length === 0) {
-    throw new Error(`Command Code catalog returned no models. Endpoint: ${MODELS_URL}`);
+    throw new Error(`Command Code catalog returned no DeepSeek models. Endpoint: ${MODELS_URL}`);
   }
   return entries;
 };

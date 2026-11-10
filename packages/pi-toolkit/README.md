@@ -255,6 +255,31 @@ The tools do not retry automatically: HTTP 408/429/5xx can be retried after a wa
 the account needs a top-up, other 4xx errors should be fixed before retrying, and `web_fetch`
 returns 403 when the target is refused by the safety policy.
 
+## Command Code provider (`commandcode`)
+
+A provider for the [Command Code](https://commandcode.ai) gateway, always registered; it exposes no
+tool, and stays unavailable in `/model` until you run `/login commandcode` (the credential lives in
+`~/.pi/agent/auth.json`, never in the JSON config).
+
+- **DeepSeek only**: the gateway's catalog is filtered to the `deepseek` vendor, so the seven DeepSeek
+  models are the only ones listed. A snapshot persisted by an older version still names other
+  vendors; it is filtered on restore, and a model you had selected from another vendor disappears
+  from `/model` — pick a DeepSeek model once after upgrading.
+- **Thinking on**: every listed model is marked as a thinking model, with pi's thinking levels mapped
+  onto DeepSeek's `reasoning_effort` (`minimal`/`low` → `low`, `medium`/`high`/`xhigh` → `high`,
+  `max` → `max`). Only that standard OpenAI field is sent — the DeepSeek-native `thinking` switch is
+  not, because this gateway publishes no request contract for it — so thinking cannot be turned off:
+  `off` is not offered and the lowest selectable level is `minimal`.
+- **Text and image input** on every model. The vendor's model table only says "with vision" for
+  `deepseek/deepseek-v4-flash-vision-exp` and `deepseek/deepseek-v4.1-flash`, so an image sent to one
+  of the others may be refused upstream.
+- `requiresReasoningContentOnAssistantMessages` is set: with tools in the request DeepSeek answers
+  400 when a replayed assistant turn drops `reasoning_content`.
+
+The catalog comes from `https://api.commandcode.ai/provider/v1/models` and the per-model rates from
+the pricing page; a failed catalog keeps the last good list, and a failed pricing page only costs the
+cost estimate. See [DeepSeek's thinking-mode guide](https://api-docs.deepseek.com/zh-cn/guides/thinking_mode).
+
 ## Nested skills and `$` references
 
 pi's skill scanner stops descending as soon as a directory contains `SKILL.md`, so a `SKILL.md` under

@@ -4,15 +4,15 @@
  * `~/.pi/agent/auth.json` behind `/login` instead of an environment variable or
  * a plaintext config value.
  *
- * The model list comes from the live catalog on every refresh, with the last
- * good catalog persisted through `context.publish` so an offline start still
- * knows which models exist.
+ * Only DeepSeek models are offered. The list comes from the live catalog on every
+ * refresh, with the last good catalog persisted through `context.publish` so an
+ * offline start still knows which models exist; a snapshot written before the
+ * narrow still lists other vendors and is filtered on restore.
  * @module @kxh4892636/pi-toolkit/provider/register
  */
 
 import type { ExtensionAPI, ProviderConfig } from "@earendil-works/pi-coding-agent";
 import {
-  ANTHROPIC_BASE_URL,
   OPENAI_BASE_URL,
   PROVIDER_ID,
   PROVIDER_NAME,
@@ -34,7 +34,7 @@ interface StoredModel {
   type: "chat";
   id: string;
   name: string;
-  api: "anthropic-messages" | "openai-completions";
+  api: "openai-completions";
   provider: string;
   baseUrl: string;
   input: ("text" | "image")[];
@@ -53,20 +53,16 @@ export interface CommandCodeDeps {
   readonly timeoutMs?: number;
 }
 
-/** The provider only ever registers these two protocols; anything else is a mistake. */
-const narrowApi = (api: string | undefined): "anthropic-messages" | "openai-completions" =>
-  api === "anthropic-messages" ? "anthropic-messages" : "openai-completions";
-
-/** True for the two protocols this provider speaks; rejects a stored unknown api. */
-const isChatApi = (value: unknown): value is "anthropic-messages" | "openai-completions" =>
-  value === "anthropic-messages" || value === "openai-completions";
+/** True for the only protocol this provider speaks; rejects a stored unknown api. */
+const isOpenAIChatApi = (value: unknown): value is "openai-completions" =>
+  value === "openai-completions";
 
 /** Map a provider model definition onto the raw model shape pi persists. */
 const toStored = (model: ProviderChatModelConfig): StoredModel => ({
   type: "chat",
   id: model.id,
   name: model.name,
-  api: narrowApi(model.api),
+  api: "openai-completions",
   provider: PROVIDER_ID,
   baseUrl: model.baseUrl ?? OPENAI_BASE_URL,
   input: [...model.input],
@@ -81,9 +77,8 @@ const fromStored = (model: unknown): ProviderChatModelConfig | undefined => {
   if (typeof model !== "object" || model === null) return undefined;
   const candidate = model as Partial<ProviderChatModelConfig>;
   if (typeof candidate.id !== "string" || typeof candidate.name !== "string") return undefined;
-  const api = candidate.api;
-  if (!isChatApi(api)) return undefined;
-  if (candidate.cost === undefined || !Array.isArray(candidate.input)) return undefined;
+  if (!isOpenAIChatApi(candidate.api)) return undefined;
+  if (candidate.cost === undefined) return undefined;
   if (typeof candidate.contextWindow !== "number" || typeof candidate.maxTokens !== "number") {
     return undefined;
   }
@@ -91,12 +86,11 @@ const fromStored = (model: unknown): ProviderChatModelConfig | undefined => {
     type: "chat",
     id: candidate.id,
     name: candidate.name,
-    api,
-    baseUrl:
-      candidate.baseUrl ?? (api === "anthropic-messages" ? ANTHROPIC_BASE_URL : OPENAI_BASE_URL),
+    api: "openai-completions",
+    baseUrl: candidate.baseUrl ?? OPENAI_BASE_URL,
     // Capability is derived, never read back: an old snapshot gains thinking as
     // soon as the code does, without waiting for a network refresh.
-    ...deepSeekCapability(api),
+    ...deepSeekCapability(),
     cost: candidate.cost,
     contextWindow: candidate.contextWindow,
     maxTokens: candidate.maxTokens,

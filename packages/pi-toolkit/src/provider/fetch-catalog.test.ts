@@ -67,7 +67,9 @@ describe("fetchCatalog", () => {
           ],
         }),
     });
-    await expect(fetchCatalog({ fetchImpl: onlyOtherVendors })).rejects.toThrow(/no models/u);
+    await expect(fetchCatalog({ fetchImpl: onlyOtherVendors })).rejects.toThrow(
+      /no DeepSeek models/u,
+    );
   });
 
   it("names the endpoint when the response is an error", async () => {
@@ -80,7 +82,7 @@ describe("fetchCatalog", () => {
     const garbage = vi.fn<typeof fetch>(async () => new Response("not json", { status: 200 }));
     await expect(fetchCatalog({ fetchImpl: garbage })).rejects.toThrow(/unreadable JSON/u);
     const empty = routeFetch({ models: () => jsonResponse({ data: [] }) });
-    await expect(fetchCatalog({ fetchImpl: empty })).rejects.toThrow(/no models/u);
+    await expect(fetchCatalog({ fetchImpl: empty })).rejects.toThrow(/no DeepSeek models/u);
   });
 });
 

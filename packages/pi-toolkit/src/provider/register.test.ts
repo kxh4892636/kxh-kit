@@ -1,7 +1,6 @@
 import type { ExtensionAPI, ProviderConfig } from "@earendil-works/pi-coding-agent";
 import { describe, expect, it, vi } from "vite-plus/test";
 import {
-  ANTHROPIC_BASE_URL,
   MODELS_URL,
   OPENAI_BASE_URL,
   PROVIDER_ID,
@@ -110,8 +109,6 @@ const storedOtherVendor = {
   ...storedModel,
   id: "claude-sonnet-5",
   name: "Claude Sonnet 5",
-  api: "anthropic-messages",
-  baseUrl: ANTHROPIC_BASE_URL,
 };
 
 describe("registerCommandCodeProvider", () => {
@@ -176,6 +173,21 @@ describe("refreshModels", () => {
     expect(harness.published).toHaveLength(0);
   });
 
+  it("falls back to the persisted catalog when the live one has no DeepSeek model", async () => {
+    const harness = refreshHarness({ stored: [storedModel] });
+    const fetchImpl = vi.fn<typeof fetch>(async (input) =>
+      urlOf(input) === MODELS_URL
+        ? jsonResponse({
+            data: [{ id: "claude-sonnet-5", supported_endpoints: ["/chat/completions"] }],
+          })
+        : pricingResponse(),
+    );
+    const models = await refresh({ fetchImpl }, harness);
+    expect(models.map((model) => model.id)).toEqual(["deepseek/deepseek-v4-flash"]);
+    // 抓取成功但过滤后为空：没东西可持久化，旧快照原样留着。
+    expect(harness.published).toHaveLength(0);
+  });
+
   it("surfaces the failure when there is no persisted catalog to fall back to", async () => {
     const harness = refreshHarness();
     const fetchImpl = vi.fn<typeof fetch>(async () => jsonResponse({ error: "boom" }, 502));
@@ -187,6 +199,19 @@ describe("refreshModels", () => {
     const harness = refreshHarness({ allowNetwork: false, stored: [{ id: "x" }, storedModel] });
     const models = await refresh({}, harness);
     expect(models).toHaveLength(1);
+  });
+
+  it("drops stored entries with an unknown protocol or no cost", async () => {
+    const harness = refreshHarness({
+      allowNetwork: false,
+      stored: [
+        { ...storedModel, api: "openai-responses" },
+        { ...storedModel, id: "deepseek/deepseek-v4-pro", cost: undefined },
+        storedModel,
+      ],
+    });
+    const models = await refresh({}, harness);
+    expect(models.map((model) => model.id)).toEqual(["deepseek/deepseek-v4-flash"]);
   });
 
   it("drops persisted models from another vendor", async () => {
@@ -204,7 +229,6 @@ describe("refreshModels", () => {
     expect(models[0]?.reasoning).toBe(true);
     expect(models[0]?.input).toEqual(["text", "image"]);
     expect(models[0]?.compat).toEqual({
-      thinkingFormat: "deepseek",
       supportsReasoningEffort: true,
       requiresReasoningContentOnAssistantMessages: true,
     });
