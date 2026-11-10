@@ -9,7 +9,8 @@ id: da469b09-1c37-4b0c-a782-e657b1c098bd
 - `useActionState(reducerAction, initialState, permalink?)` 返回 `[state, dispatchAction, isPending]`;
 - `state`: 最近一次操作的返回值;
 - 参数顺序: `reducerAction` 收 previousState 与 payload;
-- 接 form 后: `FormData` 是第二参数, 不能沿用只收一个 `FormData` 的签名;
+- 接 form 后: `FormData` 是第二参数;
+- 反例: 不能沿用只收一个 `FormData` 的签名;
 - 副作用允许: 与纯 `useReducer` 不同, `reducerAction` 可等待请求并执行副作用;
 - 开发检查: StrictMode 不会为纯度检查重复调用它两次;
 

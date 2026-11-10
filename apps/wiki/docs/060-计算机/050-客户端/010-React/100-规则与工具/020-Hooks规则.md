@@ -8,7 +8,8 @@ id: 9f3ac960-6095-442e-a753-c4c5e3bcbc02
 
 - 状态匹配: React 靠每次渲染一致的 Hook 顺序关联内部状态;
 - 后果: 条件或循环跳过某次调用就会错配;
-- 禁止位置: 不在事件处理器、嵌套回调、useMemo 计算、普通 async 函数或类方法中调用 Hook;
+- 禁止位置: 事件处理器、嵌套回调、`useMemo` 计算;
+- 也不在: 普通 async 函数与类方法里调用 Hook;
 
 ```jsx
 function Panel({ visible }) {

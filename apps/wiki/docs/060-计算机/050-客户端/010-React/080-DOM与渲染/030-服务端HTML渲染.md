@@ -10,7 +10,8 @@ id: e057f5b5-377c-4f83-b042-e2720038d099
 - 澄清: `/` 是页面 URL 的路径, 不是 React 额外发的数据请求;
 - 路由匹配: Express 等服务端用 `server.get("/", handler)` 收请求;
 - handler: 准备首屏数据并渲染 React 树;
-- 响应边界: 服务端返回的不只是某个组件片段, 而是浏览器能解析的 HTML 文档或 HTML 流;
+- 响应边界: 服务端返回的不是组件片段;
+- 而是: 浏览器能解析的 HTML 文档或 HTML 流;
 
 ```text
 访问 https://example.com/
@@ -22,7 +23,8 @@ id: e057f5b5-377c-4f83-b042-e2720038d099
 
 ## 服务端返回的 HTML 包含什么？
 
-- 首屏内容: root 容器里已有 React 生成的标题、列表等 DOM 内容, 不是 CSR 常见的空容器;
+- 首屏内容: root 容器里已有 React 生成的标题、列表等 DOM;
+- 对照: CSR 常见的是空容器;
 - 资源引用: HTML 仍用 link 与 script 引 CSS、客户端 JS;
 - 生成入口标签: React 的 `bootstrapScripts` 或 `bootstrapModules`;
 - 初始数据: 客户端首次渲染要用的数据随 HTML 一起传;

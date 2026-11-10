@@ -55,7 +55,8 @@ function Panel({ title, children, style }: PanelProps) {
 
 - `useState(0)`: 可推断为 number;
 - 需显式标注: 初始值为 null, 或状态有多个合法分支时;
-- Reducer: 用带 `type` 字段的判别联合描述 action, 让分支处理与载荷类型对应;
+- Reducer: 用带 `type` 字段的判别联合描述 action;
+- 收益: 分支处理与载荷类型一一对应;
 - Context: 用 `createContext<T>(defaultValue)` 声明共享值;
 - 允许 null 时: 由消费 Hook 检查 Provider 是否存在;
 - 内联处理函数: 通常能自动推断事件;

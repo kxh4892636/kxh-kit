@@ -19,7 +19,8 @@ anki: false
 - 事件描述: 用 `type` 表达一次完整的用户动作;
 - 载荷: 携带计算所需数据;
 - 反例: 不把 action 限定为设置某字段;
-- 提取计算: 把原处理器中的状态转换移到 reducer, 再用 dispatch 代替 setter;
+- 提取计算: 把状态转换从处理器移到 reducer;
+- 调用: 用 `dispatch` 代替 setter;
 
 ```jsx
 import { useReducer } from "react";
@@ -57,9 +58,11 @@ function TaskList() {
 
 - 纯函数: 不发请求, 不生成依赖外部时机的随机 ID, 不改旧 state;
 - 做法: 在事件里备好数据, 通过 action 传入;
-- 完整返回: 每条合法分支都返回下一状态, 漏 `return` 会让状态变成 `undefined`;
+- 完整返回: 每条合法分支都返回下一状态;
+- 风险: 漏 `return` 会让状态变成 `undefined`;
 - 未知动作: 要明确处理;
-- 调试方法: 记录 action 及前后状态即可复现迁移, 也可直接调用 reducer 验证输入输出;
+- 调试方法: 记录 action 与前后状态即可复现迁移;
+- 也可: 直接调 reducer 验证输入输出;
 
 ## 如何避免重复计算初始状态？
 

@@ -43,7 +43,7 @@ export default function Panel() {
 
 - 最近祖先: `useContext` 向上找最近的 Provider;
 - 覆盖: 嵌套提供者可对某子树给出不同值;
-- 同层陷阱: 组件内调 `useContext` 读不到它返回的 JSX 中刚建的 Provider;
+- 同层陷阱: 组件内调 `useContext`, 读不到它返回的 JSX 里刚建的 Provider;
 - `undefined`: 上方 Provider 显式给 `undefined` 时读到的就是它, 不会退回默认值;
 
 ```jsx

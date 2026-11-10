@@ -51,7 +51,8 @@ export function useTasksDispatch() {
 ## 消费组件如何只依赖自己需要的通道？
 
 - 读取组件: 调用 useTasks 得到当前列表, 不关心 reducer 的组织位置;
-- 操作组件: 调用 useTasksDispatch, 在事件中传入 action, 不复制一份列表再试图同步;
+- 操作组件: 调 `useTasksDispatch`, 在事件里传 action;
+- 反例: 不要复制一份列表再试图同步;
 - 使用前提: 页面在上方包一层 `TasksProvider`;
 - 缺少提供者: 立即报配置错误, 不要静默用空值;
 
