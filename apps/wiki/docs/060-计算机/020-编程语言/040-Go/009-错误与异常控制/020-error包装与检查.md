@@ -55,5 +55,6 @@ if errors.As(err, &pathErr) {
 }
 ```
 
-- 目标参数: `errors.As` 的 target 必须是非 nil 指针, 指向错误类型或接口;
+- 目标参数: `errors.As` 的 target 必须是非 nil 指针;
+- 指向: 错误类型或接口;
 - 例: 传 `&pathErr` 才能让函数写入提取结果;

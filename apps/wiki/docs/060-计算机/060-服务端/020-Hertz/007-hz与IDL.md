@@ -50,7 +50,8 @@ service ArticleService {
 | `api.form`                | 表单字段        | 上传元数据             |
 | `api.raw_body`            | 原始请求体      | 自行解析               |
 
-- 没有 `api.file` 注解: 文件上传用 RequestContext 的文件 API, 不要臆造注解;
+- 没有 `api.file` 注解: 文件上传用 RequestContext 的文件 API;
+- 反例: 不要臆造注解;
 - 注解写错: 不报错, 只生成错路由或绑不到的字段;
 - 验证: 用 `hz` 路由表与 `ut.PerformRequest` 各验一次;
 

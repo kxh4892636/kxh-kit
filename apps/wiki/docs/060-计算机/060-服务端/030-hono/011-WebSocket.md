@@ -35,7 +35,7 @@ serve({ fetch: app.fetch, websocket: { server: wss } });
 ## 与中间件同挂会冲突吗？
 
 - 冲突: `upgradeWebSocket` 会改响应头;
-- 同挂会改头的中间件, 如 CORS、compress: 可能报 `headers immutable`;
+- 同挂会改头的中间件, 如 CORS 或 compress: 可能报 `headers immutable`;
 - 做法: WebSocket 路径单独挂;
 
 ## 鉴权、心跳、房间与背压怎么处理？

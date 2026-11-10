@@ -45,4 +45,5 @@ if err := cli.Do(ctx, req, resp); err != nil {
 
 - 服务间调用: 优先 Kitex;
 - Hertz Client: 调外部 HTTP、网关转发或测试夹具;
-- 连接池、代理与 TLS 细节查 `client.Option`, 不要为改一个参数复制多个 Client;
+- 连接池、代理与 TLS 细节: 查 `client.Option`;
+- 反例: 不要为改一个参数复制多个 Client;

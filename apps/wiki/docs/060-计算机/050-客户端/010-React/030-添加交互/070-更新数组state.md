@@ -42,7 +42,8 @@ setItems((previous) =>
 ## 如何安全地排序或反转数组？
 
 - 先复制: 对新数组调用 sort 或 reverse, 不影响先前 state 中的数组顺序;
-- 稳定身份: 重排时继续使用条目 ID 作为 key, 让状态跟随数据项, key 规则见列表渲染;
+- 稳定身份: 重排时继续用条目 ID 作 key, 让状态跟随数据项;
+- key 规则: 见列表渲染;
 
 ```jsx
 setItems((previous) => [...previous].sort((a, b) => a.rank - b.rank));

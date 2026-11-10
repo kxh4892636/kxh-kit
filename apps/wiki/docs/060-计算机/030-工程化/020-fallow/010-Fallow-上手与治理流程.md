@@ -19,7 +19,8 @@ id: 8517385e-62cc-4bb1-9589-ac443a0b205a
 
 - 体验: 直接执行 `npx fallow`;
 - 常用安装: `npm install -g fallow`;
-- 其他渠道: pnpm、Yarn、Cargo、Docker 与 GitHub Release 预编译二进制;
+- 其他渠道: pnpm、Yarn、Cargo、Docker;
+- 还有: GitHub Release 的预编译二进制;
 - 起步: 零配置即可运行;
 - 固化: 需要入口、忽略、阈值或规则时执行 `fallow init`;
 
@@ -67,7 +68,8 @@ npx fallow fix --dry-run
 ## 一键接入会装哪些东西？
 
 - 一键接入: `fallow agent install --dry-run` 先预览;
-- 安装内容: AGENTS.md 任务映射、skill、MCP 与 commit/push gate;
+- 安装内容: AGENTS.md 任务映射、skill、MCP;
+- 还含: commit/push gate;
 - Claude Code: 用 `fallow hooks install --target agent`;
 - 预览: 先加 `--dry-run`;
 - 效果: 安装 PreToolUse 门禁;

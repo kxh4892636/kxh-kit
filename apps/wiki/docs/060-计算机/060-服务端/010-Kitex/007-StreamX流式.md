@@ -52,5 +52,6 @@ func upload(ctx context.Context, cli fileservice.Client, chunks [][]byte) (*api.
 - 单次设置: `streamcall.WithRecvTimeout`;
 - 常规 RPC 重试不适用于 streaming, 见 [004](./004-客户端调用.md);
 - 双向会话用有限队列与明确取消路径, 退出时回收 goroutine、timer 与连接;
-- 排障顺序: 先看 `StreamEventHandler` 的 start、Send、Recv、header、finish;
+- 排障顺序: 先看 `StreamEventHandler` 的 start、Send、Recv;
+- 再看: header 与 finish;
 - 别先动底层参数;

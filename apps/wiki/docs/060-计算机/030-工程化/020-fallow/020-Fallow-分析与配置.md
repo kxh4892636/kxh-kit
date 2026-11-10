@@ -32,7 +32,8 @@ id: d549cac1-258c-4b5d-a65a-8dd5842b63c2
 ## 默认支持哪些文件与框架？
 
 - 文件: JS/TS 之外自动读取 HTML、Vue、Svelte、Astro;
-- 也读: MDX、GraphQL、CSS Modules、SCSS 与 React Native 约定;
+- 也读: MDX、GraphQL、CSS Modules;
+- 还读: SCSS 与 React Native 约定;
 - 样式: 追踪 SCSS `@use` / `@forward` / `@import` 与 CSS Module 类;
 - Tailwind: 追踪 v3/v4 依赖与 `@theme` 令牌消费者;
 
@@ -40,7 +41,7 @@ id: d549cac1-258c-4b5d-a65a-8dd5842b63c2
 
 - 框架: 内置插件依据依赖与配置自动激活;
 - 查看: `fallow list --plugins` 列出实际激活项;
-- React/Next.js: 查 Server Components 指令与 App Router 路由冲突;
+- React/Next.js: 查 Server Components 指令与 App Router 冲突;
 - 还查: Server Action 可达性、组件 fan-in 与可选 props 规则;
 - 内部框架: 用 JSONC、JSON 或 TOML 自定义插件;
 - 声明内容: 检测条件、入口、配置文件、已使用导出与类成员;
@@ -51,7 +52,8 @@ id: d549cac1-258c-4b5d-a65a-8dd5842b63c2
 - 首选: `.fallowrc.json` → `.fallowrc.jsonc`;
 - 其次: `fallow.toml` → `.fallow.toml`;
 - 选取: 同目录按此优先级取首个;
-- monorepo: 自动识别 npm/Yarn/pnpm/Deno workspace, 解析跨包 import;
+- monorepo: 自动识别 npm/Yarn/pnpm/Deno workspace;
+- 能力: 解析跨包 import;
 - 收窄范围: `--workspace`、`--changed-workspaces` 或包内配置;
 
 ```jsonc

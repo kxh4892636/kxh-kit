@@ -9,7 +9,8 @@ id: 324d95e5-0b30-5c1a-aa97-5fb03e7030b1
 - `select`: 在多个 channel 操作中选择一个可执行分支;
 - `case`: 必须是 channel 发送或接收操作;
 - 多个就绪: 随机选择一个执行;
-- 全部未就绪: 没有 default 时阻塞等待, 有 default 时按下一节的非阻塞规则处理;
+- 全部未就绪: 没有 default 时阻塞等待;
+- 有 default: 按下一节的非阻塞规则处理;
 
 ```go
 func main() {

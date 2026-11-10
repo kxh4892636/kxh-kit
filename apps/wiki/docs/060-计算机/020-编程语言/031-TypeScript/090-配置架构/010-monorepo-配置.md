@@ -35,7 +35,7 @@ id: 44bdff8b-4ce7-4a93-a071-b25646d5b2b7
 ## 如何根据最终运行方式选择模块解析体系？
 
 - runtime: JavaScript 最终运行的环境, 例如浏览器或 Node.js;
-- module resolution: 编译器根据 `import` 路径寻找目标文件或代码包的规则;
+- module resolution: 编译器按 `import` 路径寻找目标文件或包的规则;
 
 | 项目类别     | `module` / `moduleResolution` | 适用边界                                     |
 | ------------ | ----------------------------- | -------------------------------------------- |
@@ -64,6 +64,7 @@ id: 44bdff8b-4ce7-4a93-a071-b25646d5b2b7
 - `isolatedModules`: 使每个文件都能被外部 transpiler 独立处理;
 - `isolatedDeclarations`: 只在声明生成链路确有需求时启用;
 - 反例: 不要为满足规则引入低收益注解;
-- `noEmit`: 保留完整类型检查, 禁止输出 JavaScript, `.d.ts` 和 source map;
+- `noEmit`: 保留完整类型检查, 禁止输出 JavaScript;
+- 也不输出: `.d.ts` 与 source map;
 - `declaration`: 生成类型声明文件;
 - 失效条件: `noEmit: true` 时该选项无效;

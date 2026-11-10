@@ -35,7 +35,7 @@ id: 8ab3ae09-612b-4fd0-985a-179c450331ed
 
 ## 如何让项目选择包管理器与 Node.js 版本？
 
-- 包管理器: `vp install` 按项目声明或锁文件选 pnpm、npm、Yarn 或 Bun;
+- 包管理器: `vp install` 按项目声明或锁文件选 pnpm、npm、Yarn、Bun;
 - 好处: 不需要开发者手动切换安装命令;
 - 全局默认: `vp env default <版本>` 设置全局默认 Node.js 版本;
 - 项目固定: `vp env pin <版本>` 固定项目版本;
@@ -64,7 +64,7 @@ id: 8ab3ae09-612b-4fd0-985a-179c450331ed
 
 ## 如何在 vite.config.ts 中声明各工具配置？
 
-- 配置中心: `vite.config.ts` 同时保存 Vite 原生配置与 Vite+ 扩展配置;
+- 配置中心: `vite.config.ts` 同时保存 Vite 原生配置与 Vite+ 扩展;
 - 收益: 顶层配置文件数量变少;
 
 ```ts

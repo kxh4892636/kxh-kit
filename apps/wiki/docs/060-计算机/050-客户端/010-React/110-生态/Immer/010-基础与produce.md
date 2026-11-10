@@ -53,7 +53,8 @@ function reducer(state, action) {
 
 ## Zustand action 怎样使用 produce？
 
-- 更新入口: 把柯里化的 producer 交给 `set`, 由它按当前 store 生成下一状态;
+- 更新入口: 把柯里化的 producer 交给 `set`;
+- 效果: 由它按当前 store 生成下一状态;
 - 避免: 先捕获旧对象再改;
 - 集成选择: 显式 `produce`, 或用 Zustand 的 Immer 中间件;
 - 要求: 项目内保持一种清楚的约定;

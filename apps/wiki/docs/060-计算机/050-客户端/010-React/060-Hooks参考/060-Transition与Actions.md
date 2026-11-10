@@ -41,7 +41,7 @@ startTransition(async () => {
 
 - 输入反馈: input 的 value 必须随输入事件同步更新, 否则打字会出现不一致;
 - 拆开状态: 输入文本按紧急更新处理;
-- 昂贵结果: 放进 Transition, 或用 `useDeferredValue` 延迟结果区域;
+- 昂贵结果: 放进 Transition, 或用 `useDeferredValue` 延迟展示;
 - 没有 setter: 只有 prop 或 Hook 返回值可用时, `useDeferredValue` 比 `startTransition` 更合适;
 
 ```jsx

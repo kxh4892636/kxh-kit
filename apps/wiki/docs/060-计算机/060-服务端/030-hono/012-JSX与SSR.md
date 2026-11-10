@@ -67,5 +67,6 @@ const User = () => {
 
 ## 错误页与水合怎么接？
 
-- 错误分流: `onError` 里按 `Accept` 返回 HTML 或 JSON, 生产不要把堆栈渲染进页面;
+- 错误分流: `onError` 里按 `Accept` 返回 HTML 或 JSON;
+- 反例: 生产不要把堆栈渲染进页面;
 - 水合: 服务端 `renderToString`（`hono/jsx/dom/server`）+ 浏览器 `hydrateRoot`（`hono/jsx/dom/client`）;
