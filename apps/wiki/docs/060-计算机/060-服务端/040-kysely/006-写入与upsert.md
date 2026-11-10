@@ -88,7 +88,8 @@ await db
   .execute();
 ```
 
-- 冲突目标写法: 单列 `.column()`, 复合键 `.columns([...])`, 具名约束 `.constraint()`;
+- 冲突目标: 单列 `.column()`, 复合键 `.columns([...])`;
+- 具名约束: `.constraint()`;
 - 前提: 指定列必须有唯一索引或主键;
 - 否则: 报没有匹配的冲突目标, 见 [003](./003-建表与增删改查.md);
 - 条件位: `.doUpdateSet(...).where("excluded.species", "!=", "cat")`;

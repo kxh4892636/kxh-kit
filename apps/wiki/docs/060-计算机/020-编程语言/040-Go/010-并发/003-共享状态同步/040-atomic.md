@@ -30,6 +30,9 @@ id: 11ca99a8-30be-4df1-9d5c-a9730c6fe1fb
 - `atomic.Uint32`, `atomic.Uint64`, `atomic.Uintptr`: 无符号整数或位标记;
 - `atomic.Bool`: 布尔状态标记;
 - `atomic.Pointer[T]`: 类型安全地发布和替换 `*T`;
+
+## 如何用 atomic 发布只读快照？
+
 - `atomic.Value`: 保存任意类型的只读快照;
 - 首次 `Store` 后: 后续 `Store` 必须用相同具体类型, 且不能存 `nil`;
 

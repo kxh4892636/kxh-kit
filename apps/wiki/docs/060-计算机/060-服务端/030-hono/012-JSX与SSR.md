@@ -57,7 +57,8 @@ const User = () => {
 };
 ```
 
-- `jsxRenderer` 是 `c.setRenderer()` 的语法糖; 布局只挂页面路径, 不影响 JSON 接口;
+- `jsxRenderer`: 是 `c.setRenderer()` 的语法糖;
+- 范围: 布局只挂页面路径, 不影响 JSON 接口;
 - 深层组件: 用 `useRequestContext()` 取 `Context`;
 - 数据: 仍由 Handler 或中间件放进 `c.var`;
 - 布局参数: 模块增强 `ContextRenderer` 后可用 `c.render(content, { title })`;

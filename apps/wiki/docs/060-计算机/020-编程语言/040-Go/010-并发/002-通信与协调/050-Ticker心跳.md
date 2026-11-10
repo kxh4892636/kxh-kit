@@ -30,6 +30,8 @@ func main() {
 - 结论: 不能靠遍历 channel 等待结束;
 - 处理速度: 接收方处理过慢时, ticker 会调整或丢弃 tick, 不保证补发每一次间隔;
 
+## Ticker 的前提与退出条件是什么？
+
 - 周期前提: interval 必须大于零, 否则 NewTicker 会 panic;
 - 退出条件: 独立于 `Stop`, 示例按计数退出;
 - API 依据: [time.Ticker](https://pkg.go.dev/time#Ticker);

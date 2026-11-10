@@ -20,7 +20,7 @@ id: 44694297-b6b7-49ae-85f9-74183e7084aa
 
 ## 只为计算下一状态而读取旧 state 时怎样改写？
 
-- 更新函数: `setCount(count + 1)` 改成 `setCount(count => count + 1)`;
+- 更新函数: 把 `setCount(count + 1)` 改成 `setCount(count => count + 1)`;
 - 效果: 计算交给待处理状态, Effect 闭包里不再读 `count`;
 - 语义限制: 只适用于从上一状态求下一状态的计算, 不能据此省略其他真正参与同步的输入;
 

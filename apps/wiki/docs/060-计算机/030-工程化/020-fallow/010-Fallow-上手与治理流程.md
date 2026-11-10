@@ -63,6 +63,9 @@ npx fallow fix --dry-run
 - MCP 工具面: analyze、check_changed、audit、health;
 - MCP 也提供: dupes、security、inspect;
 - Agent Skills: 教 Agent 何时跑哪个命令、如何解读、避免误用;
+
+## 一键接入会装哪些东西？
+
 - 一键接入: `fallow agent install --dry-run` 先预览;
 - 安装内容: AGENTS.md 任务映射、skill、MCP 与 commit/push gate;
 - Claude Code: 用 `fallow hooks install --target agent`;

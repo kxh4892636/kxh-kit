@@ -9,6 +9,9 @@ id: d549cac1-258c-4b5d-a65a-8dd5842b63c2
 - 起点: 从 `package.json`、项目脚本、基础设施文件和框架插件推导入口;
 - 过程: 发现文件 → 解析 AST → 解析 import → 构建模块图;
 - 遍历: 从入口沿模块图算可达性;
+
+## 死代码分析能追踪什么、产出什么？
+
 - 追踪能力: 多级 `export *`、动态 import glob、命名空间成员;
 - 也覆盖: 类继承与部分装饰器语义;
 - 产出: 未使用文件、导出、类型、枚举与类成员、依赖;
@@ -32,6 +35,9 @@ id: d549cac1-258c-4b5d-a65a-8dd5842b63c2
 - 也读: MDX、GraphQL、CSS Modules、SCSS 与 React Native 约定;
 - 样式: 追踪 SCSS `@use` / `@forward` / `@import` 与 CSS Module 类;
 - Tailwind: 追踪 v3/v4 依赖与 `@theme` 令牌消费者;
+
+## 内置与自定义插件如何覆盖框架？
+
 - 框架: 内置插件依据依赖与配置自动激活;
 - 查看: `fallow list --plugins` 列出实际激活项;
 - React/Next.js: 查 Server Components 指令与 App Router 路由冲突;
@@ -69,6 +75,9 @@ id: d549cac1-258c-4b5d-a65a-8dd5842b63c2
 - zone: 由 glob 匹配, 首个命中者生效;
 - 豁免: 同 zone 之间的 import 永远允许;
 - 例外: 未命中 zone 的文件不受限;
+
+## zone 规则与门禁怎么核对？
+
 - rule: `from` 声明该 zone 允许 import 的 zone;
 - 空 `allow`: 表示完全隔离;
 - 核对: `fallow list --boundaries` 先看分区与规则;

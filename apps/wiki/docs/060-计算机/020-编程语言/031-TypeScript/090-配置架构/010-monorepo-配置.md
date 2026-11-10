@@ -49,6 +49,9 @@ id: 44bdff8b-4ce7-4a93-a071-b25646d5b2b7
 - 目的: 防止依赖偶然注入 globals;
 - ambient types: 不需要 `import` 就进入全局的类型声明;
 - 例子: 某些测试框架提供的全局 API;
+
+## 叶项目如何划清源码与路径边界？
+
 - 源码边界: `include` 或 `files` 选择根输入;
 - `exclude`: 调整 include 的匹配;
 - `rootDir`: 只约束输出目录布局, 不过滤输入;

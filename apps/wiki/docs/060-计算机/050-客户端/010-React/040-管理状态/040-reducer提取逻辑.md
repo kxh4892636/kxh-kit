@@ -63,7 +63,8 @@ function TaskList() {
 
 ## 如何避免重复计算初始状态？
 
-- 惰性初始化: `useReducer(reducer, initialArg, init)` 只在初始化时用 `init` 算初始 state;
+- 惰性初始化: `useReducer(reducer, initialArg, init)`;
+- 行为: 只在初始化时用 `init` 算初始 state;
 - 执行与引用契约: 见状态 Hooks;
 - 边界: reducer 只集中更新规则, 不自动跨组件共享;
 - 组合 Context: 见下一篇;

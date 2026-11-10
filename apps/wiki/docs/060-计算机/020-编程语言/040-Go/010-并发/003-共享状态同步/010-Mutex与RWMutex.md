@@ -64,6 +64,8 @@ func Reload(newConfig map[string]string) {
 
 ```
 
+## 何时不该用 RWMutex？
+
 - 选择边界: 读多写少只是候选条件, 锁开销与竞争仍要测量;
 - RWMutex: 不支持读锁升级写锁, 也不支持降级;
 - 共享数据边界: 示例 Reload 直接保存 map;

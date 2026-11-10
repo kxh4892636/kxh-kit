@@ -39,6 +39,9 @@ func main() {
 ```
 
 - 适用位置: goroutine 边界, 框架边界, 任务边界兜底;
+
+## recover 的作用范围与控制流是什么？
+
 - 作用范围: 只处理当前 goroutine 中正在传播的 panic;
 - 控制流: 安装恢复 defer 的函数先执行剩余 defer;
 - 然后: 返回自己的调用方;

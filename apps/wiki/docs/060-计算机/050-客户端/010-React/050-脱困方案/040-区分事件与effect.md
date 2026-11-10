@@ -38,7 +38,8 @@ function Chat({ roomId, theme, connect, notify }) {
 
 ## 什么地方可以调用 Effect Event？
 
-- 允许位置: 同一组件的 `useEffect`、`useLayoutEffect`、`useInsertionEffect` 内部;
+- 允许位置: 同一组件的 `useEffect`、`useLayoutEffect` 内部;
+- 也允许: `useInsertionEffect` 内;
 - 也允许: 其他 Effect Event 建立的逻辑中;
 - 禁止用途: 不在渲染或普通点击处理器里调用;
 - 也不: 传给其他组件或 Hook, 或当作通用稳定回调;
