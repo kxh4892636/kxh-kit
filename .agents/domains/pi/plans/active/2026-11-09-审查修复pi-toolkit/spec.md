@@ -50,9 +50,10 @@ status: completed
 
 ## 追加：Command Code provider 收窄（note 011）
 
-- 需求变更：provider 只上架 DeepSeek（97 → 7），并把思考作为默认能力（reasoning、text+image、DeepSeek effort 映射、OpenAI 协议 compat）。
-- 验证：`check` 通过，`test` 296 个用例全绿；真实网关目录走一遍过滤器后只剩 7 条，字段按预期。
-- 未验证：网关是否接受 `thinking.type` + `reasoning_effort`（需一次真实请求）；6 个非视觉模型标了 image，贴图失败会报错。两条都记在 note 011。
+- 需求变更：provider 只上架 DeepSeek（97 → 7），思考默认开启，思考强度按 DeepSeek 官方映射。
+- 按 code review 的 10 条发现逐条收口：只发标准 OpenAI 字段（不发 `thinking.type`，代价是 `off` 不可用）、删不可达的 Anthropic 分支、修正 `no DeepSeek models` 文案、补回退测试、合并重复的 api 判断、删掉无用的形状校验、README 补 provider 段。
+- 门禁：`check` 通过；`test` 298 个用例全绿；全局覆盖率 91.33/81.9/92.83/93.63；增量覆盖率 9/9 = 100%。
+- 未验证：网关是否真的把 `reasoning_effort` 转发给上游（只发标准字段，风险已最小）；6→5 个非视觉模型贴图可能被拒（用户已定为已知限制）。
 
 ## 追踪 Note
 
