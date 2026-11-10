@@ -30,7 +30,8 @@ setItems((previous) => previous.filter((item) => item.id !== removedId));
 ## 如何只替换匹配条目而保留其他元素？
 
 - 映射更新: map 为目标条目返回新对象, 为其他条目返回原对象, 保留未变化部分的引用;
-- 浅拷贝陷阱: `[...items]` 只复制数组, 数组中的对象仍共享, 随后修改 `next[0].done` 仍会篡改旧对象;
+- 浅拷贝陷阱: `[...items]` 只复制数组, 元素对象仍共享;
+- 后果: 之后改 `next[0].done` 仍会篡改旧对象;
 
 ```jsx
 setItems((previous) =>
