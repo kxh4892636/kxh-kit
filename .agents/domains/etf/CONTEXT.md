@@ -27,8 +27,16 @@ _Avoid_：Security Type
 _Avoid_：把表达式引用的普通 MA 称为虚拟均线
 
 **全量同步（Full Sync）**：
-从上游拉取证券从最早交易日到上海昨日的完整日线，并写入本地缓存的可复跑 workflow。
+从上游拉取证券从最早交易日到上海昨日的完整日线，并写入本地缓存的可复跑 workflow（[001](workflows/001-行情全量同步/001-行情全量同步.md)）。
 _Avoid_：把日常增量刷新称为全量同步
+
+**日线缓存**：
+本机 SQLite（`apps/etf/data/etf.sqlite`）里的 `daily_bars` 与 `trading_calendar` 两张表，是看板与接口的唯一读源；日常由查询按需刷新，历史缺段时重建走全量同步。
+_Avoid_：数据库、行情数据库、上游副本
+
+**上游（红色火箭）**：
+`hongsehuojian.com` 的 K 线接口（`/fundex-quote/line/kline`），日线的唯一来源；请求口径为 `period=day`、`adjust` 控制复权、`count` 控制返回根数（负数表示向前取 N 根）。
+_Avoid_：交易所、聚合服务、把请求参数当领域概念
 
 **看板视图状态（Dashboard View）**：
 每个证券独立的周期、范围、均线文本与虚拟均线文本，持久化在浏览器 localStorage。

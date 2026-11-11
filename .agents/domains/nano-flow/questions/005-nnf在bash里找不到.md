@@ -31,11 +31,11 @@ pnpm add -g ./packages/nano-flow/kxh4892636-nano-flow-0.0.1.tgz
 - 三种 shell 分别裸调：bash `nnf --version`、cmd `nnf --version`、PowerShell `(Get-Command nnf).Source`，都应返回 `0.0.1` 且来源在 `pnpm\bin`。
 - `nnf self skill check --name nano-flow-cli` 返回 `current`。
 
+## 来源
+
+Plan `2026-11-09-nano-flow能力裁剪`，spec 的「遗留」段与 log.jsonl run 3（用户问「nnf 为什么没有加入 path?」）；实测结论已回写到 `packages/nano-flow/README.md` 的安装段。
+
 ## 相关
 
 - [001-改了包内skill后安装的skill没更新](001-改了包内skill后安装的skill没更新.md) — 装完之后的下一步：受管 skill 的状态与重装。
 - [001-cli输出仅json](../adr/001-cli输出仅json.md) — 排查时读输出依赖的契约（stdout 只放 JSON）。
-
-## 来源
-
-Plan `2026-11-09-nano-flow能力裁剪`，spec 的「遗留」段与 log.jsonl run 3（用户问「nnf 为什么没有加入 path?」）；实测结论已回写到 `packages/nano-flow/README.md` 的安装段。
