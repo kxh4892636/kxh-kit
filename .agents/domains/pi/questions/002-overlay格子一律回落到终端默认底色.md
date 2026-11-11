@@ -34,7 +34,9 @@ Note 侧栏的 `▤` 图标放在边框之上的右上角，两次反馈都出�
 
 ## 验证
 
-- `packages/pi-toolkit/src/nano-flow/ui.test.ts`：图标 overlay `width === 1`、`render(1)` 恰为 `["▤"]`（无前导空格）、框体 `margin.top === 2`、折叠后框体渲染 0 行。
+- `packages/pi-toolkit/src/nano-flow/ui.test.ts`：图标 overlay `width === 1`、`render(1)` 恰为 `["▤"]`（无前导空格）、框体与图标 overlay 的 `margin.top` 都是 `1`、折叠后框体渲染 0 行。
+
+> 纠正（2026-11-11，note 002 第五轮 + 代码核对）：此处原写「框体 `margin.top === 2`」，那是第三轮「图标独立成行」时的值；第五轮回调到 1、图标与上边框同行，`sidebar.ts` 与 `ui.test.ts` 现均为 `top: 1`。
 - 真机：边框上方不再有黑带；图标与上边框同行，`▤` 顶掉 `┐` 那一格。
 
 ## 来源
