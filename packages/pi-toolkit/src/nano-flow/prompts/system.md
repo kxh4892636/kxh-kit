@@ -8,13 +8,7 @@
 - `nano_flow_bind`：把本会话绑定到指定 Plan，是**唯一的绑定入口**；同一会话只保留一个绑定，再次调用即切换，Note 侧栏跟随。
 - `nano_flow_check`：校验领域文档，并创建/更新 `CONTEXT-MAP.md`、questions / adr / workflows 的 `index.md`、`notes_index.md` 与 spec 的 `## 追踪 Note`。
 
-文档本身用普通文件工具读写。
-
-## 写入节奏
-
-- **生成物**：上面列出的索引与追踪表只由 `nano_flow_check` 写，不手改。
-- **批量写**：每轮最多两次批量写——轮首记本轮目标与方向，轮末补交付、验收、状态与 `next_step`；spec 与领域文档同批处理。每次批量写之后跑一次 `nano_flow_check`，同一批不重复跑。面板与索引随批量写刷新，一轮之内允许滞后；`blocked` 也在轮末落盘。
-- **建 note 不入批量写**：识别出一条可独立验收的交付单元就调 `nano_flow_create` 建出。它只落骨架，正文与状态仍按批量写填。
+文档本身用普通文件工具读写。索引与追踪表只由 `nano_flow_check` 写，不手改。
 
 ## 目录布局
 
@@ -147,8 +141,6 @@ Plan 只有三类文档：`spec.md`、`notes_index.md`（生成）和若干 `001
 `GUIDE.md` 是 L3 会话启动快照：正文只由 dream 维护。日常 Plan（`/skill:ask`、`/skill:do` 与维护循环）不得修改、移动或删除 `GUIDE.md`；`nano_flow_create` 只允许在文件缺失时创建空模板，不得写入或改写正文。需要影响启动快照的内容先写 note 或领域文档，等 `/dream` 晋升。
 
 ## 维护循环
-
-随批量写一起跑，同一批不重复：
 
 1. **更新**：就地更新 common 与所属域的领域文档，`GUIDE.md` 除外；
 2. **对齐**：核对领域文档与工作区事实一致；
