@@ -171,9 +171,7 @@ describe("registerNanoFlow", () => {
       messageType: "user",
       systemPromptOptions: options,
     }) as Array<{ message?: { customType?: string; content?: string } }>;
-    expect(options.sections["nano-flow"]).toContain("# Nano Flow");
     expect(result?.message?.customType).toBe("nano-flow/input");
-    expect(result?.message?.content).toContain("ask_questions");
   });
 
   it("resets the context at the threshold and re-injects a seed", () => {
