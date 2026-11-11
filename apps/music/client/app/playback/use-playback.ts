@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Track } from "../../../shared/tracks.ts";
+import { isAutoPlayActive } from "./sleep-timer.ts";
 import { usePlayerStore } from "../store/player.ts";
 
 export interface Playback {
   playing: boolean;
   elapsed: number;
   total: number;
+  play: () => void;
   toggle: () => void;
   next: () => void;
   seekTo: (ratio: number) => void;
@@ -65,7 +67,7 @@ export const usePlayback = (
   const advance = usePlayerStore((state) => state.advance);
   const commitPlayed = usePlayerStore((state) => state.commitPlayed);
   const select = usePlayerStore((state) => state.select);
-  const autoPlay = usePlayerStore((state) => state.autoPlay);
+  const timer = usePlayerStore((state) => state.timer);
 
   useEffect(() => {
     if (ids.length > 0) start(ids);
@@ -97,14 +99,14 @@ export const usePlayback = (
           setFailed(true);
         },
         onEnded: () => {
-          // Off: hand over to the next track and stop at 0:00, as before.
-          // On: hand over and start it without another click.
+          // When the sleep timer is still running, hand over and start the next
+          // track; otherwise hand over and stop at 0:00, as before.
           setPlaying(false);
-          if (autoPlay) shouldPlayRef.current = true;
+          if (isAutoPlayActive(timer)) shouldPlayRef.current = true;
           advance(ids);
         },
       }),
-    [audio, advance, autoPlay, commitPlayed, current, ids],
+    [audio, advance, commitPlayed, current, ids, timer],
   );
 
   useEffect(() => {
@@ -122,14 +124,21 @@ export const usePlayback = (
     advance(ids);
   }, [advance, ids]);
 
+  // Starting a sleep timer also starts the music: the timer measures listening
+  // that has begun, not one that is still waiting for a click.
+  const play = useCallback((): void => {
+    if (!current) return;
+    if (audio.paused) void audio.play().catch(() => setPlaying(false));
+  }, [audio, current]);
+
   const toggle = useCallback((): void => {
     if (!current) {
       next();
       return;
     }
-    if (audio.paused) void audio.play().catch(() => setPlaying(false));
+    if (audio.paused) play();
     else audio.pause();
-  }, [audio, current, next]);
+  }, [audio, current, next, play]);
 
   const seekTo = useCallback(
     (ratio: number): void => {
@@ -163,5 +172,5 @@ export const usePlayback = (
     [select],
   );
 
-  return { playing, elapsed, total, toggle, next, seekTo, seekBy, playTrack, failed };
+  return { playing, elapsed, total, play, toggle, next, seekTo, seekBy, playTrack, failed };
 };

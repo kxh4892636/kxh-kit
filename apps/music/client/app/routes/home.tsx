@@ -25,8 +25,10 @@ export const HomeRoute: React.FC = () => {
   const tracks = query.data?.tracks;
   const currentId = usePlayerStore((state) => state.currentId);
   const history = usePlayerStore((state) => state.history);
-  const autoPlay = usePlayerStore((state) => state.autoPlay);
-  const setAutoPlay = usePlayerStore((state) => state.setAutoPlay);
+  const timer = usePlayerStore((state) => state.timer);
+  const startCountdown = usePlayerStore((state) => state.startCountdown);
+  const startEndless = usePlayerStore((state) => state.startEndless);
+  const expireTimer = usePlayerStore((state) => state.expireTimer);
   const current = useMemo(
     () => tracks?.find((track) => track.id === currentId) ?? null,
     [tracks, currentId],
@@ -88,10 +90,18 @@ export const HomeRoute: React.FC = () => {
               <ConsoleRow
                 playing={playback.playing}
                 disabled={!ready}
-                autoPlay={autoPlay}
+                timer={timer}
                 onToggle={playback.toggle}
                 onNext={playback.next}
-                onAutoPlayChange={setAutoPlay}
+                onCountdown={(minutes) => {
+                  startCountdown(minutes);
+                  playback.play();
+                }}
+                onEndless={() => {
+                  startEndless();
+                  playback.play();
+                }}
+                onExpire={expireTimer}
               />
               {playback.failed ? (
                 <StateLine>这段音频打不开，文件可能不在本机。按「下一首」换一首。</StateLine>
