@@ -1,10 +1,12 @@
-import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { createApp } from "./app.ts";
 import { CHUNK_BYTES } from "./media.ts";
+import { cleanupTempDirs, tempDir } from "./temp-dir.test-helper.ts";
 import { loadLibrary } from "./tracks.ts";
+
+afterAll(cleanupTempDirs);
 
 const track = {
   id: "t1",
@@ -38,7 +40,7 @@ const track = {
 const FILE_BYTES = CHUNK_BYTES + 2048;
 
 const buildApp = (basePath?: string) => {
-  const root = mkdtempSync(join(tmpdir(), "music-app-"));
+  const root = tempDir("music-app-");
   const music = join(root, "music");
   const classical = join(root, "classical");
   const waves = join(root, "waves");

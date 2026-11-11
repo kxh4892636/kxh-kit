@@ -1,8 +1,10 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
+import { cleanupTempDirs, tempDir } from "./temp-dir.test-helper.ts";
 import { loadLibrary } from "./tracks.ts";
+
+afterAll(cleanupTempDirs);
 
 const payload = {
   item: "MusopenCollectionAsFlac",
@@ -42,7 +44,7 @@ const payload = {
 };
 
 const writeIndex = (value: unknown): string => {
-  const dir = mkdtempSync(join(tmpdir(), "music-index-"));
+  const dir = tempDir("music-index-");
   const file = join(dir, "tracks.json");
   writeFileSync(file, JSON.stringify(value), "utf8");
   return file;
@@ -62,7 +64,7 @@ describe("loadLibrary", () => {
   });
 
   it("fails loudly on a truncated file", () => {
-    const dir = mkdtempSync(join(tmpdir(), "music-index-"));
+    const dir = tempDir("music-index-");
     const file = join(dir, "tracks.json");
     writeFileSync(file, "{", "utf8");
     expect(() => loadLibrary(file)).toThrow();

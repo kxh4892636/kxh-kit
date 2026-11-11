@@ -1,10 +1,12 @@
-import { mkdtempSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterAll, describe, expect, it } from "vitest";
 import { loadConfig } from "./config.ts";
+import { cleanupTempDirs, tempDir } from "./temp-dir.test-helper.ts";
 
-const emptyFile = (): string => join(mkdtempSync(join(tmpdir(), "music-env-")), ".env");
+afterAll(cleanupTempDirs);
+
+const emptyFile = (): string => join(tempDir("music-env-"), ".env");
 
 describe("loadConfig", () => {
   it("falls back to the local defaults", () => {
