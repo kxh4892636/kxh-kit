@@ -1,9 +1,7 @@
 # docs
 
 - [perf](./perf.md)
-- [020-SOP](./020-SOP/README.md)
-- [030-生活](./030-生活/README.md)
-- [040-学习](./040-学习/README.md)
-- [050-AI](./050-AI/README.md)
-- [060-计算机](./060-计算机/README.md)
-- [080-工具](./080-工具/README.md)
+- [000-中转](./000-中转/README.md)
+- [010-记录](./010-记录/README.md)
+- [070-工作](./070-工作/README.md)
+- [090-归档](./090-归档/README.md)
