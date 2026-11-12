@@ -676,8 +676,10 @@ export const createAskQuestionsTool = (): ToolDefinition => ({
   promptSnippet: "Ask the user one or more questions and wait for answers.",
   promptGuidelines: [
     "ask_questions 会阻塞直到用户作答；一次可提任意数量的问题，每题都能自定义回答或跳过。",
+    "提问是为了约束：每题写清这个答案固定下来的边界（前提、不能做的事、已排除的方向），用户作答即确认这些边界。",
+    "每题的候选选项里标出推荐项：在推荐选项的 label 末尾加「（推荐）」，理由写进它的 description。其余选项的 description 写取舍与代价。",
     "每题最多给 3 个预设选项：优先给满 3 个，但不要硬凑；凑不出就少给，用户仍可自定义回答或跳过。",
-    "给预设选项时，为每个选项写一句话 description（取舍 / 代价 / 后果）；TUI 会把它展示在选项下方，建议 ≤ 60 字，字段可选。",
+    "追问到共识为止：把决策按依赖展开成树，一轮调用覆盖所有前置已定的问题；每轮回答重塑这棵树，解锁下游问题，直到没有未决的分支。上游变了就复核失效的下游结论。",
     "多题可放进一次调用：TUI 下用户能来回切题、回改答案，也能直接翻到末尾的「提交」页预览，所以每题都应能独立作答，不依赖上一题的选择。",
   ],
   executionMode: "sequential",
@@ -693,7 +695,7 @@ export const createAskQuestionsTool = (): ToolDefinition => ({
           type: "object",
           additionalProperties: false,
           properties: {
-            question: { type: "string", description: "要问用户的问题" },
+            question: { type: "string", description: "要问用户的问题；把约束写进题干" },
             options: {
               type: "array",
               maxItems: MAX_OPTIONS,
@@ -706,7 +708,7 @@ export const createAskQuestionsTool = (): ToolDefinition => ({
                   description: {
                     type: "string",
                     description:
-                      "选项的一句话概述：取舍 / 代价 / 后果。TUI 展示在选项下方，建议 ≤ 60 字；可选",
+                      "选项的一句话概述：取舍 / 代价 / 后果；推荐项的此处写推荐理由。TUI 展示在选项下方，建议 ≤ 60 字；可选",
                   },
                 },
                 required: ["label"],
