@@ -4,6 +4,7 @@
 //   node apps/wiki/scripts/topk.mjs render  读快照，写 docs/020-八股文梳理/{tag}.md
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { classify, OTHER } from "./topk-groups.mjs";
 
 // 收录的 tag（来源 api/category.json 的 sub_category），顺序即 sidebar_position，
 // 也就是题数降序；改顺序请同步 spec 里的表。Java / C++ / Python 三个 tag 按用户要求不收录。
@@ -82,25 +83,35 @@ function dedupe(questions) {
 async function renderTag(snapshot, tag, position) {
   const questions = dedupe(tag.questions);
   const date = snapshot.fetched_at.slice(0, 10);
-  const body = questions.map((q) => `- ${q.vote} - ${q.text}`).join("\n");
+  const groups = classify(tag.name, questions);
+  const sections = groups.map((group) => {
+    const lines = group.questions.map((q) => `- ${q.vote} - ${q.text}`);
+    return [`## ${group.name}（${group.questions.length}）`, "", ...lines].join("\n");
+  });
   const file = [
     "---",
     `title: ${tag.name}`,
-    `description: 面经高频${tag.name}题 ${questions.length} 道，按出现次数降序。`,
+    `description: 面经高频${tag.name}题 ${questions.length} 道，按知识体系分成 ${groups.length} 组，组内按出现次数降序。`,
     `sidebar_position: ${position}`,
     "---",
     "",
     `# ${tag.name}`,
     "",
-    `面经统计出现次数降序，共 ${questions.length} 道。`,
+    `面经统计共 ${questions.length} 道，按知识体系分成 ${groups.length} 组，组内按出现次数降序。`,
     `数据来源 [osjobs Top K](${SOURCE})，抓取于 ${date}。`,
     "",
-    body,
+    sections.join("\n\n"),
     "",
   ].join("\n");
   const target = new URL(`${tag.name}.md`, OUT_DIR);
   await writeFile(target, file);
-  return { name: tag.name, rows: tag.count, unique: questions.length };
+  return {
+    name: tag.name,
+    rows: tag.count,
+    unique: questions.length,
+    groups: groups.length,
+    other: groups.find((group) => group.name === OTHER)?.questions.length ?? 0,
+  };
 }
 
 async function renderAll() {
@@ -113,11 +124,14 @@ async function renderAll() {
   for (const r of results) {
     dupes += r.rows - r.unique;
     console.log(
-      `write ${r.name}.md ${r.unique} 道${r.rows === r.unique ? "" : `（去重 ${r.rows - r.unique}）`}`,
+      `write ${r.name}.md ${r.unique} 道，${r.groups} 组，其他 ${r.other} 道${r.rows === r.unique ? "" : `（去重 ${r.rows - r.unique}）`}`,
     );
   }
   const total = results.reduce((sum, r) => sum + r.unique, 0);
-  console.log(`共 ${results.length} 个文件，${total} 行，文件内去重 ${dupes} 条`);
+  const other = results.reduce((sum, r) => sum + r.other, 0);
+  console.log(
+    `共 ${results.length} 个文件，${total} 行，未分类 ${other} 道，文件内去重 ${dupes} 条`,
+  );
 }
 
 const command = process.argv[2];
