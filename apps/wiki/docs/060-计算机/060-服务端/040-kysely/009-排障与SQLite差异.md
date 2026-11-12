@@ -31,7 +31,6 @@ console.log(q.sql, q.parameters); // select "first_name" from "person" where "id
 | `too many SQL variables`          | 参数超 32766: 分批写入                                           |
 
 - 改了数据查不出: 读写不是同一实例, 或显式事务忘了 `commit()`;
-- 详见: [007](./007-事务.md);
 - 确实没匹配到行: 用 `executeTakeFirstOrThrow()`;
 
 ## SQLite 有哪些必须记住的差异？
@@ -53,10 +52,4 @@ sqlite.pragma("journal_mode = WAL");
 await sqlite.backup("backup/dev.sqlite"); // 热备份用驱动接口，别 cp 文件
 ```
 
-- WAL 模式: 库由 `dev.sqlite`、`-wal`、`-shm` 三个文件组成;
-- 风险: 只拷主文件会丢数据;
 - 日志字段: `level`、`query.sql`、`query.parameters`;
-- 还有: `queryDurationMillis` 与 `error`;
-- `parameters`: 可能含用户数据, 落盘前脱敏;
-- 生产: 别开全量 `query` 日志, 只留 `["query", "error"]`;
-- 看单条 SQL: 用 `.compile()`;
