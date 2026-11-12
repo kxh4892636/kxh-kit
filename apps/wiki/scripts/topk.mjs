@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// oswjobs Top K 面试题：抓取快照 + 生成按 tag 分组的 markdown。
+// osjobs Top K 面试题：抓取快照 + 生成按 tag 分组的 markdown。
 //   node apps/wiki/scripts/topk.mjs fetch   抓 11 个全站 tag，写 topk-snapshot.json
 //   node apps/wiki/scripts/topk.mjs render  读快照，写 docs/020-八股文梳理/{tag}.md
 import { readFile, writeFile } from "node:fs/promises";
