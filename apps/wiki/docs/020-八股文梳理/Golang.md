@@ -1,7 +1,7 @@
 ---
 title: Golang
 description: 面经高频Golang题 18 道，按出现次数降序。
-sidebar_position: 10
+sidebar_position: 8
 ---
 
 # Golang

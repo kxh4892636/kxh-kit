@@ -5,20 +5,17 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-// 全站 tag（来源 api/category.json 的 sub_category），顺序即 sidebar_position，
-// 也就是题数降序；改顺序请同步 spec 里的表。
+// 收录的 tag（来源 api/category.json 的 sub_category），顺序即 sidebar_position，
+// 也就是题数降序；改顺序请同步 spec 里的表。Java / C++ / Python 三个 tag 按用户要求不收录。
 const TAGS = [
   { id: 8, name: "算法" },
-  { id: 1, name: "Java" },
   { id: 14, name: "前端" },
   { id: 9, name: "数据库" },
   { id: 10, name: "系统设计" },
   { id: 7, name: "网络协议" },
   { id: 6, name: "操作系统" },
   { id: 11, name: "非技术" },
-  { id: 12, name: "C++" },
   { id: 29, name: "Golang" },
-  { id: 2, name: "Python" },
 ];
 
 const SOURCE = "https://osjobs.net/topk/";
