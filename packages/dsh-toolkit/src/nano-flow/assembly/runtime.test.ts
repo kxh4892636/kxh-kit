@@ -87,7 +87,9 @@ describe("assets", () => {
     const provider = createAssetSkillProvider(assetsSkillsRoot(assetsRoot));
     const listed = await provider.list({ signal: new AbortController().signal });
     const names = Array.isArray(listed) ? listed.map((candidate) => candidate.name) : [];
-    expect(names).toEqual(expect.arrayContaining(["to-skill", "code-spec", "learning"]));
+    expect(names).toEqual(
+      expect.arrayContaining(["to-skill", "code-spec", "learning", "ponytail"]),
+    );
   });
 });
 

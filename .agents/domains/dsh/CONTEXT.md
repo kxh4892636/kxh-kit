@@ -49,7 +49,7 @@ _Avoid_：删除 office 技能、卸载 office 插件
 ### Nano Flow 预设
 
 **nano-flow 预设**：
-本插件声明的 Agent 预设；选中它的会话才在预设作用域内挂载固定提示词、`GUIDE.md` 快照、篇幅限制块、四个 `nano_flow_*` 工具（create / check / bind / dream）与随包 skill。工具以 PTC 形态呈现：预设直接挂 `dsh-tool-executor-ptc`，不挂已弃用的呈现选型器（[ADR 011](adr/011-预设挂PTC执行器.md)）。提示词与模板与 pi 版同源（2026-11-13 整体搬回）；2026-11-13 起随包 skill 只剩 code-spec / learning / ponytail-audit / ponytail-review / pp / to-skill——ask、do 两个流程 skill 随 pi 删除，流程规则只由提示词与模板承担。`pp` 用 subagent 并行调研、不阻塞主会话，与 learning、ponytail-audit 一样只可手调（`disable-model-invocation`）。
+本插件声明的 Agent 预设；选中它的会话才在预设作用域内挂载固定提示词、`GUIDE.md` 快照、篇幅限制块、四个 `nano_flow_*` 工具（create / check / bind / dream）与随包 skill。工具以 PTC 形态呈现：预设直接挂 `dsh-tool-executor-ptc`，不挂已弃用的呈现选型器（[ADR 011](adr/011-预设挂PTC执行器.md)）。提示词与模板与 pi 版同源（2026-11-13 整体搬回）；2026-11-13 起随包 skill 只剩 code-spec / learning / ponytail / ponytail-audit / ponytail-review / pp / to-skill——ask、do 两个流程 skill 随 pi 删除，流程规则只由提示词与模板承担。`pp` 用 subagent 并行调研、不阻塞主会话，与 learning、ponytail-audit 一样只可手调（`disable-model-invocation`）。
 _Avoid_：流程开关、nano-flow 命令行
 
 **固定提示词**：
