@@ -101,7 +101,7 @@ nano-flow 预设会话在输入框上方 dock 显示的 note 面板（中文状�
 _Avoid_：待办面板、todo 面板、任务列表
 
 **Plan 轨迹日志**：
-nano-flow 预设会话每轮结束时向 `<plan>/log.jsonl` 追加的一条 compact 轨迹（user、assistant 最终文本、工具参数/结果摘要、usage、seq 区间）；绑定只由 `nano_flow_bind` 与轮转过继写（[ADR 009](adr/009-Plan绑定只经bind工具.md)、[013](adr/013-轮转把Plan绑定过继给新会话.md)），未绑定时服务只跟踪事件、不落盘；绑定后写当前轮与后续轮次，绑定前已完成的轮次不回填；切换后后续轮次写新 Plan，旧 Plan 不再追加。启动时从宿主持久化日志回填已绑定且归该 Plan 的历史轮次，绝不写会话事件。日志只存本地（`.gitignore` 忽略 `**/plans/**/log.jsonl`），轮转不删、只增量追加。
+nano-flow 预设会话每轮结束时向 `<plan>/log.jsonl` 追加的一条 compact 轨迹（user、assistant 最终文本、工具参数/结果摘要、usage、seq 区间）；绑定只由 `nano_flow_bind` 与轮转过继写（[ADR 009](adr/009-Plan绑定只经bind工具.md)、[013](adr/013-轮转把Plan绑定过继给新会话.md)），未绑定时服务只跟踪事件、不落盘；绑定后写当前轮与后续轮次，绑定前已完成的轮次不回填；切换后后续轮次写新 Plan，旧 Plan 不再追加。启动时从宿主持久化日志回填已绑定且归该 Plan 的历史轮次，绝不写会话事件。日志只存本地（`.gitignore` 忽略 `**/plans/**/log.jsonl`），轮转不删、只增量追加。会话被移除（轮转退休、撤回）时轨迹服务关掉该会话的读句柄并丢掉状态，迟到事件不再重建，句柄不随轮转累积。
 _Avoid_：会话转录、原始事件日志、audit log
 
 ### 记忆维护（dream）
