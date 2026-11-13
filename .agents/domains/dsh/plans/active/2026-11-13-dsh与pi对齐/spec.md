@@ -1,7 +1,7 @@
 ---
 name: "2026-11-13-dsh与pi对齐"
 description: "把 pi-toolkit 在 2026-11-09 之后的迭代搬回 dsh-toolkit：提示词与模板、ask/do 删除、校验自动修复、learning 与 ponytail、Note 面板常驻、PTC 执行器，并发布 0.5.47 真机验收。"
-status: "in_progress"
+status: "completed"
 ---
 
 # dsh与pi对齐
@@ -53,8 +53,9 @@ pi-toolkit 与 dsh-toolkit 在 2026-11-09 分叉：dsh 最后一次源码提交�
 ## 进度
 
 - 2026-11-13：调研完成（4 个并行子任务 + 逐文件 diff），Plan 与 7 条 note 建好。
-- 2026-11-13：001-006 全部 completed；007 已把 0.5.47 装进 web profile，blocked 等用户重启宿主后真机走查。
-- 门禁证据：`vp check` / `vp test`（359 项）/ `test:coverage`（≥ 80）/ `build` / `nano_flow_check` 全绿；`.agents/domains` 实跑自动修复 0 项。
+- 2026-11-13：001-007 全部 completed。007 已把 0.5.47 装进 web profile，用户重启宿主后真机走查通过并回执。
+- 门禁证据：`vp check` / `vp test`（359 项）/ `test:coverage`（≥ 80）/ `build` / `nano_flow_check` 全绿；装包后的脚本实跑输出「已自动修复 2 项」。
+- 代码提交：`git log` 里的 `feat(nano-flow): 对齐 pi …` 提交（含用户多次手改的提示词与 persona）；hash 随 amend 变化，文档不钉死。Plan 留在 active，等用户决定是否迁 reference。
 
 ## 恢复入口
 
@@ -66,4 +67,3 @@ pi-toolkit 与 dsh-toolkit 在 2026-11-09 分叉：dsh 最后一次源码提交�
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [007-发布0.5.47并真机验收](007-发布0.5.47并真机验收.md) | 更新 README 与领域文档，跑包内门禁，按 0.5.47 打包安装到 web profile，重启宿主真机走查后等用户验收。 | blocked | 已安装 0.5.47 到 web profile，等待用户重启宿主并真机走查；解除条件：重启后确认提示词、skill 列表、自动修复、Note 常驻与 PTC 呈现。 | 用户重启宿主后按验收清单走查并回执 | 001-提示词与模板照搬pi, 002-删除ask与do并清理引用, 003-校验脚本搬自动修复, 004-学习skill与ponytail注入, 005-Note面板常驻与空态, 006-预设改用ptc执行器 |
