@@ -4,4 +4,4 @@ description: 调研用户提出的问题时使用；交给多个 subagent 并行
 disable-model-invocation: true
 ---
 
-使用 subagent, 不堵塞主session, 并行调研用户询问的问题
+使用 subagent, 不堵塞主 session, 并行调研用户询问的问题, 只读操作;

@@ -1,9 +1,10 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vite-plus/test";
 
-const SRC = new URL(".", import.meta.url).pathname;
+const SRC = fileURLToPath(new URL(".", import.meta.url));
 
 /** 收集 src 下全部源文件（跳过测试与非 TS 资产）。 */
 const sourceFiles = (): string[] => {

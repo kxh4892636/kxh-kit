@@ -277,13 +277,10 @@ describe("resolvePlanDirectory", () => {
   };
 
   it("prefers the cwd recorded at bind time while it still exists", () => {
+    const boundDirectory = join("/old/work", binding.planPath);
     expect(
-      resolvePlanDirectory(
-        binding,
-        "/new/work",
-        (directory) => directory === "/old/work/.agents/domains/dsh/plans/active/demo",
-      ),
-    ).toBe(join("/old/work", binding.planPath));
+      resolvePlanDirectory(binding, "/new/work", (directory) => directory === boundDirectory),
+    ).toBe(boundDirectory);
   });
 
   it("falls back to the current workspace when the bound cwd is gone", () => {
