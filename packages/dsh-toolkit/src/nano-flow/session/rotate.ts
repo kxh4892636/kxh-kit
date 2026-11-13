@@ -95,15 +95,24 @@ interface RotationOptions {
   /**
    * 新会话建立后立刻跑一次校验（等价于执行一次 `nano_flow_check`）。
    *
-   * 返回结论文本与继承到的 Plan：结论写进 seed（在输出块之前），Plan 用来让 seed
-   * 的恢复入口与「绑定已继承」一致；抛错只记 warn，不阻断轮转。
+   * 结论写进 seed（在输出块之前）；抛错只记 warn，不阻断轮转。
    */
   readonly autoCheck?: (params: {
     readonly sessionId: string;
-    /** 被轮转的旧会话；新会话继承它的 Plan 绑定。 */
     readonly previousSessionId: string;
     readonly workspace: string;
-  }) => Promise<{ readonly text: string; readonly planReference?: string } | undefined>;
+  }) => Promise<{ readonly text: string } | undefined>;
+  /**
+   * 把旧会话的 Plan 绑定过继给新会话，返回 Plan 引用（`<domain>/<lifecycle>/<name>`）。
+   *
+   * 过继成功后新会话的看板与轨迹立刻续上同一个 Plan；旧会话没有绑定或目录失效时返回
+   * undefined，seed 保留「先 bind」的要求。抛错只记 warn，不阻断轮转。
+   */
+  readonly adoptBinding?: (params: {
+    readonly sessionId: string;
+    readonly previousSessionId: string;
+    readonly workspace: string;
+  }) => Promise<string | undefined>;
 }
 
 /**
@@ -229,8 +238,10 @@ interface SeedParts {
   readonly lastOutput?: string;
   /** 轮转后自动校验结论；没有 autoCheck 时省略。 */
   readonly checked?: string;
-  /** 轮转前会话绑定的 Plan（`<domain>/<lifecycle>/<name>`），只作恢复线索，不写绑定。 */
+  /** 轮转前会话绑定的 Plan（`<domain>/<lifecycle>/<name>`）。 */
   readonly planReference?: string;
+  /** 绑定已过继给新会话；seed 据此不再要求调用 `nano_flow_bind`。 */
+  readonly bindingAdopted?: boolean;
 }
 
 const buildSeed = async (
@@ -255,7 +266,9 @@ const buildSeed = async (
   const parts = [
     "（上一会话因上下文达到阈值已轮转；Plan 在磁盘上，状态不丢。）",
     `${head}。`,
-    "先确认 Plan 并调用 `nano_flow_bind` 绑定（未绑定时看板与 log 不会出现），再读 spec.md 与 notes_index.md，只读报告进度与可推进队列，等用户放行后再执行。",
+    seed.bindingAdopted === true
+      ? "Plan 绑定已从上一会话过继（看板与轨迹续在同一 Plan 上），无需再调 `nano_flow_bind`；读 spec.md 与 notes_index.md，只读报告进度与可推进队列，等用户放行后再执行。"
+      : "先确认 Plan 并调用 `nano_flow_bind` 绑定（未绑定时看板与 log 不会出现），再读 spec.md 与 notes_index.md，只读报告进度与可推进队列，等用户放行后再执行。",
   ];
   if (seed.checked !== undefined) parts.push(`\n\n${seed.checked}`);
   if (seed.lastOutput !== undefined) {
@@ -369,12 +382,12 @@ export const createRotation = (options: RotationOptions): RotationEngine => {
     }
   };
 
-  /** 新会话建立后跑一次校验（等价于 `nano_flow_check`）；结论与继承 Plan 进 seed，失败只 warn。 */
+  /** 新会话建立后跑一次校验（等价于 `nano_flow_check`）；结论进 seed，失败只 warn。 */
   const runAutoCheck = async (
     sessionId: string,
     previousSessionId: string,
     workspace: string,
-  ): Promise<{ readonly text: string; readonly planReference?: string } | undefined> => {
+  ): Promise<{ readonly text: string } | undefined> => {
     const check = options.autoCheck;
     if (check === undefined) return undefined;
     try {
@@ -384,6 +397,24 @@ export const createRotation = (options: RotationOptions): RotationEngine => {
       return {
         text: `轮转后自动执行 \`nano_flow_check\` 失败：${describeError(error)}。先手工跑一次确认 Plan 状态。`,
       };
+    }
+  };
+
+  /** 把旧会话的绑定过继给新会话；失败只 warn，轮转照常。 */
+  const adopt = async (
+    previousSessionId: string,
+    sessionId: string,
+    workspace: string,
+  ): Promise<string | undefined> => {
+    const inherit = options.adoptBinding;
+    if (inherit === undefined) return undefined;
+    try {
+      return await inherit({ sessionId, previousSessionId, workspace });
+    } catch (error) {
+      services.logger.warn(
+        `nano-flow: adopt binding during rotation failed: ${describeError(error)}`,
+      );
+      return undefined;
     }
   };
 
@@ -399,12 +430,13 @@ export const createRotation = (options: RotationOptions): RotationEngine => {
     });
     await inheritPlacement(session.id, created.sessionId);
     const workspace = cwd ?? process.cwd();
+    const adopted = await adopt(session.id, created.sessionId, workspace);
     const checked = await runAutoCheck(created.sessionId, session.id, workspace);
     const lastOutput = lastAssistantText(session);
     const seed = await buildSeed(workspace, domainRoot, {
       ...(lastOutput === undefined ? {} : { lastOutput }),
       ...(checked === undefined ? {} : { checked: checked.text }),
-      ...(checked?.planReference === undefined ? {} : { planReference: checked.planReference }),
+      ...(adopted === undefined ? {} : { planReference: adopted, bindingAdopted: true }),
     });
     return { sessionId: created.sessionId, seed };
   };

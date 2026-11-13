@@ -57,7 +57,12 @@ const makeHarness = (
     sessionId: string;
     previousSessionId: string;
     workspace: string;
-  }) => Promise<{ readonly text: string; readonly planReference?: string } | undefined>,
+  }) => Promise<{ readonly text: string } | undefined>,
+  adoptBinding?: (params: {
+    sessionId: string;
+    previousSessionId: string;
+    workspace: string;
+  }) => Promise<string | undefined>,
 ) => {
   let pressure: Pressure = { pressureTokens: 10, contextWindow: 1000 };
   const sessions = new Map<string, RotationSession>([
@@ -88,6 +93,7 @@ const makeHarness = (
     settings: () => ({ ...DEFAULT_NANO_FLOW_SETTINGS, rotateAt: 0.618 }),
     sessionOf: (id) => sessions.get(id),
     ...(autoCheck === undefined ? {} : { autoCheck }),
+    ...(adoptBinding === undefined ? {} : { adoptBinding }),
   });
   const dispose = rotation.attach();
   const request = (overrides: Partial<PromptRequestLike> = {}): PromptRequestLike => ({
@@ -394,8 +400,7 @@ describe("attachRotation", () => {
 });
 
 describe("autoCheck after rotation", () => {
-  const summary =
-    "轮转后自动执行 `nano_flow_check`：领域文档校验通过，索引已刷新。\n新会话不会自动绑定，恢复时先调用 `nano_flow_bind`。";
+  const summary = "轮转后自动执行 `nano_flow_check`：领域文档校验通过，索引已刷新。";
 
   it("runs the check for the new session and appends the result to the seed", async () => {
     const autoCheck = vi.fn(async () => ({ text: summary }));
@@ -434,16 +439,33 @@ describe("autoCheck after rotation", () => {
     expect(seed.trimEnd().endsWith(`</${LAST_OUTPUT_TAG}>`)).toBe(true);
   });
 
-  it("uses the previous binding as a read-only seed plan reference", async () => {
-    const autoCheck = vi.fn(async () => ({
-      text: summary,
-      planReference: "dsh/active/2026-11-08-示例",
-    }));
-    const harness = makeHarness(undefined, autoCheck);
+  it("adopts the previous binding so the new session needs no bind call", async () => {
+    const adoptBinding = vi.fn(async () => "dsh/active/2026-11-08-示例");
+    const harness = makeHarness(undefined, undefined, adoptBinding);
+    harness.setPressure({ projectedTokens: 700, contextWindow: 1000 });
+    await harness.send();
+    expect(adoptBinding).toHaveBeenCalledWith({
+      sessionId: "session-new",
+      previousSessionId: "session-1",
+      workspace: "C:\\work",
+    });
+    const seed = String(harness.originalPrompt.mock.calls[0]?.[0].content[0]?.["text"]);
+    expect(seed).toContain("恢复当前 Plan：dsh/active/2026-11-08-示例");
+    expect(seed).toContain("Plan 绑定已从上一会话过继");
+    expect(seed).not.toContain("先确认 Plan 并调用");
+  });
+
+  it("keeps the bind requirement when adoption fails", async () => {
+    const adoptBinding = vi.fn(async () => {
+      throw new Error("绑定表写不进去");
+    });
+    const harness = makeHarness(undefined, undefined, adoptBinding);
     harness.setPressure({ projectedTokens: 700, contextWindow: 1000 });
     await harness.send();
     const seed = String(harness.originalPrompt.mock.calls[0]?.[0].content[0]?.["text"]);
-    expect(seed).toContain("恢复当前 Plan：dsh/active/2026-11-08-示例");
+    expect(seed).toContain("先确认 Plan 并调用 `nano_flow_bind`");
+    expect(harness.warn).toHaveBeenCalled();
+    expect(harness.create).toHaveBeenCalledTimes(1);
   });
 
   it("keeps rotating and notes the failure when the check throws", async () => {

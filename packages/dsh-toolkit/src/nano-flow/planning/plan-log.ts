@@ -341,6 +341,42 @@ export const inheritedPlanDirectory = (
   return exists(directory) ? directory : undefined;
 };
 
+/**
+ * 轮转时把旧会话的绑定过继给新会话。
+ *
+ * 只看旧会话自己那条绑定，不猜工作区里的 Plan；Plan 目录已不存在时不过继。旧条目保留，
+ * 由启动时的死条目回收清理。
+ * @param table - 当前绑定表。
+ * @param previousSessionId - 被轮转的旧会话 id。
+ * @param sessionId - 新会话 id。
+ * @param workspace - 工作区根。
+ * @param exists - 目录存在性判断（测试可注入）。
+ * @param now - 过继时间（测试可注入）。
+ * @returns 写入新条目后的表与被过继的 Plan 目录；旧会话无绑定或目录失效时 undefined。
+ */
+export const adoptBinding = (
+  table: BindingTable,
+  previousSessionId: string,
+  sessionId: string,
+  workspace: string,
+  exists: DirectoryExists = existsSync,
+  now: Date = new Date(),
+): { readonly table: BindingTable; readonly planDirectory: string } | undefined => {
+  const planDirectory = inheritedPlanDirectory(table, previousSessionId, workspace, exists);
+  if (planDirectory === undefined) return undefined;
+  return {
+    table: {
+      ...table,
+      [sessionId]: {
+        planPath: planRelativePath(workspace, planDirectory),
+        cwd: workspace,
+        boundAt: now.toISOString(),
+      },
+    },
+    planDirectory,
+  };
+};
+
 /** 解析 Plan 目录的相对路径（相对工作区，正斜杠）。 */
 export const planRelativePath = (workspace: string, planDirectory: string): string =>
   relative(workspace, planDirectory).replaceAll("\\", "/");
