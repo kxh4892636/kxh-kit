@@ -1,0 +1,262 @@
+export const mindmapStyles = String.raw`.mindmap-block {
+  margin: var(--ifm-spacing-vertical) 0;
+}
+.mindmap-block__bar {
+  display: flex;
+  align-items: center;
+  gap: var(--ifm-spacing-horizontal);
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+.mindmap-block__meta {
+  color: var(--ifm-color-emphasis-600);
+  font-size: var(--ifm-font-size-base);
+  font-weight: var(--ifm-font-weight-normal);
+}
+.mindmap-block__actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+.mindmap-block__readout {
+  min-width: 3rem;
+  text-align: center;
+  font-family: inherit;
+  font-size: var(--ifm-font-size-base);
+  font-weight: var(--ifm-font-weight-normal);
+  color: var(--ifm-color-emphasis-600);
+}
+.mindmap-block__frame {
+  position: relative;
+  touch-action: none;
+  height: clamp(22rem, 60vh, 42rem);
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: var(--ifm-global-radius);
+  background: var(--ifm-background-surface-color);
+  overflow: hidden;
+}
+.mindmap-block__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.mindmap-block__edge {
+  fill: none;
+  stroke: var(--ifm-color-emphasis-400);
+}
+.mindmap-block__node {
+  cursor: pointer;
+}
+.mindmap-block__box {
+  fill: var(--ifm-card-background-color);
+  stroke: var(--ifm-color-emphasis-300);
+  stroke-width: 1;
+  transition: fill var(--ifm-transition-fast) ease;
+}
+.mindmap-block__node:hover .mindmap-block__box {
+  fill: var(--ifm-color-emphasis-200);
+  stroke: var(--ifm-color-emphasis-400);
+}
+html[data-theme="dark"] .mindmap-block__node:hover .mindmap-block__box {
+  fill: var(--ifm-color-emphasis-300);
+}
+.mindmap-block__node:focus-visible {
+  outline: none;
+}
+.mindmap-block__node:focus-visible .mindmap-block__box {
+  stroke: var(--ifm-link-color);
+  stroke-width: 2;
+}
+.mindmap-block__node[aria-pressed="true"] .mindmap-block__box {
+  fill: var(--ifm-color-emphasis-200);
+  stroke: var(--ifm-link-color);
+  stroke-width: 1.5;
+}
+.mindmap-block__title {
+  font-family: var(--ifm-font-family-base);
+  font-size: var(--ifm-font-size-base);
+  fill: var(--ifm-font-color-base);
+}
+
+.mindmap-block__id {
+  font-family: var(--ifm-font-family-base);
+  font-size: 0.75em;
+  fill: var(--ifm-color-emphasis-600);
+}
+.mindmap-block__count {
+  font-family: var(--ifm-font-family-base);
+  font-size: 0.75em;
+  fill: var(--ifm-link-color);
+}
+.mindmap-block__popover {
+  position: absolute;
+  z-index: 2;
+  width: 20rem;
+  max-height: 60%;
+  overflow: auto;
+  background: var(--ifm-background-surface-color);
+  color: var(--ifm-font-color-base);
+  border: 1px solid var(--ifm-color-emphasis-300);
+  border-radius: var(--ifm-global-radius);
+  box-shadow: var(--ifm-global-shadow-md);
+  padding: var(--ifm-spacing-vertical);
+}
+.mindmap-block__popover-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.mindmap-block__popover-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.mindmap-block__popover-id {
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.72rem;
+  color: var(--ifm-color-emphasis-600);
+}
+.mindmap-block__overview {
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.88rem;
+}
+.mindmap-block__overview li {
+  display: grid;
+  grid-template-columns: 0.7rem 1fr;
+  gap: 0.2rem;
+}
+.mindmap-block__overview li::before {
+  content: "·";
+  color: var(--ifm-color-emphasis-500);
+}
+.mindmap-block__refs {
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--ifm-color-emphasis-200);
+  display: grid;
+  gap: 0.2rem;
+}
+.mindmap-block__refs-label {
+  margin: 0 0 0.2rem;
+  font-size: 0.78rem;
+  color: var(--ifm-color-emphasis-600);
+}
+.mindmap-block__ref {
+  display: grid;
+  gap: 0.1rem;
+  width: 100%;
+  padding: 0.35rem 0.45rem;
+  border: 0;
+  border-radius: var(--ifm-global-radius);
+  background: none;
+  color: var(--ifm-font-color-base);
+  text-align: left;
+  cursor: pointer;
+  font-size: 0.88rem;
+}
+.mindmap-block__ref:hover {
+  background: var(--ifm-color-emphasis-100);
+  color: var(--ifm-link-color);
+}
+.mindmap-block__ref-target {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.7rem;
+  color: var(--ifm-color-emphasis-600);
+}
+.mindmap-block__ref-target svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+@media (max-width: 996px) {
+  .mindmap-block__frame {
+    height: 26rem;
+  }
+  .mindmap-block__popover {
+    left: 0.75rem !important;
+    right: 0.75rem;
+    top: auto !important;
+    bottom: 0.75rem;
+    width: auto;
+    max-height: 55%;
+  }
+}
+/* cursor: the OS "grab" pointer renders white and vanishes on a white canvas */
+.mindmap-block__frame {
+  cursor: default;
+}
+.mindmap-block__node {
+  cursor: pointer;
+}
+
+/* toolbar only exists in the floating overlay */
+.mindmap-block__bar {
+  display: none;
+}
+.mindmap-block__expand {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 2;
+}
+.mindmap-block--expanded .mindmap-block__bar {
+  display: flex;
+}
+.mindmap-block--expanded .mindmap-block__frame {
+  flex: 1 1 auto;
+  height: auto;
+}
+.mindmap-block--expanded .mindmap-block__popover {
+  max-height: 70%;
+}
+/* the docs TOC is parsed from the raw markdown, so it lists the mindmap headings: hide it on these pages */
+:root:has(.mindmap-block) .table-of-contents {
+  display: none;
+}
+.mindmap-block--expanded {
+  position: static;
+  inset: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  height: 100%;
+  margin: 0;
+  padding: 1rem;
+  background: var(--ifm-background-surface-color);
+}
+.mindmap-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  display: grid;
+  place-items: center;
+  padding: 2rem;
+  background: color-mix(in oklab, #1c1e21 45%, transparent);
+}
+.mindmap-overlay__panel {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: var(--ifm-global-radius);
+  background: var(--ifm-background-surface-color);
+  box-shadow: var(--ifm-global-shadow-lw);
+}
+/* every control follows the docs body: base size, normal weight */
+.mindmap-block .button {
+  font-size: var(--ifm-font-size-base);
+  font-weight: var(--ifm-font-weight-normal);
+}
+/* the docs TOC is parsed from raw markdown, so it lists the mindmap headings: hide it here */
+:root:has(.mindmap-block) .table-of-contents {
+  display: none;
+}
+`;

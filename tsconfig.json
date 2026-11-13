@@ -4,6 +4,7 @@
   "references": [
     { "path": "./apps/wiki" },
     { "path": "./packages/docusaurus-plugin-link" },
+    { "path": "./packages/docusaurus-plugin-mindmap" },
     { "path": "./packages/nano-flow" }
   ]
 }
