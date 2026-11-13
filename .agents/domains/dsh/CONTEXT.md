@@ -49,7 +49,7 @@ _Avoid_：删除 office 技能、卸载 office 插件
 ### Nano Flow 预设
 
 **nano-flow 预设**：
-本插件声明的 Agent 预设；选中它的会话才在预设作用域内挂载固定提示词、`GUIDE.md` 快照、篇幅限制块、`nano_flow_create` / `nano_flow_check` 工具与随包 skill。
+本插件声明的 Agent 预设；选中它的会话才在预设作用域内挂载固定提示词、`GUIDE.md` 快照、篇幅限制块、四个 `nano_flow_*` 工具（create / check / bind / dream）与随包 skill。工具以 PTC 形态呈现：预设直接挂 `dsh-tool-executor-ptc`，不挂已弃用的呈现选型器（[ADR 011](adr/011-预设挂PTC执行器.md)）。提示词与模板与 pi 版同源（2026-11-13 整体搬回）；2026-11-13 起随包 skill 只剩 code-spec / learning / ponytail-audit / ponytail-review / pp / to-skill——ask、do 两个流程 skill 随 pi 删除，流程规则只由提示词与模板承担。`pp` 用 subagent 并行调研、不阻塞主会话，与 learning、ponytail-audit 一样只可手调（`disable-model-invocation`）。
 _Avoid_：流程开关、nano-flow 命令行
 
 **固定提示词**：
@@ -61,6 +61,10 @@ _Avoid_：persona、系统提示
 **领域文档**：
 `.agents/domains/{domain}/` 下的 CONTEXT、questions、adr、workflows 与 plans；文档以 YAML 头声明 `name` / `description`，索引由 `nano_flow_check` 生成，模型不改生成物。
 _Avoid_：wiki、知识库、notes.json
+
+**文档校验**：
+`nano_flow_check` 对领域文档做的三件事：按 YAML 头、编号、篇幅与 `## 相关` 规则校验；生成全部索引、`CONTEXT-MAP.md` 与 spec 的追踪表；就地修「结果由既有事实唯一确定」的问题——spec 状态按 note 派生、`name` 对齐文件名并把改名传播到 `related_noted`、非 blocked 的 `reason` 清掉、多行头字段折成单行、缺 `questions/` 建目录。修完报「已自动修复 N 项」，再跑一次为 0 才算收敛；篇幅超限、`## 相关` 目标缺失或原因为空、真实编号缺口、blocked 缺 `reason` 只报错不猜。写文件经过工作区边界检查、临时文件 rename、内容相同则不写。
+_Avoid_：自动纠正、静默改写
 
 **Plan**：
 一个会话默认维护的工作单元，包含 `spec.md`、`notes_index.md`（生成）与若干 `NNN-中文标题.md` 的 note；note 用 `pending` / `in_progress` / `blocked` / `completed` 表达进度，`blocked` 时以 `reason` 说明在等什么。交付完成但未验收一律 `blocked`，只有用户验收后才置 `completed`。
@@ -85,7 +89,7 @@ toolkit 面板「Nano Flow 设置」维护的数值来源，持久化在 `$DSH_H
 _Avoid_：魔法数字、硬编码阈值
 
 **会话轮转**：
-预设不挂压缩插件；用户每发一条 queue 消息时读上下文压力，达到 `rotateAt × contextWindow` 就创建新会话（同一 cwd 与预设），新 prompt 被接受后先归档、再物理删除旧会话（归档会让客户端立刻离开旧会话，切视图因此挂在客户端根上下文），失败回落旧会话。新会话不继承旧会话的对话历史（历史只由 `<plan>/log.jsonl` 留存），拿到的只有：以用户消息投递的 seed（「已轮转」+ 当前 Plan 线索 + 只读恢复要求 + 轮转后自动校验结论与「轮转前会话绑定的 Plan」只读线索 +「新会话不会自动绑定」+ 最末的上一轮模型输出 `<rotation-last-output>` 块）、包在 `<rotation-prior-input>` 里并紧跟其后的本次触发原文，以及过继来的工作区槽位与置顶。绑定不继承，新会话首轮先调用 `nano_flow_bind`。轮转只能自动触发；客户端在根上下文订阅导航选择 store，旧会话被归档离开时读轮转路由切到新会话（会话面板的 5s 轮询只作兜底）。
+预设不挂压缩插件；用户每发一条 queue 消息时读上下文压力，达到 `rotateAt × contextWindow` 就创建新会话（同一 cwd 与预设），新 prompt 被接受后先归档、再物理删除旧会话（归档会让客户端立刻离开旧会话，切视图因此挂在客户端根上下文），失败回落旧会话。新会话不继承旧会话的对话历史（历史只由 `<plan>/log.jsonl` 留存），拿到的只有：以用户消息投递的 seed（「已轮转」+ 当前 Plan + 只读恢复要求 + 轮转后自动校验结论 + 最末的上一轮模型输出 `<rotation-last-output>` 块）、包在 `<rotation-prior-input>` 里并紧跟其后的本次触发原文，以及过继来的工作区槽位、置顶与 **Plan 绑定**。绑定过继只认旧会话自己那条：Plan 目录还在就写进新会话 id，看板与轨迹立刻续上同一 Plan，seed 因此不再要求 bind；旧会话没有绑定或目录已失效时，seed 仍要求首轮调用 `nano_flow_bind`（[ADR 014](adr/013-轮转把Plan绑定过继给新会话.md)）。轮转只能自动触发；客户端在根上下文订阅导航选择 store，旧会话被归档离开时读轮转路由切到新会话（会话面板的 5s 轮询只作兜底）。
 _Avoid_：压缩、compact、归档旧会话
 
 **恢复只读**：
@@ -93,11 +97,11 @@ _Avoid_：压缩、compact、归档旧会话
 _Avoid_：自动续跑、恢复即执行
 
 **note 面板**：
-nano-flow 预设会话在输入框上方 dock 显示的未完成 note 列表（中文状态名 + 名称，hover 显示描述 + 有值时的「原因」「下一步」三行）；客户端按当前 `sessionId` 每 5s 轮询宿主 `GET /api/toolkit/nano-flow/notes`，宿主按该会话的绑定定位 Plan（未调用 `nano_flow_bind`、目录失效或没有未完成 note 时不显示），快照不写会话日志，样式与 Todo 面板一致。
+nano-flow 预设会话在输入框上方 dock 显示的 note 面板（中文状态名 + 名称，hover 显示描述 + 有值时的「原因」「下一步」三行）；已绑定 Plan 时**常驻**且**默认展开**（点标题行收起/再展开，状态存内存，重挂载回到展开），未完成列表为空时显示「全部完成」空态（无绑定或目录失效才不显示）。客户端按当前 `sessionId` 每 5s 轮询宿主 `GET /api/toolkit/nano-flow/notes`，宿主按该会话的绑定定位 Plan，快照不写会话日志，样式与 Todo 面板一致。
 _Avoid_：待办面板、todo 面板、任务列表
 
 **Plan 轨迹日志**：
-nano-flow 预设会话每轮结束时向 `<plan>/log.jsonl` 追加的一条 compact 轨迹（user、assistant 最终文本、工具参数/结果摘要、usage、seq 区间）；只有 `nano_flow_bind` 写绑定，未绑定时服务只跟踪事件、不落盘；绑定后写当前轮与后续轮次，绑定前已完成的轮次不回填；切换后后续轮次写新 Plan，旧 Plan 不再追加。启动时从宿主持久化日志回填已绑定且归该 Plan 的历史轮次，绝不写会话事件。日志只存本地（`.gitignore` 忽略 `**/plans/**/log.jsonl`），轮转不删、只增量追加。
+nano-flow 预设会话每轮结束时向 `<plan>/log.jsonl` 追加的一条 compact 轨迹（user、assistant 最终文本、工具参数/结果摘要、usage、seq 区间）；绑定只由 `nano_flow_bind` 与轮转过继写（[ADR 009](adr/009-Plan绑定只经bind工具.md)、[013](adr/013-轮转把Plan绑定过继给新会话.md)），未绑定时服务只跟踪事件、不落盘；绑定后写当前轮与后续轮次，绑定前已完成的轮次不回填；切换后后续轮次写新 Plan，旧 Plan 不再追加。启动时从宿主持久化日志回填已绑定且归该 Plan 的历史轮次，绝不写会话事件。日志只存本地（`.gitignore` 忽略 `**/plans/**/log.jsonl`），轮转不删、只增量追加。会话被移除（轮转退休、撤回）时轨迹服务关掉该会话的读句柄并丢掉状态，迟到事件不再重建，句柄不随轮转累积。
 _Avoid_：会话转录、原始事件日志、audit log
 
 ### 记忆维护（dream）
@@ -111,7 +115,7 @@ _Avoid_：记忆库、知识图谱、第五层
 _Avoid_：自动复盘、kaizen、离线批处理
 
 **dream 游标**：
-`$DSH_HOME/toolkit/nano-flow-dream.json` 里每个 Plan 已处理到的轮次（`lastSeq` 与 `lastSessionId`/`lastTurn`）；只有 `git commit` 成功后推进，重复投递靠它保持幂等。
+`$DSH_HOME/toolkit/nano-flow-dream.json`（v2）按「Plan + 会话」记录已处理到的 turn seq 上界；只由 `nano_flow_dream` 的 `mark` 动作在 `git commit` 成功后推进（实现是随包 `dream-scan.mjs`），重复投递靠它保持幂等。seq 换会话会重新计数，所以旧 v1 的 Plan 级 `lastSeq` 一律当空游标全量处理。
 _Avoid_：进度条、checkpoint
 
 ### 会话撤回

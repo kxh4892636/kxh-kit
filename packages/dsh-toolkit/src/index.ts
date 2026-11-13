@@ -14,28 +14,31 @@ import type {
 import { createNanoFlowSettingsStore, nodeNanoFlowSettingsIo } from "./host/nano-flow-settings.js";
 import { NANO_FLOW_SERVICE, type ToolkitNanoFlowFacade } from "./host/nano-flow-facade.js";
 import { createNanoFlowTool } from "./host/tools/nano-flow.js";
-import { applyNanoFlow } from "./nano-flow/plugin.js";
-import { assetsCheckScript, locateAssetsRoot } from "./nano-flow/assets.js";
-import { formatIssues, runCheck } from "./nano-flow/check-runner.js";
-import { DEFAULT_DOMAIN_ROOT } from "./nano-flow/config.js";
-import { recordMount, restoreMountReport } from "./nano-flow/mount-report.js";
-import { buildNotesSnapshot } from "./nano-flow/notes.js";
-import { NANO_FLOW_PRESET_ID, nanoFlowEntryUrl } from "./nano-flow/preset.js";
-import { createRotation, type RotationSession } from "./nano-flow/rotate.js";
-import { createPlanLogService } from "./nano-flow/plan-log-service.js";
+import { applyNanoFlow } from "./nano-flow/assembly/plugin.js";
+import { assetsCheckScript, locateAssetsRoot } from "./nano-flow/session/assets.js";
+import { formatIssues, runCheck } from "./nano-flow/documents/check-runner.js";
+import { DEFAULT_DOMAIN_ROOT } from "./nano-flow/session/config.js";
+import { recordMount, restoreMountReport } from "./nano-flow/session/mount-report.js";
+import { buildNotesSnapshot } from "./nano-flow/planning/notes.js";
+import { NANO_FLOW_PRESET_ID, nanoFlowEntryUrl } from "./nano-flow/assembly/preset.js";
+import { createRotation, type RotationSession } from "./nano-flow/session/rotate.js";
 import {
+  createPlanLogService,
+  type PlanLogService,
+} from "./nano-flow/planning/plan-log-service.js";
+import {
+  adoptBinding,
   BINDINGS_FILE,
-  inheritedPlanDirectory,
   planRelativePath,
   pruneBindings,
   readBindings,
   readBindingsSync,
   resolvePlanDirectory,
   writeBindings,
-} from "./nano-flow/plan-log.js";
-import { planRefFromDirectory } from "./nano-flow/plan.js";
-import { resolveWorkspace } from "./nano-flow/workspace.js";
-import { hostServices } from "./nano-flow/services.js";
+} from "./nano-flow/planning/plan-log.js";
+import { planRefFromDirectory } from "./nano-flow/planning/plan.js";
+import { resolveWorkspace } from "./nano-flow/session/workspace.js";
+import { hostServices } from "./nano-flow/session/services.js";
 import { createNestedSkillTool } from "./host/tools/nested-skill.js";
 import { createOfficeSkillsTool } from "./host/tools/office-skills.js";
 import { createUndoTurnTool } from "./host/tools/undo-turn.js";
@@ -184,7 +187,14 @@ export const apply = (ctx: Context, config: Config = {}): void => {
     applyNanoFlow(ctx, config);
     return;
   }
-  const runtime = createRuntime(ctx, config);
+  // Plan 轨迹日志先建：runtime 删除会话时要靠它关掉该会话的读句柄。
+  const planLog = createPlanLogService({
+    home: resolveDshHome(),
+    bindingsFile: bindingsFilePath(config),
+    logger: ctx.logger,
+  });
+  ctx.effect(() => () => void planLog.dispose(), "toolkit: plan log");
+  const runtime = createRuntime(ctx, config, planLog);
   ctx.effect(() => () => void runtime.dispose(), "toolkit: runtime");
   restoreMountReport();
   ctx.inject(["connection"], (child: Context) => {
@@ -215,15 +225,14 @@ export const apply = (ctx: Context, config: Config = {}): void => {
   ctx.inject(["sessionController"], (child: Context) => {
     child.effect(() => {
       /**
-       * 轮转后自动跑一次校验（等价于执行 `nano_flow_check`）：校验领域文档，并把轮转前
-       * 会话绑定的 Plan 作为只读线索写进 seed。新会话不会自动绑定，必须由模型调用
-       * `nano_flow_bind`；返回结论文本与线索 Plan，由轮转写进 seed。
+       * 轮转后自动跑一次校验（等价于执行 `nano_flow_check`）：校验领域文档，结论由轮转
+       * 写进 seed。
        */
       const autoCheck = async (params: {
         sessionId: string;
         previousSessionId: string;
         workspace: string;
-      }): Promise<{ readonly text: string; readonly planReference?: string } | undefined> => {
+      }): Promise<{ readonly text: string } | undefined> => {
         const domainsPath = config.domainRoot ?? DEFAULT_DOMAIN_ROOT;
         const result = await runCheck({
           script: assetsCheckScript(locateAssetsRoot()),
@@ -231,13 +240,6 @@ export const apply = (ctx: Context, config: Config = {}): void => {
           domainsPath,
           limits: runtime.nanoFlow.get(),
         });
-        // 只读旧绑定作为恢复线索，不写新绑定。
-        const inherited = inheritedPlanDirectory(
-          await readBindings(bindingsFilePath(config)),
-          params.previousSessionId,
-          params.workspace,
-          (directory) => existsSync(directory),
-        );
         const lines: string[] = [];
         if (result.ok) {
           lines.push("轮转后自动执行 `nano_flow_check`：领域文档校验通过，索引已刷新。");
@@ -247,16 +249,30 @@ export const apply = (ctx: Context, config: Config = {}): void => {
           if (result.errors.length > 5)
             lines.push(`…还有 ${result.errors.length - 5} 项，跑一次工具看全部。`);
         }
-        lines.push(
-          inherited !== undefined
-            ? `轮转前会话绑定的 Plan：${planRelativePath(params.workspace, inherited)}。新会话不会自动绑定，恢复时先调用 \`nano_flow_bind\` 绑定它。`
-            : "轮转前会话没有绑定 Plan；新会话不会自动绑定，恢复时先确认 Plan，再调用 `nano_flow_bind`。",
+        return { text: lines.join("\n") };
+      };
+      /**
+       * 轮转过继绑定：旧会话自己那条绑定仍指向存在的 Plan 时，写进新会话 id，看板与
+       * 轨迹续在同一 Plan 上。只认旧会话的绑定，不猜工作区里有几个 active Plan。
+       * @param params - 新旧会话 id 与工作区根。
+       * @returns 过继到的 Plan 引用；旧会话无绑定或目录失效时 undefined。
+       */
+      const inheritPlanBinding = async (params: {
+        sessionId: string;
+        previousSessionId: string;
+        workspace: string;
+      }): Promise<string | undefined> => {
+        const file = bindingsFilePath(config);
+        const adopted = adoptBinding(
+          await readBindings(file),
+          params.previousSessionId,
+          params.sessionId,
+          params.workspace,
+          (directory) => existsSync(directory),
         );
-        const planReference = inherited === undefined ? undefined : planRefFromDirectory(inherited);
-        return {
-          text: lines.join("\n"),
-          ...(planReference === undefined ? {} : { planReference }),
-        };
+        if (adopted === undefined) return undefined;
+        await writeBindings(file, adopted.table);
+        return planRefFromDirectory(adopted.planDirectory);
       };
       const rotation = createRotation({
         services: hostServices(child),
@@ -264,6 +280,7 @@ export const apply = (ctx: Context, config: Config = {}): void => {
         domainRoot: config.domainRoot ?? DEFAULT_DOMAIN_ROOT,
         settings: () => runtime.nanoFlow.get(),
         autoCheck,
+        adoptBinding: inheritPlanBinding,
         sessionOf: (sessionId: string) => {
           const sessions = serviceOf<HostSessionStore>(child, "sessions");
           const session = sessions?.get(sessionId);
@@ -284,13 +301,7 @@ export const apply = (ctx: Context, config: Config = {}): void => {
   ctx.inject(["workspaceRegistry"], (child: Context) => {
     void runtime.cleanupArchive(child);
   });
-  // Plan 轨迹日志：订阅会话事件 firehose（seed 不触发），按轮把 compact 摘要追加到 Plan 的 log.jsonl。
-  const planLog = createPlanLogService({
-    home: resolveDshHome(),
-    bindingsFile: bindingsFilePath(config),
-    logger: ctx.logger,
-  });
-  ctx.effect(() => () => void planLog.dispose(), "toolkit: plan log");
+  // 订阅会话事件 firehose（seed 不触发），按轮把 compact 摘要追加到 Plan 的 log.jsonl。
   ctx.inject(["sessionPersistence"], (child: Context) => {
     const persistence = serviceOf<{ open(id: string, mode: "read"): Promise<unknown> }>(
       child,
@@ -336,7 +347,7 @@ interface ToolkitRuntime {
   dispose(): Promise<void>;
 }
 
-const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
+const createRuntime = (ctx: Context, config: Config, planLog: PlanLogService): ToolkitRuntime => {
   const logger = ctx.logger;
   const home = resolveDshHome();
   const sessionsRoot = config.sessionsRoot ?? join(home, "sessions");
@@ -358,6 +369,8 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
   let lastRotation: NanoFlowRotation | undefined;
   /** 广播「会话已移除」：`api-session/removed` 是宿主销毁会话时客户端依赖的那条事件。 */
   const registerRemoval = (sessionId: string): void => {
+    // 会话没了，轨迹服务也要放开它的读句柄；否则每次轮转留一个句柄。
+    void planLog.forget(sessionId);
     const emit = (ctx as { emit?: (event: string, ...args: unknown[]) => void }).emit;
     if (typeof emit !== "function") return;
     emit.call(ctx, "api-session/removed", sessionId);

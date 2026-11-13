@@ -125,14 +125,14 @@ const countLabel = (notes: readonly PanelNote[]): string => {
     .join(" · ");
 };
 
-/** 面板本体：默认折叠，可展开；挂载时轮询宿主快照。 */
+/** 面板本体：默认展开，可收起；挂载时轮询宿主快照。 */
 const NotesPanelView: FC<{
   readonly sessionId: string;
   readonly useProjection: (key: string) => unknown;
   readonly ctx?: ClientContext;
 }> = ({ sessionId, useProjection, ctx }) => {
   ensureToolkitStyles();
-  const [collapsed, setCollapsed] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
   const [snapshot, setSnapshot] = useState<NotesSnapshot | null | undefined>(undefined);
   const preset = useProjection("agentPreset");
   useEffect(() => {
@@ -170,7 +170,7 @@ const NotesPanelView: FC<{
   }, [ctx, preset, sessionId]);
   if (preset !== NANO_FLOW_PRESET) return null;
   if (snapshot === null || snapshot === undefined) return null;
-  if (snapshot.notes.length === 0) return null;
+  // 已绑定 Plan 时面板常驻；未完成列表为空就显示空态，不再整块消失。
   const summary = countLabel(snapshot.notes);
   return createElement(
     "section",
@@ -193,7 +193,11 @@ const NotesPanelView: FC<{
           },
         },
         createElement("span", { className: "dshtk-notes-title" }, "Note"),
-        createElement("span", { className: "dshtk-notes-progress" }, summary),
+        createElement(
+          "span",
+          { className: "dshtk-notes-progress" },
+          summary === "" ? "全部完成" : summary,
+        ),
         createElement("span", { className: "dshtk-notes-toggle" }, collapsed ? "展开" : "收起"),
       ),
       collapsed
@@ -201,31 +205,37 @@ const NotesPanelView: FC<{
         : createElement(
             "ul",
             { className: "dshtk-notes-list" },
-            snapshot.notes.map((note) =>
-              createElement(
-                "li",
-                {
-                  key: note.name,
-                  className: "dshtk-notes-item",
-                  "data-status": note.status,
-                },
-                // 悬浮区是整行：状态名与标题都算「对应项」，只挂在标题上会漏掉大部分行宽。
-                createElement(
-                  NotesTooltip,
-                  { note },
+            snapshot.notes.length === 0
+              ? createElement(
+                  "li",
+                  { className: "dshtk-notes-empty", "data-testid": "nano-flow-notes-empty" },
+                  "全部完成",
+                )
+              : snapshot.notes.map((note) =>
                   createElement(
-                    "span",
-                    { className: "dshtk-notes-row" },
+                    "li",
+                    {
+                      key: note.name,
+                      className: "dshtk-notes-item",
+                      "data-status": note.status,
+                    },
+                    // 悬浮区是整行：状态名与标题都算「对应项」，只挂在标题上会漏掉大部分行宽。
                     createElement(
-                      "span",
-                      { className: "dshtk-notes-status" },
-                      STATUS_LABEL[note.status],
+                      NotesTooltip,
+                      { note },
+                      createElement(
+                        "span",
+                        { className: "dshtk-notes-row" },
+                        createElement(
+                          "span",
+                          { className: "dshtk-notes-status" },
+                          STATUS_LABEL[note.status],
+                        ),
+                        createElement("span", { className: "dshtk-notes-content" }, note.name),
+                      ),
                     ),
-                    createElement("span", { className: "dshtk-notes-content" }, note.name),
                   ),
                 ),
-              ),
-            ),
           ),
     ),
   );

@@ -48,7 +48,7 @@ profile 的 `dsh.profile.bundles` 会多出本包及其 `cordis.patch.yml` 挂�
     └── nano-flow/
         └── references/
             └── skills/
-                └── ask/
+                └── code-spec/
                     └── SKILL.md          ← 内建 provider 看不到,本工具能看到
 ```
 
@@ -114,20 +114,21 @@ API;存活会话优先于磁盘,且改文件后存活会话继续追加会产生
 `ctx.agentPresets.register()` 把预设注册进 roster,关闭时注销.预设行挂载的也是本包的
 唯一入口 `dist/index.mjs`,靠 `config.nanoFlowOnly: true` 只走预设内的那一半.预设的 standing mount 在独立
 作用域里注册,所以**开关就是预设是否出现**:打开后预设选择器里才有"Nano Flow",选中它的
-会话才有提示词,工具与 skill.
+会话才有提示词,工具与 skill.预设行直接挂 `@deepseek-ai/dsh-tool-executor-ptc`(旧的
+`dsh-agent-tool-presentation` 选型器已弃用),因此宿主必须挂 code runtime,否则预设激活失败.
 
 开关右侧的箭头按钮(`Nano Flow 设置`)只在开关打开时出现,点开是上限与轮转阈值的下拉面板.
 
 挂载后会话里多出五样东西:
 
-| 类别       | 内容                                                                                                                                                    |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 固定提示词 | `prompts/system.md` 与 `.agents/domains/GUIDE.md` 的当前快照拼接, 作为系统提示词段 `order: 1` 注入                                                      |
-| 每轮提示词 | `prompts/user.md`, 作为运行时上下文在每轮第一次 pre-step 后追加; 不冒充用户消息, UI 以 context 卡片显示                                                 |
-| 工具       | `nano_flow_create`(domain / plan / note 的目录与模板)、`nano_flow_bind`(绑定/切换 Plan) 与 `nano_flow_check`(校验 + 生成全部索引)                       |
-| skill      | `skills/` 动态发现: `ask`,`do`,`to-skill`,`code-spec`,`learning`                                                                                        |
-| Note 面板  | 输入框上方 dock: 当前会话绑定的 Plan 的未完成 note(中文状态名 + 名称, hover 显示描述/原因/下一步), 客户端 5s 轮询宿主路由                               |
-| Plan 日志  | 已绑定会话每轮把 `<plan>/log.jsonl` 追加一条 compact 轨迹(user/assistant/工具摘要/usage/seq), 绑定表在 `$DSH_HOME/toolkit/nano-flow-plan-bindings.json` |
+| 类别       | 内容                                                                                                                                                                          |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 固定提示词 | `prompts/system.md` 与 `.agents/domains/GUIDE.md` 的当前快照拼接, 作为系统提示词段 `order: 1` 注入                                                                            |
+| 每轮提示词 | `prompts/user.md`, 作为运行时上下文在每轮第一次 pre-step 后追加; 不冒充用户消息, UI 以 context 卡片显示                                                                       |
+| 工具       | `nano_flow_create`(domain / plan / note 的目录与模板)、`nano_flow_bind`(绑定/切换 Plan) 与 `nano_flow_check`(校验 + 自动修复 + 生成全部索引)                                  |
+| skill      | `skills/` 动态发现: `to-skill`,`code-spec`,`learning`,`ponytail-audit`,`ponytail-review`,`pp`                                                                                 |
+| Note 面板  | 输入框上方 dock: 已绑定 Plan 时常驻, **默认展开**、点标题收起, 列未完成 note(中文状态名 + 名称, hover 显示描述/原因/下一步), 列表为空显示「全部完成」; 客户端 5s 轮询宿主路由 |
+| Plan 日志  | 已绑定会话每轮把 `<plan>/log.jsonl` 追加一条 compact 轨迹(user/assistant/工具摘要/usage/seq), 绑定表在 `$DSH_HOME/toolkit/nano-flow-plan-bindings.json`                       |
 
 **目录布局**
 
@@ -200,6 +201,9 @@ metadata:
   同时生成/更新 `CONTEXT-MAP.md`、`questions/index.md`、`adr/index.md`、`workflows/index.md`、
   `notes_index.md` 与 spec 的 `## 追踪 Note`。可用 `domain` / `plan` 缩小范围，`strict=false`
   把旧格式文档记为警告并跳过。**check 不写 Plan 绑定**。
+- 确定性自动修复（结果进「已自动修复 N 项」，只报不改的仍进 errors）：spec 状态按 note 派生、
+  name 与文件名不一致时对齐并联动 `related_noted`、非 blocked 的 note 去掉 `reason`、
+  多行头字段折成单行、域下缺 `questions/` 时建目录。
 
 **上限与轮转**
 
@@ -210,7 +214,9 @@ metadata:
   「篇幅限制」块拼在 `prompts/system.md` + `GUIDE.md` 之后注入。压缩与拆分规则统一
   由 `prompts/limit.md` 维护。
 - 记忆维护由 **dream** 承担：`prompts/dream.md` 是投递给自动化任务的完整指令（每天 08:00 默认新建会话执行）；
-  五 pass 写回领域文档与 `GUIDE.md` 后跑 check 并 commit。互链写在页面文末
+  输入由 `nano_flow_dream` 工具的 `scan` 提供（实现是随包 `scripts/dream-scan.mjs`，
+  按「Plan + 会话」记游标于 `$DSH_HOME/toolkit/nano-flow-dream.json`），只输出新 turn；
+  dream 处理后跑 check 并 commit，成功后用同工具的 `mark` 推进游标。五 pass 写回领域文档与 `GUIDE.md`。互链写在页面文末
   `## 相关` 段（`- [链接](相对.md) — 原因`），check 校验目标与原因。
 - 预设不挂载压缩插件。轮转挂在**宿主半**：用户每发一条**排队**消息（queue）时，先按会话 id
   找到存活会话，再用日志里最后一条 `agent-preset/selected` 判断它是否跑 Nano Flow（live header
@@ -251,7 +257,7 @@ metadata:
    (`via: preset`)、`apply`、`ready` 与 `rotation`；缺哪个就说明哪一步没生效。
 8. 把一条 note 置 `blocked` 但不写 `reason`：`nano_flow_check` 报"缺少 reason"；补上后通过，
    spec 的状态与 `## 追踪 Note` 自动更新。
-9. 在 nano-flow 会话里改一条未完成 note 的 `status`：输入框上方的 Note 面板 5s 内更新；
+9. 在 nano-flow 会话里改一条未完成 note 的 `status`：输入框上方的 Note 面板默认展开、5s 内更新；
    hover 显示该 note 的 `description`，有 `reason`（阻塞）与 `next_step` 时各多一行；note 全部完成，或该会话没有绑定/绑定目录失效时面板消失。
 10. 先在新会话调用 `nano_flow_bind`，再正常对话几轮（至少触发一次工具调用）：当前 Plan 目录出现
     `log.jsonl`，首行是本会话段头，其后每轮一行 `turn`（sessionId/turn/user/assistant/tools/usage/seq）。
