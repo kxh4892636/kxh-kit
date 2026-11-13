@@ -26,7 +26,7 @@ description: '改动 packages/dsh-toolkit 后要装进本机宿主时：先 chec
 6. **重启宿主**：bundle 在启动时组合，装完必须重启（或至少新建会话）才生效；重启前宿主仍跑旧版本，别把旧行为当成新版本的证据。
 7. **验收**：核对两个 profile 的安装版本（`node_modules/@kxh4892636/dsh-toolkit/package.json`）与 `dist` 资产是否齐全；再按本次改动做真机观察，把版本与观察结果写进 note。nano-flow 侧的常规走查项：
    - 注入段仍是「system + GUIDE + 篇幅限制」，`user.md` 每轮以卡片出现；
-   - skill 目录与随包列表一致（现为 code-spec / learning / ponytail-audit / ponytail-review / to-skill，不含 ask、do）；
+   - skill 目录与随包列表一致（现为 code-spec / learning / ponytail-audit / ponytail-review / pp / to-skill，不含 ask、do）；手调 skill 要能在斜杠菜单里出现，而这取决于 frontmatter 的 `description` 非空；
    - `nano_flow_check` 在故意写坏的文件上输出「已自动修复 N 项」，再跑一次为 0；
    - Note 面板已绑定 Plan 时常驻、默认展开，未完成列表为空显示「全部完成」；
    - 工具仍以 `run_code` + 生成 SDK 呈现（PTC 执行器生效）。
