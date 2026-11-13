@@ -373,4 +373,49 @@ describe("createPlanLogService", () => {
     expect(await turnsIn(planB)).toEqual([3]);
     await service.dispose();
   });
+
+  it("forgets a removed session: closes its handle and ignores late events", async () => {
+    const root = await makeRoot();
+    const plan = planFor(root);
+    const events = [...turn(1, 0), nanoFlowToolCall(2, 100)];
+    let closed = 0;
+    const service = makeService(root);
+    service.attach({
+      async open() {
+        return {
+          async read(offset = 0, length?: number) {
+            return {
+              events: events.filter((item) => item.seq >= offset).slice(0, length) as never,
+            };
+          },
+          close() {
+            closed += 1;
+          },
+        };
+      },
+    });
+    await bindTo(root, plan);
+    service.onEvent(session(root), events[events.length - 1]);
+    await vi.waitFor(async () => {
+      expect(await readFile(join(plan, "log.jsonl"), "utf8")).toContain('"turn":1');
+    });
+
+    await service.forget("s1");
+    expect(closed).toBe(1);
+
+    // 已删会话的迟到事件不再重建状态：不追加 turn 2，也不再开句柄。
+    events.push(...turn(2, 200));
+    service.onEvent(session(root), events[events.length - 1]);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(await turnsIn(plan)).toEqual([1]);
+    expect(closed).toBe(1);
+    await service.dispose();
+  });
+
+  it("accepts forgetting a session it never tracked", async () => {
+    const root = await makeRoot();
+    const service = makeService(root);
+    await expect(service.forget("never-seen")).resolves.toBeUndefined();
+    await service.dispose();
+  });
 });

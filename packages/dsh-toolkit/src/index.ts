@@ -22,7 +22,10 @@ import { recordMount, restoreMountReport } from "./nano-flow/session/mount-repor
 import { buildNotesSnapshot } from "./nano-flow/planning/notes.js";
 import { NANO_FLOW_PRESET_ID, nanoFlowEntryUrl } from "./nano-flow/assembly/preset.js";
 import { createRotation, type RotationSession } from "./nano-flow/session/rotate.js";
-import { createPlanLogService } from "./nano-flow/planning/plan-log-service.js";
+import {
+  createPlanLogService,
+  type PlanLogService,
+} from "./nano-flow/planning/plan-log-service.js";
 import {
   adoptBinding,
   BINDINGS_FILE,
@@ -184,7 +187,14 @@ export const apply = (ctx: Context, config: Config = {}): void => {
     applyNanoFlow(ctx, config);
     return;
   }
-  const runtime = createRuntime(ctx, config);
+  // Plan 轨迹日志先建：runtime 删除会话时要靠它关掉该会话的读句柄。
+  const planLog = createPlanLogService({
+    home: resolveDshHome(),
+    bindingsFile: bindingsFilePath(config),
+    logger: ctx.logger,
+  });
+  ctx.effect(() => () => void planLog.dispose(), "toolkit: plan log");
+  const runtime = createRuntime(ctx, config, planLog);
   ctx.effect(() => () => void runtime.dispose(), "toolkit: runtime");
   restoreMountReport();
   ctx.inject(["connection"], (child: Context) => {
@@ -291,13 +301,7 @@ export const apply = (ctx: Context, config: Config = {}): void => {
   ctx.inject(["workspaceRegistry"], (child: Context) => {
     void runtime.cleanupArchive(child);
   });
-  // Plan 轨迹日志：订阅会话事件 firehose（seed 不触发），按轮把 compact 摘要追加到 Plan 的 log.jsonl。
-  const planLog = createPlanLogService({
-    home: resolveDshHome(),
-    bindingsFile: bindingsFilePath(config),
-    logger: ctx.logger,
-  });
-  ctx.effect(() => () => void planLog.dispose(), "toolkit: plan log");
+  // 订阅会话事件 firehose（seed 不触发），按轮把 compact 摘要追加到 Plan 的 log.jsonl。
   ctx.inject(["sessionPersistence"], (child: Context) => {
     const persistence = serviceOf<{ open(id: string, mode: "read"): Promise<unknown> }>(
       child,
@@ -343,7 +347,7 @@ interface ToolkitRuntime {
   dispose(): Promise<void>;
 }
 
-const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
+const createRuntime = (ctx: Context, config: Config, planLog: PlanLogService): ToolkitRuntime => {
   const logger = ctx.logger;
   const home = resolveDshHome();
   const sessionsRoot = config.sessionsRoot ?? join(home, "sessions");
@@ -365,6 +369,8 @@ const createRuntime = (ctx: Context, config: Config): ToolkitRuntime => {
   let lastRotation: NanoFlowRotation | undefined;
   /** 广播「会话已移除」：`api-session/removed` 是宿主销毁会话时客户端依赖的那条事件。 */
   const registerRemoval = (sessionId: string): void => {
+    // 会话没了，轨迹服务也要放开它的读句柄；否则每次轮转留一个句柄。
+    void planLog.forget(sessionId);
     const emit = (ctx as { emit?: (event: string, ...args: unknown[]) => void }).emit;
     if (typeof emit !== "function") return;
     emit.call(ctx, "api-session/removed", sessionId);
