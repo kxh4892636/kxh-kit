@@ -55,12 +55,24 @@ export interface DreamScanOptions {
   readonly statePath?: string;
 }
 
+export interface DreamSkipped {
+  readonly malformed: number;
+  readonly unknown: number;
+  readonly invalidTurn: number;
+}
+
+export interface DreamWarning {
+  readonly planPath: string;
+  readonly skipped: DreamSkipped;
+}
+
 export interface DreamScanReport {
   readonly rootDir: string;
   readonly statePath: string;
   readonly state: DreamState;
   readonly domains: readonly DreamDomainInput[];
   readonly idle: readonly DreamIdleDomain[];
+  readonly warnings: readonly DreamWarning[];
 }
 
 export interface DreamMark {

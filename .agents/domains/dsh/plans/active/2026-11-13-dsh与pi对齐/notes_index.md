@@ -13,3 +13,4 @@
 | [007-发布0.5.47并真机验收](007-发布0.5.47并真机验收.md) | 更新 README 与领域文档，跑包内门禁，按 0.5.47 打包安装到 web profile，重启宿主真机走查后等用户验收。 | 001-提示词与模板照搬pi, 002-删除ask与do并清理引用, 003-校验脚本搬自动修复, 004-学习skill与ponytail注入, 005-Note面板常驻与空态, 006-预设改用ptc执行器 |
 | [008-dream输入扫描改为脚本](008-dream输入扫描改为脚本.md) | 把 dream 的输入扫描与游标读写收进随包 dream-scan.mjs（按 Plan+会话记 seq 上界），提示词只负责跑脚本与提交后 --mark。 | 003-校验脚本搬自动修复 |
 | [009-dream扫描改为工具](009-dream扫描改为工具.md) | 新增 nano_flow_dream 工具（scan/mark）包住随包 dream-scan.mjs；dream.md 不再写死 profile 路径或把中文路径拼进 shell。 | 008-dream输入扫描改为脚本 |
+| [010-dream扫描提示跳过的记录](010-dream扫描提示跳过的记录.md) | scan 报告新增「需要留意」段：按 Plan 列出坏行、非 turn 记录、无效 turn 数量，用于发现格式不匹配。 | 008-dream输入扫描改为脚本, 009-dream扫描改为工具 |

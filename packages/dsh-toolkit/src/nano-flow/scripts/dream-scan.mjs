@@ -68,19 +68,22 @@ const readJsonLines = (file) => {
   try {
     text = fs.readFileSync(file, "utf8");
   } catch {
-    return [];
+    return { records: [], malformed: 0 };
   }
   const records = [];
+  let malformed = 0;
   for (const line of text.split(/\r?\n/u)) {
     if (line.trim() === "") continue;
     try {
       const record = JSON.parse(line);
       if (typeof record === "object" && record !== null) records.push(record);
+      else malformed += 1;
     } catch {
-      // 坏行跳过：轨迹是只追加文件，不能因为一行坏掉整次 dream。
+      // 坏行计数后跳过：轨迹是只追加文件，不能因为一行坏掉整次 dream。
+      malformed += 1;
     }
   }
-  return records;
+  return { records, malformed };
 };
 
 const oneLine = (value, limit = SUMMARY_CHARS) => {
@@ -124,12 +127,21 @@ const scanPlan = (rootDir, planDirectory, state) => {
   const logFile = path.join(planDirectory, "log.jsonl");
   if (!fs.existsSync(logFile)) return null;
   const planPath = path.relative(rootDir, planDirectory).split(path.sep).join("/");
+  const parsed = readJsonLines(logFile);
+  const skipped = { malformed: parsed.malformed, unknown: 0, invalidTurn: 0 };
   const bySession = new Map();
-  for (const record of readJsonLines(logFile)) {
-    if (record.type !== "turn") continue;
+  for (const record of parsed.records) {
+    if (record.type !== "turn") {
+      // dsh 的段头是 session；其余类型（例如 pi 的 run / backfill）记一条提示。
+      if (record.type !== "session") skipped.unknown += 1;
+      continue;
+    }
     const sessionId = typeof record.sessionId === "string" ? record.sessionId : "";
     const seq = seqOf(record);
-    if (sessionId === "" || seq === undefined) continue;
+    if (sessionId === "" || seq === undefined) {
+      skipped.invalidTurn += 1;
+      continue;
+    }
     const entry = bySession.get(sessionId) ?? {
       sessionId,
       lastSeq: lastSeqOf(state, planPath, sessionId),
@@ -147,8 +159,11 @@ const scanPlan = (rootDir, planDirectory, state) => {
       ),
     }))
     .sort((left, right) => left.sessionId.localeCompare(right.sessionId));
-  return { planPath, sessions };
+  return { planPath, sessions, skipped };
 };
+
+/** 一个 Plan 里被跳过的记录总数。 */
+const totalSkipped = (skipped) => skipped.malformed + skipped.unknown + skipped.invalidTurn;
 
 /**
  * 扫描工作区，返回按域分组的输入清单。
@@ -164,7 +179,7 @@ const scanDreamInput = (options = {}) => {
     ? domainsPath
     : path.resolve(rootDir, domainsPath);
   const state = readState(statePath);
-  const report = { rootDir, statePath, state, domains: [], idle: [] };
+  const report = { rootDir, statePath, state, domains: [], idle: [], warnings: [] };
   for (const domain of listDirectories(domainsRoot)) {
     const plans = [];
     const idle = [];
@@ -176,6 +191,9 @@ const scanDreamInput = (options = {}) => {
           state,
         );
         if (scanned === null) continue;
+        if (totalSkipped(scanned.skipped) > 0) {
+          report.warnings.push({ planPath: scanned.planPath, skipped: scanned.skipped });
+        }
         if (scanned.sessions.some((session) => session.turns.length > 0)) plans.push(scanned);
         else idle.push({ planPath: scanned.planPath });
       }
@@ -254,18 +272,35 @@ const formatReport = (report) => {
   );
   if (report.domains.length === 0) {
     lines.push("", "没有新增 turn。");
-    return lines.join("\n");
-  }
-  lines.push("", "## 有新增的域（" + report.domains.length + "）");
-  for (const group of report.domains) {
-    lines.push("", "### " + group.domain + "（" + group.plans.length + " 个 Plan）");
-    for (const plan of group.plans) {
-      lines.push("", "#### " + plan.planPath);
-      for (const session of plan.sessions) {
-        if (session.turns.length === 0) continue;
-        lines.push(...formatSession(session));
+  } else {
+    lines.push("", "## 有新增的域（" + report.domains.length + "）");
+    for (const group of report.domains) {
+      lines.push("", "### " + group.domain + "（" + group.plans.length + " 个 Plan）");
+      for (const plan of group.plans) {
+        lines.push("", "#### " + plan.planPath);
+        for (const session of plan.sessions) {
+          if (session.turns.length === 0) continue;
+          lines.push(...formatSession(session));
+        }
       }
     }
+  }
+  if (report.warnings.length > 0) {
+    lines.push("", "## 需要留意（有记录被跳过）");
+    for (const warning of report.warnings) {
+      const taken = warning.skipped;
+      lines.push(
+        "- " +
+          warning.planPath +
+          "：坏行 " +
+          taken.malformed +
+          "、非 turn 记录 " +
+          taken.unknown +
+          "、无效 turn " +
+          taken.invalidTurn,
+      );
+    }
+    lines.push("  可能不是 dsh 轨迹（例如 pi 的 run 记录）或格式已变；这些记录不会被处理。");
   }
   if (report.idle.length > 0) {
     lines.push("", "## 无新增（只读）");
@@ -276,7 +311,7 @@ const formatReport = (report) => {
   lines.push(
     "",
     "处理完、nano_flow_check 通过、git commit 成功后推进游标（只推进成功的 Plan + 会话）：",
-    '  node <本脚本> --mark "<planPath>#<sessionId>=<seq 上界>"',
+    '  nano_flow_dream 的 mark 动作；手动调试时可用 node <本脚本> --mark "<planPath>#<sessionId>=<seq 上界>"',
   );
   return lines.join("\n");
 };

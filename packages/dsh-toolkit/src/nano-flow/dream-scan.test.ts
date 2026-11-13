@@ -114,6 +114,20 @@ describe("scanDreamInput", () => {
     expect(report.idle[0]?.plans[0]?.planPath).toBe(PLAN_PATH);
   });
 
+  it("reports skipped records for foreign or broken logs", async () => {
+    const root = await makeRoot();
+    await writeLog(root, [
+      JSON.stringify({ type: "run", v: 1, sessionId: "pi", run: 1, entries: [] }),
+      JSON.stringify({ type: "run", v: 1, sessionId: "pi", run: 2, entries: [] }),
+      "{oops",
+    ]);
+    const report = scanDreamInput({ rootDir: root, statePath: join(root, "cursor.json") });
+    expect(report.domains).toEqual([]);
+    expect(report.warnings).toEqual([
+      { planPath: PLAN_PATH, skipped: { malformed: 1, unknown: 2, invalidTurn: 0 } },
+    ]);
+  });
+
   it("skips malformed log lines instead of failing", async () => {
     const root = await makeRoot();
     await writeLog(root, [header(SESSION_A), "{oops", turn(SESSION_A, 1, 4, 533, "第一轮")]);
