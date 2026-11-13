@@ -259,3 +259,27 @@ export const placeTree = (root: MindmapNode): PlacedTree => {
   const maxY = Math.max(...nodes.map((node) => node.y + node.height));
   return { nodes, edges, minX, minY, maxX, maxY };
 };
+
+export interface ViewState {
+  x: number;
+  y: number;
+  scale: number;
+}
+
+export const MIN_SCALE = 0.35;
+export const MAX_SCALE = 2;
+
+export const panView = (view: ViewState, dx: number, dy: number): ViewState => ({
+  x: view.x + dx,
+  y: view.y + dy,
+  scale: view.scale,
+});
+
+export const zoomView = (view: ViewState, factor: number, px: number, py: number): ViewState => {
+  const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, view.scale * factor));
+  return {
+    scale,
+    x: px - (px - view.x) * (scale / view.scale),
+    y: py - (py - view.y) * (scale / view.scale),
+  };
+};

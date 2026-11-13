@@ -41,7 +41,9 @@ const config: Config = {
           path: "docs",
           sidebarPath: "./sidebars.ts",
           editUrl: "https://github.com/kxh4892636/kxh-kit/",
-          remarkPlugins: [remarkMath, remarkMindmap],
+          // 在默认 remark 插件之前跑：导图标题不能进目录，否则右侧目录栏会空一列
+          beforeDefaultRemarkPlugins: [remarkMindmap],
+          remarkPlugins: [remarkMath],
           rehypePlugins: [rehypeKatex],
         },
         blog: false,

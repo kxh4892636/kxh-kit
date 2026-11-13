@@ -35,20 +35,12 @@ _Avoid_：热度、票数
 一次抓取得到的「tag → 题目 + 次数」原始数据，落成 JSON 提交进仓：既可离线重生成 markdown，也可与下次抓取 diff。
 _Avoid_：缓存、dump
 
-**思维导图文档**：
-`apps/wiki/mindmaps/` 下带 `id` 与 `mindmap: true` 的 markdown，由 `@kxh4892636/docusaurus-plugin-mindmap` 整页渲染。与 `docs/` 同级、不进 docs 侧栏；只读，编辑只改 markdown。
-_Avoid_：导图页面、图文档
-
-**导图目录**：
-`/mindmaps` 页面的左侧栏，按 `mindmaps/` 的目录生成，规则与 docs 侧栏一致：目录是分类（可折叠）、文件是条目、数字前缀决定顺序、README 作分类落地页。
-_Avoid_：导航、菜单
-
-**导图路由**：
-导图页按路径访问，如 `/mindmaps/010-计算机/031-TypeScript/知识地图`；同一篇导图还能用 `id` 走 `/<id>` 短链，与 docs 文档共用这套短链机制。
-_Avoid_：永久链接、permalink
+**思维导图**：
+文档正文里 `<Mindmap>…</Mindmap>` 之间的 markdown 标题渲染成的只读图，由 `@kxh4892636/docusaurus-plugin-mindmap` 提供。它是正文里的一个块，不是页面：导航、目录、搜索、面包屑仍走 docs 原生逻辑。
+_Avoid_：导图页面、图文档、导图路由
 
 **节点**：
-思维导图文档里的一个 markdown 标题，父子关系即标题层级。节点 id 由标题尾部 `{#id}` 显式给出，缺省按标题文本生成 slug。
+思维导图里的一个 markdown 标题，父子关系即标题层级。节点 id 就是标题开头的编号（`## 1.2 接口` 的 `1.2`），同图唯一、层级不跳级。
 _Avoid_：卡片、条目
 
 **概述**：

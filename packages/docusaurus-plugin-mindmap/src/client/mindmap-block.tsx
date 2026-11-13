@@ -1,20 +1,24 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { placeTree, type MindmapNode, type MindmapRef, type PlacedNode } from "./layout.ts";
+import {
+  MAX_SCALE,
+  MIN_SCALE,
+  placeTree,
+  panView,
+  zoomView,
+  type MindmapNode,
+  type MindmapRef,
+  type PlacedNode,
+  type ViewState,
+} from "./layout.ts";
 import { mindmapStyles } from "./styles.ts";
 
 interface MindmapBlockProps {
   tree: string;
 }
 
-interface ViewState {
-  x: number;
-  y: number;
-  scale: number;
-}
-
-const MIN_SCALE = 0.35;
-const MAX_SCALE = 2;
+// 平移与缩放直接改 DOM（transform、读数、浮窗坐标），不走 React 渲染：
+// 上百节点时每帧 setState 会把整棵 SVG 重建一遍。
 
 const collect = (node: MindmapNode, output: Map<string, MindmapNode>): Map<string, MindmapNode> => {
   output.set(node.id, node);
@@ -46,14 +50,58 @@ export const MindmapBlock: React.FC<MindmapBlockProps> = (props) => {
     [tree],
   );
   const frameRef = useRef<HTMLDivElement | null>(null);
-  const [view, setView] = useState<ViewState>({ x: 0, y: 0, scale: 1 });
+  const groupRef = useRef<SVGGElement | null>(null);
+  const readoutRef = useRef<HTMLSpanElement | null>(null);
+  const popoverRef = useRef<HTMLDivElement | null>(null);
+  const viewRef = useRef<ViewState>({ x: 0, y: 0, scale: 1 });
+  const popoverPlaced = useRef<PlacedNode | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [popoverId, setPopoverId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const drag = useRef<{ x: number; y: number; view: ViewState } | null>(null);
+  const drag = useRef<{ x: number; y: number; origin: ViewState } | null>(null);
 
   const selectedNode = popoverId ? (nodeMap.get(popoverId) ?? null) : null;
-  const selectedPlaced = popoverId ? (placedMap.get(popoverId) ?? null) : null;
+  popoverPlaced.current = popoverId ? (placedMap.get(popoverId) ?? null) : null;
+
+  const positionOf = useCallback(
+    (placed: PlacedNode): { left: number; top: number } => {
+      const view = viewRef.current;
+      const frame = frameRef.current;
+      const width = frame ? frame.getBoundingClientRect().width : 0;
+      const nodeLeft = view.x + placed.x * view.scale;
+      const nodeRight = nodeLeft + placed.width * view.scale;
+      const contentLeft = view.x + tree.minX * view.scale;
+      const contentRight = view.x + tree.maxX * view.scale;
+      const onLeft = (nodeLeft + nodeRight) / 2 < (contentLeft + contentRight) / 2;
+      const candidate = onLeft ? contentLeft - 360 : contentRight + 20;
+      return {
+        left: Math.max(12, Math.min(candidate, Math.max(12, width - 360))),
+        top: Math.max(12, view.y + placed.y * view.scale),
+      };
+    },
+    [tree],
+  );
+
+  const placePopover = useCallback((): void => {
+    const element = popoverRef.current;
+    const placed = popoverPlaced.current;
+    if (!element || !placed) return;
+    const spot = positionOf(placed);
+    element.style.left = String(spot.left) + "px";
+    element.style.top = String(spot.top) + "px";
+  }, [positionOf]);
+
+  const applyView = useCallback((): void => {
+    const view = viewRef.current;
+    groupRef.current?.setAttribute(
+      "transform",
+      "translate(" + String(view.x) + " " + String(view.y) + ") scale(" + String(view.scale) + ")",
+    );
+    if (readoutRef.current) {
+      readoutRef.current.textContent = String(Math.round(view.scale * 100)) + "%";
+    }
+    placePopover();
+  }, [placePopover]);
 
   const showDefault = useCallback((): void => {
     const frame = frameRef.current;
@@ -62,15 +110,16 @@ export const MindmapBlock: React.FC<MindmapBlockProps> = (props) => {
     const width = tree.maxX - tree.minX;
     const height = tree.maxY - tree.minY;
     const scale = width > rect.width - 48 ? Math.max(0.45, (rect.width - 48) / width) : 1;
-    setView({
+    viewRef.current = {
       scale,
       x: Math.max(16, (rect.width - width * scale) / 2 - tree.minX * scale),
       y:
         height * scale < rect.height - 48
           ? (rect.height - height * scale) / 2 - tree.minY * scale
           : 16 - tree.minY * scale,
-    });
-  }, [tree]);
+    };
+    applyView();
+  }, [tree, applyView]);
 
   const centreOn = useCallback(
     (id: string): void => {
@@ -78,13 +127,15 @@ export const MindmapBlock: React.FC<MindmapBlockProps> = (props) => {
       const placed = placedMap.get(id);
       if (!frame || !placed) return;
       const rect = frame.getBoundingClientRect();
-      setView((current) => ({
-        scale: current.scale,
-        x: rect.width / 2 - (placed.x + placed.width / 2) * current.scale,
-        y: rect.height / 2 - (placed.y + placed.height / 2) * current.scale,
-      }));
+      const scale = viewRef.current.scale;
+      viewRef.current = {
+        scale,
+        x: rect.width / 2 - (placed.x + placed.width / 2) * scale,
+        y: rect.height / 2 - (placed.y + placed.height / 2) * scale,
+      };
+      applyView();
     },
-    [placedMap],
+    [placedMap, applyView],
   );
 
   useEffect(() => {
@@ -106,16 +157,13 @@ export const MindmapBlock: React.FC<MindmapBlockProps> = (props) => {
       event.preventDefault();
       const rect = frame.getBoundingClientRect();
       const factor = event.deltaY < 0 ? 1.08 : 1 / 1.08;
-      setView((current) => {
-        const scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, current.scale * factor));
-        const px = event.clientX - rect.left;
-        const py = event.clientY - rect.top;
-        return {
-          scale,
-          x: px - (px - current.x) * (scale / current.scale),
-          y: py - (py - current.y) * (scale / current.scale),
-        };
-      });
+      viewRef.current = zoomView(
+        viewRef.current,
+        factor,
+        event.clientX - rect.left,
+        event.clientY - rect.top,
+      );
+      applyView();
     };
     frame.addEventListener("wheel", onWheel, { passive: false });
     return () => frame.removeEventListener("wheel", onWheel);
@@ -155,28 +203,16 @@ export const MindmapBlock: React.FC<MindmapBlockProps> = (props) => {
   };
 
   const zoomBy = (factor: number): void => {
-    setView((current) => ({
-      scale: Math.max(MIN_SCALE, Math.min(MAX_SCALE, current.scale * factor)),
+    const current = viewRef.current;
+    viewRef.current = {
       x: current.x,
       y: current.y,
-    }));
+      scale: Math.max(MIN_SCALE, Math.min(MAX_SCALE, current.scale * factor)),
+    };
+    applyView();
   };
 
-  const popoverStyle = (): React.CSSProperties => {
-    if (!selectedPlaced) return { display: "none" };
-    const frame = frameRef.current;
-    const width = frame ? frame.getBoundingClientRect().width : 0;
-    const nodeLeft = view.x + selectedPlaced.x * view.scale;
-    const nodeRight = nodeLeft + selectedPlaced.width * view.scale;
-    const contentLeft = view.x + tree.minX * view.scale;
-    const contentRight = view.x + tree.maxX * view.scale;
-    const onLeft = (nodeLeft + nodeRight) / 2 < (contentLeft + contentRight) / 2;
-    const candidate = onLeft ? contentLeft - 360 : contentRight + 20;
-    return {
-      left: Math.max(12, Math.min(candidate, Math.max(12, width - 360))),
-      top: Math.max(12, view.y + selectedPlaced.y * view.scale),
-    };
-  };
+  const popoverSpot = popoverPlaced.current ? positionOf(popoverPlaced.current) : null;
 
   const content = (
     <div className={expanded ? "mindmap-block mindmap-block--expanded" : "mindmap-block"}>
@@ -198,7 +234,9 @@ export const MindmapBlock: React.FC<MindmapBlockProps> = (props) => {
           >
             −
           </button>
-          <span className="mindmap-block__readout">{Math.round(view.scale * 100)}%</span>
+          <span className="mindmap-block__readout" ref={readoutRef}>
+            100%
+          </span>
           <button
             type="button"
             className="button button--secondary button--sm"
@@ -227,16 +265,13 @@ export const MindmapBlock: React.FC<MindmapBlockProps> = (props) => {
         className="mindmap-block__frame"
         ref={frameRef}
         onPointerDown={(event) => {
-          drag.current = { x: event.clientX, y: event.clientY, view };
+          drag.current = { x: event.clientX, y: event.clientY, origin: viewRef.current };
         }}
         onPointerMove={(event) => {
           if (!drag.current) return;
           const start = drag.current;
-          setView({
-            scale: start.view.scale,
-            x: start.view.x + event.clientX - start.x,
-            y: start.view.y + event.clientY - start.y,
-          });
+          viewRef.current = panView(start.origin, event.clientX - start.x, event.clientY - start.y);
+          applyView();
         }}
         onPointerUp={() => {
           drag.current = null;
@@ -249,17 +284,7 @@ export const MindmapBlock: React.FC<MindmapBlockProps> = (props) => {
         }}
       >
         <svg className="mindmap-block__svg" role="group" aria-label="思维导图">
-          <g
-            transform={
-              "translate(" +
-              String(view.x) +
-              " " +
-              String(view.y) +
-              ") scale(" +
-              String(view.scale) +
-              ")"
-            }
-          >
+          <g ref={groupRef}>
             {tree.edges.map((edge, index) => (
               <path
                 key={"edge-" + String(index)}
@@ -336,7 +361,8 @@ export const MindmapBlock: React.FC<MindmapBlockProps> = (props) => {
         {selectedNode ? (
           <div
             className="mindmap-block__popover"
-            style={popoverStyle()}
+            ref={popoverRef}
+            style={popoverSpot ?? undefined}
             role="dialog"
             aria-label={selectedNode.title}
           >

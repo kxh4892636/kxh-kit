@@ -218,10 +218,6 @@ html[data-theme="dark"] .mindmap-block__node:hover .mindmap-block__box {
 .mindmap-block--expanded .mindmap-block__popover {
   max-height: 70%;
 }
-/* the docs TOC is parsed from the raw markdown, so it lists the mindmap headings: hide it on these pages */
-:root:has(.mindmap-block) .table-of-contents {
-  display: none;
-}
 .mindmap-block--expanded {
   position: static;
   inset: auto;
@@ -254,9 +250,5 @@ html[data-theme="dark"] .mindmap-block__node:hover .mindmap-block__box {
 .mindmap-block .button {
   font-size: var(--ifm-font-size-base);
   font-weight: var(--ifm-font-weight-normal);
-}
-/* the docs TOC is parsed from raw markdown, so it lists the mindmap headings: hide it here */
-:root:has(.mindmap-block) .table-of-contents {
-  display: none;
 }
 `;
