@@ -111,6 +111,15 @@ describe("NotesDock", () => {
     expect(anchorOf("002-阻塞").contains(screen.getByText("阻塞"))).toBe(true);
   });
 
+  it("stays visible with an empty state when every note is completed", async () => {
+    fetchNotes.mockResolvedValue({ ...snapshot, notes: [] });
+    render(createElement(NotesDock, props("nano-flow")));
+    expect(await screen.findByTestId("nano-flow-notes-panel")).toBeDefined();
+    expect(screen.getByText("全部完成")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: /Note/u }));
+    expect(screen.getByTestId("nano-flow-notes-empty")).toBeDefined();
+  });
+
   it("starts collapsed and unfolds on header click", async () => {
     fetchNotes.mockResolvedValue(snapshot);
     render(createElement(NotesDock, props("nano-flow")));

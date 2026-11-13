@@ -1,12 +1,10 @@
-import fs from "node:fs";
 import path from "node:path";
 import {
   GENERATED_MARKER,
   KEBAB,
   relativePath,
   addIssue,
-  describe,
-  exists,
+  writeInsideWorkspace,
   normalizeCell,
   sortByName,
 } from "./base.mjs";
@@ -91,50 +89,33 @@ const renderNotesIndex = (notes) => {
   ].join("\n");
 };
 
+/**
+ * 定位 `## 追踪 Note`：区分「没有」和「有但不合法」。
+ *
+ * 两者不能都返回空——调用方对「没有」会追加一张新表，对「有但不合法」必须只报错，
+ * 否则每跑一次校验就多追加一张，spec 会无限增长。
+ * @returns `{ kind: "missing" }` / `{ kind: "invalid" }` / `{ kind: "found", start }`。
+ */
 const findTrackedRange = (content, ctx, file) => {
   const matches = [...content.matchAll(/^## 追踪 Note\s*$/gm)];
   if (matches.length > 1) {
     addIssue(ctx.errors, ctx.rootDir, file, "spec", "只允许一个「## 追踪 Note」章节");
-    return null;
+    return { kind: "invalid" };
   }
-  if (matches.length === 0) return null;
   const match = matches[0];
+  if (match === undefined) return { kind: "missing" };
   const start = match.index ?? 0;
   const after = content.slice(start + match[0].length);
   if (/^#{2,6} /m.test(after)) {
     addIssue(ctx.errors, ctx.rootDir, file, "spec", "「## 追踪 Note」必须是最后一个章节");
-    return null;
+    return { kind: "invalid" };
   }
-  return { start, end: content.length };
+  return { kind: "found", start };
 };
 
 const writeGenerated = (ctx, file, content) => {
-  const resolved = path.resolve(file);
-  if (!resolved.startsWith(`${path.resolve(ctx.rootDir)}${path.sep}`)) {
-    addIssue(ctx.errors, ctx.rootDir, file, "write", "目标不在工作区内，拒绝写入");
-    return;
-  }
-  try {
-    fs.mkdirSync(path.dirname(resolved), { recursive: true });
-    const parentReal = fs.realpathSync(path.dirname(resolved));
-    const rootReal = fs.realpathSync(ctx.rootDir);
-    if (parentReal !== rootReal && !parentReal.startsWith(`${rootReal}${path.sep}`)) {
-      addIssue(ctx.errors, ctx.rootDir, file, "write", "目标解析到工作区外，拒绝写入");
-      return;
-    }
-    if (exists(resolved)) {
-      const fileReal = fs.realpathSync(resolved);
-      if (fileReal !== rootReal && !fileReal.startsWith(`${rootReal}${path.sep}`)) {
-        addIssue(ctx.errors, ctx.rootDir, file, "write", "目标文件解析到工作区外，拒绝写入");
-        return;
-      }
-      const current = fs.readFileSync(resolved, "utf8");
-      if (current === content) return;
-    }
-    fs.writeFileSync(resolved, content, "utf8");
-    ctx.updated.push(relativePath(ctx.rootDir, resolved));
-  } catch (error) {
-    addIssue(ctx.errors, ctx.rootDir, file, "write", `写入失败: ${describe(error)}`);
+  if (writeInsideWorkspace(ctx, file, content) === "written") {
+    ctx.updated.push(relativePath(ctx.rootDir, path.resolve(file)));
   }
 };
 const renderContextMap = (ctx, contexts) => {

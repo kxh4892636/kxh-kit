@@ -53,6 +53,11 @@ const addIssue = (issueList, rootDir, targetPath, rule, message) => {
   issueList.push({ path: relativePath(rootDir, targetPath), rule, message });
 };
 
+/** 记录一条自动修复，调用方据此只回「修了什么」。 */
+const addFixed = (fixedList, rootDir, targetPath, rule, message) => {
+  fixedList.push({ path: relativePath(rootDir, targetPath), rule, message });
+};
+
 const describe = (error) => (error instanceof Error ? error.message : String(error));
 
 const readText = (targetPath, ctx) => {
@@ -75,6 +80,48 @@ const readEntries = (targetPath, ctx) => {
 
 const exists = (targetPath) => fs.existsSync(targetPath);
 
+/**
+ * 把内容写进工作区内的文件，越界或失败记 error。
+ * @returns `written` | `unchanged` | `rejected`
+ */
+const writeInsideWorkspace = (ctx, file, content) => {
+  const resolved = path.resolve(file);
+  if (!resolved.startsWith(`${path.resolve(ctx.rootDir)}${path.sep}`)) {
+    addIssue(ctx.errors, ctx.rootDir, file, "write", "目标不在工作区内，拒绝写入");
+    return "rejected";
+  }
+  try {
+    fs.mkdirSync(path.dirname(resolved), { recursive: true });
+    const parentReal = fs.realpathSync(path.dirname(resolved));
+    const rootReal = fs.realpathSync(ctx.rootDir);
+    if (parentReal !== rootReal && !parentReal.startsWith(`${rootReal}${path.sep}`)) {
+      addIssue(ctx.errors, ctx.rootDir, file, "write", "目标解析到工作区外，拒绝写入");
+      return "rejected";
+    }
+    if (exists(resolved)) {
+      const fileReal = fs.realpathSync(resolved);
+      if (fileReal !== rootReal && !fileReal.startsWith(`${rootReal}${path.sep}`)) {
+        addIssue(ctx.errors, ctx.rootDir, file, "write", "目标文件解析到工作区外，拒绝写入");
+        return "rejected";
+      }
+      if (fs.readFileSync(resolved, "utf8") === content) return "unchanged";
+    }
+    // 先写同目录临时文件再 rename：中途被打断不会留下空文件或半截文件。
+    const temp = `${resolved}.tmp`;
+    try {
+      fs.writeFileSync(temp, content, "utf8");
+      fs.renameSync(temp, resolved);
+    } catch (error) {
+      fs.rmSync(temp, { force: true });
+      throw error;
+    }
+    return "written";
+  } catch (error) {
+    addIssue(ctx.errors, ctx.rootDir, file, "write", `写入失败: ${describe(error)}`);
+    return "rejected";
+  }
+};
+
 const byteLength = (text) => Buffer.byteLength(text, "utf8");
 
 const isValidDate = (value) => {
@@ -90,6 +137,45 @@ const isValidDate = (value) => {
 };
 
 const isSingleLine = (value) => !/[\r\n]/u.test(value);
+
+/** 带三位数字编号的文档类型：name 必须能对上文件名。 */
+const NUMBERED_KINDS = Object.freeze(["adr", "question", "note", "workflow"]);
+
+/**
+ * 文档 name 的确定性校验，`create` 与 `check` 共用这一份规则。
+ *
+ * 返回 `{ rule, message }`（直接当作校验问题）+ `blocking`（为真时调用方应跳过后续校验），
+ * 没有问题返回 null。规则只在这里定义一次，避免 create 造出 check 必然拒绝的名字。
+ * @param value - 头里的 name 原值。
+ * @param kind - `context | question | adr | workflow | spec | note`。
+ * @returns 问题描述，或 null。
+ */
+const nameProblem = (value, kind) => {
+  if (typeof value !== "string" || value.trim() === "") {
+    return { rule: "header", message: "缺少 name", blocking: true };
+  }
+  if (!isSingleLine(value)) {
+    return { rule: "header", message: "name 必须是单行", blocking: true };
+  }
+  if (value.length > NAME_MAX_CHARS) {
+    return {
+      rule: "header",
+      message: `name 共 ${value.length} 字，超过 ${NAME_MAX_CHARS}`,
+      blocking: false,
+    };
+  }
+  if (NUMBERED_KINDS.includes(kind) && !NUMBERED_NAME.test(value)) {
+    return {
+      rule: "header",
+      message: "name 必须是三位数字前缀，例如 001-标题",
+      blocking: false,
+    };
+  }
+  if (NUMBERED_KINDS.includes(kind) && !HAN.test(value)) {
+    return { rule: "name", message: "名称必须包含中文标题", blocking: false };
+  }
+  return null;
+};
 
 const normalizeCell = (value) =>
   String(value ?? "")
@@ -138,6 +224,8 @@ export {
   HAN,
   relativePath,
   addIssue,
+  addFixed,
+  writeInsideWorkspace,
   describe,
   readText,
   readEntries,
@@ -145,6 +233,7 @@ export {
   byteLength,
   isValidDate,
   isSingleLine,
+  nameProblem,
   normalizeCell,
   sortByName,
   parseFrontmatter,

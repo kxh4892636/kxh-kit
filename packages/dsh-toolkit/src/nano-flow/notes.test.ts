@@ -143,10 +143,14 @@ describe("buildNotesSnapshot", () => {
     });
   });
 
-  it("returns null when every note is completed", async () => {
+  it("keeps an empty snapshot when every note is completed", async () => {
     const root = await makeRoot();
     const plan = "2026-11-08-演示";
     await writeNote(root, plan, "001-完成.md", "completed");
-    expect(buildNotesSnapshot(root, planDirectory(root, plan))).toBeNull();
+    expect(buildNotesSnapshot(root, planDirectory(root, plan))).toEqual({
+      planName: plan,
+      planPath: `.agents/domains/dsh/plans/active/${plan}`,
+      notes: [],
+    });
   });
 });

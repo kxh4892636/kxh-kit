@@ -73,14 +73,10 @@ export const readPanelNotes = (planDirectory: string): PanelNote[] => {
  * 组装面板快照。
  * @param workspace - 工作区根。
  * @param planDirectory - Plan 目录。
- * @returns 快照；没有未完成 note 时返回 `null`（面板不渲染）。
+ * @returns 快照；已绑定 Plan 时始终返回，未完成列表可以为空（面板显示空态）。
  */
-export const buildNotesSnapshot = (
-  workspace: string,
-  planDirectory: string,
-): NotesSnapshot | null => {
+export const buildNotesSnapshot = (workspace: string, planDirectory: string): NotesSnapshot => {
   const notes = readPanelNotes(planDirectory);
-  if (notes.length === 0) return null;
   const planPath = relative(workspace, planDirectory).replaceAll("\\", "/");
   const segments = planPath.split("/");
   const planName = segments[segments.length - 1] ?? planPath;

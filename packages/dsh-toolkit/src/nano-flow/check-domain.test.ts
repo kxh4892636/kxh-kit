@@ -453,7 +453,7 @@ describe("checkWorkspace", () => {
     expect(notes).toContain("(001-中文%20标题.md)");
   });
 
-  it("reports duplicate names and legacy documents", async () => {
+  it("reports legacy documents and auto-aligns mismatched names", async () => {
     const root = await makeRoot();
     await domain(root, "demo", "演示");
     const questions = ".agents/domains/demo/questions";
@@ -470,10 +470,150 @@ describe("checkWorkspace", () => {
     await write(root, `${questions}/003-旧格式.md`, "# 旧格式\n\n没有 YAML 头。\n");
     const strict = checkWorkspace(root);
     expect(strict.ok).toBe(false);
-    expect(strict.errors.some((issue) => issue.message.includes("name 重复"))).toBe(true);
+    // 名字与文件名不一致会被自动对齐，重复因此消失。
+    expect(strict.fixed.some((issue) => issue.message.includes("name 对齐文件名"))).toBe(true);
     expect(strict.errors.some((issue) => issue.message.includes("缺少 YAML 头"))).toBe(true);
 
     const loose = checkWorkspace(root, { strict: false });
     expect(loose.warnings.some((issue) => issue.message.includes("缺少 YAML 头"))).toBe(true);
+  });
+});
+
+describe("自动修复", () => {
+  const planDir = (name: string): string => `.agents/domains/${name}/plans/active/2026-01-01-示例`;
+
+  const noteOf = (name: string, status: string, extraLines: string[] = []): string =>
+    [
+      "---",
+      `name: '${name}'`,
+      "description: '示例 note。'",
+      `status: ${status}`,
+      ...extraLines,
+      "---",
+      "",
+      `# ${name}`,
+      "",
+    ].join("\n");
+
+  const specOf = (status: string): string =>
+    [
+      "---",
+      "name: '2026-01-01-示例'",
+      "description: '示例 Plan。'",
+      `status: ${status}`,
+      "---",
+      "",
+      "# 示例",
+      "",
+    ].join("\n");
+
+  it("按 note 派生 spec 状态", async () => {
+    const root = await makeRoot();
+    await domain(root, "demo", "演示");
+    const plan = planDir("demo");
+    await write(root, `${plan}/spec.md`, specOf("in_progress"));
+    await write(root, `${plan}/001-甲.md`, noteOf("001-甲", "completed", ["related_noted: []"]));
+    const result = checkWorkspace(root);
+    expect(result.ok).toBe(true);
+    expect(result.fixed.some((issue) => issue.message.includes("spec 状态"))).toBe(true);
+    expect(await readFile(join(root, plan, "spec.md"), "utf8")).toContain("status: completed");
+  });
+
+  it("name 与文件名不一致时对齐，并联动 related_noted", async () => {
+    const root = await makeRoot();
+    await domain(root, "demo", "演示");
+    const plan = planDir("demo");
+    await write(root, `${plan}/spec.md`, specOf("in_progress"));
+    await write(
+      root,
+      `${plan}/001-甲.md`,
+      noteOf("旧名", "pending", ["related_noted: []", "next_step: '继续'"]),
+    );
+    await write(
+      root,
+      `${plan}/002-乙.md`,
+      noteOf("002-乙", "pending", ["related_noted: ['旧名']", "next_step: '继续'"]),
+    );
+    const result = checkWorkspace(root);
+    expect(result.ok).toBe(true);
+    expect(result.fixed.some((issue) => issue.message.includes("name 对齐文件名"))).toBe(true);
+    expect(result.fixed.some((issue) => issue.rule === "related")).toBe(true);
+    expect(await readFile(join(root, plan, "001-甲.md"), "utf8")).toContain("name: '001-甲'");
+    const second = await readFile(join(root, plan, "002-乙.md"), "utf8");
+    expect(second).toContain("001-甲");
+    expect(second).not.toContain("旧名");
+  });
+
+  it("非 blocked 的 note 去掉 reason", async () => {
+    const root = await makeRoot();
+    await domain(root, "demo", "演示");
+    const plan = planDir("demo");
+    await write(root, `${plan}/spec.md`, specOf("in_progress"));
+    await write(
+      root,
+      `${plan}/001-甲.md`,
+      noteOf("001-甲", "pending", ["related_noted: []", "next_step: '继续'", "reason: '旧原因'"]),
+    );
+    const result = checkWorkspace(root);
+    expect(result.ok).toBe(true);
+    expect(result.fixed.some((issue) => issue.message.includes("去掉 reason"))).toBe(true);
+    expect(await readFile(join(root, plan, "001-甲.md"), "utf8")).not.toContain("reason:");
+  });
+
+  it("多行头字段折成单行，重复执行不再产生修复", async () => {
+    const root = await makeRoot();
+    await domain(root, "demo", "演示");
+    const plan = planDir("demo");
+    await write(root, `${plan}/spec.md`, specOf("in_progress"));
+    await write(
+      root,
+      `${plan}/001-甲.md`,
+      [
+        "---",
+        "name: '001-甲'",
+        "description: |",
+        "  第一行",
+        "  第二行",
+        "status: pending",
+        "related_noted: []",
+        "next_step: '继续'",
+        "---",
+        "",
+        "# 001-甲",
+        "",
+      ].join("\n"),
+    );
+    const first = checkWorkspace(root);
+    expect(first.ok).toBe(true);
+    expect(first.fixed.some((issue) => issue.message.includes("description 多行合并为单行"))).toBe(
+      true,
+    );
+    expect(await readFile(join(root, plan, "001-甲.md"), "utf8")).toContain(
+      "description: 第一行 第二行",
+    );
+    const second = checkWorkspace(root);
+    expect(second.fixed).toHaveLength(0);
+  });
+
+  it("缺 questions 目录时自动创建", async () => {
+    const root = await makeRoot();
+    await write(root, ".agents/domains/demo/CONTEXT.md", context("演示", "演示的职责。"));
+    await write(root, ".agents/domains/demo/adr/index.md", "# ADR\n");
+    await write(root, ".agents/domains/demo/workflows/index.md", "# Workflows\n");
+    const result = checkWorkspace(root);
+    expect(result.ok).toBe(true);
+    expect(result.fixed.some((issue) => issue.message.includes("创建 questions 目录"))).toBe(true);
+    expect(existsSync(join(root, ".agents/domains/demo/questions/index.md"))).toBe(true);
+  });
+
+  it("blocked 缺 reason 仍只报错", async () => {
+    const root = await makeRoot();
+    await domain(root, "demo", "演示");
+    const plan = planDir("demo");
+    await write(root, `${plan}/spec.md`, specOf("in_progress"));
+    await write(root, `${plan}/001-甲.md`, noteOf("001-甲", "blocked", ["related_noted: []"]));
+    const result = checkWorkspace(root);
+    expect(result.ok).toBe(false);
+    expect(result.errors.some((issue) => issue.message.includes("reason"))).toBe(true);
   });
 });

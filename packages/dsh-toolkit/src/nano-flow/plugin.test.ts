@@ -131,17 +131,17 @@ describe("applyNanoFlow", () => {
     const harness = makeHarness();
     applyNanoFlow(harness.ctx, { workspace });
     const text = sectionText(harness)({ agent: { session: { header: { cwd: workspace } } } });
-    expect(text).toContain("开头先调用 `nano_flow_bind` 绑定目标 Plan");
-    expect(text).toContain("seed 已带校验结论时跳过");
+    expect(text).toContain("一个会话只有一个 plan 绑定");
+    expect(text).toContain("可独立验收的交付单元");
   });
 
-  it("documents the related-links contract and the dream entry", async () => {
+  it("documents the related-links contract", async () => {
     const workspace = await makeRoot();
     const harness = makeHarness();
     applyNanoFlow(harness.ctx, { workspace });
     const text = sectionText(harness)({ agent: { session: { header: { cwd: workspace } } } });
     expect(text).toContain("## 互链");
-    expect(text).toContain("[nano-flow:dream]");
+    expect(text).not.toContain("[nano-flow:dream]");
   });
 
   it("does not append note snapshots to the session log", async () => {
@@ -175,7 +175,7 @@ describe("applyNanoFlow", () => {
     expect(text).toContain("项目补充。");
     expect(text).toContain("## 篇幅限制");
     expect(text).toContain("description ≤ 233 字");
-    expect(text.indexOf("# Nano Flow")).toBeLessThan(text.indexOf("项目补充。"));
+    expect(text.indexOf("# 领域文档")).toBeLessThan(text.indexOf("项目补充。"));
     expect(text.indexOf("项目补充。")).toBeLessThan(text.indexOf("## 篇幅限制"));
   });
 
@@ -185,8 +185,8 @@ describe("applyNanoFlow", () => {
     applyNanoFlow(harness.ctx, { workspace });
     const text = sectionText(harness)({ agent: { session: { header: { cwd: workspace } } } });
     expect(text).not.toContain("项目补充");
-    expect(sectionText(harness)({})).toContain("# Nano Flow");
-    expect(sectionText(harness)({ agent: "not-an-object" })).toContain("# Nano Flow");
+    expect(sectionText(harness)({})).toContain("# 领域文档");
+    expect(sectionText(harness)({ agent: "not-an-object" })).toContain("# 领域文档");
   });
 
   it("falls back to config.workspace when the agent has no session header", async () => {

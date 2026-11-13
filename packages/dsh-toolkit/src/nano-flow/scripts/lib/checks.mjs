@@ -3,47 +3,26 @@ import {
   NOTE_STATUSES,
   SPEC_STATUSES,
   ADR_STATUSES,
-  NAME_MAX_CHARS,
   REASON_MAX_CHARS,
   NEXT_STEP_MAX_CHARS,
-  NUMBERED_NAME,
-  HAN,
   addIssue,
+  addFixed,
   readText,
   exists,
   byteLength,
   isSingleLine,
+  nameProblem,
   parseFrontmatter,
+  writeInsideWorkspace,
 } from "./base.mjs";
+import { collapseToSingleLine, removeFrontmatterKey, setFrontmatterScalar } from "./fix.mjs";
 
+/** 校验 name；规则只来自 `base.mjs` 的 `nameProblem`（create 用的是同一份）。 */
 const checkName = (value, kind, ctx, file) => {
-  if (typeof value !== "string" || value.trim() === "") {
-    addIssue(ctx.errors, ctx.rootDir, file, "header", "缺少 name");
-    return false;
-  }
-  if (!isSingleLine(value)) {
-    addIssue(ctx.errors, ctx.rootDir, file, "header", "name 必须是单行");
-    return false;
-  }
-  if (value.length > NAME_MAX_CHARS) {
-    addIssue(
-      ctx.errors,
-      ctx.rootDir,
-      file,
-      "header",
-      `name 共 ${value.length} 字，超过 ${NAME_MAX_CHARS}`,
-    );
-  }
-  if (["adr", "question", "note", "workflow"].includes(kind) && !NUMBERED_NAME.test(value)) {
-    addIssue(ctx.errors, ctx.rootDir, file, "header", "name 必须是三位数字前缀，例如 001-标题");
-  }
-  return true;
-};
-
-const checkHanName = (value, ctx, file) => {
-  if (typeof value === "string" && !HAN.test(value)) {
-    addIssue(ctx.errors, ctx.rootDir, file, "name", "名称必须包含中文标题");
-  }
+  const problem = nameProblem(value, kind);
+  if (problem === null) return true;
+  addIssue(ctx.errors, ctx.rootDir, file, problem.rule, problem.message);
+  return !problem.blocking;
 };
 
 const checkDescription = (value, ctx, file) => {
@@ -180,6 +159,75 @@ const checkRelatedSection = (ctx, file, body) => {
   }
 };
 
+/** 各 kind 必须单行的字段。 */
+const SINGLE_LINE_FIELDS = Object.freeze({
+  adr: ["name", "description"],
+  context: ["name", "description"],
+  note: ["name", "description", "reason", "next_step"],
+  question: ["name", "description"],
+  spec: ["name", "description"],
+  workflow: ["name", "description"],
+});
+
+/**
+ * 应用确定性字段修复：多行折成单行、非 blocked 的 note 去掉 reason、name 对齐文件名。
+ * 修完重新解析，让后续校验看到修复后的值。
+ * @returns `{ content, data, body, renamedFrom }`。
+ */
+const applyFieldFixes = (ctx, file, kind, content, parsed, expectedName) => {
+  const changes = [];
+  let next = content;
+  let current = parsed;
+  for (const field of SINGLE_LINE_FIELDS[kind] ?? ["name", "description"]) {
+    const value = parsed.data[field];
+    if (typeof value !== "string" || isSingleLine(value)) continue;
+    const rewritten = setFrontmatterScalar(next, field, collapseToSingleLine(value));
+    if (rewritten === null) continue;
+    next = rewritten;
+    changes.push({ rule: "header", message: `${field} 多行合并为单行` });
+  }
+  if (next !== content) current = parseFrontmatter(next);
+  let data = current.data ?? parsed.data;
+  const reason = data.reason;
+  if (
+    kind === "note" &&
+    data.status !== "blocked" &&
+    typeof reason === "string" &&
+    reason.trim() !== ""
+  ) {
+    const rewritten = removeFrontmatterKey(next, "reason");
+    if (rewritten !== null && rewritten !== next) {
+      next = rewritten;
+      current = parseFrontmatter(next);
+      data = current.data ?? data;
+      changes.push({ rule: "header", message: "非 blocked 的 note 去掉 reason" });
+    }
+  }
+  let renamedFrom = "";
+  if (expectedName !== undefined && typeof data.name === "string" && data.name !== expectedName) {
+    const rewritten = setFrontmatterScalar(next, "name", expectedName);
+    if (rewritten !== null) {
+      renamedFrom = data.name;
+      next = rewritten;
+      current = parseFrontmatter(next);
+      data = current.data ?? data;
+      changes.push({
+        rule: "name",
+        message: `name 对齐文件名为 ${expectedName}（原 ${renamedFrom}）`,
+      });
+    }
+  }
+  if (changes.length === 0) {
+    return { content, data, body: parsed.body, renamedFrom };
+  }
+  if (writeInsideWorkspace(ctx, file, next) === "written") {
+    for (const change of changes) {
+      addFixed(ctx.fixed, ctx.rootDir, path.resolve(file), change.rule, change.message);
+    }
+  }
+  return { content: next, data, body: current.body ?? parsed.body, renamedFrom };
+};
+
 const readDocument = (ctx, file, kind, options = {}) => {
   if (!exists(file)) {
     if (options.required === true) {
@@ -210,7 +258,8 @@ const readDocument = (ctx, file, kind, options = {}) => {
     );
     return null;
   }
-  const { data, body } = parsed;
+  const fixed = applyFieldFixes(ctx, file, kind, content, parsed, options.expectedName);
+  const { data, body } = fixed;
   checkUnknownKeys(data, HEADER_KEYS[kind], ctx, file);
   if (!checkName(data.name, kind, ctx, file)) return null;
   checkDescription(data.description, ctx, file);
@@ -288,7 +337,7 @@ const readDocument = (ctx, file, kind, options = {}) => {
             : kind === "spec"
               ? ctx.limits.specMaxBytes
               : ctx.limits.noteMaxBytes;
-  const size = byteLength(content);
+  const size = byteLength(fixed.content);
   if (size > limit) {
     const advice =
       kind === "note"
@@ -307,12 +356,11 @@ const readDocument = (ctx, file, kind, options = {}) => {
     addIssue(ctx.errors, ctx.rootDir, file, "size", `${size} 字节，超过 ${limit}${advice}`);
   }
 
-  return { data, body, content, file };
+  return { data, body, content: fixed.content, file, renamedFrom: fixed.renamedFrom };
 };
 
 export {
   checkName,
-  checkHanName,
   checkDescription,
   checkMetadata,
   checkSingleLineField,

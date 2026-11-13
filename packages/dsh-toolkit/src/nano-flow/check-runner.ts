@@ -12,6 +12,8 @@ interface CheckResult {
   readonly ok: boolean;
   readonly errors: readonly CheckIssue[];
   readonly warnings: readonly CheckIssue[];
+  /** 本次自动修复的条目；旧脚本没有该字段时为空。 */
+  readonly fixed: readonly CheckIssue[];
   readonly updated: readonly string[];
 }
 
@@ -87,10 +89,17 @@ export const runCheck = (options: {
           const warnings = Array.isArray(parsed["warnings"])
             ? parsed["warnings"].filter(isIssue)
             : [];
+          const fixed = Array.isArray(parsed["fixed"]) ? parsed["fixed"].filter(isIssue) : [];
           const updated = Array.isArray(parsed["updated"])
             ? parsed["updated"].filter((item): item is string => typeof item === "string")
             : [];
-          resolve({ ok: parsed["ok"] === true && errors.length === 0, errors, warnings, updated });
+          resolve({
+            ok: parsed["ok"] === true && errors.length === 0,
+            errors,
+            warnings,
+            fixed,
+            updated,
+          });
         } catch {
           reject(new Error(`校验脚本输出无法解析: ${line}`));
         }

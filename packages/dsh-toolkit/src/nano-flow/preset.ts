@@ -48,16 +48,14 @@ export const NANO_FLOW_PRESET_ID = "nano-flow";
 export const createNanoFlowPreset = (entryUrl: string): PresetDefinitionLike => ({
   id: NANO_FLOW_PRESET_ID,
   name: "Nano Flow",
-  description:
-    "以 spec + note 为唯一权威状态的交付流程：ask 拷问、do 交付；工具经 PTC 模式（run_code）呈现。",
+  description: "以 spec + note 为唯一权威状态的交付流程；工具经 PTC 模式（run_code）呈现。",
   order: 2,
   plugins: [
     {
       id: "persona",
       name: "@deepseek-ai/dsh-persona",
       config: {
-        prefix:
-          "You are a coding agent powered by the {{model}} model. 本会话运行 Nano Flow：按固定提示词里的 ask / do 两个循环推进，spec 与 note 是唯一权威状态。",
+        prefix: "本会话运行 Nano Flow：以 spec 与 note 为唯一权威状态，按固定提示词推进。",
       },
     },
     {
@@ -67,12 +65,8 @@ export const createNanoFlowPreset = (entryUrl: string): PresetDefinitionLike => 
     },
     { id: "time-context", name: "@deepseek-ai/dsh-time-context" },
     // PTC 模式：模型只看到 run_code + 生成的 SDK，工具调用写在一个 TypeScript 程序里。
-    // 需要宿主已挂 codeRuntime（web-app bundle 的 code-runtime 行）。
-    {
-      id: "tool-presentation",
-      name: "@deepseek-ai/dsh-agent-tool-presentation",
-      config: { mode: "ptc" },
-    },
+    // 直接挂执行器（旧选型器已弃用）；需要宿主已挂 codeRuntime（web-app bundle 的 code-runtime 行）。
+    { id: "tool-executor-ptc", name: "@deepseek-ai/dsh-tool-executor-ptc" },
     {
       id: "tool-bash",
       name: "@deepseek-ai/dsh-tool-bash",

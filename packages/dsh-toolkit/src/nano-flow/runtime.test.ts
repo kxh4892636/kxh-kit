@@ -71,8 +71,8 @@ const createTools = (workspace: string) => {
 describe("assets", () => {
   it("locates prompts, templates, skills and the check script", async () => {
     const assetsRoot = locateAssetsRoot();
-    expect(readPromptText(assetsRoot)).toContain("# Nano Flow");
-    expect(readUserPromptText(assetsRoot)).toContain("ask");
+    expect(readPromptText(assetsRoot)).toContain("# 领域文档");
+    expect(readUserPromptText(assetsRoot)).toContain("Keep it simple, stupid");
     expect(readLimitTemplate(assetsRoot)).toContain("## 篇幅限制");
     expect((await stat(join(assetsRoot, "prompts", "limit.md"))).isFile()).toBe(true);
     expect((await stat(join(assetsRoot, "templates", "spec.md"))).isFile()).toBe(true);
@@ -84,9 +84,7 @@ describe("assets", () => {
     const provider = createAssetSkillProvider(assetsSkillsRoot(assetsRoot));
     const listed = await provider.list({ signal: new AbortController().signal });
     const names = Array.isArray(listed) ? listed.map((candidate) => candidate.name) : [];
-    expect(names).toEqual(
-      expect.arrayContaining(["ask", "do", "to-skill", "code-spec", "learning"]),
-    );
+    expect(names).toEqual(expect.arrayContaining(["to-skill", "code-spec", "learning"]));
   });
 });
 
@@ -191,7 +189,7 @@ describe("plugin entry", () => {
     if (captured === undefined) throw new Error("nano-flow prompt section was not registered");
     const agent = { session: { header: { cwd: workspace } } };
     const text = (captured.text as (context: PromptContext) => string)({ agent });
-    expect(text).toContain("# Nano Flow");
+    expect(text).toContain("# 领域文档");
     expect(text).toContain("项目级补充。");
     await writeFile(join(workspace, ".agents", "domains", "GUIDE.md"), "后改内容。\n", "utf8");
     const cached = (captured.text as (context: PromptContext) => string)({ agent });

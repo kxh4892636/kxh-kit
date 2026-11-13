@@ -30,10 +30,12 @@ describe("nano-flow preset", () => {
     expect(names).toContain("@deepseek-ai/dsh-tool-schedule");
   });
 
-  it("以 PTC 模式呈现工具（需要宿主的 code runtime）", () => {
-    const presentation = preset.plugins.find((row) => row.id === "tool-presentation");
-    expect(presentation?.name).toBe("@deepseek-ai/dsh-agent-tool-presentation");
-    expect(presentation?.config).toEqual({ mode: "ptc" });
+  it("直接挂 PTC 执行器（需要宿主的 code runtime）", () => {
+    const executor = preset.plugins.find((row) => row.id === "tool-executor-ptc");
+    expect(executor?.name).toBe("@deepseek-ai/dsh-tool-executor-ptc");
+    expect(executor?.config).toBeUndefined();
+    const names = preset.plugins.map((row) => row.name);
+    expect(names).not.toContain("@deepseek-ai/dsh-agent-tool-presentation");
   });
 
   it("delegation 是带子行的 group", () => {

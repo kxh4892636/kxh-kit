@@ -533,6 +533,12 @@ const css = `
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* 未完成列表为空时的空态：一行 dim 文本，不可点击。 */
+.dshtk-notes-empty {
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+}
 `;
 
 /** 注入一次工具箱样式；没有 DOM（如静态渲染）时静默跳过。 */
