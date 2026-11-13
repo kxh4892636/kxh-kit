@@ -1,4 +1,4 @@
-import type { NanoFlowSettings } from "../contract.js";
+import type { NanoFlowSettings } from "../../contract.js";
 
 const KB = 1024;
 

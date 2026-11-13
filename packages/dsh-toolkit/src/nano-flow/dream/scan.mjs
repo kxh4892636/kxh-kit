@@ -6,7 +6,7 @@
  * 为什么按会话分游标：log.jsonl 里每个 turn 的 seq 来自宿主会话事件流，
  * 换会话后会从 4 重新开始；只按 Plan 记 lastSeq 会把新会话的 turn 全跳过。
  * 扫描与游标口径写在代码里，模型只消费输出、提交成功后调用 --mark。
- * @module @kxh4892636/dsh-toolkit/nano-flow/scripts/dream-scan
+ * @module @kxh4892636/dsh-toolkit/nano-flow/dream/scan
  */
 
 import fs from "node:fs";

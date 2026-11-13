@@ -4,9 +4,9 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
-import { DEFAULT_NANO_FLOW_SETTINGS } from "../contract.js";
-import { activePlans, isPlanLifecycle, listPlans, planRefOf } from "./plan.js";
-import { createAssetSkillProvider } from "./skills.js";
+import { DEFAULT_NANO_FLOW_SETTINGS } from "../../contract.js";
+import { activePlans, isPlanLifecycle, listPlans, planRefOf } from "../planning/plan.js";
+import { createAssetSkillProvider } from "../skills.js";
 import {
   asArguments,
   createToolRuntime,
@@ -14,8 +14,8 @@ import {
   optionalString,
   requiredString,
   textBlocks,
-} from "./tools/shared.js";
-import type { HostServices } from "./services.js";
+} from "../session/tool-runtime.js";
+import type { HostServices } from "../session/services.js";
 
 const roots: string[] = [];
 

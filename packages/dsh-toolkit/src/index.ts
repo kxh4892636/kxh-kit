@@ -14,15 +14,15 @@ import type {
 import { createNanoFlowSettingsStore, nodeNanoFlowSettingsIo } from "./host/nano-flow-settings.js";
 import { NANO_FLOW_SERVICE, type ToolkitNanoFlowFacade } from "./host/nano-flow-facade.js";
 import { createNanoFlowTool } from "./host/tools/nano-flow.js";
-import { applyNanoFlow } from "./nano-flow/plugin.js";
-import { assetsCheckScript, locateAssetsRoot } from "./nano-flow/assets.js";
-import { formatIssues, runCheck } from "./nano-flow/check-runner.js";
-import { DEFAULT_DOMAIN_ROOT } from "./nano-flow/config.js";
-import { recordMount, restoreMountReport } from "./nano-flow/mount-report.js";
-import { buildNotesSnapshot } from "./nano-flow/notes.js";
-import { NANO_FLOW_PRESET_ID, nanoFlowEntryUrl } from "./nano-flow/preset.js";
-import { createRotation, type RotationSession } from "./nano-flow/rotate.js";
-import { createPlanLogService } from "./nano-flow/plan-log-service.js";
+import { applyNanoFlow } from "./nano-flow/assembly/plugin.js";
+import { assetsCheckScript, locateAssetsRoot } from "./nano-flow/session/assets.js";
+import { formatIssues, runCheck } from "./nano-flow/documents/check-runner.js";
+import { DEFAULT_DOMAIN_ROOT } from "./nano-flow/session/config.js";
+import { recordMount, restoreMountReport } from "./nano-flow/session/mount-report.js";
+import { buildNotesSnapshot } from "./nano-flow/planning/notes.js";
+import { NANO_FLOW_PRESET_ID, nanoFlowEntryUrl } from "./nano-flow/assembly/preset.js";
+import { createRotation, type RotationSession } from "./nano-flow/session/rotate.js";
+import { createPlanLogService } from "./nano-flow/planning/plan-log-service.js";
 import {
   BINDINGS_FILE,
   inheritedPlanDirectory,
@@ -32,10 +32,10 @@ import {
   readBindingsSync,
   resolvePlanDirectory,
   writeBindings,
-} from "./nano-flow/plan-log.js";
-import { planRefFromDirectory } from "./nano-flow/plan.js";
-import { resolveWorkspace } from "./nano-flow/workspace.js";
-import { hostServices } from "./nano-flow/services.js";
+} from "./nano-flow/planning/plan-log.js";
+import { planRefFromDirectory } from "./nano-flow/planning/plan.js";
+import { resolveWorkspace } from "./nano-flow/session/workspace.js";
+import { hostServices } from "./nano-flow/session/services.js";
 import { createNestedSkillTool } from "./host/tools/nested-skill.js";
 import { createOfficeSkillsTool } from "./host/tools/office-skills.js";
 import { createUndoTurnTool } from "./host/tools/undo-turn.js";

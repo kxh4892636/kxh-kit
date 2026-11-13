@@ -18,7 +18,7 @@ import {
   type SessionEventLike,
   type SessionHeader,
 } from "./plan-log.js";
-import { isRecord } from "../shared/record.js";
+import { isRecord } from "../../shared/record.js";
 
 /** 会话最小的结构形状（宿主 Session）。 */
 interface PlanLogSession {

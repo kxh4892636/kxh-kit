@@ -2,7 +2,7 @@
  * 自动修复用的行级文本工具：只改 YAML 头里的目标行与引用的名字，不重排 YAML、不动正文。
  *
  * 这里只放「确定性」修复：结果由文件名、note 状态等既有事实唯一决定，不需要判断内容。
- * @module @kxh4892636/dsh-toolkit/nano-flow/scripts/lib/fix
+ * @module @kxh4892636/dsh-toolkit/nano-flow/documents/lib/fix
  */
 
 import path from "node:path";

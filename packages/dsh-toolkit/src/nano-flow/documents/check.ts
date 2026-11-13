@@ -1,13 +1,13 @@
-import { assetsCheckScript } from "../assets.js";
-import { formatIssues, runCheck } from "../check-runner.js";
+import { assetsCheckScript } from "../session/assets.js";
+import { formatIssues, runCheck } from "./check-runner.js";
 import {
   asArguments,
   optionalBoolean,
   optionalString,
   textBlocks,
   type ToolRuntime,
-} from "./shared.js";
-import type { ToolDefinitionLike } from "../services.js";
+} from "../session/tool-runtime.js";
+import type { ToolDefinitionLike } from "../session/services.js";
 
 const executeCheck = async (
   runtime: ToolRuntime,

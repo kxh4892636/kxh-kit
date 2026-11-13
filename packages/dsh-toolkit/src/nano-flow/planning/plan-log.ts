@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { mkdir, readFile, writeFile, appendFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative } from "node:path";
-import { asRecord, isRecord } from "../shared/record.js";
+import { asRecord, isRecord } from "../../shared/record.js";
 
 /** Plan 轨迹文件名：与 spec.md 同级。 */
 const PLAN_LOG_FILE = "log.jsonl";

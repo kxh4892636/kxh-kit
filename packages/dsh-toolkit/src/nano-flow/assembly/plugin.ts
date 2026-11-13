@@ -3,9 +3,9 @@ import { isAbsolute, join, resolve } from "node:path";
 
 import type { Context } from "@deepseek-ai/cordis";
 
-import { DEFAULT_NANO_FLOW_SETTINGS, type NanoFlowSettings } from "../contract.js";
-import { NANO_FLOW_SERVICE, type ToolkitNanoFlowFacade } from "../host/nano-flow-facade.js";
-import { serviceOf } from "../host/services.js";
+import { DEFAULT_NANO_FLOW_SETTINGS, type NanoFlowSettings } from "../../contract.js";
+import { NANO_FLOW_SERVICE, type ToolkitNanoFlowFacade } from "../../host/nano-flow-facade.js";
+import { serviceOf } from "../../host/services.js";
 import {
   assetsSkillsRoot,
   assetsTemplatesRoot,
@@ -13,21 +13,21 @@ import {
   readLimitTemplate,
   readPromptText,
   readUserPromptText,
-} from "./assets.js";
-import { DEFAULT_DOMAIN_ROOT, type Config as NanoFlowConfig } from "./config.js";
-import { buildLimitsText } from "./limits.js";
-import { recordMount } from "./mount-report.js";
-import { hostServices, type HostServices, type PromptContext } from "./services.js";
-import { resolveWorkspace } from "./workspace.js";
-import { createAssetSkillProvider } from "./skills.js";
-import { createBindTool } from "./tools/bind.js";
-import { createCheckTool } from "./tools/check.js";
-import { createCreateTool } from "./tools/create.js";
-import { createDreamTool } from "./tools/dream.js";
-import { createToolRuntime } from "./tools/shared.js";
+} from "../session/assets.js";
+import { DEFAULT_DOMAIN_ROOT, type Config as NanoFlowConfig } from "../session/config.js";
+import { buildLimitsText } from "../session/limits.js";
+import { recordMount } from "../session/mount-report.js";
+import { hostServices, type HostServices, type PromptContext } from "../session/services.js";
+import { resolveWorkspace } from "../session/workspace.js";
+import { createAssetSkillProvider } from "../skills.js";
+import { createBindTool } from "../planning/bind.js";
+import { createCheckTool } from "../documents/check.js";
+import { createCreateTool } from "../planning/create.js";
+import { createDreamTool } from "../dream/tool.js";
+import { createToolRuntime } from "../session/tool-runtime.js";
 
-export { createAssetSkillProvider, ASSET_SKILL_RANK } from "./skills.js";
-import { describeError } from "../shared/errors.js";
+export { createAssetSkillProvider, ASSET_SKILL_RANK } from "../skills.js";
+import { describeError } from "../../shared/errors.js";
 
 /** 固定提示词段的排序位：紧跟 harness identity 与 persona，早于任务内容。 */
 const PROMPT_ORDER = 1;
@@ -87,7 +87,7 @@ const guideFileOf = (workspace: string, domainRoot: string): string => {
 };
 
 /**
- * 预设内的 Nano Flow 半：注入固定提示词与 GUIDE 快照、注册两个工具、追加每轮用户提示、
+ * 预设内的 Nano Flow 半：注入固定提示词与 GUIDE 快照、注册工具、追加每轮用户提示、
  * 动态注入随包 skill。
  *
  * 由根插件在 `config.nanoFlowOnly === true` 时调用（即预设行挂载本模块时），
@@ -106,7 +106,7 @@ export const applyNanoFlow = (ctx: Context, config: NanoFlowConfig): void => {
 };
 
 /**
- * 注册提示词段、运行时上下文、两个工具与随包 skill provider；失败时记入诊断并原样抛出。
+ * 注册提示词段、运行时上下文、工具与随包 skill provider；失败时记入诊断并原样抛出。
  * @param target - inject 提供的服务作用域（`tools` / `systemPrompt` 在这里可见）。
  * @param host - 插件自身的作用域上下文（`skills` 在这里可见，disposer 也挂在它上面）。
  * @param config - 插件配置。

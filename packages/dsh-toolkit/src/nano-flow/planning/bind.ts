@@ -1,12 +1,12 @@
-import { isPlanLifecycle, listPlans, PLAN_LIFECYCLES, planRefOf, type PlanRef } from "../plan.js";
-import type { ToolDefinitionLike } from "../services.js";
+import { isPlanLifecycle, listPlans, PLAN_LIFECYCLES, planRefOf, type PlanRef } from "./plan.js";
+import type { ToolDefinitionLike } from "../session/services.js";
 import {
   asArguments,
   optionalString,
   requiredString,
   textBlocks,
   type ToolRuntime,
-} from "./shared.js";
+} from "../session/tool-runtime.js";
 
 /** 按目录名解析 Plan；可通过 domain / lifecycle 消歧。 */
 const resolvePlan = async (

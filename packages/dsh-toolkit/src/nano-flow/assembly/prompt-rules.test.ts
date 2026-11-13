@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { locateAssetsRoot, readPromptText, readUserPromptText } from "./assets.js";
+import { locateAssetsRoot, readPromptText, readUserPromptText } from "../session/assets.js";
 
 const assetsRoot = locateAssetsRoot();
 const prompt = readPromptText(assetsRoot);

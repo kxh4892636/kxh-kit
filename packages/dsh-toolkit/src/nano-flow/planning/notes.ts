@@ -3,7 +3,7 @@ import { join, relative } from "node:path";
 
 import { parse as parseYaml } from "yaml";
 
-import { PANEL_STATUSES, type NotesSnapshot, type PanelNote } from "../contract.js";
+import { PANEL_STATUSES, type NotesSnapshot, type PanelNote } from "../../contract.js";
 
 const isPanelStatus = (value: unknown): value is PanelNote["status"] =>
   typeof value === "string" && (PANEL_STATUSES as readonly string[]).includes(value);

@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vite-plus/test";
 
-import { DEFAULT_NANO_FLOW_SETTINGS } from "../contract.js";
+import { DEFAULT_NANO_FLOW_SETTINGS } from "../../contract.js";
 import {
   createRotation,
   LAST_OUTPUT_TAG,

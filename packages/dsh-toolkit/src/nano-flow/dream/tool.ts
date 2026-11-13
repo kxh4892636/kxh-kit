@@ -4,23 +4,18 @@
  * 工具只是壳：扫规则与游标口径都在随包 `scripts/dream-scan.mjs`（同一份实现也能
  * 直接当 CLI 跑）。这样 dream.md 不用写死 profile 里的脚本路径，也不用把中文
  * 路径拼进 shell 字符串。
- * @module @kxh4892636/dsh-toolkit/nano-flow/tools/dream
+ * @module @kxh4892636/dsh-toolkit/nano-flow/dream/tool
  */
 
-import {
-  applyMarks,
-  defaultStatePath,
-  formatReport,
-  scanDreamInput,
-} from "../scripts/dream-scan.mjs";
-import type { ToolDefinitionLike } from "../services.js";
+import { applyMarks, defaultStatePath, formatReport, scanDreamInput } from "./scan.mjs";
+import type { ToolDefinitionLike } from "../session/services.js";
 import {
   asArguments,
   optionalString,
   requiredString,
   textBlocks,
   type ToolRuntime,
-} from "./shared.js";
+} from "../session/tool-runtime.js";
 
 const ACTIONS = ["scan", "mark"] as const;
 

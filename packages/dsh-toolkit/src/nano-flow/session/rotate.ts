@@ -1,13 +1,18 @@
 import { randomUUID } from "node:crypto";
 
-import type { NanoFlowSettings } from "../contract.js";
-import { NANO_FLOW_SERVICE, type ToolkitNanoFlowFacade } from "../host/nano-flow-facade.js";
-import { deleteSessionLogs } from "../host/undo/purge.js";
-import { ASSISTANT_LIMIT, groupByTurn, textOf, type SessionEventLike } from "./plan-log.js";
-import { asRecord } from "../shared/record.js";
-import { activePlans, listPlans, planRefOf } from "./plan.js";
+import type { NanoFlowSettings } from "../../contract.js";
+import { NANO_FLOW_SERVICE, type ToolkitNanoFlowFacade } from "../../host/nano-flow-facade.js";
+import { deleteSessionLogs } from "../../host/undo/purge.js";
+import {
+  ASSISTANT_LIMIT,
+  groupByTurn,
+  textOf,
+  type SessionEventLike,
+} from "../planning/plan-log.js";
+import { asRecord } from "../../shared/record.js";
+import { activePlans, listPlans, planRefOf } from "../planning/plan.js";
 import type { HostServices } from "./services.js";
-import { describeError } from "../shared/errors.js";
+import { describeError } from "../../shared/errors.js";
 
 /** 会话的最小形状：id、header 与日志快照。 */
 export interface RotationSession {

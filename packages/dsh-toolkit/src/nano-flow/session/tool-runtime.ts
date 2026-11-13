@@ -1,18 +1,19 @@
 import { isAbsolute, join } from "node:path";
 
 import type { NanoFlowSettings } from "../../contract.js";
-import type { Config } from "../config.js";
+import type { Config } from "./config.js";
 import type {
   HostServices,
   ToolExecContext,
   ToolTextBlock,
   WorkingDirectoryService,
-} from "../services.js";
+} from "./services.js";
 import { describeError } from "../../shared/errors.js";
 import { isRecord } from "../../shared/record.js";
-import { resolveWorkspace } from "../workspace.js";
+import { assetsTemplatesRoot } from "./assets.js";
+import { resolveWorkspace } from "./workspace.js";
 
-/** 两个工具共享的运行期依赖。 */
+/** 各 Nano Flow 工具共享的运行期依赖。 */
 export interface ToolRuntime {
   readonly services: HostServices;
   readonly config: Config;
@@ -83,7 +84,7 @@ export const createToolRuntime = (options: {
   rebind?: (sessionId: string, planDirectory: string, workspace: string) => Promise<void>;
 }): ToolRuntime => {
   const { services, config, settings, assetsRoot, domainRoot } = options;
-  const templatesRoot = join(assetsRoot, "templates");
+  const templatesRoot = assetsTemplatesRoot(assetsRoot);
   const domainsDirectory = (workspace: string): string =>
     isAbsolute(domainRoot) ? domainRoot : join(workspace, domainRoot);
   return {

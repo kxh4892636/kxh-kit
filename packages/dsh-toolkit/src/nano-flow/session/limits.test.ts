@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
-import { DEFAULT_NANO_FLOW_SETTINGS } from "../contract.js";
+import { DEFAULT_NANO_FLOW_SETTINGS } from "../../contract.js";
 import { locateAssetsRoot, readLimitTemplate } from "./assets.js";
 import { buildLimitsText, buildLimitsValues } from "./limits.js";
 

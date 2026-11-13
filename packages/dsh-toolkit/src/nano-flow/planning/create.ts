@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
-import type { ToolDefinitionLike, ToolExecContext } from "../services.js";
+import type { ToolDefinitionLike, ToolExecContext } from "../session/services.js";
 // 名字规则只有 scripts/lib/base.mjs 一处实现：create 造出的名字必须能过 check。
 import {
   HAN,
@@ -12,14 +12,14 @@ import {
   PLAN_NAME,
   isValidDate,
   nameProblem,
-} from "../scripts/check-domain.mjs";
+} from "../documents/check-domain.mjs";
 import {
   asArguments,
   optionalString,
   requiredString,
   textBlocks,
   type ToolRuntime,
-} from "./shared.js";
+} from "../session/tool-runtime.js";
 
 const KINDS = ["domain", "plan", "note"] as const;
 

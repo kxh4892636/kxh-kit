@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
-import { applyMarks, scanDreamInput } from "./scripts/dream-scan.mjs";
+import { applyMarks, scanDreamInput } from "./scan.mjs";
 
 const roots: string[] = [];
 

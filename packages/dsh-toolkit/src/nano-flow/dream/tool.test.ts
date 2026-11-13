@@ -4,11 +4,11 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
-import { DEFAULT_NANO_FLOW_SETTINGS } from "../contract.js";
-import { locateAssetsRoot } from "./assets.js";
-import { createDreamTool } from "./tools/dream.js";
-import { createToolRuntime } from "./tools/shared.js";
-import type { HostServices } from "./services.js";
+import { DEFAULT_NANO_FLOW_SETTINGS } from "../../contract.js";
+import { locateAssetsRoot } from "../session/assets.js";
+import { createDreamTool } from "./tool.js";
+import { createToolRuntime } from "../session/tool-runtime.js";
+import type { HostServices } from "../session/services.js";
 
 const roots: string[] = [];
 

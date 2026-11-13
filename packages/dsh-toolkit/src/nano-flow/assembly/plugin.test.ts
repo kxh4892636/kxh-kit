@@ -5,15 +5,15 @@ import { join } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
-import { DEFAULT_NANO_FLOW_SETTINGS } from "../contract.js";
-import { disableMountReport } from "./mount-report.js";
+import { DEFAULT_NANO_FLOW_SETTINGS } from "../../contract.js";
+import { disableMountReport } from "../session/mount-report.js";
 import {
   applyNanoFlow,
   createSettingsReader,
   PROMPT_SECTION,
   USER_CONTEXT_NAME,
 } from "./plugin.js";
-import type { HostServices, PromptContext, PromptContextEntry } from "./services.js";
+import type { HostServices, PromptContext, PromptContextEntry } from "../session/services.js";
 
 disableMountReport();
 

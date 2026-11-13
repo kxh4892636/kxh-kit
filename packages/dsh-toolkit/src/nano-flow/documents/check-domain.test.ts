@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
-import { checkWorkspace } from "./scripts/check-domain.mjs";
+import { checkWorkspace } from "./check-domain.mjs";
 
 const roots: string[] = [];
 

@@ -6,23 +6,25 @@ import { join } from "node:path";
 import type { Context } from "@deepseek-ai/cordis";
 import { afterEach, describe, expect, it } from "vite-plus/test";
 
-import { DEFAULT_NANO_FLOW_SETTINGS } from "../contract.js";
+import { DEFAULT_NANO_FLOW_SETTINGS } from "../../contract.js";
 import {
   assetsCheckScript,
+  assetsDreamPromptPath,
   assetsSkillsRoot,
+  assetsTemplatesRoot,
   locateAssetsRoot,
   readLimitTemplate,
   readPromptText,
   readUserPromptText,
-} from "./assets.js";
-import { DEFAULT_DOMAIN_ROOT } from "./config.js";
-import { disableMountReport } from "./mount-report.js";
+} from "../session/assets.js";
+import { DEFAULT_DOMAIN_ROOT } from "../session/config.js";
+import { disableMountReport } from "../session/mount-report.js";
 import { applyNanoFlow, PROMPT_SECTION, USER_CONTEXT_NAME, USER_CONTEXT_ORDER } from "./plugin.js";
-import { createAssetSkillProvider } from "./skills.js";
-import { createCheckTool } from "./tools/check.js";
-import { createCreateTool } from "./tools/create.js";
-import { createToolRuntime } from "./tools/shared.js";
-import type { HostServices, PromptContext, PromptContextEntry } from "./services.js";
+import { createAssetSkillProvider } from "../skills.js";
+import { createCheckTool } from "../documents/check.js";
+import { createCreateTool } from "../planning/create.js";
+import { createToolRuntime } from "../session/tool-runtime.js";
+import type { HostServices, PromptContext, PromptContextEntry } from "../session/services.js";
 
 disableMountReport();
 
@@ -74,11 +76,11 @@ describe("assets", () => {
     expect(readPromptText(assetsRoot)).toContain("# 领域文档");
     expect(readUserPromptText(assetsRoot)).toContain("Keep it simple, stupid");
     expect(readLimitTemplate(assetsRoot)).toContain("## 篇幅限制");
-    expect((await stat(join(assetsRoot, "prompts", "limit.md"))).isFile()).toBe(true);
-    expect((await stat(join(assetsRoot, "templates", "spec.md"))).isFile()).toBe(true);
-    expect((await stat(join(assetsRoot, "templates", "guide.md"))).isFile()).toBe(true);
+    const templatesRoot = assetsTemplatesRoot(assetsRoot);
+    expect((await stat(join(templatesRoot, "spec.md"))).isFile()).toBe(true);
+    expect((await stat(join(templatesRoot, "guide.md"))).isFile()).toBe(true);
     expect((await stat(assetsCheckScript(assetsRoot))).isFile()).toBe(true);
-    const dream = await readFile(join(assetsRoot, "prompts", "dream.md"), "utf8");
+    const dream = await readFile(assetsDreamPromptPath(assetsRoot), "utf8");
     expect(dream).toContain("nano_flow_dream");
     expect(dream).toContain("python3");
     expect(dream).toContain("subagent");

@@ -1,7 +1,10 @@
 import type { Context } from "@deepseek-ai/cordis";
 
 import { TOOL_IDS } from "../../contract.js";
-import { createNanoFlowPreset, type PresetDefinitionLike } from "../../nano-flow/preset.js";
+import {
+  createNanoFlowPreset,
+  type PresetDefinitionLike,
+} from "../../nano-flow/assembly/preset.js";
 import type { ToolkitTool } from "../toolkit-registry.js";
 import { describeError } from "../../shared/errors.js";
 
