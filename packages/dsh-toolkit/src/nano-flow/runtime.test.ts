@@ -79,7 +79,7 @@ describe("assets", () => {
     expect((await stat(join(assetsRoot, "templates", "guide.md"))).isFile()).toBe(true);
     expect((await stat(assetsCheckScript(assetsRoot))).isFile()).toBe(true);
     const dream = await readFile(join(assetsRoot, "prompts", "dream.md"), "utf8");
-    expect(dream).toContain("dream-scan.mjs");
+    expect(dream).toContain("nano_flow_dream");
     expect(dream).toContain("subagent");
     const provider = createAssetSkillProvider(assetsSkillsRoot(assetsRoot));
     const listed = await provider.list({ signal: new AbortController().signal });
@@ -130,7 +130,12 @@ describe("plugin entry", () => {
       },
     } as unknown as Context;
     applyNanoFlow(ctx, { workspace: "/tmp" });
-    expect(toolNames).toEqual(["nano_flow_create", "nano_flow_bind", "nano_flow_check"]);
+    expect(toolNames).toEqual([
+      "nano_flow_create",
+      "nano_flow_bind",
+      "nano_flow_check",
+      "nano_flow_dream",
+    ]);
     expect(sections).toHaveLength(1);
     expect(sections[0]).toMatchObject({ name: PROMPT_SECTION, order: 1 });
     expect(contexts).toHaveLength(1);

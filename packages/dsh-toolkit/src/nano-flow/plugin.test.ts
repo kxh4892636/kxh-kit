@@ -120,7 +120,12 @@ describe("applyNanoFlow", () => {
     const workspace = await makeRoot();
     const harness = makeHarness();
     applyNanoFlow(harness.ctx, { workspace });
-    expect(harness.tests).toEqual(["nano_flow_create", "nano_flow_bind", "nano_flow_check"]);
+    expect(harness.tests).toEqual([
+      "nano_flow_create",
+      "nano_flow_bind",
+      "nano_flow_check",
+      "nano_flow_dream",
+    ]);
     expect(harness.sections.map((section) => section.name)).toEqual([PROMPT_SECTION]);
     expect(harness.contexts.map((context) => context.name)).toEqual([USER_CONTEXT_NAME]);
     expect(harness.listeners).toHaveLength(1);

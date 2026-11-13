@@ -23,6 +23,7 @@ import { createAssetSkillProvider } from "./skills.js";
 import { createBindTool } from "./tools/bind.js";
 import { createCheckTool } from "./tools/check.js";
 import { createCreateTool } from "./tools/create.js";
+import { createDreamTool } from "./tools/dream.js";
 import { createToolRuntime } from "./tools/shared.js";
 
 export { createAssetSkillProvider, ASSET_SKILL_RANK } from "./skills.js";
@@ -176,6 +177,7 @@ const mountNanoFlow = (target: Context, host: Context, config: NanoFlowConfig): 
       services.tools.register(createCreateTool(runtime)),
       services.tools.register(createBindTool(runtime)),
       services.tools.register(createCheckTool(runtime)),
+      services.tools.register(createDreamTool(runtime)),
       host.skills.registerProvider(() => createAssetSkillProvider(assetsSkillsRoot(assetsRoot))),
     ];
     if (typeof services.systemPrompt.context === "function") {

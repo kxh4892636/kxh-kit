@@ -111,7 +111,7 @@ _Avoid_：记忆库、知识图谱、第五层
 _Avoid_：自动复盘、kaizen、离线批处理
 
 **dream 游标**：
-`$DSH_HOME/toolkit/nano-flow-dream.json`（v2）按「Plan + 会话」记录已处理到的 turn seq 上界；只由随包 `dream-scan.mjs` 的 `--mark` 在 `git commit` 成功后推进，重复投递靠它保持幂等。seq 换会话会重新计数，所以旧 v1 的 Plan 级 `lastSeq` 一律当空游标全量处理。
+`$DSH_HOME/toolkit/nano-flow-dream.json`（v2）按「Plan + 会话」记录已处理到的 turn seq 上界；只由 `nano_flow_dream` 的 `mark` 动作在 `git commit` 成功后推进（实现是随包 `dream-scan.mjs`），重复投递靠它保持幂等。seq 换会话会重新计数，所以旧 v1 的 Plan 级 `lastSeq` 一律当空游标全量处理。
 _Avoid_：进度条、checkpoint
 
 ### 会话撤回

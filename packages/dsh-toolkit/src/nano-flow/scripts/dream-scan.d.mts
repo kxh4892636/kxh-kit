@@ -76,3 +76,6 @@ export const applyMarks: (statePath: string, marks: readonly DreamMark[]) => Dre
 export const readState: (file: string) => DreamState;
 
 export const defaultStatePath: () => string | undefined;
+
+/** 把扫描结果渲染成给模型看的文本。 */
+export const formatReport: (report: DreamScanReport) => string;

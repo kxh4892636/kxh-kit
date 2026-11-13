@@ -357,4 +357,4 @@ if (invoked !== "" && samePath(invoked, fileURLToPath(import.meta.url))) {
   }
 }
 
-export { scanDreamInput, applyMarks, readState, defaultStatePath };
+export { scanDreamInput, applyMarks, readState, defaultStatePath, formatReport };

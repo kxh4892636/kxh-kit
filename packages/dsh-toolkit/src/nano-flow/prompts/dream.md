@@ -2,13 +2,9 @@
 
 ## 输入
 
-1. 跑扫描脚本，不要自己扫 `log.jsonl`（游标读写也在脚本里，seq 取 turn 的区间上界）：
+1. 调 `nano_flow_dream`，`action: "scan"`，拿输入清单。不要自己扫 `log.jsonl`：游标读写与 seq 口径（turn 的区间上界）都在工具里。
 
-   ```bash
-   node "$DSH_HOME/profiles/$DSH_PROFILE/node_modules/@kxh4892636/dsh-toolkit/dist/nano-flow/scripts/dream-scan.mjs"
-   ```
-
-   输出按域分组、只含游标之后的新 turn；`--json` 给机器读。脚本报错时报告路径问题并停止，不要退回手扫。
+   输出按域分组、只含游标之后的新 turn。工具报错时如实报告并停止，不要退回手扫。
 
 2. 读清单里的 Plan：`spec.md`、note 的「验证/结论」段、所属域文档与 `GUIDE.md`。
 
@@ -39,13 +35,13 @@
 2. 每个域 spawn 一个 `subagent`，prompt 写明：域、Plan 路径与 seq 范围、写入边界（只写本域，可读 `common` 与其他域）、返回格式。一次最多并行 4 个域，其余按域名字母序分批。
 3. 子 agent 只写本域（`{domain}/CONTEXT.md`、`questions/`、`adr/`、`workflows/`）；不得写 `common`、`GUIDE.md`、游标、生成物、`spec.md` 与 note；不得 `git commit`；不得跑 `nano_flow_check`。
 4. 子 agent 返回：改动文件、处理的 seq 范围、纠错/提炼/建链/剪枝结论、`common` 候选、未处理项。
-5. 父会话汇总：处理 `common` 候选（域→`common` 的链接只写在域内页面）、重写 `GUIDE.md`、跑一次 `nano_flow_check`、一次 `git commit`；成功后用脚本 `--mark "<planPath>#<sessionId>=<seq 上界>"` 推进这些 Plan + 会话的游标（可重复传），失败的域不推进并报告。
+5. 父会话汇总：处理 `common` 候选（域→`common` 的链接只写在域内页面）、重写 `GUIDE.md`、跑一次 `nano_flow_check`、一次 `git commit`；成功后调 `nano_flow_dream` 的 `action: "mark"`，`marks` 传已成功提交的 Plan + 会话（`planPath` / `sessionId` / `seq` 上界），失败的域不推进并报告。
 
 只有一个域有新增时父会话直接处理，不 spawn。
 
 ## 写入边界
 
-- 可写：`{domain}/CONTEXT.md`、`questions/NNN-*.md`、`adr/NNN-*.md`、`workflows/...`、`GUIDE.md`；游标只由 `dream-scan.mjs` 的 `--mark` 写。
+- 可写：`{domain}/CONTEXT.md`、`questions/NNN-*.md`、`adr/NNN-*.md`、`workflows/...`、`GUIDE.md`；游标只由 `nano_flow_dream` 的 `mark` 写。
 - 只读：`spec.md`、note、全部生成物（`CONTEXT-MAP.md`、各 `index.md`、`notes_index.md`、spec `## 追踪 Note`）、`system.md`。
 - 每条改动带出处（note 名或 `sessionId/turn`）。
 
@@ -53,7 +49,7 @@
 
 - 结束前由**父会话**跑一次 `nano_flow_check`；失败先修本次引入的问题，仍失败则报告、不提交、不推进游标。
 - 校验 `## 相关` 链接（目标存在、原因非空）与 `GUIDE.md` 是否超过设置里的上限。
-- 改动由**父会话**做一次 `git commit`（`docs(dream): …`）；commit 成功后才用脚本 `--mark` 推进游标，失败或未提交不推进。
+- 改动由**父会话**做一次 `git commit`（`docs(dream): …`）；commit 成功后才用 `nano_flow_dream` 的 `mark` 推进游标，失败或未提交不推进。
 - 单次运行的文件数/字节数超过预算时停在该 pass 边界并报告。
 
 ## 退出
