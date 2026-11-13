@@ -25,8 +25,6 @@
             └── 001-中文标题.md     # 工作 note
 ```
 
-domain-name 用 kebab-case，共享域为 `common`
-
 ## 领域文档规则
 
 ### YAML 头
@@ -47,7 +45,6 @@ metadata:
 ```
 
 - CONTEXT 另有 `relations`：`[{ to: 目标域目录名, description: 关系说明 }]`；跨域关系只在源域写一次。
-- ADR 可选 `status`：`proposed | accepted | deprecated | superseded`。
 - spec 固定 `status`：`pending | in_progress | completed`。
 - note 固定 `status`：`pending | in_progress | blocked | completed`。
 - `blocked` 必写 `reason`，其他状态不写；`related_noted` 是 name 数组；非 completed 必写单行 `next_step`。
@@ -78,7 +75,7 @@ metadata:
 
 ### 更新优先级
 
-同文档完善 >= 跨文档合并 >= 新建/拆分文档 >= 删除文档;
+同文档更新 >= 跨文档合并 >= 新建/拆分文档 >= 删除文档;
 
 ## 运行时规则
 
