@@ -14,3 +14,5 @@
 | [008-轮转绑定继承旧会话的Plan](008-轮转绑定继承旧会话的Plan.md) | 轮转后的自动绑定继承轮转前会话的 Plan，与工作区 active Plan 数量无关；无绑定或目录失效时跳过。 | superseded |
 | [009-Plan绑定只经bind工具](009-Plan绑定只经bind工具.md) | 会话↔Plan 绑定只由 nano_flow_bind 写入；check、plan-log 与轮转都不自动绑定。 | accepted |
 | [010-note按交付单元划分](010-note按交付单元划分.md) | note 以可独立验收的交付单元划分：同单元返工并入，只有验收或状态需分别表达时才拆。 | accepted |
+| [011-预设挂PTC执行器](011-预设挂PTC执行器.md) | nano-flow 预设直接挂 dsh-tool-executor-ptc，并以宿主 code-runtime 为前提；已弃用的呈现选型器不再使用。 | accepted |
+| [012-源码按能力分层](012-源码按能力分层.md) | nano-flow 源码按能力分六个目录、发布布局 dist/nano-flow 不变，分层与提示词硬规则用测试断言固定。 | accepted |
