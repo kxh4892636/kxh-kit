@@ -30,8 +30,8 @@
 
 ## 热点入口
 
-- 活跃 Plan：[2026-11-11-自动播放倒计时](music/plans/active/2026-11-11-自动播放倒计时/spec.md)（music，5 条 note 全 completed、已上线）；pi 侧最近收口的是 [2026-11-09-pi-toolkit插件](pi/plans/reference/2026-11-09-pi-toolkit插件/spec.md)（含 013 `/dream` 与 014 轨迹落盘）与 [2026-11-09-commandcode-provider接入](pi/plans/reference/2026-11-09-commandcode-provider接入/spec.md)。
-- 最近收口的 dsh Plan：[2026-11-09-nano-flow优化迭代](dsh/plans/reference/2026-11-09-nano-flow优化迭代/spec.md)（绑定、面板提示、写入节奏、note 划分、代码治理 16 条全 completed）；更早的轮转与 seed 设计在 [2026-11-08-nano-flow重构与dsh迁移](dsh/plans/archived/2026-11-08-nano-flow重构与dsh迁移/spec.md)。
+- 工作区暂无 active Plan；刚收口的是 music [2026-11-11-自动播放倒计时](music/plans/reference/2026-11-11-自动播放倒计时/spec.md)（6 条 note 全 completed、已上线）与 dsh [2026-11-13-dsh与pi对齐](dsh/plans/reference/2026-11-13-dsh与pi对齐/spec.md)（12 条全 completed、0.5.47 已发布并验收）；pi 侧最近收口的是 [2026-11-09-pi-toolkit插件](pi/plans/reference/2026-11-09-pi-toolkit插件/spec.md)（含 013 `/dream` 与 014 轨迹落盘）与 [2026-11-09-commandcode-provider接入](pi/plans/reference/2026-11-09-commandcode-provider接入/spec.md)。
+- 更早的 dsh Plan：[2026-11-09-nano-flow优化迭代](dsh/plans/reference/2026-11-09-nano-flow优化迭代/spec.md)（绑定、面板提示、写入节奏、note 划分、代码治理 16 条全 completed）；轮转与 seed 设计在 [2026-11-08-nano-flow重构与dsh迁移](dsh/plans/archived/2026-11-08-nano-flow重构与dsh迁移/spec.md)。
 - 源码：pi 侧 `packages/pi-toolkit/src/nano-flow/`（`prompts/system.md`、`prompts/dream.md`、`scripts/check-domain.mjs`、`skills/`），dsh 侧 `packages/dsh-toolkit/src/nano-flow/`。
 - 交付工作流：[pi 001 安装并真机验收](pi/workflows/001-安装pi-toolkit并真机验收/001-安装pi-toolkit并真机验收.md)、[dsh 001 发布并真机验收](dsh/workflows/001-发布dsh-toolkit并真机验收/001-发布dsh-toolkit并真机验收.md)、[music 001 部署曲库与站点](music/workflows/001-部署曲库与站点到服务器/001-部署曲库与站点到服务器.md)、[common 001 Vite+ 大版本升级](common/workflows/001-vite-plus大版本升级/001-vite-plus大版本升级.md)。
 - 常见坑：[dsh 问题索引](dsh/questions/index.md)——恢复只读、预设出现但工具缺失、历史加载失败、PATH 上的 dsh 装错 profile、宿主悬浮提示的锚点与宽度；[common 问题索引](common/questions/index.md)——发布包依赖、覆盖率门槛、提交时文件被改写；[pi 问题索引](pi/questions/index.md)——轨迹残留旧目录、overlay 格子底色、commandcode 403 套餐权限；[music 问题索引](music/questions/index.md)——音频 e2e 的墙钟与真浏览器、node 环境下 zustand 持久化断言；[nano-flow 问题索引](nano-flow/questions/index.md)——受管 skill 不更新、`nnf` 在 bash 里找不到。

@@ -59,13 +59,13 @@ pi-toolkit 与 dsh-toolkit 在 2026-11-09 分叉：dsh 最后一次源码提交�
 - 2026-11-13：新增 010（scan 提示跳过的记录），completed；非 dsh 记录改为提示、不报错。
 - 2026-11-13：新增 011（dream 怎么读轨迹细节），completed；提示词补 bash+python3 切片片段。
 - 2026-11-13：新增 012（nano-flow 按能力重排目录），completed；发布布局不变。
-- 2026-11-13：全部 note completed，用户确认迁 `reference`；本会话已重新绑定到新路径。
+- 2026-11-13：用户确认两个 Plan 一起归档，本 Plan 从 `active` 迁 `reference`；最后一轮提示词改动（去掉 ADR status 说明、更新优先级改用「更新」）已提交 `b32b5d7` 并装进 0.5.47。
 - 门禁证据：`vp check` / `vp test`（359 项）/ `test:coverage`（≥ 80）/ `build` / `nano_flow_check` 全绿；装包后的脚本实跑输出「已自动修复 2 项」。
-- 代码提交：`git log` 里的 `feat(nano-flow): 对齐 pi …` 提交（含用户多次手改的提示词与 persona）；hash 随 amend 变化，文档不钉死。Plan 留在 active，等用户决定是否迁 reference。
+- 代码提交：`git log` 里的 `feat(nano-flow): 对齐 pi …` 提交（含用户多次手改的提示词与 persona）；hash 随 amend 变化，文档不钉死。（2026-11-13 已迁 `reference`）
 
 ## 恢复入口
 
-先 `nano_flow_bind` 绑定本 Plan，再读 `notes_index.md`。唯一未完成项是 [007](007-发布0.5.47并真机验收.md)：代码、构建与安装已就绪，等用户重启宿主后按该 note 的清单走查；001-006 的返工并入各自 note。
+本 Plan 全部 note completed 并迁 `reference`，没有待推进项。要翻细节：发布与真机走查看 [007](007-发布0.5.47并真机验收.md)；dream 与目录结构看 [008](008-dream输入扫描改为脚本.md)–[012](012-nano-flow按能力重排目录.md)。
 
 ## 追踪 Note
 
