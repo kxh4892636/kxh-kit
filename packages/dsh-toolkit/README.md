@@ -214,7 +214,8 @@ metadata:
   「篇幅限制」块拼在 `prompts/system.md` + `GUIDE.md` 之后注入。压缩与拆分规则统一
   由 `prompts/limit.md` 维护。
 - 记忆维护由 **dream** 承担：`prompts/dream.md` 是投递给自动化任务的完整指令（每天 08:00 默认新建会话执行）；
-  五 pass 写回领域文档与 `GUIDE.md` 后跑 check 并 commit。互链写在页面文末
+  输入由随包 `scripts/dream-scan.mjs` 扫描：按「Plan + 会话」记游标（`$DSH_HOME/toolkit/nano-flow-dream.json`），
+  只输出新 turn；dream 处理后跑 check 并 commit，成功后用 `--mark` 推进游标。五 pass 写回领域文档与 `GUIDE.md`。互链写在页面文末
   `## 相关` 段（`- [链接](相对.md) — 原因`），check 校验目标与原因。
 - 预设不挂载压缩插件。轮转挂在**宿主半**：用户每发一条**排队**消息（queue）时，先按会话 id
   找到存活会话，再用日志里最后一条 `agent-preset/selected` 判断它是否跑 Nano Flow（live header

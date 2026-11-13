@@ -79,7 +79,7 @@ describe("assets", () => {
     expect((await stat(join(assetsRoot, "templates", "guide.md"))).isFile()).toBe(true);
     expect((await stat(assetsCheckScript(assetsRoot))).isFile()).toBe(true);
     const dream = await readFile(join(assetsRoot, "prompts", "dream.md"), "utf8");
-    expect(dream).toContain("[nano-flow:dream]");
+    expect(dream).toContain("dream-scan.mjs");
     expect(dream).toContain("subagent");
     const provider = createAssetSkillProvider(assetsSkillsRoot(assetsRoot));
     const listed = await provider.list({ signal: new AbortController().signal });
