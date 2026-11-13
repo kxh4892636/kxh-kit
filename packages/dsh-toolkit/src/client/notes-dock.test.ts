@@ -61,7 +61,6 @@ describe("NotesDock", () => {
     fetchNotes.mockResolvedValue(snapshot);
     render(createElement(NotesDock, props("nano-flow")));
     expect(await screen.findByTestId("nano-flow-notes-panel")).toBeDefined();
-    fireEvent.click(screen.getByRole("button", { name: /Note/u }));
     for (const note of snapshot.notes) expect(screen.getByText(note.name)).toBeDefined();
     expect(screen.getByText("1 进行中 · 1 阻塞 · 1 待处理")).toBeDefined();
   });
@@ -70,7 +69,6 @@ describe("NotesDock", () => {
     fetchNotes.mockResolvedValue(snapshot);
     render(createElement(NotesDock, props("nano-flow")));
     await screen.findByTestId("nano-flow-notes-panel");
-    fireEvent.click(screen.getByRole("button", { name: /Note/u }));
     expect(screen.getByText("阻塞")).toBeDefined();
     expect(screen.getByText("待处理")).toBeDefined();
   });
@@ -96,7 +94,6 @@ describe("NotesDock", () => {
     });
     render(createElement(NotesDock, props("nano-flow")));
     await screen.findByTestId("nano-flow-notes-panel");
-    fireEvent.click(screen.getByRole("button", { name: /Note/u }));
     // 气泡标签：描述 + 有值时的原因/下一步；锚点是包含状态名与标题的整行。
     const anchorOf = (name: string): Element => {
       const row = screen.getByText(name).closest(".dshtk-notes-row");
@@ -114,21 +111,21 @@ describe("NotesDock", () => {
   it("stays visible with an empty state when every note is completed", async () => {
     fetchNotes.mockResolvedValue({ ...snapshot, notes: [] });
     render(createElement(NotesDock, props("nano-flow")));
-    expect(await screen.findByTestId("nano-flow-notes-panel")).toBeDefined();
-    expect(screen.getByText("全部完成")).toBeDefined();
-    fireEvent.click(screen.getByRole("button", { name: /Note/u }));
+    const panel = await screen.findByTestId("nano-flow-notes-panel");
+    // 默认展开时「全部完成」同时出现在头部计数与空态行，分别断言。
+    expect(panel.querySelector(".dshtk-notes-progress")?.textContent).toBe("全部完成");
     expect(screen.getByTestId("nano-flow-notes-empty")).toBeDefined();
   });
 
-  it("starts collapsed and unfolds on header click", async () => {
+  it("starts expanded and collapses on header click", async () => {
     fetchNotes.mockResolvedValue(snapshot);
     render(createElement(NotesDock, props("nano-flow")));
     await screen.findByTestId("nano-flow-notes-panel");
-    expect(screen.queryByText("001-进行中")).toBeNull();
-    expect(screen.getByText("展开")).toBeDefined();
-    fireEvent.click(screen.getByRole("button", { name: /Note/u }));
     expect(screen.getByText("001-进行中")).toBeDefined();
     expect(screen.getByText("收起")).toBeDefined();
+    fireEvent.click(screen.getByRole("button", { name: /Note/u }));
+    expect(screen.queryByText("001-进行中")).toBeNull();
+    expect(screen.getByText("展开")).toBeDefined();
   });
 
   it("polls the host again after the refresh interval", async () => {

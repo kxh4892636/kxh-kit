@@ -125,14 +125,14 @@ const countLabel = (notes: readonly PanelNote[]): string => {
     .join(" · ");
 };
 
-/** 面板本体：默认折叠，可展开；挂载时轮询宿主快照。 */
+/** 面板本体：默认展开，可收起；挂载时轮询宿主快照。 */
 const NotesPanelView: FC<{
   readonly sessionId: string;
   readonly useProjection: (key: string) => unknown;
   readonly ctx?: ClientContext;
 }> = ({ sessionId, useProjection, ctx }) => {
   ensureToolkitStyles();
-  const [collapsed, setCollapsed] = useState(true);
+  const [collapsed, setCollapsed] = useState(false);
   const [snapshot, setSnapshot] = useState<NotesSnapshot | null | undefined>(undefined);
   const preset = useProjection("agentPreset");
   useEffect(() => {
