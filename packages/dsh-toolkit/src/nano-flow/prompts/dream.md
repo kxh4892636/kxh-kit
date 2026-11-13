@@ -6,7 +6,38 @@
 
    输出按域分组、只含游标之后的新 turn。工具报错时如实报告并停止，不要退回手扫。
 
-2. 读清单里的 Plan：`spec.md`、note 的「验证/结论」段、所属域文档与 `GUIDE.md`。
+2. 读清单里的 Plan：`spec.md`、note 的「验证/结论」段、所属域文档与 `GUIDE.md`。需要轨迹细节时按「怎么读轨迹」下钻。
+
+## 怎么读轨迹
+
+`log.jsonl` 每行一条：`type: "session"` 是段头，`type: "turn"` 才是对话（`user`、`assistant`、`tools[].args/result`、`seq`）。不要用 `read`（50 KB 上限，单行可能上百 KB），用 `bash` + `python3` 切片：
+
+`@bash
+python3 - "<plan>/log.jsonl" [turn] [session] <<'PY'
+import json, sys
+path = sys.argv[1]
+turn = sys.argv[2] if len(sys.argv) > 2 else ""
+session = sys.argv[3] if len(sys.argv) > 3 else ""
+for line in open(path):
+    r = json.loads(line)
+    if r.get("type") != "turn":
+        continue
+    if turn and str(r.get("turn")) != turn:
+        continue
+    if session and r.get("sessionId") != session:
+        continue
+    print("## turn", r.get("turn"), r.get("sessionId"), r.get("seq"), r.get("startedAt"))
+    print("USER:", r.get("user", "")[:2000])
+    print("ASSISTANT:", r.get("assistant", "")[:4000])
+    for tool in r.get("tools", [])[:10]:
+        print("TOOL:", tool.get("name"), "ok=", tool.get("ok"))
+        print("  args:", str(tool.get("args", ""))[:400])
+        print("  result:", str(tool.get("result", ""))[:400], "truncated=", tool.get("truncated"))
+PY`@
+
+- 不传 turn 时逐条打摘要；传 turn 只打那一条。输出太大就先按 turn / session 过滤，别一次打印整份日志。
+- 只有摘要不够（要「验证过什么」「读过哪些文件」）时才下钻；优先读 `spec.md` 与 note。
+- pi 的轨迹是 `type: "run"`，`entries` 是原始会话条目，格式不同；报告里出现「非 turn 记录」就说明不该按本格式解析。
 
 ## 知识归属
 

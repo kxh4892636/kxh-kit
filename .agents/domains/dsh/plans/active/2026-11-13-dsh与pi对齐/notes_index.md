@@ -14,3 +14,4 @@
 | [008-dream输入扫描改为脚本](008-dream输入扫描改为脚本.md) | 把 dream 的输入扫描与游标读写收进随包 dream-scan.mjs（按 Plan+会话记 seq 上界），提示词只负责跑脚本与提交后 --mark。 | 003-校验脚本搬自动修复 |
 | [009-dream扫描改为工具](009-dream扫描改为工具.md) | 新增 nano_flow_dream 工具（scan/mark）包住随包 dream-scan.mjs；dream.md 不再写死 profile 路径或把中文路径拼进 shell。 | 008-dream输入扫描改为脚本 |
 | [010-dream扫描提示跳过的记录](010-dream扫描提示跳过的记录.md) | scan 报告新增「需要留意」段：按 Plan 列出坏行、非 turn 记录、无效 turn 数量，用于发现格式不匹配。 | 008-dream输入扫描改为脚本, 009-dream扫描改为工具 |
+| [011-dream如何读轨迹细节](011-dream如何读轨迹细节.md) | dream.md 补「怎么读轨迹」：说明 log 行格式，给 bash+python3 切片片段，按 turn/session 过滤，避免 read 撞上限。 | 008-dream输入扫描改为脚本, 010-dream扫描提示跳过的记录 |

@@ -57,6 +57,7 @@ pi-toolkit 与 dsh-toolkit 在 2026-11-09 分叉：dsh 最后一次源码提交�
 - 2026-11-13：新增 008（dream 输入扫描改脚本），completed；游标改按「Plan + 会话」记，旧 v1 忽略。
 - 2026-11-13：新增 009（dream 扫描改为 nano_flow_dream 工具），completed；Plan 因新工作迁回 active。
 - 2026-11-13：新增 010（scan 提示跳过的记录），completed；非 dsh 记录改为提示、不报错。
+- 2026-11-13：新增 011（dream 怎么读轨迹细节），completed；提示词补 bash+python3 切片片段。
 - 2026-11-13：全部 note completed，用户确认迁 `reference`；本会话已重新绑定到新路径。
 - 门禁证据：`vp check` / `vp test`（359 项）/ `test:coverage`（≥ 80）/ `build` / `nano_flow_check` 全绿；装包后的脚本实跑输出「已自动修复 2 项」。
 - 代码提交：`git log` 里的 `feat(nano-flow): 对齐 pi …` 提交（含用户多次手改的提示词与 persona）；hash 随 amend 变化，文档不钉死。Plan 留在 active，等用户决定是否迁 reference。
