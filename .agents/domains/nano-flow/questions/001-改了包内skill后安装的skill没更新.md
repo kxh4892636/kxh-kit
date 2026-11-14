@@ -7,7 +7,7 @@ description: '改包内 skill 后要构建 CLI 并 self skill install，两份�
 
 ## 适用条件与现象
 
-修改 `packages/nano-flow/skills/nano-flow-cli/` 后，`.agents/skills/nano-flow-cli/` 内容不变；`nnf self skill check --name nano-flow-cli` 返回 `modified` 或 `outdated`。
+修改 `repos/nano-flow/skills/nano-flow-cli/` 后，`.agents/skills/nano-flow-cli/` 内容不变；`nnf self skill check --name nano-flow-cli` 返回 `modified` 或 `outdated`。
 
 ## 原因
 
@@ -23,4 +23,4 @@ description: '改包内 skill 后要构建 CLI 并 self skill install，两份�
 
 ## 来源
 
-[self.md](../../../../packages/nano-flow/skills/nano-flow-cli/references/self.md)、[ADR 003](../adr/003-cli与受管skill同版发布.md)
+[self.md](../../../../repos/nano-flow/skills/nano-flow-cli/references/self.md)、[ADR 003](../adr/003-cli与受管skill同版发布.md)

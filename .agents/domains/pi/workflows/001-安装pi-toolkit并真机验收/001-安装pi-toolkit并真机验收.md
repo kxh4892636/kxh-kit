@@ -1,19 +1,19 @@
 ---
 name: '001-安装pi-toolkit并真机验收'
-description: '改动 packages/pi-toolkit 后要装进本机 pi 时：先 check/test，再 pi install，重启或 /reload 后才生效，随后按本次改动做一项真机观察。'
+description: '改动 repos/pi-toolkit 后要装进本机 pi 时：先 check/test，再 pi install，重启或 /reload 后才生效，随后按本次改动做一项真机观察。'
 ---
 
 # 001-安装pi-toolkit并真机验收
 
 ## 触发条件
 
-改了 `packages/pi-toolkit`（含 `src/nano-flow` 的提示词、skill、模板与校验脚本），要让本机 pi 真正用上新行为时。
+改了 `repos/pi-toolkit`（含 `src/nano-flow` 的提示词、skill、模板与校验脚本），要让本机 pi 真正用上新行为时。
 
 ## 步骤
 
 1. **静态门禁**：`pnpm --filter @kxh4892636/pi-toolkit check`（格式 + lint + 类型）。
 2. **单测**：`pnpm --filter @kxh4892636/pi-toolkit test`；只改 nano-flow 时可先跑该目录快跑。
-3. **安装**：`pi install /absolute/path/to/packages/pi-toolkit`（README 口径）。仓库内也用过相对路径加 `-a`：`pi install ./packages/pi-toolkit -a`，安装后 `~/.pi/agent/settings.json` 指向该包。pi 用 jiti 直接加载 TS，**不需要 build**。
+3. **安装**：`pi install /absolute/path/to/repos/pi-toolkit`（README 口径）。仓库内也用过相对路径加 `-a`：`pi install ./repos/pi-toolkit -a`，安装后 `~/.pi/agent/settings.json` 指向该包。pi 用 jiti 直接加载 TS，**不需要 build**。
 4. **生效**：扩展与 nested-skill 发现都在 pi 启动或 `/reload` 时发生，固定提示词在 run 开始时注入 —— 改完必须**重启 pi 或新开会话**才可信；未重启时看到的是旧行为，别当证据。
 5. **真机验收**（按本次改动挑一项，把观察结果写进 note）：
    - 开关：`/toolkit` 五行的开启/关闭立即生效（`webTools` / `askQuestions` 即时，`nestedSkills` 要等下一次 `input` 或 `/reload`）。

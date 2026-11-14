@@ -7,7 +7,7 @@ description: 'pi-toolkit 与 dsh-toolkit 各带一份 skill 树：同名 9 个�
 
 ## 问题
 
-两个 CLI 包都把自己的 skill 随包分发：`packages/pi-toolkit/src/nano-flow/skills/` 与 `packages/dsh-toolkit/src/nano-flow/skills/`。改一个 skill 时不确定改一处还是两处，也不知道两边「一致」到什么程度。
+两个 CLI 包都把自己的 skill 随包分发：`repos/pi-toolkit/src/nano-flow/skills/` 与 `repos/dsh-toolkit/src/nano-flow/skills/`。改一个 skill 时不确定改一处还是两处，也不知道两边「一致」到什么程度。
 
 ## 答案
 
@@ -36,7 +36,7 @@ description: 'pi-toolkit 与 dsh-toolkit 各带一份 skill 树：同名 9 个�
 ## 验证
 
 ```powershell
-$pi='packages/pi-toolkit/src/nano-flow/skills'; $dsh='packages/dsh-toolkit/src/nano-flow/skills'
+$pi='repos/pi-toolkit/src/nano-flow/skills'; $dsh='repos/dsh-toolkit/src/nano-flow/skills'
 git diff --no-index --stat -- $pi $dsh   # 只应出现 learning/ANKI.md 一行差异
 ```
 

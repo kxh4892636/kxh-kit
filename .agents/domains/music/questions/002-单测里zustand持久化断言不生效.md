@@ -7,7 +7,7 @@ description: 'node 测试环境没有 window，zustand persist 直接跳过存�
 
 ## 适用条件与现象
 
-在 `apps/music` 的 vitest（`vitest.config.ts` 的 `environment: "node"`）里断言播放器 store 的持久化内容，比如「`musopen.listen.v1` 只存 `history`，不再存 `autoPlay`」：
+在 `repos/music` 的 vitest（`vitest.config.ts` 的 `environment: "node"`）里断言播放器 store 的持久化内容，比如「`musopen.listen.v1` 只存 `history`，不再存 `autoPlay`」：
 
 - 存储里读不到写入的值，或者断言恒成立、改坏了也测不出来。
 
@@ -28,7 +28,7 @@ vi.stubGlobal("window", { localStorage: storage });
 
 ## 验证
 
-`cd apps/music && pnpm exec vitest run` 通过；故意把 `partialize` 改回带 `timer` 或 `autoPlay` 时，该用例必须变红。
+`cd repos/music && pnpm exec vitest run` 通过；故意把 `partialize` 改回带 `timer` 或 `autoPlay` 时，该用例必须变红。
 
 ## 来源
 

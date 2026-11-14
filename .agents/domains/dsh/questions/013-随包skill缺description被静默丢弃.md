@@ -7,7 +7,7 @@ description: 'SKILL.md 的 frontmatter 缺 description 或写成空值，包内 
 
 ## 现象
 
-在 `packages/dsh-toolkit/src/nano-flow/skills/<name>/SKILL.md` 新建了 skill，装包并刷新后斜杠菜单里没有它，日志与 `nano_flow_check` 也都不报错。
+在 `repos/dsh-toolkit/src/nano-flow/skills/<name>/SKILL.md` 新建了 skill，装包并刷新后斜杠菜单里没有它，日志与 `nano_flow_check` 也都不报错。
 
 ## 原因
 

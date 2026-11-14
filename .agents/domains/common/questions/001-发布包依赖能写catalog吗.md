@@ -7,7 +7,7 @@ description: '发布包的生产依赖字段不能写 catalog:，安装方会报
 
 ## 适用条件与现象
 
-在 `packages/*/package.json` 的 `dependencies`、`peerDependencies` 或 `optionalDependencies` 中写 `catalog:`；`npm pack` 出的 tarball 保留该写法，安装方报 `EUNSUPPORTEDPROTOCOL: Unsupported URL Type "catalog:"`。
+在 `repos/*/package.json` 的 `dependencies`、`peerDependencies` 或 `optionalDependencies` 中写 `catalog:`；`npm pack` 出的 tarball 保留该写法，安装方报 `EUNSUPPORTEDPROTOCOL: Unsupported URL Type "catalog:"`。
 
 ## 原因
 
@@ -19,7 +19,7 @@ description: '发布包的生产依赖字段不能写 catalog:，安装方会报
 
 ## 验证
 
-`npm pack` 后检查 tarball 内 `package.json` 的 `dependencies` 不含 `catalog:`；`packages/nano-flow/test/distribution.spec.ts` 覆盖该路径。
+`npm pack` 后检查 tarball 内 `package.json` 的 `dependencies` 不含 `catalog:`；`repos/nano-flow/test/distribution.spec.ts` 覆盖该路径。
 
 ## 来源
 

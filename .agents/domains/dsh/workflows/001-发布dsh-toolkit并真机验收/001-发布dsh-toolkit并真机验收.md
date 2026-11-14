@@ -1,20 +1,20 @@
 ---
 name: '001-发布dsh-toolkit并真机验收'
-description: '改动 packages/dsh-toolkit 后要装进本机宿主时：先 check/test/build，再打包安装到 desktop 与 web profile，重启后做真机验收。'
+description: '改动 repos/dsh-toolkit 后要装进本机宿主时：先 check/test/build，再打包安装到 desktop 与 web profile，重启后做真机验收。'
 ---
 
 # 001-发布dsh-toolkit并真机验收
 
 ## 触发条件
 
-改了 `packages/dsh-toolkit` 的宿主半或客户端半（含 `src/nano-flow` 的提示词、skill 与 check 脚本），要让本机宿主真正用上新行为时。
+改了 `repos/dsh-toolkit` 的宿主半或客户端半（含 `src/nano-flow` 的提示词、skill 与 check 脚本），要让本机宿主真正用上新行为时。
 
 ## 步骤
 
 1. **静态门禁**：`pnpm --filter @kxh4892636/dsh-toolkit check`（即 `vp check`：格式 + lint + 类型）。
 2. **单测**：`pnpm --filter @kxh4892636/dsh-toolkit test`（即 `vp test src`）；只改 nano-flow 时可先 `vp test src/nano-flow` 快跑。
 3. **构建**：`pnpm --filter @kxh4892636/dsh-toolkit build`（`vp pack` + 复制 nano-flow 资产 + 包客户端半）；产出 `dist/index.mjs`、客户端 bundle 与 `dist/nano-flow/`。
-4. **打包**：在 `packages/dsh-toolkit` 执行 `pnpm pack`；`prepack` 会再跑一次 `vp run --no-cache build`。构建必须挂在 `prepack` 而不是 `prepublishOnly`——后者本地打包时不执行，tarball 会带陈旧 `dist`，装进去 `locateAssetsRoot()` 直接抛错。
+4. **打包**：在 `repos/dsh-toolkit` 执行 `pnpm pack`；`prepack` 会再跑一次 `vp run --no-cache build`。构建必须挂在 `prepack` 而不是 `prepublishOnly`——后者本地打包时不执行，tarball 会带陈旧 `dist`，装进去 `locateAssetsRoot()` 直接抛错。
 5. **安装到 profile**：用桌面版自带 CLI，不要用 `PATH` 上的 `dsh`（它认不到 desktop profile）：
 
    ```powershell

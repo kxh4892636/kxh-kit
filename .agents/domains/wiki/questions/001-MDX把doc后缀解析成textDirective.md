@@ -33,7 +33,7 @@ const textOf = (node: MdastNode): string => {
 
 ## 验证方法
 
-- 单测里直接构造 `{ type: "textDirective", name: "7c9f-1" }` 作为链接后的节点，断言 `refs[0].target === "7c9f-1"`、`url === "/7c9f-1"`（`packages/docusaurus-plugin-mindmap/src/remark-mindmap.test.ts` 的「reads a doc reference from the trailing doc directive」）。
+- 单测里直接构造 `{ type: "textDirective", name: "7c9f-1" }` 作为链接后的节点，断言 `refs[0].target === "7c9f-1"`、`url === "/7c9f-1"`（`repos/docusaurus-plugin-mindmap/src/remark-mindmap.test.ts` 的「reads a doc reference from the trailing doc directive」）。
 - 真实页面：示例文档里任一文档引用点击后落到目标文档，说明解析拿到了正确 id。
 
 ## 备注

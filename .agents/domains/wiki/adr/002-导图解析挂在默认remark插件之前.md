@@ -31,7 +31,7 @@ build 产物计数，不靠肉眼：`build/docs/中转/思维导图示例/index.
 ## 证据
 
 - 用户选定方案 3：`session-644c9eec-c2a1-4e79-902f-f54f5feb87f0` seq 381（turn 2「toc: 选3」）。
-- 落地与计数：[007-导图标题不进文档目录](../plans/active/2026-11-13-思维导图插件/007-导图标题不进文档目录.md)；配置见 `apps/wiki/docusaurus.config.ts` 的 `beforeDefaultRemarkPlugins`。
+- 落地与计数：[007-导图标题不进文档目录](../plans/active/2026-11-13-思维导图插件/007-导图标题不进文档目录.md)；配置见 `repos/wiki/docusaurus.config.ts` 的 `beforeDefaultRemarkPlugins`。
 
 ## 相关
 

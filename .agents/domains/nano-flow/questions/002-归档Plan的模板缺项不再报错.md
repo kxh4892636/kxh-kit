@@ -23,4 +23,4 @@ Plan 在迁入冻结生命周期前完成模板校验；归档后不补写历史
 
 ## 来源
 
-[domain/PLAN.md](../../../../packages/nano-flow/skills/nano-flow/references/skills/domain/PLAN.md)
+[domain/PLAN.md](../../../../repos/nano-flow/skills/nano-flow/references/skills/domain/PLAN.md)

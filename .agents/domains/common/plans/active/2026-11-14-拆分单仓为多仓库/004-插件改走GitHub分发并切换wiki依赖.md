@@ -1,54 +1,61 @@
 ---
 name: "004-插件改走GitHub分发并切换wiki依赖"
-description: "两个 docusaurus 插件不打 npm：在各自 GitHub 仓里用 pnpm pack 出 tgz 挂 Release，wiki 依赖改成 tarball URL 并删掉 prebuild 的 --filter，站点独立 build 通过。"
-status: pending
+description: "实测结论：私有仓的 Release 资产与 raw 链接都需要鉴权，pnpm 无法匿名拉取；浏览器上传资产受 bsk 控制上下文限制未跑通，wiki 暂用 file: 同级依赖，切换条件写清。"
+status: blocked
+reason: "插件仓为 private：GitHub Release 资产与 raw 链接都需登录态，pnpm 匿名安装取不到；要么把两个插件仓改 public，要么维持 file: 同级依赖。等用户选择。"
 related_noted: ["002-子仓提取与历史保留", "006-GitHub建仓并推送"]
-next_step: "006 建好插件仓后，先打 Release 再改 wiki 依赖"
+next_step: "用户决定插件仓是否公开；公开则打 Release 上传 tgz 并改 wiki 依赖为资产 URL"
 ---
 
 # 004-插件改走GitHub分发并切换wiki依赖
 
 ## 目标
 
-wiki 能独立 `pnpm install && pnpm build`，插件从 GitHub 来的制品安装，不经 npm registry。
+wiki 不依赖 workspace，也不依赖 npm registry 拿到两个 docusaurus 插件。
 
-## 为什么不用 git 源码安装
+## 已完成的准备
 
-实测（pnpm 11.22.0，本地 `git+file:` 仓）：
+- 两个插件都升到 `0.1.0`，`pnpm pack` 成功：
+  - `repos/docusaurus-plugin-link/kxh4892636-docusaurus-plugin-link-0.1.0.tgz`
+  - `repos/docusaurus-plugin-mindmap/kxh4892636-docusaurus-plugin-mindmap-0.1.0.tgz`
+- 两个仓已推到 `kxh4892636/<name>`（private），`main` 有提交。
 
-- pnpm **会**给 git 依赖装 devDependencies 并跑 `prepare`——构建本身可行。
-- 但消费方必须在自己的 `pnpm-workspace.yaml` 里写 `allowBuilds`，键是**带 commit 的完整 spec**（`dep-from-git@git+file:///...#52b65c1`）。插件每次提交都变 commit，wiki 就得改一次配置。
-- 两个插件现在没有任何 `devDependencies`（构建工具 `vp` 来自根），源码安装在拆仓前后都跑不起来。
+## 卡点（实测）
 
-结论：走 **Release 里的 `.tgz`**——装的是构建产物，无构建、无 allowlist。
+1. **私有仓的制品要鉴权**：`https://github.com/<owner>/<repo>/releases/download/...` 与 `https://github.com/<owner>/<repo>/raw/...` 对 private 仓都要求登录态。pnpm 安装时用的是匿名 HTTP，取不到文件，会 404。
+2. **浏览器上传资产没跑通**：bsk 在本页反复报 `the control context no longer belongs to the current document or control state`，`bsk upload` 的 ref/selector/observation 三种传法都试过。Release 表单能填到「tag v0.1.0 已建」，但资产没上传成功。
+3. **git 源码安装不划算**：pnpm 11 会为 git 依赖装 devDependencies 并跑 `prepare`，但消费方要写带 commit 的 `allowBuilds`，插件每次提交都要改配置。
 
-## 步骤
+## 当前状态（可用）
 
-1. 在 `repos/docusaurus-plugin-link` 与 `repos/docusaurus-plugin-mindmap` 各自 `pnpm install && pnpm build && pnpm pack`，确认产出的 `.tgz` 里 `dist/` 完整。
-2. 打包前把两个包的 `version` 从 `0.0.0` 提到 `0.1.0`（URL 依赖不认版本号，但 tag 与资产名要可读）。
-3. 在插件仓打 `v0.1.0` tag，把 `.tgz` 作为 Release 资产上传（浏览器操作，与 006 同一套 bsk 流程）。
-4. wiki 里改依赖：
+`repos/wiki/package.json` 用同级路径依赖：
+
+```json
+"@kxh4892636/docusaurus-plugin-link": "file:../docusaurus-plugin-link",
+"@kxh4892636/docusaurus-plugin-mindmap": "file:../docusaurus-plugin-mindmap"
+```
+
+- 已在 `repos/wiki` 里 `pnpm install && pnpm build` 通过（`[SUCCESS] Generated static files in "build"`）。
+- 前提：两个插件目录与 wiki 平级（都在 `repos/` 下），并且插件已 `pnpm build` 出 `dist`。工作区拓扑天然满足。
+
+## 若用户选择公开插件仓
+
+1. 两个仓 Settings → Danger Zone → Change visibility → Public。
+2. 打 tag `v0.1.0`，上传上面两个 `.tgz` 作为 Release 资产。
+3. wiki 依赖换成资产 URL：
 
    ```json
-   "@kxh4892636/docusaurus-plugin-link": "https://github.com/kxh4892636/docusaurus-plugin-link/releases/download/v0.1.0/kxh4892636-docusaurus-plugin-link-0.1.0.tgz",
-   "@kxh4892636/docusaurus-plugin-mindmap": "https://github.com/kxh4892636/docusaurus-plugin-mindmap/releases/download/v0.1.0/kxh4892636-docusaurus-plugin-mindmap-0.1.0.tgz"
+   "@kxh4892636/docusaurus-plugin-link": "https://github.com/kxh4892636/docusaurus-plugin-link/releases/download/v0.1.0/kxh4892636-docusaurus-plugin-link-0.1.0.tgz"
    ```
 
-5. 删掉 wiki `package.json` 的 `prebuild` 里两段 `pnpm --filter … build`（插件不再从源码构建）；`build` 直接 `docusaurus build`。
-6. `repos/wiki` 里 `pnpm install && pnpm build`，站点能起来；改一行 wiki 文档复跑一次 build，确认插件仍生效。
+4. `repos/wiki` 里重新 `pnpm install && pnpm build`，确认 lockfile 里两个插件的解析结果是 URL。
 
-## 本地联调（不进依赖）
+## 验收（任一分支）
 
-要边改插件边看 wiki：把 wiki 的两个插件依赖临时换成 `file:../docusaurus-plugin-link` / `file:../docusaurus-plugin-mindmap`，改完在插件目录 `pnpm build`（wiki 读的是 `dist`）。联调结束改回 URL 依赖再提交。
-
-## 验收
-
-- wiki 的 `pnpm-lock.yaml` 里两个插件的解析结果指向 `github.com/.../releases/download/...`，不是 `workspace:` 也不是 registry。
-- `repos/wiki` 在**不安装**插件源码的情况下 `pnpm install && pnpm build` 通过。
-- 站点 serve 起来后：`doc:` 短链、`<Mindmap>` 渲染块、搜索都正常。
-- 两个插件仓的 Release 页各有一个 `.tgz` 资产，且资产内 `dist/` 非空。
+- wiki 的 `pnpm-lock.yaml` 里插件来源是 `file:` 或 Release URL，不是 `workspace:`、不是 registry。
+- `repos/wiki` 独立 `pnpm install && pnpm build` 通过。
 
 ## 相关
 
 - [spec.md](spec.md) — 分发决策与实测结论
-- [006-GitHub建仓并推送](006-GitHub建仓并推送.md) — 建仓与 Release 上传共用浏览器流程
+- [006-GitHub建仓并推送](006-GitHub建仓并推送.md) — 建仓与推送已完成

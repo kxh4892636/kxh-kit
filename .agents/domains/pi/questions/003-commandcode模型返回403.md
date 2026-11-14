@@ -24,7 +24,7 @@ description: '选中 claude-* 或 gpt-6-astra 时上游返回 403 MODEL_NOT_IN_P
 ## 验证
 
 - 区分权限与路径：路径或协议写错会得到 400 `invalid_request_error` 或 404，不是 `permission_error`。
-- 可用链路自检：`pi -p --model commandcode/deepseek/deepseek-v4-flash "回复三个字"` 正常返回；带工具调用的 `pi -p --model … "读 packages/pi-toolkit/package.json，只回答 name"` 也正常。
+- 可用链路自检：`pi -p --model commandcode/deepseek/deepseek-v4-flash "回复三个字"` 正常返回；带工具调用的 `pi -p --model … "读 repos/pi-toolkit/package.json，只回答 name"` 也正常。
 - 目录自检：`pi --list-models | grep -c '^commandcode'` 应为 96（受限模型仍会列出）。
 
 ## 来源

@@ -11,7 +11,7 @@ relations: []
 ## Language
 
 **ETF 产品**：
-由单一 `apps/etf` 应用（client/server/shared）组成的行情产品，可以管理 ETF、指数等多种证券。
+由单一 `repos/etf` 应用（client/server/shared）组成的行情产品，可以管理 ETF、指数等多种证券。
 _Avoid_：用 ETF 指代每一个证券
 
 **证券（Security）**：
@@ -31,7 +31,7 @@ _Avoid_：把表达式引用的普通 MA 称为虚拟均线
 _Avoid_：把日常增量刷新称为全量同步
 
 **日线缓存**：
-本机 SQLite（`apps/etf/data/etf.sqlite`）里的 `daily_bars` 与 `trading_calendar` 两张表，是看板与接口的唯一读源；日常由查询按需刷新，历史缺段时重建走全量同步。
+本机 SQLite（`repos/etf/data/etf.sqlite`）里的 `daily_bars` 与 `trading_calendar` 两张表，是看板与接口的唯一读源；日常由查询按需刷新，历史缺段时重建走全量同步。
 _Avoid_：数据库、行情数据库、上游副本
 
 **上游（红色火箭）**：

@@ -23,4 +23,4 @@ Anki 浏览器占用该笔记时，上游写入可能静默失败。
 
 ## 来源
 
-[anki.md](../../../../packages/nano-flow/skills/nano-flow-cli/references/anki.md)
+[anki.md](../../../../repos/nano-flow/skills/nano-flow-cli/references/anki.md)

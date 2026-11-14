@@ -5,7 +5,7 @@ import { basename, join, parse, resolve } from "node:path";
 // ── 可修改变量 ───────────────────────────────────────────────────────────────
 
 // 1. 同步：wiki 文档源目录 -> 目标目录
-const wikiDocsSource = "C:/Users/kxh/kxh-awesome/projects/kxh-kit/apps/wiki/docs";
+const wikiDocsSource = "C:/Users/kxh/kxh-awesome/projects/kxh-kit/repos/wiki/docs";
 const wikiDocsTarget = "C:/Users/kxh/kxh-awesome/kxh/10-wiki/doc";
 
 // 2. 加密打包：源目录 -> 同级同名的 .7z
