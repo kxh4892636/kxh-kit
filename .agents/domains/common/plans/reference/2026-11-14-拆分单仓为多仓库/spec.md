@@ -85,6 +85,7 @@ status: completed
 ## 进度
 
 - 2026-11-14 执行：九条 `subtree split` 全部完成并挂到 `repos/`；容器仓清空代码依赖并提交两次；八个仓推到 GitHub private；wiki 全站 build 通过（靠锁 `style-to-js 1.1.21`）。
+- 2026-11-14：全部 note 完成并经用户确认，Plan 从 `active` 迁到 `reference`；容器仓改名为 `kxh4892636/awesome`。
 - 2026-11-14 收尾：用户改定九仓全部 public；etf 复用同名仓 force push；插件 0.1.0 制品以小写 `release/` 目录随仓发布，wiki 依赖走 raw URL，装与 build 均通过。
 - 2026-11-14 卡点（已解）：`kxh4892636/etf` 被别的项目占用；插件仓 private 导致 Release 资产无法被 pnpm 匿名拉取，浏览器上传资产也没跑通，wiki 暂用 `file:` 同级依赖。
 - 2026-11-14：Plan 建立。已核实待拆目录、包身份、依赖协议、跨包引用、根工具链、历史工具、npm 状态与浏览器工具；用户确定：保留各目录历史、9 个仓库全 private、`.agents` 不拆、根不做代码依赖、catalog 固化为真实版本。
