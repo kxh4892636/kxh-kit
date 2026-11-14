@@ -1,4 +1,4 @@
-# kxh-kit 工作区
+# awesome 工作区
 
 这里只做工作区与 git 仓库管理：不装依赖、不放代码，也不共享 `node_modules`。
 
