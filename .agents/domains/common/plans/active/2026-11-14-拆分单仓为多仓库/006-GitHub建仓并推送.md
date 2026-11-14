@@ -1,10 +1,9 @@
 ---
 name: "006-GitHub建仓并推送"
 description: "浏览器操作在 kxh4892636 下建了 8 个 private 仓库并推完 main；etf 因 GitHub 上已有同名 public 仓库（内容是别的项目）未推，等用户定名。"
-status: blocked
-reason: "GitHub 已有 kxh4892636/etf（public，163 个文件，内容是 loop-kit skills 项目），与本仓 etf 无关；需要用户决定复用它并改 private、还是换名新建。"
+status: in_progress
 related_noted: ["002-子仓提取与历史保留", "004-插件改走GitHub分发并切换wiki依赖"]
-next_step: "用户给出 etf 的仓名后，建仓并推送 repos/etf"
+next_step: "把 kxh4892636/etf 从 public 改成 private（自动化浏览器打不开 settings 页）"
 ---
 
 # 006-GitHub建仓并推送
@@ -21,7 +20,13 @@ next_step: "用户给出 etf 的仓名后，建仓并推送 repos/etf"
 | nano-flow | `kxh4892636/nano-flow` | private，已推 main |
 | pi-toolkit | `kxh4892636/pi-toolkit` | private，已推 main |
 | wiki | `kxh4892636/wiki` | private，已推 main |
-| etf | — | **未推**：`kxh4892636/etf` 已被别的项目占用（public，163 文件） |
+| etf | `kxh4892636/etf` | 已复用并 force push（旧 main `3a7fcd6` 已镜像备份到 `.tmp/etf-backup.git`）；仍是 public，待改 private |
+
+## etf 复用
+
+- 旧仓只有一个分支 `main`（`3a7fcd6`，163 个文件的 loop-kit skills 项目），无 tag、无其他分支。
+- 先 `git clone --mirror` 备份到 `.tmp/etf-backup.git`，再 `git push --force` 推新历史（`b253647`）。旧内容只在这份备份里。
+- 建仓用的是同一个仓名，所以 `workspace.yaml` 里 etf 的 URL 不用改。
 
 ## 过程要点
 

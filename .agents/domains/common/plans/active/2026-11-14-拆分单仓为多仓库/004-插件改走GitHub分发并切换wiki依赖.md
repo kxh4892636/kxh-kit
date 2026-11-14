@@ -1,10 +1,9 @@
 ---
 name: "004-插件改走GitHub分发并切换wiki依赖"
 description: "实测结论：私有仓的 Release 资产与 raw 链接都需要鉴权，pnpm 无法匿名拉取；浏览器上传资产受 bsk 控制上下文限制未跑通，wiki 暂用 file: 同级依赖，切换条件写清。"
-status: blocked
-reason: "插件仓为 private：GitHub Release 资产与 raw 链接都需登录态，pnpm 匿名安装取不到；要么把两个插件仓改 public，要么维持 file: 同级依赖。等用户选择。"
+status: in_progress
 related_noted: ["002-子仓提取与历史保留", "006-GitHub建仓并推送"]
-next_step: "用户决定插件仓是否公开；公开则打 Release 上传 tgz 并改 wiki 依赖为资产 URL"
+next_step: "两个插件仓改 public 后，wiki 依赖切到 raw tgz URL 并重装验证"
 ---
 
 # 004-插件改走GitHub分发并切换wiki依赖
@@ -25,6 +24,15 @@ wiki 不依赖 workspace，也不依赖 npm registry 拿到两个 docusaurus 插
 1. **私有仓的制品要鉴权**：`https://github.com/<owner>/<repo>/releases/download/...` 与 `https://github.com/<owner>/<repo>/raw/...` 对 private 仓都要求登录态。pnpm 安装时用的是匿名 HTTP，取不到文件，会 404。
 2. **浏览器上传资产没跑通**：bsk 在本页反复报 `the control context no longer belongs to the current document or control state`，`bsk upload` 的 ref/selector/observation 三种传法都试过。Release 表单能填到「tag v0.1.0 已建」，但资产没上传成功。
 3. **git 源码安装不划算**：pnpm 11 会为 git 依赖装 devDependencies 并跑 `prepare`，但消费方要写带 commit 的 `allowBuilds`，插件每次提交都要改配置。
+
+## 制品已进仓库（2026-11-14 补）
+
+- 两个插件仓各提交了 `release/<name>-0.1.0.tgz`，`.gitignore` 用 `!release/*.tgz` 放行。
+- 公开后 wiki 可直接依赖：
+
+  `https://raw.githubusercontent.com/kxh4892636/docusaurus-plugin-link/main/release/kxh4892636-docusaurus-plugin-link-0.1.0.tgz`
+
+- 选这个而不是 Release 资产，是因为 bsk 在 Release 表单上上传资产反复被控制上下文拦下，而 raw 链接零交互。
 
 ## 当前状态（可用）
 

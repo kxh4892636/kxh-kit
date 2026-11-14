@@ -95,6 +95,6 @@ status: in_progress
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [004-插件改走GitHub分发并切换wiki依赖](004-插件改走GitHub分发并切换wiki依赖.md) | 实测结论：私有仓的 Release 资产与 raw 链接都需要鉴权，pnpm 无法匿名拉取；浏览器上传资产受 bsk 控制上下文限制未跑通，wiki 暂用 file: 同级依赖，切换条件写清。 | blocked | 插件仓为 private：GitHub Release 资产与 raw 链接都需登录态，pnpm 匿名安装取不到；要么把两个插件仓改 public，要么维持 file: 同级依赖。等用户选择。 | 用户决定插件仓是否公开；公开则打 Release 上传 tgz 并改 wiki 依赖为资产 URL | 002-子仓提取与历史保留, 006-GitHub建仓并推送 |
-| [006-GitHub建仓并推送](006-GitHub建仓并推送.md) | 浏览器操作在 kxh4892636 下建了 8 个 private 仓库并推完 main；etf 因 GitHub 上已有同名 public 仓库（内容是别的项目）未推，等用户定名。 | blocked | GitHub 已有 kxh4892636/etf（public，163 个文件，内容是 loop-kit skills 项目），与本仓 etf 无关；需要用户决定复用它并改 private、还是换名新建。 | 用户给出 etf 的仓名后，建仓并推送 repos/etf | 002-子仓提取与历史保留, 004-插件改走GitHub分发并切换wiki依赖 |
 | [007-工作区真机验收](007-工作区真机验收.md) | 容器仓零代码依赖、九个子仓各自 install/check/test/build 通过的证据；etf 未推远端、插件资产分发未定，两项挂起。 | blocked | 两个阻塞项：etf 远端仓名待定；插件仓为 private，Release 资产 pnpm 匿名取不到，wiki 暂用 file: 依赖。 | 用户定 etf 仓名与插件仓可见性后补跑这两项验收 | 003-子仓独立化改造, 006-GitHub建仓并推送 |
+| [004-插件改走GitHub分发并切换wiki依赖](004-插件改走GitHub分发并切换wiki依赖.md) | 实测结论：私有仓的 Release 资产与 raw 链接都需要鉴权，pnpm 无法匿名拉取；浏览器上传资产受 bsk 控制上下文限制未跑通，wiki 暂用 file: 同级依赖，切换条件写清。 | in_progress | — | 两个插件仓改 public 后，wiki 依赖切到 raw tgz URL 并重装验证 | 002-子仓提取与历史保留, 006-GitHub建仓并推送 |
+| [006-GitHub建仓并推送](006-GitHub建仓并推送.md) | 浏览器操作在 kxh4892636 下建了 8 个 private 仓库并推完 main；etf 因 GitHub 上已有同名 public 仓库（内容是别的项目）未推，等用户定名。 | in_progress | — | 把 kxh4892636/etf 从 public 改成 private（自动化浏览器打不开 settings 页） | 002-子仓提取与历史保留, 004-插件改走GitHub分发并切换wiki依赖 |
