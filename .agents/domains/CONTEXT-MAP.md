@@ -16,7 +16,7 @@ description: 领域索引与关系。
 - [Nano Flow](./nano-flow/CONTEXT.md) - Nano Flow 业务域：以单一 nnf CLI 提供 AnkiConnect 自动化与受管 skill 分发；文档流程已由 pi / dsh 域的 nano-flow 实现取代。
 - [Pi](./pi/CONTEXT.md) - pi 编码代理的扩展业务域：一个 @kxh4892636/pi-toolkit 包按开关提供嵌套 skill 发现与 $ 引用、会话自动命名、DeepSeek 网页搜索与抓取、向用户提问、Nano Flow 交付流程。
 - [video](./video/CONTEXT.md) - 把图片、文字稿与录音合成为可发布视频的代码化渲染管线。
-- [Wiki](./wiki/CONTEXT.md) - 个人知识 wiki 站点（apps/wiki）：Docusaurus 多栏目文档站，承载八股文梳理、笔记与归档。
+- [Wiki](./wiki/CONTEXT.md) - 个人知识 wiki 站点（repos/wiki）：Docusaurus 多栏目文档站，承载八股文梳理、笔记与归档。
 
 ## Relationships
 

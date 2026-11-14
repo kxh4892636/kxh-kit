@@ -93,10 +93,10 @@ status: in_progress
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
+| [004-插件改走GitHub分发并切换wiki依赖](004-插件改走GitHub分发并切换wiki依赖.md) | 实测结论：私有仓的 Release 资产与 raw 链接都需要鉴权，pnpm 无法匿名拉取；浏览器上传资产受 bsk 控制上下文限制未跑通，wiki 暂用 file: 同级依赖，切换条件写清。 | blocked | 插件仓为 private：GitHub Release 资产与 raw 链接都需登录态，pnpm 匿名安装取不到；要么把两个插件仓改 public，要么维持 file: 同级依赖。等用户选择。 | 用户决定插件仓是否公开；公开则打 Release 上传 tgz 并改 wiki 依赖为资产 URL | 002-子仓提取与历史保留, 006-GitHub建仓并推送 |
 | [001-筛分清单与工作区约定](001-筛分清单与工作区约定.md) | 定稿 9 个目录到 repos/<名> 的映射、容器仓保留与移除清单、每个子仓的骨架配置，作为后续搬迁的唯一输入。 | in_progress | — | 用户确认本结构后进入 002 抽历史建仓 | — |
 | [002-子仓提取与历史保留](002-子仓提取与历史保留.md) | 用内置 git subtree split 按目录抽出历史，整目录搬进 repos/<名> 后把历史挂上去，原目录删除、容器仓忽略 repos/；被忽略的私有内容仍留在磁盘且不被跟踪。 | pending | — | 先在最小的 docusaurus-plugin-link 上跑通搬运流程，再批量处理其余 8 个目录 | 001-筛分清单与工作区约定 |
 | [003-子仓独立化改造](003-子仓独立化改造.md) | 待补。 | pending | — | 读取 spec 与 notes_index，确认第一项可推进工作 | — |
-| [004-插件改走GitHub分发并切换wiki依赖](004-插件改走GitHub分发并切换wiki依赖.md) | 两个 docusaurus 插件不打 npm：在各自 GitHub 仓里用 pnpm pack 出 tgz 挂 Release，wiki 依赖改成 tarball URL 并删掉 prebuild 的 --filter，站点独立 build 通过。 | pending | — | 006 建好插件仓后，先打 Release 再改 wiki 依赖 | 002-子仓提取与历史保留, 006-GitHub建仓并推送 |
 | [005-领域文档路径修正](005-领域文档路径修正.md) | 待补。 | pending | — | 读取 spec 与 notes_index，确认第一项可推进工作 | — |
 | [006-GitHub建仓并推送](006-GitHub建仓并推送.md) | 待补。 | pending | — | 读取 spec 与 notes_index，确认第一项可推进工作 | — |
 | [007-工作区真机验收](007-工作区真机验收.md) | 待补。 | pending | — | 读取 spec 与 notes_index，确认第一项可推进工作 | — |
