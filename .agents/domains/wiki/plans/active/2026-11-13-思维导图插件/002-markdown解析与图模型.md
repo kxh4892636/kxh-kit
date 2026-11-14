@@ -8,6 +8,8 @@ next_step: ""
 
 # 002-markdown解析与图模型
 
+> 2026-11-14 更新：本条是「独立页面」时期的交付记录。2026-11-13 改成文档内 `<Mindmap>` 渲染块后，`apps/wiki/mindmaps/` 目录、路由注册与 `allContentLoaded` 校验都已删除，构建门禁改为 remark 直接抛错。节点 id 的 `{#id}` + slug 方案也已换成「编号即 id」。当前形态见 [spec.md](spec.md)「决策」与 [001-在wiki文档里写一个导图块并验收](../../../workflows/001-在wiki文档里写一个导图块并验收/001-在wiki文档里写一个导图块并验收.md)。
+
 ## 交付
 
 - 模型类型 `src/model.ts`（全部可 JSON 序列化，要进 route.props）：

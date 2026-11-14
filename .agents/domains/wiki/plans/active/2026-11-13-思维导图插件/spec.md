@@ -1,6 +1,6 @@
 ---
 name: "思维导图插件"
-description: "新建 @kxh4892636/docusaurus-plugin-mindmap：把 apps/wiki/mindmaps 下 markdown 多级标题渲染成只读思维导图，build 期校验格式与引用。"
+description: "新建 @kxh4892636/docusaurus-plugin-mindmap：把文档里 <Mindmap> 标签内的 markdown 标题渲染成只读思维导图，构建期校验编号、层级与节点引用。"
 status: completed
 ---
 
@@ -13,9 +13,9 @@ status: completed
 3. **导图是文档里的一个渲染块（2026-11-13 用户改定）**：在任意 docs/blog markdown 里写 `<Mindmap>…</Mindmap>`，插件只把标签内的 markdown 标题渲染成导图；节点 = 标题，父子 = 层级，左右双向、曲线连线。没有自己的路由、侧栏或页面框架，导航、搜索、面包屑、目录全部走 docs/blog 原生逻辑。
 4. 节点 id 写在标题里：`## 1.2 接口`，编号即 id。引用用原生 markdown 链接：文档 `[标题](相对路径.md) doc:<文档id>`，节点 `[标题](#1.2)`。
 5. 编号即 id：标题必须以数字编号开头（`## 1.2 接口`），同图内唯一、层级不跳级，根是唯一一个 `#`。
-6. 节点内容：标题下的普通正文是「概述」；`>` 引用块里的链接是「引用」。引用两种目标：`doc:<文档id>` 跳到该 wiki 文档 URL（新标签页），`#<节点id>` 跳到本图节点（关浮窗 + 图移到该节点）。
+6. 节点内容：标题下的普通正文是「概述」；引用块或普通段落里的链接都算「引用」，其余正文仍归概述。引用两种：后面带 `doc:<文档id>` 的链接跳到该 wiki 文档（新标签页），`#<编号>` 锚点跳到本图节点（关浮窗 + 图移到该节点）。
 7. 交互：点击节点弹浮窗显示概述与引用；整图只读（不能改结构、不能编辑），支持缩放、平移、回到起点。导图的唯一编辑入口是 markdown 源文件。
-8. 校验：解析在 remark 阶段完成，缺编号、跳级、编号重复、引用目标不合法一律抛错——`build` 与 `start` 都会失败，不静默降级。
+8. 校验：解析在 remark 阶段完成，缺编号、跳级、编号重复、根不是唯一一个 H1、节点引用编号不存在、文档引用缺 `doc:` 后缀一律抛错——`build` 与 `start` 都会失败，不静默降级。`doc:<id>` 只校验后缀存在，不校验该文档是否存在。
 
 ## 现状（2026-11-13 调研事实）
 
@@ -30,7 +30,7 @@ status: completed
 | 现有跨文档引用 | 2418 条相对 `.md` 链接（`./` 2069、`../` 308）；`.md#锚点` 0 条；纯锚点 3 条 → 没有现成的「引用」章节模板 |
 | 图渲染依赖 | 全仓无 d3 / d3-hierarchy / markmap / mermaid / cytoscape / xyflow / elkjs / dagre；`zustand` 只在 `apps/music` |
 | 插件样板 | `packages/docusaurus-plugin-link`：`loadContent` + `contentLoaded` 里 `addRoute({component: "<包名>/<子路径>"})`，重复 id 直接抛错（`failOnDuplicateId`） |
-| build 门禁 | `loadContent` / `postBuild` 抛错都会让 `build` 失败（`plugins.js:40` → `bin` exit 1）；`start` 也跑 `loadContent`，同样会被挡住 |
+| build 门禁 | remark 抛错会让那一篇 MDX 编译失败，`build` 与 `start` 一起被挡住；导图插件不注册路由、不跑 `loadContent` / `allContentLoaded`，没有自己的插件生命周期门禁 |
 | markdown 链接门禁 | 站点 `markdown.hooks.onBrokenMarkdownLinks` 是 `warn`，坏链不挂 build → 引用校验必须插件自己做 |
 
 ## 决策
@@ -40,7 +40,7 @@ status: completed
 - **文档引用走既有短链**：`doc:<文档id>` 直接编译成 `/<id>`，由 `docusaurus-plugin-link` 负责落地；mindmap 插件不重复实现路径规则，也不改 link 插件。
 - **自绘 SVG，零新依赖**：树布局、连线、缩放平移、浮窗都自己写。理由：仓库没有任何图布局依赖；发布包新增依赖要写显式版本（[common 001](../../../common/adr/001-发布包生产依赖不使用catalog协议.md)）；跨节点「引用边」不在现成导图库的模型里。
 - **节点 id 就是编号**：`## 1.2 接口` 的 `1.2` 既是 id 也是勾稽顺序，作者不用另起 slug，引用也读得懂（`[接口](#1.2)`）。重复与跳级在构建期报错，不自动改写。
-- **引用写法**：正文段落 = 概述；`>` 引用块 = 引用，每条一行 `> - [说明](doc:<uuid>)` 或 `> - [说明](#<节点id>)`。选它是因为原生 markdown、不新增语法，且引用块不会变成标题层级里的节点。
+- **引用写法**：正文段落 = 概述；链接 = 引用，放 `>` 引用块或普通段落都行，每条一行 `[说明](相对路径.md) doc:<文档id>` 或 `[说明](#1.2)`。选它是因为原生 markdown、不新增语法，且引用块不会变成标题层级里的节点。`doc:` 只能写在链接后面而不是链接目标，因为 MDX 会把 `[x](doc:<id>)` 里的 `:id` 当成指令（[question 001](../../../questions/001-MDX把doc后缀解析成textDirective.md)）。
 - **校验就近抛错**：解析与校验都在 remark 里，坏导图直接让这一篇 MDX 编译失败（`build` 和 `start` 一样）。`doc:` 只认 `<id>` 短链，不去猜 permalink，所以不需要 `allContentLoaded` 那套映射。
 - **概述按纯文本渲染**：浮窗只显示文本行（保留 `- 术语: 说明` 这类行），不引入 markdown → HTML 渲染。完整排版留给文档页（浮窗里给该文档链接）。导图是导航层，不是阅读器。
 
@@ -71,14 +71,14 @@ status: completed
 - **导图标题不能留在标签外**：标签外的标题会照常进文档目录，也会变成真正的正文标题。导图必须整段包在 `<Mindmap>` 里。
 - **标题里的行内代码/公式/链接**：提取纯文本后做 slug，可能与作者预期不一致；002 的 fixtures 必须覆盖这类标题。
 - **CRLF 文件**：78 篇既有文档是 CRLF，新导图也可能被 Windows 编辑器写成 CRLF；解析前统一 `\r\n → \n`。
-- **`allContent` 结构随 Docusaurus 版本变化**：`future.v4: true` 下 docs 内容形状可能调整；映射函数集中在一处，升版只改它，并有「映射为空就报错」的兜底。
+- **`doc:<id>` 写错要到线上才发现**：构建期不校验文档 id 是否存在，坏 id 只会让点击落到 404；要提前拦，只能在站点侧加 prebuild 脚本比对（[question 003](../../../questions/003-doc引用写错为什么build不报错.md)）。
 - **大图性能**：单图节点数预期几十到几百。平移与缩放只改 `<g transform>`、缩放读数与浮窗坐标（直接操作 DOM），不触发 React 渲染；节点与连线本身仍是一次性渲染全部，超过约 1000 节点再考虑虚拟化。
 - **`start` 也会失败**：写一半的导图会让那一页开发服务器编译失败，这是有意的——坏引用不等到上线才暴露。
 
 ## 恢复入口
 
 1. 按 [notes_index.md](notes_index.md) 顺序推进；002 的模型类型是 003/004 的输入。
-2. 插件目录：`packages/docusaurus-plugin-mindmap/`；源内容：`apps/wiki/mindmaps/`；站点接入：`apps/wiki/docusaurus.config.ts` + `apps/wiki/package.json` 的 `prebuild`。
+2. 插件目录：`packages/docusaurus-plugin-mindmap/`（包只导出 `./remark` 与 `./client` 两个入口）；源内容：`apps/wiki/docs/` 下任意 markdown 里的 `<Mindmap>` 块；站点接入三处：`apps/wiki/docusaurus.config.ts` 的 `beforeDefaultRemarkPlugins`、`apps/wiki/src/theme/MDXComponents.tsx` 注册 `MindmapBlock`、`apps/wiki/package.json` 的 `prebuild`。
 3. 本文件「现状」与「决策」若与实际代码冲突，先复测再改这里，不要在两个地方各留一份规则。
 
 ## 进度
