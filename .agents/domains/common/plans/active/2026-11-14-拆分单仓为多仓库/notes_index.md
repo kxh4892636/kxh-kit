@@ -11,3 +11,4 @@
 | [005-领域文档路径修正](005-领域文档路径修正.md) | 把 .agents 活文档与 scripts 里的 apps/、packages/ 路径全部改成 repos/，历史 Plan 与 GUIDE.md 不动；nano_flow_check 重新生成 CONTEXT-MAP。 | 002-子仓提取与历史保留 |
 | [006-GitHub建仓并推送](006-GitHub建仓并推送.md) | 浏览器操作在 kxh4892636 下建了 8 个 private 仓库并推完 main；etf 因 GitHub 上已有同名 public 仓库（内容是别的项目）未推，等用户定名。 | 002-子仓提取与历史保留, 004-插件改走GitHub分发并切换wiki依赖 |
 | [007-工作区真机验收](007-工作区真机验收.md) | 容器仓零代码依赖、九个子仓各自 install/check/test/build 通过的证据；etf 未推远端、插件资产分发未定，两项挂起。 | 003-子仓独立化改造, 006-GitHub建仓并推送 |
+| [008-工作区子仓清单](008-工作区子仓清单.md) | 在容器仓根新增 workspace.yaml，逐个登记子仓名称、GitHub 地址、分支与 repos/ 下相对路径，作为工作区唯一的仓库索引。 | 001-筛分清单与工作区约定 |

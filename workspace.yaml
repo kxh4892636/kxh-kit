@@ -1,0 +1,39 @@
+# 工作区子仓清单
+# 每个子仓是独立 git 仓库，位于 repos/<name>；branch 缺省为主分支 main。
+repos:
+  - name: etf
+    url: git@github.com:kxh4892636/etf.git
+    branch: main
+    path: repos/etf
+  - name: music
+    url: git@github.com:kxh4892636/music.git
+    branch: main
+    path: repos/music
+  - name: wiki
+    url: git@github.com:kxh4892636/wiki.git
+    branch: main
+    path: repos/wiki
+  - name: docusaurus-plugin-link
+    url: git@github.com:kxh4892636/docusaurus-plugin-link.git
+    branch: main
+    path: repos/docusaurus-plugin-link
+  - name: docusaurus-plugin-mindmap
+    url: git@github.com:kxh4892636/docusaurus-plugin-mindmap.git
+    branch: main
+    path: repos/docusaurus-plugin-mindmap
+  - name: dsh-infinite-story
+    url: git@github.com:kxh4892636/dsh-infinite-story.git
+    branch: main
+    path: repos/dsh-infinite-story
+  - name: dsh-toolkit
+    url: git@github.com:kxh4892636/dsh-toolkit.git
+    branch: main
+    path: repos/dsh-toolkit
+  - name: nano-flow
+    url: git@github.com:kxh4892636/nano-flow.git
+    branch: main
+    path: repos/nano-flow
+  - name: pi-toolkit
+    url: git@github.com:kxh4892636/pi-toolkit.git
+    branch: main
+    path: repos/pi-toolkit
