@@ -38,6 +38,8 @@ description: '改动 packages/dsh-toolkit 后要装进本机宿主时：先 chec
 - 客户端半必须把 `react` / `react-dom` 与 UI 基座保持为外部依赖，自带一份会拆开 hook 上下文。
 - 预设挂的是 PTC 执行器：宿主 bundle 没挂 `code-runtime`（`dsh-ptc-runtime-node`）时，预设激活会直接失败（旧选型器是回退继承）。装前先确认宿主有这个运行时。
 - 提示词与 client bundle 都随宿主启动读入：只装包不重启，看到的是旧行为。
+- 两个 profile 的安装版本会分叉（2026-11-13：desktop 0.5.51、web 0.5.52）：验收按实际跑宿主的那个 profile 核对版本，另一边的版本不能当证据。
+- 单测在 Windows 上跑：断言里的路径必须用 `fileURLToPath` 与 `join` 构造，写 POSIX 字面量会假红（[015](../../questions/015-Windows上单测假红的两处平台假设.md)）。
 
 ## 相关
 
@@ -45,3 +47,4 @@ description: '改动 packages/dsh-toolkit 后要装进本机宿主时：先 chec
 - [004-插件被判定incompatible](../../questions/004-插件被判定incompatible.md) — 安装前的版本声明门禁。
 - [001-desktop-dump-config报错](../../questions/001-desktop-dump-config报错.md) — 装完跑 boot 类命令前先看宿主占用。
 - [011-预设挂PTC执行器](../../adr/011-预设挂PTC执行器.md) — 预设行为什么要求宿主先有 code-runtime。
+- [015-Windows上单测假红的两处平台假设](../../questions/015-Windows上单测假红的两处平台假设.md) — test 门禁在 Windows 上假红时的两处来源。

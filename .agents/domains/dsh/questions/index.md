@@ -18,3 +18,4 @@
 | [012-dream扫描提示跳过的记录](012-dream扫描提示跳过的记录.md) | scan 报告的「需要留意」大多来自 pi 的 run 轨迹：dsh 只解析 type:turn，pi 记录整份被跳过，不算损坏。 |
 | [013-随包skill缺description被静默丢弃](013-随包skill缺description被静默丢弃.md) | SKILL.md 的 frontmatter 缺 description 或写成空值，包内 provider 直接跳过该目录，没有任何报错，斜杠菜单和 skill 列表都不会出现它。 |
 | [014-轮转为何绑定到已归档Plan](014-轮转为何绑定到已归档Plan.md) | 轮转继承的绑定只按目录存在判断可用，Plan 迁 reference 后残留目录会让新会话恢复已归档 Plan；旧版自动绑定与 mkdir 重建是源头。 |
+| [015-Windows上单测假红的两处平台假设](015-Windows上单测假红的两处平台假设.md) | dsh-toolkit 在 Windows 上跑 test 假红：layering 用 URL.pathname 取源码目录得到 /C:/…，plan-log 用 POSIX 字面量做预期路径、与 join 结果不等；两处都改成平台无关写法。 |

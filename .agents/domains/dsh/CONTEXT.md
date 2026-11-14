@@ -49,11 +49,11 @@ _Avoid_：删除 office 技能、卸载 office 插件
 ### Nano Flow 预设
 
 **nano-flow 预设**：
-本插件声明的 Agent 预设；选中它的会话才在预设作用域内挂载固定提示词、`GUIDE.md` 快照、篇幅限制块、四个 `nano_flow_*` 工具（create / check / bind / dream）与随包 skill。工具以 PTC 形态呈现：预设直接挂 `dsh-tool-executor-ptc`，不挂已弃用的呈现选型器（[ADR 011](adr/011-预设挂PTC执行器.md)）。提示词与模板与 pi 版同源（2026-11-13 整体搬回）；2026-11-13 起随包 skill 只剩 code-spec / learning / ponytail / ponytail-audit / ponytail-review / pp / to-skill——ask、do 两个流程 skill 随 pi 删除，流程规则只由提示词与模板承担。`pp` 用 subagent 并行调研、不阻塞主会话，与 learning、ponytail-audit 一样只可手调（`disable-model-invocation`）。
+本插件声明的 Agent 预设；选中它的会话才在预设作用域内挂载固定提示词、`GUIDE.md` 快照、篇幅限制块、四个 `nano_flow_*` 工具（create / check / bind / dream）与随包 skill。工具以 PTC 形态呈现：预设直接挂 `dsh-tool-executor-ptc`，不挂已弃用的呈现选型器（[ADR 011](adr/011-预设挂PTC执行器.md)）。提示词与模板与 pi 版同源（2026-11-13 整体搬回）；2026-11-13 起随包 skill 只剩 code-spec / learning / ponytail / ponytail-audit / ponytail-review / pp / to-skill——ask、do 两个流程 skill 随 pi 删除，流程规则只由提示词与模板承担。`pp` 用 subagent 并行调研（只读）、不阻塞主会话，与 learning、ponytail-audit 一样只可手调（`disable-model-invocation`）；`ponytail` 相反，可由模型自动选中，指「最小改动 + 一次读懂」的编码风格，`ponytail-review` 用来审一处改动。
 _Avoid_：流程开关、nano-flow 命令行
 
 **固定提示词**：
-`prompts/system.md` 的正文，与 `.agents/domains/GUIDE.md` 的会话启动快照、`prompts/limit.md` 生成的篇幅限制块一起作为系统提示词段注入。
+`prompts/system.md` 的正文（源码在 `session/prompts/`，发布布局仍是 `dist/nano-flow/prompts/`，见 [ADR 012](adr/012-源码按能力分层.md)），与 `.agents/domains/GUIDE.md` 的会话启动快照、`prompts/limit.md` 生成的篇幅限制块一起作为系统提示词段注入。
 _Avoid_：persona、系统提示
 
 > 纠正（2026-11-08，note 006）：本节原写 `prompts/agents.md`；该文件已改名为 `prompts/system.md`，注入段名 `nano-flow:system`（原名会被当作 `AGENTS.md` 自动注入）。
@@ -81,7 +81,7 @@ _Avoid_：状态先行、实时逐条写
 **会话↔Plan 绑定**：
 `$DSH_HOME/toolkit/nano-flow-plan-bindings.json` 中按会话 id 记录的唯一 Plan（`planPath` / `cwd` / `boundAt`）；同一会话只保留一个绑定，只有 `nano_flow_bind` 写它，再次调用即切换。供 Note 看板与 `log.jsonl` 使用，不参与 note 状态判定。
 
-绑定的 Plan 目录由 `resolvePlanDirectory` 统一解析：绝对 `planPath` 直通；相对路径先试绑定时的 `cwd`，该目录不在就退回当前工作区。Plan 迁走后目录解析不到，看板返回空、`log.jsonl` 跳过写入（不重建旧路径），不会产生孤儿日志；`nano_flow_bind` 收尾会回收宿主已不存在的会话条目，存活性以「持久化列表 ∪ 仍存活的会话」判断，拿不到列表时不动表。
+绑定的 Plan 目录由 `resolvePlanDirectory` 统一解析：绝对 `planPath` 直通；相对路径先试绑定时的 `cwd`，该目录不在就退回当前工作区。Plan 迁走后目录解析不到，看板返回空、`log.jsonl` 跳过写入（不重建旧路径），不会产生孤儿日志。死条目不由 bind 回收（2026-11-13 按 `index.ts` 的 `pruneDeadBindings` 修正，原写「bind 收尾回收」）：插件启动时按「持久化列表 ∪ 仍存活的会话」清一次，拿不到列表时不动表。
 _Avoid_：当前 Plan、任务上下文
 
 **生效上限**：
@@ -89,7 +89,7 @@ toolkit 面板「Nano Flow 设置」维护的数值来源，持久化在 `$DSH_H
 _Avoid_：魔法数字、硬编码阈值
 
 **会话轮转**：
-预设不挂压缩插件；用户每发一条 queue 消息时读上下文压力，达到 `rotateAt × contextWindow` 就创建新会话（同一 cwd 与预设），新 prompt 被接受后先归档、再物理删除旧会话（归档会让客户端立刻离开旧会话，切视图因此挂在客户端根上下文），失败回落旧会话。新会话不继承旧会话的对话历史（历史只由 `<plan>/log.jsonl` 留存），拿到的只有：以用户消息投递的 seed（「已轮转」+ 当前 Plan + 只读恢复要求 + 轮转后自动校验结论 + 最末的上一轮模型输出 `<rotation-last-output>` 块）、包在 `<rotation-prior-input>` 里并紧跟其后的本次触发原文，以及过继来的工作区槽位、置顶与 **Plan 绑定**。绑定过继只认旧会话自己那条：Plan 目录还在就写进新会话 id，看板与轨迹立刻续上同一 Plan，seed 因此不再要求 bind；旧会话没有绑定或目录已失效时，seed 仍要求首轮调用 `nano_flow_bind`（[ADR 014](adr/013-轮转把Plan绑定过继给新会话.md)）。轮转只能自动触发；客户端在根上下文订阅导航选择 store，旧会话被归档离开时读轮转路由切到新会话（会话面板的 5s 轮询只作兜底）。
+预设不挂压缩插件；用户每发一条 queue 消息时读上下文压力，达到 `rotateAt × contextWindow` 就创建新会话（同一 cwd 与预设），新 prompt 被接受后先归档、再物理删除旧会话（归档会让客户端立刻离开旧会话，切视图因此挂在客户端根上下文），失败回落旧会话。新会话不继承旧会话的对话历史（历史只由 `<plan>/log.jsonl` 留存），拿到的只有：以用户消息投递的 seed（「已轮转」+ 当前 Plan + 只读恢复要求 + 轮转后自动校验结论 + 最末的上一轮模型输出 `<rotation-last-output>` 块）、包在 `<rotation-prior-input>` 里并紧跟其后的本次触发原文，以及过继来的工作区槽位、置顶与 **Plan 绑定**。绑定过继只认旧会话自己那条：Plan 目录还在就写进新会话 id，看板与轨迹立刻续上同一 Plan，seed 因此不再要求 bind；判据只有「目录存在」，不校验 `spec.md`，Plan 迁走后残留的空壳目录也会被继承（[question 014](questions/014-轮转为何绑定到已归档Plan.md)）。旧会话没有绑定或目录已失效时，seed 先看工作区是否只有一个 active Plan、是就把它写进恢复行（只写提示词，不写绑定表），然后仍要求首轮调用 `nano_flow_bind`（[ADR 013](adr/013-轮转把Plan绑定过继给新会话.md)）。轮转只能自动触发；客户端在根上下文订阅导航选择 store，旧会话被归档离开时读轮转路由切到新会话（会话面板的 5s 轮询只作兜底）。
 _Avoid_：压缩、compact、归档旧会话
 
 **恢复只读**：
@@ -111,7 +111,7 @@ nano-flow 记忆的四层：L0 `<plan>/log.jsonl` 轨迹、L1 note 的结论、L
 _Avoid_：记忆库、知识图谱、第五层
 
 **dream**：
-后台记忆维护回合：宿主定时任务把 `prompts/dream.md` 全文投递到新建的 nano-flow 会话，按游标把 `log.jsonl` 的新轮次做纠错、提炼、建链、晋升、剪枝，落到领域文档与 `GUIDE.md`。
+后台记忆维护回合：宿主定时任务把 `dream/prompt.md` 全文（发布布局 `dist/nano-flow/prompts/dream.md`）投递到新建的 nano-flow 会话，按游标把 `log.jsonl` 的新轮次做纠错、提炼、建链、晋升、剪枝，落到领域文档与 `GUIDE.md`。
 _Avoid_：自动复盘、kaizen、离线批处理
 
 **dream 游标**：

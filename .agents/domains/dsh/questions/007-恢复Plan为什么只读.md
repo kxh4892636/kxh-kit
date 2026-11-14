@@ -15,12 +15,19 @@ description: '恢复已有 Plan 时模型直接开工，未经确认就改文件
 
 ## 解决方法
 
-恢复轮严格只读——只允许读 `spec.md`、`notes_index.md`、相关 note 与取证命令，不写 Plan、不动文件、不执行 note、不跑构建测试或安装；报告目标、进度、可推进队列、阻塞项与下一步候选。恢复报告之后用户第一条消息即放行；若那条消息是新的澄清需求则走 ask。
+恢复轮严格只读——只允许读 `spec.md`、`notes_index.md`、相关 note 与取证命令，以及调用一次 `nano_flow_bind` 建本会话绑定（写的是宿主绑定表，不动 Plan 文件）；不写 Plan、不动文件、不执行 note、不跑构建测试或安装。报告目标、进度、可推进队列、阻塞项与下一步候选。恢复报告之后用户第一条消息即放行；那条消息若是新的澄清需求，直接问清再动手。
+
+> 纠正（2026-11-13，[002-删除ask与do并清理引用](../plans/reference/2026-11-13-dsh与pi对齐/002-删除ask与do并清理引用.md)、[CONTEXT 恢复只读](../CONTEXT.md)）：原文写「新的澄清需求则走 ask」，`/ask` 流程 skill 已随 pi 删除；恢复轮的首个动作也从「读」改成了「先 `nano_flow_bind`」——绑定表那一笔是唯一允许的写入。
 
 ## 验证
 
-`rotate.test` 断言轮转种子要求只读恢复；提示词的“恢复与轮转”与 `/do skill` 的放行口径一致。
+`rotate.test` 断言轮转 seed 要求只读恢复与 bind；规则成文在 `GUIDE.md` 的「恢复已有 Plan 的那一轮只读」（`system.md` 照搬 pi 后不再有「恢复与轮转」段，`/do` skill 也已删除）。
 
 ## 来源
 
 迁移前 dsh 领域文档，原问题 7；`prompts/system.md` 的恢复与轮转（原写 `agents.md`，2026-11-08 note 006 改名）。
+
+## 相关
+
+- [CONTEXT 恢复只读](../CONTEXT.md) — 当前成文口径：先 bind，再只读报告
+- [009-Plan绑定只经bind工具](../adr/009-Plan绑定只经bind工具.md) — 为什么恢复轮那唯一一笔写入只有绑定表
