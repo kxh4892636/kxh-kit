@@ -33,6 +33,6 @@ Windows 上 `pnpm --filter @kxh4892636/dsh-toolkit test` 报 4 条失败，全�
 
 ## 相关
 
-- [001-修掉Windows上假红的单测](../plans/active/2026-11-13-Windows测试假红与轮转绑定/001-修掉Windows上假红的单测.md) — 本次修复、验收与全绿证据
+- [001-修掉Windows上假红的单测](../plans/reference/2026-11-13-Windows测试假红与轮转绑定/001-修掉Windows上假红的单测.md) — 本次修复、验收与全绿证据
 - [012-源码按能力分层](../adr/012-源码按能力分层.md) — 分层断言由 layering.test.ts 固定，它崩掉等于门禁失效
 - [001-发布dsh-toolkit并真机验收](../workflows/001-发布dsh-toolkit并真机验收/001-发布dsh-toolkit并真机验收.md) — test 门禁在发布流程里的位置与 Windows 上的跑法

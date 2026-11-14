@@ -16,7 +16,7 @@ status: accepted
 
 只认旧会话的绑定：没有绑定、或 Plan 目录已不在，就不过继，seed 照旧要求首轮 `nano_flow_bind`。旧条目保留不删——轮转失败会回落到旧会话，它还得有绑定；死条目由启动时的 `pruneDeadBindings`（`index.ts`，内部调纯函数 `pruneBindings`）回收。
 
-> 纠正（2026-11-13，[question 014](../questions/014-轮转为何绑定到已归档Plan.md)，active Plan [002](../plans/active/2026-11-13-Windows测试假红与轮转绑定/002-查清轮转绑定到已归档Plan的成因.md)）：可用性判据是「目录存在」而不是「是 Plan」——`inheritedPlanDirectory` 只调 `exists(directory)`，不校验 `spec.md`。Plan 迁到 `reference` 后残留的空壳目录（只剩 `log.jsonl`）因此会被过继，旧版宿主还会边写轨迹边把这个目录重建出来。0.5.52 源码仍是这条判据，收紧为「目录下有 `spec.md`」尚未实施。
+> 纠正（2026-11-13，[question 014](../questions/014-轮转为何绑定到已归档Plan.md)，active Plan [002](../plans/reference/2026-11-13-Windows测试假红与轮转绑定/002-查清轮转绑定到已归档Plan的成因.md)）：可用性判据是「目录存在」而不是「是 Plan」——`inheritedPlanDirectory` 只调 `exists(directory)`，不校验 `spec.md`。Plan 迁到 `reference` 后残留的空壳目录（只剩 `log.jsonl`）因此会被过继，旧版宿主还会边写轨迹边把这个目录重建出来。0.5.52 源码仍是这条判据，收紧为「目录下有 `spec.md`」尚未实施。
 
 ## Considered Options
 
