@@ -84,6 +84,8 @@ status: in_progress
 
 ## 进度
 
+- 2026-11-14 执行：九条 `subtree split` 全部完成并挂到 `repos/`；容器仓清空代码依赖并提交两次；八个仓推到 GitHub private；wiki 全站 build 通过（靠锁 `style-to-js 1.1.21`）。
+- 2026-11-14 卡点：`kxh4892636/etf` 被别的项目占用；插件仓 private 导致 Release 资产无法被 pnpm 匿名拉取，浏览器上传资产也没跑通，wiki 暂用 `file:` 同级依赖。
 - 2026-11-14：Plan 建立。已核实待拆目录、包身份、依赖协议、跨包引用、根工具链、历史工具、npm 状态与浏览器工具；用户确定：保留各目录历史、9 个仓库全 private、`.agents` 不拆、根不做代码依赖、catalog 固化为真实版本。
 - 2026-11-14：用户决定不发 npm，插件改走 GitHub（Release tarball）分发。实测 pnpm 11 的 git 依赖：会装 devDependencies + 跑 `prepare`，但需消费方 `allowBuilds` 写带 commit 的完整 spec；两个插件自身无 devDependencies，源码安装不可行。
 
@@ -94,9 +96,5 @@ status: in_progress
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
 | [004-插件改走GitHub分发并切换wiki依赖](004-插件改走GitHub分发并切换wiki依赖.md) | 实测结论：私有仓的 Release 资产与 raw 链接都需要鉴权，pnpm 无法匿名拉取；浏览器上传资产受 bsk 控制上下文限制未跑通，wiki 暂用 file: 同级依赖，切换条件写清。 | blocked | 插件仓为 private：GitHub Release 资产与 raw 链接都需登录态，pnpm 匿名安装取不到；要么把两个插件仓改 public，要么维持 file: 同级依赖。等用户选择。 | 用户决定插件仓是否公开；公开则打 Release 上传 tgz 并改 wiki 依赖为资产 URL | 002-子仓提取与历史保留, 006-GitHub建仓并推送 |
-| [001-筛分清单与工作区约定](001-筛分清单与工作区约定.md) | 定稿 9 个目录到 repos/<名> 的映射、容器仓保留与移除清单、每个子仓的骨架配置，作为后续搬迁的唯一输入。 | in_progress | — | 用户确认本结构后进入 002 抽历史建仓 | — |
-| [002-子仓提取与历史保留](002-子仓提取与历史保留.md) | 用内置 git subtree split 按目录抽出历史，整目录搬进 repos/<名> 后把历史挂上去，原目录删除、容器仓忽略 repos/；被忽略的私有内容仍留在磁盘且不被跟踪。 | pending | — | 先在最小的 docusaurus-plugin-link 上跑通搬运流程，再批量处理其余 8 个目录 | 001-筛分清单与工作区约定 |
-| [003-子仓独立化改造](003-子仓独立化改造.md) | 待补。 | pending | — | 读取 spec 与 notes_index，确认第一项可推进工作 | — |
-| [005-领域文档路径修正](005-领域文档路径修正.md) | 待补。 | pending | — | 读取 spec 与 notes_index，确认第一项可推进工作 | — |
-| [006-GitHub建仓并推送](006-GitHub建仓并推送.md) | 待补。 | pending | — | 读取 spec 与 notes_index，确认第一项可推进工作 | — |
-| [007-工作区真机验收](007-工作区真机验收.md) | 待补。 | pending | — | 读取 spec 与 notes_index，确认第一项可推进工作 | — |
+| [006-GitHub建仓并推送](006-GitHub建仓并推送.md) | 浏览器操作在 kxh4892636 下建了 8 个 private 仓库并推完 main；etf 因 GitHub 上已有同名 public 仓库（内容是别的项目）未推，等用户定名。 | blocked | GitHub 已有 kxh4892636/etf（public，163 个文件，内容是 loop-kit skills 项目），与本仓 etf 无关；需要用户决定复用它并改 private、还是换名新建。 | 用户给出 etf 的仓名后，建仓并推送 repos/etf | 002-子仓提取与历史保留, 004-插件改走GitHub分发并切换wiki依赖 |
+| [007-工作区真机验收](007-工作区真机验收.md) | 容器仓零代码依赖、九个子仓各自 install/check/test/build 通过的证据；etf 未推远端、插件资产分发未定，两项挂起。 | blocked | 两个阻塞项：etf 远端仓名待定；插件仓为 private，Release 资产 pnpm 匿名取不到，wiki 暂用 file: 依赖。 | 用户定 etf 仓名与插件仓可见性后补跑这两项验收 | 003-子仓独立化改造, 006-GitHub建仓并推送 |
