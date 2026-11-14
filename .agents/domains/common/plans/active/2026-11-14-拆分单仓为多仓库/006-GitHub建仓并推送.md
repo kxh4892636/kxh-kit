@@ -1,9 +1,8 @@
 ---
 name: "006-GitHub建仓并推送"
 description: "浏览器操作在 kxh4892636 下建了 8 个 private 仓库并推完 main；etf 因 GitHub 上已有同名 public 仓库（内容是别的项目）未推，等用户定名。"
-status: in_progress
+status: completed
 related_noted: ["002-子仓提取与历史保留", "004-插件改走GitHub分发并切换wiki依赖"]
-next_step: "把 kxh4892636/etf 从 public 改成 private（自动化浏览器打不开 settings 页）"
 ---
 
 # 006-GitHub建仓并推送
@@ -20,7 +19,13 @@ next_step: "把 kxh4892636/etf 从 public 改成 private（自动化浏览器打
 | nano-flow | `kxh4892636/nano-flow` | private，已推 main |
 | pi-toolkit | `kxh4892636/pi-toolkit` | private，已推 main |
 | wiki | `kxh4892636/wiki` | private，已推 main |
-| etf | `kxh4892636/etf` | 已复用并 force push（旧 main `3a7fcd6` 已镜像备份到 `.tmp/etf-backup.git`）；仍是 public，待改 private |
+| etf | `kxh4892636/etf` | 复用并 force push（旧 main `3a7fcd6` 备份在 `.tmp/etf-backup.git`），public |
+
+## 可见性（2026-11-14 用户改定：全部 public）
+
+九个仓匿名访问均返回 200：etf / music / wiki / docusaurus-plugin-link / docusaurus-plugin-mindmap / dsh-infinite-story / dsh-toolkit / nano-flow / pi-toolkit。
+
+改可见性走仓库 Settings → Danger Zone → Change visibility：五步（Change visibility → Change to public → I want to make this repository public → I have read and understand → Make this repository public），每步前都要 `cooperate sync` 取新的 context 与 ref。settings 页第一次加载会偶发 `ERR_CONNECTION_CLOSED`，重开 session 即可。
 
 ## etf 复用
 

@@ -1,7 +1,7 @@
 ---
 name: "拆分单仓为多仓库"
 description: "把 apps/* 与 packages/* 九个目录拆成各自带历史的独立 git 仓库，统一放 repos/；kxh-kit 只做工作区与 git 仓库管理，不含任何代码依赖；子仓在 GitHub 私有创建并推送。"
-status: in_progress
+status: completed
 ---
 
 # 拆分单仓为多仓库
@@ -85,7 +85,8 @@ status: in_progress
 ## 进度
 
 - 2026-11-14 执行：九条 `subtree split` 全部完成并挂到 `repos/`；容器仓清空代码依赖并提交两次；八个仓推到 GitHub private；wiki 全站 build 通过（靠锁 `style-to-js 1.1.21`）。
-- 2026-11-14 卡点：`kxh4892636/etf` 被别的项目占用；插件仓 private 导致 Release 资产无法被 pnpm 匿名拉取，浏览器上传资产也没跑通，wiki 暂用 `file:` 同级依赖。
+- 2026-11-14 收尾：用户改定九仓全部 public；etf 复用同名仓 force push；插件 0.1.0 制品以小写 `release/` 目录随仓发布，wiki 依赖走 raw URL，装与 build 均通过。
+- 2026-11-14 卡点（已解）：`kxh4892636/etf` 被别的项目占用；插件仓 private 导致 Release 资产无法被 pnpm 匿名拉取，浏览器上传资产也没跑通，wiki 暂用 `file:` 同级依赖。
 - 2026-11-14：Plan 建立。已核实待拆目录、包身份、依赖协议、跨包引用、根工具链、历史工具、npm 状态与浏览器工具；用户确定：保留各目录历史、9 个仓库全 private、`.agents` 不拆、根不做代码依赖、catalog 固化为真实版本。
 - 2026-11-14：用户决定不发 npm，插件改走 GitHub（Release tarball）分发。实测 pnpm 11 的 git 依赖：会装 devDependencies + 跑 `prepare`，但需消费方 `allowBuilds` 写带 commit 的完整 spec；两个插件自身无 devDependencies，源码安装不可行。
 
@@ -95,6 +96,3 @@ status: in_progress
 
 | Name | Description | Status | Reason | Next Step | Related Note |
 | --- | --- | --- | --- | --- | --- |
-| [007-工作区真机验收](007-工作区真机验收.md) | 容器仓零代码依赖、九个子仓各自 install/check/test/build 通过的证据；etf 未推远端、插件资产分发未定，两项挂起。 | blocked | 两个阻塞项：etf 远端仓名待定；插件仓为 private，Release 资产 pnpm 匿名取不到，wiki 暂用 file: 依赖。 | 用户定 etf 仓名与插件仓可见性后补跑这两项验收 | 003-子仓独立化改造, 006-GitHub建仓并推送 |
-| [004-插件改走GitHub分发并切换wiki依赖](004-插件改走GitHub分发并切换wiki依赖.md) | 实测结论：私有仓的 Release 资产与 raw 链接都需要鉴权，pnpm 无法匿名拉取；浏览器上传资产受 bsk 控制上下文限制未跑通，wiki 暂用 file: 同级依赖，切换条件写清。 | in_progress | — | 两个插件仓改 public 后，wiki 依赖切到 raw tgz URL 并重装验证 | 002-子仓提取与历史保留, 006-GitHub建仓并推送 |
-| [006-GitHub建仓并推送](006-GitHub建仓并推送.md) | 浏览器操作在 kxh4892636 下建了 8 个 private 仓库并推完 main；etf 因 GitHub 上已有同名 public 仓库（内容是别的项目）未推，等用户定名。 | in_progress | — | 把 kxh4892636/etf 从 public 改成 private（自动化浏览器打不开 settings 页） | 002-子仓提取与历史保留, 004-插件改走GitHub分发并切换wiki依赖 |

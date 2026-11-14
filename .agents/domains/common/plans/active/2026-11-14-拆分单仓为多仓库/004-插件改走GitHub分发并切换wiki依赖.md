@@ -1,9 +1,8 @@
 ---
 name: "004-插件改走GitHub分发并切换wiki依赖"
 description: "实测结论：私有仓的 Release 资产与 raw 链接都需要鉴权，pnpm 无法匿名拉取；浏览器上传资产受 bsk 控制上下文限制未跑通，wiki 暂用 file: 同级依赖，切换条件写清。"
-status: in_progress
+status: completed
 related_noted: ["002-子仓提取与历史保留", "006-GitHub建仓并推送"]
-next_step: "两个插件仓改 public 后，wiki 依赖切到 raw tgz URL 并重装验证"
 ---
 
 # 004-插件改走GitHub分发并切换wiki依赖
@@ -34,7 +33,13 @@ wiki 不依赖 workspace，也不依赖 npm registry 拿到两个 docusaurus 插
 
 - 选这个而不是 Release 资产，是因为 bsk 在 Release 表单上上传资产反复被控制上下文拦下，而 raw 链接零交互。
 
-## 当前状态（可用）
+## 最终结果（2026-11-14）
+
+- 两个插件仓已 public，`release/*.tgz` 匿名可下载（HEAD 200）。
+- wiki 依赖已换成 raw URL，`pnpm install` 装的是仓库里的 tgz（lockfile 里 specifier/version 都是该 URL），`pnpm build` 成功。
+- 不再需要 GitHub Release 资产，也不再需要 `file:` 同级依赖；wiki 单独 clone 即可安装。
+
+## 历史状态（切换前）
 
 `repos/wiki/package.json` 用同级路径依赖：
 
