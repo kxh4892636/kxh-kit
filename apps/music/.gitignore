@@ -1,4 +1,0 @@
-.env
-test-results/
-playwright-report/
-*.tsbuildinfo
